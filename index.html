@@ -461,8 +461,8 @@
     #tUsers thead th:nth-child(4),#tUsers tbody td:nth-child(4){display:none}
     /* Drivers: hide DL Expiry col 5 */
     #tDrivers thead th:nth-child(5),#tDrivers tbody td:nth-child(5){display:none}
-    /* Vendors: hide Address col 4 */
-    #tVendors thead th:nth-child(4),#tVendors tbody td:nth-child(4){display:none}
+    /* Vendors: hide Address col 5 */
+    #tVendors thead th:nth-child(5),#tVendors tbody td:nth-child(5){display:none}
     /* Vehicles: hide Insurance col 6 AND RTO col 5 (table is very wide) */
     #tVehicles thead th:nth-child(6),#tVehicles tbody td:nth-child(6){display:none}
     #tVehicles thead th:nth-child(5),#tVehicles tbody td:nth-child(5){display:none}
@@ -475,7 +475,8 @@
     #tUsers thead th:nth-child(3),#tUsers tbody td:nth-child(3){display:none}
     /* Drivers: also hide Vendor col 4 */
     #tDrivers thead th:nth-child(4),#tDrivers tbody td:nth-child(4){display:none}
-    /* Vendors: also hide Contact col 3 */
+    /* Vendors: also hide Mapped User col 4 and Contact col 3 */
+    #tVendors thead th:nth-child(4),#tVendors tbody td:nth-child(4){display:none}
     #tVendors thead th:nth-child(3),#tVendors tbody td:nth-child(3){display:none}
     /* Vehicles: also hide PUC Expiry col 4 */
     #tVehicles thead th:nth-child(4),#tVehicles tbody td:nth-child(4){display:none}
@@ -1326,7 +1327,7 @@
     <div class="page" id="pageUsers"><div class="page-header"><div class="page-title">User Master</div></div><div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><input type="text" id="userSearch" placeholder="🔍 Search by name…" oninput="renderUsers()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);flex:1;min-width:0"><div style="display:flex;gap:6px;flex-shrink:0"><span class="ea-wrap" style="gap:6px"><button class="btn btn-secondary" onclick="exportUsersExcel()" style="font-size:12px;padding:7px 12px;background:#16a34a;color:#fff;border-color:#16a34a">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#2a9aa0;color:#fff;border-color:#2a9aa0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importUsersExcel(this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveUsers" onchange="renderUsers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddUser">+ Add User</button></div></div><div class="table-wrap"><table id="tUsers"><thead><tr><th style="width:40px"></th><th class="sortable" onclick="sortTable('userBody',1)">Full Name</th><th class="sortable" onclick="sortTable('userBody',2)">Username</th><th class="sortable" onclick="sortTable('userBody',3)">Location</th><th class="sortable" onclick="sortTable('userBody',4)">Apps</th><th class="sortable" onclick="sortTable('userBody',5)">VMS Roles</th><th>Actions</th></tr></thead><tbody id="userBody"></tbody></table></div></div></div>
     <div class="page" id="pageVTypes"><div class="page-header"><div class="page-title">Vehicle Type Master</div></div><div class="card"><div class="card-header"><div class="card-title">Vehicle Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicleTypes')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicleTypes',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVT" onchange="renderVTypes()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVT">+ Add Type</button></div></div><div class="table-wrap"><table id="tVTypes"><thead><tr><th class="sortable" onclick="sortTable('vtBody',0)">Type Name</th><th class="sortable" onclick="sortTable('vtBody',1)">Capacity (kg)</th><th>Actions</th></tr></thead><tbody id="vtBody"></tbody></table></div></div></div>
     <div class="page" id="pageDrivers"><div class="page-header"><div class="page-title">Driver Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Drivers</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('drivers')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('drivers',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveDrv" onchange="renderDrivers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddDrv">+ Add Driver</button></div></div><div class="table-wrap"><table id="tDrivers"><thead><tr><th>Photo</th><th class="sortable" onclick="sortTable('drvBody',1)">Name</th><th class="sortable" onclick="sortTable('drvBody',2)">Mobile</th><th class="sortable" onclick="sortTable('drvBody',3)">Vendor</th><th class="sortable" onclick="sortTable('drvBody',4)">DL Expiry</th><th>Actions</th></tr></thead><tbody id="drvBody"></tbody></table></div></div></div>
-    <div class="page" id="pageVendors"><div class="page-header"><div class="page-title">Vendor Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vendors</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vendors')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vendors',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVnd" onchange="renderVendors()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVnd">+ Add Vendor</button></div></div><div class="table-wrap"><table id="tVendors"><thead><tr><th class="sortable" onclick="sortTable('vndBody',0)">Vendor Name</th><th class="sortable" onclick="sortTable('vndBody',1)">Owner</th><th class="sortable" onclick="sortTable('vndBody',2)">Contact</th><th class="sortable" onclick="sortTable('vndBody',3)">Address</th><th>Actions</th></tr></thead><tbody id="vndBody"></tbody></table></div></div></div>
+    <div class="page" id="pageVendors"><div class="page-header"><div class="page-title">Vendor Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vendors</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vendors')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vendors',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVnd" onchange="renderVendors()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVnd">+ Add Vendor</button></div></div><div class="table-wrap"><table id="tVendors"><thead><tr><th class="sortable" onclick="sortTable('vndBody',0)">Vendor Name</th><th class="sortable" onclick="sortTable('vndBody',1)">Owner</th><th class="sortable" onclick="sortTable('vndBody',2)">Contact</th><th class="sortable" onclick="sortTable('vndBody',3)">Mapped User</th><th class="sortable" onclick="sortTable('vndBody',4)">Address</th><th>Actions</th></tr></thead><tbody id="vndBody"></tbody></table></div></div></div>
     <div class="page" id="pageVehicles"><div class="page-header"><div class="page-title">Vehicle Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vehicles</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicles')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicles',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVeh" onchange="renderVehicles()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVeh">+ Add Vehicle</button></div></div><div class="table-wrap"><table id="tVehicles"><thead><tr><th class="sortable" onclick="sortTable('vehBody',0)">Vehicle No.</th><th class="sortable" onclick="sortTable('vehBody',1)">Type</th><th class="sortable" onclick="sortTable('vehBody',2)">Vendor</th><th class="sortable" onclick="sortTable('vehBody',3)">PUC Expiry</th><th class="sortable" onclick="sortTable('vehBody',4)">RTO Expiry</th><th class="sortable" onclick="sortTable('vehBody',5)">Insurance Expiry</th><th>Actions</th></tr></thead><tbody id="vehBody"></tbody></table></div></div></div>
     <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
     <div class="page" id="pageTripRates"><div class="page-header"><div class="page-title">Trip Rate Master</div></div>
@@ -1346,6 +1347,90 @@
         <div id="ratePendingList"></div>
       </div>
       <div class="table-wrap"><table id="tRates"><thead><tr><th></th><th>Date Range</th><th>Rate (₹)</th><th>Status</th><th colspan="3"></th></tr></thead><tbody id="rateBody"></tbody></table></div></div></div>
+
+    <!-- VENDOR TRIPS -->
+    <div class="page" id="pageVendorTrips">
+      <div class="page-header"><div class="page-title">My Trips (Vendor)</div><div class="page-sub" id="vtVendorName"></div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div class="card-title">Trip History</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <div class="df-block" id="dfb_vt"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_vt_today" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','today',renderVendorTrips,'vt')">1D</button><button id="drb_vt_week" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','week',renderVendorTrips,'vt')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtFromLbl">📅 —</span><input type="date" id="vtFrom" onchange="updDateBtnLbl('vtFrom');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtToLbl">📅 —</span><input type="date" id="vtTo" onchange="updDateBtnLbl('vtTo');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><button id="drb_vt_month" class="dr-btn dr-btn-active" onclick="setDateRange('vtFrom','vtTo','month',renderVendorTrips,'vt')">1M</button><button id="drb_vt_year" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','year',renderVendorTrips,'vt')">1Y</button></div>
+          </div>
+        </div>
+        <!-- Row 2: Vendor + Vehicle + Status filters -->
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <select id="vtVendorFilter" onchange="_onVtVendorChange();renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All Vendors ▾</option></select>
+          <select id="vtVehicleFilter" onchange="renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-family:var(--mono);min-width:130px"><option value="">All Vehicles ▾</option></select>
+          <select id="vtStatusFilter" onchange="renderVendorTrips()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)"><option value="">All Status</option><option value="Booked">Booked</option><option value="In Progress">In Progress</option><option value="Complete">Complete</option></select>
+        </div>
+        <!-- Summary stats -->
+        <div id="vtStats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+        <!-- Trip table -->
+        <div class="table-wrap"><div id="vtTripList"></div></div>
+      </div>
+    </div>
+
+    <!-- SECURITY CHECKPOINT MASTER -->
+    <div class="page" id="pageCheckpoints">
+      <div class="page-header"><div class="page-title">Security Checkpoints</div><div class="page-sub">Manage checkpoints per KAP location</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div class="card-title">Checkpoints by Location</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="cpLocFilter" onchange="renderCheckpoints()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All KAP Locations</option></select>
+            <button class="btn btn-primary" id="btnAddCP" onclick="openCPModal()">+ Add Checkpoint</button>
+          </div>
+        </div>
+        <div id="cpContent"></div>
+      </div>
+    </div>
+
+    <!-- SECURITY GUARD MASTER -->
+    <div class="page" id="pageGuards">
+      <div class="page-header"><div class="page-title">Security Guard Master</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:nowrap;gap:8px">
+          <div class="card-title">All Guards</div>
+          <div style="display:flex;gap:8px;flex-wrap:nowrap">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveGuard" onchange="renderGuards()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+            <button class="btn btn-primary" id="btnAddGuard" onclick="openGuardModal()">+ Add Guard</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tGuards"><thead><tr>
+          <th>Photo</th>
+          <th class="sortable" onclick="sortTable('guardBody',1)">Name</th>
+          <th class="sortable" onclick="sortTable('guardBody',2)">Mobile</th>
+          <th class="sortable" onclick="sortTable('guardBody',3)">Location</th>
+          <th class="sortable" onclick="sortTable('guardBody',4)">Shift</th>
+          <th>Actions</th>
+        </tr></thead><tbody id="guardBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- SECURITY ROUND SCHEDULE MASTER -->
+    <div class="page" id="pageRoundSchedules">
+      <div class="page-header"><div class="page-title">Security Round Schedules</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div class="card-title">All Schedules</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="rsLocFilter" onchange="renderRoundSchedules()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All Locations</option></select>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveRS" onchange="renderRoundSchedules()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+            <button class="btn btn-primary" id="btnAddRS" onclick="openRSModal()">+ Add Schedule</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tRoundSchedules"><thead><tr>
+          <th class="sortable" onclick="sortTable('rsBody',0)">Schedule Name</th>
+          <th class="sortable" onclick="sortTable('rsBody',1)">Location</th>
+          <th class="sortable" onclick="sortTable('rsBody',2)">Guard</th>
+          <th>Checkpoints</th>
+          <th class="sortable" onclick="sortTable('rsBody',4)">Frequency</th>
+          <th>Time Window</th>
+          <th>Actions</th>
+        </tr></thead><tbody id="rsBody"></tbody></table></div>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -1525,7 +1610,7 @@
 
 <div class="modal-overlay" id="mDriver"><div class="modal"><div class="modal-header"><div class="modal-title" id="mDrvTitle">Add Driver</div><div class="modal-close" onclick="cm('mDriver')">×</div></div><input type="hidden" id="eDrvId"><div class="form-row"><div class="form-group"><label>Driver Name *</label><input type="text" id="drvName"></div><div class="form-group"><label>Mobile (Optional)</label><input type="tel" id="drvMob" maxlength="10"></div></div><div class="form-row"><div class="form-group"><label>Vendor</label><select id="drvVendorS"><option value="">-- None --</option></select></div><div class="form-group"><label>DL Expiry (Optional)</label><input type="date" id="drvDL"></div></div><div class="form-row"><div class="form-group"><label>Driver Photo</label><div style="display:flex;align-items:center;gap:8px"><div id="drvPhotoThumb" onclick="_showPhotoChoice('drvPhotoFile','drvPhotoThumb')" style="width:52px;height:52px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🧑</div><input type="file" id="drvPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="onDrvPhoto(this)"><button id="drvPhotoClear" onclick="clearDrvPhoto()" style="display:none;background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px">×</button></div></div></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="drvInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mDriver"></div><button class="btn btn-secondary" onclick="cm('mDriver')">Cancel</button><button class="btn btn-primary" onclick="saveDriver()">Save</button></div></div></div>
 
-<div class="modal-overlay" id="mVendor"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVndTitle">Add Vendor</div><div class="modal-close" onclick="cm('mVendor')">×</div></div><input type="hidden" id="eVndId"><div class="form-row"><div class="form-group"><label>Vendor Name *</label><input type="text" id="vndName"></div><div class="form-group"><label>Owner Name *</label><input type="text" id="vndOwner"></div></div><div class="form-row"><div class="form-group"><label>Contact (Optional)</label><input type="tel" id="vndContact" maxlength="10"></div></div><div class="form-group"><label>Address (Optional)</label><textarea id="vndAddr" rows="2"></textarea></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vndInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVendor"></div><button class="btn btn-secondary" onclick="cm('mVendor')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save</button></div></div></div>
+<div class="modal-overlay" id="mVendor"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVndTitle">Add Vendor</div><div class="modal-close" onclick="cm('mVendor')">×</div></div><input type="hidden" id="eVndId"><div class="form-row"><div class="form-group"><label>Vendor Name *</label><input type="text" id="vndName"></div><div class="form-group"><label>Owner Name *</label><input type="text" id="vndOwner"></div></div><div class="form-row"><div class="form-group"><label>Contact (Optional)</label><input type="tel" id="vndContact" maxlength="10"></div><div class="form-group"><label>Mapped User (Vendor Role)</label><select id="vndUserS"><option value="">-- None --</option></select></div></div><div class="form-group"><label>Address (Optional)</label><textarea id="vndAddr" rows="2"></textarea></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vndInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVendor"></div><button class="btn btn-secondary" onclick="cm('mVendor')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save</button></div></div></div>
 
 <div class="modal-overlay" id="mVehicle"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVehTitle">Add Vehicle</div><div class="modal-close" onclick="cm('mVehicle')">×</div></div><input type="hidden" id="eVehId"><div class="form-row"><div class="form-group"><label>Vehicle Number *</label><input type="text" id="vehNumI" placeholder="MH12-AB-1234" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:1px;text-transform:uppercase"><div class="form-hint">Format: MH12-AB-1234 (State+Dist - Series - Number)</div></div><div class="form-group"><label>Vehicle Type *</label><select id="vehTypeS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>Vendor *</label><select id="vehVendorS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>PUC Expiry (Optional)</label><input type="date" id="vehPUC"></div><div class="form-group"><label>RTO Expiry (Optional)</label><input type="date" id="vehRTP"></div><div class="form-group"><label>Insurance Expiry (Optional)</label><input type="date" id="vehIns"></div></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vehInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVehicle"></div><button class="btn btn-secondary" onclick="cm('mVehicle')">Cancel</button><button class="btn btn-primary" onclick="saveVehicle()">Save</button></div></div></div>
 
@@ -1816,6 +1901,76 @@
 </div>
 </div>
 
+<!-- SECURITY CHECKPOINT MODAL -->
+<div class="modal-overlay" id="mCheckpoint"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">×</div></div>
+  <input type="hidden" id="eCPid">
+  <div class="form-group"><label>KAP Location *</label><select id="cpLocS"></select></div>
+  <div class="form-group"><label>Checkpoint Name *</label><input type="text" id="cpNameI" placeholder="e.g. Main Gate, Loading Bay 2" maxlength="60"></div>
+  <div class="form-group"><label>Description</label><textarea id="cpDescI" rows="2" placeholder="Brief description of this checkpoint"></textarea></div>
+  <div class="form-row">
+    <div class="form-group"><label>Sort Order</label><input type="number" id="cpSortI" min="1" max="25" value="1" style="width:80px"></div>
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--green)"><input type="checkbox" id="cpActiveI" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"> <span>Active</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mCheckpoint"></div><button class="btn btn-secondary" onclick="cm('mCheckpoint')">Cancel</button><button class="btn btn-primary" onclick="saveCP()">Save</button></div>
+</div></div>
+
+<!-- SECURITY GUARD MODAL -->
+<div class="modal-overlay" id="mGuard"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mGuardTitle">Add Guard</div><div class="modal-close" onclick="cm('mGuard')">×</div></div>
+  <input type="hidden" id="eGuardId">
+  <div class="form-row">
+    <div class="form-group"><label>Guard Name *</label><input type="text" id="guardNameI" maxlength="60"></div>
+    <div class="form-group"><label>Mobile *</label><input type="tel" id="guardMobI" maxlength="10" placeholder="10-digit"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>KAP Location *</label><select id="guardLocS"></select></div>
+    <div class="form-group"><label>Shift</label><select id="guardShiftS"><option value="">-- Select --</option><option value="Day">Day (6am–6pm)</option><option value="Night">Night (6pm–6am)</option><option value="General">General</option></select></div>
+  </div>
+  <div class="form-group"><label>Email</label><input type="email" id="guardEmailI" placeholder="Optional"></div>
+  <!-- Photo -->
+  <div class="form-group"><label>Photo</label>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="guardPhotoThumb" class="u-thumb-lg" style="cursor:pointer" onclick="document.getElementById('guardPhotoFile').click()">🧑</div>
+      <input type="file" id="guardPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_guardOnPhoto(this)">
+      <button type="button" id="guardPhotoClear" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;display:none" onclick="_guardClearPhoto()">✕ Remove</button>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="guardInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mGuard"></div><button class="btn btn-secondary" onclick="cm('mGuard')">Cancel</button><button class="btn btn-primary" onclick="saveGuard()">Save</button></div>
+</div></div>
+
+<!-- SECURITY ROUND SCHEDULE MODAL -->
+<div class="modal-overlay" id="mRoundSchedule"><div class="modal" style="width:540px"><div class="modal-header"><div class="modal-title" id="mRSTitle">Add Round Schedule</div><div class="modal-close" onclick="cm('mRoundSchedule')">×</div></div>
+  <input type="hidden" id="eRSid">
+  <div class="form-group"><label>Schedule Name *</label><input type="text" id="rsNameI" placeholder="e.g. Night Patrol – KAP1" maxlength="80"></div>
+  <div class="form-row">
+    <div class="form-group"><label>KAP Location *</label><select id="rsLocS" onchange="onRSLocChange()"></select></div>
+    <div class="form-group"><label>Assigned Guard</label><select id="rsGuardS"><option value="">-- Unassigned --</option></select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Start Time *</label><input type="time" id="rsStartI" value="06:00"></div>
+    <div class="form-group"><label>End Time *</label><input type="time" id="rsEndI" value="18:00"></div>
+  </div>
+  <div class="form-group"><label>Frequency *</label><select id="rsFreqS"><option value="Daily">Daily</option><option value="Weekly">Weekly</option><option value="Custom">Custom</option></select></div>
+  <div class="form-group"><label>Checkpoints to Cover *</label>
+    <div id="rsCPList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2)">
+      <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px">Select a location first</div>
+    </div>
+    <div class="form-hint">Select checkpoints for this round (in order)</div>
+  </div>
+  <div class="form-row">
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="rsInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mRoundSchedule"></div><button class="btn btn-secondary" onclick="cm('mRoundSchedule')">Cancel</button><button class="btn btn-primary" onclick="saveRS()">Save</button></div>
+</div></div>
+
 <script>
 // ══════════════════════════════════════════════════════════════════════════════
 // SUPABASE CONFIGURATION
@@ -1828,7 +1983,8 @@ const SB_TABLES = {
   users:'vms_users', vehicleTypes:'vms_vehicle_types', vendors:'vms_vendors',
   drivers:'vms_drivers', vehicles:'vms_vehicles', locations:'vms_locations',
   tripRates:'vms_trip_rates', trips:'vms_trips', segments:'vms_segments',
-  spotTrips:'vms_spot_trips'
+  spotTrips:'vms_spot_trips',
+  checkpoints:'vms_checkpoints', guards:'vms_guards', roundSchedules:'vms_round_schedules'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -1888,7 +2044,7 @@ function _toRow(tbl, rec) {
   const r = rec;
   if(tbl==='users')        return {code:r.id,name:r.name||'',password:r.password||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicleTypes') return {code:r.id,name:r.name||'',capacity:r.capacity||0,inactive:r.inactive||false};
-  if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',inactive:r.inactive||false};
+  if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',user_id:r.userId||'',inactive:r.inactive||false};
   if(tbl==='drivers')      return {code:r.id,name:r.name||'',mobile:r.mobile||'',vendor_id:r.vendorId||'',dl_expiry:r.dlExpiry||'',photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicles')     return {code:r.id,number:r.number||'',type_id:r.typeId||'',vendor_id:r.vendorId||'',puc_expiry:r.pucExpiry||'',rtp_expiry:r.rtpExpiry||'',ins_expiry:r.insExpiry||'',inactive:r.inactive||false};
   if(tbl==='locations')    return {code:r.id,name:r.name||'',type:r.type||'KAP',address:r.address||'',geo:r.geo||'',colour:r.colour||'',kap_sec:r.kapSec||'',trip_book:r.tripBook||[],mat_recv:r.matRecv||[],approvers:r.approvers||[],inactive:r.inactive||false};
@@ -1896,6 +2052,9 @@ function _toRow(tbl, rec) {
   if(tbl==='trips')        return {code:r.id,booked_by:r.bookedBy||'',plant:r.plant||'',date:r.date||'',start_loc:r.startLoc||'',dest1:r.dest1||'',dest2:r.dest2||'',dest3:r.dest3||'',driver_id:r.driverId||'',vehicle_id:r.vehicleId||'',vehicle_type_id:r.vehicleTypeId||'',actual_vehicle_type_id:r.actualVehicleTypeId||'',vendor:r.vendor||'',description:r.desc||'',trip_cat_id:r.tripCatId||'',challans1:r.challans1||[],challan1:r.challan1||'',weight1:r.weight1||'',photo1:r.photo1||'',challans2:r.challans2||[],challan2:r.challan2||'',weight2:r.weight2||'',photo2:r.photo2||'',challans3:r.challans3||[],challan3:r.challan3||'',weight3:r.weight3||'',photo3:r.photo3||'',edited_by:r.editedBy||'',edited_at:r.editedAt||''};
   if(tbl==='segments')     return {code:r.id,trip_id:r.tripId||'',label:r.label||'',s_loc:r.sLoc||'',d_loc:r.dLoc||'',criteria:r.criteria||1,trip_cat_id:r.tripCatId||'',steps:r.steps||{},status:r.status||'Active',date:r.date||'',current_step:r.currentStep||1};
   if(tbl==='spotTrips')    return {code:r.id,vehicle_num:r.vehicleNum||'',supplier:r.supplier||'',challan:r.challan||'',challan_photo:r.challanPhoto||'',driver_name:r.driverName||'',driver_mobile:r.driverMobile||'',driver_photo:r.driverPhoto||'',entry_vehicle_photo:r.entryVehiclePhoto||'',entry_remarks:r.entryRemarks||'',date:r.date||'',entry_time:r.entryTime||'',entry_by:r.entryBy||'',location:r.location||'',exit_time:r.exitTime||'',exit_by:r.exitBy||'',exit_vehicle_photo:r.exitVehiclePhoto||'',exit_remarks:r.exitRemarks||''};
+  if(tbl==='checkpoints')  return {code:r.id,location_id:r.locationId||'',name:r.name||'',description:r.description||'',sort_order:r.sortOrder||1,active:r.active!==false};
+  if(tbl==='guards')       return {code:r.id,name:r.name||'',mobile:r.mobile||'',email:r.email||'',location_id:r.locationId||'',shift:r.shift||'',photo:r.photo||'',inactive:r.inactive||false};
+  if(tbl==='roundSchedules') return {code:r.id,name:r.name||'',location_id:r.locationId||'',guard_id:r.guardId||'',checkpoint_ids:r.checkpointIds||[],frequency:r.frequency||'Daily',start_time:r.startTime||'',end_time:r.endTime||'',inactive:r.inactive||false};;
   return null;
 }
 
@@ -1904,7 +2063,7 @@ function _fromRow(tbl, row) {
   if(!row) return null;
   if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,password:row.password,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
-  if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',inactive:row.inactive||false};
+  if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicles')     return {id:row.code,_dbId:row.id,number:row.number,typeId:row.type_id||'',vendorId:row.vendor_id||'',pucExpiry:row.puc_expiry||'',rtpExpiry:row.rtp_expiry||'',insExpiry:row.ins_expiry||'',inactive:row.inactive||false};
   if(tbl==='locations')    return {id:row.code,_dbId:row.id,name:row.name,type:row.type,address:row.address||'',geo:row.geo||'',colour:row.colour||'',kapSec:row.kap_sec||'',tripBook:row.trip_book||[],matRecv:row.mat_recv||[],approvers:row.approvers||[],inactive:row.inactive||false};
@@ -1912,6 +2071,9 @@ function _fromRow(tbl, row) {
   if(tbl==='trips')        return {id:row.code,_dbId:row.id,bookedBy:row.booked_by||'',plant:row.plant||'',date:row.date||'',startLoc:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',driverId:row.driver_id||'',vehicleId:row.vehicle_id||'',vehicleTypeId:row.vehicle_type_id||'',actualVehicleTypeId:row.actual_vehicle_type_id||'',vendor:row.vendor||'',desc:row.description||'',tripCatId:row.trip_cat_id||'',challans1:row.challans1||[],challan1:row.challan1||'',weight1:row.weight1||'',photo1:row.photo1||'',challans2:row.challans2||[],challan2:row.challan2||'',weight2:row.weight2||'',photo2:row.photo2||'',challans3:row.challans3||[],challan3:row.challan3||'',weight3:row.weight3||'',photo3:row.photo3||'',editedBy:row.edited_by||'',editedAt:row.edited_at||''};
   if(tbl==='segments')     return {id:row.code,_dbId:row.id,tripId:row.trip_id||'',label:row.label||'',sLoc:row.s_loc||'',dLoc:row.d_loc||'',criteria:row.criteria||1,tripCatId:row.trip_cat_id||'',steps:row.steps||{},status:row.status||'Active',date:row.date||'',currentStep:row.current_step||1};
   if(tbl==='spotTrips')    return {id:row.code,_dbId:row.id,vehicleNum:row.vehicle_num||'',supplier:row.supplier||'',challan:row.challan||'',challanPhoto:row.challan_photo||'',driverName:row.driver_name||'',driverMobile:row.driver_mobile||'',driverPhoto:row.driver_photo||'',entryVehiclePhoto:row.entry_vehicle_photo||'',entryRemarks:row.entry_remarks||'',date:row.date||'',entryTime:row.entry_time||'',entryBy:row.entry_by||'',location:row.location||'',exitTime:row.exit_time||'',exitBy:row.exit_by||'',exitVehiclePhoto:row.exit_vehicle_photo||'',exitRemarks:row.exit_remarks||''};
+  if(tbl==='checkpoints')  return {id:row.code,_dbId:row.id,locationId:row.location_id||'',name:row.name||'',description:row.description||'',sortOrder:row.sort_order||1,active:row.active!==false};
+  if(tbl==='guards')       return {id:row.code,_dbId:row.id,name:row.name||'',mobile:row.mobile||'',email:row.email||'',locationId:row.location_id||'',shift:row.shift||'',photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='roundSchedules') return {id:row.code,_dbId:row.id,name:row.name||'',locationId:row.location_id||'',guardId:row.guard_id||'',checkpointIds:row.checkpoint_ids||[],frequency:row.frequency||'Daily',startTime:row.start_time||'',endTime:row.end_time||'',inactive:row.inactive||false};
   return null;
 }
 
@@ -2321,7 +2483,8 @@ const SEED = {
 
 const LS_PREFIX = 'vms_';
 const DB_TABLES = ['users','vehicleTypes','drivers','vendors','vehicles',
-                   'locations','tripRates','trips','segments','spotTrips'];
+                   'locations','tripRates','trips','segments','spotTrips',
+                   'checkpoints','guards','roundSchedules'];
 let DB = {};
 
 // Session helpers
@@ -2530,6 +2693,7 @@ async function bootDB(){
 // ── App boot ──────────────────────────────────────────────────────────────────
 
 let CU=null; // current user — declared here so boot sequence can access it
+let _currentApp='vms'; // 'vms' or 'security' — tracks which app is active
 function _showLogin(prefillUser){
   document.getElementById('app').style.display='none';
   document.getElementById('loginPage').style.display='flex';
@@ -2654,7 +2818,8 @@ function _showPortal(){
   if(p) p.style.display = 'flex';
 }
 
-function launchVMS(targetPage){
+function launchVMS(targetPage, appId){
+  _currentApp = appId || 'vms';
   _sbStopPing();
   if(!_sbChannel) _sbStartRealtime(); // ensure realtime is active in VMS
   const p = document.getElementById('portalOverlay');
@@ -2663,11 +2828,8 @@ function launchVMS(targetPage){
     const tb = document.getElementById('topbar');
     appEl.style.display = 'block';
     if(tb) tb.style.display = 'flex';
-    // Only call initApp once; on subsequent visits just navigate to page
-    if(!appEl._vmsBoot){
-      appEl._vmsBoot = true;
-      initApp();
-    }
+    // Always call initApp to rebuild sidebar for the current app
+    initApp();
     if(targetPage) showPage(targetPage, targetPage.replace('page',''));
   };
   if(p){
@@ -2715,6 +2877,7 @@ function _closePortalNav(){
 
 
 function _goBackToPortal(){
+  _currentApp='vms'; // reset
   document.getElementById('app').style.display='none';
   const tb=document.getElementById('topbar');if(tb)tb.style.display='none';
   const po=document.getElementById('portalOverlay');
@@ -2776,15 +2939,21 @@ function _renderPortalApps(){
     const hasAccess=userApps.includes(a.id);
     if(!hasAccess) return ''; // hidden entirely
     const isVMS=a.id==='vms';
-    const isActive=isVMS; // only VMS is currently active
+    const isSecurity=a.id==='security';
+    const isActive=isVMS||isSecurity;
     if(isActive){
-      return `<div onclick="launchVMS()" style="background:#fff;border:1.5px solid #2a9aa0;border-radius:16px;padding:28px 20px;cursor:pointer;transition:all .2s;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 20px rgba(42,154,160,.12)"
-        onmouseenter="this.style.background='#f0fafa';this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(42,154,160,.2)'"
-        onmouseleave="this.style.background='#fff';this.style.transform='';this.style.boxShadow='0 4px 20px rgba(42,154,160,.12)'">
-        <div style="position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(135deg,rgba(42,154,160,.04),transparent);pointer-events:none"></div>
+      const launchFn=isSecurity?"launchVMS('pageCheckpoints','security')":"launchVMS(null,'vms')";
+      const accent=isSecurity?'#8b5cf6':'#2a9aa0';
+      const shadow=isSecurity?'rgba(139,92,246,.12)':'rgba(42,154,160,.12)';
+      const hoverBg=isSecurity?'#f5f0ff':'#f0fafa';
+      const hoverShadow=isSecurity?'rgba(139,92,246,.2)':'rgba(42,154,160,.2)';
+      return `<div onclick="${launchFn}" style="background:#fff;border:1.5px solid ${accent};border-radius:16px;padding:28px 20px;cursor:pointer;transition:all .2s;text-align:center;position:relative;overflow:hidden;box-shadow:0 4px 20px ${shadow}"
+        onmouseenter="this.style.background='${hoverBg}';this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px ${hoverShadow}'"
+        onmouseleave="this.style.background='#fff';this.style.transform='';this.style.boxShadow='0 4px 20px ${shadow}'">
+        <div style="position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(135deg,${accent}0a,transparent);pointer-events:none"></div>
         <div style="font-size:38px;margin-bottom:14px">${a.icon}</div>
         <div style="font-size:13px;font-weight:800;color:#1e293b;line-height:1.3;margin-bottom:6px">${a.full}</div>
-        <div style="font-size:11px;color:#2a9aa0;font-weight:600">Active</div>
+        <div style="font-size:11px;color:${accent};font-weight:600">Active</div>
         <div style="position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e"></div>
       </div>`;
     } else {
@@ -3039,7 +3208,7 @@ function _psPassMsg(msg,ok){
 
 
 
-const ROLES=['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver'];
+const ROLES=['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
 const PORTAL_APPS=[
   {id:'vms',    label:'VMS',        icon:'🚚', full:'Vehicle Management System'},
   {id:'security',label:'Security',  icon:'📹', full:'Security Surveillance'},
@@ -4141,20 +4310,25 @@ document.addEventListener('DOMContentLoaded',()=>{
 function hasRole(roles){if(!CU)return false;if(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'))return true;return roles.some(r=>CU.roles.includes(r));}
 
 const NAV=[
-  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',r:['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver']},
-  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin']},
-  {sec:'OPERATIONS'},
-  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin'],badge:'bTB'},
-  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin'],badge:'bKS'},
-  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin'],badge:'bMR'},
-  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin'],badge:'bAP'},
-  {sec:'MASTERS'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin'],      count:'locations', cid:'cLocations'},
-  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes'},
-  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors'},
-  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles'},
-  {id:'Drivers',   l:'Drivers',       i:'🧑‍✈️',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers'},
-  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR'},
+  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',r:['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
+  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin'],app:'vms'},
+  {sec:'OPERATIONS',app:'vms'},
+  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin'],badge:'bTB',app:'vms'},
+  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin'],badge:'bKS',app:'vms'},
+  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin'],badge:'bMR',app:'vms'},
+  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin'],badge:'bAP',app:'vms'},
+  {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],app:'vms'},
+  {sec:'MASTERS',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin'],      count:'locations', cid:'cLocations',app:'vms'},
+  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',app:'vms'},
+  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',app:'vms'},
+  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
+  {id:'Drivers',   l:'Drivers',       i:'🧑‍✈️',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
+  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',app:'vms'},
+  {sec:'SECURITY SURVEILLANCE',app:'security'},
+  {id:'Checkpoints',l:'Checkpoints',  i:'🛡️',p:'pageCheckpoints',r:['Admin','Super Admin'],count:'checkpoints',cid:'cCheckpoints',app:'security'},
+  {id:'Guards',     l:'Guards',       i:'💂',p:'pageGuards',     r:['Admin','Super Admin'],count:'guards',     cid:'cGuards',app:'security'},
+  {id:'RoundSched', l:'Round Schedules',i:'🔄',p:'pageRoundSchedules',r:['Admin','Super Admin'],count:'roundSchedules',cid:'cRoundSched',app:'security'},
 ];
 
 function initApp(){
@@ -4214,9 +4388,13 @@ function initApp(){
     const _loc=getUserLocation(CU.id);
     const _bg=_loc?.colour||'var(--surface2)';
     _locEl.innerHTML=`<span style="background:${_bg};color:#1f2937;padding:1px 6px;border-radius:3px;font-weight:700">${CU.locName}</span>${CU.locType?` <span style="font-size:8px;color:var(--text3)">[${CU.locType}]</span>`:''}`;
-  } else if(_locEl){ _locEl.innerHTML=''; }  const nav=document.getElementById('sidebarNav');
+  } else if(_locEl){ _locEl.innerHTML=''; }
+  // Update sidebar logo text based on current app
+  const _logoText=document.querySelector('.sidebar-logo .logo-text h2');
+  if(_logoText) _logoText.textContent=_currentApp==='security'?'Security Surveillance':'Vehicle Management System';
+  const nav=document.getElementById('sidebarNav');
   nav.innerHTML='';
-  NAV.forEach(item=>{
+  NAV.filter(item=>item.app==='all'||item.app===_currentApp).forEach(item=>{
     if(item.sec){const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);}
     else if(hasRole(item.r)||CU.roles.includes('Super Admin')){
       const d=document.createElement('div');d.className='nav-item';d.id='n'+item.id;
@@ -4228,17 +4406,23 @@ function initApp(){
     }
   });
 
-  document.getElementById('btnAddUser').onclick=()=>openUserModal();
-  document.getElementById('btnAddVT').onclick=()=>openVTModal();
-  document.getElementById('btnAddDrv').onclick=()=>openDrvModal();
-  document.getElementById('btnAddVnd').onclick=()=>openVndModal();
-  document.getElementById('btnAddVeh').onclick=()=>openVehModal();
-  document.getElementById('btnAddLoc').onclick=()=>openLocModal();
-  document.getElementById('btnAddRate').onclick=()=>openRateModal();
-  // Default page based on role — hierarchy: Admin/SA > KAP Security > Trip Approver > Material Receiver > Trip Booking > Dashboard
+  // VMS button bindings (only when VMS app)
+  if(_currentApp==='vms'){
+    document.getElementById('btnAddUser').onclick=()=>openUserModal();
+    document.getElementById('btnAddVT').onclick=()=>openVTModal();
+    document.getElementById('btnAddDrv').onclick=()=>openDrvModal();
+    document.getElementById('btnAddVnd').onclick=()=>openVndModal();
+    document.getElementById('btnAddVeh').onclick=()=>openVehModal();
+    document.getElementById('btnAddLoc').onclick=()=>openLocModal();
+    document.getElementById('btnAddRate').onclick=()=>openRateModal();
+  }
+  // Default page based on app and role
   const isAdminOrSA=CU.roles.includes('Admin')||CU.roles.includes('Super Admin');
   const _mc=document.querySelector('.main-content');
-  if(isAdminOrSA){
+  if(_currentApp==='security'){
+    showPage('pageCheckpoints','Checkpoints');
+    if(_mc)_mc.scrollTop=0;
+  } else if(isAdminOrSA){
     showPage('pageDashboard','Dashboard');
     if(_mc)_mc.scrollTop=0;
   } else if(CU.roles.includes('KAP Security')){
@@ -4249,6 +4433,8 @@ function initApp(){
     showPage('pageMR','MR');
   } else if(CU.roles.includes('Trip Booking User')){
     showPage('pageTripBooking','TripBooking');
+  } else if(CU.roles.includes('Vendor')){
+    showPage('pageVendorTrips','VendorTrips');
   } else {
     showPage('pageDashboard','Dashboard');
   }
@@ -4345,7 +4531,7 @@ function showPage(pid,nid){
   if(tbt&&ptEl)tbt.textContent=ptEl.textContent;
   // Always scroll to top of content area
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile};
+  const map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageCheckpoints:renderCheckpoints,pageGuards:renderGuards,pageRoundSchedules:renderRoundSchedules,pageVendorTrips:renderVendorTrips};
   if(map[pid])map[pid]();
 }
 
@@ -6604,10 +6790,10 @@ function renderMyTrips(){
         <span style="flex-shrink:0">${vehLabel}</span>
       </div>
       ${canDelete?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="position:absolute;top:6px;right:6px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:3px 7px;cursor:pointer;font-weight:700;z-index:2;line-height:1" title="Delete trip">🗑</button>`:''}
-      <!-- Row 2: Booked by -->
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 10px 6px;font-size:12px">${(()=>{const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'';return `<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span><span style="color:var(--border2)">·</span><span style="color:var(--text3)">📅 ${fdt(t.date)}</span>`;})()}</div>
-      <!-- Line 2: Coloured route pills -->
-      <div style="padding:2px 10px 4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${routeParts}</div>
+      <!-- Row 2: Vendor · Driver · Booked by · Date -->
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:3px 10px 6px;font-size:11px">${(()=>{const vendorName=t.vendor||'';const drv2=byId(DB.drivers,t.driverId);const drvName=drv2?.name||'';const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'';const dot='<span style="color:var(--border2)">·</span>';const parts=[];if(vendorName)parts.push(`<span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:1px 8px;border-radius:4px;border:1px solid rgba(42,154,160,.2)">🏢 ${vendorName}</span>`);if(drvName)parts.push(`<span style="color:var(--text2);font-weight:600">🧑 ${drvName}</span>`);parts.push(`<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span>`);parts.push(`<span style="color:var(--text3)">📅 ${fdt(t.date)}</span>`);return parts.join(dot);})()}</div>
+      <!-- Line 2: Coloured route pills + No Challan flash -->
+      <div style="padding:2px 10px 4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${(()=>{const dests=[[t.dest1,1],[t.dest2,2],[t.dest3,3]].filter(([d])=>d);const anyChallanMissing=dests.some(([d,idx])=>{const arr=t['challans'+idx]||[];const leg=t['challan'+idx]||'';return !arr.length&&!leg;});return anyChallanMissing?'<span class="flash-red" style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;margin-right:2px">⚠ No Challan</span>':'';})()}${routeParts}</div>
       <!-- Step status summary (collapsed view) -->
       ${(()=>{
         if(isCompleted) return `<div style="padding:2px 10px 6px"><span class="badge badge-green" style="font-size:10px;padding:3px 10px">✅ Trip Completed</span></div>`;
@@ -8981,30 +9167,39 @@ function renderVendors(){
   document.getElementById('vndBody').innerHTML=[...DB.vendors].filter(v=>!document.getElementById('showInactiveVnd')?.checked||!v.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(v=>{
     const inactive=v.inactive===true;
     const badge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('vendors','${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.owner}</td><td>${v.contact||'-'}</td><td>${v.address||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openVndModal('${v.id}')">✏️</button><button class="action-btn" onclick="del('vendors','${v.id}',renderVendors)">🗑️</button></td></tr>`;
+    const mu=v.userId?byId(DB.users,v.userId):null;
+    const muHtml=mu?`<span style="font-size:11px;font-weight:600;color:var(--accent)">${mu.fullName||mu.name}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>';
+    return `<tr class="clickable-row" onclick="showRecordDetail('vendors','${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.owner}</td><td>${v.contact||'-'}</td><td>${muHtml}</td><td>${v.address||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openVndModal('${v.id}')">✏️</button><button class="action-btn" onclick="del('vendors','${v.id}',renderVendors)">🗑️</button></td></tr>`;
   }).join('');
 }
 function openVndModal(id){
   const v=id?byId(DB.vendors,id):null;
   document.getElementById('eVndId').value=id||'';document.getElementById('vndName').value=v?.name||'';document.getElementById('vndOwner').value=v?.owner||'';document.getElementById('vndContact').value=v?.contact||'';document.getElementById('vndAddr').value=v?.address||'';
   const vndICb=document.getElementById('vndInactive');if(vndICb)vndICb.checked=v?.inactive===true;
+  // Populate mapped user dropdown — show users with Vendor role not already mapped to another vendor
+  const vndUserS=document.getElementById('vndUserS');
+  const vendorUsers=DB.users.filter(u=>!u.inactive&&(u.roles||[]).includes('Vendor'));
+  const alreadyMapped=DB.vendors.filter(vn=>vn.userId&&vn.id!==id).map(vn=>vn.userId);
+  vndUserS.innerHTML='<option value="">-- None --</option>'+vendorUsers.filter(u=>!alreadyMapped.includes(u.id)||u.id===v?.userId).sort((a,b)=>(a.fullName||a.name).localeCompare(b.fullName||b.name)).map(u=>`<option value="${u.id}"${u.id===v?.userId?' selected':''}>${u.fullName||u.name} (@${u.name})</option>`).join('');
   document.getElementById('mVndTitle').textContent=id?'Edit Vendor':'Add Vendor';om('mVendor');
 }
 async function saveVendor(){
-  const id=document.getElementById('eVndId').value;const name=document.getElementById('vndName').value.trim();const owner=document.getElementById('vndOwner').value.trim();const contact=document.getElementById('vndContact').value;const address=document.getElementById('vndAddr').value;
+  const id=document.getElementById('eVndId').value;const name=document.getElementById('vndName').value.trim();const owner=document.getElementById('vndOwner').value.trim();const contact=document.getElementById('vndContact').value;const address=document.getElementById('vndAddr').value;const userId=document.getElementById('vndUserS').value;
   if(!name||!owner){modalErr('mVendor','Fill required fields');return;}if(contact&&contact.length!==10){modalErr('mVendor','Contact must be 10 digits');return;}
   if(!id){
     const _inactVnd=DB.vendors.find(v=>v&&v.name.trim().toLowerCase()===name.toLowerCase()&&v.id!==id&&v.inactive===true);
     if(_inactVnd){modalErr('mVendor',`"${name}" already exists in Inactive Records. Activate it to use.`);return;}
   }
   if(DB.vendors.find(v=>v&&v.name.trim().toLowerCase()===name.toLowerCase()&&v.id!==id&&!v.inactive)){modalErr('mVendor','Vendor name already exists');return;}
+  // Check userId not already mapped to another vendor
+  if(userId&&DB.vendors.find(v=>v.userId===userId&&v.id!==id)){modalErr('mVendor','This user is already mapped to another vendor');return;}
   const vndInactive=document.getElementById('vndInactive')?.checked===true;
   if(id){
     const _vn=byId(DB.vendors,id);const _vnBak={..._vn};
-    Object.assign(_vn,{name,owner,contact,address,inactive:vndInactive});
+    Object.assign(_vn,{name,owner,contact,address,userId,inactive:vndInactive});
     if(!await _dbSave('vendors',_vn)){ Object.assign(_vn,_vnBak); return; }
   }
-  else{const _vn={id:'vn'+uid(),name,owner,contact,address,inactive:vndInactive};if(!await _dbSave('vendors',_vn)) return;}
+  else{const _vn={id:'vn'+uid(),name,owner,contact,address,userId,inactive:vndInactive};if(!await _dbSave('vendors',_vn)) return;}
   cm('mVendor');renderVendors();notify('Saved!');
 }
 
@@ -9744,6 +9939,13 @@ async function del(col,id,fn){
       return refs;
     },
     tripRates:()=>[], // trip rates not referenced by ID in trips currently
+    checkpoints:(id)=>{
+      return (DB.roundSchedules||[]).filter(rs=>(rs.checkpointIds||[]).includes(id)).map(rs=>'Schedule: '+rs.name);
+    },
+    guards:(id)=>{
+      return (DB.roundSchedules||[]).filter(rs=>rs.guardId===id).map(rs=>'Schedule: '+rs.name);
+    },
+    roundSchedules:()=>[],
   };
 
   const checker=usageMap[col];
@@ -10740,6 +10942,480 @@ function importMaster(col,inputEl){
     notify('⚠ Unsupported format. Use the exported .xlsx file.',true);
   }
 }
+// ===== VENDOR TRIPS PAGE =====
+function _isVtAdmin(){ return CU&&CU.roles.some(r=>['Super Admin','Admin'].includes(r)); }
+function _getMyVendor(){
+  if(!CU) return null;
+  return DB.vendors.find(v=>v.userId===CU.id&&!v.inactive)||null;
+}
+function _getVendorVehicleIds(vendor){
+  if(!vendor) return [];
+  return DB.vehicles.filter(v=>v.vendorId===vendor.id).map(v=>v.id);
+}
+// Vendor trip status: Booked / In Progress / Complete
+function _vtStatus(trip){
+  const segs=DB.segments.filter(s=>s.tripId===trip.id);
+  if(!segs.length) return 'Booked';
+  if(segs.every(s=>s.status==='Completed')) return 'Complete';
+  if(segs.some(s=>[1,2,3,4,5].some(n=>s.steps[n]?.done))) return 'In Progress';
+  return 'Booked';
+}
+function _vtStatusBadge(st){
+  if(st==='Complete') return '<span class="badge badge-green">Complete</span>';
+  if(st==='In Progress') return '<span class="badge badge-amber">In Progress</span>';
+  return '<span class="badge badge-gray">Booked</span>';
+}
+function _getTripsForVendor(vendor,from,to,statusFilter,vehicleFilter){
+  if(!vendor) return [];
+  const vehIds=_getVendorVehicleIds(vendor);
+  return DB.trips.filter(t=>{
+    if(!vehIds.includes(t.vehicleId)&&t.vendor!==vendor.name) return false;
+    const d=(t.date||'').slice(0,10);
+    if(from&&d<from) return false;
+    if(to&&d>to) return false;
+    if(statusFilter){ if(_vtStatus(t)!==statusFilter) return false; }
+    if(vehicleFilter&&t.vehicleId!==vehicleFilter) return false;
+    return true;
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+function _getAllVendorTrips(from,to,statusFilter,vendorFilter,vehicleFilter){
+  let vendors=DB.vendors.filter(v=>!v.inactive);
+  if(vendorFilter) vendors=vendors.filter(v=>v.id===vendorFilter);
+  const allTrips=[];
+  vendors.forEach(vendor=>{
+    const trips=_getTripsForVendor(vendor,from,to,statusFilter,vehicleFilter);
+    trips.forEach(t=>allTrips.push({trip:t,vendor}));
+  });
+  allTrips.sort((a,b)=>(b.trip.date||'').localeCompare(a.trip.date||''));
+  return allTrips;
+}
+// Populate vendor filter dropdown (Admin/SA only)
+function _populateVtVendorFilter(){
+  const sel=document.getElementById('vtVendorFilter');
+  if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Vendors ▾</option>'+DB.vendors.filter(v=>!v.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
+  sel.value=cur;
+}
+// Populate vehicle filter dropdown based on selected vendor
+function _populateVtVehicleFilter(vendorId){
+  const sel=document.getElementById('vtVehicleFilter');
+  if(!sel) return;
+  const cur=sel.value;
+  let vehs;
+  if(vendorId){
+    vehs=DB.vehicles.filter(v=>v.vendorId===vendorId&&!v.inactive);
+  } else if(_isVtAdmin()){
+    const vendorIds=DB.vendors.filter(v=>!v.inactive).map(v=>v.id);
+    vehs=DB.vehicles.filter(v=>vendorIds.includes(v.vendorId)&&!v.inactive);
+  } else {
+    const myV=_getMyVendor();
+    vehs=myV?DB.vehicles.filter(v=>v.vendorId===myV.id&&!v.inactive):[];
+  }
+  sel.innerHTML='<option value="">All Vehicles ▾</option>'+vehs.sort((a,b)=>(a.number||'').localeCompare(b.number||'')).map(v=>`<option value="${v.id}">${v.number}</option>`).join('');
+  sel.value=cur;
+}
+function _onVtVendorChange(){
+  const vendorId=document.getElementById('vtVendorFilter')?.value||'';
+  _populateVtVehicleFilter(vendorId);
+  const vSel=document.getElementById('vtVehicleFilter');
+  if(vSel) vSel.value='';
+}
+let _vtDatesInit=false;
+function _initVtDates(){
+  if(_vtDatesInit) return;
+  _vtDatesInit=true;
+  setDateRange('vtFrom','vtTo','month',null,'vt');
+}
+function renderVendorTrips(){
+  _initVtDates();
+  const isAdmin=_isVtAdmin();
+  const vendor=isAdmin?null:_getMyVendor();
+  const nameEl=document.getElementById('vtVendorName');
+  const listEl=document.getElementById('vtTripList');
+  const statsEl=document.getElementById('vtStats');
+
+  // Show/hide admin filters
+  const vndF=document.getElementById('vtVendorFilter');
+  const vehF=document.getElementById('vtVehicleFilter');
+  if(vndF) vndF.style.display=isAdmin?'':'none';
+  if(vehF) vehF.style.display='';
+
+  if(isAdmin){
+    _populateVtVendorFilter();
+    _populateVtVehicleFilter(vndF?.value||'');
+    if(nameEl) nameEl.textContent='All vendor trip details';
+  } else {
+    _populateVtVehicleFilter('');
+    if(nameEl) nameEl.textContent=vendor?vendor.name+' — '+vendor.owner:'No vendor mapped to your account';
+  }
+
+  if(!isAdmin&&!vendor){
+    if(listEl) listEl.innerHTML='<div class="empty-state" style="padding:40px 20px"><div style="font-size:32px;margin-bottom:12px">🔗</div><div style="font-size:15px;font-weight:700;margin-bottom:6px">Account Not Linked</div><div style="font-size:13px;color:var(--text2)">Your user account is not mapped to any vendor in the system. Please contact an Admin to link your account in the Vendor Master.</div></div>';
+    if(statsEl) statsEl.innerHTML='';
+    return;
+  }
+
+  const from=document.getElementById('vtFrom')?.value||'';
+  const to=document.getElementById('vtTo')?.value||'';
+  const statusFilter=document.getElementById('vtStatusFilter')?.value||'';
+  const vendorFilter=vndF?.value||'';
+  const vehicleFilter=vehF?.value||'';
+
+  let tripItems;
+  if(isAdmin){
+    tripItems=_getAllVendorTrips(from,to,statusFilter,vendorFilter,vehicleFilter);
+  } else {
+    const trips=_getTripsForVendor(vendor,from,to,statusFilter,vehicleFilter);
+    tripItems=trips.map(t=>({trip:t,vendor}));
+  }
+
+  // Stats
+  const total=tripItems.length;
+  const completed=tripItems.filter(x=>_vtStatus(x.trip)==='Complete').length;
+  const inProgress=tripItems.filter(x=>_vtStatus(x.trip)==='In Progress').length;
+  const booked=tripItems.filter(x=>_vtStatus(x.trip)==='Booked').length;
+  if(statsEl) statsEl.innerHTML=`
+    <div style="flex:1;min-width:90px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Total</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--text)">${total}</div></div>
+    <div style="flex:1;min-width:90px;padding:10px 14px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:8px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Booked</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--text3)">${booked}</div></div>
+    <div style="flex:1;min-width:90px;padding:10px 14px;background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.2);border-radius:8px"><div style="font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase">In Progress</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--accent)">${inProgress}</div></div>
+    <div style="flex:1;min-width:90px;padding:10px 14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px"><div style="font-size:10px;color:#16a34a;font-weight:600;text-transform:uppercase">Complete</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#16a34a">${completed}</div></div>`;
+
+  if(!tripItems.length){
+    if(listEl) listEl.innerHTML='<div class="empty-state">No trips found for the selected period</div>';
+    return;
+  }
+
+  // Table format
+  const vendorCol=isAdmin?'<th class="sortable">Vendor</th>':'';
+  const thead=`<thead><tr><th>#</th><th>Trip ID</th><th>Date</th><th>Vehicle No.</th><th>Vehicle Type</th><th>Driver</th>${vendorCol}<th>Route</th><th>Status</th><th>Rate (₹)</th></tr></thead>`;
+
+  const tbody=tripItems.map((item,i)=>{
+    const t=item.trip;
+    const vnd=item.vendor;
+    const drv=byId(DB.drivers,t.driverId);
+    const vType=byId(DB.vehicleTypes,t.vehicleTypeId)?.name||'—';
+    const locs=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean);
+    const routeText=locs.map(id=>lnameText(id)).join(' → ');
+    const st=_vtStatus(t);
+    const rate=getMatchedRate(t.id);
+    const vendorTd=isAdmin?`<td style="font-weight:600;color:var(--accent)">${vnd.name}</td>`:'';
+    return `<tr>
+      <td style="font-weight:600;color:var(--text3)">${i+1}</td>
+      <td><span style="font-family:var(--mono);font-weight:800;color:var(--accent)">${t.id}</span></td>
+      <td style="white-space:nowrap">${fdt(t.date)}</td>
+      <td style="font-family:var(--mono);font-weight:700">${vnum(t.vehicleId)}</td>
+      <td>${vType}</td>
+      <td>${drv?.name||'—'}</td>
+      ${vendorTd}
+      <td style="font-size:11px">${routeText}</td>
+      <td>${_vtStatusBadge(st)}</td>
+      <td style="font-family:var(--mono);font-weight:700;color:#16a34a">${rate?'₹'+rate.rate.toLocaleString():'—'}</td>
+    </tr>`;
+  }).join('');
+
+  if(listEl) listEl.innerHTML=`<table style="width:100%">${thead}<tbody>${tbody}</tbody></table>`;
+}
+
+// ===== SECURITY CHECKPOINT MASTER =====
+function _kapLocations(){ return DB.locations.filter(l=>l.type==='KAP'&&!l.inactive); }
+function _cpForLoc(locId){ return (DB.checkpoints||[]).filter(cp=>cp.locationId===locId).sort((a,b)=>(a.sortOrder||1)-(b.sortOrder||1)); }
+function _populateCPLocFilter(){
+  const sel=document.getElementById('cpLocFilter');
+  if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All KAP Locations</option>'+_kapLocations().sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  sel.value=cur;
+}
+function renderCheckpoints(){
+  _populateCPLocFilter();
+  const locFilter=document.getElementById('cpLocFilter')?.value||'';
+  const locs=locFilter?_kapLocations().filter(l=>l.id===locFilter):_kapLocations();
+  const cont=document.getElementById('cpContent');
+  if(!cont)return;
+  if(!locs.length){ cont.innerHTML='<div class="empty-state">No KAP locations found. Add KAP locations in the Location Master first.</div>'; return; }
+  const allCPs=DB.checkpoints||[];
+  cont.innerHTML=locs.sort((a,b)=>a.name.localeCompare(b.name)).map(loc=>{
+    const cps=_cpForLoc(loc.id);
+    const maxCP=25;
+    const bg=loc.colour||'var(--surface2)';
+    return `<div class="card" style="padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="background:${bg};color:${colourContrast(bg)};padding:3px 10px;border-radius:6px;font-weight:800;font-size:13px">${loc.name}</span>
+          <span style="font-size:11px;color:var(--text3)">${cps.length} / ${maxCP} checkpoints</span>
+        </div>
+        ${cps.length<maxCP?`<button class="btn btn-primary" style="font-size:11px;padding:5px 12px" onclick="openCPModal(null,'${loc.id}')">+ Add</button>`:'<span style="font-size:11px;color:var(--red);font-weight:600">Max 25 reached</span>'}
+      </div>
+      ${cps.length?`<div style="display:flex;flex-direction:column;gap:4px">${cps.map((cp,i)=>{
+        const activeStyle=cp.active!==false?'':'opacity:.5;';
+        const activeBadge=cp.active!==false?'<span style="font-size:9px;font-weight:700;background:rgba(34,197,94,.15);color:#16a34a;padding:1px 6px;border-radius:4px">Active</span>':'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px">Inactive</span>';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;${activeStyle}">
+          <span style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cp.sortOrder||i+1}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">${cp.name} ${activeBadge}</div>
+            ${cp.description?`<div style="font-size:11px;color:var(--text2);margin-top:1px">${cp.description}</div>`:''}
+          </div>
+          <button class="action-btn" onclick="openCPModal('${cp.id}')">✏️</button>
+          <button class="action-btn" onclick="del('checkpoints','${cp.id}',renderCheckpoints)">🗑️</button>
+        </div>`;
+      }).join('')}</div>`:'<div class="empty-state" style="padding:12px;font-size:12px">No checkpoints yet. Click + Add to create one.</div>'}
+    </div>`;
+  }).join('');
+  // Update sidebar count
+  const cEl=document.getElementById('cCheckpoints');
+  if(cEl) cEl.textContent=allCPs.filter(c=>c.active!==false).length;
+}
+function openCPModal(id,preLocId){
+  const cp=id?byId(DB.checkpoints||[],id):null;
+  document.getElementById('eCPid').value=id||'';
+  document.getElementById('mCPTitle').textContent=id?'Edit Checkpoint':'Add Checkpoint';
+  // Populate loc dropdown
+  const locS=document.getElementById('cpLocS');
+  locS.innerHTML='<option value="">-- Select Location --</option>'+_kapLocations().sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  locS.value=cp?.locationId||preLocId||'';
+  document.getElementById('cpNameI').value=cp?.name||'';
+  document.getElementById('cpDescI').value=cp?.description||'';
+  document.getElementById('cpSortI').value=cp?.sortOrder||(_cpForLoc(locS.value).length+1);
+  document.getElementById('cpActiveI').checked=cp?cp.active!==false:true;
+  om('mCheckpoint');
+}
+async function saveCP(){
+  const id=document.getElementById('eCPid').value;
+  const locId=document.getElementById('cpLocS').value;
+  const name=document.getElementById('cpNameI').value.trim();
+  const desc=document.getElementById('cpDescI').value.trim();
+  const sort=parseInt(document.getElementById('cpSortI').value)||1;
+  const active=document.getElementById('cpActiveI').checked;
+  if(!locId||!name){modalErr('mCheckpoint','Location and Name are required');return;}
+  // Check max 25 per location (only for new)
+  if(!id&&_cpForLoc(locId).length>=25){modalErr('mCheckpoint','Maximum 25 checkpoints per location');return;}
+  // Check duplicate name within same location
+  if((DB.checkpoints||[]).find(c=>c.locationId===locId&&c.name.toLowerCase()===name.toLowerCase()&&c.id!==id)){modalErr('mCheckpoint','Checkpoint name already exists at this location');return;}
+  if(!DB.checkpoints) DB.checkpoints=[];
+  if(id){
+    const cp=byId(DB.checkpoints,id);const bak={...cp};
+    Object.assign(cp,{locationId:locId,name,description:desc,sortOrder:sort,active});
+    if(!await _dbSave('checkpoints',cp)){Object.assign(cp,bak);return;}
+  } else {
+    const cp={id:'cp'+uid(),locationId:locId,name,description:desc,sortOrder:sort,active};
+    if(!await _dbSave('checkpoints',cp)) return;
+  }
+  cm('mCheckpoint');renderCheckpoints();notify('Checkpoint saved!');
+}
+
+// ===== SECURITY GUARD MASTER =====
+function _populateGuardLocDropdown(selId,curVal){
+  const sel=document.getElementById(selId);
+  if(!sel)return;
+  sel.innerHTML='<option value="">-- Select Location --</option>'+_kapLocations().sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  if(curVal) sel.value=curVal;
+}
+function renderGuards(){
+  const hideInactive=document.getElementById('showInactiveGuard')?.checked;
+  const guards=(DB.guards||[]).filter(g=>!hideInactive||!g.inactive).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('guardBody').innerHTML=guards.map(g=>{
+    const inactive=g.inactive===true;
+    const loc=byId(DB.locations,g.locationId);
+    const locBg=loc?.colour||'var(--surface2)';
+    const photoHtml=g.photo?`<img src="${g.photo}" onclick="openPhoto(this.src)" style="width:32px;height:32px;object-fit:cover;border-radius:50%;border:2px solid var(--border2);cursor:pointer${inactive?';filter:grayscale(1);opacity:.6':''}">`:'<span style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:var(--text3)">💂</span>';
+    const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
+    const trStyle=inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':'';
+    return `<tr ${trStyle}>
+      <td onclick="event.stopPropagation()">${photoHtml}</td>
+      <td style="font-weight:600">${g.name}${inactiveBadge}</td>
+      <td>${g.mobile||'-'}</td>
+      <td>${loc?`<span style="background:${locBg};color:${colourContrast(locBg)};padding:1px 6px;border-radius:4px;font-weight:600;font-size:11px">${loc.name}</span>`:'-'}</td>
+      <td>${g.shift||'-'}</td>
+      <td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openGuardModal('${g.id}')">✏️</button><button class="action-btn" onclick="del('guards','${g.id}',renderGuards)">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  const cEl=document.getElementById('cGuards');
+  if(cEl) cEl.textContent=(DB.guards||[]).filter(g=>!g.inactive).length;
+}
+function _guardOnPhoto(inp){
+  if(!inp.files[0])return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const thumb=document.getElementById('guardPhotoThumb');
+    const clear=document.getElementById('guardPhotoClear');
+    thumb.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;
+    thumb.style.border='2px solid var(--green)';
+    if(clear)clear.style.display='inline';
+    inp._data=e.target.result;
+  };
+  reader.readAsDataURL(inp.files[0]);
+}
+function _guardClearPhoto(){
+  const thumb=document.getElementById('guardPhotoThumb');
+  const clear=document.getElementById('guardPhotoClear');
+  const inp=document.getElementById('guardPhotoFile');
+  thumb.innerHTML='🧑';thumb.style.border='2px dashed var(--border2)';
+  if(clear)clear.style.display='none';
+  if(inp){inp.value='';inp._data='__clear__';}
+}
+function openGuardModal(id){
+  const g=id?byId(DB.guards||[],id):null;
+  document.getElementById('eGuardId').value=id||'';
+  document.getElementById('mGuardTitle').textContent=id?'Edit Guard':'Add Guard';
+  document.getElementById('guardNameI').value=g?.name||'';
+  document.getElementById('guardMobI').value=g?.mobile||'';
+  document.getElementById('guardEmailI').value=g?.email||'';
+  document.getElementById('guardShiftS').value=g?.shift||'';
+  _populateGuardLocDropdown('guardLocS',g?.locationId||'');
+  document.getElementById('guardInactive').checked=g?.inactive===true;
+  // Photo
+  const thumb=document.getElementById('guardPhotoThumb');
+  const clear=document.getElementById('guardPhotoClear');
+  const inp=document.getElementById('guardPhotoFile');
+  if(inp){inp.value='';inp._data=null;}
+  if(g?.photo){
+    thumb.innerHTML=`<img src="${g.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;thumb.style.border='2px solid var(--green)';
+    if(clear)clear.style.display='inline';
+  } else {
+    thumb.innerHTML='🧑';thumb.style.border='2px dashed var(--border2)';
+    if(clear)clear.style.display='none';
+  }
+  om('mGuard');
+}
+async function saveGuard(){
+  const id=document.getElementById('eGuardId').value;
+  const name=document.getElementById('guardNameI').value.trim();
+  const mobile=document.getElementById('guardMobI').value.trim();
+  const email=document.getElementById('guardEmailI').value.trim();
+  const locId=document.getElementById('guardLocS').value;
+  const shift=document.getElementById('guardShiftS').value;
+  const inactive=document.getElementById('guardInactive').checked;
+  if(!name||!mobile||!locId){modalErr('mGuard','Name, Mobile & Location are required');return;}
+  if(mobile.length!==10||!/^\d+$/.test(mobile)){modalErr('mGuard','Mobile must be 10 digits');return;}
+  // Photo
+  const inp=document.getElementById('guardPhotoFile');
+  let photo=id?byId(DB.guards||[],id)?.photo||'':'';
+  if(inp?._data==='__clear__') photo='';
+  else if(inp?._data) photo=inp._data;
+  if(!DB.guards) DB.guards=[];
+  if(id){
+    const g=byId(DB.guards,id);const bak={...g};
+    Object.assign(g,{name,mobile,email,locationId:locId,shift,photo,inactive});
+    if(!await _dbSave('guards',g)){Object.assign(g,bak);return;}
+  } else {
+    const g={id:'gd'+uid(),name,mobile,email,locationId:locId,shift,photo,inactive};
+    if(!await _dbSave('guards',g)) return;
+  }
+  cm('mGuard');renderGuards();notify('Guard saved!');
+}
+
+// ===== SECURITY ROUND SCHEDULE MASTER =====
+function _populateRSLocFilter(){
+  const sel=document.getElementById('rsLocFilter');
+  if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Locations</option>'+_kapLocations().sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  sel.value=cur;
+}
+function renderRoundSchedules(){
+  _populateRSLocFilter();
+  const locFilter=document.getElementById('rsLocFilter')?.value||'';
+  const hideInactive=document.getElementById('showInactiveRS')?.checked;
+  const schedules=(DB.roundSchedules||[]).filter(rs=>{
+    if(hideInactive&&rs.inactive) return false;
+    if(locFilter&&rs.locationId!==locFilter) return false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('rsBody').innerHTML=schedules.length?schedules.map(rs=>{
+    const loc=byId(DB.locations,rs.locationId);
+    const guard=byId(DB.guards||[],rs.guardId);
+    const cps=(rs.checkpointIds||[]).map(cpId=>byId(DB.checkpoints||[],cpId)).filter(Boolean);
+    const inactive=rs.inactive===true;
+    const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
+    const locBg=loc?.colour||'var(--surface2)';
+    return `<tr ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}>
+      <td style="font-weight:600">${rs.name}${inactiveBadge}</td>
+      <td>${loc?`<span style="background:${locBg};color:${colourContrast(locBg)};padding:1px 6px;border-radius:4px;font-weight:600;font-size:11px">${loc.name}</span>`:'-'}</td>
+      <td>${guard?guard.name:'-'}</td>
+      <td>${cps.length?cps.map(cp=>`<span style="display:inline-block;background:rgba(42,154,160,.1);color:var(--accent);font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin:1px 2px">${cp.name}</span>`).join(''):'<span style="color:var(--text3);font-size:11px">None</span>'}</td>
+      <td><span class="badge badge-amber">${rs.frequency}</span></td>
+      <td style="white-space:nowrap;font-family:var(--mono);font-size:12px">${rs.startTime||'—'} – ${rs.endTime||'—'}</td>
+      <td style="white-space:nowrap"><button class="action-btn" onclick="openRSModal('${rs.id}')">✏️</button><button class="action-btn" onclick="del('roundSchedules','${rs.id}',renderRoundSchedules)">🗑️</button></td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="7" class="empty-state">No round schedules yet.</td></tr>';
+  const cEl=document.getElementById('cRoundSched');
+  if(cEl) cEl.textContent=(DB.roundSchedules||[]).filter(rs=>!rs.inactive).length;
+}
+function onRSLocChange(){
+  const locId=document.getElementById('rsLocS').value;
+  // Populate guard dropdown filtered by location
+  const gSel=document.getElementById('rsGuardS');
+  const guards=(DB.guards||[]).filter(g=>g.locationId===locId&&!g.inactive);
+  gSel.innerHTML='<option value="">-- Unassigned --</option>'+guards.sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  // Populate checkpoint list
+  const cpList=document.getElementById('rsCPList');
+  const cps=_cpForLoc(locId).filter(cp=>cp.active!==false);
+  if(!cps.length){
+    cpList.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px">'+(locId?'No active checkpoints at this location':'Select a location first')+'</div>';
+    return;
+  }
+  cpList.innerHTML=cps.map(cp=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .15s;border:1px solid transparent" onmouseenter="this.style.background='rgba(42,154,160,.06)'" onmouseleave="this.style.background=''">
+    <input type="checkbox" class="rsCPCheck" value="${cp.id}" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0" onchange="this.closest('label').style.borderColor=this.checked?'var(--accent)':'transparent'">
+    <span style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cp.sortOrder||''}</span>
+    <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">${cp.name}</div>${cp.description?`<div style="font-size:10px;color:var(--text3)">${cp.description}</div>`:''}</div>
+  </label>`).join('');
+}
+function openRSModal(id){
+  const rs=id?byId(DB.roundSchedules||[],id):null;
+  document.getElementById('eRSid').value=id||'';
+  document.getElementById('mRSTitle').textContent=id?'Edit Round Schedule':'Add Round Schedule';
+  document.getElementById('rsNameI').value=rs?.name||'';
+  // Populate loc dropdown
+  const locS=document.getElementById('rsLocS');
+  locS.innerHTML='<option value="">-- Select Location --</option>'+_kapLocations().sort((a,b)=>a.name.localeCompare(b.name)).map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  locS.value=rs?.locationId||'';
+  document.getElementById('rsFreqS').value=rs?.frequency||'Daily';
+  document.getElementById('rsStartI').value=rs?.startTime||'06:00';
+  document.getElementById('rsEndI').value=rs?.endTime||'18:00';
+  document.getElementById('rsInactive').checked=rs?.inactive===true;
+  // Trigger loc change to populate guards & checkpoints
+  onRSLocChange();
+  // Restore guard selection
+  if(rs?.guardId) document.getElementById('rsGuardS').value=rs.guardId;
+  // Restore checkpoint selections
+  if(rs?.checkpointIds?.length){
+    setTimeout(()=>{
+      document.querySelectorAll('.rsCPCheck').forEach(cb=>{
+        if(rs.checkpointIds.includes(cb.value)){
+          cb.checked=true;
+          cb.closest('label').style.borderColor='var(--accent)';
+        }
+      });
+    },50);
+  }
+  om('mRoundSchedule');
+}
+async function saveRS(){
+  const id=document.getElementById('eRSid').value;
+  const name=document.getElementById('rsNameI').value.trim();
+  const locId=document.getElementById('rsLocS').value;
+  const guardId=document.getElementById('rsGuardS').value;
+  const freq=document.getElementById('rsFreqS').value;
+  const startTime=document.getElementById('rsStartI').value;
+  const endTime=document.getElementById('rsEndI').value;
+  const inactive=document.getElementById('rsInactive').checked;
+  const cpIds=[...document.querySelectorAll('.rsCPCheck:checked')].map(cb=>cb.value);
+  if(!name||!locId){modalErr('mRoundSchedule','Name and Location are required');return;}
+  if(!startTime||!endTime){modalErr('mRoundSchedule','Start and End time are required');return;}
+  if(!cpIds.length){modalErr('mRoundSchedule','Select at least one checkpoint');return;}
+  if(!DB.roundSchedules) DB.roundSchedules=[];
+  if(id){
+    const rs=byId(DB.roundSchedules,id);const bak={...rs};
+    Object.assign(rs,{name,locationId:locId,guardId,checkpointIds:cpIds,frequency:freq,startTime,endTime,inactive});
+    if(!await _dbSave('roundSchedules',rs)){Object.assign(rs,bak);return;}
+  } else {
+    const rs={id:'rs'+uid(),name,locationId:locId,guardId,checkpointIds:cpIds,frequency:freq,startTime,endTime,inactive};
+    if(!await _dbSave('roundSchedules',rs)) return;
+  }
+  cm('mRoundSchedule');renderRoundSchedules();notify('Schedule saved!');
+}
+
 // Live border update for location checkbox groups
 ['locTripBook','locMatRecv','locApprover'].forEach(groupId=>{
   document.addEventListener('change',function(e){
