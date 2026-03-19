@@ -1117,9 +1117,19 @@ function modalErrClear(modalId){
 }
 function om(id){const el=document.getElementById(id);if(el){el.style.display='flex';el.classList.add('open');modalErrClear(id);}else console.error('om: missing modal id='+id);}
 function cm(id){const el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('open');}else console.error('cm: missing modal id='+id);}
-function showConfirm(msg, onOk){
-  document.getElementById('confirmMsg').textContent=msg||'This action cannot be undone.';
-  document.getElementById('btnConfirmOk').onclick=()=>{cm('mConfirm');onOk();};
+function showConfirm(msg, onOk, opts){
+  // opts: {icon, title, btnLabel, btnColor}
+  const o=opts||{};
+  const el=id=>document.getElementById(id);
+  const iconEl=el('confirmIcon'), titleEl=el('confirmTitle'), msgEl=el('confirmMsg'), btnEl=el('btnConfirmOk');
+  if(iconEl) iconEl.textContent=o.icon||'❓';
+  if(titleEl) titleEl.textContent=o.title||'Are you sure?';
+  if(msgEl) msgEl.textContent=msg||'This action cannot be undone.';
+  if(btnEl){
+    btnEl.textContent=o.btnLabel||'Confirm';
+    btnEl.style.background=o.btnColor||'#ef4444';
+  }
+  if(btnEl) btnEl.onclick=()=>{cm('mConfirm');onOk();};
   om('mConfirm');
 }
 

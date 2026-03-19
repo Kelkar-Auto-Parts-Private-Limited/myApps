@@ -45,7 +45,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
 .action-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 6px;border-radius:4px}.action-btn:hover{background:var(--surface2)}
 .btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)!important}.btn-danger{background:var(--red);color:#fff}
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}.badge-blue{background:rgba(42,154,160,.12);color:var(--accent)}.badge-yellow{background:#fef9c3;color:#92400e}.badge-reached{background:var(--green-bg);color:var(--green)}.badge-onwater{background:#dbeafe;color:#1d4ed8}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}.badge-blue{background:rgba(42,154,160,.12);color:var(--accent)}.badge-green{background:#16a34a;color:#fff}.badge-yellow{background:#fef9c3;color:#92400e}.badge-red{background:#dc2626;color:#fff}.badge-reached{background:var(--green-bg);color:var(--green)}.badge-wh{background:#dcfce7;color:#14532d;font-weight:900}.badge-onwater{background:#dbeafe;color:#1d4ed8}
 .form-group{margin-bottom:12px}.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:var(--sans)}.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
 .form-row{display:flex;gap:12px}.form-row>.form-group{flex:1}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:5000;padding:16px}.modal-overlay.open{display:flex}
@@ -262,7 +262,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Date</div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date</div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status</div><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">Warehouse</option></select></th>
+            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status</div><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">WH</option></select></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($)</div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
@@ -840,12 +840,12 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 <!-- CONFIRM DELETE MODAL -->
 <div class="modal-overlay" id="mConfirm">
   <div class="modal" style="width:380px;max-width:92vw;text-align:center;padding:32px">
-    <div style="font-size:40px;margin-bottom:8px">🗑️</div>
-    <div style="font-size:17px;font-weight:800;margin-bottom:6px">Delete this item?</div>
+    <div id="confirmIcon" style="font-size:40px;margin-bottom:8px">❓</div>
+    <div id="confirmTitle" style="font-size:17px;font-weight:800;margin-bottom:6px">Are you sure?</div>
     <div id="confirmMsg" style="font-size:13px;color:#64748b;margin-bottom:20px">This action cannot be undone.</div>
     <div style="display:flex;justify-content:center;gap:12px">
       <button onclick="cm('mConfirm')" style="min-width:100px;padding:10px 20px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;cursor:pointer">Cancel</button>
-      <button id="btnConfirmOk" style="min-width:100px;padding:10px 20px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-weight:700;cursor:pointer">🗑 Delete</button>
+      <button id="btnConfirmOk" style="min-width:100px;padding:10px 20px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-weight:700;cursor:pointer">Confirm</button>
     </div>
   </div>
 </div>
@@ -935,6 +935,9 @@ function hwmsLogout(){
   try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
   _navigateTo('index.html');
 }
+
+// Restore saved invoice folder handle on load
+(async()=>{ try{ await _hwmsRestoreFolder(); }catch(e){} })();
 
 function _hwmsUpdCounts(){
   var m={
@@ -1871,8 +1874,10 @@ async function _hwmsConfirmInv(id){
   showConfirm('Confirm invoice '+inv.invoiceNumber+' as RFD? Once confirmed, it cannot be edited unless revoked.', async ()=>{
     const bak={...inv};inv.confirmed=true;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
-    renderHwmsInvoices();notify('✅ Invoice '+inv.invoiceNumber+' confirmed as RFD');
-  });
+    renderHwmsInvoices();
+    notify('✅ Invoice '+inv.invoiceNumber+' confirmed as RFD');
+    showHwmsInvDetail(id);
+  },{icon:'🔒',title:'Confirm & Lock Invoice',btnLabel:'🔒 Confirm',btnColor:'#16a34a'});
 }
 
 async function _hwmsRevokeInv(id){
@@ -1880,11 +1885,14 @@ async function _hwmsRevokeInv(id){
   if(!inv.confirmed){notify('Not confirmed',true);return;}
   const cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;
   if(cont&&(cont.status==='Onwater'||cont.status==='Reached')){notify('⚠ Cannot revoke: Container '+cont.containerNumber+' is dispatched. Invoice is locked.',true);return;}
-  showConfirm('Revoke RFD for invoice '+inv.invoiceNumber+'? It will go back to Draft.', async ()=>{
+  showConfirm('Revoke RFD for invoice '+inv.invoiceNumber+'? It will go back to Draft status and become editable again.', async ()=>{
     const bak={...inv};inv.confirmed=false;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
-    renderHwmsInvoices();notify('Invoice '+inv.invoiceNumber+' revoked to Draft');
-  });
+    renderHwmsInvoices();
+    notify('Invoice '+inv.invoiceNumber+' revoked to Draft');
+    // Immediately refresh the detail view so buttons update without manual navigation
+    showHwmsInvDetail(id);
+  },{icon:'↩',title:'Revoke to Draft',btnLabel:'↩ Revoke',btnColor:'#f59e0b'});
 }
 
 
@@ -1894,7 +1902,7 @@ function _hwmsInvStatus(inv){
   if(!inv.confirmed) return {label:'Draft',cls:'badge-yellow'};
   const cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;
   const cst=cont?_hwmsNormContStatus(cont.status):'';
-  if(cst==='Reached') return {label:'Warehouse',cls:'badge-reached'};
+  if(cst==='Reached') return {label:'WH',cls:'badge-wh'};
   if(cst==='Onwater') return {label:'In Transit',cls:'badge-onwater'};
   return {label:'RFD',cls:'badge-green'};
 }
@@ -2662,7 +2670,46 @@ async function saveHwmsCont(){
 // Sort state for invoices
 let _hwmsInvSortKey='invoiceNumber',_hwmsInvSortAsc=false;
 let _hwmsCurrentInvId=null;
+const _HWMS_LOGO_IMG='<img src="data:image/jpeg;base64,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hf4S1LxPq07qsrQqEtbFSf8AWTzNhIkHJyxHTjJ4r+iT4G/8Gg37Mvw41yC+8Wal47+ISQEE2V5qIsLSY/7YtgkuPYSCv0l+Bn7OngP9mXwTB4c+HvhDw74N0O3AC2ek2MdrGxAxubaAXY92YknuTT5QPk//AIIjf8EX9B/4JJ/B/UvtOpr4k+JPjBIT4h1WJnFpGseSltbI2MRqzMS5UM5wTgBVH3HRRVAMuLeO7geKVEkikUq6OAysDwQQeor+ef8A4OI/+DdiT4QT638ePgNoiv4Tmle88UeFbGPDaKWJZ7u0jHH2bdnfEv8AqtwKr5YOz+humXFvHd27xSoksUqlHR1DK4PBBB6ik0B/BkRg0V+2/wDwcR/8G7Enwln1v48fAXQvM8KzSve+KfCtinzaMWJZ7y1j72+7l4l/1e7Kr5YOz8SCMGoAKKKKAPU/2Lv2v/GX7Cn7SPhn4meBtRlsNa8O3SyPGDmHULc8TW0y9GjkQspB6ZDDDAEf2i/s0fHXS/2nf2ffBvxC0UFdL8ZaRb6tboWDGMSxhihI6lSSPwr+Gev7CP8Ag350nUdG/wCCO3wLh1NZFuH0J5kDgg+S9zM8XXt5bJVRA+yKKKKoAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigBlzbR3lu8UsaSxSqUdHUMrg8EEHqK/nt/wCDh/8A4N0pvhhea18dfgD4fkn8MzyNeeKPCenoWfSGY5e8tI+pgLHLxJny9xKgRghP6FaSSNZo2R1DKwwQRkEelJoD+DFlKMVYEEHBB6ikr+sH9uj/AINk/wBmr9tbxlc+KINN1j4Z+KL1jJdXXhWSKC0vnJyXltXRo955y0ewknLFjXhHw9/4MzfgRoPiGK58RfEf4leIbCJ9zWcH2Wx80dlZxG7Y9duD6EdamzA/Eb/glx/wTY8a/wDBTn9qPRvA3hq0mg0SOZbjxFrbxt9l0eyU5kdmHBkYZWNOrMw6AMw/sh+Fvw20n4OfDXQfCeg24tNF8N2EOm2UI58uGJAig+pwBk+tcr+y7+yJ8N/2LvhjbeD/AIY+EdI8I6DbgForOL95cuBjzJpWy8sh7s7E+9ekVSVgCiiimAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB//2Q==" style="width:22px;height:22px;object-fit:contain;vertical-align:middle">';
 let _hwmsInvFolderHandle=null; // File System Access API folder handle
+
+// ── Persist folder handle in IndexedDB so it survives page refreshes ──────────
+const _HWMS_IDB_NAME='hwms_prefs',_HWMS_IDB_STORE='prefs',_HWMS_IDB_KEY='invoiceFolderHandle';
+function _hwmsOpenPrefsDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(_HWMS_IDB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore(_HWMS_IDB_STORE);
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+async function _hwmsSaveFolderHandle(handle){
+  try{const db=await _hwmsOpenPrefsDB();const tx=db.transaction(_HWMS_IDB_STORE,'readwrite');tx.objectStore(_HWMS_IDB_STORE).put(handle,_HWMS_IDB_KEY);}catch(e){console.warn('hwms: could not save folder handle',e);}
+}
+async function _hwmsLoadFolderHandle(){
+  try{
+    const db=await _hwmsOpenPrefsDB();
+    return new Promise((res)=>{
+      const req=db.transaction(_HWMS_IDB_STORE,'readonly').objectStore(_HWMS_IDB_STORE).get(_HWMS_IDB_KEY);
+      req.onsuccess=e=>res(e.target.result||null);
+      req.onerror=()=>res(null);
+    });
+  }catch(e){return null;}
+}
+async function _hwmsRestoreFolder(){
+  // Called on app init — silently re-attach saved folder if permission still active
+  const handle=await _hwmsLoadFolderHandle();
+  if(!handle) return;
+  try{
+    const perm=await handle.queryPermission({mode:'readwrite'});
+    if(perm==='granted'){
+      _hwmsInvFolderHandle=handle;
+      const btn=document.getElementById('hwmsFolderBtn');
+      if(btn) btn.textContent='📁 '+handle.name;
+    }
+    // If 'prompt', user needs to click button — we don't auto-request without gesture
+  }catch(e){/* handle may be stale — silently ignore */}
+}
 function _hwmsInvSort(key){
   if(_hwmsInvSortKey===key) _hwmsInvSortAsc=!_hwmsInvSortAsc;
   else {_hwmsInvSortKey=key;_hwmsInvSortAsc=true;}
@@ -2918,8 +2965,8 @@ function showHwmsInvDetail(id){
   // Actions — Print, Edit (disabled if confirmed), Confirm, Revoke (disabled if dispatched)
   const isContDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
   let actHtml='';
-  actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨️ Preview India Invoice</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨️ Preview USA Invoice</button>';
+  actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview India Invoice">'+_HWMS_LOGO_IMG+'</button>';
+  actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview USA Invoice">'+_HWMS_LOGO_IMG+'</button>';
   actHtml+=' <button class="btn" onclick="_hwmsInvSaveBoth(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1.5px solid #86efac;color:#15803d;font-weight:800;border-radius:var(--radius);cursor:pointer">💾 Save Both PDFs</button>';
   actHtml+=' <button class="btn" onclick="_hwmsChooseFolder()" id="hwmsFolderBtn" style="font-size:12px;padding:7px 14px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);font-weight:700;border-radius:var(--radius);cursor:pointer" title="Choose folder for saving PDFs">📁 Choose Folder</button>';
   // Edit — disabled if confirmed
@@ -2930,14 +2977,14 @@ function showHwmsInvDetail(id){
   }
   // Confirm — only for drafts
   if(!inv.confirmed){
-    actHtml+=' <button class="btn" onclick="_hwmsConfirmInv(\''+inv.id+'\');setTimeout(function(){showHwmsInvDetail(\''+inv.id+'\')},300)" style="font-size:12px;padding:7px 16px;background:#16a34a;border:1.5px solid #15803d;color:#fff;font-weight:800;border-radius:var(--radius);cursor:pointer">🔒 Confirm & Lock Invoice</button>';
+    actHtml+=' <button class="btn" onclick="_hwmsConfirmInv(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#16a34a;border:1.5px solid #15803d;color:#fff;font-weight:800;border-radius:var(--radius);cursor:pointer">🔒 Confirm & Lock Invoice</button>';
   }
   // Revoke — disabled if dispatched, shown only for confirmed
   if(inv.confirmed){
     if(isContDispatched){
       actHtml+=' <button class="btn" disabled style="font-size:12px;padding:7px 16px;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#94a3b8;font-weight:700;border-radius:var(--radius);cursor:not-allowed;opacity:.6">↩ Revoke (Locked)</button>';
     } else {
-      actHtml+=' <button class="btn" onclick="_hwmsRevokeInv(\''+inv.id+'\');setTimeout(function(){showHwmsInvDetail(\''+inv.id+'\')},300)" style="font-size:12px;padding:7px 16px;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;font-weight:800;border-radius:var(--radius);cursor:pointer">↩ Revoke to Draft</button>';
+      actHtml+=' <button class="btn" onclick="_hwmsRevokeInv(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;font-weight:800;border-radius:var(--radius);cursor:pointer">↩ Revoke to Draft</button>';
     }
   }
   document.getElementById('hwmsInvViewActions').innerHTML=actHtml;
@@ -3072,8 +3119,8 @@ let _hwmsSteelEditIdx=-1;
 
 function _hwmsInvNum(n){
   if(!n) return '';
-  if(n.length<=5) return '<span style="font-weight:900;font-family:inherit">'+n+'</span>';
-  return '<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';
+  if(n.length<=5) return '<span style="font-weight:900;font-size:1.1em">'+n+'</span>';
+  return '<span style="font-weight:300;opacity:.6">'+n.slice(0,-5)+'</span>'+'<span style="font-weight:900;font-size:1.1em">'+n.slice(-5)+'</span>';
 }
 function _hwmsGetLatestSteelRate(customerId, invoiceDate){
   // Steel rates are stored in the separate hwms_steel_rates table, linked by customerId
@@ -3185,9 +3232,9 @@ function _hwmsInvBuildHtml(id){
 
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>'+
   '<style>'+
-  '@page{size:A4 portrait;margin:10mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
+  '@page{size:A4 portrait;margin:8mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
   '*{margin:0;padding:0;box-sizing:border-box}'+
-  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:190mm;max-width:190mm;margin:0 auto;padding:0}'+
+  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:194mm;max-width:194mm;margin:0 auto;padding:8mm 0 0 0}'+
   'table.main{width:100%;border-collapse:collapse;border:2px solid #000}'+
   'table.main td,table.main th{border:1px solid #000;padding:4px 6px;vertical-align:top}'+
   'table.items{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
@@ -3209,7 +3256,7 @@ function _hwmsInvBuildHtml(id){
 
     '<tr>'+
       '<td colspan="3" rowspan="3" style="width:38%"><div class="lbl">Exporter:</div><div class="val" style="font-size:14px;font-weight:900">'+_m(coName)+'</div><div class="addr">'+_m(coAddr)+'</div>'+(coGstin?'<div style="margin-top:4px;font-size:11px">GSTIN: <b>'+coGstin+'</b></div>':'')+'</td>'+
-      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+function(n){n=(n||'').replace(/-/g,'');return n.length<=5?'<span style="font-weight:900">'+n+'</span>':'<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';}(inv.invoiceNumber)+'</div></td>'+
+      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+(inv.invoiceNumber||'').replace(/-/g,'')+'</div></td>'+
       '<td colspan="2"><div class="lbl">Date</div><div class="val" style="font-size:18px">'+_m(fd(inv.date))+'</div></td>'+
       '<td colspan="3"><div class="lbl">Exporter\'s Ref:</div><div class="val">'+_m(coIec)+'</div></td>'+
     '</tr>'+
@@ -3291,7 +3338,7 @@ function _hwmsInvBuildHtml(id){
   '</table>'+
 
   '<div class="print-hide" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:12px 36px;font-size:15px;font-weight:700;background:#2a9aa0;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Print / Save as PDF</button></div>'+
-  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(277*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
+  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(281*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
 
   return html;
 }
@@ -3406,9 +3453,9 @@ function _hwmsInvBuildHtmlUSA(id){
   // ═══ SAME CSS AS INDIA ═══
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>'+
   '<style>'+
-  '@page{size:A4 portrait;margin:10mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
+  '@page{size:A4 portrait;margin:8mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
   '*{margin:0;padding:0;box-sizing:border-box}'+
-  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:205mm;max-width:205mm;margin:0 auto;padding:0}'+
+  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:194mm;max-width:194mm;margin:0 auto;padding:8mm 0 0 0}'+
   'table.main{width:100%;border-collapse:collapse;border:2px solid #000}'+
   'table.main td,table.main th{border:1px solid #000;padding:4px 6px;vertical-align:top}'+
   'table.items{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
@@ -3432,7 +3479,7 @@ function _hwmsInvBuildHtmlUSA(id){
 
     '<tr>'+
       '<td colspan="3" rowspan="3" style="width:38%"><div class="lbl">Exporter:</div><div class="val" style="font-size:14px;font-weight:900">'+_m(coName)+'</div><div class="addr">'+_m(coAddr)+'</div>'+(coGstin?'<div style="margin-top:4px;font-size:11px">GSTIN: <b>'+coGstin+'</b></div>':'')+'</td>'+
-      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+function(n){n=(n||'').replace(/-/g,'');return n.length<=5?'<span style="font-weight:900">'+n+'</span>':'<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';}(inv.invoiceNumber)+'</div></td>'+
+      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+(inv.invoiceNumber||'').replace(/-/g,'')+'</div></td>'+
       '<td colspan="3"><div class="lbl">Date</div><div class="val" style="font-size:18px">'+_m(fd(inv.date))+'</div></td>'+
       '<td colspan="3"><div class="lbl">Exporter\'s Ref:</div><div class="val">'+_m(coIec)+'</div></td>'+
     '</tr>'+
@@ -3481,7 +3528,7 @@ function _hwmsInvBuildHtmlUSA(id){
     '<thead><tr>'+
       '<th style="width:30px">Plt</th>'+
       '<th style="width:90px">Pkg L×W×H</th>'+
-      '<th>Part No. / Description</th>'+
+      '<th style="min-width:160px">Part No. / Description</th>'+
       '<th style="width:50px">HSN</th>'+
       '<th style="width:70px">Buyer PO</th>'+
       '<th class="r" style="width:35px">Qty</th>'+
@@ -3537,7 +3584,7 @@ function _hwmsInvBuildHtmlUSA(id){
   '</table>'+
 
   '<div class="print-hide" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:12px 36px;font-size:15px;font-weight:700;background:#2a9aa0;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Print / Save as PDF</button></div>'+
-  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(277*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
+  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(281*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
 
   return html;
 }
@@ -3591,6 +3638,88 @@ function _hwmsInvDateSync(){
   var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   el.value=dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);
 }
+// Lazy-load PDF libs from CDN
+let _hwmsPdfLibsLoaded=false;
+async function _hwmsLoadPdfLibs(){
+  if(_hwmsPdfLibsLoaded) return true;
+  const load=src=>new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+  try{
+    await load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    _hwmsPdfLibsLoaded=true;
+    return true;
+  }catch(e){
+    notify('⚠ Could not load PDF libraries — check internet connection',true);
+    return false;
+  }
+}
+
+// Render HTML string to PDF blob via hidden iframe + html2canvas + jsPDF
+async function _hwmsHtmlToPdf(html, progressCb){
+  // Create hidden iframe
+  const iframe=document.createElement('iframe');
+  iframe.style.cssText='position:fixed;top:0;left:-9999px;width:794px;height:1123px;border:none;opacity:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(iframe);
+  return new Promise((resolve,reject)=>{
+    iframe.onload=async()=>{
+      try{
+        if(progressCb) progressCb('Rendering…');
+        const iDoc=iframe.contentDocument||iframe.contentWindow.document;
+        // Hide print-only-visible buttons
+        const hideStyle=iDoc.createElement('style');
+        hideStyle.textContent='.print-hide{display:none!important}body{zoom:1!important}';
+        (iDoc.head||iDoc.documentElement).appendChild(hideStyle);
+        const body=iDoc.body;
+        // Remove any JS-applied zoom — capture at natural content size for sharpest text
+        body.style.zoom='';
+        // Wait one frame for layout to settle
+        await new Promise(r=>setTimeout(r,80));
+        const naturalW=Math.max(body.scrollWidth,794);
+        const naturalH=Math.max(body.scrollHeight,200);
+        // Capture at 3x scale — enough for print quality without memory issues
+        const scale=3;
+        const canvas=await html2canvas(body,{
+          scale:scale,
+          useCORS:true,
+          allowTaint:true,
+          backgroundColor:'#fff',
+          imageTimeout:0,
+          letterRendering:true,
+          width:naturalW,
+          height:naturalH,
+          windowWidth:naturalW,
+          windowHeight:naturalH,
+        });
+        // Fit into A4: maintain aspect ratio within 210×297mm
+        const {jsPDF}=window.jspdf;
+        const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:false});
+        const pxToMm=px=>(px*25.4)/96;
+        const contentW=pxToMm(naturalW);
+        const contentH=pxToMm(naturalH);
+        const pdfW=210,pdfH=297;
+        // Scale to fit A4 preserving aspect ratio
+        const ratio=Math.min(pdfW/contentW,pdfH/contentH);
+        const fitW=contentW*ratio;
+        const fitH=contentH*ratio;
+        const xOff=(pdfW-fitW)/2;
+        const yOff=0;
+        const imgData=canvas.toDataURL('image/png');
+        pdf.addImage(imgData,'PNG',xOff,yOff,fitW,fitH,undefined,'FAST');
+        const pdfBytes=pdf.output('arraybuffer');
+        document.body.removeChild(iframe);
+        resolve(pdfBytes);
+      }catch(e){
+        document.body.removeChild(iframe);
+        reject(e);
+      }
+    };
+    iframe.srcdoc=html;
+  });
+}
+
 async function _hwmsChooseFolder(){
   if(!window.showDirectoryPicker){
     notify('📁 Your browser does not support folder access. Use Chrome or Edge.',true);return null;
@@ -3600,7 +3729,8 @@ async function _hwmsChooseFolder(){
     _hwmsInvFolderHandle=handle;
     const btn=document.getElementById('hwmsFolderBtn');
     if(btn) btn.textContent='📁 '+handle.name;
-    notify('📁 Folder set: '+handle.name);
+    await _hwmsSaveFolderHandle(handle);
+    notify('📁 Folder set: '+handle.name+' — remembered for next session');
     return handle;
   }catch(e){
     if(e.name!=='AbortError') notify('Could not access folder: '+e.message,true);
@@ -3608,17 +3738,36 @@ async function _hwmsChooseFolder(){
   }
 }
 async function _hwmsEnsureFolder(){
-  // Returns folder handle, prompting user if not yet chosen
-  if(_hwmsInvFolderHandle) return _hwmsInvFolderHandle;
+  // If we have a handle, verify/request permission (non-blocking if already granted)
+  if(_hwmsInvFolderHandle){
+    try{
+      const perm=await _hwmsInvFolderHandle.queryPermission({mode:'readwrite'});
+      if(perm==='granted') return _hwmsInvFolderHandle;
+      // Permission needs re-request (requires user gesture — we have one since user clicked)
+      const newPerm=await _hwmsInvFolderHandle.requestPermission({mode:'readwrite'});
+      if(newPerm==='granted') return _hwmsInvFolderHandle;
+    }catch(e){/* handle stale — fall through to picker */}
+  }
+  // Try restoring from IndexedDB first
+  const saved=await _hwmsLoadFolderHandle();
+  if(saved){
+    try{
+      const perm=await saved.requestPermission({mode:'readwrite'});
+      if(perm==='granted'){_hwmsInvFolderHandle=saved;const btn=document.getElementById('hwmsFolderBtn');if(btn)btn.textContent='📁 '+saved.name;return saved;}
+    }catch(e){/* fall through */}
+  }
   return await _hwmsChooseFolder();
 }
 async function _hwmsGetSubFolder(parentHandle, name){
   return await parentHandle.getDirectoryHandle(name,{create:true});
 }
-async function _hwmsWriteFile(subDir, fileName, html){
+async function _hwmsWriteFile(subDir, fileName, content, mimeType){
   const fileHandle=await subDir.getFileHandle(fileName,{create:true});
   const writable=await fileHandle.createWritable();
-  await writable.write(new Blob([html],{type:'text/html;charset=utf-8'}));
+  const blob=content instanceof ArrayBuffer
+    ?new Blob([content],{type:mimeType||'application/pdf'})
+    :new Blob([content],{type:mimeType||'text/html;charset=utf-8'});
+  await writable.write(blob);
   await writable.close();
 }
 async function _hwmsInvSaveIndia(id){
@@ -3648,21 +3797,28 @@ async function _hwmsInvSaveUSA(id){
 async function _hwmsInvSaveBoth(id){
   const folder=await _hwmsEnsureFolder();
   if(!folder) return;
+  const inv=byId(DB.hwmsInvoices||[],id);
+  const num=(inv?.invoiceNumber||id).replace(/[\/\\:*?"<>|]/g,'');
+  notify('⏳ Generating PDFs…');
   try{
-    const inv=byId(DB.hwmsInvoices||[],id);
-    const num=(inv?.invoiceNumber||id).replace(/[\/\\:*?"<>|]/g,'');
+    if(!await _hwmsLoadPdfLibs()) return;
     const htmlI=_hwmsInvBuildHtml(id);
     const htmlU=_hwmsInvBuildHtmlUSA(id);
+    let saved=[];
     if(htmlI){
+      const pdfI=await _hwmsHtmlToPdf(htmlI);
       const subI=await _hwmsGetSubFolder(folder,'Invoices-India');
-      await _hwmsWriteFile(subI,num+'_IND.html',htmlI);
+      await _hwmsWriteFile(subI,num+'_IND.pdf',pdfI,'application/pdf');
+      saved.push('Invoices-India/'+num+'_IND.pdf');
     }
     if(htmlU){
+      const pdfU=await _hwmsHtmlToPdf(htmlU);
       const subU=await _hwmsGetSubFolder(folder,'Invoices-USA');
-      await _hwmsWriteFile(subU,num+'_USA.html',htmlU);
+      await _hwmsWriteFile(subU,num+'_USA.pdf',pdfU,'application/pdf');
+      saved.push('Invoices-USA/'+num+'_USA.pdf');
     }
-    notify('✅ Both saved — '+num+'_IND.html & '+num+'_USA.html');
-  }catch(e){ notify('Save both failed: '+e.message,true); }
+    notify('✅ Saved: '+saved.join(' & '));
+  }catch(e){ notify('Save PDF failed: '+e.message,true); }
 }
 function _hwmsInvBack(){
   hwmsGo('pageHwmsInvoices');

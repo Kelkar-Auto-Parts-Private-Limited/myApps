@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+${(s.challans||[]).filter(c=>c&&c.no).map(c=>`<span style="font-size:11px;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;color:#1d6f73;flex-shrink:0">📄 ${c.no}</span>`).join(' ')||(s.challan?`<span style="font-size:11px;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;color:#1d6f73;flex-shrink:0">📄 ${s.challan}</span>`:'')}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -976,56 +976,112 @@
 
       <!-- SPOT VEHICLE ENTRY CONTENT (preserved from original) -->
       <div id="kapSpotSection" style="display:none">
-        <div style="border:2px solid #16a34a;border-radius:10px;padding:0;overflow:hidden">
-      <div class="card" style="padding:8px 10px;border:none;border-radius:0;margin:0">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="font-size:13px;font-weight:800;color:#16a34a">Spot Vehicle Entry</span>
-          <span id="spotLocBadge" style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;margin-left:2px"></span>
+        <!-- Record button + location badge -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <button class="btn btn-green" onclick="_kapOpenSpotPopup(null)" style="font-size:14px;padding:10px 20px;font-weight:800;border-radius:12px">
+            🏁 Record Spot Vehicle Entry
+          </button>
+          <span id="spotLocBadge" style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:6px"></span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin-bottom:6px">
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Vehicle No. *</label>
-            <input type="text" id="spotVehNum" placeholder="MH12-AB-1234" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Driver Name</label>
-            <input type="text" id="spotDriverName" placeholder="Name" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Mobile</label>
-            <input type="tel" id="spotDriverMob" maxlength="10" placeholder="10 digits" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Supplier</label>
-            <input type="text" id="spotSupplier" placeholder="Supplier" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Challan No.</label>
-            <input type="text" id="spotChallan" placeholder="Challan" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:1px">
-            <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Remarks</label>
-            <input type="text" id="spotEntryRemarks" placeholder="Optional" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
+
+        <!-- History -->
+        <div style="border:2px solid #16a34a;border-radius:10px;overflow:hidden">
+          <div class="card" style="padding:12px;border:none;border-radius:0;margin:0">
+            <div class="filter-row" style="margin-bottom:8px">
+              <div class="df-block" id="dfb_spotHist"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_spotHist_today" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','today',renderSpotHistory,'spotHist')">1D</button><button id="drb_spotHist_week" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','week',renderSpotHistory,'spotHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistFromLbl">📅 —</span><input type="date" id="spotHistFrom" onchange="updDateBtnLbl('spotHistFrom');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistToLbl">📅 —</span><input type="date" id="spotHistTo" onchange="updDateBtnLbl('spotHistTo');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><button id="drb_spotHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('spotHistFrom','spotHistTo','month',renderSpotHistory,'spotHist')">1M</button><button id="drb_spotHist_year" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','year',renderSpotHistory,'spotHist')">1Y</button></div>
+            </div>
+            <div id="spotHistoryList"></div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <div id="spotVehThumb" onclick="_showPhotoChoice('spotVehFile','spotVehThumb')" style="width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0" title="Vehicle Photo">🚗</div>
-          <input type="file" id="spotVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotVehThumb')">
-          <div id="spotChallanThumb" onclick="_showPhotoChoice('spotChallanFile','spotChallanThumb')" style="width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0" title="Challan Photo">📄</div>
-          <input type="file" id="spotChallanFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotChallanThumb')">
-          <div id="spotDriverThumb" onclick="_showPhotoChoice('spotDriverFile','spotDriverThumb')" style="width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0" title="Driver Photo">🧑</div>
-          <input type="file" id="spotDriverFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotDriverThumb')">
-          <input type="hidden" id="spotEditId">
-          <div style="flex:1"></div>
-          <button id="spotCancelEditBtn" onclick="cancelSpotEdit()" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✕ Cancel</button>
-          <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:13px;padding:8px 20px;font-weight:800">🏁 Record Entry</button>
-        </div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-title" style="margin-bottom:6px">🕘 Spot Vehicle Entry History</div>
-        <div class="filter-row" style="margin-bottom:8px"><div class="df-block" id="dfb_spotHist"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_spotHist_today" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','today',renderSpotHistory,'spotHist')">1D</button><button id="drb_spotHist_week" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','week',renderSpotHistory,'spotHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistFromLbl">📅 —</span><input type="date" id="spotHistFrom" onchange="updDateBtnLbl('spotHistFrom');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistToLbl">📅 —</span><input type="date" id="spotHistTo" onchange="updDateBtnLbl('spotHistTo');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><button id="drb_spotHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('spotHistFrom','spotHistTo','month',renderSpotHistory,'spotHist')">1M</button><button id="drb_spotHist_year" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','year',renderSpotHistory,'spotHist')">1Y</button></div></div>
-        <div id="spotHistoryList"></div>
-      </div>
+
+        <!-- SPOT ENTRY / EXIT POPUP (single popup for both) -->
+        <div id="mSpotEntry" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:8px" onclick="if(event.target===this)_kapCloseSpotPopup()">
+          <div style="background:var(--surface);border-radius:16px;max-width:520px;width:100%;max-height:calc(100vh - 16px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:16px 16px 0 0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">🏁</span>
+                <div>
+                  <div style="font-size:15px;font-weight:900;color:#16a34a" id="spotPopupTitle">Spot Vehicle Entry</div>
+                  <div id="spotPopupId" style="font-family:var(--mono);font-size:12px;color:var(--text3);font-weight:700"></div>
+                </div>
+                <span id="spotLocBadgePopup" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px"></span>
+              </div>
+              <button onclick="_kapCloseSpotPopup()" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;font-size:18px;font-weight:900;cursor:pointer;padding:5px 12px;line-height:1;border-radius:8px">✕ Close</button>
+            </div>
+            <div id="spotEntrySection">
+              <div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px">
+                <!-- Vehicle No (full width) -->
+                <div style="display:flex;flex-direction:column;gap:1px">
+                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Vehicle No. *</label>
+                  <input type="text" id="spotVehNum" placeholder="MH12-AB-1234" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900">
+                </div>
+                <!-- Driver Name + Mobile stacked, driver photo to the right -->
+                <div style="display:flex;align-items:stretch;gap:8px">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;flex-direction:column;gap:1px">
+                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Driver Name</label>
+                      <input type="text" id="spotDriverName" placeholder="Full name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:1px">
+                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Mobile</label>
+                      <input type="tel" id="spotDriverMob" maxlength="10" placeholder="10 digits" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                    </div>
+                  </div>
+                  <!-- Driver photo — full height of both fields -->
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0;position:relative">
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase">Driver</span>
+                    <div id="spotDriverThumb" onclick="_showPhotoChoice('spotDriverFile','spotDriverThumb')" style="width:80px;flex:1;min-height:80px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🧑</div>
+                    <input type="file" id="spotDriverFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotDriverThumb')">
+                  </div>
+                </div>
+                <!-- Supplier -->
+                <div style="display:flex;flex-direction:column;gap:1px">
+                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Supplier</label>
+                  <input type="text" id="spotSupplier" placeholder="Supplier / Party name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                </div>
+                <!-- Challans: 3 per row, each = [text above photo] -->
+                <div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers</label>
+                    <button onclick="_spotAddChallanRow()" style="font-size:10px;padding:2px 8px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:5px;color:#1d6f73;font-weight:700;cursor:pointer">+ Add</button>
+                  </div>
+                  <div id="spotChallanRows" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
+                </div>
+                <!-- Remarks -->
+
+              </div>
+              <!-- ═══ Bottom bar: Entry (left) + Exit (right) ═══ -->
+              <div style="display:flex;border-top:1px solid var(--border)">
+                <!-- Left: Entry remarks + vehicle photo + Record Entry -->
+                <div style="flex:1;padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">
+                  <div style="display:flex;flex-direction:column;gap:1px">
+                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Entry Remarks</label>
+                    <input type="text" id="spotEntryRemarks" placeholder="Optional notes" style="padding:5px 8px;font-size:13px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                  </div>
+                  <div style="position:relative;align-self:flex-start">
+                    <div id="spotVehThumb" onclick="_showPhotoChoice('spotVehFile','spotVehThumb')" style="width:80px;height:80px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🚗</div>
+                    <input type="file" id="spotVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotVehThumb')">
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Vehicle *</span>
+                  </div>
+                  <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🏁 Record Entry</button>
+                  <input type="hidden" id="spotEditId">
+                </div>
+                <!-- Right: Exit (hidden until vehicle is inside) -->
+                <div id="spotExitSection" style="display:none;flex:1;padding:10px 14px 14px;border-left:2px solid #dc2626;background:rgba(220,38,38,.02);flex-direction:column;gap:6px;min-width:0">
+                  <div style="display:flex;flex-direction:column;gap:1px">
+                    <label style="font-size:9px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.4px">Exit Remarks</label>
+                    <input type="text" id="spotExitRemarks" placeholder="Optional" style="padding:5px 8px;font-size:13px;border:1.5px solid #fca5a5;border-radius:7px;width:100%;box-sizing:border-box">
+                  </div>
+                  <div style="position:relative;align-self:flex-start">
+                    <div id="spotExitVehThumb" onclick="_showPhotoChoice('spotExitVehFile','spotExitVehThumb')" style="width:80px;height:80px;border:2px dashed #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;background:#fff5f5;cursor:pointer">🚗</div>
+                    <input type="file" id="spotExitVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotExitVehThumb')">
+                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Exit Photo</span>
+                  </div>
+                  <button id="spotExitBtn" class="btn btn-danger" onclick="doSpotExit()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🚪 Record Exit</button>
+                  <input type="hidden" id="spotExitId">
+                </div>
+              </div>
+          </div>
         </div>
       </div><!-- end kapSpotSection -->
     </div><!-- end pageKapSecurity -->
@@ -5240,6 +5296,125 @@ function _kapUpdateCounts(){
 
 
 // ===== KAP SECURITY =====
+let _spotChallanCount=0;
+function _spotRestoreThumb(thumbId,photoData){
+  const el=document.getElementById(thumbId);if(!el||!photoData)return;
+  const img=document.createElement('img');
+  img.src=photoData;img.style.cssText='width:100%;height:100%;object-fit:cover;cursor:pointer;display:block';
+  img.onclick=()=>openPhoto(photoData);
+  el.innerHTML='';el.appendChild(img);
+  el.style.border='2px solid #16a34a';
+  // Add × clear button
+  const parent=el.parentElement;if(!parent) return;
+  parent.style.position='relative';
+  const existing=parent.querySelector('.spot-photo-clear');if(existing)existing.remove();
+  const xBtn=document.createElement('button');
+  xBtn.className='spot-photo-clear';xBtn.textContent='×';
+  xBtn.style.cssText='position:absolute;top:-7px;right:-7px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:13px;cursor:pointer;padding:0;line-height:1;z-index:10;display:flex;align-items:center;justify-content:center';
+  const icons={'spotVehThumb':'🚗','spotDriverThumb':'🧑','spotExitVehThumb':'🚗','spotExitPhotoThumb':'🚗'};
+  xBtn.onclick=ev=>{
+    ev.stopPropagation();
+    // Clear associated file input
+    const fileId=thumbId.replace('Thumb','File');
+    const fi=document.getElementById(fileId);if(fi){fi.value='';fi._compressedData=null;}
+    xBtn.remove();
+    el.innerHTML=icons[thumbId]||'📄';
+    el.style.border='2px dashed var(--border2)';
+  };
+  parent.appendChild(xBtn);
+}
+function _spotInitChallans(challans){
+  _spotChallanCount=0;
+  const box=document.getElementById('spotChallanRows');if(!box)return;
+  box.innerHTML='';
+  const list=Array.isArray(challans)&&challans.length?challans:[{no:'',photo:''}];
+  list.forEach(c=>_spotAddChallanRow(c.no||'',c.photo||''));
+}
+function _spotAddChallanRow(no='',photo=''){
+  _spotChallanCount++;const i=_spotChallanCount;
+  const box=document.getElementById('spotChallanRows');if(!box)return;
+  const row=document.createElement('div');
+  row.id='spotChallanRow_'+i;
+  row.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:5px';
+  const noQ=no.replace(/"/g,'&quot;');
+  // Grid cell: challan text above photo, × in top-right corner
+  row.style.cssText='display:flex;flex-direction:column;gap:3px;position:relative';
+  row.innerHTML=`<input type="text" id="spotChallanNo_${i}" value="${noQ}" placeholder="Challan no." style="padding:4px 6px;font-size:13px;border:1.5px solid var(--border2);border-radius:6px;box-sizing:border-box;width:100%">`
+    +`<div id="spotChallanThumb_${i}" onclick="_showPhotoChoice('spotChallanFile_${i}','spotChallanThumb_${i}')" style="height:60px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;background:var(--surface2);cursor:pointer">${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover">`:'📄'}</div>`
+    +`<input type="file" id="spotChallanFile_${i}" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotChallanThumb_${i}')">`
+    +(i>1?`<button onclick="document.getElementById('spotChallanRow_${i}').remove()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1;z-index:1">×</button>`:'');
+  box.appendChild(row);
+}
+function _spotGetChallans(){
+  const rows=document.querySelectorAll('[id^="spotChallanRow_"]');
+  return Array.from(rows).map(row=>{
+    const idx=row.id.replace('spotChallanRow_','');
+    const no=document.getElementById('spotChallanNo_'+idx)?.value.trim()||'';
+    const ph=document.getElementById('spotChallanFile_'+idx)?._compressedData||'';
+    return {no,photo:ph};
+  }).filter(c=>c.no||c.photo);
+}
+function _kapOpenSpotPopup(spotId){
+  _kapPopupOpen=true;
+  // Update location badge
+  const mySpotLoc=byId(DB.locations,CU.plant);
+  const badge=document.getElementById('spotLocBadgePopup');
+  if(badge&&mySpotLoc){
+    const c=mySpotLoc.colour||'var(--accent)';const tc=colourContrast(mySpotLoc.colour||'');
+    badge.style.cssText=`font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:${c};color:${tc}`;
+    badge.textContent=mySpotLoc.name;
+  }
+  const exitSec=document.getElementById('spotExitSection');
+  const popupId=document.getElementById('spotPopupId');
+  if(spotId){
+    // Editing existing record
+    const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);
+    if(!s){_kapPopupOpen=false;return;}
+    // Fill entry fields
+    document.getElementById('spotEditId').value=spotId;
+    document.getElementById('spotVehNum').value=s.vehicleNum||'';
+    document.getElementById('spotDriverName').value=s.driverName||'';
+    document.getElementById('spotDriverMob').value=s.driverMobile||'';
+    document.getElementById('spotSupplier').value=s.supplier||'';
+    _spotInitChallans(s.challans||(s.challan?[{no:s.challan,photo:s.challanPhoto||''}]:[]));
+    document.getElementById('spotEntryRemarks').value=s.entryRemarks||'';
+    _spotRestoreThumb('spotVehThumb',s.entryVehiclePhoto);
+    _spotRestoreThumb('spotDriverThumb',s.driverPhoto);
+    if(popupId) popupId.textContent=spotId;
+    // Show/hide exit section
+    const canExit=!s.exitTime&&!!s.entryTime;
+    if(exitSec) exitSec.style.display=canExit?'flex':'none';
+    if(canExit){
+      document.getElementById('spotExitId').value=spotId;
+      document.getElementById('spotExitRemarks').value=s.exitRemarks||'';
+      const ef=document.getElementById('spotExitVehFile');if(ef){ef.value='';ef._compressedData=null;}
+      const et=document.getElementById('spotExitVehThumb');if(et){et.innerHTML='🚗';et.style.border='2px dashed #fca5a5';}
+    }
+    // Switch submit btn to edit mode
+    const sb=document.getElementById('spotSubmitBtn');
+    if(sb){sb.textContent='✏ Save Entry';sb.className='btn btn-primary';}
+    const cb=document.getElementById('spotCancelEditBtn');
+    if(cb) cb.style.display='inline-flex';
+  } else {
+    // New entry
+    clearSpotForm();
+    _spotInitChallans([]);
+    document.getElementById('spotEditId').value='';
+    if(exitSec) exitSec.style.display='none';
+    if(popupId) popupId.textContent='New';
+    const sb=document.getElementById('spotSubmitBtn');
+    if(sb){sb.textContent='🏁 Record Entry';sb.className='btn btn-green';}
+    const cb=document.getElementById('spotCancelEditBtn');
+    if(cb) cb.style.display='none';
+  }
+  const el=document.getElementById('mSpotEntry');
+  if(el) el.style.display='flex';
+}
+function _kapCloseSpotPopup(){
+  _kapPopupOpen=false;
+  const el=document.getElementById('mSpotEntry');
+  if(el) el.style.display='none';
+}
 function _kapOpenPopup(popId){
   _kapPopupOpen=true;
   const el=document.getElementById(popId);
@@ -5687,11 +5862,34 @@ function onSpotPhoto(input, thumbId){
     input._compressedData=dataUrl;
     const thumb=document.getElementById(thumbId);
     if(thumb){
+      // Make parent relative for the × button positioning
+      const parent=thumb.parentElement;
+      if(parent){parent.style.position='relative';parent.style.overflow='visible';}
       thumb.innerHTML='';thumb.style.border='2px solid var(--green)';
       const img=document.createElement('img');
       img.src=dataUrl;img.style.cssText='width:100%;height:100%;object-fit:cover;cursor:pointer;display:block';
       img.onclick=()=>openPhoto(dataUrl);
       thumb.appendChild(img);
+      // Add × clear button positioned at top-right of parent
+      const existingX=parent?.querySelector('.spot-photo-clear');
+      if(existingX) existingX.remove();
+      if(parent){
+        const xBtn=document.createElement('button');
+        xBtn.className='spot-photo-clear';
+        xBtn.textContent='×';
+        xBtn.style.cssText='position:absolute;top:-7px;right:-7px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:13px;cursor:pointer;padding:0;line-height:1;z-index:10;display:flex;align-items:center;justify-content:center';
+        xBtn.onclick=e=>{
+          e.stopPropagation();
+          input.value='';input._compressedData=null;
+          xBtn.remove();
+          // Restore default icon based on thumbId
+          const icons={'spotVehThumb':'🚗','spotDriverThumb':'🧑','spotExitVehThumb':'🚗','spotExitPhotoThumb':'🚗'};
+          const icon=icons[thumbId]||'📄';
+          thumb.innerHTML=icon;
+          thumb.style.border='2px dashed var(--border2)';
+        };
+        parent.appendChild(xBtn);
+      }
     }
     compressImage(f).then(c=>{input._compressedData=c;}).catch(()=>{});
   };
@@ -5726,7 +5924,7 @@ async function submitSpotEntry(){
       s.driverName=document.getElementById('spotDriverName').value.trim();
       s.driverMobile=driverMob;
       s.supplier=document.getElementById('spotSupplier').value.trim();
-      s.challan=document.getElementById('spotChallan').value.trim();
+      const _sChs=_spotGetChallans();s.challans=_sChs;s.challan=_sChs[0]?.no||'';s.challanPhoto=_sChs[0]?.photo||'';
       s.entryRemarks=document.getElementById('spotEntryRemarks').value.trim();
       if(document.getElementById('spotVehFile')?._compressedData) s.entryVehiclePhoto=document.getElementById('spotVehFile')._compressedData;
       if(document.getElementById('spotChallanFile')?._compressedData) s.challanPhoto=document.getElementById('spotChallanFile')._compressedData;
@@ -5740,14 +5938,32 @@ async function submitSpotEntry(){
   const vehPhoto=document.getElementById('spotVehFile')?._compressedData||'';
   if(!vehPhoto){notify('📷 Vehicle photo is mandatory for Spot Entry',true);return;}
   const now=new Date();
-  const spotId='SP'+now.getFullYear().toString().slice(2)+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String((DB.spotTrips||[]).filter(s=>s.date===now.toISOString().split('T')[0]).length+1).padStart(3,'0');
+  const _yearLastDigit=now.getFullYear().toString().slice(-1);
+  const _spotLoc=byId(DB.locations,CU.plant||myLoc);
+  const _plant=(()=>{
+    if(!_spotLoc) return CU.plant||'P';
+    const name=_spotLoc.name;
+    // Extract trailing number: 'KAP-1'→'P1', 'KAP-6'→'P6', 'Plant-2'→'P2'
+    const numMatch=name.match(/(\d+)$/);
+    if(numMatch) return 'P'+numMatch[1];
+    // Fallback: first letter of each word
+    return name.split(/[\s-]+/).map(w=>w[0]?.toUpperCase()||'').join('').slice(0,4)||'P';
+  })();
+  const _sePrefix=_yearLastDigit+'S-'+_plant+'-';
+  const _existing=(DB.spotTrips||[]).map(s=>{
+    if(!s.id||!s.id.startsWith(_sePrefix)) return 0;
+    return parseInt(s.id.slice(_sePrefix.length))||0;
+  });
+  const _serial=_existing.length?Math.max(..._existing)+1:1;
+  const spotId=_sePrefix+_serial;
   if(!DB.spotTrips) DB.spotTrips=[];
   const myLoc=CU.plant||'';
   const _newSpot={
     id:spotId,vehicleNum:vehNum,
     supplier:document.getElementById('spotSupplier').value.trim(),
-    challan:document.getElementById('spotChallan').value.trim(),
-    challanPhoto:document.getElementById('spotChallanFile')?._compressedData||'',
+    challans:_spotGetChallans(),
+    challan:(_spotGetChallans()[0]?.no||''),
+    challanPhoto:(_spotGetChallans()[0]?.photo||''),
     driverName:document.getElementById('spotDriverName').value.trim(),
     driverMobile:driverMob,
     driverPhoto:document.getElementById('spotDriverFile')?._compressedData||'',
@@ -5759,8 +5975,9 @@ async function submitSpotEntry(){
   };
   if(!await _dbSave('spotTrips',_newSpot)) return;
   clearSpotForm();
+  _kapCloseSpotPopup();
   notify(`Spot vehicle entry ${spotId} recorded!`);
-  renderSpotTab();renderDash();updBadges();
+  renderSpotTab();renderSpotHistory();renderDash();updBadges();
 }
 
 function cancelSpotEdit(){
@@ -5769,6 +5986,7 @@ function cancelSpotEdit(){
   document.getElementById('spotSubmitBtn').className='btn btn-green';
   document.getElementById('spotCancelEditBtn').style.display='none';
   clearSpotForm();
+  _kapCloseSpotPopup();
 }
 
 function openSpotExitModal(spotId){
@@ -5797,6 +6015,23 @@ function openSpotExitModal(spotId){
   om('mSpotExit');
 }
 
+async function doSpotExit(){
+  const spotId=document.getElementById('spotExitId').value;
+  if(!spotId){notify('No spot trip selected',true);return;}
+  const exitPhoto=document.getElementById('spotExitVehFile')?._compressedData||'';
+  if(!exitPhoto){notify('📷 Vehicle exit photo is mandatory',true);return;}
+  const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);
+  if(!s){notify('Spot trip not found',true);return;}
+  const _sBak={...s};
+  s.exitTime=new Date().toISOString();
+  s.exitBy=CU.id;
+  s.exitVehiclePhoto=exitPhoto;
+  s.exitRemarks=document.getElementById('spotExitRemarks').value.trim();
+  if(!await _dbSave('spotTrips',s)){Object.assign(s,_sBak);return;}
+  _kapCloseSpotPopup();
+  notify(`${spotId} — vehicle exit recorded!`);
+  renderSpotTab();renderSpotHistory();renderDash();updBadges();
+}
 async function doSpotExitModal(){
   const spotId=document.getElementById('spotExitId').value;
   const exitPhoto=document.getElementById('spotExitPhotoFile')?._compressedData||'';
@@ -5866,52 +6101,22 @@ function renderSpotHistory(){
   const hrs24=24*60*60*1000;
   const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
   list.innerHTML=filtered.map(s=>{
-    const vtName=vtname(s.vehicleTypeId);
-    const entryByName=(byId(DB.users,s.entryBy)?.fullName||byId(DB.users,s.entryBy)?.name||'—');
-    const exitByName=s.exitBy?(byId(DB.users,s.exitBy)?.fullName||byId(DB.users,s.exitBy)?.name||'—'):'';
-    const photos=[s.entryVehiclePhoto,s.driverPhoto,s.challanPhoto,s.exitVehiclePhoto].filter(Boolean);
-    const photoHtml=photos.map(p=>`<img src="${p}" onclick="openPhoto(this.src)" style="width:30px;height:30px;object-fit:cover;border-radius:4px;border:1px solid var(--border2);cursor:pointer">`).join(' ');
     const isInside=!s.exitTime;
-    const canRevokeEntry=!s.exitTime&&(now-new Date(s.entryTime)<hrs24)&&(isSA||s.entryBy===CU.id);
-    const canRevokeExit=!!s.exitTime&&(now-new Date(s.exitTime)<hrs24)&&(isSA||s.exitBy===CU.id);
-    const canEdit=!s.exitTime&&(isSA||s.entryBy===CU.id);
-    const sid=s.id.replace(/[^a-zA-Z0-9]/g,'_');
-    const cardBg=isInside?'background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.18)':'background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2)';
-
-    return `<div class="seg-card" style="padding:6px 10px 6px 26px;position:relative;${cardBg};cursor:pointer" onclick="toggleSpotCard('${sid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${filtered.length-filtered.indexOf(s)}</div>
-      <!-- Compact row always visible -->
+    const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
+    const borderClr=isInside?'#dc2626':'#16a34a';
+    const statusDot=isInside?'🔴':'🟢';
+    return `<div class="seg-card" style="padding:8px 12px;border:2px solid ${borderClr};border-radius:10px;margin-bottom:8px;cursor:pointer;transition:box-shadow .15s" onclick="_kapOpenSpotPopup('${s.id}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
       <div style="display:flex;align-items:center;gap:8px;min-width:0">
-        <span style="font-size:14px">${isInside?'🔴':'🟢'}</span>
-        <span style="font-family:var(--mono);font-size:30px;font-weight:900;line-height:1;color:${isInside?'#dc2626':'#16a34a'};flex-shrink:0">${s.vehicleNum}</span>
-        ${s.challan?`<span style="font-size:10px;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 5px;border-radius:4px;color:#1d6f73;flex-shrink:0">📄 ${s.challan}</span>`:''}
-        <span style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.driverName||''} ${s.supplier?'· '+s.supplier:''}</span>
-        <span style="font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0">${fmt(s.entryTime)}</span>
+        <span style="font-size:16px;flex-shrink:0">${statusDot}</span>
+        <span style="font-family:var(--mono);font-size:17px;font-weight:900;color:#fff;background:var(--accent);padding:2px 8px;border-radius:6px;flex-shrink:0;white-space:nowrap">${s.id}</span>
+        <span style="font-family:var(--mono);font-size:clamp(13px,3.5vw,22px);font-weight:900;color:${isInside?'#dc2626':'var(--text)'};background:${isInside?'rgba(239,68,68,.08)':'#fef08a'};border:2px solid ${isInside?'#fca5a5':'#ca8a04'};border-radius:6px;padding:2px 8px;flex-shrink:0;white-space:nowrap">${s.vehicleNum}</span>
+        ${s.challan?`<span style="font-size:11px;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;color:#1d6f73;flex-shrink:0">📄 ${s.challan}</span>`:''}
+        <span style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.driverName||''}${s.supplier?' · '+s.supplier:''}</span>
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">${fmt(s.entryTime)}</span>
+        ${isSuperAdmin?`<button onclick="event.stopPropagation();deleteSpotEntry('${s.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:2px 7px;cursor:pointer;font-weight:700;flex-shrink:0">🗑</button>`:''}
+        <span style="font-size:16px;color:var(--text3);flex-shrink:0">›</span>
       </div>
-      <!-- Expanded details (hidden by default) -->
-      <div id="spotExpand_${sid}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-        <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
-          ${s.entryVehiclePhoto?`<img src="${s.entryVehiclePhoto}" onclick="openPhoto(this.src)" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:2px solid var(--border2);cursor:pointer;flex-shrink:0">`:''}
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;flex-wrap:wrap;gap:4px;font-size:11px;color:var(--text2)">
-              ${s.driverName?`<span>👤 ${s.driverName}${s.driverMobile?' · 📱'+s.driverMobile:''}</span>`:''}
-              ${s.entryRemarks?`<span style="background:var(--surface2);border:1px solid var(--border);padding:1px 6px;border-radius:4px;color:var(--text3)">💬 ${s.entryRemarks}</span>`:''}
-            </div>
-            ${photos.filter(p=>p!==s.entryVehiclePhoto).length?`<div style="display:flex;gap:4px;margin-top:6px">${photos.filter(p=>p!==s.entryVehiclePhoto).map(p=>`<img src="${p}" onclick="openPhoto(this.src)" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--border2);cursor:pointer">`).join('')}</div>`:''}
-          </div>
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:6px">
-          🏁 ${entryByName} · ${fmt(s.entryTime)}${s.exitTime?'<br>🚪 '+exitByName+' · '+fmt(s.exitTime):''}
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap">
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
-            ${canEdit?`<button style="background:#f0fafa;color:#1d6f73;border:1px solid #b3dfe0;border-radius:4px;font-size:10px;padding:2px 7px;cursor:pointer;font-weight:700" onclick="openSpotEdit('${s.id}')">✏ Edit</button>`:''}
-            ${canRevokeEntry?`<button class="kap-revoke-btn" style="font-size:10px" onclick="revokeSpotAction('${s.id}','entry')">↩ Revoke Entry</button>`:''}
-            ${canRevokeExit?`<button class="kap-revoke-btn" style="font-size:10px" onclick="revokeSpotAction('${s.id}','exit')">↩ Revoke Exit</button>`:''}
-            ${isSuperAdmin?`<button style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;font-size:10px;padding:2px 6px;cursor:pointer;font-weight:700" onclick="event.stopPropagation();deleteSpotEntry('${s.id}')">🗑</button>`:''}
-          </div>
-          ${isInside?`<button class="btn btn-danger" style="font-size:13px;padding:10px 16px;font-weight:800;flex-shrink:0;letter-spacing:.3px" onclick="openSpotExitModal('${s.id}')">🚪 Exit Vehicle</button>`:''}
-        </div>
-      </div>
+      <div style="margin-top:2px;padding-left:28px;font-size:11px;color:var(--text3);font-family:var(--mono);font-weight:700">${s.id}</div>
     </div>`;
   }).join('');
 }
@@ -5924,23 +6129,9 @@ function toggleSpotCard(sid){
   el.style.display=isOpen?'none':'block';
 }
 function openSpotEdit(id){
-  const s=(DB.spotTrips||[]).find(x=>x&&x.id===id);if(!s||s.exitTime)return;
-  // Fill the main spot form
-  setKapMode('spot');
-  document.getElementById('spotEditId').value=id;
-  document.getElementById('spotVehNum').value=s.vehicleNum||'';
-  document.getElementById('spotDriverName').value=s.driverName||'';
-  document.getElementById('spotDriverMob').value=s.driverMobile||'';
-  document.getElementById('spotSupplier').value=s.supplier||'';
-  document.getElementById('spotChallan').value=s.challan||'';
-  document.getElementById('spotEntryRemarks').value=s.entryRemarks||'';
-  // Switch button to edit mode
-  document.getElementById('spotSubmitBtn').textContent='✏ Edit Entry';
-  document.getElementById('spotSubmitBtn').className='btn btn-primary';
-  document.getElementById('spotCancelEditBtn').style.display='inline-flex';
-  // Scroll to form
-  document.getElementById('kapSpotSection').scrollIntoView({behavior:'smooth',block:'start'});
+  _kapOpenSpotPopup(id);
 }
+
 async function saveSpotEdit(){
   const id=document.getElementById('seEditId').value;
   const s=(DB.spotTrips||[]).find(x=>x&&x.id===id);if(!s){modalErr('mSpotEdit','Entry not found');return;}
