@@ -27,7 +27,7 @@ const SB_TABLES = {
   hwmsParts:'hwms_parts', hwmsInvoices:'hwms_invoices', hwmsContainers:'hwms_containers',
   hwmsHsn:'hwms_hsn', hwmsUom:'hwms_uom', hwmsPacking:'hwms_packing',
   hwmsCustomers:'hwms_customers', hwmsPortDischarge:'hwms_port_discharge', hwmsPortLoading:'hwms_port_loading',
-  hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company'
+  hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -128,10 +128,11 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsHsn') return {code:r.id,hsn_number:r.hsnNumber||'',description:r.description||''};
   if(tbl==='hwmsUom') return {code:r.id,uom:r.uom||'',description:r.description||''};
   if(tbl==='hwmsPacking') return {code:r.id,name:r.name||'',description:r.description||''};
-  if(tbl==='hwmsCustomers') return {code:r.id,customer_name:r.customerName||'',supplier_code:r.supplierCode||'',address:r.address||'',country:r.country||'',consignees:r.consignees||[],steel_rates:r.steelRates||[],default_transport:r.defaultTransport||'',default_port_discharge:r.defaultPortDischarge||'',default_port_loading:r.defaultPortLoading||'',default_delivery:r.defaultDelivery||'',default_payment_terms:r.defaultPaymentTerms||''};
+  if(tbl==='hwmsCustomers') return {code:r.id,customer_name:r.customerName||'',supplier_code:r.supplierCode||'',address:r.address||'',country:r.country||'',consignees:r.consignees||[],default_transport:r.defaultTransport||'',default_port_discharge:r.defaultPortDischarge||'',default_port_loading:r.defaultPortLoading||'',default_delivery:r.defaultDelivery||'',default_payment_terms:r.defaultPaymentTerms||''};
   if(tbl==='hwmsPortDischarge') return {code:r.id,name:r.name||'',country:r.country||''};
   if(tbl==='hwmsPortLoading') return {code:r.id,name:r.name||'',country:r.country||''};
   if(tbl==='hwmsCarriers') return {code:r.id,carrier_name:r.carrierName||'',address:r.address||'',contact:r.contact||''};
+  if(tbl==='hwmsSteelRates') return {code:r.id,cust_id:r.customerId||'',steel_rate:r.steelRate||0,forex_rate:r.forexRate||0,valid_from:r.validFrom||'',valid_to:r.validTo||''};
   if(tbl==='hwmsCompany') return {code:r.id,company_name:r.companyName||'',address:r.address||'',gstin:r.gstin||'',iec:r.iec||'',rex:r.rex||'',supplier_code:r.supplierCode||'',place_receipt:r.placeReceipt||'',country:r.country||'India',note:r.note||''};
   return null;
 }
@@ -158,10 +159,11 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsHsn') return {id:row.code,_dbId:row.id,hsnNumber:row.hsn_number||'',description:row.description||''};
   if(tbl==='hwmsUom') return {id:row.code,_dbId:row.id,uom:row.uom||'',description:row.description||''};
   if(tbl==='hwmsPacking') return {id:row.code,_dbId:row.id,name:row.name||'',description:row.description||''};
-  if(tbl==='hwmsCustomers') return {id:row.code,_dbId:row.id,customerName:row.customer_name||'',supplierCode:row.supplier_code||'',address:row.address||'',country:row.country||'',consignees:row.consignees||[],steelRates:row.steel_rates||[],defaultTransport:row.default_transport||'',defaultPortDischarge:row.default_port_discharge||'',defaultPortLoading:row.default_port_loading||'',defaultDelivery:row.default_delivery||'',defaultPaymentTerms:row.default_payment_terms||''};
+  if(tbl==='hwmsCustomers') return {id:row.code,_dbId:row.id,customerName:row.customer_name||'',supplierCode:row.supplier_code||'',address:row.address||'',country:row.country||'',consignees:row.consignees||[],defaultTransport:row.default_transport||'',defaultPortDischarge:row.default_port_discharge||'',defaultPortLoading:row.default_port_loading||'',defaultDelivery:row.default_delivery||'',defaultPaymentTerms:row.default_payment_terms||''};
   if(tbl==='hwmsPortDischarge') return {id:row.code,_dbId:row.id,name:row.name||'',country:row.country||''};
   if(tbl==='hwmsPortLoading') return {id:row.code,_dbId:row.id,name:row.name||'',country:row.country||''};
   if(tbl==='hwmsCarriers') return {id:row.code,_dbId:row.id,carrierName:row.carrier_name||'',address:row.address||'',contact:row.contact||''};
+  if(tbl==='hwmsSteelRates') return {id:row.code,_dbId:row.id,customerId:row.cust_id||'',steelRate:row.steel_rate||0,forexRate:row.forex_rate||0,validFrom:row.valid_from||'',validTo:row.valid_to||''};
   if(tbl==='hwmsCompany') return {id:row.code,_dbId:row.id,companyName:row.company_name||'',address:row.address||'',gstin:row.gstin||'',iec:row.iec||'',rex:row.rex||'',supplierCode:row.supplier_code||'',placeReceipt:row.place_receipt||'',country:row.country||'India',note:row.note||''};
   return null;
 }
@@ -591,7 +593,7 @@ const SEED = {
   checkpoints:[],guards:[],roundSchedules:[],
   hwmsParts:[],hwmsInvoices:[],hwmsContainers:[],
   hwmsHsn:[],hwmsUom:[],hwmsPacking:[],hwmsCustomers:[],hwmsPortDischarge:[],
-  hwmsPortLoading:[],hwmsCarriers:[],hwmsCompany:[]
+  hwmsPortLoading:[],hwmsCarriers:[],hwmsCompany:[],hwmsSteelRates:[]
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -605,7 +607,7 @@ const DB_TABLES = ['users','vehicleTypes','drivers','vendors','vehicles',
                    'checkpoints','guards','roundSchedules',
                    'hwmsParts','hwmsInvoices','hwmsContainers',
                    'hwmsHsn','hwmsUom','hwmsPacking',
-                   'hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany'];
+                   'hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates'];
 let DB = {};
 
 // Session helpers

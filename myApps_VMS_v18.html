@@ -4058,7 +4058,8 @@ function genTripId(startLocId, dest1LocId){
   const existingNums=DB.trips
     .filter(t=>t.id.startsWith(prefix))
     .map(t=>parseInt(t.id.slice(prefix.length),10)||0);
-  const maxNum=existingNums.length?Math.max(...existingNums):0; return `${prefix}${existing+1}`;
+  const maxNum=existingNums.length?Math.max(...existingNums):0;
+  return `${prefix}${maxNum+1}`;
 }
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
@@ -4854,11 +4855,15 @@ async function _doBookTrip(){
   // Save to Supabase first — rollback staging on any failure
   const _tripOk=await _dbSave('trips',trip);
   if(!_tripOk){DB.trips=DB.trips.filter(t=>t.id!==id);return;}
+  // Add segments to in-memory DB so renders after booking see them immediately
+  _newSegs.forEach(seg=>DB.segments.push(seg));
   for(const seg of _newSegs){
     if(!await _dbSave('segments',seg)){
-      // Partial failure — delete saved trip and any saved segments from Supabase
+      // Partial failure — rollback: remove trip + segments from memory and Supabase
+      DB.trips=DB.trips.filter(t=>t.id!==id);
+      DB.segments=DB.segments.filter(s=>s.tripId!==id);
       await _dbDel('trips',id);
-      for(const s2 of _newSegs){ if(DB.segments.find(x=>x.id===s2.id)) await _dbDel('segments',s2.id); }
+      for(const s2 of _newSegs){ await _dbDel('segments',s2.id); }
       return;
     }
   }
