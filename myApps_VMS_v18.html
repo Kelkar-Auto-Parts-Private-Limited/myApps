@@ -4081,12 +4081,11 @@ function openTripBookingModal(editTripId){
   const titleEl=document.getElementById('tbModalTitle');
   if(titleEl)titleEl.textContent=t?'AMEND TRIP':'BOOK NEW TRIP';
 
-  // Trip ID: for new trips, generate a provisional ID now using user's plant.
-  // It will be REGENERATED in onLocChange() once the user picks start+dest1.
-  const tripId=t?t.id:genTripId('','');
+  // Trip ID: for edit show existing ID; for new trips show pending until save
+  const tripId=t?t.id:'';
   document.getElementById('tbTripId').value=tripId;
-  document.getElementById('tbTripIdDisplay').textContent=tripId;
-  document.getElementById('tbTripId').dataset.fixed=t?'1':''; // fixed=1 means don't regenerate (edit mode)
+  document.getElementById('tbTripIdDisplay').textContent=tripId||'—';
+
 
   // Reset destinations visibility
   _tbDestCount=1;
@@ -4246,14 +4245,7 @@ function onLocChange(){
   const d2El=document.getElementById('tbDest2');
   const d3El=document.getElementById('tbDest3');
   const d1cur=d1El.value;
-  // Regenerate trip ID for new trips when start or dest1 changes
-  const tidEl=document.getElementById('tbTripId');
-  if(tidEl&&!tidEl.dataset.fixed&&s&&d1cur){
-    const newId=genTripId(s,d1cur);
-    tidEl.value=newId;
-    const disp=document.getElementById('tbTripIdDisplay');
-    if(disp) disp.textContent=newId;
-  }
+
   const d2cur=d2El.value;
   const d3cur=d3El.value;
   const all=DB.locations;
@@ -4744,7 +4736,6 @@ async function _doBookTrip(){
   if(s===d1){notify('Start Location and Destination 1 cannot be the same',true);return;}
   if(d2&&d1===d2){notify('Destination 1 and Destination 2 cannot be the same',true);return;}
   if(d3&&d2===d3){notify('Destination 2 and Destination 3 cannot be the same',true);return;}
-  const id=document.getElementById('tbTripId').value;
   const v=byId(DB.vehicles,vehId);const vn=byId(DB.vendors,v?.vendorId);
 
   if(_editingTripId){
@@ -4805,16 +4796,32 @@ async function _doBookTrip(){
     const segA=DB.segments.find(s=>s.tripId===_editingTripId&&s.label==='A');
     if(segA) t.tripCatId=segA.tripCatId;
 
-    const tidForSave=_editingTripId;
+    const oldId=_editingTripId;
+    const newId=genTripId(t.startLoc,t.dest1); // generate at save time from actual locations
     _editingTripId=null;
+    // If trip ID changed (route changed → different plant code), rename it
+    if(newId&&newId!==oldId){
+      // Delete old Supabase record, re-save with new ID
+      await _dbDel('trips',oldId);
+      t.id=newId;
+      // Rename all segments to new tripId
+      const _segsToRename=DB.segments.filter(s=>s.tripId===oldId);
+      for(const s of _segsToRename){
+        await _dbDel('segments',s.id);
+        s.tripId=newId;
+        s.id=newId+s.label; // segment IDs are tripId+label
+      }
+      DB.trips=DB.trips.map(tr=>tr.id===oldId?{...tr,id:newId}:tr);
+    }
     await _dbSave('trips',t);
-    for(const s of DB.segments.filter(s=>s.tripId===tidForSave)){if(!await _dbSave('segments',s)) return;}
+    for(const s of DB.segments.filter(s=>s.tripId===t.id)){if(!await _dbSave('segments',s)) return;}
     notify(`Trip ${t.id} updated`);
     updBadges();renderDash();renderDashTrips();renderTripBooking();renderKap();renderMR();renderApprove();cm('mTripBooking');renderMyTrips();
     return;
   }
 
-  // NEW trip
+  // NEW trip — generate ID at save time to avoid collisions with concurrent users
+  const id=genTripId(s,d1);
   const getPhotoData=n=>document.getElementById('tbP'+n)?._compressedData||'';
   const _nc1=getChallanRows(1),_nc2=getChallanRows(2),_nc3=getChallanRows(3);
   const trip={id,bookedBy:CU.id,plant:CU.plant||'P2',date:new Date().toISOString(),
