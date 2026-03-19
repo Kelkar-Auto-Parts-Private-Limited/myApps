@@ -199,12 +199,12 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <div class="nav-item" onclick="hwmsGo('pageHwmsContainers')">&#x1F6A2; Containers <span class="hwms-cnt" id="hcContainers"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Invoices <span class="hwms-cnt" id="hcInvoices"></span></div>
   <div class="nav-sec">MASTERS</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsCarriers')">&#x1F6A2; Carrier Master <span class="hwms-cnt" id="hcCarriers"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details <span class="hwms-cnt" id="hcCompany"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsCarriers')">&#x1F6A2; Carrier Master <span class="hwms-cnt" id="hcCarriers"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsPorts')">&#x2693; Ports</div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters</div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details <span class="hwms-cnt" id="hcCompany"></span></div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div id="hwmsConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
@@ -369,9 +369,11 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:12px">
           <button class="btn" onclick="_hwmsInvBack()" style="padding:6px 14px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">← Back</button>
+          <button id="hwmsInvPrevBtn" onclick="_hwmsInvNav(-1)" title="Previous Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
+          <button id="hwmsInvNextBtn" onclick="_hwmsInvNav(1)" title="Next Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
           <div class="page-title" id="hwmsInvViewTitle">Invoice Details</div>
         </div>
-        <div id="hwmsInvViewActions" style="display:flex;gap:8px"></div>
+        <div id="hwmsInvViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
       </div>
       <div class="card" style="padding:20px 24px" id="hwmsInvViewBody"></div>
     </div>
@@ -832,7 +834,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 </div></div>
 
 <!-- SECURITY CHECKPOINT MODAL -->
-<div class="modal-overlay" id="mCheckpoint"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">×</div></div>
+<div class="modal-overlay" id="mCheckpoint"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">×</div></div></div></div>
 
 <!-- COMMON -->
 <!-- CONFIRM DELETE MODAL -->
@@ -1995,7 +1997,7 @@ function renderHwmsContainers(){
       invHtml=Object.entries(custMap).map(([custName,custInvs])=>{
         const invLines=custInvs.map(inv=>{
           const lis=inv.lineItems||[];const grossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);const totalAmt=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);const invSt=_hwmsInvStatus(inv);
-          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15)">${inv.invoiceNumber}</span><span style="font-family:var(--mono);color:var(--text2);font-size:11px">${grossWt.toFixed(1)}kg</span><span style="font-family:var(--mono);color:#16a34a;font-weight:700;font-size:11px">$${totalAmt.toFixed(2)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
+          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span style="font-weight:400;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15)">${_hwmsInvNum(inv.invoiceNumber)}</span><span style="font-family:var(--mono);color:var(--text2);font-size:11px">${grossWt.toFixed(1)}kg</span><span style="font-family:var(--mono);color:#16a34a;font-weight:700;font-size:11px">$${totalAmt.toFixed(2)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
         }).join('');
         return `<div style="margin-bottom:3px"><div style="font-weight:700;font-size:11px;color:var(--text)">🏢 ${custName}</div><div style="padding-left:8px;font-size:11px">${invLines}</div></div>`;
       }).join('');
@@ -2277,7 +2279,7 @@ function _hwmsContRenderLinkedInvs(contId){
       const dateClass=isLate?'hwms-date-flash':'';
       const dateStyle=isLate?'padding:5px 8px;font-size:11px;white-space:nowrap':'padding:5px 8px;font-size:11px;white-space:nowrap';
       return `<tr>
-        <td style="padding:5px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">${inv.invoiceNumber}</td>
+        <td style="padding:5px 8px;font-family:var(--mono);font-weight:400;color:var(--accent)">${_hwmsInvNum(inv.invoiceNumber)}</td>
         <td class="${dateClass}" style="${dateStyle}">${invDate?_fdate(invDate):'—'}${isLate?' ⚠':''}</td>
         <td style="padding:5px 8px;font-weight:600">${inv.buyerName||cust?.customerName||'—'}</td>
         <td style="padding:5px 8px;font-size:11px">${inv.consigneeName||consignee?.name||'—'}</td>
@@ -2659,6 +2661,8 @@ async function saveHwmsCont(){
 // ===== HWMS: INVOICE MASTER =====
 // Sort state for invoices
 let _hwmsInvSortKey='invoiceNumber',_hwmsInvSortAsc=false;
+let _hwmsCurrentInvId=null;
+let _hwmsInvFolderHandle=null; // File System Access API folder handle
 function _hwmsInvSort(key){
   if(_hwmsInvSortKey===key) _hwmsInvSortAsc=!_hwmsInvSortAsc;
   else {_hwmsInvSortKey=key;_hwmsInvSortAsc=true;}
@@ -2745,6 +2749,11 @@ function renderHwmsInvoices(){
   // Sort
   const sk=_hwmsInvSortKey,asc=_hwmsInvSortAsc;
   invs.sort((a,b)=>{
+    // Drafts always on top, regardless of sort column
+    const aDraft=!a.confirmed?0:1;
+    const bDraft=!b.confirmed?0:1;
+    if(aDraft!==bDraft) return aDraft-bDraft;
+    // Within same group, apply selected sort
     let va=(a[sk]||'').toString().toLowerCase();
     let vb=(b[sk]||'').toString().toLowerCase();
     if(sk==='invoiceNumber'){
@@ -2771,13 +2780,13 @@ function renderHwmsInvoices(){
     const contHtml=isUnalloc?'<span style="color:#dc2626;font-weight:700">Unallocated</span>':'<span style="font-family:var(--mono);font-weight:700">'+(cont?.containerNumber||'—')+'</span>';
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
-    const invNumStyle=isDraft?'font-family:var(--mono);font-weight:800;color:#dc2626;font-size:15px':'font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px';
+    const invNumStyle=isDraft?'font-family:var(--mono);font-weight:400;color:#dc2626;font-size:15px':'font-family:var(--mono);font-weight:400;color:var(--accent);font-size:15px';
     const rowBg=(isDraft||isUnalloc)?';background:rgba(234,179,8,.04)':'';
     let actHtml='';
     if(isDraft) actHtml='<button class="action-btn" onclick="event.stopPropagation();openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
     return `<tr class="clickable-row" onclick="showHwmsInvDetail('${inv.id}')" style="cursor:pointer${rowBg}">
       ${_invSA?'<td style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="${invNumStyle}">${inv.invoiceNumber}</td>
+      <td style="${invNumStyle}">${_hwmsInvNum(inv.invoiceNumber)}</td>
       <td style="white-space:nowrap">${_fdate(inv.date)}</td>
       <td>${contHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
@@ -2873,6 +2882,7 @@ async function _hwmsInvDeleteSelected(){
 // ===== HWMS: INVOICE DETAIL POPUP =====
 function showHwmsInvDetail(id){
   const inv=byId(DB.hwmsInvoices||[],id);if(!inv)return;
+  _hwmsCurrentInvId=id;
   hwmsGo('pageHwmsInvView');
   const cont=byId(DB.hwmsContainers||[],inv.containerId);
   const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
@@ -2900,15 +2910,18 @@ function showHwmsInvDetail(id){
   const _f=(label,val,miss)=>'<div class="form-group" style="margin:0"><label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+label+'</label><div style="padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-height:32px">'+_v(val,miss)+'</div></div>';
 
   // Title — show Confirmed badge if confirmed
-  let titleHtml='<span style="font-family:var(--mono);font-weight:800">'+inv.invoiceNumber+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
+  let titleHtml='<span style="font-family:var(--mono);font-weight:400">'+_hwmsInvNum(inv.invoiceNumber)+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
   if(inv.confirmed) titleHtml+=' <span style="font-size:11px;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #86efac;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:6px">✅ Confirmed</span>';
   document.getElementById('hwmsInvViewTitle').innerHTML=titleHtml;
+  _hwmsInvNavUpdate();
 
   // Actions — Print, Edit (disabled if confirmed), Confirm, Revoke (disabled if dispatched)
   const isContDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
   let actHtml='';
-  actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨 Print India</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨 Print USA</button>';
+  actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨️ Preview India Invoice</button>';
+  actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer">🖨️ Preview USA Invoice</button>';
+  actHtml+=' <button class="btn" onclick="_hwmsInvSaveBoth(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1.5px solid #86efac;color:#15803d;font-weight:800;border-radius:var(--radius);cursor:pointer">💾 Save Both PDFs</button>';
+  actHtml+=' <button class="btn" onclick="_hwmsChooseFolder()" id="hwmsFolderBtn" style="font-size:12px;padding:7px 14px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);font-weight:700;border-radius:var(--radius);cursor:pointer" title="Choose folder for saving PDFs">📁 Choose Folder</button>';
   // Edit — disabled if confirmed
   if(inv.confirmed){
     actHtml+=' <button class="btn" disabled style="font-size:12px;padding:7px 16px;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#94a3b8;font-weight:700;border-radius:var(--radius);cursor:not-allowed;opacity:.6">✏️ Edit Invoice</button>';
@@ -3000,7 +3013,7 @@ function showHwmsInvDetail(id){
         '<div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Invoice Details</div>'+
         '<div style="display:grid;grid-template-columns:60px 1fr 1fr;gap:8px">'+
           _f('FY',inv.invoiceNumber?inv.invoiceNumber.substring(0,4):'')+
-          _f('Invoice No.',inv.invoiceNumber)+
+          _f('Invoice No.',_hwmsInvNum((inv.invoiceNumber||"").substring(4)))+
           _f('Date',inv.date?_fdate(inv.date):'','Missing')+
         '</div>'+
       '</div>'+
@@ -3057,6 +3070,11 @@ function showHwmsInvDetail(id){
 // ===== HWMS: STEEL & FOREX RATE FUNCTIONS =====
 let _hwmsSteelEditIdx=-1;
 
+function _hwmsInvNum(n){
+  if(!n) return '';
+  if(n.length<=5) return '<span style="font-weight:900;font-family:inherit">'+n+'</span>';
+  return '<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';
+}
 function _hwmsGetLatestSteelRate(customerId, invoiceDate){
   // Steel rates are stored in the separate hwms_steel_rates table, linked by customerId
   const all=(DB.hwmsSteelRates||[]).filter(r=>r.customerId===customerId);
@@ -3091,7 +3109,7 @@ function _hwmsAmtToWords(n){
   return result;
 }
 
-function _hwmsInvPrint(id){
+function _hwmsInvBuildHtml(id){
   const inv=byId(DB.hwmsInvoices||[],id);if(!inv)return;
   const cont=byId(DB.hwmsContainers||[],inv.containerId);
   const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
@@ -3165,11 +3183,11 @@ function _hwmsInvPrint(id){
     }
   }
 
-  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice '+inv.invoiceNumber+'</title>'+
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>'+
   '<style>'+
-  '@page{size:A4 portrait;margin:8mm 6mm}'+
+  '@page{size:A4 portrait;margin:10mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
   '*{margin:0;padding:0;box-sizing:border-box}'+
-  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:210mm;max-width:210mm;margin:0 auto;padding:8mm 6mm}'+
+  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:190mm;max-width:190mm;margin:0 auto;padding:0}'+
   'table.main{width:100%;border-collapse:collapse;border:2px solid #000}'+
   'table.main td,table.main th{border:1px solid #000;padding:4px 6px;vertical-align:top}'+
   'table.items{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
@@ -3184,8 +3202,6 @@ function _hwmsInvPrint(id){
   '.total-row td{font-weight:800;font-size:12px;background:#e8e8e8}'+
   'table.footer{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
   'table.footer td{border:1px solid #000;padding:5px 8px;font-size:11.5px;vertical-align:top}'+
-  '@media print{body{padding:0;width:100%;max-width:100%}.print-hide{display:none!important}}'+
-  '@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:297mm}}'+
   '</style></head><body>'+
 
   '<table class="main">'+
@@ -3193,7 +3209,7 @@ function _hwmsInvPrint(id){
 
     '<tr>'+
       '<td colspan="3" rowspan="3" style="width:38%"><div class="lbl">Exporter:</div><div class="val" style="font-size:14px;font-weight:900">'+_m(coName)+'</div><div class="addr">'+_m(coAddr)+'</div>'+(coGstin?'<div style="margin-top:4px;font-size:11px">GSTIN: <b>'+coGstin+'</b></div>':'')+'</td>'+
-      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+_m(inv.invoiceNumber?.replace(/-/g,''))+'</div></td>'+
+      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+function(n){n=(n||'').replace(/-/g,'');return n.length<=5?'<span style="font-weight:900">'+n+'</span>':'<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';}(inv.invoiceNumber)+'</div></td>'+
       '<td colspan="2"><div class="lbl">Date</div><div class="val" style="font-size:18px">'+_m(fd(inv.date))+'</div></td>'+
       '<td colspan="3"><div class="lbl">Exporter\'s Ref:</div><div class="val">'+_m(coIec)+'</div></td>'+
     '</tr>'+
@@ -3275,16 +3291,20 @@ function _hwmsInvPrint(id){
   '</table>'+
 
   '<div class="print-hide" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:12px 36px;font-size:15px;font-weight:700;background:#2a9aa0;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Print / Save as PDF</button></div>'+
-  '</body></html>';
+  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(277*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
 
-  var w=window.open('','_blank','width=850,height=1100');
+  return html;
+}
+function _hwmsInvPrint(id){
+  const html=_hwmsInvBuildHtml(id);if(!html)return;
+  const w=window.open('','_blank','width=850,height=1100');
   if(w){w.document.write(html);w.document.close();}
   else notify('Please allow popups for print preview',true);
 }
 
 
 
-function _hwmsInvPrintUSA(id){
+function _hwmsInvBuildHtmlUSA(id){
   const inv=byId(DB.hwmsInvoices||[],id);if(!inv)return;
   const cont=byId(DB.hwmsContainers||[],inv.containerId);
   const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
@@ -3371,8 +3391,8 @@ function _hwmsInvPrintUSA(id){
   }
 
   // Calculations
-  var steelContentCost=Math.round((totalNetWt+totalSteelageWt)*steelRatePerKg/forexRate);
-  var processOtherCost=Math.round(totalExWorksAmt-steelContentCost);
+  var steelContentCost=Math.round(((totalNetWt+totalSteelageWt)*steelRatePerKg/forexRate)*100)/100;
+  var processOtherCost=Math.round((totalExWorksAmt-steelContentCost)*100)/100;
   if(processOtherCost<0) processOtherCost=0;
   var freightWhCost=0;
   lis.forEach(function(li){
@@ -3380,15 +3400,15 @@ function _hwmsInvPrintUSA(id){
     var fr=(part?.finalRate||0)-(part?.exWorksRate||0);
     freightWhCost+=fr*(li.quantity||0);
   });
-  freightWhCost=Math.round(freightWhCost);
-  var totalInvAmt=steelContentCost+processOtherCost+freightWhCost;
+  freightWhCost=Math.round(freightWhCost*100)/100;
+  var totalInvAmt=Math.round((steelContentCost+processOtherCost+freightWhCost)*100)/100;
 
   // ═══ SAME CSS AS INDIA ═══
-  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice USA '+inv.invoiceNumber+'</title>'+
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>'+
   '<style>'+
-  '@page{size:A4 portrait;margin:8mm 6mm}'+
+  '@page{size:A4 portrait;margin:10mm}@page{@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important;display:flex;flex-direction:column;align-items:center}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'+
   '*{margin:0;padding:0;box-sizing:border-box}'+
-  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:210mm;max-width:210mm;margin:0 auto;padding:8mm 6mm}'+
+  'body{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#000;width:205mm;max-width:205mm;margin:0 auto;padding:0}'+
   'table.main{width:100%;border-collapse:collapse;border:2px solid #000}'+
   'table.main td,table.main th{border:1px solid #000;padding:4px 6px;vertical-align:top}'+
   'table.items{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
@@ -3404,8 +3424,6 @@ function _hwmsInvPrintUSA(id){
   '.calc-row td{font-size:11px;border:1px solid #000;padding:4px 6px}'+
   'table.footer{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}'+
   'table.footer td{border:1px solid #000;padding:5px 8px;font-size:11.5px;vertical-align:top}'+
-  '@media print{body{padding:0;width:100%;max-width:100%}.print-hide{display:none!important}}'+
-  '@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:297mm}}'+
   '</style></head><body>'+
 
   // ═══ SAME HEADER AS INDIA (colspan=11 for extra column) ═══
@@ -3414,7 +3432,7 @@ function _hwmsInvPrintUSA(id){
 
     '<tr>'+
       '<td colspan="3" rowspan="3" style="width:38%"><div class="lbl">Exporter:</div><div class="val" style="font-size:14px;font-weight:900">'+_m(coName)+'</div><div class="addr">'+_m(coAddr)+'</div>'+(coGstin?'<div style="margin-top:4px;font-size:11px">GSTIN: <b>'+coGstin+'</b></div>':'')+'</td>'+
-      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+_m(inv.invoiceNumber?.replace(/-/g,''))+'</div></td>'+
+      '<td colspan="2"><div class="lbl">Invoice No.</div><div class="val mono b" style="font-size:20px">'+function(n){n=(n||'').replace(/-/g,'');return n.length<=5?'<span style="font-weight:900">'+n+'</span>':'<span style="font-weight:400">'+n.slice(0,-5)+'</span><span style="font-weight:900">'+n.slice(-5)+'</span>';}(inv.invoiceNumber)+'</div></td>'+
       '<td colspan="3"><div class="lbl">Date</div><div class="val" style="font-size:18px">'+_m(fd(inv.date))+'</div></td>'+
       '<td colspan="3"><div class="lbl">Exporter\'s Ref:</div><div class="val">'+_m(coIec)+'</div></td>'+
     '</tr>'+
@@ -3487,18 +3505,18 @@ function _hwmsInvPrintUSA(id){
     '</tr>'+
     // ═══ CALCULATION ROWS ═══
     '<tr class="calc-row" style="background:#f0f9ff">'+
-      '<td colspan="7" style="font-weight:700">Steel Content Cost (Including Packing Steelage)</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+_fmt(steelContentCost)+'</td>'+
+      '<td colspan="7" style="font-weight:800;font-size:12px">Steel Content Cost (Including Packing Steelage)</td>'+
+      '<td class="r mono b" style="font-size:14px">$'+_fmt(steelContentCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Steel & Al tariff applicable only on this Amount (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row">'+
-      '<td colspan="7" style="font-weight:700">Process & Other Cost (Other than Steel Content Cost) in the Invoice</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+_fmt(processOtherCost)+'</td>'+
+      '<td colspan="7" style="font-weight:800;font-size:12px">Process &amp; Other Cost (Other than Steel Content Cost) in the Invoice</td>'+
+      '<td class="r mono b" style="font-size:14px">$'+_fmt(processOtherCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Tariff applicable on this Amount (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row" style="background:#f0f9ff">'+
-      '<td colspan="7" style="font-weight:700">Freight & Warehousing Cost in the Invoice</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+_fmt(freightWhCost)+'</td>'+
+      '<td colspan="7" style="font-weight:800;font-size:12px">Freight &amp; Warehousing Cost in the Invoice</td>'+
+      '<td class="r mono b" style="font-size:14px">$'+_fmt(freightWhCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Tariff not applicable on this cost (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row" style="background:#e8e8e8;border-top:2px solid #000">'+
@@ -3519,9 +3537,13 @@ function _hwmsInvPrintUSA(id){
   '</table>'+
 
   '<div class="print-hide" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:12px 36px;font-size:15px;font-weight:700;background:#2a9aa0;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Print / Save as PDF</button></div>'+
-  '</body></html>';
+  '<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(277*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script></body></html>';
 
-  var w=window.open('','_blank','width=850,height=1100');
+  return html;
+}
+function _hwmsInvPrintUSA(id){
+  const html=_hwmsInvBuildHtmlUSA(id);if(!html)return;
+  const w=window.open('','_blank','width=850,height=1100');
   if(w){w.document.write(html);w.document.close();}
   else notify('Please allow popups for print preview',true);
 }
@@ -3569,8 +3591,113 @@ function _hwmsInvDateSync(){
   var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   el.value=dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);
 }
+async function _hwmsChooseFolder(){
+  if(!window.showDirectoryPicker){
+    notify('📁 Your browser does not support folder access. Use Chrome or Edge.',true);return null;
+  }
+  try{
+    const handle=await window.showDirectoryPicker({mode:'readwrite',id:'hwms-invoices'});
+    _hwmsInvFolderHandle=handle;
+    const btn=document.getElementById('hwmsFolderBtn');
+    if(btn) btn.textContent='📁 '+handle.name;
+    notify('📁 Folder set: '+handle.name);
+    return handle;
+  }catch(e){
+    if(e.name!=='AbortError') notify('Could not access folder: '+e.message,true);
+    return null;
+  }
+}
+async function _hwmsEnsureFolder(){
+  // Returns folder handle, prompting user if not yet chosen
+  if(_hwmsInvFolderHandle) return _hwmsInvFolderHandle;
+  return await _hwmsChooseFolder();
+}
+async function _hwmsGetSubFolder(parentHandle, name){
+  return await parentHandle.getDirectoryHandle(name,{create:true});
+}
+async function _hwmsWriteFile(subDir, fileName, html){
+  const fileHandle=await subDir.getFileHandle(fileName,{create:true});
+  const writable=await fileHandle.createWritable();
+  await writable.write(new Blob([html],{type:'text/html;charset=utf-8'}));
+  await writable.close();
+}
+async function _hwmsInvSaveIndia(id){
+  const folder=await _hwmsEnsureFolder();
+  if(!folder) return;
+  try{
+    const html=_hwmsInvBuildHtml(id); if(!html) return;
+    const inv=byId(DB.hwmsInvoices||[],id);
+    const num=(inv?.invoiceNumber||id).replace(/[\/\\:*?"<>|]/g,'');
+    const subDir=await _hwmsGetSubFolder(folder,'Invoices-India');
+    await _hwmsWriteFile(subDir,num+'_IND.html',html);
+    notify('✅ Saved: Invoices-India/'+num+'_IND.html');
+  }catch(e){ notify('Save failed: '+e.message,true); }
+}
+async function _hwmsInvSaveUSA(id){
+  const folder=await _hwmsEnsureFolder();
+  if(!folder) return;
+  try{
+    const html=_hwmsInvBuildHtmlUSA(id); if(!html) return;
+    const inv=byId(DB.hwmsInvoices||[],id);
+    const num=(inv?.invoiceNumber||id).replace(/[\/\\:*?"<>|]/g,'');
+    const subDir=await _hwmsGetSubFolder(folder,'Invoices-USA');
+    await _hwmsWriteFile(subDir,num+'_USA.html',html);
+    notify('✅ Saved: Invoices-USA/'+num+'_USA.html');
+  }catch(e){ notify('Save failed: '+e.message,true); }
+}
+async function _hwmsInvSaveBoth(id){
+  const folder=await _hwmsEnsureFolder();
+  if(!folder) return;
+  try{
+    const inv=byId(DB.hwmsInvoices||[],id);
+    const num=(inv?.invoiceNumber||id).replace(/[\/\\:*?"<>|]/g,'');
+    const htmlI=_hwmsInvBuildHtml(id);
+    const htmlU=_hwmsInvBuildHtmlUSA(id);
+    if(htmlI){
+      const subI=await _hwmsGetSubFolder(folder,'Invoices-India');
+      await _hwmsWriteFile(subI,num+'_IND.html',htmlI);
+    }
+    if(htmlU){
+      const subU=await _hwmsGetSubFolder(folder,'Invoices-USA');
+      await _hwmsWriteFile(subU,num+'_USA.html',htmlU);
+    }
+    notify('✅ Both saved — '+num+'_IND.html & '+num+'_USA.html');
+  }catch(e){ notify('Save both failed: '+e.message,true); }
+}
 function _hwmsInvBack(){
   hwmsGo('pageHwmsInvoices');
+}
+function _hwmsGetSortedInvs(){
+  // Return invoices in the same sort order as the invoices list
+  const all=DB.hwmsInvoices||[];
+  const sk=_hwmsInvSortKey,asc=_hwmsInvSortAsc;
+  return [...all].sort((a,b)=>{
+    if(sk==='invoiceNumber'){
+      const na=parseInt((a.invoiceNumber||'0').replace(/\D/g,''))||0;
+      const nb=parseInt((b.invoiceNumber||'0').replace(/\D/g,''))||0;
+      return asc?na-nb:nb-na;
+    }
+    let va=(a[sk]||'').toString().toLowerCase();
+    let vb=(b[sk]||'').toString().toLowerCase();
+    return asc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+}
+function _hwmsInvNavUpdate(){
+  const sorted=_hwmsGetSortedInvs();
+  const idx=sorted.findIndex(i=>i.id===_hwmsCurrentInvId);
+  const prevBtn=document.getElementById('hwmsInvPrevBtn');
+  const nextBtn=document.getElementById('hwmsInvNextBtn');
+  if(prevBtn) prevBtn.disabled=idx<=0;
+  if(nextBtn) nextBtn.disabled=idx<0||idx>=sorted.length-1;
+  if(prevBtn) prevBtn.style.opacity=idx<=0?'0.35':'1';
+  if(nextBtn) nextBtn.style.opacity=(idx<0||idx>=sorted.length-1)?'0.35':'1';
+}
+function _hwmsInvNav(dir){
+  const sorted=_hwmsGetSortedInvs();
+  const idx=sorted.findIndex(i=>i.id===_hwmsCurrentInvId);
+  if(idx<0) return;
+  const next=sorted[idx+dir];
+  if(next) showHwmsInvDetail(next.id);
 }
 
 function _hwmsLiResetAddRow(){
