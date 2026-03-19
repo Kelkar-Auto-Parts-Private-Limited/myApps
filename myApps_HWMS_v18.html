@@ -40,7 +40,7 @@
 .page{display:none;padding:16px}.page.active{display:block}
 /* Shared styles */
 .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}.card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}.page-title{font-size:clamp(18px,5vw,24px);font-weight:900;color:var(--text)}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:2}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px}th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:2}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
 tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.03)}
 .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
 .action-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 6px;border-radius:4px}.action-btn:hover{background:var(--surface2)}
@@ -62,6 +62,76 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   .hwms-dr-btn{font-size:9px;padding:2px 5px;border:1px solid var(--border2);border-radius:3px;background:var(--surface2);cursor:pointer;color:var(--text3);font-weight:700;white-space:nowrap;flex:1;text-align:center}
   .hwms-dr-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
   .hwms-dr-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  /* Spacing for Other Masters + Ports popup forms */
+  #mHwmsHsn .form-group, #mHwmsUom .form-group, #mHwmsPacking .form-group,
+  #mHwmsPortDisch .form-group, #mHwmsPortLoad .form-group {
+    margin-bottom: 20px;
+    padding: 0;
+  }
+  #mHwmsHsn .form-group label, #mHwmsUom .form-group label, #mHwmsPacking .form-group label,
+  #mHwmsPortDisch .form-group label, #mHwmsPortLoad .form-group label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #000;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  #mHwmsHsn .form-group input, #mHwmsUom .form-group input, #mHwmsPacking .form-group input,
+  #mHwmsPortDisch .form-group input, #mHwmsPortLoad .form-group input {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 9px 12px;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    background: #fff;
+    transition: border-color .15s;
+  }
+  #mHwmsHsn .form-group input:focus, #mHwmsUom .form-group input:focus,
+  #mHwmsPacking .form-group input:focus, #mHwmsPortDisch .form-group input:focus,
+  #mHwmsPortLoad .form-group input:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(42,154,160,.12);
+  }
+  #mHwmsHsn .modal-footer, #mHwmsUom .modal-footer, #mHwmsPacking .modal-footer,
+  #mHwmsPortDisch .modal-footer, #mHwmsPortLoad .modal-footer {
+    margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  /* Containers & Invoices table — frozen bold headers */
+  /* NOTE: sticky on th requires NO overflow:hidden on table or its ancestors */
+  #tHwmsContainers thead th, #tHwmsInvoices thead th {
+    font-size:13px !important;
+    font-weight:800 !important;
+    color:#000 !important;
+    background:#f1f5f9 !important;
+    position:sticky !important;
+    top:0 !important;
+    z-index:10 !important;
+    border-bottom:2px solid #cbd5e1 !important;
+    box-shadow:0 2px 0 #cbd5e1;
+  }
+  /* Larger font for inputs, selects, buttons inside header cells */
+  #tHwmsContainers thead th input,
+  #tHwmsContainers thead th select,
+  #tHwmsContainers thead th button,
+  #tHwmsInvoices thead th input,
+  #tHwmsInvoices thead th select,
+  #tHwmsInvoices thead th button {
+    font-size:11px !important;
+    padding:3px 6px !important;
+  }
+  #tHwmsContainers thead th .hwms-dr-btn,
+  #tHwmsInvoices thead th .hwms-dr-btn {
+    font-size:11px !important;
+    padding:3px 7px !important;
+    font-weight:700;
+  }
   #hwmsLiAddRow input[type=number]{-moz-appearance:textfield;text-align:right}
   #hwmsLiAddRow input[type=number]::-webkit-outer-spin-button,#hwmsLiAddRow input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .hwms-num-clean{-moz-appearance:textfield!important}
@@ -112,7 +182,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 </div>
 <!-- Sidebar -->
 <div class="sidebar" id="hwmsSidebar">
-  <div class="brand"><img src="data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADrbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAAAAAAAOcGl0bQAAAAAAAQAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAETAAAJeQAAAChpaW5mAAAAAAABAAAAGmluZmUCAAAAAAEAAGF2MDFDb2xvcgAAAABqaXBycAAAAEtpcGNvAAAAFGlzcGUAAAAAAAAC0AAAAtAAAAAQcGl4aQAAAAADCAgIAAAADGF2MUOBBAwAAAAAE2NvbHJuY2x4AAEADQAGgAAAABdpcG1hAAAAAAAAAAEAAQQBAoMEAAAJgW1kYXQ" alt="KAP" style="width:32px;height:32px;border-radius:8px"><div><h3>HWMS</h3><div style="font-size:10px;color:var(--text3)">Warehouse Management</div></div></div>
+  <div class="brand"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iIzJhOWFhMCIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTAuNSI+S0FQPC90ZXh0Pjwvc3ZnPg==" alt="KAP" style="width:32px;height:32px;border-radius:8px"><div><h3>HWMS</h3><div style="font-size:10px;color:var(--text3)">Warehouse Management</div></div></div>
   <!-- User Info -->
   <div style="border-bottom:1px solid var(--border);padding:10px 14px">
     <div style="display:flex;align-items:center;gap:9px">
@@ -130,15 +200,11 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <div class="nav-item" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Invoices <span class="hwms-cnt" id="hcInvoices"></span></div>
   <div class="nav-sec">MASTERS</div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsHsn')">&#x1F522; HSN Master <span class="hwms-cnt" id="hcHsn"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsUom')">&#x1F4CF; UOM Master <span class="hwms-cnt" id="hcUom"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsPacking')">&#x1F4E6; Packaging <span class="hwms-cnt" id="hcPacking"></span></div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters</div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsCarriers')">&#x1F6A2; Carrier Master <span class="hwms-cnt" id="hcCarriers"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details <span class="hwms-cnt" id="hcCompany"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsSteelRates')">&#x1F4B1; Steel & Forex <span class="hwms-cnt" id="hcSteelRates"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsPortDisch')">&#x1F6A2; Port of Discharge <span class="hwms-cnt" id="hcPortDischarge"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsPortLoad')">&#x2693; Port of Loading <span class="hwms-cnt" id="hcPortLoading"></span></div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsPorts')">&#x2693; Ports</div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div id="hwmsConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
@@ -189,7 +255,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
             <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add Invoice</button>
           </div>
         </div>
-        <div class="table-wrap" style="overflow:auto;max-height:calc(100vh - 160px)"><table id="tHwmsInvoices" style="font-size:14px"><thead style="position:sticky;top:0;z-index:2;background:var(--surface)">
+        <div style="overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:100%"><thead>
           <tr style="background:var(--surface2)">
             <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Invoice No.</div><input type="text" id="hwmsInvFilterInvNo" placeholder="Search..." oninput="renderHwmsInvoices()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
@@ -323,12 +389,12 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
             <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Add Container</button>
           </div>
         </div>
-        <div class="table-wrap" style="overflow:auto;max-height:calc(100vh - 120px)"><table id="tHwmsContainers" style="font-size:14px"><thead style="position:sticky;top:0;z-index:2;background:var(--surface)"><tr style="background:var(--surface2)">
+        <div style="overflow:auto;max-height:calc(100vh - 160px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr>
           <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsContSelectAll" onchange="_hwmsContToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('containerNumber')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Container No. <span id="hwmsContSortIcon_containerNumber"></span></div><input type="text" id="hwmsContSearch" placeholder="Search..." oninput="renderHwmsContainers()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('expectedPickupDate')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Pickup Date <span id="hwmsContSortIcon_expectedPickupDate"></span></div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="event.stopPropagation();_hwmsContDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('carrierName')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Carrier <span id="hwmsContSortIcon_carrierName"></span></div><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Invoices</div><div id="hwmsContHeaderTotal" style="font-size:13px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
+          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Invoices</div></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('invValue')"><div style="font-size:11px;cursor:pointer">Inv. Value <span id="hwmsContSortIcon_invValue"></span></div><div id="hwmsContInvValueTotal" style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('expectedReachDate')"><div style="font-size:11px;cursor:pointer">Reach Date <span id="hwmsContSortIcon_expectedReachDate"></span></div></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('status')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Status <span id="hwmsContSortIcon_status"></span></div><select id="hwmsContFilterStatus" onchange="renderHwmsContainers()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="Onwater">In Transit</option><option value="Reached">Warehouse</option></select></th>
@@ -357,7 +423,6 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           <div class="form-group" style="margin:0"><label>GSTIN</label><input type="text" id="hwmsCoGstin" style="padding:8px 12px;font-family:var(--mono)"></div>
           <div class="form-group" style="margin:0"><label>Exporter's Reference (IEC)</label><input type="text" id="hwmsCoIec" style="padding:8px 12px;font-family:var(--mono)"></div>
           <div class="form-group" style="margin:0"><label>REX Number</label><input type="text" id="hwmsCoRex" style="padding:8px 12px;font-family:var(--mono);font-size:12px"></div>
-          <div class="form-group" style="margin:0"><label>Supplier Code</label><input type="text" id="hwmsCoSupplier" style="padding:8px 12px;font-family:var(--mono)"></div>
           <div class="form-group" style="margin:0"><label>Place of Receipt by Pre-carrier</label><input type="text" id="hwmsCoPlaceReceipt" style="padding:8px 12px" placeholder="e.g. Pune, Maharashtra"></div>
           <div class="form-group" style="margin:0"><label>Country of Origin</label><input type="text" id="hwmsCoCountry" value="India" style="padding:8px 12px"></div>
           <div class="form-group" style="margin:0;grid-column:1/-1"><label>Invoice Note (Bottom)</label><textarea id="hwmsCoNote" rows="2" style="padding:8px 12px" placeholder="e.g. Supply Meant For Export On Payment Of IGST Under Rebate Claim"></textarea></div>
@@ -367,50 +432,41 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     </div>
 
     <!-- HWMS: STEEL & FOREX RATES -->
-    <div class="page" id="pageHwmsSteelRates">
-      <div class="page-header"><div class="page-title">Steel & Forex Rates</div></div>
-      <div class="card" style="padding:16px 20px;max-width:800px">
-        <div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🇺🇸 Invoice (USA) — Steel & Forex Rate Revisions</div>
-        <div id="hwmsSteelRateHistory" style="margin-bottom:10px"></div>
-        <div id="hwmsSteelRateAddWrap" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;padding:10px 12px;background:rgba(42,154,160,.04);border:1.5px dashed var(--accent);border-radius:8px">
-          <div class="form-group" style="margin:0;width:130px"><label style="font-size:11px;font-weight:600">Steel Rate (₹/Kg)</label><input type="number" id="hwmsSteelRate" step="0.01" class="hwms-num-clean" style="padding:7px 8px;font-size:15px;text-align:right;font-family:var(--mono)"></div>
-          <div class="form-group" style="margin:0;width:130px"><label style="font-size:11px;font-weight:600">Forex Rate (₹/USD)</label><input type="number" id="hwmsForexRate" step="0.01" class="hwms-num-clean" style="padding:7px 8px;font-size:15px;text-align:right;font-family:var(--mono)"></div>
-          <div class="form-group" style="margin:0;width:130px"><label style="font-size:11px;font-weight:600">Valid From</label><input type="date" id="hwmsSteelFrom" style="padding:7px 6px;font-size:13px"></div>
-          <div class="form-group" style="margin:0;width:130px"><label style="font-size:11px;font-weight:600">Valid To</label><input type="date" id="hwmsSteelTo" style="padding:7px 6px;font-size:13px"></div>
-          <button class="btn btn-primary" id="hwmsSteelAddBtn" onclick="_hwmsSteelRateAdd()" style="font-size:13px;padding:7px 16px;height:36px">+ Add</button>
-          <button class="btn btn-secondary" id="hwmsSteelCancelBtn" onclick="_hwmsSteelRateCancel()" style="font-size:12px;padding:7px 12px;height:36px;display:none">✕ Cancel</button>
-        </div>
-      </div>
-    </div>
 
     <!-- HWMS: HSN MASTER -->
-    <div class="page" id="pageHwmsHsn">
-      <div class="page-header"><div class="page-title">HSN Master</div></div>
-      <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All HSN Codes</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsHsn')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
-        <button class="btn btn-primary" onclick="openHwmsHsnModal()">+ Add HSN</button>
-      </div></div><div class="table-wrap"><table id="tHwmsHsn"><thead><tr><th class="sortable" onclick="sortTable('hwmsHsnBody',0)">HSN Number</th><th class="sortable" onclick="sortTable('hwmsHsnBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsHsnBody"></tbody></table></div></div>
-    </div>
-
-    <!-- HWMS: UOM MASTER -->
-    <div class="page" id="pageHwmsUom">
-      <div class="page-header"><div class="page-title">UOM Master</div></div>
-      <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Units of Measurement</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsUom')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
-        <button class="btn btn-primary" onclick="openHwmsUomModal()">+ Add UOM</button>
-      </div></div><div class="table-wrap"><table id="tHwmsUom"><thead><tr><th class="sortable" onclick="sortTable('hwmsUomBody',0)">UOM</th><th class="sortable" onclick="sortTable('hwmsUomBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsUomBody"></tbody></table></div></div>
-    </div>
-
-    <!-- HWMS: PACKAGING MASTER -->
-    <div class="page" id="pageHwmsPacking">
-      <div class="page-header"><div class="page-title">Packaging Master</div></div>
-      <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Packaging Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsPacking')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
-        <button class="btn btn-primary" onclick="openHwmsPackingModal()">+ Add Packaging</button>
-      </div></div><div class="table-wrap"><table id="tHwmsPacking"><thead><tr><th class="sortable" onclick="sortTable('hwmsPackBody',0)">Packaging Name</th><th class="sortable" onclick="sortTable('hwmsPackBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsPackBody"></tbody></table></div></div>
+    <!-- HWMS: OTHER MASTERS (Packaging + UOM + HSN combined) -->
+    <div class="page" id="pageHwmsOtherMasters">
+      <div class="page-header"><div class="page-title">Other Masters</div></div>
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
+        <button id="omTab_packing" onclick="hwmsOmTab('packing')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">📦 Packaging</button>
+        <button id="omTab_uom" onclick="hwmsOmTab('uom')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">📏 UOM</button>
+        <button id="omTab_hsn" onclick="hwmsOmTab('hsn')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">🔢 HSN</button>
+      </div>
+      <!-- Packaging -->
+      <div id="omSection_packing">
+        <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Packaging Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPacking')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsPackingModal()">+ Add Packaging</button>
+        </div></div><div class="table-wrap"><table id="tHwmsPacking"><thead><tr><th class="sortable" onclick="sortTable('hwmsPackBody',0)">Packaging Name</th><th class="sortable" onclick="sortTable('hwmsPackBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsPackBody"></tbody></table></div></div>
+      </div>
+      <!-- UOM -->
+      <div id="omSection_uom" style="display:none">
+        <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Units of Measurement</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsUom')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsUomModal()">+ Add UOM</button>
+        </div></div><div class="table-wrap"><table id="tHwmsUom"><thead><tr><th class="sortable" onclick="sortTable('hwmsUomBody',0)">UOM</th><th class="sortable" onclick="sortTable('hwmsUomBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsUomBody"></tbody></table></div></div>
+      </div>
+      <!-- HSN -->
+      <div id="omSection_hsn" style="display:none">
+        <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All HSN Codes</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsHsn')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsHsnModal()">+ Add HSN</button>
+        </div></div><div class="table-wrap"><table id="tHwmsHsn"><thead><tr><th class="sortable" onclick="sortTable('hwmsHsnBody',0)">HSN Number</th><th class="sortable" onclick="sortTable('hwmsHsnBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsHsnBody"></tbody></table></div></div>
+      </div>
     </div>
 
     <!-- HWMS: CUSTOMER MASTER -->
@@ -426,30 +482,36 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       </tr></thead><tbody id="hwmsCustBody"></tbody></table></div></div>
     </div>
 
-    <!-- HWMS: PORT OF DISCHARGE MASTER -->
-    <div class="page" id="pageHwmsPortDisch">
-      <div class="page-header"><div class="page-title">Port of Discharge</div></div>
-      <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Discharge</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsPortDischarge')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
-        <button class="btn btn-primary" onclick="openHwmsPortDischModal()">+ Add Port</button>
-      </div></div><div class="table-wrap"><table id="tHwmsPortDisch"><thead><tr>
-        <th class="sortable" onclick="sortTable('hwmsPortDischBody',0)">Port Name</th>
-        <th class="sortable" onclick="sortTable('hwmsPortDischBody',1)">Country</th><th>Actions</th>
-      </tr></thead><tbody id="hwmsPortDischBody"></tbody></table></div></div>
-    </div>
-
-    <!-- HWMS: PORT OF LOADING MASTER -->
-    <div class="page" id="pageHwmsPortLoad">
-      <div class="page-header"><div class="page-title">Port of Loading</div></div>
-      <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Loading</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsPortLoading')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
-        <button class="btn btn-primary" onclick="openHwmsPortLoadModal()">+ Add Port</button>
-      </div></div><div class="table-wrap"><table id="tHwmsPortLoad"><thead><tr>
-        <th class="sortable" onclick="sortTable('hwmsPortLoadBody',0)">Port Name</th>
-        <th class="sortable" onclick="sortTable('hwmsPortLoadBody',1)">Country</th><th>Actions</th>
-      </tr></thead><tbody id="hwmsPortLoadBody"></tbody></table></div></div>
+    <!-- HWMS: PORTS (Discharge + Loading combined) -->
+    <div class="page" id="pageHwmsPorts">
+      <div class="page-header"><div class="page-title">Ports</div></div>
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
+        <button id="ptTab_disch" onclick="hwmsPtTab('disch')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">🚢 Port of Discharge</button>
+        <button id="ptTab_load" onclick="hwmsPtTab('load')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">⚓ Port of Loading</button>
+      </div>
+      <!-- Discharge -->
+      <div id="ptSection_disch">
+        <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Discharge</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortDischarge')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsPortDischModal()">+ Add Port</button>
+        </div></div><div class="table-wrap"><table id="tHwmsPortDisch"><thead><tr>
+          <th class="sortable" onclick="sortTable('hwmsPortDischBody',0)">Port Name</th>
+          <th class="sortable" onclick="sortTable('hwmsPortDischBody',1)">Country</th><th>Actions</th>
+        </tr></thead><tbody id="hwmsPortDischBody"></tbody></table></div></div>
+      </div>
+      <!-- Loading -->
+      <div id="ptSection_load" style="display:none">
+        <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Loading</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortLoading')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsPortLoadModal()">+ Add Port</button>
+        </div></div><div class="table-wrap"><table id="tHwmsPortLoad"><thead><tr>
+          <th class="sortable" onclick="sortTable('hwmsPortLoadBody',0)">Port Name</th>
+          <th class="sortable" onclick="sortTable('hwmsPortLoadBody',1)">Country</th><th>Actions</th>
+        </tr></thead><tbody id="hwmsPortLoadBody"></tbody></table></div></div>
+      </div>
     </div>
 
     <!-- SECURITY CHECKPOINT MASTER -->
@@ -464,7 +526,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;padding:4px 10px;border-radius:6px;border:1.5px solid var(--green);background:rgba(34,197,94,.06)"><input type="checkbox" id="hwmsPartActive" checked style="width:15px;height:15px;accent-color:var(--green);cursor:pointer"> Active</label>
     <div class="form-group" style="margin:0;width:140px;flex-shrink:0"><label>Part Number *</label><input type="text" id="hwmsPartNum" placeholder="P-001" style="padding:7px 8px;font-weight:700;font-family:var(--mono)"></div>
-    <div class="form-group" style="margin:0;width:60px;flex-shrink:0"><label>Rev *</label><input type="text" id="hwmsPartRev" placeholder="A" style="padding:7px 8px;font-weight:700"></div>
+    <div class="form-group" style="margin:0;width:60px;flex-shrink:0"><label>Rev</label><input type="text" id="hwmsPartRev" placeholder="A" style="padding:7px 8px;font-weight:700"></div>
     <div class="form-group" style="margin:0;flex:1;min-width:200px"><label>Description *</label><input type="text" id="hwmsPartDesc" style="padding:7px 8px"></div>
   </div>
   <!-- Row 2: Weight + UOM + HSN + Photo in one line -->
@@ -617,7 +679,10 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <!-- SECTION 1: Customer Details (blue tint) -->
   <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 16px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">👤 Customer Details</div>
-    <div class="form-group" style="margin-bottom:8px"><label>Customer Name *</label><input type="text" id="hwmsCustName" style="padding:7px 10px"></div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+      <div class="form-group" style="margin:0"><label>Customer Name *</label><input type="text" id="hwmsCustName" style="padding:7px 10px"></div>
+      <div class="form-group" style="margin:0"><label>Supplier Code</label><input type="text" id="hwmsCustSupplierCode" style="padding:7px 10px;font-family:var(--mono)" placeholder="e.g. SUP-001"></div>
+    </div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
       <div class="form-group" style="margin:0"><label>Address</label><textarea id="hwmsCustAddr" rows="3" style="padding:7px 10px;resize:vertical;min-height:60px"></textarea></div>
       <div class="form-group" style="margin:0"><label>Country</label><input type="text" id="hwmsCustCountry" style="padding:7px 10px"></div>
@@ -639,23 +704,36 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <div class="form-group" style="margin:0"><label>Payment Terms</label><select id="hwmsCustPayTerms" style="padding:7px 8px"><option value="">--</option><option value="Advance">Advance</option><option value="7 Days">7 Days</option><option value="15 Days">15 Days</option><option value="30 Days">30 Days</option><option value="45 Days">45 Days</option><option value="60 Days">60 Days</option><option value="90 Days">90 Days</option></select></div>
     </div>
   </div>
+  <!-- SECTION 4: Steel & Forex Rates (teal tint) -->
+  <div style="background:rgba(42,154,160,.05);border:1.5px solid rgba(42,154,160,.2);border-radius:8px;padding:12px 16px;margin-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px">💱 Steel & Forex Rate History</div>
+      <button class="btn" style="font-size:10px;padding:3px 10px;background:rgba(42,154,160,.12);border:1px solid rgba(42,154,160,.35);color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer" onclick="_hwmsCustAddSteelRow()">+ Add Period</button>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Steel and forex rates for this customer's USA invoices — period specific</div>
+    <div id="hwmsCustSteelRows" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
   <div class="modal-footer" style="flex-wrap:wrap;margin-top:10px;padding-top:10px"><div class="modal-err" id="merr_mHwmsCust"></div><button class="btn btn-secondary" onclick="cm('mHwmsCust')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsCust()">Save</button></div>
 </div></div>
 
 <!-- HWMS PORT OF DISCHARGE MODAL -->
-<div class="modal-overlay" id="mHwmsPortDisch"><div class="modal" style="width:420px"><div class="modal-header"><div class="modal-title" id="mHwmsPortDischTitle">Add Port of Discharge</div><div class="modal-close" onclick="cm('mHwmsPortDisch')">×</div></div>
+<div class="modal-overlay" id="mHwmsPortDisch"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortDischTitle">Add Port of Discharge</div><div class="modal-close" onclick="cm('mHwmsPortDisch')">×</div></div>
+  <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPortDischId">
   <div class="form-group"><label>Port Name *</label><input type="text" id="hwmsPortDischName"></div>
   <div class="form-group"><label>Country</label><input type="text" id="hwmsPortDischCountry"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsPortDisch"></div><button class="btn btn-secondary" onclick="cm('mHwmsPortDisch')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPortDisch()">Save</button></div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsPortDisch"></div><button class="btn btn-secondary" onclick="cm('mHwmsPortDisch')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPortDisch()">Save</button></div>
 </div></div>
 
 <!-- HWMS PORT OF LOADING MODAL -->
-<div class="modal-overlay" id="mHwmsPortLoad"><div class="modal" style="width:420px"><div class="modal-header"><div class="modal-title" id="mHwmsPortLoadTitle">Add Port of Loading</div><div class="modal-close" onclick="cm('mHwmsPortLoad')">×</div></div>
+<div class="modal-overlay" id="mHwmsPortLoad"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortLoadTitle">Add Port of Loading</div><div class="modal-close" onclick="cm('mHwmsPortLoad')">×</div></div>
+  <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPortLoadId">
   <div class="form-group"><label>Port Name *</label><input type="text" id="hwmsPortLoadName"></div>
   <div class="form-group"><label>Country</label><input type="text" id="hwmsPortLoadCountry"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsPortLoad"></div><button class="btn btn-secondary" onclick="cm('mHwmsPortLoad')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPortLoad()">Save</button></div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsPortLoad"></div><button class="btn btn-secondary" onclick="cm('mHwmsPortLoad')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPortLoad()">Save</button></div>
 </div></div>
 
 <!-- HWMS CARRIER MODAL -->
@@ -668,27 +746,33 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 </div></div>
 
 <!-- HWMS HSN MODAL -->
-<div class="modal-overlay" id="mHwmsHsn"><div class="modal" style="width:420px"><div class="modal-header"><div class="modal-title" id="mHwmsHsnTitle">Add HSN</div><div class="modal-close" onclick="cm('mHwmsHsn')">×</div></div>
+<div class="modal-overlay" id="mHwmsHsn"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsHsnTitle">Add HSN</div><div class="modal-close" onclick="cm('mHwmsHsn')">×</div></div>
+  <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsHsnId">
   <div class="form-group"><label>HSN Number *</label><input type="text" id="hwmsHsnNum" placeholder="e.g. 7318.15"></div>
   <div class="form-group"><label>Description</label><input type="text" id="hwmsHsnDesc" placeholder="e.g. Screws, bolts, nuts…"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsHsn"></div><button class="btn btn-secondary" onclick="cm('mHwmsHsn')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsHsn()">Save</button></div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsHsn"></div><button class="btn btn-secondary" onclick="cm('mHwmsHsn')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsHsn()">Save</button></div>
 </div></div>
 
 <!-- HWMS UOM MODAL -->
-<div class="modal-overlay" id="mHwmsUom"><div class="modal" style="width:420px"><div class="modal-header"><div class="modal-title" id="mHwmsUomTitle">Add UOM</div><div class="modal-close" onclick="cm('mHwmsUom')">×</div></div>
+<div class="modal-overlay" id="mHwmsUom"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsUomTitle">Add UOM</div><div class="modal-close" onclick="cm('mHwmsUom')">×</div></div>
+  <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsUomId">
   <div class="form-group"><label>UOM *</label><input type="text" id="hwmsUomVal" placeholder="e.g. Pcs, Kg, Set"></div>
   <div class="form-group"><label>Description</label><input type="text" id="hwmsUomDesc" placeholder="e.g. Pieces"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsUom"></div><button class="btn btn-secondary" onclick="cm('mHwmsUom')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsUom()">Save</button></div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsUom"></div><button class="btn btn-secondary" onclick="cm('mHwmsUom')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsUom()">Save</button></div>
 </div></div>
 
 <!-- HWMS PACKAGING MODAL -->
-<div class="modal-overlay" id="mHwmsPacking"><div class="modal" style="width:420px"><div class="modal-header"><div class="modal-title" id="mHwmsPackingTitle">Add Packaging</div><div class="modal-close" onclick="cm('mHwmsPacking')">×</div></div>
+<div class="modal-overlay" id="mHwmsPacking"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPackingTitle">Add Packaging</div><div class="modal-close" onclick="cm('mHwmsPacking')">×</div></div>
+  <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPackingId">
   <div class="form-group"><label>Packaging Name *</label><input type="text" id="hwmsPackingName" placeholder="e.g. Wooden, Steelage"></div>
   <div class="form-group"><label>Description</label><input type="text" id="hwmsPackingDesc"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsPacking"></div><button class="btn btn-secondary" onclick="cm('mHwmsPacking')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPacking()">Save</button></div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsPacking"></div><button class="btn btn-secondary" onclick="cm('mHwmsPacking')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPacking()">Save</button></div>
 </div></div>
 
 <!-- SECURITY CHECKPOINT MODAL -->
@@ -741,20 +825,48 @@ function hwmsGo(pageId){
     pageHwmsContainers: ()=>{ if(typeof renderHwmsContainers==='function') renderHwmsContainers(); },
     pageHwmsInvoices: ()=>{ if(typeof renderHwmsInvoices==='function') renderHwmsInvoices(); },
     pageHwmsParts: ()=>{ if(typeof renderHwmsParts==='function') renderHwmsParts(); },
-    pageHwmsHsn: ()=>{ if(typeof renderHwmsHsn==='function') renderHwmsHsn(); },
-    pageHwmsUom: ()=>{ if(typeof renderHwmsUom==='function') renderHwmsUom(); },
-    pageHwmsPacking: ()=>{ if(typeof renderHwmsPacking==='function') renderHwmsPacking(); },
+    pageHwmsOtherMasters: ()=>{
+      if(typeof renderHwmsPacking==='function') renderHwmsPacking();
+      if(typeof renderHwmsUom==='function') renderHwmsUom();
+      if(typeof renderHwmsHsn==='function') renderHwmsHsn();
+    },
+    // Legacy aliases so any existing deep-links still work
+    pageHwmsHsn: ()=>{ hwmsGo('pageHwmsOtherMasters'); hwmsOmTab('hsn'); },
+    pageHwmsUom: ()=>{ hwmsGo('pageHwmsOtherMasters'); hwmsOmTab('uom'); },
+    pageHwmsPacking: ()=>{ hwmsGo('pageHwmsOtherMasters'); hwmsOmTab('packing'); },
     pageHwmsCarriers: ()=>{ if(typeof renderHwmsCarriers==='function') renderHwmsCarriers(); },
     pageHwmsCompany: ()=>{ if(typeof renderHwmsCompany==='function') renderHwmsCompany(); },
-    pageHwmsSteelRates: ()=>{ if(typeof renderHwmsSteelRates==='function') renderHwmsSteelRates(); },
     pageHwmsCustomers: ()=>{ if(typeof renderHwmsCustomers==='function') renderHwmsCustomers(); },
-    pageHwmsPortDisch: ()=>{ if(typeof renderHwmsPortDisch==='function') renderHwmsPortDisch(); },
-    pageHwmsPortLoad: ()=>{ if(typeof renderHwmsPortLoad==='function') renderHwmsPortLoad(); },
+    pageHwmsPorts: ()=>{
+      if(typeof renderHwmsPortDisch==='function') renderHwmsPortDisch();
+      if(typeof renderHwmsPortLoad==='function') renderHwmsPortLoad();
+    },
+    // Legacy aliases
+    pageHwmsPortDisch: ()=>{ hwmsGo('pageHwmsPorts'); hwmsPtTab('disch'); },
+    pageHwmsPortLoad:  ()=>{ hwmsGo('pageHwmsPorts'); hwmsPtTab('load'); },
   };
   if(renderMap[pageId]) renderMap[pageId]();
 }
 // Compatibility shim — some V17 functions may call showPage
 function showPage(pid){ hwmsGo(pid); }
+function hwmsOmTab(tab){
+  ['packing','uom','hsn'].forEach(function(t){
+    var sec=document.getElementById('omSection_'+t);
+    var btn=document.getElementById('omTab_'+t);
+    var active=t===tab;
+    if(sec) sec.style.display=active?'':'none';
+    if(btn){ btn.style.borderBottomColor=active?'var(--accent)':'transparent'; btn.style.color=active?'var(--accent)':'var(--text2)'; }
+  });
+}
+function hwmsPtTab(tab){
+  ['disch','load'].forEach(function(t){
+    var sec=document.getElementById('ptSection_'+t);
+    var btn=document.getElementById('ptTab_'+t);
+    var active=t===tab;
+    if(sec) sec.style.display=active?'':'none';
+    if(btn){ btn.style.borderBottomColor=active?'var(--accent)':'transparent'; btn.style.color=active?'var(--accent)':'var(--text2)'; }
+  });
+}
 
 // Helper: check if current user is Super Admin (via VMS roles OR HWMS roles)
 function _hwmsIsSA(){return CU&&((CU.roles||[]).includes('Super Admin')||(CU.hwmsRoles||[]).includes('Super Admin'));}
@@ -769,7 +881,7 @@ function _hwmsUpdCounts(){
   var m={
     hcContainers:'hwmsContainers', hcInvoices:'hwmsInvoices',
     hcParts:'hwmsParts', hcHsn:'hwmsHsn', hcUom:'hwmsUom', hcPacking:'hwmsPacking',
-    hcCarriers:'hwmsCarriers', hcCompany:'hwmsCompany', hcSteelRates:'hwmsSteelRates',
+    hcCarriers:'hwmsCarriers', hcCompany:'hwmsCompany',
     hcCustomers:'hwmsCustomers', hcPortDischarge:'hwmsPortDischarge', hcPortLoading:'hwmsPortLoading'
   };
   for(var id in m){
@@ -780,11 +892,22 @@ function _hwmsUpdCounts(){
 
 // ── HWMS Boot ───────────────────────────────────────────────────────────────
 async function _hwmsBoot(){
+  // Guard: myApps_Common_v18.js must be loaded before this runs.
+  // If it isn't, bootDB and _sessionGet will be undefined and we show a clear error.
+  if(typeof bootDB==='undefined'||typeof _sessionGet==='undefined'){
+    var splashErr=document.getElementById('dbSplash');
+    if(splashErr){
+      splashErr.style.display='flex';
+      var splashMsg=document.getElementById('splashMsg');
+      if(splashMsg) splashMsg.textContent='Error: myApps_Common_v18.js failed to load. Make sure it is in the same folder as this file.';
+    }
+    console.error('HWMS: myApps_Common_v18.js not loaded — bootDB or _sessionGet undefined');
+    setTimeout(function(){ try{window.location.href='index.html';}catch(e){} },4000);
+    return;
+  }
   const splash=document.getElementById('dbSplash');
-  // Only show splash if no sessionStorage cache available (i.e. cold start).
-  // _navigateTo writes the cache before every navigation so returning users never see the splash.
-  var _hasCache=false;try{_hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
-  if(!_hasCache && splash) splash.style.display='flex';
+  var hasCache=false;try{hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
+  if(!hasCache && splash) splash.style.display='flex';
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
   // Auto-login from session
@@ -885,7 +1008,6 @@ function renderHwmsCompany(){
   document.getElementById('hwmsCoGstin').value=c?.gstin||'';
   document.getElementById('hwmsCoIec').value=c?.iec||'';
   document.getElementById('hwmsCoRex').value=c?.rex||'';
-  document.getElementById('hwmsCoSupplier').value=c?.supplierCode||'';
   document.getElementById('hwmsCoPlaceReceipt').value=c?.placeReceipt||'';
   document.getElementById('hwmsCoCountry').value=c?.country||'India';
   document.getElementById('hwmsCoNote').value=c?.note||'';
@@ -893,7 +1015,7 @@ function renderHwmsCompany(){
 async function saveHwmsCompany(){
   const companyName=document.getElementById('hwmsCoName').value.trim();
   if(!companyName){notify('Company Name is required',true);return;}
-  const data={companyName,address:document.getElementById('hwmsCoAddr').value.trim(),gstin:document.getElementById('hwmsCoGstin').value.trim(),iec:document.getElementById('hwmsCoIec').value.trim(),rex:document.getElementById('hwmsCoRex').value.trim(),supplierCode:document.getElementById('hwmsCoSupplier').value.trim(),placeReceipt:document.getElementById('hwmsCoPlaceReceipt').value.trim(),country:document.getElementById('hwmsCoCountry').value.trim()||'India',note:document.getElementById('hwmsCoNote').value.trim()};
+  const data={companyName,address:document.getElementById('hwmsCoAddr').value.trim(),gstin:document.getElementById('hwmsCoGstin').value.trim(),iec:document.getElementById('hwmsCoIec').value.trim(),rex:document.getElementById('hwmsCoRex').value.trim(),placeReceipt:document.getElementById('hwmsCoPlaceReceipt').value.trim(),country:document.getElementById('hwmsCoCountry').value.trim()||'India',note:document.getElementById('hwmsCoNote').value.trim()};
   if(!DB.hwmsCompany) DB.hwmsCompany=[];
   const existing=DB.hwmsCompany[0];
   if(existing){const bak={...existing};Object.assign(existing,data);if(!await _dbSave('hwmsCompany',existing)){Object.assign(existing,bak);return;}}
@@ -1036,11 +1158,39 @@ function _hwmsCustCollectConsignees(){
     isDefault:row.querySelector('.hwmsCsDefault')?.checked||false,
   })).filter(c=>c.name);
 }
+function _hwmsCustAddSteelRow(data){
+  const cont=document.getElementById('hwmsCustSteelRows');
+  if(!cont) return;
+  const d=data||{};
+  const div=document.createElement('div');
+  div.className='hwms-steel-row';
+  div.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:6px;align-items:end;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px';
+  div.innerHTML=
+    '<div class="form-group" style="margin:0"><label style="font-size:9px">Steel Rate (₹/Kg)</label>'+
+    '<input type="number" class="hwmsCsSteelRate" value="'+(d.steelRate||'')+'" step="0.01" style="padding:5px 8px;font-size:12px;text-align:right;font-family:var(--mono)"></div>'+
+    '<div class="form-group" style="margin:0"><label style="font-size:9px">Forex Rate (₹/USD)</label>'+
+    '<input type="number" class="hwmsCsForexRate" value="'+(d.forexRate||'')+'" step="0.01" style="padding:5px 8px;font-size:12px;text-align:right;font-family:var(--mono)"></div>'+
+    '<div class="form-group" style="margin:0"><label style="font-size:9px">Valid From</label>'+
+    '<input type="date" class="hwmsCsSteelFrom" value="'+(d.validFrom||'')+'" style="padding:5px 6px;font-size:11px"></div>'+
+    '<div class="form-group" style="margin:0"><label style="font-size:9px">Valid To</label>'+
+    '<input type="date" class="hwmsCsSteelTo" value="'+(d.validTo||'')+'" style="padding:5px 6px;font-size:11px"></div>'+
+    '<button onclick="this.closest(&quot;.hwms-steel-row&quot;).remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;font-weight:700;padding-bottom:2px">×</button>';
+  cont.appendChild(div);
+}
+function _hwmsCustCollectSteelRates(){
+  return [...document.querySelectorAll('.hwms-steel-row')].map(row=>({
+    steelRate:parseFloat(row.querySelector('.hwmsCsSteelRate')?.value)||0,
+    forexRate:parseFloat(row.querySelector('.hwmsCsForexRate')?.value)||0,
+    validFrom:row.querySelector('.hwmsCsSteelFrom')?.value||'',
+    validTo:row.querySelector('.hwmsCsSteelTo')?.value||'',
+  })).filter(r=>r.steelRate>0||r.forexRate>0);
+}
 function openHwmsCustModal(id){
   const c=id?byId(DB.hwmsCustomers||[],id):null;
   document.getElementById('eHwmsCustId').value=id||'';
   document.getElementById('mHwmsCustTitle').textContent=id?'Edit Customer':'Add Customer';
   document.getElementById('hwmsCustName').value=c?.customerName||'';
+  document.getElementById('hwmsCustSupplierCode').value=c?.supplierCode||'';
   document.getElementById('hwmsCustAddr').value=c?.address||'';
   document.getElementById('hwmsCustCountry').value=c?.country||'';
   document.getElementById('hwmsCustTransport').value=c?.defaultTransport||'By Sea';
@@ -1054,6 +1204,9 @@ function openHwmsCustModal(id){
   // Consignees
   document.getElementById('hwmsCustConsignees').innerHTML='';
   if(c?.consignees?.length) c.consignees.forEach(cn=>_hwmsCustAddConsignee(cn));
+  // Steel & Forex rates
+  document.getElementById('hwmsCustSteelRows').innerHTML='';
+  if(c?.steelRates?.length) c.steelRates.forEach(r=>_hwmsCustAddSteelRow(r));
   om('mHwmsCust');
 }
 async function saveHwmsCust(){
@@ -1062,7 +1215,8 @@ async function saveHwmsCust(){
   if(!customerName){modalErr('mHwmsCust','Customer Name is required');return;}
   if((DB.hwmsCustomers||[]).find(c=>c.customerName.toLowerCase()===customerName.toLowerCase()&&c.id!==id)){modalErr('mHwmsCust','Customer name already exists');return;}
   const consignees=_hwmsCustCollectConsignees();
-  const data={customerName,address:document.getElementById('hwmsCustAddr').value.trim(),country:document.getElementById('hwmsCustCountry').value.trim(),consignees,defaultTransport:document.getElementById('hwmsCustTransport').value,defaultPortDischarge:document.getElementById('hwmsCustPortDisch').value,defaultPortLoading:document.getElementById('hwmsCustPortLoad').value,defaultDelivery:document.getElementById('hwmsCustDelivery').value,defaultPaymentTerms:document.getElementById('hwmsCustPayTerms').value};
+  const steelRates=_hwmsCustCollectSteelRates();
+  const data={customerName,supplierCode:document.getElementById('hwmsCustSupplierCode').value.trim(),address:document.getElementById('hwmsCustAddr').value.trim(),country:document.getElementById('hwmsCustCountry').value.trim(),consignees,steelRates,defaultTransport:document.getElementById('hwmsCustTransport').value,defaultPortDischarge:document.getElementById('hwmsCustPortDisch').value,defaultPortLoading:document.getElementById('hwmsCustPortLoad').value,defaultDelivery:document.getElementById('hwmsCustDelivery').value,defaultPaymentTerms:document.getElementById('hwmsCustPayTerms').value};
   if(!DB.hwmsCustomers)DB.hwmsCustomers=[];
   if(id){const c=byId(DB.hwmsCustomers,id);const bak={...c};Object.assign(c,data);if(!await _dbSave('hwmsCustomers',c)){Object.assign(c,bak);return;}}
   else{const c={id:'hcu'+uid(),...data};if(!await _dbSave('hwmsCustomers',c))return;}
@@ -1416,7 +1570,7 @@ function _hwmsDeleteRate(idx){
 function openHwmsPartModal(id){
   const p=id?byId(DB.hwmsParts||[],id):null;
   document.getElementById('eHwmsPartId').value=id||'';
-  document.getElementById('mHwmsPartTitle').innerHTML=id?'Edit Part <span style="font-family:var(--mono);font-weight:900;color:var(--accent);margin-left:8px">'+( p?.partNumber||'')+(p?.partRevision?' R'+p.partRevision:'')+'</span>':'Add Part';
+  document.getElementById('mHwmsPartTitle').innerHTML=id?'Edit Part <span style="font-family:var(--mono);font-weight:900;color:var(--accent);margin-left:8px">'+( p?.partNumber||'')+(p?.partRevision?' '+p.partRevision:'')+'</span>':'Add Part';
   document.getElementById('hwmsPartNum').value=p?.partNumber||'';
   document.getElementById('hwmsPartRev').value=p?.partRevision||'';
   document.getElementById('hwmsPartDesc').value=p?.description||'';
@@ -1460,8 +1614,8 @@ async function saveHwmsPart(){
   const partNumber=document.getElementById('hwmsPartNum').value.trim();
   const partRevision=document.getElementById('hwmsPartRev').value.trim();
   const description=document.getElementById('hwmsPartDesc').value.trim();
-  if(!partNumber||!partRevision||!description){modalErr('mHwmsPart','Part Number, Revision & Description required');return;}
-  if((DB.hwmsParts||[]).find(p=>p.partNumber===partNumber&&p.partRevision===partRevision&&p.id!==id)){modalErr('mHwmsPart','Part Number + Revision already exists');return;}
+  if(!partNumber||!description){modalErr('mHwmsPart','Part Number & Description required');return;}
+  if((DB.hwmsParts||[]).find(p=>p.partNumber===partNumber&&(p.partRevision||'')===(partRevision||'')&&p.id!==id)){modalErr('mHwmsPart','Part Number'+(partRevision?' + Revision':'')+' already exists');return;}
   // Get latest rate from revisions
   const sortedRates=[..._hwmsPartRates].sort((a,b)=>(b.validFrom||'').localeCompare(a.validFrom||''));
   const latest=sortedRates[0]||{};
@@ -1595,14 +1749,17 @@ function _hwmsContClearFilters(){
 }
 
 function renderHwmsContainers(){
+  // Set CFY as default on first load
+  if(!document.getElementById('hwmsContFilterFrom')?.value && !document.getElementById('hwmsContFilterTo')?.value){
+    _hwmsContDateRange('CFY');
+    return; // _hwmsContDateRange calls renderHwmsContainers again
+  }
   // Set default date range to current FY if empty
   var fromEl=document.getElementById('hwmsContFilterFrom');
   var toEl=document.getElementById('hwmsContFilterTo');
   if(fromEl&&!fromEl.value&&toEl&&!toEl.value){
-    var now=new Date();var yr=now.getFullYear();var mo=now.getMonth();
-    var fyStart=(mo>=3)?yr+'-04-01':(yr-1)+'-04-01';
-    var fyEnd=(mo>=3)?(yr+1)+'-03-31':yr+'-03-31';
-    fromEl.value=fyStart;toEl.value=fyEnd;
+    _hwmsInvDateRange('CFY'); // sets dates AND marks CFY button active
+    return; // _hwmsInvDateRange calls renderHwmsInvoices again
   }
   // Populate carrier filter dropdown
   const carrSel=document.getElementById('hwmsContFilterCarrier');
@@ -1694,8 +1851,6 @@ function renderHwmsContainers(){
       (inv.lineItems||[]).forEach(function(li){contGrandTotal+=(li.rate||0)*(li.quantity||0);});
     });
   });
-  var ctEl=document.getElementById('hwmsContHeaderTotal');
-  if(ctEl) ctEl.textContent=conts.length?'$'+contGrandTotal.toFixed(2):'';
   var ivtEl=document.getElementById('hwmsContInvValueTotal');
   if(ivtEl) ivtEl.textContent=conts.length?'$'+contGrandTotal.toFixed(2):'';
   const cEl=document.getElementById('cHwmsContainers');if(cEl)cEl.textContent=(DB.hwmsContainers||[]).length;
@@ -2359,12 +2514,20 @@ function _hwmsInvDateRange(mode){
   var r=_hwmsDateRange(mode);
   document.getElementById('hwmsInvFilterFrom').value=r.from;
   document.getElementById('hwmsInvFilterTo').value=r.to;
+  // Highlight active button
+  document.querySelectorAll('#tHwmsInvoices .hwms-dr-btn').forEach(function(b){
+    b.classList.toggle('active', b.textContent.trim()===mode||(mode==='ALL'&&b.textContent.trim()==='All'));
+  });
   renderHwmsInvoices();
 }
 function _hwmsContDateRange(mode){
   var r=_hwmsDateRange(mode);
   document.getElementById('hwmsContFilterFrom').value=r.from;
   document.getElementById('hwmsContFilterTo').value=r.to;
+  // Highlight active button
+  document.querySelectorAll('#tHwmsContainers .hwms-dr-btn').forEach(function(b){
+    b.classList.toggle('active', b.textContent.trim()===mode||(mode==='ALL'&&b.textContent.trim()==='All'));
+  });
   renderHwmsContainers();
 }
 function _hwmsInvClearFilters(){
@@ -2381,14 +2544,12 @@ document.addEventListener('click',function(e){
 });
 
 function renderHwmsInvoices(){
-  // Set default date range to current FY if empty
+  // Set default date range to current FY if empty — also marks CFY button active
   var fromEl=document.getElementById('hwmsInvFilterFrom');
   var toEl=document.getElementById('hwmsInvFilterTo');
   if(fromEl&&!fromEl.value&&toEl&&!toEl.value){
-    var now=new Date();var yr=now.getFullYear();var mo=now.getMonth();
-    var fyStart=(mo>=3)?yr+'-04-01':(yr-1)+'-04-01';
-    var fyEnd=(mo>=3)?(yr+1)+'-03-31':yr+'-03-31';
-    fromEl.value=fyStart;toEl.value=fyEnd;
+    _hwmsInvDateRange('CFY');
+    return; // _hwmsInvDateRange calls renderHwmsInvoices again after setting dates
   }
   const fStatus=document.getElementById('hwmsInvFilterStatus')?.value||'';
   const fInvNo=(document.getElementById('hwmsInvFilterInvNo')?.value||'').toLowerCase();
@@ -2591,7 +2752,7 @@ function showHwmsInvDetail(id){
   if(lis.length){
     liRows=lis.map(function(li,i){
       const part=byId(DB.hwmsParts||[],li.partId);
-      const pn=part?part.partNumber+(part.partRevision?' R'+part.partRevision:''):'—';
+      const pn=part?part.partNumber+(part.partRevision?' '+part.partRevision:''):'—';
       const pDesc=part?.description||'';
       const pCell=li.partId?'<a href="#" onclick="event.preventDefault();showHwmsPartDetail(\''+li.partId+'\')" style="color:var(--accent);text-decoration:none;cursor:pointer"><div style="font-weight:700;text-decoration:underline">'+pn+'</div>'+(pDesc?'<div style="font-size:10px;color:var(--text3);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">'+pDesc+'</div>':'')+'</a>':pn;
       const amt=(li.rate||0)*(li.quantity||0);
@@ -2674,8 +2835,8 @@ function showHwmsInvDetail(id){
     '<div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 16px;margin-bottom:10px">'+
       '<div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Buyer & Shipping</div>'+
       '<div style="display:grid;grid-template-columns:1.5fr 1.5fr 0.8fr 0.8fr 125px;gap:8px">'+
-        _f('Buyer (Customer)',inv.buyerName||cust?.customerName||'','Missing')+
-        _f('Consignee',inv.consigneeName||consignee?.name||'','Missing')+
+        _f('Buyer (Customer)',inv.buyerName||cust?.customerName||'','—')+
+        _f('Consignee',inv.consigneeName||consignee?.name||'','—')+
         _f('Port of Loading',inv.portOfLoading||plPort?.name||'','Missing')+
         _f('Port of Discharge',inv.portOfDischarge||pdPort?.name||'','Missing')+
         _f('Payment Terms',inv.paymentTerms,'Missing')+
@@ -2713,101 +2874,11 @@ function showHwmsInvDetail(id){
 // ===== HWMS: STEEL & FOREX RATE FUNCTIONS =====
 let _hwmsSteelEditIdx=-1;
 
-function _hwmsGetLatestSteelRate(){
-  const rates=(DB.hwmsSteelRates||[]).sort((a,b)=>(b.validFrom||'').localeCompare(a.validFrom||''));
+function _hwmsGetLatestSteelRate(customerId){
+  // Steel rates are now stored in the customer record (steelRates array)
+  const cust=customerId?byId(DB.hwmsCustomers||[],customerId):null;
+  const rates=(cust?.steelRates||[]).sort((a,b)=>(b.validFrom||'').localeCompare(a.validFrom||''));
   return rates[0]||null;
-}
-
-function _hwmsRenderSteelRates(){
-  const el=document.getElementById('hwmsSteelRateHistory');
-  if(!el) return;
-  const rates=(DB.hwmsSteelRates||[]).sort((a,b)=>(b.validFrom||'').localeCompare(a.validFrom||''));
-  const isSA=CU&&CU.roles.includes('Super Admin');
-  if(!rates.length){
-    el.innerHTML='<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 0">No steel/forex rates defined yet</div>';
-    return;
-  }
-  const th='padding:4px 8px;font-size:11px;background:var(--surface2)';
-  el.innerHTML='<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr>'+
-    '<th style="'+th+';text-align:left">#</th>'+
-    '<th style="'+th+';text-align:right">Steel Rate (₹/Kg)</th>'+
-    '<th style="'+th+';text-align:right">Forex Rate (₹/USD)</th>'+
-    '<th style="'+th+'">Valid From</th>'+
-    '<th style="'+th+'">Valid To</th>'+
-    (isSA?'<th style="'+th+';width:60px"></th>':'')+
-  '</tr></thead><tbody>'+rates.map(function(r,i){
-    var isL=i===0;
-    var td='padding:4px 8px;border-bottom:1px solid var(--border)';
-    var isEditing=_hwmsSteelEditIdx>=0&&(DB.hwmsSteelRates||[]).indexOf(r)===_hwmsSteelEditIdx;
-    return '<tr style="'+(isEditing?'background:rgba(42,154,160,.1)':isL?'background:rgba(22,163,74,.05);font-weight:600':'')+'">'+
-      '<td style="'+td+'">'+(isL?'<span style="color:#16a34a;font-weight:800">★</span>':'')+(rates.length-i)+'</td>'+
-      '<td style="'+td+';text-align:right;font-family:var(--mono)">₹'+(r.steelRate||0).toFixed(2)+'</td>'+
-      '<td style="'+td+';text-align:right;font-family:var(--mono)">₹'+(r.forexRate||0).toFixed(2)+'</td>'+
-      '<td style="'+td+'">'+_hwmsFmtDateDMY(r.validFrom)+'</td>'+
-      '<td style="'+td+'">'+_hwmsFmtDateDMY(r.validTo)+'</td>'+
-      (isSA?'<td style="'+td+';white-space:nowrap"><button class="action-btn" onclick="_hwmsSteelRateEdit('+(DB.hwmsSteelRates||[]).indexOf(r)+')" title="Edit" style="font-size:11px">✏️</button><button class="action-btn" onclick="_hwmsSteelRateDel('+(DB.hwmsSteelRates||[]).indexOf(r)+')" title="Delete" style="font-size:11px">🗑</button></td>':'')+
-    '</tr>';
-  }).join('')+'</tbody></table>';
-}
-
-async function _hwmsSteelRateAdd(){
-  var sr=parseFloat(document.getElementById('hwmsSteelRate').value)||0;
-  var fr=parseFloat(document.getElementById('hwmsForexRate').value)||0;
-  var vf=document.getElementById('hwmsSteelFrom').value;
-  if(!sr||!fr){notify('Steel Rate and Forex Rate are required',true);return;}
-  if(!vf){notify('Valid From is required',true);return;}
-  var data={steelRate:sr,forexRate:fr,validFrom:vf,validTo:document.getElementById('hwmsSteelTo').value||''};
-  if(!DB.hwmsSteelRates) DB.hwmsSteelRates=[];
-  if(_hwmsSteelEditIdx>=0){
-    var existing=DB.hwmsSteelRates[_hwmsSteelEditIdx];
-    if(existing){var bak={...existing};Object.assign(existing,data);if(!await _dbSave('hwmsSteelRates',existing)){Object.assign(existing,bak);return;}}
-    _hwmsSteelEditIdx=-1;
-  } else {
-    var rec={id:'hsr'+uid(),...data};
-    if(!await _dbSave('hwmsSteelRates',rec)) return;
-  }
-  _hwmsSteelRateClearForm();
-  _hwmsRenderSteelRates();
-  notify('Steel/Forex rate saved!');
-}
-
-function _hwmsSteelRateEdit(idx){
-  var r=(DB.hwmsSteelRates||[])[idx];if(!r)return;
-  _hwmsSteelEditIdx=idx;
-  document.getElementById('hwmsSteelRate').value=r.steelRate||'';
-  document.getElementById('hwmsForexRate').value=r.forexRate||'';
-  document.getElementById('hwmsSteelFrom').value=r.validFrom||'';
-  document.getElementById('hwmsSteelTo').value=r.validTo||'';
-  document.getElementById('hwmsSteelAddBtn').textContent='✓ Update';
-  document.getElementById('hwmsSteelCancelBtn').style.display='';
-  _hwmsRenderSteelRates();
-}
-
-async function _hwmsSteelRateDel(idx){
-  var r=(DB.hwmsSteelRates||[])[idx];if(!r)return;
-  showConfirm('Delete this steel/forex rate?', async ()=>{
-    if(!await _dbDel('hwmsSteelRates',r.id))return;
-    if(_hwmsSteelEditIdx===idx) _hwmsSteelRateClearForm();
-    _hwmsRenderSteelRates();
-  });
-  notify('Rate deleted');
-}
-
-function _hwmsSteelRateCancel(){
-  _hwmsSteelRateClearForm();
-  _hwmsRenderSteelRates();
-}
-
-function _hwmsSteelRateClearForm(){
-  _hwmsSteelEditIdx=-1;
-  ['hwmsSteelRate','hwmsForexRate','hwmsSteelFrom','hwmsSteelTo'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  var btn=document.getElementById('hwmsSteelAddBtn');if(btn)btn.textContent='+ Add';
-  var cbtn=document.getElementById('hwmsSteelCancelBtn');if(cbtn)cbtn.style.display='none';
-}
-
-function renderHwmsSteelRatesPage(){
-  _hwmsRenderSteelRates();
-  _hwmsSteelRateClearForm();
 }
 
 function _hwmsAmtToWords(n){
@@ -2844,6 +2915,7 @@ function _hwmsInvPrint(id){
   const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
   const fd=d=>{if(!d)return'';const dt=new Date(d+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);};
   const _m=v=>v?v:'<span style="color:#dc2626;font-weight:700;font-style:italic">MISSING</span>';
+  const _fmt=n=>isNaN(n)?'0.00':n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
   const co=_getHwmsCompany()||{};
   const coName=co.companyName||'';
@@ -2851,7 +2923,7 @@ function _hwmsInvPrint(id){
   const coGstin=co.gstin||'';
   const coIec=co.iec||'';
   const coRex=co.rex||'';
-  const coSupplier=co.supplierCode||'';
+  const coSupplier=cust?.supplierCode||co.supplierCode||'';
   const coPlaceReceipt=co.placeReceipt||'';
   const coCountry=co.country||'India';
   const coNote=co.note||'';
@@ -2863,7 +2935,7 @@ function _hwmsInvPrint(id){
   const buyerAddr=cust?.address||'';
   const consName=inv.consigneeName||consignee?.name||'';
   const consAddr=consignee?.address||'';
-  const consCountry=consignee?.country||cust?.country||'';
+  const consCountry=consignee?.country||cust?.country||inv.countryOfDest||'';
   const deliveryTerms=(inv.delivery||'DDP')+', '+(inv.paymentTerms||'');
 
   // Build line items - 10 columns now with HSN
@@ -2884,8 +2956,8 @@ function _hwmsInvPrint(id){
         '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
         '<td>'+(li.poNumber||'')+'</td>'+
         '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
-        '<td class="r mono b">'+_m(li.rate?Number(li.rate).toFixed(2):'')+'</td>'+
-        '<td class="r mono b">'+_m(amt?amt.toFixed(2):'')+'</td>'+
+        '<td class="r mono b">'+_fmt(li.rate||0)+'</td>'+
+        '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
         '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>'+
         '<td class="r mono b">'+_m(li.grossWeight?''+Math.round(li.grossWeight):'')+'</td>'+
       '</tr>';
@@ -2936,8 +3008,8 @@ function _hwmsInvPrint(id){
     '</tr>'+
 
     '<tr style="border-top:2px solid #000">'+
-      '<td colspan="4"><div class="lbl">Buyer (If other than consignee):</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(buyerName)+'</div><div class="addr">'+_m(buyerAddr)+'</div></td>'+
-      '<td colspan="6"><div class="lbl">Consignee:</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(consName)+'</div><div class="addr">'+_m(consAddr)+'</div></td>'+
+      '<td colspan="4"><div class="lbl">Buyer (If other than consignee):</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(buyerName)+'</div><div class="addr">'+(buyerAddr||'').replace(/\n/g,'<br>')+'</div></td>'+
+      '<td colspan="6"><div class="lbl">Consignee:</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(consName)+'</div><div class="addr">'+(consAddr||'').replace(/\n/g,'<br>')+'</div></td>'+
     '</tr>'+
 
     '<tr style="border-top:2px solid #000">'+
@@ -2988,7 +3060,7 @@ function _hwmsInvPrint(id){
       '<td class="r b" style="font-size:10px">Total Qty</td>'+
       '<td class="r b">'+totalQty+'</td>'+
       '<td class="r b" style="font-size:10px">Total (USD)</td>'+
-      '<td class="r b mono" style="font-size:15px">'+totalValue.toFixed(2)+'</td>'+
+      '<td class="r b mono" style="font-size:17px;color:#000;font-weight:900">'+_fmt(totalValue)+'</td>'+
       '<td class="r b mono">'+Math.round(totalNetWt)+' Kg</td>'+
       '<td class="r b mono">'+Math.round(totalGrossWt)+' Kg</td>'+
     '</tr>'+
@@ -3027,6 +3099,7 @@ function _hwmsInvPrintUSA(id){
   const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
   const fd=d=>{if(!d)return'';const dt=new Date(d+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);};
   const _m=v=>v?v:'<span style="color:#dc2626;font-weight:700;font-style:italic">MISSING</span>';
+  const _fmt=n=>isNaN(n)?'0.00':n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
   // Company details
   const co=_getHwmsCompany()||{};
@@ -3035,13 +3108,13 @@ function _hwmsInvPrintUSA(id){
   const coGstin=co.gstin||'';
   const coIec=co.iec||'';
   const coRex=co.rex||'';
-  const coSupplier=co.supplierCode||'';
+  const coSupplier=cust?.supplierCode||co.supplierCode||'';
   const coPlaceReceipt=co.placeReceipt||'';
   const coCountry=co.country||'India';
   const coNote=co.note||'';
 
   // Steel/Forex rates
-  const sr=_hwmsGetLatestSteelRate();
+  const sr=_hwmsGetLatestSteelRate(inv.buyerId);
   const steelRatePerKg=sr?.steelRate||0;
   const forexRate=sr?.forexRate||1;
 
@@ -3049,7 +3122,7 @@ function _hwmsInvPrintUSA(id){
   const buyerAddr=cust?.address||'';
   const consName=inv.consigneeName||consignee?.name||'';
   const consAddr=consignee?.address||'';
-  const consCountry=consignee?.country||cust?.country||'';
+  const consCountry=consignee?.country||cust?.country||inv.countryOfDest||'';
   const deliveryTerms=(inv.delivery||'DDP')+', '+(inv.paymentTerms||'');
 
   // Build line items with ex-works rate + steelage wt
@@ -3077,8 +3150,8 @@ function _hwmsInvPrintUSA(id){
         '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
         '<td>'+(li.poNumber||'')+'</td>'+
         '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
-        '<td class="r mono b">'+_m(exRate?exRate.toFixed(2):'')+'</td>'+
-        '<td class="r mono b">'+_m(amt?amt.toFixed(2):'')+'</td>'+
+        '<td class="r mono b">'+_fmt(exRate||0)+'</td>'+
+        '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
         '<td class="r mono">'+(steelageWt||'')+'</td>'+
         '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>'+
         '<td class="r mono b">'+_m(li.grossWeight?''+Math.round(li.grossWeight):'')+'</td>'+
@@ -3146,8 +3219,8 @@ function _hwmsInvPrintUSA(id){
     '</tr>'+
 
     '<tr style="border-top:2px solid #000">'+
-      '<td colspan="4"><div class="lbl">Buyer (If other than consignee):</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(buyerName)+'</div><div class="addr">'+_m(buyerAddr)+'</div></td>'+
-      '<td colspan="7"><div class="lbl">Consignee:</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(consName)+'</div><div class="addr">'+_m(consAddr)+'</div></td>'+
+      '<td colspan="4"><div class="lbl">Buyer (If other than consignee):</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(buyerName)+'</div><div class="addr">'+(buyerAddr||'').replace(/\n/g,'<br>')+'</div></td>'+
+      '<td colspan="7"><div class="lbl">Consignee:</div><div class="val" style="font-size:13px;font-weight:800;margin-top:3px">'+_m(consName)+'</div><div class="addr">'+(consAddr||'').replace(/\n/g,'<br>')+'</div></td>'+
     '</tr>'+
 
     '<tr style="border-top:2px solid #000">'+
@@ -3198,7 +3271,7 @@ function _hwmsInvPrintUSA(id){
       '<td class="r b" style="font-size:9px">Total</td>'+
       '<td class="r b">'+totalQty+'</td>'+
       '<td class="r b" style="font-size:9px">Total (USD)</td>'+
-      '<td class="r b mono">'+totalExWorksAmt.toFixed(2)+'</td>'+
+      '<td class="r b mono" style="font-size:17px;color:#000;font-weight:900">'+_fmt(totalExWorksAmt)+'</td>'+
       '<td class="r b mono">'+totalSteelageWt+'</td>'+
       '<td class="r b mono">'+Math.round(totalNetWt)+'</td>'+
       '<td class="r b mono">'+Math.round(totalGrossWt)+'</td>'+
@@ -3206,22 +3279,22 @@ function _hwmsInvPrintUSA(id){
     // ═══ CALCULATION ROWS ═══
     '<tr class="calc-row" style="background:#f0f9ff">'+
       '<td colspan="7" style="font-weight:700">Steel Content Cost (Including Packing Steelage)</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+steelContentCost.toLocaleString()+'</td>'+
+      '<td class="r mono b" style="font-size:12px">$'+_fmt(steelContentCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Steel & Al tariff applicable only on this Amount (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row">'+
       '<td colspan="7" style="font-weight:700">Process & Other Cost (Other than Steel Content Cost) in the Invoice</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+processOtherCost.toLocaleString()+'</td>'+
+      '<td class="r mono b" style="font-size:12px">$'+_fmt(processOtherCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Tariff applicable on this Amount (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row" style="background:#f0f9ff">'+
       '<td colspan="7" style="font-weight:700">Freight & Warehousing Cost in the Invoice</td>'+
-      '<td class="r mono b" style="font-size:12px">$'+freightWhCost.toLocaleString()+'</td>'+
+      '<td class="r mono b" style="font-size:12px">$'+_fmt(freightWhCost)+'</td>'+
       '<td colspan="3" style="font-size:10px;color:#555">Tariff not applicable on this cost (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row" style="background:#e8e8e8;border-top:2px solid #000">'+
       '<td colspan="7" style="font-weight:900;font-size:12px">Total Invoice Amount in USD</td>'+
-      '<td class="r mono b" style="font-size:16px;color:#16a34a">$'+totalInvAmt.toLocaleString()+'</td>'+
+      '<td class="r mono b" style="font-size:18px;color:#000;font-weight:900">$'+_fmt(totalInvAmt)+'</td>'+
       '<td colspan="3"></td>'+
     '</tr>'+
   '</table>'+
@@ -3338,7 +3411,7 @@ function _hwmsPartFilter(){
     dd.innerHTML='<div class="hwms-part-dd-empty">No parts found</div>';
   } else {
     dd.innerHTML=filtered.map(p=>{
-      const rev=p.partRevision?' R'+p.partRevision:'';
+      const rev=p.partRevision?' '+p.partRevision:'';
       const desc=p.description?' — '+p.description:'';
       return '<div class="hwms-part-dd-item" onmousedown="_hwmsPartSelect(\''+p.id+'\')"><span class="pn">'+p.partNumber+rev+'</span>'+desc+'</div>';
     }).join('');
@@ -3405,7 +3478,7 @@ function _hwmsLiRenderTable(){
   } else {
     tbody.innerHTML=_hwmsLiItems.map(function(li,i){
       const part=byId(DB.hwmsParts||[],li.partId);
-      const partLabel=part?(part.partNumber+(part.partRevision?' R'+part.partRevision:'')):'—';
+      const partLabel=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):'—';
       const partDesc=part?.description||'';
       const partCell=li.partId?'<a href="#" onclick="event.preventDefault();showHwmsPartDetail(\''+li.partId+'\')" style="color:var(--accent);text-decoration:none;cursor:pointer"><div style="font-weight:700;text-decoration:underline">'+partLabel+'</div>'+(partDesc?'<div style="font-size:10px;color:var(--text3);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">'+partDesc+'</div>':'')+'</a>':partLabel;
       const isEditing=_hwmsLiEditIdx===i;

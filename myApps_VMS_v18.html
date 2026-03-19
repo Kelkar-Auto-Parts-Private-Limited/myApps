@@ -2934,19 +2934,21 @@ function snapPhoto(){
   const vid = document.getElementById('kapVideo');
   const canvas = document.getElementById('kapCanvas');
   if(!vid||!canvas)return;
-  canvas.width = vid.videoWidth;
-  canvas.height = vid.videoHeight;
-  canvas.getContext('2d').drawImage(vid, 0, 0);
-  // Show preview immediately at full quality, then compress to <200KB
+  // Cap at 1920px before any canvas op — iOS Safari crashes on large canvases
+  const MAX_CAP=1920;
+  let cw=vid.videoWidth||1280, ch=vid.videoHeight||720;
+  if(cw>MAX_CAP||ch>MAX_CAP){const r=Math.min(MAX_CAP/cw,MAX_CAP/ch);cw=Math.round(cw*r);ch=Math.round(ch*r);}
+  canvas.width=cw; canvas.height=ch;
+  canvas.getContext('2d').drawImage(vid,0,0,cw,ch);
   _kapPhotoData = canvas.toDataURL('image/jpeg', 0.82);
   stopCamera();
   showPreview(_kapPhotoData);
-  // Compress to a Blob then re-encode
+  // Compress asynchronously — compressImage will further reduce to 900px/100KB
   canvas.toBlob(blob=>{
     if(!blob)return;
     compressImage(blob instanceof File?blob:new File([blob],'snap.jpg',{type:'image/jpeg'}))
       .then(c=>{_kapPhotoData=c;})
-      .catch(()=>{});
+      .catch(()=>{}); // keep fullQ preview on compress failure
   },'image/jpeg',0.82);
 }
 
@@ -3024,9 +3026,11 @@ function _snapCamCapture(){
   const vid=document.getElementById('_camVid');
   const canvas=document.getElementById('_camCanvas');
   if(!vid||!canvas){_closeCamCapture();return;}
-  canvas.width=vid.videoWidth||640;
-  canvas.height=vid.videoHeight||480;
-  canvas.getContext('2d').drawImage(vid,0,0);
+  const MAX_CAP=1920;
+  let cw=vid.videoWidth||640, ch=vid.videoHeight||480;
+  if(cw>MAX_CAP||ch>MAX_CAP){const r=Math.min(MAX_CAP/cw,MAX_CAP/ch);cw=Math.round(cw*r);ch=Math.round(ch*r);}
+  canvas.width=cw; canvas.height=ch;
+  canvas.getContext('2d').drawImage(vid,0,0,cw,ch);
   const fullQ=canvas.toDataURL('image/jpeg',0.82);
   _closeCamCapture();
   // Show in thumbnail immediately
@@ -4048,9 +4052,13 @@ function genTripId(startLocId, dest1LocId){
     plantCode=_locPlantCode(CU.plant);            // External→External: user's plant
   }
   const prefix=`${yLast}${plantCode}-`;
-  // Serial: count existing trips with same prefix, no zero-padding
-  const existing=DB.trips.filter(t=>t.id.startsWith(prefix)).length;
-  return `${prefix}${existing+1}`;
+  // Serial: find the highest existing number with this prefix and add 1.
+  // Using max instead of count means the number is always correct even when
+  // DB.trips is slightly stale from a previous sync (realtime or multi-user).
+  const existingNums=DB.trips
+    .filter(t=>t.id.startsWith(prefix))
+    .map(t=>parseInt(t.id.slice(prefix.length),10)||0);
+  const maxNum=existingNums.length?Math.max(...existingNums):0; return `${prefix}${existing+1}`;
 }
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
