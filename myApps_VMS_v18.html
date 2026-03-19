@@ -596,13 +596,13 @@
   }
 @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes sbPulse{0%,100%{opacity:1}50%{opacity:.4}}
-</style>
+@keyframes kapLocFlash{from{outline:3px solid rgba(255,255,255,0.4);outline-offset:1px}to{outline:3px solid #fff;outline-offset:3px}}</style>
 
 </head>
 <body>
 
 <!-- PHOTO LIGHTBOX -->
-<div id="photoLightbox" onclick="if(event.target===this)this.style.display='none'" style="position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:default">
+<div id="photoLightbox" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:default">
   <div style="display:flex;gap:10px;z-index:1">
     <button onclick="savePhoto()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
     <button onclick="sharePhoto()" id="sharePhotoBtn" style="background:#35b0b6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">📤 Share</button>
@@ -908,85 +908,80 @@
 
     <!-- KAP SECURITY -->
     <div class="page" id="pageKapSecurity">
+      <div class="page-header"><div class="page-title">KAP Security</div></div>
 
-      <!-- ── KAP LANDING: two big buttons ── -->
-      <div id="kapLanding">
-        <div class="page-header"><div class="page-title">KAP Security</div></div>
-        <div style="display:flex;flex-direction:column;gap:16px;padding:8px 0;max-width:520px">
-
-          <!-- Pre-Booked button -->
-          <button id="kapBtnPrebooked" onclick="setKapMode('prebooked')"
-            style="width:100%;padding:28px 20px;border-radius:14px;border:2px solid var(--accent);cursor:pointer;background:var(--surface);box-shadow:0 4px 18px rgba(42,154,160,.18);transition:all .18s;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left">
-            <div style="display:flex;align-items:center;gap:10px;width:100%">
-              <span style="font-size:32px">🔒</span>
-              <div style="flex:1">
-                <div style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:.3px;line-height:1.3">REGISTER VEHICLE ENTRY</div>
-                <div style="font-size:13px;font-weight:900;color:var(--text);letter-spacing:.3px">FOR PRE-BOOKED TRIPS</div>
-              </div>
-              <span class="kap-tab-count" id="kapCountPrebooked" style="font-size:14px;min-width:26px;height:26px;padding:0 7px"></span>
-              <span style="font-size:20px;color:var(--text3)">›</span>
-            </div>
-            <div style="font-size:11px;color:var(--text3);margin-left:42px">Gate exit &amp; entry for scheduled trips</div>
-          </button>
-
-          <!-- Spot Entry button -->
-          <button id="kapBtnSpot" onclick="setKapMode('spot')"
-            style="width:100%;padding:28px 20px;border-radius:14px;border:2px solid #16a34a;cursor:pointer;background:var(--surface);box-shadow:0 4px 18px rgba(22,163,74,.14);transition:all .18s;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left">
-            <div style="display:flex;align-items:center;gap:10px;width:100%">
-              <span style="font-size:32px">🏁</span>
-              <div style="flex:1">
-                <div style="font-size:14px;font-weight:900;color:#16a34a;letter-spacing:.3px;line-height:1.3">REGISTER SPOT</div>
-                <div style="font-size:13px;font-weight:900;color:var(--text);letter-spacing:.3px">VEHICLE ENTRY</div>
-              </div>
-              <span class="kap-tab-count" id="kapCountSpotBtn" style="font-size:14px;min-width:26px;height:26px;padding:0 7px;background:#16a34a"></span>
-              <span style="font-size:20px;color:var(--text3)">›</span>
-            </div>
-            <div style="font-size:11px;color:var(--text3);margin-left:42px">Record unplanned / walk-in vehicle arrivals</div>
-          </button>
-
-        </div>
+      <!-- ── 3 Tab Buttons ── -->
+      <div style="display:flex;gap:0;margin-bottom:20px;border-radius:16px;overflow:hidden;border:2px solid var(--border);background:var(--surface2);max-width:600px">
+        <!-- Exit tab -->
+        <button id="kapTabBtnExit" onclick="setKapMode('exit')"
+          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-right:1px solid var(--border);border-radius:0">
+          <div style="font-size:22px;margin-bottom:4px">🚪</div>
+          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">EXIT</div>
+          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
+            <span id="kapCountTabExit" class="kap-tab-count" style="font-size:12px;display:none"></span>
+          </div>
+        </button>
+        <!-- Entry tab -->
+        <button id="kapTabBtnEntry" onclick="setKapMode('entry')"
+          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-right:1px solid var(--border);border-radius:0">
+          <div style="font-size:22px;margin-bottom:4px">🏁</div>
+          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">ENTRY</div>
+          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
+            <span id="kapCountTabEntry" class="kap-tab-count" style="font-size:12px;display:none"></span>
+          </div>
+        </button>
+        <!-- Spot Entry tab -->
+        <button id="kapTabBtnSpot" onclick="setKapMode('spot')"
+          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-radius:0">
+          <div style="font-size:22px;margin-bottom:4px">📋</div>
+          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">SPOT ENTRY</div>
+          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
+            <span id="kapCountTabSpot" class="kap-tab-count" style="font-size:12px;background:#16a34a;display:none"></span>
+          </div>
+        </button>
       </div>
 
-      <!-- PRE-BOOKED CONTENT -->
-      <div id="kapPreBookedSection" style="display:none">
-        <!-- Back button -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <button onclick="setKapMode('landing')" style="display:flex;align-items:center;gap:6px;background:var(--accent);border:none;border-radius:10px;padding:10px 20px;font-size:15px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 2px 10px rgba(42,154,160,.35);letter-spacing:.2px">‹ Back</button>
-          <span style="font-size:15px;font-weight:800;color:var(--text)">Pre-Booked Trips</span>
-          <input type="text" id="kapSearch" placeholder="🔍 Trip ID…" oninput="renderKap()" style="margin-left:auto;font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:var(--mono);width:140px">
-        </div>
+      <!-- ── EXIT CONTENT (pre-booked gate exit — step 1) ── -->
+      <div id="kapExitSection" style="display:none">
         <div style="border:2px solid var(--accent);border-radius:10px;overflow:hidden">
         <div class="card" style="padding:0;border:none;border-radius:0;margin:0">
-          <div class="kap-tabs" style="margin-top:6px">
-            <button class="kap-tab kap-tab-exit active" id="kapTabExit" onclick="setKapTab(1)">
-              🚪 Gate Exit <span class="kap-tab-count" id="kapCountExit"></span>
-            </button>
-            <button class="kap-tab kap-tab-entry" id="kapTabEntry" onclick="setKapTab(2)">
-              🏁 Gate Entry <span class="kap-tab-count" id="kapCountEntry"></span>
-            </button>
+          <div style="padding:10px 14px 0;display:flex;gap:8px;align-items:center">
+            <input type="text" id="kapSearch" placeholder="🔍 Trip ID…" oninput="renderKap()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:var(--mono);width:140px">
           </div>
           <div style="padding:12px">
-            <div id="kapPendingContent"></div>
+            <div id="kapExitContent"></div>
             <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
-              <div class="df-block" id="dfb_kapHist" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHist_today" class="dr-btn" onclick="setDateRange('kapHistFrom','kapHistTo','today',renderKap,'kapHist')">1D</button><button id="drb_kapHist_week" class="dr-btn" onclick="setDateRange('kapHistFrom','kapHistTo','week',renderKap,'kapHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistFromLbl">📅 —</span><input type="date" id="kapHistFrom" onchange="updDateBtnLbl('kapHistFrom');updDrBtns('kapHist','kapHistFrom','kapHistTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistToLbl">📅 —</span><input type="date" id="kapHistTo" onchange="updDateBtnLbl('kapHistTo');updDrBtns('kapHist','kapHistFrom','kapHistTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistFrom','kapHistTo','month',renderKap,'kapHist')">1M</button><button id="drb_kapHist_year" class="dr-btn" onclick="setDateRange('kapHistFrom','kapHistTo','year',renderKap,'kapHist')">1Y</button></div>
+              <div class="df-block" id="dfb_kapHistExit"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistExit_today" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','today',renderKap,'kapHistExit')">1D</button><button id="drb_kapHistExit_week" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','week',renderKap,'kapHistExit')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitFromLbl">📅 —</span><input type="date" id="kapHistExitFrom" onchange="updDateBtnLbl('kapHistExitFrom');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitToLbl">📅 —</span><input type="date" id="kapHistExitTo" onchange="updDateBtnLbl('kapHistExitTo');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistExit_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','month',renderKap,'kapHistExit')">1M</button><button id="drb_kapHistExit_year" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','year',renderKap,'kapHistExit')">1Y</button></div>
             </div>
-            <div id="kapHistoryContent"></div>
+            <div id="kapExitHistoryContent"></div>
           </div>
         </div>
-        </div><!-- /border-div -->
+        </div>
       </div>
 
-      <!-- SPOT VEHICLE ENTRY CONTENT -->
-      <div id="kapSpotSection" style="display:none">
-        <!-- Back button -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <button onclick="clearSpotForm();setKapMode('landing')" style="display:flex;align-items:center;gap:6px;background:var(--accent);border:none;border-radius:10px;padding:10px 20px;font-size:15px;font-weight:800;cursor:pointer;color:#fff;box-shadow:0 2px 10px rgba(42,154,160,.35);letter-spacing:.2px">‹ Back</button>
-          <span style="font-size:15px;font-weight:800;color:#16a34a">Spot Vehicle Entry</span>
-          <span id="spotLocBadge" style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;margin-left:2px"></span>
+      <!-- ── ENTRY CONTENT (pre-booked gate entry — step 2) ── -->
+      <div id="kapEntrySection" style="display:none">
+        <div style="border:2px solid var(--accent);border-radius:10px;overflow:hidden">
+        <div class="card" style="padding:0;border:none;border-radius:0;margin:0">
+          <div style="padding:12px">
+            <div id="kapEntryContent"></div>
+            <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
+              <div class="df-block" id="dfb_kapHistEntry"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistEntry_today" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','today',renderKap,'kapHistEntry')">1D</button><button id="drb_kapHistEntry_week" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','week',renderKap,'kapHistEntry')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryFromLbl">📅 —</span><input type="date" id="kapHistEntryFrom" onchange="updDateBtnLbl('kapHistEntryFrom');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryToLbl">📅 —</span><input type="date" id="kapHistEntryTo" onchange="updDateBtnLbl('kapHistEntryTo');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistEntry_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','month',renderKap,'kapHistEntry')">1M</button><button id="drb_kapHistEntry_year" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','year',renderKap,'kapHistEntry')">1Y</button></div>
+            </div>
+            <div id="kapEntryHistoryContent"></div>
+          </div>
         </div>
+        </div>
+      </div>
+
+      <!-- SPOT VEHICLE ENTRY CONTENT (preserved from original) -->
+      <div id="kapSpotSection" style="display:none">
         <div style="border:2px solid #16a34a;border-radius:10px;padding:0;overflow:hidden">
       <div class="card" style="padding:8px 10px;border:none;border-radius:0;margin:0">
-
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:13px;font-weight:800;color:#16a34a">Spot Vehicle Entry</span>
+          <span id="spotLocBadge" style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;margin-left:2px"></span>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin-bottom:6px">
           <div style="display:flex;flex-direction:column;gap:1px">
             <label style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.5px;margin:0;line-height:1.2">Vehicle No. *</label>
@@ -1013,7 +1008,6 @@
             <input type="text" id="spotEntryRemarks" placeholder="Optional" style="padding:4px 6px;font-size:15px;border:1px solid var(--border2);border-radius:5px;width:100%;box-sizing:border-box">
           </div>
         </div>
-        <!-- Photos + Submit in one row -->
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <div id="spotVehThumb" onclick="_showPhotoChoice('spotVehFile','spotVehThumb')" style="width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0" title="Vehicle Photo">🚗</div>
           <input type="file" id="spotVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotVehThumb')">
@@ -1027,13 +1021,12 @@
           <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:13px;padding:8px 20px;font-weight:800">🏁 Record Entry</button>
         </div>
       </div>
-      <!-- History below form -->
       <div class="card" style="margin-top:12px">
         <div class="card-title" style="margin-bottom:6px">🕘 Spot Vehicle Entry History</div>
-        <div class="filter-row" style="margin-bottom:8px"><div class="df-block" id="dfb_spotHist" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_spotHist_today" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','today',renderSpotHistory,'spotHist')">1D</button><button id="drb_spotHist_week" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','week',renderSpotHistory,'spotHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistFromLbl">📅 —</span><input type="date" id="spotHistFrom" onchange="updDateBtnLbl('spotHistFrom');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistToLbl">📅 —</span><input type="date" id="spotHistTo" onchange="updDateBtnLbl('spotHistTo');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><button id="drb_spotHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('spotHistFrom','spotHistTo','month',renderSpotHistory,'spotHist')">1M</button><button id="drb_spotHist_year" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','year',renderSpotHistory,'spotHist')">1Y</button></div></div>
+        <div class="filter-row" style="margin-bottom:8px"><div class="df-block" id="dfb_spotHist"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_spotHist_today" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','today',renderSpotHistory,'spotHist')">1D</button><button id="drb_spotHist_week" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','week',renderSpotHistory,'spotHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistFromLbl">📅 —</span><input type="date" id="spotHistFrom" onchange="updDateBtnLbl('spotHistFrom');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistToLbl">📅 —</span><input type="date" id="spotHistTo" onchange="updDateBtnLbl('spotHistTo');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><button id="drb_spotHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('spotHistFrom','spotHistTo','month',renderSpotHistory,'spotHist')">1M</button><button id="drb_spotHist_year" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','year',renderSpotHistory,'spotHist')">1Y</button></div></div>
         <div id="spotHistoryList"></div>
       </div>
-        </div><!-- /spot-border-div -->
+        </div>
       </div><!-- end kapSpotSection -->
     </div><!-- end pageKapSecurity -->
 
@@ -3155,7 +3148,7 @@ function renderDashTrips(){
     const anyAction=segs.some(s=>[1,2,3,4,5].some(n=>s.steps[n]?.done));
     const cardBg=isCompleted?'background:rgba(22,163,74,.08);border:1.5px solid rgba(22,163,74,.3)':'background:#ffffff;border:1.5px solid var(--border)';
     const locs=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean);
-    const routeParts=locs.map((id,i)=>{const l=byId(DB.locations,id);const clr=l?.colour||'var(--accent)';return`<span style="background:${clr};color:${colourContrast(clr)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700">${l?.name||'?'}</span>`+(i<locs.length-1?'<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>':'');}).join('');
+    const routeParts=locs.map((id,i)=>{const l=byId(DB.locations,id);const clr=l?.colour||'var(--accent)';return`<span style="background:${clr};color:${colourContrast(clr)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700">${l?.name||'?'}</span>`+(i<locs.length-1?'<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>':'');}).join('');
     const rate=getMatchedRate(t.id);
 
     const segBlocks=segs.map(s=>{
@@ -4778,6 +4771,7 @@ async function _doBookTrip(){
     if(t.dest2) allPairs.push([t.dest1,t.dest2,'B']);
     if(t.dest3) allPairs.push([t.dest2,t.dest3,'C']);
 
+    const _builtSegs=[];
     allPairs.forEach(([from,to,lbl])=>{
       if(startedLabels.has(lbl)) return; // already preserved
       const seg=buildSegment(_editingTripId,lbl,from,to);
@@ -4786,8 +4780,9 @@ async function _doBookTrip(){
         const prevSeg=DB.segments.find(s=>s.tripId===_editingTripId&&s.label===prevLabel);
         if(prevSeg&&!stepsOneAndTwoDone(prevSeg)) seg.status='Locked';
       }
-      DB.segments.push(seg);
+      _builtSegs.push(seg); // collect — DO NOT push to DB.segments yet (_dbSave does it)
     });
+    _builtSegs.forEach(seg=>DB.segments.push(seg)); // stage in memory for recalcSegSteps below
 
     // Remove orphaned segments for removed destinations
     const validLabels=new Set(allPairs.map(([,,lbl])=>lbl));
@@ -4820,7 +4815,7 @@ async function _doBookTrip(){
         s.tripId=newId;
         s.id=newId+s.label; // segment IDs are tripId+label
       }
-      DB.trips=DB.trips.map(tr=>tr.id===oldId?{...tr,id:newId}:tr);
+      // t.id already set to newId above; trip object is in DB.trips by reference
     }
     await _dbSave('trips',t);
     for(const s of DB.segments.filter(s=>s.tripId===t.id)){if(!await _dbSave('segments',s)) return;}
@@ -4848,18 +4843,17 @@ async function _doBookTrip(){
   const pairs=[[s,d1,'A']];
   if(d2)pairs.push([d1,d2,'B']);
   if(d3)pairs.push([d2,d3,'C']);
-  const _newSegs=pairs.map(([from,to,lbl],idx)=>{const seg=buildSegment(id,lbl,from,to);if(idx>0)seg.status='Locked';return seg;});
+  const _newSegs=pairs.map(([from,to,lbl],_i)=>{const seg=buildSegment(id,lbl,from,to);if(_i>0)seg.status='Locked';return seg;});
   // Set tripCatId from segment A before saving
   const _newSegA=_newSegs.find(s=>s.label==='A');
   if(_newSegA){trip.tripCatId=_newSegA.tripCatId;}
   // Save to Supabase first — rollback staging on any failure
   const _tripOk=await _dbSave('trips',trip);
   if(!_tripOk){DB.trips=DB.trips.filter(t=>t.id!==id);return;}
-  // Add segments to in-memory DB so renders after booking see them immediately
-  _newSegs.forEach(seg=>DB.segments.push(seg));
+  // Save segments to Supabase — _dbSave updates DB.segments in memory on success
   for(const seg of _newSegs){
     if(!await _dbSave('segments',seg)){
-      // Partial failure — rollback: remove trip + segments from memory and Supabase
+      // Partial failure — rollback: remove trip + any saved segments
       DB.trips=DB.trips.filter(t=>t.id!==id);
       DB.segments=DB.segments.filter(s=>s.tripId!==id);
       await _dbDel('trips',id);
@@ -5035,8 +5029,8 @@ function renderMyTrips(){
     const locCol=(id)=>{const l=byId(DB.locations,id);return l?.colour||'var(--accent)';};
     const routeParts=_locs.map((id,i)=>{
       const l=byId(DB.locations,id);const c=l?.colour||'var(--accent)';
-      return `<span style="background:${c};color:${colourContrast(c)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${l?.name||'?'}</span>`
-        +(i<_locs.length-1?'<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>':'');
+      return `<span style="background:${c};color:${colourContrast(c)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${l?.name||'?'}</span>`
+        +(i<_locs.length-1?'<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>':'');
     }).join('');
 
     const vehLabel=hasVeh
@@ -5155,22 +5149,42 @@ async function saveQuickChallan(){
 }
 
 
-let _kapMode='landing'; // 'landing', 'prebooked' or 'spot'
+let _kapMode='exit'; // 'exit', 'entry', 'spot'
 function renderKapPage(){
-  setKapMode(_kapMode||'landing'); // preserve current mode, don't reset to landing
+  setKapMode(_kapMode||'exit');
 }
 function setKapMode(mode){
   _kapMode=mode;
-  const landing=document.getElementById('kapLanding');
-  const preSec=document.getElementById('kapPreBookedSection');
-  const spotSec=document.getElementById('kapSpotSection');
-  if(landing)landing.style.display=mode==='landing'?'block':'none';
-  if(preSec)preSec.style.display=mode==='prebooked'?'block':'none';
-  if(spotSec)spotSec.style.display=mode==='spot'?'block':'none';
-  if(mode==='prebooked'){
+  // Show/hide content sections
+  const sections={exit:'kapExitSection',entry:'kapEntrySection',spot:'kapSpotSection'};
+  Object.entries(sections).forEach(([m,id])=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=m===mode?'block':'none';
+  });
+  // Highlight active tab button
+  const accent='var(--accent)', green='#16a34a';
+  const tabCfg={
+    exit:  {id:'kapTabBtnExit',  bg:accent, text:'#fff'},
+    entry: {id:'kapTabBtnEntry', bg:accent, text:'#fff'},
+    spot:  {id:'kapTabBtnSpot',  bg:green,  text:'#fff'},
+  };
+  Object.entries(tabCfg).forEach(([m,cfg])=>{
+    const btn=document.getElementById(cfg.id);
+    if(!btn) return;
+    if(m===mode){
+      btn.style.background=cfg.bg;
+      btn.style.color=cfg.text;
+      btn.style.fontWeight='900';
+    } else {
+      btn.style.background='transparent';
+      btn.style.color='var(--text)';
+      btn.style.fontWeight='700';
+    }
+  });
+  // Render content for selected mode
+  if(mode==='exit'||mode==='entry'){
     renderKap();
   } else if(mode==='spot'){
-    // Show user's location in spot section header
     const mySpotLoc=byId(DB.locations,CU.plant);
     const locBadge=document.getElementById('spotLocBadge');
     if(locBadge){
@@ -5182,30 +5196,72 @@ function setKapMode(mode){
     }
     renderSpotTab();
   }
-  // Update button badges
+  // Update all count badges
+  _kapUpdateCounts();
+}
+function _kapUpdateCounts(){
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
-  const preCount=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+  // Exit count: segments at step 1 pending
+  const exitCount=DB.segments.filter(s=>{
+    if(s.status==='Completed'||s.status==='Locked') return false;
     const cs=s.currentStep;
-    if(cs===1||cs===2){if(s.steps[cs]?.skip)return false;return canDoStep(s,cs);}
-    // Also count step 5 (Empty Vehicle Exit)
-    if(!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s))return canDoStep(s,5);
+    if(cs===1&&!s.steps[1]?.skip&&!s.steps[1]?.done) return canDoStep(s,1);
+    if(!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s)) return canDoStep(s,5);
     return false;
   }).length;
-  const _mySpotL=byId(DB.locations,CU.plant);
-  const spotPending=(DB.spotTrips||[]).filter(s=>{
-    if(s.exitTime)return false;
-    if(isSA)return true;
+  // Entry count: segments at step 2 pending
+  const entryCount=DB.segments.filter(s=>{
+    if(s.status==='Completed'||s.status==='Locked') return false;
+    const cs=s.currentStep;
+    if(cs===2&&!s.steps[2]?.skip&&!s.steps[2]?.done) return canDoStep(s,2);
+    return false;
+  }).length;
+  // Spot count: active spot trips (no exit time)
+  const spotCount=(DB.spotTrips||[]).filter(s=>{
+    if(s.exitTime) return false;
+    if(isSA) return true;
     return CU.plant&&s.location===CU.plant;
   }).length;
-  const setPre=document.getElementById('kapCountPrebooked');
-  const setSpot=document.getElementById('kapCountSpotBtn');
-  if(setPre){setPre.textContent=preCount||'';setPre.style.display=preCount?'inline-flex':'none';}
-  if(setSpot){setSpot.textContent=spotPending||'';setSpot.style.display=spotPending?'inline-flex':'none';}
+  const _setBadge=(id,n)=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.textContent=n||'';
+    el.style.display=n?'inline-flex':'none';
+  };
+  _setBadge('kapCountTabExit',exitCount);
+  _setBadge('kapCountTabEntry',entryCount);
+  _setBadge('kapCountTabSpot',spotCount);
+  // Legacy badge IDs still referenced elsewhere
+  _setBadge('kapCountExit',exitCount);
+  _setBadge('kapCountEntry',entryCount);
+  _setBadge('kapCountPrebooked',exitCount+entryCount);
+  _setBadge('kapCountSpotBtn',spotCount);
 }
 
+
 // ===== KAP SECURITY =====
+function _kapOpenPopup(popId){
+  _kapPopupOpen=true;
+  const el=document.getElementById(popId);
+  if(el) el.style.display='flex';
+}
+function _kapClosePopup(popId){
+  _kapPopupOpen=false;
+  const el=document.getElementById(popId);
+  if(el) el.style.display='none';
+}
+function _kapGetOpenPopup(){
+  // Return the id of any currently-open KAP popup
+  const open=document.querySelector('[id^="kap_pop_"][style*="flex"]');
+  return open?open.id:null;
+}
+function _kapRestorePopup(popId){
+  if(!popId) return;
+  const el=document.getElementById(popId);
+  if(el){el.style.display='flex';_kapPopupOpen=true;}
+}
 function renderKap(){
+  const _openPop=_kapGetOpenPopup(); // save before re-render destroys DOM
   initDfMonth('kapHist','kapHistFrom','kapHistTo');
   const srch=(document.getElementById('kapSearch')?.value||'').toLowerCase();
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
@@ -5246,7 +5302,7 @@ function renderKap(){
   if(ce){ce.textContent=exitCount||'';ce.style.display=exitCount?'inline-flex':'none';}
   if(cn){cn.textContent=entryCount||'';cn.style.display=entryCount?'inline-flex':'none';}
 
-  const step=_kapActiveTab; // 1=exit, 2=entry
+  const step=(_kapMode==='entry')?2:1; // map mode to step: exit=1, entry=2
   const pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
 
   // ── Pending section ──
@@ -5272,7 +5328,7 @@ function renderKap(){
 
       // Vehicle badge: always read-only on KAP page
       let vehBadge=hasVeh
-        ?`<span style="font-family:var(--mono);font-size:clamp(14px,4vw,28px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vehNum}</span>`
+        ?`<span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vehNum}</span>`
         :`<span class="flash-red" style="font-family:var(--mono);font-size:24px;font-weight:900;border-radius:8px;padding:2px 10px;flex-shrink:0">No Vehicle</span>`;
 
       // Build all segment rows
@@ -5346,14 +5402,24 @@ function renderKap(){
       const pendId='kpend_'+sid;
       const vn=vnum(trip?.vehicleId);
       // Coloured location pills for route
+      // Action location: where the guard needs to act
+      const _actionLoc=_isStep5?seg.sLoc:cs===2?seg.dLoc:seg.sLoc;
       const routePills=allSegDests.map(([from,to,lbl,idx],i)=>{
         const lf=byId(DB.locations,from),lt=byId(DB.locations,to);
         const cf=lf?.colour||'var(--accent)',ct=lt?.colour||'var(--accent)';
+        const _flashFrom=from===_actionLoc;
+        const _flashTo=to===_actionLoc&&!_flashFrom;
+        const _fromStyle=_flashFrom
+          ?`background:${cf};color:${colourContrast(cf)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap;outline:2px solid #fff;animation:kapLocFlash 0.8s ease-in-out infinite alternate;box-shadow:0 0 0 2px ${cf}`
+          :`background:${cf};color:${colourContrast(cf)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap`;
+        const _toStyle=_flashTo
+          ?`background:${ct};color:${colourContrast(ct)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap;outline:2px solid #fff;animation:kapLocFlash 0.8s ease-in-out infinite alternate;box-shadow:0 0 0 2px ${ct}`
+          :`background:${ct};color:${colourContrast(ct)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap`;
         return (i===0
-          ?`<span style="background:${cf};color:${colourContrast(cf)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lf?.name||'?'}</span>`
+          ?`<span style="${_fromStyle}">${lf?.name||'?'}</span>`
           :'')
-          +`<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>`
-          +`<span style="background:${ct};color:${colourContrast(ct)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lt?.name||'?'}</span>`;
+          +`<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>`
+          +`<span style="${_toStyle}">${lt?.name||'?'}</span>`;
       }).join('');
 
       const cardBorderClr=cs===1?'#dc2626':_isStep5?'#ea580c':'#16a34a';
@@ -5362,53 +5428,101 @@ function renderKap(){
         :cs===1
           ?`<div style="padding:2px 10px 4px"><span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px">🚪 Gate Exit — Seg ${seg.label}</span></div>`
           :`<div style="padding:2px 10px 4px"><span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-size:11px;font-weight:800;padding:3px 10px;border-radius:6px">🏁 Gate Entry — Seg ${seg.label}</span></div>`;
-      return `<div style="margin-bottom:6px">
-        <div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:2px solid ${cardBorderClr};border-radius:10px" onclick="toggleKapHistCard('${pendId}')">
-        <!-- Row 1: Trip ID + Vehicle + chevron -->
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px 0;min-width:0;flex-wrap:nowrap">
-          <span style="font-family:var(--mono);font-size:22px;font-weight:900;color:#fff;background:var(--accent);padding:2px 12px;border-radius:8px;flex-shrink:0;letter-spacing:.5px">${trip?.id||seg.tripId}</span>
-          ${vehBadge}
+      // Compact card meta
+      const _bookedUser=byId(DB.users,trip?.bookedBy);
+      const _bookedFirst=(_bookedUser?.fullName||_bookedUser?.name||'').split(' ')[0]||'';
+      const _tripDate=trip?.date?new Date(trip.date):null;
+      const _shortDate=_tripDate?_tripDate.getDate()+' '+ ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_tripDate.getMonth()]:'';
+      const _shortTime=_tripDate?String(_tripDate.getHours()).padStart(2,'0')+':'+String(_tripDate.getMinutes()).padStart(2,'0'):'';
+      const _bookedLine=(_bookedFirst?`<span style="font-size:11px;color:var(--text2);font-weight:600">By: ${_bookedFirst}</span>`:'')
+        +(_shortDate?`<span style="font-size:11px;color:var(--text3)">on ${_shortDate}, ${_shortTime}</span>`:'');
+      // Challan summary across all segments for popup
+      const _challanRows=allSegDests.map(([from,to,lbl,cidx])=>{
+        const t2=trip;
+        const ch=t2?.['challan'+cidx]||'';
+        const wt=t2?.['weight'+cidx]||'';
+        const arr=(t2?.['challans'+cidx]||[]);
+        if(!arr.length&&!ch) return '';
+        const items=arr.length?arr:ch?[{no:ch,weight:wt}]:[];
+        const clr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[lbl]||'var(--accent)';
+        return items.map(c=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;white-space:nowrap">`
+          +`<span style="width:14px;height:14px;border-radius:50%;background:${clr};color:#fff;font-size:8px;font-weight:900;display:inline-flex;align-items:center;justify-content:center">${lbl}</span>`
+          +`<span style="font-size:12px;font-weight:700">📄 ${c.no}</span>`
+          +(c.weight?`<span style="font-size:11px;color:var(--text3)">${c.weight} kg</span>`:'')
+          +`</span>`).join('');
+      }).filter(Boolean).join('');
+      // Build popup id
+      const popId='kap_pop_'+seg.id.replace(/[^a-z0-9]/gi,'_');
+      return `<div style="margin-bottom:8px">
+        <!-- COMPACT CARD — click opens popup -->
+        <div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:2px solid ${cardBorderClr};border-radius:10px;transition:box-shadow .15s" onclick="_kapOpenPopup('${popId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
+          <!-- Main row: Trip ID + Vehicle + action badge -->
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
+            <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${seg.tripId}</span>
+            ${vehBadge}
+            <div style="flex:1;min-width:0"></div>
+            <span style="font-size:18px;color:var(--text3);font-weight:300;flex-shrink:0">›</span>
+          </div>
+          <!-- Booked by + date row -->
+          <div style="display:flex;align-items:center;gap:8px;padding:2px 12px 4px;flex-wrap:wrap">${_bookedLine}</div>
+          <!-- Route row -->
+          <div style="padding:0 12px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${routePills}</div>
         </div>
-        <!-- Row 2: Action type badge -->
-        ${actionBadge}
-        <!-- Row 3: Booked by -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 10px 4px;font-size:12px">${(()=>{const bu=byId(DB.users,trip?.bookedBy);const bn=bu?.fullName||bu?.name||'';return `<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span><span style="color:var(--border2)">·</span><span style="color:var(--text3)">📅 ${fdt(trip?.date||'')}</span>`;})()}</div>
-        <!-- Line 3: Coloured route pills -->
-        <div style="padding:2px 10px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${routePills}</div>
-        <!-- Expanded: split rows + action -->
-        <div id="${pendId}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
-          ${segRows}
-          <!-- Action row -->
-          <div style="border-top:2px solid var(--accent);padding:8px 10px">
-            <div id="camBox_${sid}" style="display:none;flex-direction:column;gap:4px;margin-bottom:6px">
-              <video id="vid_${sid}" autoplay playsinline style="width:100%;max-height:110px;border-radius:6px;border:1px solid var(--border2);background:#000;object-fit:cover"></video>
-              <div style="display:flex;gap:4px">
-                <button class="btn btn-primary" onclick="snapInline('${sid}')" style="flex:1;font-size:11px;padding:4px">📸 Snap</button>
-                <button class="btn btn-secondary" onclick="stopInlineCam('${sid}')" style="flex:1;font-size:11px;padding:4px">✕ Close</button>
-              </div>
-            </div>
-            <canvas id="cnv_${sid}" style="display:none"></canvas>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div style="position:relative;flex:1;min-width:52px;max-width:120px">
-                <div id="thumbEmpty_${sid}" onclick="showThumbPicker('${sid}')" title="Capture Vehicle Photo" style="width:100%;height:52px;border-radius:10px;border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;background:rgba(42,154,160,.06);color:var(--accent);font-weight:900;box-sizing:border-box">📷</div>
-                <img id="thumbImg_${sid}" style="display:none;width:100%;height:52px;object-fit:cover;border-radius:10px;border:3px solid var(--green);cursor:pointer;box-sizing:border-box" onclick="showThumbPicker('${sid}')" title="Tap to change">
-                <button id="thumbClear_${sid}" onclick="clearInlinePhoto('${sid}')" style="display:none;position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:16px;height:16px;cursor:pointer;font-size:10px;line-height:16px;text-align:center;padding:0">×</button>
-                <div id="thumbPicker_${sid}" style="display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);padding:6px;white-space:nowrap">
-                  <div onclick="openInlineCam('${sid}')" style="padding:6px 12px;cursor:pointer;font-size:12px;border-radius:4px;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">📷 Camera</div>
-                  <label style="padding:6px 12px;cursor:pointer;font-size:12px;border-radius:4px;display:flex;align-items:center;gap:6px;margin:0" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">🖼 File<input type="file" accept="${_photoAccept()}" capture="environment" style="display:none" onchange="onInlineFile(this,'${sid}')"></label>
+
+        <!-- POPUP OVERLAY -->
+        <div id="${popId}" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:12px" onclick="if(event.target===this)this.style.display='none'">
+          <div style="background:var(--surface);border-radius:16px;max-width:540px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
+            <!-- Popup header -->
+            <div style="padding:14px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;border-radius:16px 16px 0 0">
+              <div style="display:flex;align-items:stretch;gap:10px">
+                <!-- Stacked Trip ID + Vehicle -->
+                <div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0">
+                  <span style="font-family:var(--mono);font-size:40px;font-weight:900;color:#fff;background:var(--accent);padding:4px 18px;border-radius:10px;display:block;line-height:1.2;text-align:center">${seg.tripId}</span>
+                  <span style="font-family:var(--mono);font-size:clamp(22px,6vw,40px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:10px;padding:4px 14px;display:block;white-space:nowrap;text-align:center">${hasVeh?vehNum:'No Vehicle'}</span>
+                </div>
+                <!-- Camera square button — fixed 110x110px square -->
+                <div style="position:relative;flex-shrink:0;width:110px;height:110px">
+                  <div id="thumbEmpty_${sid}" onclick="showThumbPicker('${sid}')" title="Capture Vehicle Photo" style="width:110px;height:110px;border-radius:12px;border:3px dashed var(--border2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:36px;cursor:pointer;background:var(--surface2);gap:4px">
+                    📷<span style="font-size:11px;color:var(--text3);font-weight:600">Photo</span>
+                  </div>
+                  <img id="thumbImg_${sid}" style="display:none;position:absolute;inset:0;width:110px;height:110px;object-fit:cover;border-radius:12px;border:3px solid #16a34a;cursor:pointer" onclick="openPhoto(this.src)">
+                  <button id="thumbClear_${sid}" onclick="clearInlinePhoto('${sid}')" style="display:none;position:absolute;top:-8px;right:-8px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;cursor:pointer;padding:0;line-height:1;z-index:1">×</button>
+                  <div id="thumbPicker_${sid}" style="display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border2);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.2);padding:4px;min-width:140px">
+                    <div onclick="openInlineCam('${sid}')" style="padding:8px 12px;cursor:pointer;font-size:13px;border-radius:6px;display:flex;align-items:center;gap:6px;margin-bottom:2px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">📷 Camera</div>
+                    <label style="padding:8px 12px;cursor:pointer;font-size:13px;border-radius:6px;display:flex;align-items:center;gap:6px;margin:0" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">🖼 File<input type="file" accept="${_photoAccept()}" capture="environment" style="display:none" onchange="onInlineFile(this,'${sid}')"></label>
+                  </div>
                 </div>
               </div>
-              ${(()=>{
-                const _noVeh=!hasVeh;
-                const _noCh=_gateExitBlocked;
-                const _warn=cs===1&&(_noVeh||_noCh)
-                  ?`<div style="width:100%;text-align:center;margin-top:4px"><span class="flash-red" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">⚠ ${_noVeh&&_noCh?'Add Vehicle & Challan':_noVeh?'Add Vehicle':'Add Challan'} before Gate Exit</span></div>`
-                  :'';
-                const _btn=_gateExitBlocked
-                  ?`<button class="btn btn-danger" disabled style="height:52px;padding:0 18px;font-size:13px;font-weight:800;opacity:.4;cursor:not-allowed;white-space:nowrap">${btnLabel}</button>`
-                  :`<button class="btn ${btnCls}" onclick="doKapInline('${seg.id}',${_isStep5?5:cs})" style="height:52px;padding:0 18px;font-size:13px;font-weight:800;white-space:nowrap">${btnLabel}</button>`;
-                return _btn+_warn;
-              })()}
+              <!-- Cam preview box -->
+              <div id="camBox_${sid}" style="display:none;flex-direction:column;gap:4px;margin-top:8px">
+                <video id="vid_${sid}" autoplay playsinline style="width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border2)"></video>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-primary" onclick="snapInline('${sid}')" style="flex:1;font-size:13px;padding:7px">📸 Snap</button>
+                  <button class="btn btn-secondary" onclick="stopInlineCam('${sid}')" style="flex:1;font-size:13px;padding:7px">✕ Close</button>
+                </div>
+              </div>
+            </div>
+            <!-- Route summary in popup -->
+            <div style="padding:8px 16px 4px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:16px">${routePills}</div>
+            <div style="padding:4px 16px 6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:16px">${_bookedLine}</div>
+            ${_challanRows?`<div style="padding:0 16px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:15px">${_challanRows}</div>`:""}
+            <!-- Action row -->
+            <div style="padding:10px 14px 14px;border-top:2px solid var(--accent)" onclick="event.stopPropagation()">
+              <canvas id="cnv_${sid}" style="display:none"></canvas>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                ${(()=>{
+                  const _noVeh=!hasVeh;
+                  const _noCh=_gateExitBlocked;
+                  const _warn=cs===1&&(_noVeh||_noCh)
+                    ?`<div style="width:100%;text-align:center;margin-top:4px"><span class="flash-red" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">⚠ ${_noVeh&&_noCh?'Add Vehicle & Challan':_noVeh?'Add Vehicle':'Add Challan'} before Gate Exit</span></div>`
+                    :'';
+                  const _btn=_gateExitBlocked
+                    ?`<button class="btn btn-danger" disabled style="height:52px;flex:1;font-size:14px;font-weight:800;opacity:.4;cursor:not-allowed;white-space:nowrap">${btnLabel}</button>`
+                    :`<button class="btn ${btnCls}" onclick="doKapInline('${seg.id}',${_isStep5?5:cs})" style="height:52px;flex:1;font-size:14px;font-weight:800;white-space:nowrap">${btnLabel}</button>`;
+                  const _closeBtn=`<button onclick="_kapClosePopup('${popId}')" style="height:52px;width:52px;flex-shrink:0;font-size:22px;font-weight:900;background:var(--surface2);border:2px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center" title="Close">✕</button>`;
+                  return _btn+_warn+_closeBtn;
+                })()}
+              </div>
             </div>
           </div>
         </div>
@@ -5417,14 +5531,13 @@ function renderKap(){
   } else {
     pendingHtml=`<div class="empty-state" style="padding:16px 0">No pending ${step===1?'Gate Exit':'Gate Entry'} actions</div>`;
   }
-  document.getElementById('kapPendingContent').innerHTML=pendingHtml;
-  // Auto-expand first pending card
-  (()=>{
-    const first=document.querySelector('#kapPendingContent [id^="kpend_"]');
-    if(first&&first.style.display==='none'){
-      first.style.display='block';
-    }
-  })();
+  // Restore popup if one was open before re-render
+  setTimeout(()=>_kapRestorePopup(_openPop),0);
+  // Route pending content to the correct tab section
+  const _pendingTarget=_kapMode==='entry'?'kapEntryContent':'kapExitContent';
+  const _pendingEl=document.getElementById(_pendingTarget);
+  if(_pendingEl) _pendingEl.innerHTML=pendingHtml;
+
 
   // ── History section for this step ──
   let histSegs=DB.segments.filter(s=>{
@@ -5509,10 +5622,10 @@ function renderKap(){
         const lf=byId(DB.locations,from),lt=byId(DB.locations,to);
         const cf=lf?.colour||'var(--accent)',ct=lt?.colour||'var(--accent)';
         return (i===0
-          ?`<span style="background:${cf};color:${colourContrast(cf)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lf?.name||'?'}</span>`
+          ?`<span style="background:${cf};color:${colourContrast(cf)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${lf?.name||'?'}</span>`
           :'')
-          +`<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>`
-          +`<span style="background:${ct};color:${colourContrast(ct)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lt?.name||'?'}</span>`;
+          +`<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>`
+          +`<span style="background:${ct};color:${colourContrast(ct)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${lt?.name||'?'}</span>`;
       }).join('');
 
       return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
@@ -5539,10 +5652,12 @@ function renderKap(){
   } else {
     histHtml=`<div><div class="empty-state">No ${step===1?'Gate Exit':'Gate Entry'} history in selected period</div></div>`;
   }
-  document.getElementById('kapHistoryContent').innerHTML=histHtml;
+  const _histTarget=_kapMode==='entry'?'kapEntryHistoryContent':'kapExitHistoryContent';
+  const _histEl=document.getElementById(_histTarget);
+  if(_histEl) _histEl.innerHTML=histHtml;
 }
 
-let _kapActiveTab=1;
+let _kapActiveTab=1; // kept for legacy; use _kapMode for primary routing
 const _inlineStreams={};
 const _inlinePhotos={};
 
@@ -5554,9 +5669,7 @@ function toggleKapHistCard(hid){
 
 function setKapTab(step){
   _kapActiveTab=step;
-  document.getElementById('kapTabExit').classList.toggle('active',step===1);
-  document.getElementById('kapTabEntry').classList.toggle('active',step===2);
-  renderKap();
+  setKapMode(step===2?'entry':'exit');
 }
 
 // ===== SPOT VEHICLE ENTRY =====
@@ -6036,16 +6149,7 @@ async function doKapInline(segId,step){
     if(s.currentStep!==step) return false;
     return canDoStep(s,step);
   });
-  const _nextSeg=_pendingSegsAfter[0];
-  const _nextPendId=_nextSeg?'kpend_'+_nextSeg.id.replace(/-/g,'_'):null;
   renderKap();renderDash();renderTripBooking();renderMyTrips();updBadges();
-  // Auto-expand the next pending card after re-render
-  if(_nextPendId){
-    const _nextEl=document.getElementById(_nextPendId);
-    if(_nextEl&&_nextEl.style.display==='none'){
-      _nextEl.style.display='block';
-    }
-  }
   notify(step===1?"Gate Exit recorded!":step===5?"Empty Vehicle Exit recorded!":"Gate Entry recorded!");
 }
 
@@ -6085,8 +6189,8 @@ async function doKapAction(){
   await advance(seg);if(!await _dbSave('segments',seg)){ Object.assign(seg,_segBak); return; }
   closeKapModal();
   renderKap();renderDash();renderTripBooking();updBadges();
-  // Stay on prebooked page — scroll top of kap section into view
-  const _kapSec = document.getElementById('kapPreBookedSection');
+  // Stay on current kap tab — scroll page into view
+  const _kapSec=document.getElementById('pageKapSecurity');
   if(_kapSec) _kapSec.scrollIntoView({behavior:'smooth', block:'start'});
   notify(step===1?"Gate Exit recorded!":step===5?"Empty Vehicle Exit recorded!":"Gate Entry recorded!");
 }
@@ -6288,9 +6392,9 @@ function renderMRHistory(){
     const mrRoutePills=(()=>{
       const lf=byId(DB.locations,seg.sLoc),lt=byId(DB.locations,seg.dLoc);
       const cf=lf?.colour||'var(--accent)',ct=lt?.colour||'var(--accent)';
-      return `<span style="background:${cf};color:${colourContrast(cf)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lf?.name||'?'}</span>`
-        +`<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>`
-        +`<span style="background:${ct};color:${colourContrast(ct)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${lt?.name||'?'}</span>`;
+      return `<span style="background:${cf};color:${colourContrast(cf)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${lf?.name||'?'}</span>`
+        +`<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>`
+        +`<span style="background:${ct};color:${colourContrast(ct)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${lt?.name||'?'}</span>`;
     })();
 
     return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;position:relative;padding-left:38px" onclick="toggleMrCard('${cardId}')">
@@ -6762,11 +6866,11 @@ function renderApprove(){
       return locs.map((id,i)=>{
         const l=byId(DB.locations,id);const clr=l?.colour||'var(--accent)';
         return (i===0
-          ?`<span style="background:${clr};color:${colourContrast(clr)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${l?.name||'?'}</span>`
+          ?`<span style="background:${clr};color:${colourContrast(clr)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${l?.name||'?'}</span>`
           :'')+
           (i<locs.length-1
-            ?`<span style="color:var(--accent);font-weight:900;font-size:11px;margin:0 2px">⟶</span>`+
-              (()=>{const nl=byId(DB.locations,locs[i+1]);const nc=nl?.colour||'var(--accent)';return `<span style="background:${nc};color:${colourContrast(nc)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap">${nl?.name||'?'}</span>`;})()
+            ?`<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>`+
+              (()=>{const nl=byId(DB.locations,locs[i+1]);const nc=nl?.colour||'var(--accent)';return `<span style="background:${nc};color:${colourContrast(nc)};padding:2px 9px;border-radius:4px;font-size:13px;font-weight:700;white-space:nowrap">${nl?.name||'?'}</span>`;})()
             :'');
       }).join('');
     })();

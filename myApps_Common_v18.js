@@ -8,7 +8,8 @@ const _COMMON_LOADED = true;
 // ── Module hooks (override in module scripts) ───────────────────────────────
 let _onCurrentUserUpdated = function(){}; // called when realtime updates CU
 let _onPostBoot = function(){};           // called after bootDB completes
-let _onRefreshViews = function(){};       // called to refresh module views
+let _onRefreshViews = function(){};
+let _kapPopupOpen = false; // set true when KAP popup is open — pauses bg refresh       // called to refresh module views
 
 // ═══ SUPABASE CONFIG ═══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════════
@@ -820,7 +821,7 @@ function _bgSyncFromSupabase(){
     // Only update status to 'ok' if we were in a non-ok state (e.g. recovering from error).
     // Don't set 'ok' unconditionally — it causes the widget to flicker on every sync cycle.
     if(_sbStatus!=='ok') _sbSetStatus('ok');
-    _onRefreshViews();
+    if(!_kapPopupOpen) _onRefreshViews();
   }).catch(e=>console.warn('bgSync error:',e.message));
 }
 
@@ -838,7 +839,7 @@ function _bgSyncHot(){
     });
     _bgSyncDone=true;
     if(_sbStatus!=='ok') _sbSetStatus('ok');
-    _onRefreshViews();
+    if(!_kapPopupOpen) _onRefreshViews();
   }).catch(e=>console.warn('bgSyncHot error:',e.message));
 }
 
