@@ -128,7 +128,15 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsHsn') return {code:r.id,hsn_number:r.hsnNumber||'',description:r.description||''};
   if(tbl==='hwmsUom') return {code:r.id,uom:r.uom||'',description:r.description||''};
   if(tbl==='hwmsPacking') return {code:r.id,name:r.name||'',description:r.description||''};
-  if(tbl==='hwmsCustomers') return {code:r.id,customer_name:r.customerName||'',supplier_code:r.supplierCode||'',address:r.address||'',country:r.country||'',consignees:r.consignees||[],default_transport:r.defaultTransport||'',default_port_discharge:r.defaultPortDischarge||'',default_port_loading:r.defaultPortLoading||'',default_delivery:r.defaultDelivery||'',default_payment_terms:r.defaultPaymentTerms||''};
+  if(tbl==='hwmsCustomers'){
+    const _cs=r.consignees||[];
+    const _c=n=>_cs[n]||{};
+    return {code:r.id,customer_name:r.customerName||'',supplier_code:r.supplierCode||'',address:r.address||'',country:r.country||'',
+      consignee1_name:_c(0).name||'',consignee1_address:_c(0).address||'',consignee1_country:_c(0).country||'',consignee1_is_default:!!_c(0).isDefault,
+      consignee2_name:_c(1).name||'',consignee2_address:_c(1).address||'',consignee2_country:_c(1).country||'',consignee2_is_default:!!_c(1).isDefault,
+      consignee3_name:_c(2).name||'',consignee3_address:_c(2).address||'',consignee3_country:_c(2).country||'',consignee3_is_default:!!_c(2).isDefault,
+      default_transport:r.defaultTransport||'',default_port_discharge:r.defaultPortDischarge||'',default_port_loading:r.defaultPortLoading||'',default_delivery:r.defaultDelivery||'',default_payment_terms:r.defaultPaymentTerms||''};
+  }
   if(tbl==='hwmsPortDischarge') return {code:r.id,name:r.name||'',country:r.country||''};
   if(tbl==='hwmsPortLoading') return {code:r.id,name:r.name||'',country:r.country||''};
   if(tbl==='hwmsCarriers') return {code:r.id,carrier_name:r.carrierName||'',address:r.address||'',contact:r.contact||''};
@@ -159,7 +167,15 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsHsn') return {id:row.code,_dbId:row.id,hsnNumber:row.hsn_number||'',description:row.description||''};
   if(tbl==='hwmsUom') return {id:row.code,_dbId:row.id,uom:row.uom||'',description:row.description||''};
   if(tbl==='hwmsPacking') return {id:row.code,_dbId:row.id,name:row.name||'',description:row.description||''};
-  if(tbl==='hwmsCustomers') return {id:row.code,_dbId:row.id,customerName:row.customer_name||'',supplierCode:row.supplier_code||'',address:row.address||'',country:row.country||'',consignees:row.consignees||[],defaultTransport:row.default_transport||'',defaultPortDischarge:row.default_port_discharge||'',defaultPortLoading:row.default_port_loading||'',defaultDelivery:row.default_delivery||'',defaultPaymentTerms:row.default_payment_terms||''};
+  if(tbl==='hwmsCustomers'){
+    const _buildC=(n,a,co,d)=>n?{name:n,address:a||'',country:co||'',isDefault:!!d}:null;
+    const _cs=[
+      _buildC(row.consignee1_name,row.consignee1_address,row.consignee1_country,row.consignee1_is_default),
+      _buildC(row.consignee2_name,row.consignee2_address,row.consignee2_country,row.consignee2_is_default),
+      _buildC(row.consignee3_name,row.consignee3_address,row.consignee3_country,row.consignee3_is_default),
+    ].filter(Boolean);
+    return {id:row.code,_dbId:row.id,customerName:row.customer_name||'',supplierCode:row.supplier_code||'',address:row.address||'',country:row.country||'',consignees:_cs,defaultTransport:row.default_transport||'',defaultPortDischarge:row.default_port_discharge||'',defaultPortLoading:row.default_port_loading||'',defaultDelivery:row.default_delivery||'',defaultPaymentTerms:row.default_payment_terms||''};
+  }
   if(tbl==='hwmsPortDischarge') return {id:row.code,_dbId:row.id,name:row.name||'',country:row.country||''};
   if(tbl==='hwmsPortLoading') return {id:row.code,_dbId:row.id,name:row.name||'',country:row.country||''};
   if(tbl==='hwmsCarriers') return {id:row.code,_dbId:row.id,carrierName:row.carrier_name||'',address:row.address||'',contact:row.contact||''};
