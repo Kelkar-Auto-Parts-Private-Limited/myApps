@@ -196,7 +196,7 @@ ${(s.challans||[]).filter(c=>c&&c.no).map(c=>`<span style="font-size:11px;backgr
   .seg-photo-thumb:hover{transform:scale(1.08);border-color:var(--accent)}
   .seg-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
   /* Lightbox */
-  #photoLightbox{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+  #photoLightbox{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:200000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
   .trip-desc{font-size:12px;font-weight:600;margin-top:1px}
   .trip-meta{font-size:11px;color:var(--text2);margin-top:2px}
   /* ── Rich Segment Progress Card ─────────────────────── */
@@ -602,7 +602,7 @@ ${(s.challans||[]).filter(c=>c&&c.no).map(c=>`<span style="font-size:11px;backgr
 <body>
 
 <!-- PHOTO LIGHTBOX -->
-<div id="photoLightbox" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:default">
+<div id="photoLightbox" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:200000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:default">
   <div style="display:flex;gap:10px;z-index:1">
     <button onclick="savePhoto()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
     <button onclick="sharePhoto()" id="sharePhotoBtn" style="background:#35b0b6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">📤 Share</button>
@@ -5381,20 +5381,66 @@ function _kapOpenSpotPopup(spotId){
     _spotRestoreThumb('spotVehThumb',s.entryVehiclePhoto);
     _spotRestoreThumb('spotDriverThumb',s.driverPhoto);
     if(popupId) popupId.textContent=spotId;
-    // Show/hide exit section
-    const canExit=!s.exitTime&&!!s.entryTime;
-    if(exitSec) exitSec.style.display=canExit?'flex':'none';
-    if(canExit){
-      document.getElementById('spotExitId').value=spotId;
-      document.getElementById('spotExitRemarks').value=s.exitRemarks||'';
-      const ef=document.getElementById('spotExitVehFile');if(ef){ef.value='';ef._compressedData=null;}
-      const et=document.getElementById('spotExitVehThumb');if(et){et.innerHTML='🚗';et.style.border='2px dashed #fca5a5';}
+    const hasExited=!!s.exitTime;
+    const canExit=!hasExited&&!!s.entryTime;
+    // If exited: disable all entry form fields (read-only view)
+    const entryFormFields=['spotVehNum','spotDriverName','spotDriverMob','spotSupplier','spotEntryRemarks'];
+    entryFormFields.forEach(id=>{
+      const el=document.getElementById(id);if(el){el.disabled=hasExited;el.style.opacity=hasExited?'0.6':'';}
+    });
+    // Disable challan inputs and photo buttons if exited
+    document.querySelectorAll('[id^="spotChallanNo_"]').forEach(el=>{el.disabled=hasExited;el.style.opacity=hasExited?'0.6':'';});
+    document.querySelectorAll('[id^="spotChallanThumb_"]').forEach(el=>{if(hasExited){el.onclick=null;}});
+    // Remove all photo × remove buttons if exited (entry photos are locked)
+    if(hasExited){
+      document.querySelectorAll('.spot-photo-clear').forEach(btn=>btn.remove());
     }
-    // Switch submit btn to edit mode
+    const vehThumb=document.getElementById('spotVehThumb');
+    if(vehThumb) vehThumb.onclick=hasExited?()=>openPhoto(s.entryVehiclePhoto||''):()=>_showPhotoChoice('spotVehFile','spotVehThumb');
+    const drvThumb=document.getElementById('spotDriverThumb');
+    if(drvThumb) drvThumb.onclick=hasExited?()=>openPhoto(s.driverPhoto||''):()=>_showPhotoChoice('spotDriverFile','spotDriverThumb');
+    // Exit section: show always for exited records (read-only), show editable for inside vehicles
+    if(exitSec){exitSec.style.display='flex';}
+    document.getElementById('spotExitId').value=spotId;
+    if(hasExited){
+      // Show exit details read-only
+      document.getElementById('spotExitRemarks').value=s.exitRemarks||'';
+      document.getElementById('spotExitRemarks').disabled=true;
+      document.getElementById('spotExitRemarks').style.opacity='0.6';
+      _spotRestoreThumb('spotExitVehThumb',s.exitVehiclePhoto);
+      document.getElementById('spotExitVehThumb').onclick=s.exitVehiclePhoto?()=>openPhoto(s.exitVehiclePhoto):null;
+      // Check if within 2hrs for revoke
+      const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+      const can=isSA||(CU.id===s.exitBy);
+      const exitAge=(Date.now()-new Date(s.exitTime))/1000/3600;
+      const exitBtn=document.getElementById('spotExitBtn');
+      if(exitBtn){
+        if(can&&exitAge<=2){
+          exitBtn.textContent='↩ Revoke Exit';exitBtn.className='btn';
+          exitBtn.style.cssText='background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;font-weight:800;border-radius:9px;font-size:13px;padding:9px 16px;cursor:pointer';
+          exitBtn.onclick=()=>_spotRevokeExit(spotId);
+        } else {
+          exitBtn.textContent='🚪 Exited';exitBtn.disabled=true;
+          exitBtn.style.cssText='background:#f1f5f9;border:1px solid #cbd5e1;color:#94a3b8;border-radius:9px;font-size:13px;padding:9px 16px;cursor:not-allowed;opacity:.6';
+        }
+      }
+    } else if(canExit){
+      document.getElementById('spotExitRemarks').disabled=false;
+      document.getElementById('spotExitRemarks').style.opacity='';
+      document.getElementById('spotExitRemarks').value='';
+      const ef=document.getElementById('spotExitVehFile');if(ef){ef.value='';ef._compressedData=null;}
+      const et=document.getElementById('spotExitVehThumb');if(et){et.innerHTML='🚗';et.style.border='2px dashed #fca5a5';et.onclick=()=>_showPhotoChoice('spotExitVehFile','spotExitVehThumb');}
+      const exitBtn=document.getElementById('spotExitBtn');
+      if(exitBtn){exitBtn.textContent='🚪 Record Exit';exitBtn.className='btn btn-danger';exitBtn.disabled=false;exitBtn.style.cssText='font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px';exitBtn.onclick=doSpotExit;}
+    }
+    // Submit button: hide if exited, show edit if inside
     const sb=document.getElementById('spotSubmitBtn');
-    if(sb){sb.textContent='✏ Save Entry';sb.className='btn btn-primary';}
+    if(sb){
+      if(hasExited){sb.style.display='none';}
+      else{sb.style.display='';sb.textContent='✏ Save Entry';sb.className='btn btn-primary';}
+    }
     const cb=document.getElementById('spotCancelEditBtn');
-    if(cb) cb.style.display='inline-flex';
+    if(cb) cb.style.display='none';
   } else {
     // New entry
     clearSpotForm();
@@ -6049,6 +6095,19 @@ async function doSpotExitModal(){
   renderSpotTab();renderDash();updBadges();
 }
 
+async function _spotRevokeExit(spotId){
+  const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);if(!s||!s.exitTime)return;
+  const exitAge=(Date.now()-new Date(s.exitTime))/1000/3600;
+  if(exitAge>2){notify('Cannot revoke — exit was recorded more than 2 hours ago',true);return;}
+  showConfirm('Revoke exit for '+spotId+'? Vehicle will be marked as still inside.',async()=>{
+    const bak={...s};
+    s.exitTime=null;s.exitBy=null;s.exitVehiclePhoto='';s.exitRemarks='';
+    if(!await _dbSave('spotTrips',s)){Object.assign(s,bak);return;}
+    _kapCloseSpotPopup();
+    notify('Exit for '+spotId+' revoked — vehicle marked as inside.');
+    renderSpotTab();renderSpotHistory();renderDash();updBadges();
+  },{icon:'↩',title:'Revoke Exit',btnLabel:'↩ Revoke',btnColor:'#f59e0b'});
+}
 async function revokeSpotAction(spotId, action){
   const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);if(!s)return;
   const now=new Date();
@@ -6062,7 +6121,8 @@ async function revokeSpotAction(spotId, action){
     notify(`Entry ${spotId} revoked.`);
   } else {
     const exitAge=now-new Date(s.exitTime);
-    if(exitAge>hrs24){notify('Cannot revoke — exit was recorded more than 24 hours ago',true);return;}
+    const hrs2=2*60*60*1000;
+    if(exitAge>hrs2){notify('Cannot revoke — exit was recorded more than 2 hours ago',true);return;}
     s.exitTime=null;s.exitBy=null;s.exitVehiclePhoto='';s.exitRemarks='';
     await _dbSave('spotTrips',s);
     notify(`Exit for ${spotId} revoked — vehicle marked as inside.`);
