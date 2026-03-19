@@ -4081,13 +4081,12 @@ function openTripBookingModal(editTripId){
   const titleEl=document.getElementById('tbModalTitle');
   if(titleEl)titleEl.textContent=t?'AMEND TRIP':'BOOK NEW TRIP';
 
-  // Trip ID
-  const tripId=t?t.id:genTripId(
-    document.getElementById('tbStart')?.value||'',
-    document.getElementById('tbDest1')?.value||''
-  );
+  // Trip ID: for new trips, generate a provisional ID now using user's plant.
+  // It will be REGENERATED in onLocChange() once the user picks start+dest1.
+  const tripId=t?t.id:genTripId('','');
   document.getElementById('tbTripId').value=tripId;
   document.getElementById('tbTripIdDisplay').textContent=tripId;
+  document.getElementById('tbTripId').dataset.fixed=t?'1':''; // fixed=1 means don't regenerate (edit mode)
 
   // Reset destinations visibility
   _tbDestCount=1;
@@ -4247,6 +4246,14 @@ function onLocChange(){
   const d2El=document.getElementById('tbDest2');
   const d3El=document.getElementById('tbDest3');
   const d1cur=d1El.value;
+  // Regenerate trip ID for new trips when start or dest1 changes
+  const tidEl=document.getElementById('tbTripId');
+  if(tidEl&&!tidEl.dataset.fixed&&s&&d1cur){
+    const newId=genTripId(s,d1cur);
+    tidEl.value=newId;
+    const disp=document.getElementById('tbTripIdDisplay');
+    if(disp) disp.textContent=newId;
+  }
   const d2cur=d2El.value;
   const d3cur=d3El.value;
   const all=DB.locations;
