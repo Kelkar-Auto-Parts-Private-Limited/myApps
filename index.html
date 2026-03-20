@@ -688,6 +688,9 @@ async function puSaveUser(){
     if(!await _dbSave('users',nu)) return;
   }
   cm('mUser');
+  // Auto-sync user's roles into their plant location's role arrays
+  const _savedUId=id||(DB.users[DB.users.length-1]?.id);
+  if(_savedUId&&plant&&!inactive&&typeof _syncUserToLocation==='function') await _syncUserToLocation(_savedUId,plant,roles);
   // Sync CU if editing own record
   if(CU&&(id===CU.id||(!id&&DB.users[DB.users.length-1]?.name===name))){
     const fresh=DB.users.find(u=>u.name===name);

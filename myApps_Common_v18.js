@@ -1004,10 +1004,63 @@ function getUserLocation(userId){
 // Enrich CU with locId / locType / locName after login
 function _enrichCU(){
   if(!CU) return;
-  const loc=getUserLocation(CU.id);
+  // Primary: find location where user is role-assigned
+  // Fallback: use user.plant (same fallback buildSegment uses for bookingLoc)
+  const loc=getUserLocation(CU.id)||byId(DB.locations,CU.plant)||null;
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';
+}
+// Auto-sync: when a user is saved with roles + plant, ensure they appear in
+// the corresponding Location Master role arrays. Also cleans them from
+// old locations when their plant changes.
+async function _syncUserToLocation(userId, plantId, roles){
+  if(!userId||!plantId) return;
+  const targetLoc=byId(DB.locations,plantId);
+  if(!targetLoc||targetLoc.type!=='KAP') return;
+  const roleMap={
+    'KAP Security':'kapSec',       // single string
+    'Trip Booking User':'tripBook', // array
+    'Material Receiver':'matRecv',  // array
+    'Trip Approver':'approvers'     // array
+  };
+  const userRoles=new Set(roles||[]);
+  let locChanged=false;
+  // ── Add user to target location for each role they have ──
+  Object.entries(roleMap).forEach(([roleName,locField])=>{
+    const hasRole=userRoles.has(roleName);
+    if(locField==='kapSec'){
+      if(hasRole&&targetLoc.kapSec!==userId){
+        targetLoc.kapSec=userId; locChanged=true;
+      } else if(!hasRole&&targetLoc.kapSec===userId){
+        targetLoc.kapSec=''; locChanged=true;
+      }
+    } else {
+      const arr=targetLoc[locField]||[];
+      if(hasRole&&!arr.includes(userId)){
+        arr.push(userId); targetLoc[locField]=arr; locChanged=true;
+      } else if(!hasRole&&arr.includes(userId)){
+        targetLoc[locField]=arr.filter(id=>id!==userId); locChanged=true;
+      }
+    }
+  });
+  if(locChanged) await _dbSave('locations',targetLoc);
+  // ── Remove user from OTHER locations they no longer belong to ──
+  const otherLocs=DB.locations.filter(l=>l.id!==plantId&&l.type==='KAP');
+  for(const ol of otherLocs){
+    let olChanged=false;
+    Object.entries(roleMap).forEach(([roleName,locField])=>{
+      if(locField==='kapSec'){
+        if(ol.kapSec===userId){ ol.kapSec=''; olChanged=true; }
+      } else {
+        const arr=ol[locField]||[];
+        if(arr.includes(userId)){
+          ol[locField]=arr.filter(id=>id!==userId); olChanged=true;
+        }
+      }
+    });
+    if(olChanged) await _dbSave('locations',ol);
+  }
 }
 // Central step-access check — location membership, not static users array
 function canDoStep(seg, stepNum){
@@ -1018,10 +1071,9 @@ function canDoStep(seg, stepNum){
   if(!step||step.skip||step.done) return false;
   const ownerLocId=step.ownerLoc;
   if(!ownerLocId) return false;
-  // User must be assigned to the ownerLoc
-  if(CU.locId!==ownerLocId) return false;
   const loc=byId(DB.locations,ownerLocId);
   if(!loc) return false;
+  // Check if user is directly assigned to this location's role array
   if(stepNum===1||stepNum===2||stepNum===5) return loc.kapSec===CU.id;
   if(stepNum===3) return (loc.matRecv||[]).includes(CU.id);
   if(stepNum===4) return (loc.approvers||[]).includes(CU.id);
