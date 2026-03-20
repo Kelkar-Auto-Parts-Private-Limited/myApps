@@ -1742,6 +1742,40 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 const _COMMON_LOADED = true;
 
+// ═══ GLOBAL LOADING SPINNER ═══
+var _spinDepth=0;
+function _spinnerEnsureDOM(){
+  if(document.getElementById('kapSpinnerOverlay')) return;
+  var ov=document.createElement('div');ov.id='kapSpinnerOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)';
+  ov.innerHTML='<div style="width:44px;height:44px;border:4px solid rgba(42,154,160,.2);border-top-color:#2a9aa0;border-radius:50%;animation:kapSpin .7s linear infinite"></div>'
+    +'<div id="kapSpinnerMsg" style="color:#fff;font-size:14px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 4px rgba(0,0,0,.4)">Loading…</div>';
+  var style=document.createElement('style');
+  style.textContent='@keyframes kapSpin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(style);
+  document.body.appendChild(ov);
+}
+function showSpinner(msg){_spinnerEnsureDOM();_spinDepth++;var ov=document.getElementById('kapSpinnerOverlay');var m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg||'Loading…';if(ov)ov.style.display='flex';}
+function hideSpinner(){_spinDepth=Math.max(0,_spinDepth-1);if(_spinDepth===0){var ov=document.getElementById('kapSpinnerOverlay');if(ov)ov.style.display='none';}}
+function _spinnerMsg(msg){var m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg||'Loading…';}
+
+// ── Global loading spinner ──
+var _spinDepth=0;
+function _spinnerEnsureDOM(){
+  if(document.getElementById('kapSpinnerOverlay')) return;
+  var ov=document.createElement('div');ov.id='kapSpinnerOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)';
+  ov.innerHTML='<div style="width:44px;height:44px;border:4px solid rgba(42,154,160,.2);border-top-color:#2a9aa0;border-radius:50%;animation:kapSpin .7s linear infinite"></div>'
+    +'<div id="kapSpinnerMsg" style="color:#fff;font-size:14px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 4px rgba(0,0,0,.4)">Loading…</div>';
+  var style=document.createElement('style');
+  style.textContent='@keyframes kapSpin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(style);
+  document.body.appendChild(ov);
+}
+function showSpinner(msg){_spinnerEnsureDOM();_spinDepth++;var ov=document.getElementById('kapSpinnerOverlay'),m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg||'Loading…';if(ov)ov.style.display='flex';}
+function hideSpinner(){_spinDepth=Math.max(0,_spinDepth-1);if(_spinDepth===0){var ov=document.getElementById('kapSpinnerOverlay');if(ov)ov.style.display='none';}}
+function _spinnerMsg(msg){var m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg||'Loading…';}
+
 // ── Module hooks (override in module scripts) ───────────────────────────────
 let _onCurrentUserUpdated = function(){}; // called when realtime updates CU
 let _onPostBoot = function(){};           // called after bootDB completes
@@ -1877,7 +1911,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsCarriers') return {code:r.id,carrier_name:r.carrierName||'',address:r.address||'',contact:r.contact||''};
   if(tbl==='hwmsSteelRates') return {code:r.id,cust_id:r.customerId||'',steel_rate:r.steelRate||0,forex_rate:r.forexRate||0,valid_from:r.validFrom||'',valid_to:r.validTo||''};
   if(tbl==='hwmsCompany') return {code:r.id,company_name:r.companyName||'',address:r.address||'',gstin:r.gstin||'',iec:r.iec||'',rex:r.rex||'',supplier_code:r.supplierCode||'',place_receipt:r.placeReceipt||'',country:r.country||'India',note:r.note||''};
-  if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',grn_status:r.grnStatus||'',payment_status:r.paymentStatus||'',remarks:r.remarks||''};
+  if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',pickup_date:r.pickupDate||'',grn_status:r.grnStatus||'',grn_date:r.grnDate||'',payment_status:r.paymentStatus||'',payment_received:r.paymentReceived||0,payment_balance:r.paymentBalance||0,tariff_percent:r.tariffPercent||0,tariff_amount:r.tariffAmount||0,remarks:r.remarks||''};
   return null;
 }
 
@@ -1914,7 +1948,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsCarriers') return {id:row.code,_dbId:row.id,carrierName:row.carrier_name||'',address:row.address||'',contact:row.contact||''};
   if(tbl==='hwmsSteelRates') return {id:row.code,_dbId:row.id,customerId:row.cust_id||'',steelRate:row.steel_rate||0,forexRate:row.forex_rate||0,validFrom:row.valid_from||'',validTo:row.valid_to||''};
   if(tbl==='hwmsCompany') return {id:row.code,_dbId:row.id,companyName:row.company_name||'',address:row.address||'',gstin:row.gstin||'',iec:row.iec||'',rex:row.rex||'',supplierCode:row.supplier_code||'',placeReceipt:row.place_receipt||'',country:row.country||'India',note:row.note||''};
-  if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',grnStatus:row.grn_status||'',paymentStatus:row.payment_status||'',remarks:row.remarks||''};
+  if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',pickupDate:row.pickup_date||'',grnStatus:row.grn_status||'',grnDate:row.grn_date||'',paymentStatus:row.payment_status||'',paymentReceived:row.payment_received||0,paymentBalance:row.payment_balance||0,tariffPercent:row.tariff_percent||0,tariffAmount:row.tariff_amount||0,remarks:row.remarks||''};
   return null;
 }
 
@@ -2382,6 +2416,8 @@ function saveDB(){ /* Supabase-only mode: no localStorage writes */ }
 
 // ═══ CORE DB OPERATIONS ═══════════════════════════════════════════════════
 async function _dbSave(tbl, record){
+  showSpinner('Saving…');
+  try{
   if(!_sbReady || !_sb){
     console.error('❌ _dbSave('+tbl+'): Supabase not ready — _sbReady='+_sbReady+' _sb='+!!_sb);
     notify('⚠ No database connection — data not saved.', true);
@@ -2416,9 +2452,12 @@ async function _dbSave(tbl, record){
   if(idx >= 0) DB[tbl][idx] = record; else DB[tbl].push(record);
   _sbSetStatus('ok');
   return true;
+  }finally{ hideSpinner(); }
 }
 
 async function _dbDel(tbl, id){
+  showSpinner('Deleting…');
+  try{
   if(!_sbReady || !_sb){
     console.error('❌ _dbDel('+tbl+'): Supabase not ready — _sbReady='+_sbReady);
     notify('⚠ No database connection — delete not saved.', true);
@@ -2448,6 +2487,7 @@ async function _dbDel(tbl, id){
   if(DB[tbl]) DB[tbl] = DB[tbl].filter(r => r.id !== id);
   _sbSetStatus('ok');
   return true;
+  }finally{ hideSpinner(); }
 }
 
 
@@ -2455,6 +2495,8 @@ async function _dbDel(tbl, id){
 
 // ═══ BOOT DB ══════════════════════════════════════════════════════════════
 async function bootDB(){
+  showSpinner('Connecting to database…');
+  try{
   _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
@@ -2533,6 +2575,7 @@ async function bootDB(){
   _sbSetStatus('offline', 'Offline');
   if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
   _startBgReconnect();
+  }finally{ hideSpinner(); }
 }
 
 // Background sync: fetch hot tables FIRST (fast), then cold tables
@@ -3365,6 +3408,8 @@ async function _parseXLSX(arrayBuffer){
 
 // ── Universal import (CSV / XLSX / TSV) ──────────────────────────────────────
 async function _applyImportRows(rows, col, schema){
+  showSpinner('Importing '+rows.length+' rows…');
+  try{
   if(!DB[col]) DB[col]=[];
   let added=0,updated=0,skipped=0;
   const toUpdate=[], toAdd=[];
@@ -3393,6 +3438,7 @@ async function _applyImportRows(rows, col, schema){
   for(const rec of toAdd){ delete rec._importMerged; if(await _dbSave(col,rec)) added++; else skipped++; }
   schema.render();
   notify(`Import done: ${added} added, ${updated} updated${skipped?', '+skipped+' skipped':''}`);
+  }finally{ hideSpinner(); }
 }
 
 function importMaster(col,inputEl){
@@ -6778,17 +6824,20 @@ async function _doBookTrip(){
     _editingTripId=null;
     // If trip ID changed (route changed → different plant code), rename it
     if(newId&&newId!==oldId){
-      // Delete old Supabase record, re-save with new ID
+      // Collect segments BEFORE deleting (since _dbDel removes from DB.segments)
+      const _segsToRename=DB.segments.filter(s=>s.tripId===oldId).map(s=>({...s}));
+      // Delete old trip + old segments from Supabase
       await _dbDel('trips',oldId);
+      for(const s of _segsToRename){ await _dbDel('segments',s.id); }
+      // Remove any leftover refs with old tripId from memory
+      DB.segments=DB.segments.filter(s=>s.tripId!==oldId);
+      // Rename and re-stage in memory
       t.id=newId;
-      // Rename all segments to new tripId
-      const _segsToRename=DB.segments.filter(s=>s.tripId===oldId);
-      for(const s of _segsToRename){
-        await _dbDel('segments',s.id);
+      _segsToRename.forEach(function(s){
         s.tripId=newId;
-        s.id=newId+s.label; // segment IDs are tripId+label
-      }
-      // t.id already set to newId above; trip object is in DB.trips by reference
+        s.id=newId+s.label;
+        DB.segments.push(s); // re-add to DB.segments so _dbSave finds them
+      });
     }
     await _dbSave('trips',t);
     for(const s of DB.segments.filter(s=>s.tripId===t.id)){if(!await _dbSave('segments',s)) return;}
