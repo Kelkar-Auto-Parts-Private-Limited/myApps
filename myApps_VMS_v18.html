@@ -6040,7 +6040,7 @@ function initTbHistDates(){
 }
 
 // Generate new Trip ID: LastDigitYear + MonthLetter + DD + Plant + Serial
-function genTripId(startLocId, dest1LocId){
+function genTripId(startLocId, dest1LocId, excludeId){
   const now=new Date();
   const yLast=String(now.getFullYear()).slice(-1);
   // Determine which location supplies the plant code:
@@ -6064,13 +6064,18 @@ function genTripId(startLocId, dest1LocId){
   }
   const prefix=`${yLast}${plantCode}-`;
   // Serial: find the highest existing number with this prefix and add 1.
-  // Using max instead of count means the number is always correct even when
-  // DB.trips is slightly stale from a previous sync (realtime or multi-user).
+  // Exclude the current trip being edited so its number doesn't bump the counter.
   const existingNums=DB.trips
-    .filter(t=>t.id.startsWith(prefix))
+    .filter(t=>t.id.startsWith(prefix)&&t.id!==excludeId)
     .map(t=>parseInt(t.id.slice(prefix.length),10)||0);
   const maxNum=existingNums.length?Math.max(...existingNums):0;
   return `${prefix}${maxNum+1}`;
+}
+// Extract the plant prefix from an existing trip ID (e.g. "5P2-" from "5P2-14")
+function _tripIdPrefix(tripId){
+  if(!tripId) return '';
+  const m=tripId.match(/^(\d+P\d+-)/);
+  return m?m[1]:'';
 }
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
@@ -6820,10 +6825,17 @@ async function _doBookTrip(){
     if(segA) t.tripCatId=segA.tripCatId;
 
     const oldId=_editingTripId;
-    const newId=genTripId(t.startLoc,t.dest1); // generate at save time from actual locations
     _editingTripId=null;
-    // If trip ID changed (route changed → different plant code), rename it
-    if(newId&&newId!==oldId){
+
+    // Only rename trip ID if the plant prefix actually changed (start location moved to different plant)
+    // If prefix is the same → keep original trip ID, no renumbering ever
+    const oldPrefix=_tripIdPrefix(oldId);
+    const wouldBeId=genTripId(t.startLoc,t.dest1,oldId);
+    const newPrefix=_tripIdPrefix(wouldBeId);
+    const needsRename=oldPrefix&&newPrefix&&oldPrefix!==newPrefix;
+
+    if(needsRename){
+      const newId=wouldBeId;
       // Collect segments BEFORE deleting (since _dbDel removes from DB.segments)
       const _segsToRename=DB.segments.filter(s=>s.tripId===oldId).map(s=>({...s}));
       // Delete old trip + old segments from Supabase
@@ -6836,7 +6848,7 @@ async function _doBookTrip(){
       _segsToRename.forEach(function(s){
         s.tripId=newId;
         s.id=newId+s.label;
-        DB.segments.push(s); // re-add to DB.segments so _dbSave finds them
+        DB.segments.push(s);
       });
     }
     await _dbSave('trips',t);
@@ -7494,7 +7506,15 @@ function renderKap(){
   if(cn){cn.textContent=entryCount||'';cn.style.display=entryCount?'inline-flex':'none';}
 
   const step=(_kapMode==='entry')?2:1; // map mode to step: exit=1, entry=2
-  const pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
+  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
+
+  // Deduplicate by tripId — show one card per trip (card already shows all segments)
+  const _seenTrips=new Set();
+  pendingSegs=pendingSegs.filter(s=>{
+    if(_seenTrips.has(s.tripId)) return false;
+    _seenTrips.add(s.tripId);
+    return true;
+  });
 
   // ── Pending section ──
   // Sort by trip booking date descending (newest first)
