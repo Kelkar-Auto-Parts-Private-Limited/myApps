@@ -1169,6 +1169,8 @@ async function _secBoot(){
   var splash=document.getElementById('dbSplash');
   var _hasCache=false;try{_hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
   if(!_hasCache && splash) splash.style.display='flex';
+  // Load only Security tables — not VMS/HWMS tables
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
   var su=_sessionGet('kap_session_user'), sp=_sessionGet('kap_session_pass');

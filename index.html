@@ -846,6 +846,8 @@ function doLogout(){
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 async function _portalBoot(){
+  // Portal only needs users and locations — not VMS/HWMS/Security operational tables
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations'];
   // Check session
   var su,sp2;
   try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_pass'); }catch(e){}

@@ -24,11 +24,12 @@ const SB_TABLES = {
   drivers:'vms_drivers', vehicles:'vms_vehicles', locations:'vms_locations',
   tripRates:'vms_trip_rates', trips:'vms_trips', segments:'vms_segments',
   spotTrips:'vms_spot_trips',
-  checkpoints:'vms_checkpoints', guards:'vms_guards', roundSchedules:'vms_round_schedules',
+  checkpoints:'ss_checkpoints', guards:'ss_guards', roundSchedules:'ss_round_schedules',
   hwmsParts:'hwms_parts', hwmsInvoices:'hwms_invoices', hwmsContainers:'hwms_containers',
   hwmsHsn:'hwms_hsn', hwmsUom:'hwms_uom', hwmsPacking:'hwms_packing',
   hwmsCustomers:'hwms_customers', hwmsPortDischarge:'hwms_port_discharge', hwmsPortLoading:'hwms_port_loading',
-  hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates'
+  hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates',
+  hwmsSubInvoices:'hwms_sub_invoices'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -143,6 +144,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsCarriers') return {code:r.id,carrier_name:r.carrierName||'',address:r.address||'',contact:r.contact||''};
   if(tbl==='hwmsSteelRates') return {code:r.id,cust_id:r.customerId||'',steel_rate:r.steelRate||0,forex_rate:r.forexRate||0,valid_from:r.validFrom||'',valid_to:r.validTo||''};
   if(tbl==='hwmsCompany') return {code:r.id,company_name:r.companyName||'',address:r.address||'',gstin:r.gstin||'',iec:r.iec||'',rex:r.rex||'',supplier_code:r.supplierCode||'',place_receipt:r.placeReceipt||'',country:r.country||'India',note:r.note||''};
+  if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',grn_status:r.grnStatus||'',payment_status:r.paymentStatus||'',remarks:r.remarks||''};
   return null;
 }
 
@@ -182,6 +184,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsCarriers') return {id:row.code,_dbId:row.id,carrierName:row.carrier_name||'',address:row.address||'',contact:row.contact||''};
   if(tbl==='hwmsSteelRates') return {id:row.code,_dbId:row.id,customerId:row.cust_id||'',steelRate:row.steel_rate||0,forexRate:row.forex_rate||0,validFrom:row.valid_from||'',validTo:row.valid_to||''};
   if(tbl==='hwmsCompany') return {id:row.code,_dbId:row.id,companyName:row.company_name||'',address:row.address||'',gstin:row.gstin||'',iec:row.iec||'',rex:row.rex||'',supplierCode:row.supplier_code||'',placeReceipt:row.place_receipt||'',country:row.country||'India',note:row.note||''};
+  if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',grnStatus:row.grn_status||'',paymentStatus:row.payment_status||'',remarks:row.remarks||''};
   return null;
 }
 
@@ -293,7 +296,7 @@ function _sbSetStatus(state, msg) {
 
 // Seed Supabase tables with default data
 async function _sbSeedAll(seedData) {
-  for(const tbl of DB_TABLES) {
+  for(const tbl of _getActiveTables()) {
     const rows = (seedData[tbl]||[]).map(r => _toRow(tbl, r)).filter(Boolean);
     if(!rows.length) continue;
     const {error} = await _sb.from(SB_TABLES[tbl]).upsert(rows, {onConflict:'code'});
@@ -434,7 +437,7 @@ window._diagSB = async function(){
   console.group('🔍 Supabase Diagnostics');
   console.log('_sbReady:', _sbReady, '| _sb:', !!_sb, '| _sbStatus:', _sbStatus);
   console.log('_sbRtEnabled:', _sbRtEnabled, '| _sbChannel:', !!_sbChannel);
-  console.log('DB counts:', DB_TABLES.map(t=>t+'='+( DB[t]||[]).length).join(', '));
+  console.log('DB counts:', _getActiveTables().map(t=>t+'='+( DB[t]||[]).length).join(', '));
   if(_sbReady && _sb){
     try{
       const {data,error} = await _sb.from('vms_users').select('code').limit(3);
@@ -624,7 +627,14 @@ const DB_TABLES = ['users','vehicleTypes','drivers','vendors','vehicles',
                    'checkpoints','guards','roundSchedules',
                    'hwmsParts','hwmsInvoices','hwmsContainers',
                    'hwmsHsn','hwmsUom','hwmsPacking',
-                   'hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates'];
+                   'hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices'];
+
+// ── App-specific table filter ──
+// Each app sets _APP_TABLES before boot to load only its own tables.
+// If not set, falls back to DB_TABLES (all tables — backward compatible).
+let _APP_TABLES = null;
+function _getActiveTables(){ return _APP_TABLES || DB_TABLES; }
+
 let DB = {};
 
 // Session helpers
@@ -717,7 +727,7 @@ async function _dbDel(tbl, id){
 
 // ═══ BOOT DB ══════════════════════════════════════════════════════════════
 async function bootDB(){
-  DB_TABLES.forEach(k => DB[k] = []);
+  _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
   // _navigateTo() writes kap_db_cache to localStorage before every navigation.
@@ -730,7 +740,7 @@ async function bootDB(){
       var _cObj = JSON.parse(_cached);
       var _age = Date.now() - (_cObj.ts||0);
       if(_age < 60000){
-        DB_TABLES.forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
+        _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
         localStorage.removeItem('kap_db_cache');
         console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+DB.users.length);
         if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
@@ -770,7 +780,7 @@ async function bootDB(){
     try{
       const _sm0=document.getElementById('splashMsg');if(_sm0)_sm0.textContent='Connecting to database…';
       const _sbTimeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('Supabase timeout (5s)')),5000));
-      const _sbFetch = Promise.all(DB_TABLES.map(async tbl=>{
+      const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
         const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
         if(error) throw new Error('['+tbl+']: '+error.message);
         return {tbl, rows: data||[]};
@@ -807,7 +817,7 @@ function _bgSyncFromSupabase(){
   _bgSyncDone=false;
   _dbConnectCount++;
   console.log('📡 bgSync #'+_dbConnectCount+' start — caller: '+(new Error().stack.split('\n')[2]||'?').trim());
-  Promise.all(DB_TABLES.map(async tbl=>{
+  Promise.all(_getActiveTables().map(async tbl=>{
     const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
     if(error) return null;
     return {tbl, rows: data||[]};
@@ -1004,60 +1014,38 @@ function getUserLocation(userId){
 // Enrich CU with locId / locType / locName after login
 function _enrichCU(){
   if(!CU) return;
-  // Primary: find location where user is role-assigned
-  // Fallback: use user.plant (same fallback buildSegment uses for bookingLoc)
   const loc=getUserLocation(CU.id)||byId(DB.locations,CU.plant)||null;
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';
 }
 // Auto-sync: when a user is saved with roles + plant, ensure they appear in
-// the corresponding Location Master role arrays. Also cleans them from
-// old locations when their plant changes.
+// the corresponding Location Master role arrays.
 async function _syncUserToLocation(userId, plantId, roles){
   if(!userId||!plantId) return;
   const targetLoc=byId(DB.locations,plantId);
   if(!targetLoc||targetLoc.type!=='KAP') return;
-  const roleMap={
-    'KAP Security':'kapSec',       // single string
-    'Trip Booking User':'tripBook', // array
-    'Material Receiver':'matRecv',  // array
-    'Trip Approver':'approvers'     // array
-  };
+  const roleMap={'KAP Security':'kapSec','Trip Booking User':'tripBook','Material Receiver':'matRecv','Trip Approver':'approvers'};
   const userRoles=new Set(roles||[]);
   let locChanged=false;
-  // ── Add user to target location for each role they have ──
   Object.entries(roleMap).forEach(([roleName,locField])=>{
     const hasRole=userRoles.has(roleName);
     if(locField==='kapSec'){
-      if(hasRole&&targetLoc.kapSec!==userId){
-        targetLoc.kapSec=userId; locChanged=true;
-      } else if(!hasRole&&targetLoc.kapSec===userId){
-        targetLoc.kapSec=''; locChanged=true;
-      }
+      if(hasRole&&targetLoc.kapSec!==userId){targetLoc.kapSec=userId;locChanged=true;}
+      else if(!hasRole&&targetLoc.kapSec===userId){targetLoc.kapSec='';locChanged=true;}
     } else {
       const arr=targetLoc[locField]||[];
-      if(hasRole&&!arr.includes(userId)){
-        arr.push(userId); targetLoc[locField]=arr; locChanged=true;
-      } else if(!hasRole&&arr.includes(userId)){
-        targetLoc[locField]=arr.filter(id=>id!==userId); locChanged=true;
-      }
+      if(hasRole&&!arr.includes(userId)){arr.push(userId);targetLoc[locField]=arr;locChanged=true;}
+      else if(!hasRole&&arr.includes(userId)){targetLoc[locField]=arr.filter(id=>id!==userId);locChanged=true;}
     }
   });
   if(locChanged) await _dbSave('locations',targetLoc);
-  // ── Remove user from OTHER locations they no longer belong to ──
   const otherLocs=DB.locations.filter(l=>l.id!==plantId&&l.type==='KAP');
   for(const ol of otherLocs){
     let olChanged=false;
     Object.entries(roleMap).forEach(([roleName,locField])=>{
-      if(locField==='kapSec'){
-        if(ol.kapSec===userId){ ol.kapSec=''; olChanged=true; }
-      } else {
-        const arr=ol[locField]||[];
-        if(arr.includes(userId)){
-          ol[locField]=arr.filter(id=>id!==userId); olChanged=true;
-        }
-      }
+      if(locField==='kapSec'){if(ol.kapSec===userId){ol.kapSec='';olChanged=true;}}
+      else{const arr=ol[locField]||[];if(arr.includes(userId)){ol[locField]=arr.filter(id=>id!==userId);olChanged=true;}}
     });
     if(olChanged) await _dbSave('locations',ol);
   }
@@ -1073,7 +1061,6 @@ function canDoStep(seg, stepNum){
   if(!ownerLocId) return false;
   const loc=byId(DB.locations,ownerLocId);
   if(!loc) return false;
-  // Check if user is directly assigned to this location's role array
   if(stepNum===1||stepNum===2||stepNum===5) return loc.kapSec===CU.id;
   if(stepNum===3) return (loc.matRecv||[]).includes(CU.id);
   if(stepNum===4) return (loc.approvers||[]).includes(CU.id);
@@ -1209,7 +1196,7 @@ function _navigateTo(url){
   try{
     if(typeof DB!=='undefined' && typeof DB_TABLES!=='undefined' && DB.users && DB.users.length){
       var cache={ts:Date.now()};
-      DB_TABLES.forEach(function(t){ cache[t]=DB[t]||[]; });
+      _getActiveTables().forEach(function(t){ cache[t]=DB[t]||[]; });
       localStorage.setItem('kap_db_cache', JSON.stringify(cache));
     }
   }catch(e){ console.warn('_navigateTo: cache write failed', e.message); }
