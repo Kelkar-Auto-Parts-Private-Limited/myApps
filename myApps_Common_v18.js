@@ -63,7 +63,8 @@ const SB_TABLES = {
   hwmsHsn:'hwms_hsn', hwmsUom:'hwms_uom', hwmsPacking:'hwms_packing',
   hwmsCustomers:'hwms_customers', hwmsPortDischarge:'hwms_port_discharge', hwmsPortLoading:'hwms_port_loading',
   hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates',
-  hwmsSubInvoices:'hwms_sub_invoices'
+  hwmsSubInvoices:'hwms_sub_invoices',
+  hwmsMaterialRequests:'hwms_material_requests'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -179,6 +180,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsSteelRates') return {code:r.id,cust_id:r.customerId||'',steel_rate:r.steelRate||0,forex_rate:r.forexRate||0,valid_from:r.validFrom||'',valid_to:r.validTo||''};
   if(tbl==='hwmsCompany') return {code:r.id,company_name:r.companyName||'',address:r.address||'',gstin:r.gstin||'',iec:r.iec||'',rex:r.rex||'',supplier_code:r.supplierCode||'',place_receipt:r.placeReceipt||'',country:r.country||'India',note:r.note||''};
   if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',pickup_date:r.pickupDate||'',grn_status:r.grnStatus||'',grn_date:r.grnDate||'',payment_status:r.paymentStatus||'',payment_received:r.paymentReceived||0,payment_balance:r.paymentBalance||0,tariff_percent:r.tariffPercent||0,tariff_amount:r.tariffAmount||0,remarks:r.remarks||''};
+  if(tbl==='hwmsMaterialRequests') return {code:r.id,mr_number:r.mrNumber||'',mr_date:r.mrDate||'',need_by_date:r.needByDate||'',status:r.status||'',line_items:r.lineItems||[],remarks:r.remarks||'',created_by:r.createdBy||''};
   return null;
 }
 
@@ -219,6 +221,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsSteelRates') return {id:row.code,_dbId:row.id,customerId:row.cust_id||'',steelRate:row.steel_rate||0,forexRate:row.forex_rate||0,validFrom:row.valid_from||'',validTo:row.valid_to||''};
   if(tbl==='hwmsCompany') return {id:row.code,_dbId:row.id,companyName:row.company_name||'',address:row.address||'',gstin:row.gstin||'',iec:row.iec||'',rex:row.rex||'',supplierCode:row.supplier_code||'',placeReceipt:row.place_receipt||'',country:row.country||'India',note:row.note||''};
   if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',pickupDate:row.pickup_date||'',grnStatus:row.grn_status||'',grnDate:row.grn_date||'',paymentStatus:row.payment_status||'',paymentReceived:row.payment_received||0,paymentBalance:row.payment_balance||0,tariffPercent:row.tariff_percent||0,tariffAmount:row.tariff_amount||0,remarks:row.remarks||''};
+  if(tbl==='hwmsMaterialRequests') return {id:row.code,_dbId:row.id,mrNumber:row.mr_number||'',mrDate:row.mr_date||'',needByDate:row.need_by_date||'',status:row.status||'',lineItems:row.line_items||[],remarks:row.remarks||'',createdBy:row.created_by||''};
   return null;
 }
 
@@ -823,9 +826,11 @@ async function bootDB(){
       const _sm0=document.getElementById('splashMsg');if(_sm0)_sm0.textContent='Connecting to database…';
       const _sbTimeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('Supabase timeout (5s)')),5000));
       const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
-        const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
-        if(error) throw new Error('['+tbl+']: '+error.message);
-        return {tbl, rows: data||[]};
+        try{
+          const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+          if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
+          return {tbl, rows: data||[]};
+        }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
       const results = await Promise.race([_sbFetch, _sbTimeout]);
       results.forEach(({tbl,rows})=>{

@@ -13,7 +13,7 @@
 #dbSplash .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 /* Topbar */
 .topbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
-.topbar .ham{background:none;border:none;font-size:20px;cursor:pointer;padding:4px;color:var(--text)}
+.topbar .ham{background:none;border:1.5px solid var(--border);font-size:22px;cursor:pointer;padding:4px 8px;color:var(--text);border-radius:6px;line-height:1;transition:background .2s}.topbar .ham:hover{background:rgba(42,154,160,.1)}
 .topbar .title{font-size:15px;font-weight:800;color:var(--text);flex:1}
 .topbar .user-info{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px}
 /* Sidebar */
@@ -22,14 +22,14 @@
 @media(max-width:700px){
   .sidebar{left:-280px}
   .sidebar.open{left:0}
-  .topbar{display:flex!important}
   #hwmsApp{margin-left:0!important}
 }
 @media(min-width:701px){
-  .sidebar{left:0!important}
+  .sidebar{left:0}
   .sidebar-overlay{display:none!important}
-  .topbar{display:none!important}
-  #hwmsApp{margin-left:260px}
+  #hwmsApp{margin-left:260px;transition:margin-left .3s}
+  body.hwms-nav-hidden .sidebar{left:-280px}
+  body.hwms-nav-hidden #hwmsApp{margin-left:0}
 }
 .sidebar .brand{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);margin-bottom:10px}
 .sidebar .brand img{width:32px;height:32px;border-radius:8px}.sidebar .brand h3{font-size:14px;font-weight:800;color:var(--text)}
@@ -54,6 +54,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 .modal-footer{padding:14px 22px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff;flex-wrap:wrap}
 .modal-err{width:100%;font-size:12px;font-weight:600;color:var(--red);display:none;margin-bottom:6px}
 .flash-red{animation:flashR 1.2s ease-in-out infinite}@keyframes flashR{0%,100%{background:transparent}50%{background:rgba(239,68,68,.15)}}
+.mr-bal-flash{animation:mrBalFlash .8s ease-in-out infinite}@keyframes mrBalFlash{0%,100%{background:#dc2626;color:#fff;transform:scale(1)}50%{background:#fca5a5;color:#dc2626;transform:scale(1.05)}}
 .sortable{cursor:pointer}.sort-asc::after{content:' ▲';font-size:9px}.sort-desc::after{content:' ▼';font-size:9px}
 /* HWMS-specific */
 .hwms-dr-btn{padding:2px 5px;font-size:9px;font-weight:700;border:1px solid var(--border2);border-radius:3px;background:var(--surface);cursor:pointer;color:var(--text2)}.hwms-dr-btn:hover{background:var(--accent-light);border-color:var(--accent)}
@@ -175,8 +176,8 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 <!-- Photo Lightbox -->
 <div id="photoLightbox" onclick="this.style.display='none'"><img id="photoLightboxImg" src=""><div style="display:flex;gap:10px"><button id="sharePhotoBtn" onclick="event.stopPropagation()" style="display:none;background:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer">Share</button></div></div>
 <!-- Topbar -->
-<div class="topbar" id="hwmsTopbar" style="display:none">
-  <button class="ham" onclick="toggleHwmsNav()">☰</button>
+<div class="topbar" id="hwmsTopbar">
+  <button class="ham" onclick="toggleHwmsNav()" title="Toggle sidebar menu">☰</button>
   <div class="title" id="hwmsPageTitle">HWMS</div>
   <div class="user-info"><span id="hwmsUserName"></span> <span style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block" id="sbStatusDot" title="DB"></span></div>
 </div>
@@ -200,6 +201,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <div class="nav-item" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Invoices <span class="hwms-cnt" id="hcInvoices"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsInventory')">&#x1F4E6; Inventory</div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsSubInvoices')">&#x1F4E4; Sub-Invoices <span class="hwms-cnt" id="hcSubInvoices"></span></div>
+  <div class="nav-item" onclick="hwmsGo('pageHwmsMR')">&#x1F4DD; Material Requests <span class="hwms-cnt" id="hcMR"></span></div>
   <div class="nav-sec">MASTERS</div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
   <div class="nav-item" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
@@ -260,14 +262,16 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
         <div style="overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:100%"><thead>
           <tr style="background:var(--surface2)">
             <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Invoice No.</div><input type="text" id="hwmsInvFilterInvNo" placeholder="Search..." oninput="renderHwmsInvoices()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Date</div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
+            <th style="padding:4px 6px;vertical-align:top;max-width:110px"><div style="font-size:11px;margin-bottom:3px">Invoice No.</div><input type="text" id="hwmsInvFilterInvNo" placeholder="Search..." oninput="renderHwmsInvoices()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
+            <th style="padding:4px 6px;vertical-align:top;max-width:100px"><div style="font-size:11px;margin-bottom:3px">Date</div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status</div><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">WH</option></select></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($)</div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div></th>
             <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsInvClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
           </tr>
         </thead><tbody id="hwmsInvBody"></tbody></table></div>
@@ -583,16 +587,8 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
         <div class="card-header" style="flex-wrap:wrap;gap:8px">
           <div class="card-title">All Sub-Invoices</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="text" id="hwmsSiSearch" placeholder="🔍 Search…" oninput="renderHwmsSubInvoices()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);min-width:140px">
-            <select id="hwmsSiStatusFilter" onchange="renderHwmsSubInvoices()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">
-              <option value="">All Status</option>
-              <option value="Draft">Draft</option>
-              <option value="Dispatched">Dispatched</option>
-              <option value="Delivered">Delivered</option>
-            </select>
             <button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>
             <label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>
-            <button class="btn btn-primary" onclick="openHwmsSiModal()" style="font-size:13px;padding:8px 18px">+ New Sub-Invoice</button>
           </div>
         </div>
         <div id="hwmsSiStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
@@ -603,22 +599,32 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           <button onclick="_hwmsSiClearSel()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">Cancel</button>
         </div>
         <div class="table-wrap">
-          <table><thead><tr>
+          <style>
+            #hwmsSiTbl thead th{background:var(--surface2);color:var(--text);font-size:12px;font-weight:800;letter-spacing:.3px;padding:8px 8px 6px;vertical-align:top;border-bottom:3px solid var(--accent);white-space:nowrap}
+            #hwmsSiTbl thead th div{cursor:pointer}
+            #hwmsSiTbl thead th input,#hwmsSiTbl thead th select{font-size:10px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box;margin-top:4px;background:#fff;color:var(--text)}
+            #hwmsSiTbl thead th input::placeholder{color:var(--text3)}
+            #hwmsSiTbl tbody tr{border-bottom:1.5px solid var(--border);transition:background .1s}
+            #hwmsSiTbl tbody tr:nth-child(even){background:rgba(42,154,160,.03)}
+            #hwmsSiTbl tbody tr:hover{background:rgba(42,154,160,.08)}
+            #hwmsSiTbl tbody td{padding:10px 8px;font-size:13px;border-bottom:1.5px solid #e8ecf0}
+          </style>
+          <table id="hwmsSiTbl"><thead><tr>
             <th style="width:30px;text-align:center"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
-            <th>Date</th>
-            <th>Sub-Invoice (Original)</th>
-            <th>Customer</th>
-            <th>Pallet-Part × Qty</th>
-            <th style="text-align:right">Amount</th>
-            <th style="text-align:right">Tariff %</th>
-            <th style="text-align:right">Tariff Amt</th>
-            <th style="text-align:center">Pickup</th>
-            <th>Pickup Date</th>
-            <th style="text-align:center">GRN</th>
-            <th>GRN Date</th>
-            <th style="text-align:center">Payment</th>
-            <th style="text-align:right">Received</th>
-            <th style="text-align:right">Balance</th>
+            <th class="sortable" onclick="_hwmsSiSort('date')"><div>Date <span id="hwmsSiSortI_date"></span></div></th>
+            <th class="sortable" onclick="_hwmsSiSort('subInvoiceNumber')"><div>Sub-Inv # <span id="hwmsSiSortI_subInvoiceNumber"></span></div><input type="text" id="hwmsSiFltNum" placeholder="Filter…" oninput="renderHwmsSubInvoices()"></th>
+            <th class="sortable" onclick="_hwmsSiSort('customerName')"><div>Customer <span id="hwmsSiSortI_customerName"></span></div><input type="text" id="hwmsSiFltCust" placeholder="Filter…" oninput="renderHwmsSubInvoices()"></th>
+            <th style="min-width:260px" class="sortable" onclick="_hwmsSiSort('parts')"><div>Pallet-Part × Qty <span id="hwmsSiSortI_parts"></span></div><input type="text" id="hwmsSiFltPart" placeholder="Part…" oninput="renderHwmsSubInvoices()"></th>
+            <th style="text-align:right" class="sortable" onclick="_hwmsSiSort('amount')"><div>Amount <span id="hwmsSiSortI_amount"></span></div></th>
+            <th style="text-align:right" class="sortable" onclick="_hwmsSiSort('tariffPercent')"><div>Tariff % <span id="hwmsSiSortI_tariffPercent"></span></div></th>
+            <th style="text-align:right" class="sortable" onclick="_hwmsSiSort('tariffAmount')"><div>Tariff Amt <span id="hwmsSiSortI_tariffAmount"></span></div></th>
+            <th style="text-align:center" class="sortable" onclick="_hwmsSiSort('pickupStatus')"><div>Pickup <span id="hwmsSiSortI_pickupStatus"></span></div><select id="hwmsSiFltPickup" onchange="renderHwmsSubInvoices()"><option value="">All</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select></th>
+            <th class="sortable" onclick="_hwmsSiSort('pickupDate')"><div>Pickup Dt <span id="hwmsSiSortI_pickupDate"></span></div></th>
+            <th style="text-align:center" class="sortable" onclick="_hwmsSiSort('grnStatus')"><div>GRN <span id="hwmsSiSortI_grnStatus"></span></div><select id="hwmsSiFltGrn" onchange="renderHwmsSubInvoices()"><option value="">All</option><option value="Pending">Pending</option><option value="Received">Received</option></select></th>
+            <th class="sortable" onclick="_hwmsSiSort('grnDate')"><div>GRN Dt <span id="hwmsSiSortI_grnDate"></span></div></th>
+            <th style="text-align:center" class="sortable" onclick="_hwmsSiSort('paymentStatus')"><div>Payment <span id="hwmsSiSortI_paymentStatus"></span></div><select id="hwmsSiFltPay" onchange="renderHwmsSubInvoices()"><option value="">All</option><option value="Pending">Pending</option><option value="Partially Paid">Part. Paid</option><option value="Fully Paid">Fully Paid</option></select></th>
+            <th style="text-align:right" class="sortable" onclick="_hwmsSiSort('paymentReceived')"><div>Received <span id="hwmsSiSortI_paymentReceived"></span></div></th>
+            <th style="text-align:right" class="sortable" onclick="_hwmsSiSort('paymentBalance')"><div>Balance <span id="hwmsSiSortI_paymentBalance"></span></div></th>
           </tr></thead><tbody id="hwmsSiBody"></tbody></table>
         </div>
       </div>
@@ -636,6 +642,68 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <div class="card" style="padding:20px 24px" id="hwmsSiViewBody"></div>
     </div>
 
+    <!-- MATERIAL REQUEST PAGE -->
+    <div class="page" id="pageHwmsMR">
+      <div class="page-header">
+        <div class="page-title">Material Requests</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-secondary" onclick="_hwmsMrExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsMrImport(this)"></label>
+          <button class="btn btn-primary" onclick="openHwmsMrModal()" style="font-size:13px;padding:8px 18px">+ New MR</button>
+        </div>
+      </div>
+      <div id="hwmsMrStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+      <div class="table-wrap">
+        <table><thead><tr>
+          <th class="sortable" onclick="_hwmsMrSort('mrNumber')">MR # <span id="hwmsMrSI_mrNumber"></span></th>
+          <th class="sortable" onclick="_hwmsMrSort('mrDate')">Date <span id="hwmsMrSI_mrDate"></span></th>
+          <th class="sortable" onclick="_hwmsMrSort('createdBy')">Raised By <span id="hwmsMrSI_createdBy"></span></th>
+          <th class="sortable" onclick="_hwmsMrSort('needByDate')">Need-by <span id="hwmsMrSI_needByDate"></span></th>
+          <th style="text-align:center">Items</th>
+          <th style="text-align:right">Total Amt ($)</th>
+          <th>Actions</th>
+        </tr></thead><tbody id="hwmsMrBody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- MATERIAL REQUEST DETAIL VIEW -->
+    <div class="page" id="pageHwmsMrView">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="btn" onclick="hwmsGo('pageHwmsMR')" style="padding:6px 14px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">← Back</button>
+          <div class="page-title" id="hwmsMrViewTitle">MR Details</div>
+        </div>
+        <div id="hwmsMrViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
+      </div>
+      <div class="card" style="padding:20px 24px" id="hwmsMrViewBody"></div>
+    </div>
+
+    <!-- MATERIAL REQUEST MODAL -->
+    <div class="modal-overlay" id="mHwmsMr"><div class="modal" style="max-width:800px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 24px">
+      <div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsMrTitle">New Material Request</div><div class="modal-close" onclick="cm('mHwmsMr')">×</div></div>
+      <input type="hidden" id="hwmsMrId">
+      <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:140px"><label>MR Number</label><input type="text" id="hwmsMrNum" readonly style="font-family:var(--mono);font-weight:700;background:#f1f5f9;color:var(--text3)"></div>
+        <div class="form-group" style="margin:0;flex:1;min-width:140px"><label>MR Date</label><input type="date" id="hwmsMrDate" readonly style="background:#f1f5f9;color:var(--text3)"></div>
+        <div class="form-group" style="margin:0;flex:1;min-width:140px"><label>Need-by Date *</label><input type="date" id="hwmsMrNeedBy"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px"><label>Remarks</label><input type="text" id="hwmsMrRemarks" placeholder="Optional notes"></div>
+      <!-- Line items -->
+      <div style="font-size:13px;font-weight:800;margin-bottom:6px">Line Items</div>
+      <div style="display:flex;gap:6px;align-items:end;margin-bottom:8px;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:2;min-width:120px"><label style="font-size:10px">Part Number</label><input type="text" id="hwmsMrAddPart" list="hwmsMrPartList" placeholder="Type part #" style="font-family:var(--mono);font-weight:700"><datalist id="hwmsMrPartList"></datalist></div>
+        <div class="form-group" style="margin:0;flex:1;min-width:90px"><label style="font-size:10px">PO Number</label><input type="text" id="hwmsMrAddPo" placeholder="PO#" style="font-family:var(--mono)"></div>
+        <div class="form-group" style="margin:0;width:80px"><label style="font-size:10px">Qty</label><input type="number" id="hwmsMrAddQty" class="no-spin" min="1" style="font-family:var(--mono);font-weight:700;text-align:center"></div>
+        <div id="hwmsMrAddBtnArea"><button onclick="_hwmsMrAddLine()" style="padding:6px 14px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;height:34px">+ Add</button></div>
+      </div>
+      <div id="hwmsMrLinesList" style="margin-bottom:12px"></div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding-top:12px;margin:0 -24px;padding-left:24px;padding-right:24px">
+        <div class="modal-err" id="merr_mHwmsMr"></div>
+        <button class="btn btn-secondary" onclick="cm('mHwmsMr')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveHwmsMr()">Save</button>
+      </div>
+    </div></div>
+
     <!-- SECURITY CHECKPOINT MASTER -->
     <div class="page" id="pageCheckpoints">
 
@@ -652,6 +720,11 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <div class="form-group" style="margin:0;flex:1"><label>Sub-Invoice Number *</label><input type="text" id="hwmsSiNum" placeholder="SI-001" style="font-family:var(--mono);font-weight:700"></div>
     <div class="form-group" style="margin:0;width:160px"><label>Date *</label><input type="date" id="hwmsSiDate"></div>
   </div>
+  <!-- MR Parts with Stock Reference -->
+  <div id="hwmsSiMrRef" style="display:none;margin-bottom:14px;border:1.5px solid #bfdbfe;border-radius:10px;background:#eff6ff;padding:12px 14px">
+    <div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:8px">📋 Open MR Parts with Warehouse Stock</div>
+    <div id="hwmsSiMrRefBody" style="max-height:260px;overflow-y:auto"></div>
+  </div>
   <!-- Row 2: Original Invoice selector -->
   <div class="form-group" style="margin-bottom:10px"><label>Original Invoice *</label>
     <select id="hwmsSiInvSel" onchange="_hwmsSiOnInvChange()" style="font-family:var(--mono)"><option value="">— Select Invoice —</option></select>
@@ -667,7 +740,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <!-- Pickup -->
   <div style="display:flex;gap:10px;margin-bottom:10px">
     <div class="form-group" style="margin:0;flex:1"><label>Pickup Status</label>
-      <select id="hwmsSiPickup"><option value="">—</option><option value="Scheduled">Scheduled</option><option value="Picked Up">Picked Up</option></select>
+      <select id="hwmsSiPickup"><option value="">—</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select>
     </div>
     <div class="form-group" style="margin:0;flex:1"><label>Pickup Date</label><input type="date" id="hwmsSiPickupDate"></div>
   </div>
@@ -697,6 +770,18 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <button class="btn btn-secondary" onclick="cm('mHwmsSi')">Cancel</button>
     <button class="btn btn-primary" onclick="saveHwmsSi()">Save</button>
   </div>
+</div></div>
+<!-- HWMS SUB-INVOICE PREVIEW POPUP -->
+<div class="modal-overlay" id="mHwmsSiPreview" style="z-index:1100"><div class="modal" style="max-width:860px;width:95vw;height:calc(100vh - 20px);max-height:calc(100vh - 20px);overflow:hidden;padding:0;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+    <div style="font-size:14px;font-weight:800;color:var(--text)">🖨️ Sub-Invoice Preview</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="_hwmsSiPreviewPrint()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer">🖨️ Print</button>
+      <button class="btn" onclick="_hwmsSiPreviewNewTab()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:5px;cursor:pointer">↗ Open in New Tab</button>
+      <div class="modal-close" onclick="cm('mHwmsSiPreview')" style="position:static">×</div>
+    </div>
+  </div>
+  <iframe id="hwmsSiPreviewFrame" style="flex:1;width:100%;border:none;background:#fff"></iframe>
 </div></div>
 <!-- HWMS PART MASTER MODAL -->
 <div class="modal-overlay" id="mHwmsPart"><div class="modal" style="max-width:904px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsPartTitle">Add Part</div><div class="modal-close" onclick="cm('mHwmsPart')">×</div></div>
@@ -1015,8 +1100,13 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 <script>
 // ── HWMS Navigation ─────────────────────────────────────────────────────────
 function toggleHwmsNav(){
-  document.getElementById('hwmsSidebar').classList.toggle('open');
-  document.getElementById('hwmsOverlay').classList.toggle('show');
+  var isMobile=window.innerWidth<=700;
+  if(isMobile){
+    document.getElementById('hwmsSidebar').classList.toggle('open');
+    document.getElementById('hwmsOverlay').classList.toggle('show');
+  } else {
+    document.body.classList.toggle('hwms-nav-hidden');
+  }
 }
 function hwmsGo(pageId){
   document.querySelectorAll('#hwmsApp .page').forEach(p=>p.classList.remove('active'));
@@ -1038,6 +1128,8 @@ function hwmsGo(pageId){
     pageHwmsInventory: ()=>{ if(typeof renderHwmsInventory==='function') renderHwmsInventory(); },
     pageHwmsSubInvoices: ()=>{ if(typeof renderHwmsSubInvoices==='function') renderHwmsSubInvoices(); },
     pageHwmsSiView: ()=>{}, // rendered by showHwmsSiDetail
+    pageHwmsMR: ()=>{ if(typeof renderHwmsMR==='function') renderHwmsMR(); },
+    pageHwmsMrView: ()=>{}, // rendered by showHwmsMrDetail
     pageHwmsParts: ()=>{ if(typeof renderHwmsParts==='function') renderHwmsParts(); },
     pageHwmsOtherMasters: ()=>{
       if(typeof renderHwmsPacking==='function') renderHwmsPacking();
@@ -1125,10 +1217,9 @@ async function _hwmsBoot(){
     return;
   }
   const splash=document.getElementById('dbSplash');
-  var hasCache=false;try{hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
-  if(!hasCache && splash) splash.style.display='flex';
+  if(splash) splash.style.display='none';
   // Load only HWMS tables — not VMS/Security tables
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices'];
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
   // Auto-login from session
@@ -1151,6 +1242,20 @@ async function _hwmsBoot(){
       }
       hwmsGo('pageHwmsContainers');
       _hwmsUpdCounts();
+      // Immediate sync with database on first open (don't wait for 3s delay)
+      if(typeof _bgSyncFromSupabase==='function'&&typeof _sbReady!=='undefined'&&_sbReady){
+        _bgSyncFromSupabase();
+      } else {
+        // Supabase may not be ready yet — retry quickly
+        var _hwmsSyncRetry=setInterval(function(){
+          if(typeof _bgSyncFromSupabase==='function'&&typeof _sbReady!=='undefined'&&_sbReady){
+            clearInterval(_hwmsSyncRetry);
+            _bgSyncFromSupabase();
+          }
+        },500);
+        // Give up after 10s
+        setTimeout(function(){clearInterval(_hwmsSyncRetry);},10000);
+      }
       // Hook: re-render current page when bgSync refreshes data
       _onRefreshViews = function(){
         try{
@@ -2001,6 +2106,12 @@ async function _hwmsConfirmInv(id){
   const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
   // Invoice header checks (container number NOT required)
   if(!inv.invoiceNumber||inv.invoiceNumber.endsWith('-Draft')) errors.push('Invoice Number is not set (still Draft)');
+  else{
+    // Validate 5-digit invoice number (e.g. 2526-00001)
+    var invNumParts=(inv.invoiceNumber||'').split('-');
+    var invSuffix=invNumParts.length>=2?invNumParts[invNumParts.length-1]:'';
+    if(!/^\d{5}$/.test(invSuffix)) errors.push('Invoice Number must have a 5-digit number (e.g. 2526-00001). Current: '+inv.invoiceNumber);
+  }
   if(!inv.date) errors.push('Invoice Date is missing');
   if(!inv.buyerName&&!inv.buyerId) errors.push('Buyer (Customer) not selected');
   if(!inv.modeOfTransport) errors.push('Mode of Transport missing');
@@ -2310,7 +2421,7 @@ function openHwmsContModal(id){
   if(isDispatched){
     dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';
     dispBtn.style.display='';dispBtn.style.opacity='.7';dispBtn.style.cursor='not-allowed';
-    if(undoBtn) undoBtn.style.display=(isSA&&!isReachedStatus)?'':'none';
+    if(undoBtn) undoBtn.style.display=(!isReachedStatus)?'inline-flex':'none';
     if(dispLabel){
       const dDate=c.pickupDate?_hwmsFmtDateDMY(c.pickupDate):'';
       dispLabel.innerHTML='🚢 Container dispatched on <strong>'+dDate+'</strong>';
@@ -2574,9 +2685,12 @@ async function _hwmsContDispatch(){
   const dispBtn=document.getElementById('btnHwmsContDispatch');
   dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';
   dispBtn.style.opacity='.7';dispBtn.style.cursor='not-allowed';
+  // Show Undo Dispatch button immediately — visible and prominent
   const undoDispBtn=document.getElementById('btnHwmsContUndoDispatch');
-  const isSA=CU&&CU.roles.includes('Super Admin');
-  if(undoDispBtn) undoDispBtn.style.display=isSA?'':'none';
+  if(undoDispBtn){
+    undoDispBtn.style.display='inline-flex';
+    undoDispBtn.style.animation='kapLocFlash 0.8s ease-in-out 3';
+  }
   // Show dispatch label
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
   if(dispLabel){
@@ -2737,7 +2851,7 @@ async function _hwmsContRevokeReached(){
   const dispBtn=document.getElementById('btnHwmsContDispatch');
   if(dispBtn){dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';dispBtn.style.opacity='.7';dispBtn.style.cursor='not-allowed';dispBtn.style.display='';}
   const undoBtn=document.getElementById('btnHwmsContUndoDispatch');
-  if(undoBtn) undoBtn.style.display='';
+  if(undoBtn) undoBtn.style.display='inline-flex';
   // Show dispatch label
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
   if(dispLabel){dispLabel.innerHTML='🚢 Container dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';dispLabel.style.display='';}
@@ -2933,10 +3047,38 @@ document.addEventListener('click',function(e){
 // ── INVENTORY ──────────────────────────────────────────────────────────────
 // ── SUB-INVOICES (Dispatch to Customer) ───────────────────────────────────
 var _hwmsSiSortKey='date',_hwmsSiSortAsc=false;
+function _hwmsSiSort(key){
+  if(_hwmsSiSortKey===key) _hwmsSiSortAsc=!_hwmsSiSortAsc;
+  else{_hwmsSiSortKey=key;_hwmsSiSortAsc=key==='subInvoiceNumber'||key==='customerName'||key==='parts';}
+  renderHwmsSubInvoices();
+}
+function _hwmsSiSortIcons(){
+  var cols=['date','subInvoiceNumber','customerName','parts','amount','tariffPercent','tariffAmount','pickupStatus','pickupDate','grnStatus','grnDate','paymentStatus','paymentReceived','paymentBalance'];
+  cols.forEach(function(c){
+    var el=document.getElementById('hwmsSiSortI_'+c);
+    if(el) el.textContent=_hwmsSiSortKey===c?(_hwmsSiSortAsc?'▲':'▼'):'';
+  });
+}
+// Helper: get sort value for a sub-invoice row
+function _hwmsSiSortVal(si,key){
+  if(key==='amount') return (si.lineItems||[]).reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
+  if(key==='parts') return (si.lineItems||[]).map(function(l){return(l.palletNumber||'')+l.partNumber;}).join(',');
+  var v=si[key];
+  if(v===undefined||v===null) return '';
+  return v;
+}
 function renderHwmsSubInvoices(){
   var subs=DB.hwmsSubInvoices||[];
+  // Global search bar
   var search=(document.getElementById('hwmsSiSearch')?.value||'').toLowerCase();
   var statusF=document.getElementById('hwmsSiStatusFilter')?.value||'';
+  // Column filters
+  var fNum=(document.getElementById('hwmsSiFltNum')?.value||'').toLowerCase();
+  var fCust=(document.getElementById('hwmsSiFltCust')?.value||'').toLowerCase();
+  var fPart=(document.getElementById('hwmsSiFltPart')?.value||'').toLowerCase();
+  var fPickup=document.getElementById('hwmsSiFltPickup')?.value||'';
+  var fGrn=document.getElementById('hwmsSiFltGrn')?.value||'';
+  var fPay=document.getElementById('hwmsSiFltPay')?.value||'';
   var rows=subs.filter(function(si){
     if(search){
       var match=(si.subInvoiceNumber||'').toLowerCase().indexOf(search)>=0
@@ -2944,33 +3086,55 @@ function renderHwmsSubInvoices(){
         ||(si.invoiceId||'').toLowerCase().indexOf(search)>=0;
       if(!match) return false;
     }
-    if(statusF){
-      var st=_hwmsSiOverallStatus(si);
-      if(st!==statusF) return false;
+    if(statusF){var st=_hwmsSiOverallStatus(si);if(st!==statusF) return false;}
+    if(fNum&&(si.subInvoiceNumber||'').toLowerCase().indexOf(fNum)<0) return false;
+    if(fCust&&(si.customerName||'').toLowerCase().indexOf(fCust)<0) return false;
+    if(fPart){
+      var hasP=(si.lineItems||[]).some(function(l){return((l.palletNumber||'')+(l.partNumber||'')).toLowerCase().indexOf(fPart)>=0;});
+      if(!hasP) return false;
     }
+    if(fPickup&&(si.pickupStatus||'')!==fPickup) return false;
+    if(fGrn&&(si.grnStatus||'')!==fGrn) return false;
+    if(fPay&&(si.paymentStatus||'')!==fPay) return false;
     return true;
   });
+  // Sort
+  var numericKeys={amount:1,tariffPercent:1,tariffAmount:1,paymentReceived:1,paymentBalance:1};
   rows.sort(function(a,b){
-    var va=a[_hwmsSiSortKey]||'',vb=b[_hwmsSiSortKey]||'';
-    return _hwmsSiSortAsc?va.toString().localeCompare(vb.toString()):vb.toString().localeCompare(va.toString());
+    var va=_hwmsSiSortVal(a,_hwmsSiSortKey);
+    var vb=_hwmsSiSortVal(b,_hwmsSiSortKey);
+    if(numericKeys[_hwmsSiSortKey]){
+      va=parseFloat(va)||0;vb=parseFloat(vb)||0;
+      return _hwmsSiSortAsc?va-vb:vb-va;
+    }
+    va=(va||'').toString().toLowerCase();vb=(vb||'').toString().toLowerCase();
+    return _hwmsSiSortAsc?va.localeCompare(vb):vb.localeCompare(va);
   });
-  // Stats
-  var totalAmt=subs.reduce(function(s,si){return s+_hwmsSiTotalAmt(si);},0);
-  var paid=subs.filter(function(si){return si.paymentStatus==='Fully Paid';}).length;
-  var pending=subs.filter(function(si){return!si.paymentStatus||si.paymentStatus==='Pending';}).length;
+  _hwmsSiSortIcons();
+  // Stats — computed from filtered rows
+  var fTotalAmt=rows.reduce(function(s,si){return s+_hwmsSiTotalAmt(si);},0);
+  var fTotalRcvd=rows.reduce(function(s,si){return s+(parseFloat(si.paymentReceived)||0);},0);
+  var fTotalBal=rows.reduce(function(s,si){return s+(parseFloat(si.paymentBalance)||0);},0);
+  var paid=rows.filter(function(si){return si.paymentStatus==='Fully Paid';}).length;
+  var pending=rows.filter(function(si){return!si.paymentStatus||si.paymentStatus==='Pending';}).length;
+  var fmtAmt=function(v){return'$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var isFiltered=rows.length!==subs.length;
+  var countLabel=isFiltered?rows.length+'/'+subs.length:String(subs.length);
   var statsEl=document.getElementById('hwmsSiStats');
   if(statsEl) statsEl.innerHTML=
-    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+subs.length+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Total</div></div>'+
-    '<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:20px;font-weight:900;color:#2563eb;font-family:var(--mono)">$'+totalAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Value</div></div>'+
-    '<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+paid+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Fully Paid</div></div>'+
-    '<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>';
+    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+countLabel+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Showing</div></div>'
+    +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:8px 14px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fmtAmt(fTotalAmt)+'</div><div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Amount</div></div>'
+    +'<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fmtAmt(fTotalRcvd)+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Received</div></div>'
+    +'<div style="background:'+(fTotalBal>0?'#fef2f2':'#f0fdf4')+';border:1.5px solid '+(fTotalBal>0?'#fecaca':'#bbf7d0')+';border-radius:10px;padding:8px 14px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:'+(fTotalBal>0?'#dc2626':'#16a34a')+';font-family:var(--mono)">'+fmtAmt(fTotalBal)+'</div><div style="font-size:10px;font-weight:700;color:'+(fTotalBal>0?'#991b1b':'#15803d')+';text-transform:uppercase">Balance</div></div>'
+    +'<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+paid+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Fully Paid</div></div>'
+    +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>';
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var isSA=CU&&CU.roles&&CU.roles.includes('Super Admin');
   // Reset bulk bar + select-all checkbox
   var bulkBar=document.getElementById('hwmsSiBulkBar');if(bulkBar)bulkBar.style.display='none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
-  if(!rows.length){body.innerHTML='<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet — click "+ New Sub-Invoice" to dispatch material</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   body.innerHTML=rows.map(function(si){
     var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
     var invNum=inv?inv.invoiceNumber||'':'';
@@ -2979,40 +3143,50 @@ function renderHwmsSubInvoices(){
     var partsHtml=lis.map(function(l){
       var pLabel=(l.palletNumber?l.palletNumber+'-':'')+l.partNumber;
       return '<span style="font-family:var(--mono);font-size:11px;font-weight:700">'+pLabel+'</span><span style="font-size:10px;color:var(--text3)"> ×'+l.quantity+'</span>';
-    }).join(', ');
+    }).join('<br>');
     var custFirst=(si.customerName||'').split(/\s+/)[0]||'—';
     var pickupB=_hwmsSiBadge(si.pickupStatus,'pickup');
     var grnB=_hwmsSiBadge(si.grnStatus,'grn');
     var payB=_hwmsSiBadge(si.paymentStatus,'payment');
     return '<tr style="cursor:pointer" onclick="_hwmsSiRowClick(event,\''+si.id+'\')">'
-      +'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>'
-      +'<td style="font-family:var(--mono);font-size:12px;white-space:nowrap">'+fd2(si.date)+'</td>'
-      +'<td><div style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:13px">'+si.subInvoiceNumber+'</div>'+(invNum?'<div style="font-size:10px;color:var(--text3)">('+invNum+')</div>':'')+'</td>'
-      +'<td style="font-size:12px;white-space:nowrap" title="'+(si.customerName||'')+'">'+custFirst+'</td>'
-      +'<td style="font-size:11px;max-width:220px;white-space:normal;word-break:break-word;line-height:1.5">'+partsHtml+'</td>'
-      +'<td style="text-align:right;font-family:var(--mono);font-weight:700;font-size:12px">$'+totalAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
-      +'<td style="text-align:right;font-family:var(--mono);font-size:11px">'+(si.tariffPercent?si.tariffPercent+'%':'—')+'</td>'
-      +'<td style="text-align:right;font-family:var(--mono);font-size:11px">'+(si.tariffAmount?'$'+Number(si.tariffAmount).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
+      +'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>'
+      +'<td style="font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap">'+fd2(si.date)+'</td>'
+      +'<td><div style="font-family:var(--mono);font-size:14px"><span style="font-weight:400">'+si.subInvoiceNumber.substring(0,4)+'</span><span style="font-weight:700">'+si.subInvoiceNumber.substring(4,9)+'</span><span style="font-weight:700;color:#2563eb">'+si.subInvoiceNumber.substring(9)+'</span></div><div onclick="event.stopPropagation();_hwmsSiPreviewPopup(\''+si.id+'\')" style="margin-top:3px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#2563eb;font-weight:700" title="Print Preview"><span style="font-size:13px">🖨️</span> Preview</div></td>'
+      +'<td style="font-size:13px;font-weight:700;white-space:nowrap" title="'+(si.customerName||'')+'">'+custFirst+'</td>'
+      +'<td style="min-width:260px;white-space:normal;word-break:break-word;line-height:1.7">'+partsHtml+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:13px">$'+totalAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-size:12px;font-weight:600">'+(si.tariffPercent?si.tariffPercent+'%':'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-size:12px;font-weight:600">'+(si.tariffAmount?'$'+Number(si.tariffAmount).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
       +'<td style="text-align:center">'+pickupB+'</td>'
-      +'<td style="font-family:var(--mono);font-size:11px">'+fd2(si.pickupDate)+'</td>'
+      +'<td style="font-family:var(--mono);font-size:12px;font-weight:600">'+fd2(si.pickupDate)+'</td>'
       +'<td style="text-align:center">'+grnB+'</td>'
-      +'<td style="font-family:var(--mono);font-size:11px">'+fd2(si.grnDate)+'</td>'
+      +'<td style="font-family:var(--mono);font-size:12px;font-weight:600">'+fd2(si.grnDate)+'</td>'
       +'<td style="text-align:center">'+payB+'</td>'
-      +'<td style="text-align:right;font-family:var(--mono);font-size:11px;color:#16a34a;font-weight:700">'+(si.paymentReceived?'$'+Number(si.paymentReceived).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
-      +'<td style="text-align:right;font-family:var(--mono);font-size:11px;color:'+(si.paymentBalance>0?'#dc2626':'var(--text3)')+';font-weight:700">'+(si.paymentBalance?'$'+Number(si.paymentBalance).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-size:13px;color:#16a34a;font-weight:800">'+(si.paymentReceived?'$'+Number(si.paymentReceived).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-size:13px;color:'+(si.paymentBalance>0?'#dc2626':'var(--text3)')+';font-weight:800">'+(si.paymentBalance?'$'+Number(si.paymentBalance).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
       +'</tr>';
   }).join('');
+  // Totals footer row
+  if(rows.length){
+    body.innerHTML+='<tr style="background:#f1f5f9;border-top:3px solid var(--accent);cursor:default">'
+      +'<td colspan="5" style="padding:10px 8px;font-size:13px;font-weight:900;color:var(--text);text-align:right;text-transform:uppercase;letter-spacing:.5px">Totals ('+rows.length+' rows)</td>'
+      +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:#2563eb">'+fmtAmt(fTotalAmt)+'</td>'
+      +'<td colspan="7"></td>'
+      +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:#16a34a">'+fmtAmt(fTotalRcvd)+'</td>'
+      +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:'+(fTotalBal>0?'#dc2626':'#16a34a')+'">'+fmtAmt(fTotalBal)+'</td>'
+      +'</tr>';
+  }
 }
 function _hwmsSiTotalAmt(si){return(si.lineItems||[]).reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);}
 function _hwmsSiOverallStatus(si){
-  if(si.pickupStatus==='Picked Up'&&si.grnStatus==='Received') return 'Delivered';
-  if(si.pickupStatus==='Picked Up'||si.pickupStatus==='Scheduled') return 'Dispatched';
+  if(si.pickupStatus==='Picked'&&si.grnStatus==='Received') return 'Delivered';
+  if(si.pickupStatus==='Picked'||si.pickupStatus==='Scheduled') return 'Dispatched';
   return 'Draft';
 }
 function _hwmsSiBadge(val,type){
   if(!val||val==='—') return '<span style="color:var(--text3);font-size:10px">—</span>';
   var colors={
-    'Scheduled':'background:#dbeafe;color:#1d4ed8','Picked Up':'background:#dcfce7;color:#15803d',
+    'Scheduled':'background:#dbeafe;color:#1d4ed8','Picked':'background:#dcfce7;color:#15803d',
     'Pending':'background:#fef2f2;color:#dc2626','Received':'background:#dcfce7;color:#15803d',
     'Partially Paid':'background:#fefce8;color:#a16207','Fully Paid':'background:#dcfce7;color:#15803d'
   };
@@ -3037,7 +3211,8 @@ function showHwmsSiDetail(id){
   document.getElementById('hwmsSiViewTitle').textContent=si.subInvoiceNumber||'Sub-Invoice Details';
   // Action buttons
   document.getElementById('hwmsSiViewActions').innerHTML=
-    '<button class="btn" onclick="openHwmsSiModal(\''+si.id+'\')" style="padding:7px 18px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:800;border-radius:var(--radius);cursor:pointer">✏️ Edit</button>';
+    '<button class="btn" onclick="openHwmsSiModal(\''+si.id+'\')" style="padding:7px 18px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:800;border-radius:var(--radius);cursor:pointer">✏️ Edit</button>'
+    +' <button class="btn" onclick="_hwmsSiPrint(\''+si.id+'\')" style="font-size:12px;padding:7px 10px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer;display:inline-flex;align-items:center;justify-content:center" title="Print Preview Sub-Invoice">🖨️ Print Preview</button>';
   // Body
   var tl='padding:8px 12px;font-size:12px;color:var(--text3);font-weight:700;white-space:nowrap;width:140px;vertical-align:top';
   var tv='padding:8px 12px;font-size:14px;font-weight:700;font-family:var(--mono)';
@@ -3107,7 +3282,94 @@ function openHwmsSiModal(id){
   }).join('');
   if(si&&si.invoiceId) _hwmsSiOnInvChange(si);
   else{document.getElementById('hwmsSiPartsSection').style.display='none';document.getElementById('hwmsSiInvInfo').style.display='none';}
+  // Show MR reference for new sub-invoices
+  _hwmsSiBuildMrRef(!id);
   om('mHwmsSi');
+}
+// ── Build Open MR Parts with Stock Reference ──
+function _hwmsSiBuildMrRef(show){
+  var refEl=document.getElementById('hwmsSiMrRef');
+  var bodyEl=document.getElementById('hwmsSiMrRefBody');
+  if(!refEl||!bodyEl){return;}
+  if(!show){refEl.style.display='none';return;}
+  // Get parts from Open MRs
+  var openMrs=(DB.hwmsMaterialRequests||[]).filter(function(m){return m.status==='Open';});
+  if(!openMrs.length){refEl.style.display='none';return;}
+  // Consolidate parts from all open MRs
+  var mrParts={};// partId → {partNumber, totalReq, mrNums:[], sources:[{invId,invNum,pallet,availQty}]}
+  openMrs.forEach(function(mr){
+    (mr.lineItems||[]).forEach(function(l){
+      var key=l.partId||l.partNumber;
+      if(!mrParts[key]) mrParts[key]={partId:l.partId,partNumber:l.partNumber,totalReq:0,mrNums:[]};
+      mrParts[key].totalReq+=(l.quantity||0);
+      if(mrParts[key].mrNums.indexOf(mr.mrNumber)<0) mrParts[key].mrNums.push(mr.mrNumber);
+    });
+  });
+  // For each part, find invoices with stock (Reached containers)
+  var contMap={};(DB.hwmsContainers||[]).forEach(function(c){contMap[c.id]=c;});
+  // Already dispatched per pallet key across ALL sub-invoices
+  var dispMap={};// 'partId|pallet|invId' → qty
+  (DB.hwmsSubInvoices||[]).forEach(function(si){
+    (si.lineItems||[]).forEach(function(l){
+      var key=(l.partId||'')+'|'+(l.palletNumber||'')+'|'+(si.invoiceId||'');
+      dispMap[key]=(dispMap[key]||0)+(l.quantity||0);
+    });
+  });
+  var hasParts=false;
+  var keys=Object.keys(mrParts);
+  keys.forEach(function(k){
+    var p=mrParts[k];
+    p.sources=[];
+    (DB.hwmsInvoices||[]).forEach(function(inv){
+      var cont=inv.containerId?contMap[inv.containerId]:null;
+      if(!cont||cont.status!=='Reached'||!inv.confirmed) return;
+      (inv.lineItems||[]).forEach(function(li,idx){
+        if(li.partId!==p.partId) return;
+        var pallet=li.palletNumber||'P'+(idx+1);
+        var dispKey=p.partId+'|'+pallet+'|'+inv.id;
+        var dispatched=dispMap[dispKey]||0;
+        var avail=(li.quantity||0)-dispatched;
+        if(avail>0){
+          p.sources.push({invId:inv.id,invNum:inv.invoiceNumber||'—',pallet:pallet,availQty:avail,rate:li.rate||0});
+          hasParts=true;
+        }
+      });
+    });
+  });
+  if(!hasParts){refEl.style.display='none';return;}
+  // Build table
+  var th='padding:6px 8px;font-size:10px;font-weight:700;color:#1d4ed8;border-bottom:1.5px solid #93c5fd;text-transform:uppercase';
+  var h='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:rgba(59,130,246,.08)">'
+    +'<th style="'+th+';text-align:left">Part</th>'
+    +'<th style="'+th+';text-align:left">MR #</th>'
+    +'<th style="'+th+';text-align:right">MR Qty</th>'
+    +'<th style="'+th+';text-align:left">Invoice</th>'
+    +'<th style="'+th+';text-align:center">Pallet</th>'
+    +'<th style="'+th+';text-align:right">Avail Qty</th>'
+    +'<th style="'+th+';text-align:right">Rate ($)</th>'
+    +'</tr></thead><tbody>';
+  var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
+  keys.forEach(function(k){
+    var p=mrParts[k];
+    if(!p.sources.length) return;
+    var totalStock=p.sources.reduce(function(s,src){return s+src.availQty;},0);
+    var stockClr=totalStock>=p.totalReq?'#16a34a':totalStock>0?'#a16207':'#dc2626';
+    p.sources.forEach(function(src,si){
+      h+='<tr style="border-bottom:1px solid #dbeafe">'
+        +(si===0?'<td rowspan="'+p.sources.length+'" style="padding:6px 8px;font-family:var(--mono);font-weight:800;border-bottom:1px solid #93c5fd;vertical-align:top">'+p.partNumber+'</td>'
+          +'<td rowspan="'+p.sources.length+'" style="padding:6px 8px;font-size:10px;color:var(--text2);border-bottom:1px solid #93c5fd;vertical-align:top">'+p.mrNums.join(', ')+'</td>'
+          +'<td rowspan="'+p.sources.length+'" style="padding:6px 8px;font-family:var(--mono);font-weight:700;text-align:right;border-bottom:1px solid #93c5fd;vertical-align:top">'+p.totalReq.toLocaleString()+'</td>'
+          :'')
+        +'<td style="padding:4px 8px;font-family:var(--mono);font-size:11px">'+src.invNum+'</td>'
+        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:center;color:var(--accent)">'+src.pallet+'</td>'
+        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:'+stockClr+'">'+src.availQty.toLocaleString()+'</td>'
+        +'<td style="padding:4px 8px;font-family:var(--mono);text-align:right;font-size:11px">'+fAmt(src.rate)+'</td>'
+        +'</tr>';
+    });
+  });
+  h+='</tbody></table>';
+  bodyEl.innerHTML=h;
+  refEl.style.display='block';
 }
 function _hwmsSiOnInvChange(editSi){
   var invId=document.getElementById('hwmsSiInvSel').value;
@@ -3259,6 +3521,262 @@ async function _hwmsSiBulkDel(){
   notify('✅ Deleted '+ok+(fail?' ('+fail+' failed)':''));
 }
 
+// ── Sub-Invoice Print Preview ──
+function _hwmsSiPrint(id){
+  var html=_hwmsSiBuildPrintHtml(id);if(!html)return;
+  var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  window.open(url,'_blank');
+  setTimeout(function(){URL.revokeObjectURL(url)},60000);
+}
+// ── Sub-Invoice Preview Popup ──
+var _hwmsSiPreviewCurrentId=null;
+function _hwmsSiPreviewPopup(id){
+  _hwmsSiPreviewCurrentId=id;
+  var html=_hwmsSiBuildPrintHtml(id);if(!html)return;
+  var frame=document.getElementById('hwmsSiPreviewFrame');
+  if(!frame) return;
+  // Remove print button from popup version
+  html=html.replace(/<button class="print-hide print-btn"[^>]*>[^<]*<\/button>/,'');
+  frame.srcdoc=html;
+  om('mHwmsSiPreview');
+}
+function _hwmsSiPreviewPrint(){
+  var frame=document.getElementById('hwmsSiPreviewFrame');
+  if(frame&&frame.contentWindow) frame.contentWindow.print();
+}
+function _hwmsSiPreviewNewTab(){
+  if(!_hwmsSiPreviewCurrentId) return;
+  _hwmsSiPrint(_hwmsSiPreviewCurrentId);
+}
+// Number to words (USD)
+function _hwmsNumToWords(n){
+  if(!n||isNaN(n)) return 'USD Zero and Cent Zero Only';
+  var ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  var tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function w(num){
+    if(num===0) return '';
+    if(num<20) return ones[num];
+    if(num<100) return tens[Math.floor(num/10)]+(num%10?' '+ones[num%10]:'');
+    if(num<1000) return ones[Math.floor(num/100)]+' Hundred'+(num%100?' '+w(num%100):'');
+    if(num<100000) return w(Math.floor(num/1000))+' Thousand'+(num%1000?' '+w(num%1000):'');
+    if(num<10000000) return w(Math.floor(num/100000))+' Lakh'+(num%100000?' '+w(num%100000):'');
+    return w(Math.floor(num/10000000))+' Crore'+(num%10000000?' '+w(num%10000000):'');
+  }
+  var dollars=Math.floor(Math.abs(n));
+  var cents=Math.round((Math.abs(n)-dollars)*100);
+  var dw=dollars?w(dollars):'Zero';
+  var cw=cents?w(cents):'Zero';
+  return 'USD '+dw+' and Cent '+cw+' Only';
+}
+function _hwmsSiBuildPrintHtml(id){
+  var si=byId(DB.hwmsSubInvoices||[],id);if(!si) return null;
+  var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
+  var cust=byId(DB.hwmsCustomers||[],si.customerId||(inv?inv.buyerId:''));
+  var co=_getHwmsCompany()||{};
+  var lis=si.lineItems||[];
+  var totalQty=lis.reduce(function(s,l){return s+(l.quantity||0);},0);
+  var totalAmt=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
+  var fd=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();};
+  var _fmt=function(n){return isNaN(n)?'0.00':Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');};
+  var _m=function(v){return v||'';};
+
+  // Resolve buyer/consignee from customer master
+  var consignee=null;
+  if(cust&&cust.consignees&&cust.consignees.length){
+    if(inv&&inv.consigneeIdx>=0&&cust.consignees[inv.consigneeIdx]) consignee=cust.consignees[inv.consigneeIdx];
+    else if(inv&&inv.consigneeName) consignee=cust.consignees.find(function(c){return c.name===inv.consigneeName;})||null;
+    if(!consignee) consignee=cust.consignees.find(function(c){return c.isDefault;})||cust.consignees[0]||null;
+  }
+  var plPort=inv?byId(DB.hwmsPortLoading||[],inv.portOfLoadingId):null;
+  var pdPort=inv?byId(DB.hwmsPortDischarge||[],inv.portOfDischargeId):null;
+
+  // Exporter from Company Details
+  var coName=co.companyName||'';
+  var coAddr=co.address||'';
+  var coGstin=co.gstin||'';
+  var coIec=co.iec||'';
+  var coRex=co.rex||'';
+  var coCountry=co.country||'India';
+  var coPlaceReceipt=co.placeReceipt||'';
+  var coSupplier=cust&&cust.supplierCode?cust.supplierCode:(co.supplierCode||'');
+
+  // Buyer from Customer Master
+  var buyerName=cust?cust.customerName||'':'';
+  var buyerAddr=cust?cust.address||'':'';
+
+  // Consignee from Customer Master consignees
+  var consName=consignee?consignee.name||'':'';
+  var consAddr=consignee?consignee.address||'':'';
+  var consCountry=consignee?consignee.country||(cust?cust.country:''):(cust?cust.country:'');
+
+  var deliveryTerms=(inv?inv.delivery||'DDP':'DDP')+', '+(inv?inv.paymentTerms||'':'');
+  var plPortName=plPort?plPort.portName||'':'';
+  var pdPortName=pdPort?pdPort.portName||'':'';
+
+  // Build line item rows (15 rows)
+  var liRows='';
+  for(var i=0;i<15;i++){
+    var li=lis[i];
+    if(li){
+      var part=byId(DB.hwmsParts||[],li.partId);
+      var pn=part?part.partNumber||'':'';
+      var desc=part?part.description||'':'';
+      var hsn=part?part.hsnCode||'':'';
+      var amt=(li.rate||0)*(li.quantity||0);
+      liRows+='<tr style="height:22px">'
+        +'<td class="c b">'+(li.palletNumber||'P'+(i+1))+'</td>'
+        +'<td><div class="mono b" style="font-size:11px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:9px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'
+        +'<td class="c mono" style="font-size:10px">'+_m(hsn)+'</td>'
+        +'<td class="mono" style="font-size:10px">'+(li.poNumber||'')+'</td>'
+        +'<td class="r b">'+(li.quantity?li.quantity.toLocaleString():'')+'</td>'
+        +'<td class="r mono b">'+_fmt(li.rate||0)+'</td>'
+        +'<td class="r mono b">'+_fmt(amt)+'</td>'
+        +'</tr>';
+    } else {
+      liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+    }
+  }
+
+  // Format sub-invoice number: first 4 normal, next 5 bold, rest bold+color
+  var _siNum=si.subInvoiceNumber||'';
+  var _siNumHtml='<span style="font-weight:400">'+_siNum.substring(0,4)+'</span>'
+    +'<span style="font-weight:700">'+_siNum.substring(4,9)+'</span>'
+    +'<span style="font-weight:700;color:#2563eb">'+_siNum.substring(9)+'</span>';
+
+  var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sub-Invoice '+_m(si.subInvoiceNumber)+'</title>'
+  +'<style>'
+  +'@page{size:A4 portrait;margin:8mm}@media print{html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0!important;padding:0!important}.print-hide{display:none!important}}@media screen{body{box-shadow:0 0 20px rgba(0,0,0,.15);background:#fff;min-height:277mm}}'
+  +'*{margin:0;padding:0;box-sizing:border-box}'
+  +'body{font-family:"Aptos Narrow",Arial,Helvetica,sans-serif;font-size:11px;color:#000;width:194mm;max-width:194mm;margin:0 auto;padding:8mm 0 0 0}'
+  +'table{border-collapse:collapse;width:100%}'
+  +'td,th{border:1px solid #000;padding:3px 5px;vertical-align:top}'
+  +'.c{text-align:center}.r{text-align:right}.b{font-weight:700}.mono{font-family:"Aptos Display","Courier New",monospace}'
+  +'.hdr{font-size:24px;font-weight:700;text-align:center;padding:8px;border:1px solid #000}'
+  +'.lbl{font-size:10px;font-weight:700;background:#f8f8f8}'
+  +'.val{font-size:12px}'
+  +'.inv-label{font-size:18px;font-weight:700;font-family:"Aptos Narrow",Arial,sans-serif;text-align:center;vertical-align:middle}'
+  +'.inv-value{font-size:18px;font-weight:700;font-family:"Aptos Narrow",Arial,sans-serif;text-align:center;vertical-align:middle}'
+  +'.addr{font-size:11px;white-space:pre-line;line-height:1.4}'
+  +'.tbl-hdr{font-size:12px;font-weight:700;background:#f0f0f0;text-align:center;padding:5px 4px}'
+  +'.tbl-data{font-size:11px;padding:2px 4px}'
+  +'.total-row{font-size:14px;font-weight:700;background:#f0f0f0}'
+  +'.words-row{font-size:11px;font-weight:700}'
+  +'.print-btn{position:fixed;top:10px;right:10px;z-index:999;padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}'
+  +'</style></head><body>'
+  +'<button class="print-hide print-btn" onclick="window.print()">🖨️ Print</button>'
+
+  // Title
+  +'<table><tr><td colspan="7" class="hdr" style="font-size:24px;border-bottom:2px solid #000">FINANCIAL SUBINVOICE</td></tr>'
+
+  // Row: Exporter / Ref / Date label + Date value
+  +'<tr>'
+  +'<td colspan="2" class="lbl">Exporter:</td>'
+  +'<td colspan="2" class="lbl">Exporter\'s Ref:</td>'
+  +'<td colspan="2" class="inv-label" rowspan="2">Date</td>'
+  +'<td class="inv-value" rowspan="2">'+fd(si.date)+'</td>'
+  +'</tr>'
+
+  // Company address + IEC
+  +'<tr>'
+  +'<td colspan="2" class="addr" rowspan="4" style="font-weight:700;font-size:13px">'+_m(coName)+(coAddr?'\\n'+coAddr:'')+(coGstin?'\\n\\nGSTIN: '+coGstin:'')+'</td>'
+  +'<td colspan="2" class="val">'+(coIec?'CBP - '+coIec:'')+(coRex?'\\nREX: '+coRex:'')+'</td>'
+  +'</tr>'
+
+  // Delivery terms + Invoice Number label + value (centered)
+  +'<tr>'
+  +'<td colspan="2" class="lbl">Delivery & Terms of Payment</td>'
+  +'<td colspan="2" class="inv-label" rowspan="2">Invoice Number</td>'
+  +'<td class="inv-value" rowspan="2">'+_siNumHtml+'</td>'
+  +'</tr>'
+
+  +'<tr><td colspan="2" class="val b">'+_m(deliveryTerms)+'</td></tr>'
+
+  +'<tr>'
+  +'<td colspan="2" class="val b">Supplier Code: '+_m(coSupplier)+'</td>'
+  +'<td colspan="3"></td>'
+  +'</tr>'
+
+  // Buyer / Consignee from Customer Master
+  +'<tr>'
+  +'<td colspan="2" class="lbl">Buyer (If other than consignee)</td>'
+  +'<td colspan="5" class="lbl">Consignee:</td>'
+  +'</tr>'
+  +'<tr>'
+  +'<td colspan="2" class="addr" style="min-height:50px;font-size:13px">'+_m(buyerName)+(buyerAddr?'\\n'+buyerAddr:'')+'</td>'
+  +'<td colspan="5" class="addr" style="min-height:50px;font-size:13px">'+_m(consName)+(consAddr?'\\n'+consAddr:'')+'</td>'
+  +'</tr>'
+
+  // Shipping info
+  +'<tr>'
+  +'<td colspan="2" class="lbl">Pre Carriage by</td>'
+  +'<td class="lbl">Port of Loading</td>'
+  +'<td colspan="2" class="lbl" style="font-size:9px">Country of Origin of Goods</td>'
+  +'<td colspan="2"></td>'
+  +'</tr>'
+  +'<tr>'
+  +'<td colspan="2" class="val">By Road</td>'
+  +'<td class="val">'+_m(plPortName)+'</td>'
+  +'<td colspan="2" class="val">'+_m(coCountry)+'</td>'
+  +'<td colspan="2"></td>'
+  +'</tr>'
+
+  +'<tr>'
+  +'<td colspan="2" class="lbl">Place of Receipt by precarrier</td>'
+  +'<td class="lbl">Port of Discharge</td>'
+  +'<td class="lbl">Final Destination</td>'
+  +'<td colspan="2" class="lbl" style="font-size:9px">Country of Final Destination</td>'
+  +'<td></td>'
+  +'</tr>'
+  +'<tr>'
+  +'<td colspan="2" class="val b">'+_m(coPlaceReceipt||consCountry)+'</td>'
+  +'<td class="val">'+_m(pdPortName)+'</td>'
+  +'<td class="val">'+_m(consCountry)+'</td>'
+  +'<td colspan="2" class="val">'+_m(consCountry)+'</td>'
+  +'<td></td>'
+  +'</tr>'
+
+  // Line items header
+  +'<tr>'
+  +'<td class="tbl-hdr" style="width:50px">Pallet</td>'
+  +'<td class="tbl-hdr">Part Number & Description</td>'
+  +'<td class="tbl-hdr" style="width:65px">HSN Code</td>'
+  +'<td class="tbl-hdr" style="width:70px">Buyer PO</td>'
+  +'<td class="tbl-hdr" style="width:60px">Qty in Pcs</td>'
+  +'<td class="tbl-hdr" style="width:70px">Rate (USD)</td>'
+  +'<td class="tbl-hdr" style="width:80px">Amount (USD)</td>'
+  +'</tr>'
+
+  // Line items
+  +liRows
+
+  // Totals
+  +'<tr class="total-row">'
+  +'<td colspan="3"></td>'
+  +'<td class="r" style="font-size:13px">Total Qty</td>'
+  +'<td class="r" style="font-size:14px">'+totalQty.toLocaleString()+'</td>'
+  +'<td class="r" style="font-size:12px">Total Amount in USD</td>'
+  +'<td class="r mono" style="font-size:14px">'+_fmt(totalAmt)+'</td>'
+  +'</tr>'
+
+  // Amount in words
+  +'<tr class="words-row">'
+  +'<td style="font-size:10px;font-weight:700">Amount in words (USD)</td>'
+  +'<td colspan="6" style="font-size:12px;font-weight:700">'+_hwmsNumToWords(totalAmt)+'</td>'
+  +'</tr>'
+
+  +'</table>'
+
+  // Signature
+  +'<div style="margin-top:30px;text-align:right;padding-right:10px">'
+  +'<div style="font-size:11px;color:#555">Authorized Signature</div>'
+  +'</div>'
+
+  +'<script>window.onload=function(){var mmToPx=96/25.4;var targetH=Math.round(281*mmToPx);var actualH=document.body.scrollHeight;if(actualH>0&&actualH!==targetH){var z=targetH/actualH;document.body.style.zoom=z;}};<\/script>'
+  +'</body></html>';
+
+  return html;
+}
 // ── Sub-Invoice Export ──
 function _hwmsSiFmtDate(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);}
 function _hwmsSiExport(){
@@ -3419,6 +3937,1002 @@ async function _hwmsSiImport(inputEl){
   }catch(e){notify('⚠ '+e.message,true);}
 }
 
+// ═══ MATERIAL REQUESTS ═══════════════════════════════════════════════════
+var _hwmsMrSortKey='mrDate',_hwmsMrSortAsc=false;
+var _hwmsMrLines=[]; // temp line items for modal
+
+// Stock helper: available qty per part (warehouse - dispatched via sub-invoices)
+// ═══ SHARED WAREHOUSE STOCK CALCULATION ═══
+// Warehouse Stock = Total qty from invoices in Reached containers − Total qty in all sub-invoices
+// Used by: MR detail, MR table, Inventory page, Sub-invoice available qty
+function _hwmsPartStock(partId){
+  if(!partId) return 0;
+  var whQty=0;
+  var contMap={};
+  (DB.hwmsContainers||[]).forEach(function(c){contMap[c.id]=c;});
+  (DB.hwmsInvoices||[]).forEach(function(inv){
+    var cont=inv.containerId?contMap[inv.containerId]:null;
+    if(!cont||cont.status!=='Reached') return;
+    (inv.lineItems||[]).forEach(function(li){
+      if(li.partId===partId) whQty+=(li.quantity||0);
+    });
+  });
+  var dispatched=0;
+  (DB.hwmsSubInvoices||[]).forEach(function(si){
+    (si.lineItems||[]).forEach(function(l){
+      if(l.partId===partId) dispatched+=(l.quantity||0);
+    });
+  });
+  return Math.max(0,whQty-dispatched);
+}
+// In-Transit qty per part (qty in Onwater containers)
+function _hwmsPartTransit(partId){
+  if(!partId) return 0;
+  var qty=0;
+  var contMap={};
+  (DB.hwmsContainers||[]).forEach(function(c){contMap[c.id]=c;});
+  (DB.hwmsInvoices||[]).forEach(function(inv){
+    var cont=inv.containerId?contMap[inv.containerId]:null;
+    if(!cont||cont.status!=='Onwater') return;
+    (inv.lineItems||[]).forEach(function(li){
+      if(li.partId===partId) qty+=(li.quantity||0);
+    });
+  });
+  return qty;
+}
+// Alias for backward compat
+function _hwmsMrStock(partId){return _hwmsPartStock(partId);}
+// Last known rate for part (from most recent invoice)
+function _hwmsMrRate(partId){
+  var lastRate=0;
+  (DB.hwmsInvoices||[]).sort(function(a,b){return(b.date||'').localeCompare(a.date||'');}).forEach(function(inv){
+    if(lastRate) return;
+    (inv.lineItems||[]).forEach(function(li){if(li.partId===partId&&li.rate) lastRate=li.rate;});
+  });
+  return lastRate;
+}
+function _hwmsMrSort(key){
+  if(_hwmsMrSortKey===key) _hwmsMrSortAsc=!_hwmsMrSortAsc;
+  else{_hwmsMrSortKey=key;_hwmsMrSortAsc=key==='mrNumber';}
+  renderHwmsMR();
+}
+function renderHwmsMR(){
+  var mrs=DB.hwmsMaterialRequests||[];
+  var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
+  // Attach computed status + userName for sorting
+  mrs.forEach(function(m){
+    m._status=_hwmsMrCalcStatus(m);
+    var u=byId(DB.users||[],m.createdBy);
+    m._raisedBy=u?(u.fullName||u.name||''):'';
+  });
+  // Sort
+  mrs=[].concat(mrs).sort(function(a,b){
+    var key=_hwmsMrSortKey;
+    var va=key==='createdBy'?(a._raisedBy||''):key==='_status'?(a._status||''):(a[key]||'').toString();
+    var vb=key==='createdBy'?(b._raisedBy||''):key==='_status'?(b._status||''):(b[key]||'').toString();
+    return _hwmsMrSortAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+  // Sort icons
+  ['mrDate','mrNumber','needByDate','createdBy'].forEach(function(c){
+    var el=document.getElementById('hwmsMrSI_'+c);
+    if(el) el.textContent=_hwmsMrSortKey===c?(_hwmsMrSortAsc?'▲':'▼'):'';
+  });
+  // Stats badge
+  var cEl=document.getElementById('hcMR');if(cEl)cEl.textContent=mrs.length||'';
+  var openCnt=mrs.filter(function(m){return m._status==='Open';}).length;
+  var partCnt=mrs.filter(function(m){return m._status==='Partially Closed';}).length;
+  var closedCnt=mrs.filter(function(m){return m._status==='Closed';}).length;
+  var statsEl=document.getElementById('hwmsMrStats');
+  if(statsEl) statsEl.innerHTML=
+    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+mrs.length+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Total</div></div>'
+    +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+openCnt+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Open</div></div>'
+    +'<div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#a16207;font-family:var(--mono)">'+partCnt+'</div><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase">Partial</div></div>'
+    +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#15803d;font-family:var(--mono)">'+closedCnt+'</div><div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">Closed</div></div>';
+  // Render table
+  var body=document.getElementById('hwmsMrBody');if(!body) return;
+  if(!mrs.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3)">No material requests yet</td></tr>';return;}
+  body.innerHTML=mrs.map(function(mr){
+    var lis=mr.lineItems||[];
+    var itemCount=lis.length;
+    var totalAmt=lis.reduce(function(s,l){var rate=_hwmsMrRate(l.partId);return s+((l.quantity||0)*(rate||0));},0);
+    var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
+    var raisedFirst=(mr._raisedBy||'').split(' ')[0]||'—';
+    var isSA=CU&&CU.roles&&CU.roles.includes('Super Admin');
+    return '<tr style="cursor:pointer" onclick="showHwmsMrDetail(\''+mr.id+'\')">'
+      +'<td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:14px">'+mr.mrNumber+'</td>'
+      +'<td style="font-family:var(--mono);font-size:13px;font-weight:600">'+fd2(mr.mrDate)+'</td>'
+      +'<td style="font-size:12px;font-weight:600" title="'+(mr._raisedBy||'')+'">'+raisedFirst+'</td>'
+      +'<td style="font-family:var(--mono);font-size:13px;font-weight:600">'+fd2(mr.needByDate)+'</td>'
+      +'<td style="text-align:center;font-family:var(--mono);font-weight:800;font-size:14px">'+itemCount+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:13px">'+fAmt(totalAmt)+'</td>'
+      +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openHwmsMrModal(\''+mr.id+'\')">✏️</button>'+(isSA?'<button class="action-btn" onclick="_hwmsMrDel(\''+mr.id+'\')">🗑️</button>':'')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+// ── Detail view ──
+function showHwmsMrDetail(id){
+  var mr=byId(DB.hwmsMaterialRequests||[],id);if(!mr) return;
+  var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
+  var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
+  document.getElementById('hwmsMrViewTitle').textContent=mr.mrNumber||'MR Details';
+  document.getElementById('hwmsMrViewActions').innerHTML='<button class="btn" onclick="openHwmsMrModal(\''+mr.id+'\')" style="padding:7px 18px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:800;border-radius:var(--radius);cursor:pointer">✏️ Edit</button>';
+  var raisedUser=byId(DB.users||[],mr.createdBy);
+  var raisedName=raisedUser?(raisedUser.fullName||raisedUser.name||''):'—';
+  var mrStatus=_hwmsMrCalcStatus(mr);
+  var stClr={'Open':'background:#fef2f2;color:#dc2626','Partially Closed':'background:#fefce8;color:#a16207','Closed':'background:#dcfce7;color:#15803d'};
+  // Side-by-side header
+  var h='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center">';
+  h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:120px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">MR Number</div><div style="font-size:16px;font-weight:900;color:var(--accent);font-family:var(--mono)">'+mr.mrNumber+'</div></div>';
+  h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:100px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">MR Date</div><div style="font-size:14px;font-weight:700;font-family:var(--mono)">'+fd2(mr.mrDate)+'</div></div>';
+  h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:100px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Raised By</div><div style="font-size:14px;font-weight:700">'+raisedName+'</div></div>';
+  h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:100px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Need-by Date</div><div style="font-size:14px;font-weight:700;font-family:var(--mono)">'+fd2(mr.needByDate)+'</div></div>';
+  h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:100px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Status</div><div><span style="'+(stClr[mrStatus]||'')+';font-size:13px;font-weight:800;padding:3px 12px;border-radius:6px;display:inline-block">'+mrStatus+'</span></div></div>';
+  if(mr.remarks) h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;flex:1;min-width:150px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Remarks</div><div style="font-size:13px;font-weight:400">'+mr.remarks+'</div></div>';
+  h+='</div>';
+  // Consolidate line items by partId
+  var lis=mr.lineItems||[];
+  var consolidated={};// partId → {partNumber, totalQty, rate, stock, pos:[]}
+  lis.forEach(function(l){
+    var key=l.partId||l.partNumber;
+    if(!consolidated[key]) consolidated[key]={partId:l.partId,partNumber:l.partNumber,totalQty:0,pos:[]};
+    consolidated[key].totalQty+=(l.quantity||0);
+    if(l.poNumber) consolidated[key].pos.push({po:l.poNumber,qty:l.quantity||0});
+  });
+  var cParts=Object.keys(consolidated).map(function(k){return consolidated[k];});
+  // Totals
+  var grandReq=cParts.reduce(function(s,p){return s+p.totalQty;},0);
+  var grandShortage=0;
+  cParts.forEach(function(p){
+    var stock=_hwmsMrStock(p.partId);
+    var shortage=Math.max(0,p.totalQty-stock);
+    grandShortage+=shortage;
+  });
+
+  // Get dispatch info for this MR
+  var mrDispatch=_hwmsMrDispatchInfo(mr);
+
+  h+='<div style="font-size:14px;font-weight:800;margin-bottom:6px">Material Summary ('+cParts.length+' parts, '+lis.length+' line items)</div>';
+  var th='padding:4px 6px;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border);white-space:nowrap';
+  h+='<table style="border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8fafc">'
+    +'<th style="'+th+';text-align:left">Part</th>'
+    +'<th style="'+th+';text-align:left">PO ×Qty</th>'
+    +'<th style="'+th+';text-align:right">Req</th>'
+    +'<th style="'+th+';text-align:right">Stock</th>'
+    +'<th style="'+th+';text-align:right">Short</th>'
+    +'<th style="'+th+';text-align:right">Transit</th>'
+    +'<th style="'+th+';text-align:right">Rate</th>'
+    +'<th style="'+th+';text-align:right">Amount</th>'
+    +'<th style="'+th+';text-align:left">Sub-Inv #</th>'
+    +'<th style="'+th+';text-align:right">Dispatched</th>'
+    +'<th style="'+th+';text-align:right">Balance</th>'
+    +'<th style="'+th+';text-align:center">Status</th>'
+    +'</tr></thead><tbody>';
+  var grandAmt=0;
+  var grandTransit=0;
+  var grandDispatched=0;
+  var grandBalance=0;
+  var bd='border-bottom:1px solid #f1f5f9';
+  var cp='padding:4px 6px';
+  cParts.forEach(function(p){
+    var stock=_hwmsMrStock(p.partId);
+    var rate=_hwmsMrRate(p.partId);
+    var shortage=Math.max(0,p.totalQty-stock);
+    var transit=_hwmsPartTransit(p.partId);
+    var amt=p.totalQty*(rate||0);
+    grandAmt+=amt;
+    grandTransit+=transit;
+    var stockClr=stock>=p.totalQty?'#16a34a':stock>0?'#a16207':'#dc2626';
+    var shortClr=shortage>0?'#dc2626':'#16a34a';
+    var poText=p.pos.length?p.pos.map(function(po){return po.po+' ×'+po.qty;}).join(', '):'—';
+    // Dispatch info for this part
+    var dInfo=mrDispatch.perPart[p.partId]||{totalQty:0,subInvoices:[]};
+    var dispatched=dInfo.totalQty;
+    var balance=Math.max(0,p.totalQty-dispatched);
+    grandDispatched+=dispatched;
+    grandBalance+=balance;
+    // Sub-invoice numbers in separate rows
+    var siText=dInfo.subInvoices.length?dInfo.subInvoices.map(function(s){return '<div style="line-height:1.6">'+s.siNum+' <span style="color:var(--text3)">('+s.qty+')</span></div>';}).join(''):'—';
+    var lineStatus=dispatched>=p.totalQty?'Closed':dispatched>0?'Partial':'Open';
+    var lineStClr=lineStatus==='Closed'?'background:#dcfce7;color:#15803d':lineStatus==='Partial'?'background:#fefce8;color:#a16207':'background:#fef2f2;color:#dc2626';
+    h+='<tr>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:700;'+bd+'">'+p.partNumber+'</td>'
+      +'<td style="'+cp+';font-size:10px;'+bd+';color:var(--text2)">'+poText+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;'+bd+'">'+p.totalQty.toLocaleString()+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;color:'+stockClr+';'+bd+'">'+stock.toLocaleString()+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;color:'+shortClr+';'+bd+'">'+(shortage>0?shortage.toLocaleString():'✓')+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:700;text-align:right;color:'+(transit>0?'#2563eb':'var(--text3)')+';'+bd+'">'+(transit>0?transit.toLocaleString():'—')+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);text-align:right;'+bd+'">'+fAmt(rate)+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:700;text-align:right;'+bd+'">'+fAmt(amt)+'</td>'
+      +'<td id="mrSumSi_'+p.partId+'" style="'+cp+';font-size:11px;color:var(--accent);font-weight:600;'+bd+'">'+siText+'</td>'
+      +'<td id="mrSumDisp_'+p.partId+'" style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;color:'+(dispatched>0?'#7c3aed':'var(--text3)')+';'+bd+'">'+dispatched.toLocaleString()+'</td>'
+      +'<td id="mrSumBal_'+p.partId+'" style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;color:'+(balance>0?'#dc2626':'#16a34a')+';'+bd+'">'+(balance>0?balance.toLocaleString():'✓')+'</td>'
+      +'<td id="mrSumSt_'+p.partId+'" style="'+cp+';text-align:center;'+bd+'"><span style="'+lineStClr+';font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">'+lineStatus+'</span></td>'
+      +'</tr>';
+  });
+  // Totals row
+  h+='<tr style="background:#f1f5f9;border-top:3px solid var(--accent)">'
+    +'<td colspan="2" style="'+cp+';font-weight:900;text-align:right;font-size:11px">TOTALS</td>'
+    +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px">'+grandReq.toLocaleString()+'</td>'
+    +'<td></td>'
+    +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px;color:'+(grandShortage>0?'#dc2626':'#16a34a')+'">'+(grandShortage>0?grandShortage.toLocaleString():'✓')+'</td>'
+    +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px;color:'+(grandTransit>0?'#2563eb':'var(--text3)')+'">'+(grandTransit>0?grandTransit.toLocaleString():'—')+'</td>'
+    +'<td></td>'
+    +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px;color:#2563eb">'+fAmt(grandAmt)+'</td>'
+    +'<td></td>'
+    +'<td id="mrSumDispTotal" style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px;color:#7c3aed">'+grandDispatched.toLocaleString()+'</td>'
+    +'<td id="mrSumBalTotal" style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;font-size:12px;color:'+(grandBalance>0?'#dc2626':'#16a34a')+'">'+(grandBalance>0?grandBalance.toLocaleString():'✓')+'</td>'
+    +'<td></td>'
+    +'</tr>';
+  h+='</tbody></table>';
+  // Store per-part data for live recalc by _hwmsSiConfCheck
+  h+='<script id="mrSumPartData" type="application/json">'+JSON.stringify(cParts.map(function(p){
+    var dInfo=mrDispatch.perPart[p.partId]||{totalQty:0,subInvoices:[]};
+    return{partId:p.partId,reqQty:p.totalQty,existDisp:dInfo.totalQty,existSis:dInfo.subInvoices.map(function(s){return{siNum:s.siNum,qty:s.qty};})}; 
+  }))+'<\/script>';
+  var contMap={};(DB.hwmsContainers||[]).forEach(function(c){contMap[c.id]=c;});
+  var dispMap={};// 'partId|pallet|invId' → dispatched qty
+  (DB.hwmsSubInvoices||[]).forEach(function(si){
+    (si.lineItems||[]).forEach(function(l){
+      var dk=(l.partId||'')+'|'+(l.palletNumber||'')+'|'+(si.invoiceId||'');
+      dispMap[dk]=(dispMap[dk]||0)+(l.quantity||0);
+    });
+  });
+  // Collect rows grouped by part number
+  var partRefMap={};
+  var partRefOrder=[];
+  cParts.forEach(function(p){
+    var invRows=[];
+    (DB.hwmsInvoices||[]).forEach(function(inv){
+      var cont=inv.containerId?contMap[inv.containerId]:null;
+      if(!cont||cont.status!=='Reached'||!inv.confirmed) return;
+      (inv.lineItems||[]).forEach(function(li,idx){
+        if(li.partId!==p.partId) return;
+        var pallet=li.palletNumber||'P'+(idx+1);
+        var dk=p.partId+'|'+pallet+'|'+inv.id;
+        var dispatched=dispMap[dk]||0;
+        var avail=(li.quantity||0)-dispatched;
+        if(avail>0) invRows.push({invId:inv.id,invNum:inv.invoiceNumber||'—',invDate:inv.date||'',pallet:pallet,availQty:avail,partId:p.partId,partNumber:p.partNumber});
+      });
+    });
+    if(invRows.length){
+      invRows.sort(function(a,b){return(a.invDate||'').localeCompare(b.invDate||'');});
+      var dInfo=mrDispatch.perPart[p.partId]||{totalQty:0,subInvoices:[]};
+      var balanceQty=Math.max(0,p.totalQty-dInfo.totalQty);
+      partRefMap[p.partId]={partNumber:p.partNumber,partId:p.partId,mrQty:balanceQty,invoices:invRows};
+      if(balanceQty>0) partRefOrder.push(p.partId);
+    }
+  });
+  if(partRefOrder.length){
+    var mrIdForRef=mr.id;
+    var grandMrQty=partRefOrder.reduce(function(s,pid){return s+partRefMap[pid].mrQty;},0);
+    // Outer flex row for side-by-side layout
+    h+='<div style="margin-top:20px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">';
+    // LEFT panel: Warehouse Stock table
+    h+='<div style="border:1.5px solid #bfdbfe;border-radius:10px;background:#eff6ff;padding:12px 14px;flex-shrink:0">';
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
+    h+='<div style="font-size:13px;font-weight:800;color:#1d4ed8">📦 Warehouse Stock — Balance Qty to Dispatch</div>';
+    h+='<button onclick="_hwmsMrRefSmartSelect()" style="font-size:11px;font-weight:800;padding:4px 12px;background:#f59e0b;color:#fff;border:none;border-radius:5px;cursor:pointer;white-space:nowrap" title="Auto-select oldest invoices to match balance qty">⚡ Smart Select</button>';
+    h+='</div>';
+    var rth='padding:6px 8px;font-size:11px;font-weight:700;color:#1d4ed8;border-bottom:1.5px solid #93c5fd;text-transform:uppercase;white-space:nowrap';
+    h+='<table style="border-collapse:collapse;font-size:13px"><thead><tr style="background:rgba(59,130,246,.08)">'
+      +'<th style="'+rth+';text-align:left">Part</th>'
+      +'<th style="'+rth+';text-align:left">Invoice</th>'
+      +'<th style="'+rth+';text-align:center">Pallet</th>'
+      +'<th style="'+rth+';text-align:right">Avail Qty</th>'
+      +'<th style="'+rth+';text-align:center;width:30px"><input type="checkbox" onchange="_hwmsMrRefToggleAll(this)" style="width:14px;height:14px;cursor:pointer;accent-color:#2563eb" title="Select All"></th>'
+      +'<th style="'+rth+';text-align:right">Balance</th>'
+      +'<th style="'+rth+';text-align:right">Selected</th>'
+      +'<th style="'+rth+';text-align:right">Difference</th>'
+      +'</tr></thead><tbody>';
+    var refIdx=0;
+    partRefOrder.forEach(function(partId){
+      var g=partRefMap[partId];
+      var rc=g.invoices.length;
+      var bb='border-bottom:1.5px solid #93c5fd';
+      g.invoices.forEach(function(inv,ii){
+        var cbId='mrRef_'+refIdx++;
+        var cbVal=inv.invId+'|'+inv.partId+'|'+inv.pallet+'|'+inv.availQty+'|'+inv.partNumber+'|'+inv.invNum;
+        var lastRow=ii===rc-1;
+        var bdr=lastRow?bb:'';
+        h+='<tr style="border-bottom:1px solid #dbeafe">';
+        if(ii===0){
+          h+='<td rowspan="'+rc+'" style="padding:5px 8px;font-family:var(--mono);font-weight:800;font-size:13px;vertical-align:top;'+bb+'">'+g.partNumber+'</td>';
+        }
+        var invDateFmt='';
+        if(inv.invDate){var _dt=new Date(inv.invDate.length===10?inv.invDate+'T00:00:00':inv.invDate);if(!isNaN(_dt)){var _m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];invDateFmt=' <span style="font-size:10px;font-weight:600;color:var(--text3)">('+String(_dt.getDate()).padStart(2,'0')+'-'+_m[_dt.getMonth()]+'-'+String(_dt.getFullYear()).slice(-2)+')</span>';}}
+        h+='<td style="padding:4px 8px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);'+bdr+'">'+inv.invNum+invDateFmt+'</td>'
+          +'<td style="padding:4px 8px;text-align:center;font-weight:700;font-size:12px;'+bdr+'">'+inv.pallet+'</td>'
+          +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:#16a34a;'+bdr+'">'+inv.availQty.toLocaleString()+'</td>'
+          +'<td style="padding:4px 4px;text-align:center;'+bdr+'"><input type="checkbox" class="mrRefCb" data-partid="'+inv.partId+'" data-qty="'+inv.availQty+'" id="'+cbId+'" value="'+cbVal+'" onchange="_hwmsMrRefRecalc()" style="width:14px;height:14px;cursor:pointer;accent-color:#2563eb"></td>';
+        if(ii===0){
+          h+='<td rowspan="'+rc+'" style="padding:5px 8px;font-family:var(--mono);font-weight:800;font-size:13px;text-align:right;vertical-align:top;'+bb+'" id="mrRefMrQty_'+partId+'">'+g.mrQty.toLocaleString()+'</td>'
+            +'<td rowspan="'+rc+'" style="padding:5px 8px;font-family:var(--mono);font-weight:800;font-size:13px;text-align:right;vertical-align:top;color:var(--text3);'+bb+'" id="mrRefSel_'+partId+'">0</td>'
+            +'<td rowspan="'+rc+'" style="padding:5px 8px;font-family:var(--mono);font-weight:900;font-size:13px;text-align:right;vertical-align:top;'+bb+'" id="mrRefDiff_'+partId+'">'+g.mrQty.toLocaleString()+'</td>';
+        }
+        h+='</tr>';
+      });
+    });
+    h+='<tr style="background:rgba(59,130,246,.08);border-top:1.5px solid #93c5fd">'
+      +'<td colspan="4" style="padding:6px 8px;font-weight:900;text-align:right;font-size:12px;color:#1d4ed8">TOTALS</td>'
+      +'<td></td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:900;text-align:right;font-size:13px;color:#1d4ed8" id="mrRefMrQtyTotal">'+grandMrQty.toLocaleString()+'</td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:900;text-align:right;font-size:13px;color:var(--text3)" id="mrRefSelTotal">0</td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:900;text-align:right;font-size:13px" id="mrRefDiffTotal">'+grandMrQty.toLocaleString()+'</td>'
+      +'</tr>';
+    h+='</tbody></table>';
+    // Store part MR qtys as JSON for recalc
+    h+='<script id="mrRefPartData" type="application/json">'+JSON.stringify(partRefOrder.map(function(pid){var cp=consolidated[pid]||consolidated[Object.keys(consolidated).find(function(k){return consolidated[k].partId===pid;})||''];return{partId:pid,mrQty:partRefMap[pid].mrQty,pos:cp?cp.pos:[]};}))+'<\/script>';
+    h+='</div>';
+    // RIGHT panel: Selected Invoices Summary (populated dynamically by _hwmsMrRefRecalc)
+    h+='<div id="mrRefSelectedPanel" data-mrid="'+mrIdForRef+'" style="flex-shrink:0"></div>';
+    h+='</div>';
+  }
+
+  document.getElementById('hwmsMrViewBody').innerHTML=h;
+  hwmsGo('pageHwmsMrView');
+  // Auto-trigger Smart Select on first load if panel exists
+  setTimeout(function(){
+    if(typeof _hwmsMrRefSmartSelect==='function'&&document.querySelector('.mrRefCb')){
+      _hwmsMrRefSmartSelect();
+    }
+  },100);
+}
+// ── MR Ref: toggle all checkboxes ──
+function _hwmsMrRefToggleAll(master){
+  var cbs=document.querySelectorAll('.mrRefCb');
+  cbs.forEach(function(cb){cb.checked=master.checked;});
+  _hwmsMrRefRecalc();
+}
+// ── MR Ref: Smart Select — oldest invoices first to match MR Qty ──
+function _hwmsMrRefSmartSelect(){
+  var dataEl=document.getElementById('mrRefPartData');
+  if(!dataEl) return;
+  var parts=JSON.parse(dataEl.textContent);
+  // Build map of MR qty per partId
+  var mrQtyMap={};
+  parts.forEach(function(p){mrQtyMap[p.partId]=p.mrQty;});
+  // Uncheck all first
+  var allCbs=document.querySelectorAll('.mrRefCb');
+  allCbs.forEach(function(cb){cb.checked=false;});
+  // Group checkboxes by partId (DOM order = oldest first since we sorted that way)
+  var partCbs={};
+  allCbs.forEach(function(cb){
+    var pid=cb.getAttribute('data-partid');
+    if(!partCbs[pid]) partCbs[pid]=[];
+    partCbs[pid].push(cb);
+  });
+  // For each part, select oldest invoices until MR qty is met
+  Object.keys(partCbs).forEach(function(pid){
+    var needed=mrQtyMap[pid]||0;
+    if(needed<=0) return;
+    var cumQty=0;
+    partCbs[pid].forEach(function(cb){
+      if(cumQty>=needed) return;
+      var qty=Number(cb.getAttribute('data-qty'))||0;
+      cb.checked=true;
+      cumQty+=qty;
+    });
+  });
+  _hwmsMrRefRecalc();
+}
+// ── MR Ref: recalculate selected qty per part ──
+function _hwmsMrRefRecalc(){
+  var dataEl=document.getElementById('mrRefPartData');
+  if(!dataEl) return;
+  var parts=JSON.parse(dataEl.textContent);
+  // Sum checked qty per partId
+  var selMap={};
+  document.querySelectorAll('.mrRefCb:checked').forEach(function(cb){
+    var pid=cb.getAttribute('data-partid');
+    var qty=Number(cb.getAttribute('data-qty'))||0;
+    selMap[pid]=(selMap[pid]||0)+qty;
+  });
+  var grandSel=0,grandMr=0;
+  parts.forEach(function(p){
+    var sel=selMap[p.partId]||0;
+    grandSel+=sel;
+    grandMr+=p.mrQty;
+    var diff=p.mrQty-sel;
+    var selEl=document.getElementById('mrRefSel_'+p.partId);
+    var diffEl=document.getElementById('mrRefDiff_'+p.partId);
+    if(selEl){selEl.textContent=sel.toLocaleString();selEl.style.color=sel>0?'#2563eb':'var(--text3)';}
+    if(diffEl){
+      if(diff===0){
+        diffEl.innerHTML='<span style="color:#16a34a;font-weight:900">✓</span>';
+      } else {
+        // Flash for both shortage (diff>0) and excess (diff<0)
+        var label=diff>0?diff.toLocaleString():diff.toLocaleString()+' (excess)';
+        diffEl.innerHTML='<span class="mr-bal-flash" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:900">'+label+'</span>';
+      }
+    }
+  });
+  var totSelEl=document.getElementById('mrRefSelTotal');
+  if(totSelEl){totSelEl.textContent=grandSel.toLocaleString();totSelEl.style.color=grandSel>0?'#2563eb':'var(--text3)';}
+  var grandDiff=grandMr-grandSel;
+  var totDiffEl=document.getElementById('mrRefDiffTotal');
+  if(totDiffEl){
+    if(grandDiff===0){
+      totDiffEl.innerHTML='<span style="color:#16a34a;font-weight:900">✓</span>';
+    } else {
+      var totLabel=grandDiff>0?grandDiff.toLocaleString():grandDiff.toLocaleString()+' (excess)';
+      totDiffEl.innerHTML='<span class="mr-bal-flash" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:900">'+totLabel+'</span>';
+    }
+  }
+  // ── Build selected invoices summary panel ──
+  var panel=document.getElementById('mrRefSelectedPanel');
+  if(!panel) return;
+  var checked=document.querySelectorAll('.mrRefCb:checked');
+  if(!checked.length){panel.innerHTML='';return;}
+  var mrIdForBtn=panel.getAttribute('data-mrid')||'';
+  // Build PO map from stored data: partId → [{po,qty}] with remaining tracking
+  var poMap={};
+  parts.forEach(function(p){
+    poMap[p.partId]=(p.pos||[]).map(function(po){return{po:po.po,qty:po.qty,remaining:po.qty};});
+  });
+  // Collect selected rows per part (preserving DOM order = oldest invoice first)
+  var partSelRows={};
+  checked.forEach(function(cb){
+    var v=cb.value.split('|');
+    var pid=v[1];
+    if(!partSelRows[pid]) partSelRows[pid]=[];
+    partSelRows[pid].push({invNum:v[5]||'—',invId:v[0],pallet:v[2]||'—',qty:Number(v[3])||0,partNumber:v[4]||'—',partId:pid});
+  });
+  // Allocate each pallet to a single PO — do NOT split pallet qty across POs
+  var splitRows=[];
+  Object.keys(partSelRows).forEach(function(pid){
+    var pos=poMap[pid]||[];
+    var rate=_hwmsMrRate(pid);
+    var poIdx=0;
+    partSelRows[pid].forEach(function(row){
+      if(!pos.length){
+        splitRows.push({invNum:row.invNum,invId:row.invId,partNumber:row.partNumber,partId:row.partId,pallet:row.pallet,poNumber:'—',qty:row.qty,rate:rate});
+        return;
+      }
+      // Find next PO with remaining qty
+      while(poIdx<pos.length&&pos[poIdx].remaining<=0) poIdx++;
+      if(poIdx<pos.length){
+        // Assign entire pallet to this PO
+        splitRows.push({invNum:row.invNum,invId:row.invId,partNumber:row.partNumber,partId:row.partId,pallet:row.pallet,poNumber:pos[poIdx].po,qty:row.qty,rate:rate});
+        pos[poIdx].remaining-=row.qty;
+        if(pos[poIdx].remaining<=0) poIdx++;
+      } else {
+        // All POs exhausted — mark as excess
+        splitRows.push({invNum:row.invNum,invId:row.invId,partNumber:row.partNumber,partId:row.partId,pallet:row.pallet,poNumber:'(Excess)',qty:row.qty,rate:rate});
+      }
+    });
+  });
+  // Group split rows by invoice number, then consolidate by PO + Part + Pallet within each invoice
+  var invGrp={};var invOrd=[];
+  splitRows.forEach(function(r){
+    if(!invGrp[r.invNum]){invGrp[r.invNum]={invNum:r.invNum,rows:[]};invOrd.push(r.invNum);}
+    // Find existing row with same PO + Part + Pallet in this invoice group
+    var existing=invGrp[r.invNum].rows.find(function(x){return x.poNumber===r.poNumber&&x.partNumber===r.partNumber&&x.pallet===r.pallet;});
+    if(existing){
+      existing.qty+=r.qty;
+    } else {
+      invGrp[r.invNum].rows.push({invNum:r.invNum,invId:r.invId,partNumber:r.partNumber,partId:r.partId,poNumber:r.poNumber,pallet:r.pallet,qty:r.qty,rate:r.rate});
+    }
+  });
+  var fAmt2=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
+  var s='<div style="border:1.5px solid #7dd3fc;border-radius:10px;background:#f0f9ff;padding:12px 14px">';
+  s+='<div style="font-size:13px;font-weight:800;color:#0369a1;margin-bottom:10px">📋 Selected Invoices Summary</div>';
+  var sth='padding:5px 8px;font-size:11px;font-weight:700;color:#0369a1;border-bottom:1.5px solid #7dd3fc;text-transform:uppercase;white-space:nowrap';
+  s+='<table style="border-collapse:collapse;font-size:13px"><thead><tr style="background:rgba(14,165,233,.08)">'
+    +'<th style="'+sth+';text-align:left">Invoice</th>'
+    +'<th style="'+sth+';text-align:left">Part Number</th>'
+    +'<th style="'+sth+';text-align:left">PO Number</th>'
+    +'<th style="'+sth+';text-align:center">Pallet</th>'
+    +'<th style="'+sth+';text-align:right">Qty</th>'
+    +'<th style="'+sth+';text-align:right">Rate ($)</th>'
+    +'<th style="'+sth+';text-align:center;width:30px" title="Confirm PO rate = current rate">✓</th>'
+    +'</tr></thead><tbody>';
+  var grandQty=0;
+  var siRowIdx=0;
+  invOrd.forEach(function(invNum){
+    var g=invGrp[invNum];
+    var rc=g.rows.length;
+    g.rows.forEach(function(r,ri){
+      grandQty+=r.qty;
+      var riId='siConfCb_'+siRowIdx++;
+      var cbData='data-invid="'+r.invId+'" data-partid="'+(r.partId||'')+'" data-pallet="'+r.pallet+'" data-qty="'+r.qty+'" data-partnum="'+r.partNumber+'" data-invnum="'+g.invNum+'" data-po="'+r.poNumber+'" data-rate="'+r.rate+'"';
+      s+='<tr style="border-bottom:1px solid #bae6fd">';
+      if(ri===0){
+        s+='<td rowspan="'+rc+'" style="padding:5px 8px;font-family:var(--mono);font-weight:800;color:#0369a1;vertical-align:top;border-bottom:1.5px solid #7dd3fc">'+g.invNum+'</td>';
+      }
+      var lastRow=ri===rc-1;
+      var bdr=lastRow?'border-bottom:1.5px solid #7dd3fc':'';
+      var poDisplay=r.poNumber;
+      var poStyle='padding:5px 8px;font-family:var(--mono);font-weight:600;color:#7c3aed;'+bdr;
+      if(r.poNumber==='(Excess)'){
+        poDisplay='<span class="mr-bal-flash" style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:800">EXCESS</span>';
+        poStyle='padding:5px 8px;'+bdr;
+      } else if(r.poNumber==='—'||!r.poNumber){
+        poDisplay='<span class="mr-bal-flash" style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:800">NO PO</span>';
+        poStyle='padding:5px 8px;'+bdr;
+      }
+      s+='<td style="padding:5px 8px;font-family:var(--mono);font-weight:700;'+bdr+'">'+r.partNumber+'</td>'
+        +'<td style="'+poStyle+'">'+poDisplay+'</td>'
+        +'<td style="padding:5px 8px;text-align:center;font-weight:700;font-size:12px;'+bdr+'">'+r.pallet+'</td>'
+        +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:#16a34a;'+bdr+'">'+r.qty.toLocaleString()+'</td>'
+        +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700;text-align:right;'+bdr+'">'+fAmt2(r.rate)+'</td>'
+        +'<td style="padding:5px 4px;text-align:center;'+bdr+'"><input type="checkbox" class="siConfCb" id="'+riId+'" '+cbData+' onchange="_hwmsSiConfCheck()" style="width:14px;height:14px;cursor:pointer;accent-color:#16a34a"></td>'
+        +'</tr>';
+    });
+  });
+  s+='<tr style="background:rgba(14,165,233,.08);border-top:1.5px solid #7dd3fc">'
+    +'<td colspan="5" style="padding:6px 8px;font-weight:900;text-align:right;font-size:12px;color:#0369a1">Total Selected</td>'
+    +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:900;text-align:right;font-size:13px;color:#2563eb">'+grandQty.toLocaleString()+'</td>'
+    +'<td></td>'
+    +'</tr>';
+  s+='</tbody></table>';
+  s+='<div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">';
+  s+='<div style="font-size:11px;color:#64748b;font-weight:600" id="siConfMsg">⚠ Select at least one line to enable</div>';
+  s+='<button id="siCreateBtn" onclick="_hwmsMrCreateSiFromRef(\''+mrIdForBtn+'\')" disabled style="font-size:12px;font-weight:800;padding:7px 18px;background:#94a3b8;color:#fff;border:none;border-radius:6px;cursor:not-allowed;white-space:nowrap;opacity:0.6">+ Create Sub-Invoice from Selected</button>';
+  s+='</div>';
+  s+='</div>';
+  panel.innerHTML=s;
+}
+// ── SI Conf: check if all rate confirmations are ticked ──
+function _hwmsSiConfCheck(){
+  var allCbs=document.querySelectorAll('.siConfCb');
+  var checkedCount=0;
+  allCbs.forEach(function(cb){if(cb.checked) checkedCount++;});
+  var btn=document.getElementById('siCreateBtn');
+  var msg=document.getElementById('siConfMsg');
+  if(checkedCount>0){
+    if(btn){btn.disabled=false;btn.style.background='#2563eb';btn.style.cursor='pointer';btn.style.opacity='1';}
+    if(msg){msg.textContent='✓ '+checkedCount+'/'+allCbs.length+' confirmed';msg.style.color='#16a34a';}
+  } else {
+    if(btn){btn.disabled=true;btn.style.background='#94a3b8';btn.style.cursor='not-allowed';btn.style.opacity='0.6';}
+    if(msg){msg.textContent='⚠ Select at least one line to enable';msg.style.color='#64748b';}
+  }
+  // ── Live update Material Summary dispatch columns ──
+  var sumDataEl=document.getElementById('mrSumPartData');
+  if(!sumDataEl) return;
+  var sumParts=JSON.parse(sumDataEl.textContent);
+  // Group checked siConfCb by invoice number and collect parts
+  var selByInv={};var selByPart={};var siNumByPart={};// partId → [{siNum,qty}]
+  document.querySelectorAll('.siConfCb:checked').forEach(function(cb){
+    var pid=cb.getAttribute('data-partid');
+    var qty=Number(cb.getAttribute('data-qty'))||0;
+    var invNum=cb.getAttribute('data-invnum')||'';
+    selByPart[pid]=(selByPart[pid]||0)+qty;
+    if(!selByInv[invNum]) selByInv[invNum]={invNum:invNum,parts:{}};
+    selByInv[invNum].parts[pid]=(selByInv[invNum].parts[pid]||0)+qty;
+  });
+  // Generate SI numbers per invoice (same logic as create function)
+  var siNumCounter={};// first9 → next serial offset
+  Object.keys(selByInv).forEach(function(invNum){
+    var first9=invNum.substring(0,9);
+    if(!siNumCounter[first9]){
+      // Count existing SIs matching first 9 digits
+      siNumCounter[first9]=(DB.hwmsSubInvoices||[]).filter(function(si){
+        return si.subInvoiceNumber&&si.subInvoiceNumber.substring(0,9)===first9;
+      }).length;
+    }
+    siNumCounter[first9]++;
+    var siNum=invNum+'WH'+siNumCounter[first9];
+    // Assign this SI number to all parts in this invoice group
+    var g=selByInv[invNum];
+    Object.keys(g.parts).forEach(function(pid){
+      if(!siNumByPart[pid]) siNumByPart[pid]=[];
+      siNumByPart[pid].push({siNum:siNum,qty:g.parts[pid]});
+    });
+  });
+  var grandDisp=0,grandBal=0;
+  sumParts.forEach(function(p){
+    var newDisp=p.existDisp+(selByPart[p.partId]||0);
+    var newBal=p.reqQty-newDisp;
+    grandDisp+=newDisp;
+    grandBal+=newBal;
+    var selQty=selByPart[p.partId]||0;
+    // Sub-Inv column: show existing + generated SI numbers in separate rows
+    var siEl=document.getElementById('mrSumSi_'+p.partId);
+    if(siEl){
+      var lines=[];
+      (p.existSis||[]).forEach(function(s){
+        lines.push('<div style="line-height:1.6">'+s.siNum+' <span style="color:var(--text3)">('+s.qty+')</span></div>');
+      });
+      var newSis=siNumByPart[p.partId]||[];
+      newSis.forEach(function(s){
+        lines.push('<div style="line-height:1.6;color:#f59e0b;font-weight:800">'+s.siNum+' <span style="color:#b45309">('+s.qty+')</span></div>');
+      });
+      siEl.innerHTML=lines.length?lines.join(''):'—';
+    }
+    // Dispatched
+    var dispEl=document.getElementById('mrSumDisp_'+p.partId);
+    if(dispEl){dispEl.textContent=newDisp.toLocaleString();dispEl.style.color=newDisp>0?'#7c3aed':'var(--text3)';}
+    // Balance with flashing badge (flash for both shortage and excess)
+    var balEl=document.getElementById('mrSumBal_'+p.partId);
+    if(balEl){
+      if(newBal===0){
+        balEl.innerHTML='<span style="color:#16a34a;font-weight:900">✓</span>';
+      } else {
+        var balLabel=newBal>0?newBal.toLocaleString():newBal.toLocaleString()+' (excess)';
+        balEl.innerHTML='<span class="mr-bal-flash" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:900">'+balLabel+'</span>';
+      }
+    }
+    // Status
+    var stEl=document.getElementById('mrSumSt_'+p.partId);
+    if(stEl){
+      var st=newDisp>=p.reqQty?'Closed':newDisp>0?'Partial':'Open';
+      var stClr=st==='Closed'?'background:#dcfce7;color:#15803d':st==='Partial'?'background:#fefce8;color:#a16207':'background:#fef2f2;color:#dc2626';
+      stEl.innerHTML='<span style="'+stClr+';font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">'+st+'</span>';
+    }
+  });
+  // Totals
+  var dispTotEl=document.getElementById('mrSumDispTotal');
+  if(dispTotEl){dispTotEl.textContent=grandDisp.toLocaleString();dispTotEl.style.color='#7c3aed';}
+  var balTotEl=document.getElementById('mrSumBalTotal');
+  if(balTotEl){
+    if(grandBal===0){
+      balTotEl.innerHTML='<span style="color:#16a34a;font-weight:900">✓</span>';
+    } else {
+      var totBalLabel=grandBal>0?grandBal.toLocaleString():grandBal.toLocaleString()+' (excess)';
+      balTotEl.innerHTML='<span class="mr-bal-flash" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:900">'+totBalLabel+'</span>';
+    }
+  }
+}
+// ── MR Ref: create sub-invoice from selected rows ──
+async function _hwmsMrCreateSiFromRef(mrId){
+  // Read confirmed lines from Selected Invoices Summary checkboxes
+  var confCbs=document.querySelectorAll('.siConfCb:checked');
+  if(!confCbs.length){notify('⚠ Confirm at least one line item',true);return;}
+  var selected=[];
+  confCbs.forEach(function(cb){
+    selected.push({
+      invId:cb.getAttribute('data-invid')||'',
+      partId:cb.getAttribute('data-partid')||'',
+      pallet:cb.getAttribute('data-pallet')||'',
+      availQty:Number(cb.getAttribute('data-qty'))||0,
+      partNumber:cb.getAttribute('data-partnum')||'',
+      invNum:cb.getAttribute('data-invnum')||'',
+      rate:Number(cb.getAttribute('data-rate'))||0
+    });
+  });
+  // Group by invoice ID
+  var invGroups={};var invOrder=[];
+  selected.forEach(function(s){
+    if(!invGroups[s.invId]){invGroups[s.invId]={invId:s.invId,invNum:s.invNum,items:[]};invOrder.push(s.invId);}
+    invGroups[s.invId].items.push(s);
+  });
+  if(!confirm('Create '+invOrder.length+' sub-invoice'+(invOrder.length>1?'s':'')+' from '+selected.length+' confirmed line'+(selected.length>1?'s':'')+'?')) return;
+  showSpinner('Creating sub-invoices…');
+  if(!DB.hwmsSubInvoices) DB.hwmsSubInvoices=[];
+  var created=0;
+  var today=new Date().toISOString().slice(0,10);
+  for(var i=0;i<invOrder.length;i++){
+    var g=invGroups[invOrder[i]];
+    var inv=byId(DB.hwmsInvoices||[],g.invId);
+    var invNum=inv?inv.invoiceNumber||g.invNum:g.invNum;
+    var custId=inv?inv.buyerId||'':'';
+    var cust=byId(DB.hwmsCustomers||[],custId);
+    var custName=inv?inv.buyerName||(cust?cust.customerName:''):'';
+    // Generate sub-invoice number: invoiceNumber + "WH" + serial
+    // Serial = count of existing sub-invoices matching first 9 digits of invoice number + 1
+    var first9=invNum.substring(0,9);
+    var matchCount=(DB.hwmsSubInvoices||[]).filter(function(si){
+      return si.subInvoiceNumber&&si.subInvoiceNumber.substring(0,9)===first9;
+    }).length;
+    var siNum=invNum+'WH'+(matchCount+1);
+    // Build line items from confirmed selections
+    var lineItems=g.items.map(function(item){
+      return{partId:item.partId,partNumber:item.partNumber,palletNumber:item.pallet,quantity:item.availQty,rate:item.rate};
+    });
+    var data={
+      subInvoiceNumber:siNum,
+      date:today,
+      invoiceId:g.invId,
+      customerId:custId,
+      customerName:custName,
+      lineItems:lineItems,
+      pickupStatus:'Scheduled',
+      pickupDate:'',
+      grnStatus:'Pending',
+      grnDate:'',
+      paymentStatus:'Pending',
+      paymentReceived:0,
+      paymentBalance:lineItems.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0),
+      tariffPercent:0,
+      tariffAmount:0,
+      remarks:'Created from MR',
+      mrId:mrId
+    };
+    var si={id:'si'+uid()};Object.assign(si,data);
+    if(await _dbSave('hwmsSubInvoices',si)){
+      DB.hwmsSubInvoices.push(si);
+      created++;
+    }
+  }
+  hideSpinner();
+  if(created>0){
+    renderHwmsSubInvoices();_hwmsUpdCounts();
+    notify('✅ Created '+created+' sub-invoice'+(created>1?'s':''));
+    // Refresh MR view to update stock
+    var mr=byId(DB.hwmsMaterialRequests||[],mrId);
+    if(mr) showHwmsMrDetail(mrId);
+  } else {
+    notify('⚠ No sub-invoices were created',true);
+  }
+}
+// ── Auto-calc MR Status: Open / Partially Closed / Closed ──
+function _hwmsMrCalcStatus(mr){
+  var lis=mr.lineItems||[];
+  if(!lis.length) return 'Open';
+  var info=_hwmsMrDispatchInfo(mr);
+  var fullyDispatched=0;
+  var partiallyDispatched=0;
+  lis.forEach(function(l){
+    var key=l.partId||l.partNumber;
+    var dispatched=info.perPart[key]?info.perPart[key].totalQty:0;
+    if(dispatched>=(l.quantity||0)) fullyDispatched++;
+    else if(dispatched>0) partiallyDispatched++;
+  });
+  if(fullyDispatched>=lis.length) return 'Closed';
+  if(fullyDispatched>0||partiallyDispatched>0) return 'Partially Closed';
+  return 'Open';
+}
+// ── Get dispatch info for an MR: which sub-invoices, qty per part ──
+function _hwmsMrDispatchInfo(mr){
+  var mrId=mr.id;
+  // Find sub-invoices linked to this MR
+  var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return si.mrId===mrId;});
+  // Per-part dispatch: partId → {totalQty, subInvoices:[{siNum,qty}]}
+  var perPart={};
+  linkedSis.forEach(function(si){
+    (si.lineItems||[]).forEach(function(l){
+      var key=l.partId||l.partNumber;
+      if(!perPart[key]) perPart[key]={totalQty:0,subInvoices:[]};
+      perPart[key].totalQty+=(l.quantity||0);
+      // Check if this SI already recorded
+      var existing=perPart[key].subInvoices.find(function(s){return s.siNum===si.subInvoiceNumber;});
+      if(existing) existing.qty+=(l.quantity||0);
+      else perPart[key].subInvoices.push({siNum:si.subInvoiceNumber,siId:si.id,qty:l.quantity||0});
+    });
+  });
+  return{linkedSis:linkedSis,perPart:perPart};
+}
+// ── Auto-generate MR Number: MR-YYMM-NNN (per month, sequential) ──
+function _hwmsGenMrNumber(){
+  var now=new Date();
+  var yy=String(now.getFullYear()).slice(-2);
+  var mm=String(now.getMonth()+1).padStart(2,'0');
+  var prefix='MR-'+yy+mm+'-';
+  var existing=(DB.hwmsMaterialRequests||[]).filter(function(m){return m.mrNumber&&m.mrNumber.startsWith(prefix);}).map(function(m){return parseInt(m.mrNumber.slice(prefix.length))||0;});
+  var next=existing.length?Math.max.apply(null,existing)+1:1;
+  return prefix+String(next).padStart(3,'0');
+}
+// ── Modal ──
+function openHwmsMrModal(id){
+  var mr=id?byId(DB.hwmsMaterialRequests||[],id):null;
+  document.getElementById('hwmsMrId').value=id||'';
+  document.getElementById('hwmsMrNum').value=mr?mr.mrNumber:_hwmsGenMrNumber();
+  document.getElementById('hwmsMrDate').value=mr?mr.mrDate:new Date().toISOString().slice(0,10);
+  document.getElementById('hwmsMrNeedBy').value=mr?mr.needByDate:'';
+  document.getElementById('hwmsMrRemarks').value=mr?mr.remarks||'':'';
+  document.getElementById('mHwmsMrTitle').textContent=id?'Edit Material Request':'New Material Request';
+  // Part datalist
+  document.getElementById('hwmsMrPartList').innerHTML=(DB.hwmsParts||[]).filter(function(p){return!p.inactive;}).map(function(p){return'<option value="'+p.partNumber+'">';}).join('');
+  // Load lines
+  _hwmsMrEditIdx=-1;
+  _hwmsMrLines=mr?(mr.lineItems||[]).map(function(l){return{partId:l.partId,partNumber:l.partNumber,poNumber:l.poNumber||'',quantity:l.quantity||0};}):[];
+  _hwmsMrRenderLines();
+  _hwmsMrResetAddFields();
+  _hwmsMrUpdateAddBtn();
+  om('mHwmsMr');
+}
+function _hwmsMrAddLine(){
+  var pn=(document.getElementById('hwmsMrAddPart').value||'').trim();
+  var po=(document.getElementById('hwmsMrAddPo').value||'').trim();
+  var qty=parseInt(document.getElementById('hwmsMrAddQty').value)||0;
+  if(!pn){notify('Enter part number',true);return;}
+  if(!qty||qty<=0){notify('Enter quantity',true);return;}
+  var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pn;});
+  if(_hwmsMrEditIdx>=0){
+    // Amend existing line
+    _hwmsMrLines[_hwmsMrEditIdx]={partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty};
+    _hwmsMrEditIdx=-1;
+  } else {
+    // Add new line
+    _hwmsMrLines.push({partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty});
+  }
+  _hwmsMrResetAddFields();
+  _hwmsMrRenderLines();
+  _hwmsMrUpdateAddBtn();
+}
+function _hwmsMrResetAddFields(){
+  document.getElementById('hwmsMrAddPart').value='';
+  document.getElementById('hwmsMrAddPo').value='';
+  document.getElementById('hwmsMrAddQty').value='';
+}
+function _hwmsMrUpdateAddBtn(){
+  var area=document.getElementById('hwmsMrAddBtnArea');if(!area) return;
+  if(_hwmsMrEditIdx>=0){
+    area.innerHTML='<button onclick="_hwmsMrAddLine()" style="padding:6px 14px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;height:34px">✓ Amend</button>'
+      +'<button onclick="_hwmsMrCancelEdit()" style="padding:6px 10px;font-size:14px;font-weight:800;background:#f1f5f9;color:#64748b;border:1.5px solid #cbd5e1;border-radius:6px;cursor:pointer;height:34px;margin-left:4px" title="Cancel edit">✕</button>';
+  } else {
+    area.innerHTML='<button onclick="_hwmsMrAddLine()" style="padding:6px 14px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;height:34px">+ Add</button>';
+  }
+}
+function _hwmsMrRemLine(idx){
+  var l=_hwmsMrLines[idx];
+  if(!confirm('Delete line item #'+(idx+1)+' — '+l.partNumber+(l.poNumber?' ('+l.poNumber+')':'')+'?')) return;
+  _hwmsMrLines.splice(idx,1);
+  if(_hwmsMrEditIdx===idx){_hwmsMrEditIdx=-1;_hwmsMrResetAddFields();_hwmsMrUpdateAddBtn();}
+  else if(_hwmsMrEditIdx>idx){_hwmsMrEditIdx--;}
+  _hwmsMrRenderLines();
+}
+function _hwmsMrEditLine(idx){
+  _hwmsMrEditIdx=idx;
+  var l=_hwmsMrLines[idx];
+  document.getElementById('hwmsMrAddPart').value=l.partNumber||'';
+  document.getElementById('hwmsMrAddPo').value=l.poNumber||'';
+  document.getElementById('hwmsMrAddQty').value=l.quantity||'';
+  document.getElementById('hwmsMrAddPart').focus();
+  _hwmsMrUpdateAddBtn();
+  _hwmsMrRenderLines();
+}
+function _hwmsMrCancelEdit(){
+  _hwmsMrEditIdx=-1;
+  _hwmsMrResetAddFields();
+  _hwmsMrUpdateAddBtn();
+  _hwmsMrRenderLines();
+}
+var _hwmsMrEditIdx=-1;
+function _hwmsMrRenderLines(){
+  var el=document.getElementById('hwmsMrLinesList');if(!el) return;
+  if(!_hwmsMrLines.length){el.innerHTML='<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">No items — add parts above</div>';return;}
+  el.innerHTML='<table style="width:100%;font-size:12px"><thead><tr style="background:#f8fafc">'
+    +'<th style="padding:6px 8px;text-align:center;width:30px">#</th>'
+    +'<th style="padding:6px 8px;text-align:left">Part</th>'
+    +'<th style="padding:6px 8px;text-align:left">PO #</th>'
+    +'<th style="padding:6px 8px;text-align:right">Qty</th>'
+    +'<th style="padding:6px 8px;text-align:right">Avail. Stock</th>'
+    +'<th style="padding:6px 8px;text-align:right">Rate ($)</th>'
+    +'<th style="padding:6px 8px;width:70px"></th>'
+    +'</tr></thead><tbody>'
+    +_hwmsMrLines.map(function(l,i){
+      var stock=_hwmsMrStock(l.partId);
+      var rate=_hwmsMrRate(l.partId);
+      var stockClr=stock>=(l.quantity||0)?'#16a34a':stock>0?'#a16207':'#dc2626';
+      var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
+      var isEditing=_hwmsMrEditIdx===i;
+      var rowBg=isEditing?'background:#eff6ff;':'';
+      return '<tr style="border-bottom:1px solid #f1f5f9;'+rowBg+'">'
+        +'<td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
+        +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+l.partNumber+'</td>'
+        +'<td style="padding:6px 8px;font-family:var(--mono)">'+(l.poNumber||'—')+'</td>'
+        +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700;text-align:right">'+l.quantity+'</td>'
+        +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:'+stockClr+'">'+stock.toLocaleString()+'</td>'
+        +'<td style="padding:6px 8px;font-family:var(--mono);text-align:right">'+fAmt(rate)+'</td>'
+        +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'
+        +(isEditing?'<span style="font-size:11px;font-weight:700;color:#f59e0b">editing…</span>'
+        :(_hwmsMrEditIdx>=0
+          ?'<span style="opacity:0.3;font-size:13px">✏️ ✕</span>'
+          :'<button onclick="_hwmsMrEditLine('+i+')" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px" title="Edit">✏️</button>'
+          +'<button onclick="_hwmsMrRemLine('+i+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px" title="Delete">✕</button>'))
+        +'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+// ── Save ──
+async function saveHwmsMr(){
+  var id=document.getElementById('hwmsMrId').value;
+  var num=document.getElementById('hwmsMrNum').value.trim();
+  var mrDate=document.getElementById('hwmsMrDate').value||new Date().toISOString().slice(0,10);
+  var needBy=document.getElementById('hwmsMrNeedBy').value;
+  var remarks=document.getElementById('hwmsMrRemarks').value.trim();
+  if(!num){modalErr('mHwmsMr','MR Number required');return;}
+  if(!needBy){modalErr('mHwmsMr','Need-by Date required');return;}
+  if(!_hwmsMrLines.length){modalErr('mHwmsMr','Add at least one line item');return;}
+  // Duplicate check
+  if((DB.hwmsMaterialRequests||[]).find(function(m){return m.mrNumber===num&&m.id!==id;})){modalErr('mHwmsMr','MR Number already exists');return;}
+  var data={mrNumber:num,mrDate:mrDate,needByDate:needBy,status:'Open',lineItems:_hwmsMrLines,remarks:remarks,createdBy:CU?CU.id:''};
+  if(!DB.hwmsMaterialRequests) DB.hwmsMaterialRequests=[];
+  var savedId=id;
+  if(id){
+    var mr=byId(DB.hwmsMaterialRequests,id);
+    var bak=JSON.parse(JSON.stringify(mr));
+    Object.assign(mr,data);
+    if(!await _dbSave('hwmsMaterialRequests',mr)){Object.assign(mr,bak);return;}
+  } else {
+    var mr2={id:'mr'+uid()};Object.assign(mr2,data);
+    if(!await _dbSave('hwmsMaterialRequests',mr2)) return;
+    savedId=mr2.id;
+  }
+  cm('mHwmsMr');renderHwmsMR();_hwmsUpdCounts();notify('Material Request saved!');
+  // Navigate to the MR detail view with updated data
+  showHwmsMrDetail(savedId);
+}
+// ── Delete ──
+async function _hwmsMrDel(id){
+  if(!CU||!CU.roles||!CU.roles.includes('Super Admin')){notify('⚠ Only Super Admin can delete',true);return;}
+  if(!confirm('Delete this material request?')) return;
+  await _dbDel('hwmsMaterialRequests',id);
+  renderHwmsMR();notify('Deleted');
+}
+// ── Export ──
+function _hwmsMrExport(){
+  var mrs=DB.hwmsMaterialRequests||[];
+  var fd=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
+  var headers=['MR Number','Part Number','PO Number','Quantity','Need by Date'];
+  var dataRows=[];
+  mrs.forEach(function(mr){
+    var lis=mr.lineItems||[];
+    if(!lis.length){
+      dataRows.push([mr.mrNumber,'','',0,fd(mr.needByDate)]);
+    } else {
+      lis.forEach(function(l){
+        dataRows.push([mr.mrNumber,l.partNumber||'',l.poNumber||'',l.quantity||0,fd(mr.needByDate)]);
+      });
+    }
+  });
+  _downloadAsXlsx([headers].concat(dataRows),'Material Requests','HWMS_MaterialRequests.xlsx');
+  notify('📤 Exported '+mrs.length+' MRs');
+}
+// ── Import ──
+async function _hwmsMrImport(inputEl){
+  if(!CU||!CU.roles.some(function(r){return r==='Super Admin'||r==='Admin';})){notify('⚠ Import restricted to Admin',true);inputEl.value='';return;}
+  var file=inputEl.files[0];if(!file){return;}inputEl.value='';
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(e){
+      try{
+        var rows=await _parseXLSX(e.target.result);
+        if(!rows.length){notify('No data in file',true);return;}
+        var grouped={};
+        var today=new Date().toISOString().slice(0,10);
+        rows.forEach(function(row){
+          var num=(row['MR Number']||row['MR #']||'').toString().trim();
+          if(!num) num='__auto__';
+          if(!grouped[num]) grouped[num]={
+            mrNumber:num==='__auto__'?'':num,
+            mrDate:today,
+            needByDate:_hwmsSiParseDate(row['Need by Date']||row['Need-by Date']||row['Needby Date']||row['Need by']),
+            lineItems:[]
+          };
+          // Update needByDate if a later row for same MR has it
+          var nbd=_hwmsSiParseDate(row['Need by Date']||row['Need-by Date']||row['Needby Date']||row['Need by']);
+          if(nbd&&!grouped[num].needByDate) grouped[num].needByDate=nbd;
+          var pn=(row['Part Number']||row['Part']||'').toString().trim();
+          var po=(row['PO Number']||row['PO #']||row['PO']||'').toString().trim();
+          var qty=parseFloat(row['Quantity']||row['Qty']||0)||0;
+          if(pn&&qty>0){
+            var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pn;});
+            grouped[num].lineItems.push({partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty});
+          }
+        });
+        var keys=Object.keys(grouped);
+        if(!keys.length){notify('No valid MRs found',true);return;}
+        // Auto-generate MR numbers for those without
+        keys.forEach(function(k){
+          if(!grouped[k].mrNumber) grouped[k].mrNumber=_hwmsGenMrNumber();
+        });
+        if(!confirm('Import '+keys.length+' material requests?')) return;
+        showSpinner('Importing MRs…');
+        var created=0,updated=0,errors=0;
+        if(!DB.hwmsMaterialRequests) DB.hwmsMaterialRequests=[];
+        for(var i=0;i<keys.length;i++){
+          var g=grouped[keys[i]];
+          _spinnerMsg('Saving '+(i+1)+'/'+keys.length+'…');
+          var existing=(DB.hwmsMaterialRequests).find(function(m){return m.mrNumber===g.mrNumber;});
+          if(existing){
+            var bak=JSON.parse(JSON.stringify(existing));
+            Object.assign(existing,{needByDate:g.needByDate||existing.needByDate,lineItems:g.lineItems});
+            if(await _dbSave('hwmsMaterialRequests',existing)){updated++;}else{Object.assign(existing,bak);errors++;}
+          } else {
+            var mr2={id:'mr'+uid(),createdBy:CU.id,status:'Open',mrNumber:g.mrNumber,mrDate:g.mrDate,needByDate:g.needByDate||'',lineItems:g.lineItems,remarks:''};
+            if(await _dbSave('hwmsMaterialRequests',mr2)){created++;}else{errors++;}
+          }
+        }
+        hideSpinner();
+        renderHwmsMR();
+        notify('✅ Import done: '+created+' created, '+updated+' updated'+(errors?', '+errors+' failed':''));
+      }catch(err){hideSpinner();notify('⚠ Import error: '+err.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){notify('⚠ '+ex.message,true);}
+}
+
 var _hwmsInventorySortKey='partNumber',_hwmsInventorySortAsc=true;
 function _hwmsInventorySort(key){
   if(_hwmsInventorySortKey===key) _hwmsInventorySortAsc=!_hwmsInventorySortAsc;
@@ -3467,11 +4981,11 @@ function renderHwmsInventory(){
       partMap[l.partId].dispatchedQty+=(l.quantity||0);
     });
   });
-  // Build rows — warehouse qty = reached qty minus dispatched
+  // Build rows — warehouse stock = reached qty minus dispatched (same as _hwmsPartStock)
   var rows=[];
   parts.forEach(function(p){
     var d=partMap[p.id]||{totalQty:0,whQty:0,dispatchedQty:0,transitQty:0,details:[]};
-    var netWhQty=d.whQty-d.dispatchedQty;
+    var netWhQty=Math.max(0,d.whQty-d.dispatchedQty);
     rows.push({
       id:p.id,
       partNumber:p.partNumber||'',
@@ -3620,6 +5134,14 @@ function renderHwmsInvoices(){
   // Calculate totals for filtered invoices
   var grandTotalAmt=0,grandTotalGrossWt=0;
   var _invSA=CU&&CU.roles.includes('Super Admin');
+  // Pre-compute sub-invoice amounts per invoiceId
+  var siAmtByInv={};
+  (DB.hwmsSubInvoices||[]).forEach(function(si){
+    if(!si.invoiceId) return;
+    var amt=(si.lineItems||[]).reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
+    siAmtByInv[si.invoiceId]=(siAmtByInv[si.invoiceId]||0)+amt;
+  });
+  var grandTotalSiAmt=0,grandTotalBal=0;
   var rowsHtml=invs.length?invs.map(inv=>{
     const cont=byId(DB.hwmsContainers||[],inv.containerId);
     const lis=inv.lineItems||[];
@@ -3630,30 +5152,36 @@ function renderHwmsInvoices(){
     const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
     grandTotalAmt+=totalAmt;
     grandTotalGrossWt+=totalGrossWt;
+    const siAmt=siAmtByInv[inv.id]||0;
+    const balAmt=totalAmt-siAmt;
+    grandTotalSiAmt+=siAmt;
+    grandTotalBal+=balAmt;
     const isContDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
     const contHtml=isUnalloc?'<span style="color:#dc2626;font-weight:700">Unallocated</span>':'<span style="font-family:var(--mono);font-weight:700">'+(cont?.containerNumber||'—')+'</span>';
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
-    const invNumStyle=isDraft?'font-family:var(--mono);font-weight:400;color:#dc2626;font-size:15px':'font-family:var(--mono);font-weight:400;color:var(--accent);font-size:15px';
+    const invNumStyle=isDraft?'font-family:var(--mono);font-weight:400;color:#dc2626;font-size:13px;max-width:110px;word-break:break-all':'font-family:var(--mono);font-weight:400;color:var(--accent);font-size:13px;max-width:110px;word-break:break-all';
     const rowBg=(isDraft||isUnalloc)?';background:rgba(234,179,8,.04)':'';
     let actHtml='';
     if(isDraft) actHtml='<button class="action-btn" onclick="event.stopPropagation();openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
     return `<tr class="clickable-row" onclick="showHwmsInvDetail('${inv.id}')" style="cursor:pointer${rowBg}">
       ${_invSA?'<td style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
       <td style="${invNumStyle}">${_hwmsInvNum(inv.invoiceNumber)}</td>
-      <td style="white-space:nowrap">${_fdate(inv.date)}</td>
+      <td style="white-space:nowrap;font-size:12px">${_fdate(inv.date)}</td>
       <td>${contHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td><span class="badge ${st.cls}" style="font-weight:800">${st.label}</span></td>
       <td style="white-space:nowrap">${reachHtml}</td>
       <td style="text-align:right;font-family:var(--mono);font-weight:800;color:#16a34a">$${totalAmt.toFixed(2)}</td>
       <td style="text-align:right;font-family:var(--mono)">${totalGrossWt.toFixed(1)} kg</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${siAmt>0?'#7c3aed':'var(--text3)'}">${siAmt>0?'$'+siAmt.toFixed(2):'—'}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${balAmt>0?'#dc2626':'#16a34a'}">${balAmt>0?'$'+balAmt.toFixed(2):'✓'}</td>
       <td style="white-space:nowrap" onclick="event.stopPropagation()">${actHtml}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="'+(_invSA?10:9)+'" class="empty-state">No invoices found</td></tr>';
+  }).join(''):'<tr><td colspan="'+(_invSA?12:11)+'" class="empty-state">No invoices found</td></tr>';
   // Add totals row
   if(invs.length){
-    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td colspan="'+(_invSA?7:6)+'" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px">$'+grandTotalAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px">'+grandTotalGrossWt.toFixed(1)+' kg</td><td></td></tr>';
+    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td colspan="'+(_invSA?7:6)+'" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px">$'+grandTotalAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px">'+grandTotalGrossWt.toFixed(1)+' kg</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#7c3aed;padding:8px">$'+grandTotalSiAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalBal>0?'#dc2626':'#16a34a')+';padding:8px">'+(grandTotalBal>0?'$'+grandTotalBal.toFixed(2):'✓')+'</td><td></td></tr>';
   }
   document.getElementById('hwmsInvBody').innerHTML=rowsHtml;
   var htEl=document.getElementById('hwmsInvHeaderTotal');

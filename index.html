@@ -76,7 +76,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 </head>
 <body>
 <div id="notification" class="notification"></div>
-<div id="loginPage" style="display:flex">
+<div id="loginPage" style="display:none">
   <div class="login-card">
 
     <div style="text-align:center;margin-bottom:12px">
@@ -301,16 +301,88 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <div style="text-align:right"><button onclick="cm('mError')" style="padding:10px 24px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;cursor:pointer">OK</button></div>
   </div>
 </div>
+<!-- FORCE PASSWORD CHANGE MODAL -->
+<div class="modal-overlay" id="mForcePass" style="z-index:100010" onclick="event.stopPropagation()">
+<div class="modal" style="width:min(440px,94vw);border-radius:16px">
+  <div class="modal-header" style="background:linear-gradient(135deg,#175c60 0%,#2a9aa0 100%);border-radius:16px 16px 0 0">
+    <div class="modal-title" style="color:#fff">🔐 Password Update Required</div>
+  </div>
+  <div style="padding:18px 20px 0">
+    <div id="fpUserInfo" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:10px">
+      <div style="width:38px;height:38px;border-radius:50%;background:#2a9aa0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0" id="fpUserAvatar">👤</div>
+      <div>
+        <div id="fpFullName" style="font-size:14px;font-weight:800;color:#1e293b;line-height:1.3"></div>
+        <div id="fpUserName" style="font-size:11px;font-weight:600;color:#64748b;font-family:monospace"></div>
+      </div>
+    </div>
+    <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e;font-weight:600">
+      ⚠️ Your current password does not meet security requirements. Please set a new password to continue.
+    </div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:14px;line-height:1.6">
+      Password must have: <strong>6–12 characters</strong>, at least one <strong>UPPERCASE</strong>, one <strong>lowercase</strong>, one <strong>number</strong>, and one <strong>special character</strong>
+    </div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">New Password</label>
+      <div style="position:relative">
+        <input type="password" id="forceNewPass" placeholder="Enter new password" maxlength="12" oninput="_liveValidatePwd(this.value)"
+          style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 38px 10px 12px;font-size:14px;color:#1e293b;outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='#2a9aa0'" onblur="this.style.borderColor='#e2e8f0'">
+        <button type="button" onclick="_toggleFpVis('forceNewPass',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#64748b;padding:4px">👁</button>
+      </div>
+    </div>
+    <div id="fpRules" style="margin-bottom:10px;font-size:11px;line-height:2">
+      <div id="fpR1">❌ 6–12 characters</div>
+      <div id="fpR2">❌ One uppercase letter (A-Z)</div>
+      <div id="fpR3">❌ One lowercase letter (a-z)</div>
+      <div id="fpR4">❌ One number (0-9)</div>
+      <div id="fpR5">❌ One special character</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Confirm New Password</label>
+      <div style="position:relative">
+        <input type="password" id="forceConfPass" placeholder="Repeat new password" maxlength="12"
+          style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 38px 10px 12px;font-size:14px;color:#1e293b;outline:none;box-sizing:border-box"
+          onfocus="this.style.borderColor='#2a9aa0'" onblur="this.style.borderColor='#e2e8f0'">
+        <button type="button" onclick="_toggleFpVis('forceConfPass',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:#64748b;padding:4px">👁</button>
+      </div>
+    </div>
+    <div id="forcePassMsg" style="display:none;font-size:12px;margin-bottom:8px;padding:7px 10px;border-radius:7px"></div>
+  </div>
+  <div class="modal-footer" style="flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="_doForceChangePass()" style="width:100%;justify-content:center;font-size:14px;font-weight:800;padding:12px;border-radius:10px">🔐 Set New Password & Continue</button>
+    <button onclick="_forcePassSignOut()" style="width:100%;padding:8px;border-radius:8px;border:none;background:none;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s" onmouseover="this.style.color='#dc2626';this.style.background='#fef2f2'" onmouseout="this.style.color='#64748b';this.style.background='none'">🚪 Sign Out & Use Different Account</button>
+  </div>
+</div>
+</div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
 <script src="myApps_Common_v18.js"></script>
 <script>
-// Safety: if Common.js failed to load, show error
 if(typeof _COMMON_LOADED==='undefined'){
   document.addEventListener('DOMContentLoaded',function(){
     var lp=document.getElementById('loginPage');if(lp)lp.style.display='flex';
     var ov=document.getElementById('loginConnLabel');if(ov){ov.textContent='⚠ myApps_Common_v18.js not found';ov.style.color='#dc2626';}
   });
-} else {
+}
+</script>
+<script>
+// ── All portal code (global scope — no block wrappers) ──────────────────────
+// Override _navigateTo to cache ALL tables (not just portal's 2 tables)
+var _origNavigateTo=_navigateTo;
+_navigateTo=function(url){
+  try{
+    if(typeof DB!=='undefined'&&typeof DB_TABLES!=='undefined'&&DB.users&&DB.users.length){
+      var cache={ts:Date.now()};
+      DB_TABLES.forEach(function(t){cache[t]=DB[t]||[];});
+      localStorage.setItem('kap_db_cache',JSON.stringify(cache));
+    }
+  }catch(e){}
+  // Navigate with overlay (skip the cache write in original since we did it)
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:#f8fafc;z-index:999999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px';
+  ov.innerHTML='<div style="width:40px;height:40px;border:4px solid rgba(42,154,160,.2);border-top-color:#2a9aa0;border-radius:50%;animation:spin .7s linear infinite"></div><div style="color:#64748b;font-size:13px;font-weight:600">Loading…</div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){window.location.href=url;},50);
+};
 function togglePassVis(){
   const el=document.getElementById('loginPass');
   const btn=document.getElementById('passToggle');
@@ -408,7 +480,6 @@ document.addEventListener('DOMContentLoaded', function(){
       if(uEl) uEl.value=su;
       if(pEl) pEl.value=sp;
       if(rmEl) rmEl.checked=true;
-      // Hide CAPTCHA for remembered devices — they've already proven they own this device
       _rememberedLogin=true;
       var cw=document.getElementById('captchaWrap');
       if(cw) cw.style.display='none';
@@ -417,18 +488,24 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 var _portalRetryTimer=null, _portalRetryBusy=false;
+var _portalLoggedIn=false; // flag to skip login UI updates while logged in
+var _portalEverHadUsers=false; // once true, never disable login form again
 function _portalUpdateLoginBtn(){
+  if(_portalLoggedIn) return; // skip while user is logged in
   var btn=document.getElementById('loginBtn');
   var spinner=document.getElementById('loginSpinner');
   var dot=document.getElementById('loginConnDot');
   var label=document.getElementById('loginConnLabel');
   var status=document.getElementById('loginConnStatus');
-  // Enable ONLY when DB.users is populated — prevents the race where
-  // _sbStatus flips to 'ok' before _bgSyncFromSupabase has loaded users.
   var hasUsers=!!(DB.users&&DB.users.length>0);
-  var loading=!hasUsers;
+  if(hasUsers) _portalEverHadUsers=true;
+  // Once we've ever loaded users, never go back to "loading" state
+  var loading=_portalEverHadUsers?false:!hasUsers;
   // Sign In button
-  if(btn){ btn.disabled=loading; btn.style.opacity=loading?'0.5':'1'; btn.style.cursor=loading?'not-allowed':'pointer'; }
+  if(btn){ 
+    if(loading){btn.disabled=true;btn.style.opacity='0.5';btn.style.cursor='not-allowed';}
+    else{btn.removeAttribute('disabled');btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';}
+  }
   // Disable ALL form inputs while DB is loading — prevents user confusion
   ['loginUser','loginPass','captchaAns','rememberMe'].forEach(function(id){
     var el=document.getElementById(id);
@@ -446,9 +523,9 @@ function _portalUpdateLoginBtn(){
   if(status){ status.style.background=loading?'#f8fafc':'rgba(34,197,94,.06)'; status.style.borderColor=loading?'#e2e8f0':'rgba(34,197,94,.25)'; }
 }
 function doLogin(){
+  try{
+  console.log('[doLogin] START');
   // Always require DB.users to be populated before allowing login.
-  // This prevents the race where the button is enabled but bgSync hasn't
-  // finished loading users yet.
   if(!DB.users||!DB.users.length){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='Database not ready yet. Please wait a moment…';
@@ -464,7 +541,6 @@ function doLogin(){
   const u=document.getElementById('loginUser').value.toLowerCase().trim();
   const p=document.getElementById('loginPass').value;
   // Skip CAPTCHA for remembered devices — they pre-filled from localStorage.
-  // Show CAPTCHA again if the user manually edits the username/password fields.
   if(!_rememberedLogin){
     const userAns=parseInt(document.getElementById('captchaAns').value,10);
     if(isNaN(userAns)||userAns!==_captchaAnswer){
@@ -476,7 +552,6 @@ function doLogin(){
     document.getElementById('captchaErr').style.display='none';
     document.getElementById('captchaAns').classList.remove('input-error');
   }
-  console.log('[doLogin] u='+JSON.stringify(u)+' DB.users count='+(DB.users||[]).length);
   const user=DB.users.find(x=>x&&x.name.toLowerCase()===u&&x.password===p);
   if(!user){
     console.warn('[doLogin] no match — DB has',DB.users?.length,'users');
@@ -501,9 +576,8 @@ function doLogin(){
   // Success — reset fail count
   _loginFailCount=0;
   CU=user; _enrichCU();
-  // Detach login button updater — login page is about to be hidden
-  // This prevents _sbSetStatus calls from uselessly updating the login UI after login
-  _portalUpdateLoginBtn = function(){};
+  // Mark as logged in — stops _portalUpdateLoginBtn from updating login UI
+  _portalLoggedIn=true;
   // Always store in sessionStorage so refresh within this tab keeps user logged in
   _sessionSet('kap_session_user',u);
   _sessionSet('kap_session_pass',p);
@@ -523,8 +597,20 @@ function doLogin(){
     }
   }catch(e){}
   document.getElementById('loginError').style.display='none';
-  document.getElementById('loginPage').style.display='none';
+  // Check password strength — force change before showing portal
+  // NOTE: Do NOT hide loginPage here — showPortal() does it.
+  // If force password modal opens, it overlays the login page (z-index 100010).
+  var _RESET_PWD_PORTAL='Kappl@123';
+  if(!_isStrongPwd(p)||p===_RESET_PWD_PORTAL){
+    _openForcePassModal();
+    return;
+  }
   showPortal();
+  }catch(e){
+    console.error('[doLogin] error:',e);
+    var errEl=document.getElementById('loginError');
+    if(errEl){errEl.style.display='block';errEl.textContent='Login error: '+e.message;}
+  }
 }
 
 const _LOGO="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iIzJhOWFhMCIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTAuNSI+S0FQPC90ZXh0Pjwvc3ZnPg==";
@@ -535,6 +621,12 @@ const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:false,review:fals
 function showPortal(){
   document.getElementById('loginPage').style.display='none';
   document.getElementById('portalPage').style.display='block';
+  // Pre-fetch ALL tables in background so app opens instantly
+  _portalPreFetchAll();
+  // Retry pre-fetch after 2s if Supabase wasn't ready
+  if(!_portalPreFetchDone){
+    setTimeout(function(){if(!_portalPreFetchDone) _portalPreFetchAll();},2000);
+  }
   // Topbar user info
   var initials=(CU.fullName||CU.name||'?').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'?';
   var av=document.getElementById('portalAvatar');
@@ -578,6 +670,26 @@ function showTab(tab){
   if(tab==='profile') ppLoadProfile();
 }
 
+// ── Background pre-fetch ALL tables so app opens fast ───────────────────────
+var _portalPreFetchDone=false;
+function _portalPreFetchAll(){
+  if(_portalPreFetchDone||!_sbReady||!_sb) return;
+  console.log('[portal] pre-fetching all tables in background…');
+  Promise.all(DB_TABLES.map(function(tbl){
+    if(!SB_TABLES[tbl]) return Promise.resolve(null);
+    return _sb.from(SB_TABLES[tbl]).select('*').then(function(res){
+      if(res.error) return null;
+      return {tbl:tbl, rows:res.data||[]};
+    }).catch(function(){return null;});
+  })).then(function(results){
+    (results||[]).filter(Boolean).forEach(function(r){
+      DB[r.tbl]=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+    });
+    _portalPreFetchDone=true;
+    console.log('[portal] pre-fetch done — '+DB_TABLES.map(function(t){return t+'='+((DB[t]||[]).length);}).join(', '));
+  }).catch(function(e){console.warn('[portal] pre-fetch error:',e.message);});
+}
+
 // ── App grid ────────────────────────────────────────────────────────────────
 function renderAppGrid(){
   const grid=document.getElementById('appGrid'),userApps=CU.apps||[];
@@ -589,9 +701,48 @@ function renderAppGrid(){
 }
 function openApp(id,file){
   if(!file){notify('Module not yet available',true);return;}
-  // _navigateTo now serializes DB to sessionStorage automatically before navigating,
-  // so we don't need to do it manually here anymore.
-  _navigateTo(file+'?app='+id);
+  // If pre-fetch already loaded all tables, navigate immediately
+  if(_portalPreFetchDone){
+    _APP_TABLES=null;
+    _navigateTo(file+'?app='+id);
+    return;
+  }
+  if(!_sbReady||!_sb){_navigateTo(file+'?app='+id);return;}
+  // Pre-fetch ALL tables with 4s timeout
+  showSpinner('Loading '+id+'…');
+  var allTables=DB_TABLES;
+  var fetchDone=false;
+  var timeout=setTimeout(function(){
+    if(fetchDone) return;
+    fetchDone=true;
+    hideSpinner();
+    _APP_TABLES=null;
+    _navigateTo(file+'?app='+id);
+  },4000);
+  Promise.all(allTables.map(function(tbl){
+    if(!SB_TABLES[tbl]) return Promise.resolve(null);
+    return _sb.from(SB_TABLES[tbl]).select('*').then(function(res){
+      if(res.error) return null;
+      return {tbl:tbl, rows:res.data||[]};
+    }).catch(function(){return null;});
+  })).then(function(results){
+    if(fetchDone) return;
+    fetchDone=true;
+    clearTimeout(timeout);
+    (results||[]).filter(Boolean).forEach(function(r){
+      DB[r.tbl]=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+    });
+    hideSpinner();
+    _APP_TABLES=null;
+    _navigateTo(file+'?app='+id);
+  }).catch(function(){
+    if(fetchDone) return;
+    fetchDone=true;
+    clearTimeout(timeout);
+    hideSpinner();
+    _APP_TABLES=null;
+    _navigateTo(file+'?app='+id);
+  });
 }
 
 // ── Users table ─────────────────────────────────────────────────────────────
@@ -716,12 +867,20 @@ async function puDeleteUser(id){
 
 // ── Reset password ──────────────────────────────────────────────────────────
 async function puResetPwd(id){
-  const u=byId(DB.users,id);if(!u) return;
-  showConfirm('Reset password for "'+u.fullName+'" to Kappl@123?', async ()=>{
-    const bak={...u};u.password='Kappl@123';
-    if(!await _dbSave('users',u)){Object.assign(u,bak);return}
-    renderPortalUsers();notify('Password reset to Kappl@123');
-  });
+  var u=byId(DB.users,id);if(!u){notify('User not found',true);return;}
+  var userName=u.fullName||u.name||'this user';
+  if(!confirm('Reset password for "'+userName+'" to "Kappl@123"?\n\nThe user will be forced to change password on next login.')) return;
+  var bak=u.password;
+  u.password='Kappl@123';
+  try{
+    var ok=await _dbSave('users',u);
+    if(!ok){u.password=bak;notify('Failed to reset password',true);return;}
+    notify('🔑 Password for "'+userName+'" reset to "Kappl@123".');
+    renderPortalUsers();
+  }catch(err){
+    u.password=bak;
+    notify('Failed: '+err.message,true);
+  }
 }
 
 // ── Profile ─────────────────────────────────────────────────────────────────
@@ -836,12 +995,133 @@ document.addEventListener('click',e=>{
 function openProfile(){document.getElementById('userDropdown').classList.remove('show');showTab('profile')}
 
 // ── Logout ──────────────────────────────────────────────────────────────────
+// ── Force Password Change ───────────────────────────────────────────────────
+var _PORTAL_RESET_PWD='Kappl@123';
+function _isStrongPwd(pwd){
+  if(!pwd||pwd.length<6||pwd.length>12) return false;
+  if(!/[A-Z]/.test(pwd)) return false;
+  if(!/[a-z]/.test(pwd)) return false;
+  if(!/[0-9]/.test(pwd)) return false;
+  if(!/[^A-Za-z0-9]/.test(pwd)) return false;
+  return true;
+}
+function _liveValidatePwd(pwd){
+  var rules=[
+    {id:'fpR1',ok:pwd.length>=6&&pwd.length<=12},
+    {id:'fpR2',ok:/[A-Z]/.test(pwd)},
+    {id:'fpR3',ok:/[a-z]/.test(pwd)},
+    {id:'fpR4',ok:/[0-9]/.test(pwd)},
+    {id:'fpR5',ok:/[^A-Za-z0-9]/.test(pwd)}
+  ];
+  var labels=['6–12 characters','One uppercase letter (A-Z)','One lowercase letter (a-z)','One number (0-9)','One special character'];
+  rules.forEach(function(r,i){
+    var el=document.getElementById(r.id);
+    if(el){el.textContent=(r.ok?'✅':'❌')+' '+labels[i];el.style.color=r.ok?'#16a34a':'#dc2626';el.style.fontWeight=r.ok?'600':'400';}
+  });
+}
+function _toggleFpVis(inputId,btn){
+  var inp=document.getElementById(inputId);if(!inp)return;
+  var isPass=inp.type==='password';
+  inp.type=isPass?'text':'password';
+  btn.textContent=isPass?'🙈':'👁';
+}
+function _openForcePassModal(){
+  document.getElementById('forceNewPass').value='';
+  document.getElementById('forceConfPass').value='';
+  document.getElementById('forcePassMsg').style.display='none';
+  document.getElementById('forceNewPass').type='password';
+  document.getElementById('forceConfPass').type='password';
+  if(CU){
+    var fn=document.getElementById('fpFullName');
+    var un=document.getElementById('fpUserName');
+    var av=document.getElementById('fpUserAvatar');
+    if(fn) fn.textContent=CU.fullName||CU.name||'';
+    if(un) un.textContent='@'+CU.name;
+    if(av){
+      if(CU.photo){av.textContent='';av.style.backgroundImage='url('+CU.photo+')';av.style.backgroundSize='cover';av.style.backgroundPosition='center';}
+      else{var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'👤';av.textContent=initials;av.style.backgroundImage='';}
+    }
+  }
+  _liveValidatePwd('');
+  om('mForcePass');
+}
+async function _doForceChangePass(){
+  var newPwd=document.getElementById('forceNewPass').value;
+  var confPwd=document.getElementById('forceConfPass').value;
+  var msgEl=document.getElementById('forcePassMsg');
+  var showErr=function(msg){msgEl.style.display='block';msgEl.style.background='#fee2e2';msgEl.style.color='#dc2626';msgEl.textContent=msg;};
+  if(!newPwd||!confPwd){showErr('Please fill both password fields');return;}
+  var errs=_pwdErrors(newPwd);
+  if(errs.length){showErr('Password requires: '+errs.join(', '));return;}
+  if(newPwd!==confPwd){showErr('Passwords do not match');return;}
+  if(newPwd===CU.password){showErr('New password must be different from current password');return;}
+  if(newPwd===_PORTAL_RESET_PWD){showErr('Cannot use the default password. Please choose a different one.');return;}
+  var dbUser=byId(DB.users,CU.id);
+  if(dbUser){
+    var bak=dbUser.password;
+    dbUser.password=newPwd;
+    if(!await _dbSave('users',dbUser)){dbUser.password=bak;showErr('Failed to save. Try again.');return;}
+  }
+  CU.password=newPwd;
+  try{if(localStorage.getItem('kap_rm_pass'))localStorage.setItem('kap_rm_pass',newPwd);}catch(e){}
+  try{if(sessionStorage.getItem('kap_session_pass'))sessionStorage.setItem('kap_session_pass',newPwd);}catch(e){}
+  cm('mForcePass');
+  notify('🔐 Password updated successfully!');
+  showPortal();
+}
+function _forcePassSignOut(){
+  cm('mForcePass');
+  doLogout();
+}
+
 function doLogout(){
   CU=null;_sessionDel('kap_session_user');_sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');localStorage.removeItem('kap_current_user');}catch(e){}
-  document.getElementById('portalPage').style.display='none';document.getElementById('loginPage').style.display='flex';
-  document.getElementById('loginUser').value='';document.getElementById('loginPass').value='';
-  document.getElementById('loginError').textContent='';document.getElementById('loginBtn').disabled=false;document.getElementById('loginBtn').textContent='Sign In';
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');localStorage.removeItem('kap_current_user');}catch(e){console.warn('[doLogout] ls err:',e);}
+  // Allow login UI updates again
+  _portalLoggedIn=false;
+  // Reset login form state
+  _rememberedLogin=false;
+  _loginFailCount=0;
+  _lockoutUntil=0;
+  if(_lockoutInterval){clearInterval(_lockoutInterval);_lockoutInterval=null;}
+  // Switch views
+  document.getElementById('portalPage').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+  // Clear and re-enable all form inputs
+  document.getElementById('loginUser').value='';
+  document.getElementById('loginPass').value='';
+  var loginErr=document.getElementById('loginError');
+  if(loginErr){loginErr.textContent='';loginErr.style.display='none';}
+  var captchaErr=document.getElementById('captchaErr');
+  if(captchaErr) captchaErr.style.display='none';
+  var lockBanner=document.getElementById('lockoutBanner');
+  if(lockBanner) lockBanner.style.display='none';
+  var btn=document.getElementById('loginBtn');
+  if(btn){btn.removeAttribute('disabled');btn.disabled=false;btn.textContent='Sign In';btn.style.opacity='1';btn.style.cursor='pointer';}
+  ['loginUser','loginPass','captchaAns'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el){el.disabled=false;el.style.opacity='1';el.classList.remove('input-error');el.value='';}
+  });
+  // Uncheck Remember Me
+  var rmEl=document.getElementById('rememberMe');
+  if(rmEl){rmEl.checked=false;rmEl.disabled=false;rmEl.style.opacity='1';}
+  // Show and refresh CAPTCHA
+  var cw=document.getElementById('captchaWrap');if(cw) cw.style.display='';
+  _refreshCaptcha();
+  // Sync login button state with current DB
+  _portalUpdateLoginBtn();
+  // Safety: re-enable login form after a short delay in case background sync disables it
+  setTimeout(function(){
+    var b=document.getElementById('loginBtn');
+    if(b&&document.getElementById('loginPage').style.display!=='none'){
+      b.removeAttribute('disabled');b.disabled=false;b.style.opacity='1';b.style.cursor='pointer';
+      ['loginUser','loginPass','captchaAns'].forEach(function(id){
+        var el=document.getElementById(id);if(el){el.disabled=false;el.style.opacity='1';}
+      });
+      var rm=document.getElementById('rememberMe');if(rm){rm.disabled=false;rm.style.opacity='1';}
+    }
+    console.log('[doLogout] safety re-enable done');
+  },300);
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────
@@ -861,10 +1141,10 @@ async function _portalBoot(){
 
   // FAST PATH: session exists → bootDB → show portal
   if(hasSession){
+    // Hide login page during boot — bootDB shows its own spinner
+    document.getElementById('loginPage').style.display='none';
     var splash=document.getElementById('dbSplash');
-    // Only show splash if no nav cache — bootDB reads localStorage kap_db_cache
-    var _pHasCache=false;try{_pHasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
-    if(!_pHasCache && splash) splash.style.display='flex';
+    if(splash) splash.style.display='none';
     try{ await bootDB(); _bootDone=true; }catch(e){ _bootDone=true; }
     if(splash) splash.style.display='none';
     var user=(DB.users||[]).find(function(u){return u&&u.name.toLowerCase()===su&&u.password===sp2;});
@@ -880,18 +1160,28 @@ async function _portalBoot(){
     }
     if(user&&!user.inactive){
       CU=user; _enrichCU();
-      showPortal();
+      _portalLoggedIn=true;
+      // Check password strength on session restore too
+      if(!_isStrongPwd(user.password)||user.password==='Kappl@123'){
+        // Show login page behind the modal so there's no blank screen
+        document.getElementById('loginPage').style.display='flex';
+        _openForcePassModal();
+      } else {
+        showPortal();
+      }
       return;
     }
+    // Session failed — show login page
+    document.getElementById('loginPage').style.display='flex';
     // Session credentials did not match — fall through to login page.
     // bootDB already ran above; skip the second call below.
   }
 
   // Show login page — bootDB already called if hasSession was true
-  document.getElementById('loginPage').style.display='flex';
   if(!_bootDone){
     try{ await bootDB(); }catch(e){}
   }
+  document.getElementById('loginPage').style.display='flex';
   // Update button state once after boot — not before (pre-boot DB is empty → shows 'connecting' unnecessarily)
   _portalUpdateLoginBtn();
   document.getElementById('loginUser')?.focus();
@@ -912,13 +1202,13 @@ document.addEventListener('keydown', function(e){
 
 // ── Boot trigger ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', ()=>{
+  if(typeof _COMMON_LOADED==='undefined') return; // Common.js missing — error already shown
   _portalBoot().catch(e=>{
     console.error('Portal boot failed:',e);
     // Show login page anyway
     document.getElementById('loginPage').style.display='flex';
   });
 });
-} // end else (Common.js loaded)
 </script>
 </body>
 </html>

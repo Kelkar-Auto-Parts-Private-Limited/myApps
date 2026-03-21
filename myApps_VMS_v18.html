@@ -1636,9 +1636,9 @@
 <!-- GENERAL CONFIRM MODAL (master record delete) -->
 <div class="modal-overlay" id="mConfirm">
   <div class="modal" style="width:380px;text-align:center">
-    <div style="font-size:40px;margin-bottom:8px">🗑️</div>
-    <div class="modal-title" style="justify-content:center;font-size:17px;margin-bottom:6px">Delete this item?</div>
-    <div id="confirmMsg" style="font-size:13px;color:var(--text2);margin-bottom:20px">This action cannot be undone.</div>
+    <div id="confirmIcon" style="font-size:40px;margin-bottom:8px">🗑️</div>
+    <div class="modal-title" id="confirmTitle" style="justify-content:center;font-size:17px;margin-bottom:6px">Delete this item?</div>
+    <div id="confirmMsg" style="font-size:13px;color:var(--text2);margin-bottom:20px;white-space:pre-line">This action cannot be undone.</div>
     <div class="modal-footer" style="justify-content:center;gap:12px">
       <button class="btn btn-secondary" onclick="cm('mConfirm')" style="min-width:100px">Cancel</button>
       <button class="btn btn-danger" id="btnConfirmOk" style="min-width:100px">🗑 Delete</button>
@@ -1799,7 +1799,8 @@ const SB_TABLES = {
   hwmsHsn:'hwms_hsn', hwmsUom:'hwms_uom', hwmsPacking:'hwms_packing',
   hwmsCustomers:'hwms_customers', hwmsPortDischarge:'hwms_port_discharge', hwmsPortLoading:'hwms_port_loading',
   hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates',
-  hwmsSubInvoices:'hwms_sub_invoices'
+  hwmsSubInvoices:'hwms_sub_invoices',
+  hwmsMaterialRequests:'hwms_material_requests'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -1911,6 +1912,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsCarriers') return {code:r.id,carrier_name:r.carrierName||'',address:r.address||'',contact:r.contact||''};
   if(tbl==='hwmsSteelRates') return {code:r.id,cust_id:r.customerId||'',steel_rate:r.steelRate||0,forex_rate:r.forexRate||0,valid_from:r.validFrom||'',valid_to:r.validTo||''};
   if(tbl==='hwmsCompany') return {code:r.id,company_name:r.companyName||'',address:r.address||'',gstin:r.gstin||'',iec:r.iec||'',rex:r.rex||'',supplier_code:r.supplierCode||'',place_receipt:r.placeReceipt||'',country:r.country||'India',note:r.note||''};
+  if(tbl==='hwmsMaterialRequests') return {code:r.id,mr_number:r.mrNumber||'',mr_date:r.mrDate||'',need_by_date:r.needByDate||'',status:r.status||'',line_items:r.lineItems||[],remarks:r.remarks||'',created_by:r.createdBy||''};
   if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',pickup_date:r.pickupDate||'',grn_status:r.grnStatus||'',grn_date:r.grnDate||'',payment_status:r.paymentStatus||'',payment_received:r.paymentReceived||0,payment_balance:r.paymentBalance||0,tariff_percent:r.tariffPercent||0,tariff_amount:r.tariffAmount||0,remarks:r.remarks||''};
   return null;
 }
@@ -1948,6 +1950,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsCarriers') return {id:row.code,_dbId:row.id,carrierName:row.carrier_name||'',address:row.address||'',contact:row.contact||''};
   if(tbl==='hwmsSteelRates') return {id:row.code,_dbId:row.id,customerId:row.cust_id||'',steelRate:row.steel_rate||0,forexRate:row.forex_rate||0,validFrom:row.valid_from||'',validTo:row.valid_to||''};
   if(tbl==='hwmsCompany') return {id:row.code,_dbId:row.id,companyName:row.company_name||'',address:row.address||'',gstin:row.gstin||'',iec:row.iec||'',rex:row.rex||'',supplierCode:row.supplier_code||'',placeReceipt:row.place_receipt||'',country:row.country||'India',note:row.note||''};
+  if(tbl==='hwmsMaterialRequests') return {id:row.code,_dbId:row.id,mrNumber:row.mr_number||'',mrDate:row.mr_date||'',needByDate:row.need_by_date||'',status:row.status||'',lineItems:row.line_items||[],remarks:row.remarks||'',createdBy:row.created_by||''};
   if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',pickupDate:row.pickup_date||'',grnStatus:row.grn_status||'',grnDate:row.grn_date||'',paymentStatus:row.payment_status||'',paymentReceived:row.payment_received||0,paymentBalance:row.payment_balance||0,tariffPercent:row.tariff_percent||0,tariffAmount:row.tariff_amount||0,remarks:row.remarks||''};
   return null;
 }
@@ -2551,9 +2554,11 @@ async function bootDB(){
       const _sm0=document.getElementById('splashMsg');if(_sm0)_sm0.textContent='Connecting to database…';
       const _sbTimeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('Supabase timeout (5s)')),5000));
       const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
-        const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
-        if(error) throw new Error('['+tbl+']: '+error.message);
-        return {tbl, rows: data||[]};
+        try{
+          const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+          if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
+          return {tbl, rows: data||[]};
+        }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
       const results = await Promise.race([_sbFetch, _sbTimeout]);
       results.forEach(({tbl,rows})=>{
@@ -2965,7 +2970,7 @@ function showConfirm(msg, onOk, opts){
     btnEl.textContent=o.btnLabel||'Confirm';
     btnEl.style.background=o.btnColor||'#ef4444';
   }
-  if(btnEl) btnEl.onclick=()=>{cm('mConfirm');onOk();};
+  if(btnEl) btnEl.onclick=async()=>{cm('mConfirm');try{await onOk();}catch(e){console.error('showConfirm onOk error:',e);notify('⚠ '+e.message,true);}};
   om('mConfirm');
 }
 
@@ -3006,7 +3011,7 @@ function _navigateTo(url){
 
 
 // ═══ ROLE CHECK ═══════════════════════════════════════════════════════════
-function hasRole(roles){if(!CU)return false;if(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'))return true;var allRoles=(CU.roles||[]).concat(CU.hwmsRoles||[]);return roles.some(r=>allRoles.includes(r));}
+function hasRole(roles){if(!CU)return false;if(!roles||!roles.length)return true;if(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'))return true;var allRoles=(CU.roles||[]).concat(CU.hwmsRoles||[]);return roles.some(r=>allRoles.includes(r));}
 
 // ═══ PASSWORD POLICY ═════════════════════════════════════════════════════
 function _pwdErrors(pwd){
@@ -3751,12 +3756,9 @@ function _applyPhotoInputMode(){
 function _photoAccept(){ return 'image/*'; }
 
 async function _appBoot(){
+  // bootDB() shows its own spinner — no need for separate dbSplash overlay
   var splash=document.getElementById('dbSplash');
-  // Only show splash if no sessionStorage cache available.
-  // When navigating from Portal the cache provides instant data — no splash needed.
-  var _hasCache=false;
-  try{ _hasCache=!!localStorage.getItem('kap_db_cache'); }catch(e){}
-  if(!_hasCache && splash) splash.style.display='flex';
+  if(splash) splash.style.display='none';
   // Load only VMS + Security tables — not HWMS tables
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
@@ -4486,16 +4488,30 @@ function _forcePassSignOut(){
 // ── Admin: Reset user password ───────────────────────────────────────────────
 const _RESET_PWD='Kappl@123';
 async function _resetUserPwd(userId){
-  const u=byId(DB.users,userId);if(!u)return;
+  console.log('[_resetUserPwd] called for userId='+userId);
+  var u=byId(DB.users,userId);
+  if(!u){console.error('[_resetUserPwd] user not found');notify('User not found',true);return;}
   if((u.roles||[]).includes('Super Admin')){notify('Cannot reset Super Admin password',true);return;}
-  showConfirm(`Reset password for "${u.fullName||u.name}" to "Kappl@123"?\n\nThe user will be forced to change password on next login.`, async ()=>{
-    const _bak=u.password;
-    u.password=_RESET_PWD;
-    if(!await _dbSave('users',u)){u.password=_bak;notify('Failed to reset password',true);return;}
-    notify(`🔑 Password for "${u.fullName||u.name}" reset to "Kappl@123". They must change it on next login.`);
-    cm('mRecordDetail');
+  var userName=u.fullName||u.name||'this user';
+  if(!confirm('Reset password for "'+userName+'" to "Kappl@123"?\n\nThe user will be forced to change password on next login.')) return;
+  console.log('[_resetUserPwd] old password='+u.password+' → new='+_RESET_PWD);
+  var _bak=u.password;
+  u.password=_RESET_PWD;
+  try{
+    var ok=await _dbSave('users',u);
+    console.log('[_resetUserPwd] _dbSave returned:',ok);
+    if(!ok){u.password=_bak;notify('Failed to reset password — save error',true);return;}
+    notify('🔑 Password for "'+userName+'" reset to "Kappl@123". They must change it on next login.');
+    // Verify in-memory
+    var check=byId(DB.users,userId);
+    console.log('[_resetUserPwd] verified in-memory password='+check.password);
+    try{cm('mRecordDetail');}catch(e){}
     if(typeof renderUsers==='function') try{renderUsers();}catch(e){}
-  });
+  }catch(err){
+    console.error('[_resetUserPwd] exception:',err);
+    u.password=_bak;
+    notify('Failed to reset password: '+err.message,true);
+  }
 }
 
 
@@ -4628,7 +4644,7 @@ const NAV=[
   {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin'],badge:'bAP',app:'vms'},
   {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],app:'vms'},
   {sec:'MASTERS',app:'vms'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin'],      count:'locations', cid:'cLocations',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:[],      count:'locations', cid:'cLocations',app:'vms'},
   {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',app:'vms'},
   {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',app:'vms'},
   {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
@@ -5164,7 +5180,17 @@ function renderDashTrips(){
     const vtMismatch=recVt!==actVt&&actVt!=='—'&&recVt!==actVt;
     const isCompleted=segs.length>0&&segs.every(s=>s.status==='Completed');
     const anyAction=segs.some(s=>[1,2,3,4,5].some(n=>s.steps[n]?.done));
-    const cardBg=isCompleted?'background:rgba(22,163,74,.08);border:1.5px solid rgba(22,163,74,.3)':'background:#ffffff;border:1.5px solid var(--border)';
+    const isCancelled=!!t.cancelled;
+    const isApproved=segs.length>0&&segs.every(s=>s.steps[4]?.done&&!s.steps[4]?.rejected);
+    const cardBg=isCancelled
+      ?'background:rgba(239,68,68,.08);border:1.5px solid rgba(239,68,68,.3);opacity:0.7'
+      :isCompleted
+      ?'background:rgba(148,163,184,.1);border:1.5px solid rgba(148,163,184,.35)'
+      :isApproved
+      ?'background:rgba(22,163,74,.08);border:1.5px solid rgba(22,163,74,.35)'
+      :anyAction
+      ?'background:rgba(234,179,8,.08);border:1.5px solid rgba(234,179,8,.35)'
+      :'background:rgba(59,130,246,.06);border:1.5px solid rgba(59,130,246,.3)';
     const locs=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean);
     const routeParts=locs.map((id,i)=>{const l=byId(DB.locations,id);const clr=l?.colour||'var(--accent)';return`<span style="background:${clr};color:${colourContrast(clr)};padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700">${l?.name||'?'}</span>`+(i<locs.length-1?'<span style="color:var(--accent);font-weight:900;font-size:14px;margin:0 3px">⟶</span>':'');}).join('');
     const rate=getMatchedRate(t.id);
@@ -6953,7 +6979,8 @@ function renderMyTrips(){
     const isCompleted=segs.length>0&&segs.every(s=>s.status==='Completed');
     const isCancelled=!!t.cancelled;
     const canDelete=isSA;
-    const canCancel=!isCancelled&&!isCompleted&&!anyActionDone;
+    const isBooker=CU&&t.bookedBy===CU.id;
+    const canCancel=!isCancelled&&!isCompleted&&!anyActionDone&&(isBooker||isSA);
     const tid=t.id.replace(/[^a-zA-Z0-9]/g,'_');
 
     const vn=vnum(t.vehicleId);
@@ -6962,13 +6989,16 @@ function renderMyTrips(){
     const _route=_locs.map(id=>lnameText(id)).join(' ⟶ ');
 
     // Card background based on trip status
+    const isApproved=segs.length>0&&segs.every(s=>s.steps[4]?.done&&!s.steps[4]?.rejected);
     const cardBg=isCancelled
-      ?'background:rgba(107,114,128,.08);border:2px solid rgba(107,114,128,.3);opacity:0.7'
+      ?'background:rgba(239,68,68,.08);border:2px solid rgba(239,68,68,.3);opacity:0.7'
       :isCompleted
-      ?'background:rgba(22,163,74,.06);border:2px solid rgba(22,163,74,.35)'
+      ?'background:rgba(148,163,184,.1);border:2px solid rgba(148,163,184,.35)'
+      :isApproved
+      ?'background:rgba(22,163,74,.08);border:2px solid rgba(22,163,74,.35)'
       :anyActionDone
-        ?'background:var(--surface);border:2px solid var(--border)'
-        :'background:rgba(239,68,68,.06);border:2px solid rgba(239,68,68,.32)';
+        ?'background:rgba(234,179,8,.08);border:2px solid rgba(234,179,8,.35)'
+        :'background:rgba(59,130,246,.06);border:2px solid rgba(59,130,246,.3)';
 
     // ── Segment detail rows (shown in expanded view) ──
     const segDests=[[t.startLoc,t.dest1,'A',1]];
@@ -7053,11 +7083,8 @@ function renderMyTrips(){
         ?`${recVtName} <span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px">(${actVtName})</span>`
         :recVtName)
       :'';
-    const isApproved=segs.some(s=>s.steps[4]?.done&&!s.steps[4]?.rejected);
-    const canEdit=!isCompleted&&!isApproved&&!isCancelled;
-    const deleteBtn=canDelete
-      ?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:10px;padding:2px 6px;cursor:pointer;font-weight:700" title="Delete trip">🗑</button>`
-      :'';
+    const anyApproved=segs.some(s=>s.steps[4]?.done&&!s.steps[4]?.rejected);
+    const canEdit=!isCompleted&&!anyApproved&&!isCancelled;
 
     // Location colour strip for route display
     const locCol=(id)=>{const l=byId(DB.locations,id);return l?.colour||'var(--accent)';};
@@ -7073,11 +7100,14 @@ function renderMyTrips(){
 
     return `<div class="trip-card" style="padding:0;overflow:hidden;cursor:pointer;${cardBg};position:relative;padding-left:26px" onclick="toggleMyTripCard('${tid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${trips.length-trips.indexOf(t)}</div>
       <!-- Row 1: ID + Vehicle + delete top-right -->
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px 0;min-width:0;flex-wrap:nowrap;padding-right:${canDelete?'42px':'10px'}">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px 0;min-width:0;flex-wrap:nowrap;padding-right:${(canEdit||canDelete)?'80px':'10px'}">
         <span style="font-family:var(--mono);font-size:clamp(14px,4vw,28px);font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:9px;flex-shrink:0;letter-spacing:.5px;white-space:nowrap">${t.id}</span>
         <span style="flex-shrink:0">${vehLabel}</span>
       </div>
-      ${canDelete?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="position:absolute;top:6px;right:6px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:3px 7px;cursor:pointer;font-weight:700;z-index:2;line-height:1" title="Delete trip">🗑</button>`:''}
+      <div style="position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:2">
+        ${canEdit&&!isCancelled?`<button onclick="event.stopPropagation();editTrip('${t.id}')" style="background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc;border-radius:6px;font-size:17px;padding:5px 11px;cursor:pointer;font-weight:700;line-height:1" title="Edit trip">✏️</button>`:''}
+        ${canDelete?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:3px 7px;cursor:pointer;font-weight:700;line-height:1" title="Delete trip">🗑</button>`:''}
+      </div>
       <!-- Row 2: Vendor · Driver · Booked by · Date -->
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:3px 10px 6px;font-size:11px">${(()=>{const vendorName=t.vendor||'';const drv2=byId(DB.drivers,t.driverId);const drvName=drv2?.name||'';const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'';const dot='<span style="color:var(--border2)">·</span>';const parts=[];if(vendorName)parts.push(`<span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:1px 8px;border-radius:4px;border:1px solid rgba(42,154,160,.2)">🏢 ${vendorName}</span>`);if(drvName)parts.push(`<span style="color:var(--text2);font-weight:600">🧑 ${drvName}</span>`);parts.push(`<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span>`);parts.push(`<span style="color:var(--text3)">📅 ${fdt(t.date)}</span>`);return parts.join(dot);})()}</div>
       <!-- Line 2: Coloured route pills + No Challan flash -->
@@ -7109,8 +7139,7 @@ function renderMyTrips(){
           ${vtDisplay?`<span style="font-size:11px;font-weight:700;color:#16a34a">${vtDisplay}</span>`:''}
           ${tripOverallBadge(t)}
           <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
-            ${canCancel?`<button onclick="event.stopPropagation();cancelTrip('${t.id}')" style="background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">✕ Cancel Trip</button>`:''}
-            ${canEdit&&!isCancelled?`<button onclick="editTrip('${t.id}')" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:4px 16px;font-size:11px;font-weight:800;cursor:pointer;letter-spacing:.3px">${anyActionDone?'✎ Edit':'✏ Edit'}</button>`:''}
+            ${canCancel?`<button onclick="event.stopPropagation();cancelTrip('${t.id}')" style="background:#dc2626;color:#fff;border:none;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer">✕ Cancel Trip</button>`:''}
           </span>
         </div>
         ${segRows}
@@ -9749,13 +9778,20 @@ async function saveVehicle(){
 
 // Locations
 function renderLocations(){
+  const _locIsAdmin=CU&&CU.roles&&(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'));
+  // Hide add/export/import buttons for non-admin
+  var _btnAddLoc=document.getElementById('btnAddLoc');if(_btnAddLoc)_btnAddLoc.style.display=_locIsAdmin?'':'none';
+  document.querySelectorAll('#pageLocations .ea-wrap').forEach(function(el){el.style.display=_locIsAdmin?'':'none';});
   document.getElementById('locBody').innerHTML=[...DB.locations].filter(l=>!document.getElementById('showInactiveLoc')?.checked||!l.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(l=>{
     const nameBadge=l.colour
       ?`<span style="background:${l.colour};color:${colourContrast(l.colour)};padding:2px 9px;border-radius:5px;font-weight:700">${l.name}</span>`
       :l.name;
     const inactive=l.inactive===true;
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td></tr>`;
+    const actCol=_locIsAdmin
+      ?`<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td>`
+      :'<td></td>';
+    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td>${actCol}</tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No locations found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function setLocColour(colour){
