@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>KAP — HWMS</title>
 <style>
-:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f8f9fb;--border:#e2e5ea;--border2:#c9cdd4;--text:#1e2329;--text2:#4a5568;--text3:#94a3b8;--accent:#2a9aa0;--accent2:#1e7a7f;--accent-light:#e0f5f5;--red:#dc2626;--green:#16a34a;--green-bg:#f0fdf4;--purple:#7c3aed;--mono:'SF Mono','Cascadia Mono','Consolas',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08)}
+:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f8f9fb;--border:#e2e5ea;--border2:#c9cdd4;--text:#1e2329;--text2:#4a5568;--text3:#94a3b8;--accent:#2a9aa0;--accent2:#1e7a7f;--accent-light:#e0f5f5;--red:#dc2626;--green:#16a34a;--green-bg:#f0fdf4;--purple:#7c3aed;--mono:'SF Mono','Cascadia Mono','Consolas',monospace;--inv-mono:'Aptos Mono','Aptos Display','SF Mono','Cascadia Mono','Consolas',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
 .notification{position:fixed;top:-60px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;z-index:10000;transition:top .3s;white-space:nowrap}.notification.show{top:18px}.notification.error{background:var(--red)}
 /* Splash */
@@ -13,7 +13,7 @@
 #dbSplash .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 /* Topbar */
 .topbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
-.topbar .ham{background:none;border:1.5px solid var(--border);font-size:22px;cursor:pointer;padding:4px 8px;color:var(--text);border-radius:6px;line-height:1;transition:background .2s}.topbar .ham:hover{background:rgba(42,154,160,.1)}
+.topbar .ham{background:none;border:2px solid var(--accent);font-size:24px;cursor:pointer;padding:5px 10px;color:var(--accent);border-radius:8px;line-height:1;transition:all .2s;display:flex!important;align-items:center;justify-content:center;flex-shrink:0}.topbar .ham:hover{background:rgba(42,154,160,.15);transform:scale(1.05)}
 .topbar .title{font-size:15px;font-weight:800;color:var(--text);flex:1}
 .topbar .user-info{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px}
 /* Sidebar */
@@ -27,21 +27,38 @@
 @media(min-width:701px){
   .sidebar{left:0}
   .sidebar-overlay{display:none!important}
+  .topbar{margin-left:260px;transition:margin-left .3s}
   #hwmsApp{margin-left:260px;transition:margin-left .3s}
   body.hwms-nav-hidden .sidebar{left:-280px}
   body.hwms-nav-hidden #hwmsApp{margin-left:0}
+  body.hwms-nav-hidden .topbar{margin-left:0}
 }
 .sidebar .brand{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);margin-bottom:10px}
 .sidebar .brand img{width:32px;height:32px;border-radius:8px}.sidebar .brand h3{font-size:14px;font-weight:800;color:var(--text)}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .15s;border-left:3px solid transparent}.nav-item:hover{background:var(--accent-light);color:var(--accent)}.nav-item.active{background:var(--accent-light);color:var(--accent);border-left-color:var(--accent)}
-.hwms-cnt{margin-left:auto;font-size:10px;font-weight:800;background:rgba(42,154,160,.1);color:var(--accent);padding:1px 7px;border-radius:10px;min-width:16px;text-align:center}
+.hwms-cnt{margin-left:auto;font-size:10px;font-weight:800;background:rgba(42,154,160,.15);color:var(--accent);padding:2px 8px;border-radius:12px;min-width:22px;text-align:center;display:inline-block;line-height:1.4}
+.hwms-cnt:empty{display:none}
+.hwms-cnt-red{background:rgba(220,38,38,.12)!important;color:#dc2626!important}
+.hwms-cnt-blue{background:rgba(37,99,235,.12)!important;color:#2563eb!important}
+.hwms-cnt-purple{background:rgba(124,58,237,.12)!important;color:#7c3aed!important}
+.hwms-cnt-green{background:rgba(22,163,74,.12)!important;color:#16a34a!important}
+.hwms-cnt-amber{background:rgba(217,119,6,.12)!important;color:#b45309!important}
 .nav-sec{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:16px 16px 6px}
 /* Pages */
 .page{display:none;padding:16px}.page.active{display:block}
+/* MR page: normal font for table, larger for stats/buttons */
+#pageHwmsMR{font-size:14px}
+#pageHwmsMR>div>.table-wrap table{font-size:14px}
+#pageHwmsMR>div>.table-wrap th{font-size:12px!important}
+#pageHwmsMR>div>.table-wrap>table>tbody>tr>td{font-size:14px;padding:8px 10px!important}
+#pageHwmsMR .btn{font-size:14px!important}
+#pageHwmsMR .hwms-cnt{font-size:13px!important}
 /* Shared styles */
 .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}.card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}.page-title{font-size:clamp(18px,5vw,24px);font-weight:900;color:var(--text)}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px}th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:2}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.03)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px}th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:2px solid var(--border);border-right:1px solid #eef0f3;position:sticky;top:0;z-index:2}th:last-child{border-right:none}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #e8ecf0;border-right:1px solid #f1f5f9;vertical-align:middle}td:last-child{border-right:none}
+tbody tr:nth-child(even){background:#fafbfc}
+tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.1)!important;box-shadow:inset 0 0 0 1px rgba(42,154,160,.15)}
+tbody tr:hover{background:rgba(42,154,160,.08)!important}
 .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
 .action-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 6px;border-radius:4px}.action-btn:hover{background:var(--surface2)}
 .btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)!important}.btn-danger{background:var(--red);color:#fff}
@@ -196,19 +213,19 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   </div>
   <!-- My Apps -->
   <div class="nav-item" onclick="_navigateTo('index.html')" style="background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.15);margin:8px 10px;border-radius:8px;font-weight:700;color:var(--accent)">&#x1F3E0; My Apps</div>
-  <div class="nav-sec">OPERATIONS</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsContainers')">&#x1F6A2; Containers <span class="hwms-cnt" id="hcContainers"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Invoices <span class="hwms-cnt" id="hcInvoices"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsInventory')">&#x1F4E6; Inventory</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsSubInvoices')">&#x1F4E4; Sub-Invoices <span class="hwms-cnt" id="hcSubInvoices"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsMR')">&#x1F4DD; Material Requests <span class="hwms-cnt" id="hcMR"></span></div>
-  <div class="nav-sec">MASTERS</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsCarriers')">&#x1F6A2; Carrier Master <span class="hwms-cnt" id="hcCarriers"></span></div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsPorts')">&#x2693; Ports</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters</div>
-  <div class="nav-item" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details <span class="hwms-cnt" id="hcCompany"></span></div>
+  <div class="nav-sec" id="navSecOps">OPERATIONS</div>
+  <div class="nav-item" id="navContainers" onclick="hwmsGo('pageHwmsContainers')">&#x1F6A2; Containers <span class="hwms-cnt hwms-cnt-blue" id="hcContainers"></span></div>
+  <div class="nav-item" id="navInvoices" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Main Invoices (MI) <span class="hwms-cnt hwms-cnt-green" id="hcInvoices"></span></div>
+  <div class="nav-item" id="navInventory" onclick="hwmsGo('pageHwmsInventory')">&#x1F4E6; Inventory <span class="hwms-cnt hwms-cnt-amber" id="hcInventory"></span></div>
+  <div class="nav-item" id="navSubInvoices" onclick="hwmsGo('pageHwmsSubInvoices')">&#x1F4E4; Sub-Invoices (SI) <span class="hwms-cnt hwms-cnt-purple" id="hcSubInvoices"></span></div>
+  <div class="nav-item" id="navMR" onclick="hwmsGo('pageHwmsMR')">&#x1F4DD; Material Requests <span class="hwms-cnt hwms-cnt-red" id="hcMR"></span></div>
+  <div class="nav-sec" id="navSecMasters">MASTERS</div>
+  <div class="nav-item" id="navCustomers" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
+  <div class="nav-item" id="navParts" onclick="hwmsGo('pageHwmsParts')">&#x2699;&#xFE0F; Part Master <span class="hwms-cnt" id="hcParts"></span></div>
+  <div class="nav-item" id="navCarriers" onclick="hwmsGo('pageHwmsCarriers')">&#x1F6A2; Carrier Master <span class="hwms-cnt" id="hcCarriers"></span></div>
+  <div class="nav-item" id="navPorts" onclick="hwmsGo('pageHwmsPorts')">&#x2693; Ports <span class="hwms-cnt" id="hcPorts"></span></div>
+  <div class="nav-item" id="navOtherMasters" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters <span class="hwms-cnt" id="hcOtherMasters"></span></div>
+  <div class="nav-item" id="navCompany" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details</div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div id="hwmsConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
@@ -225,7 +242,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 <div id="hwmsApp" style="display:none">
     <!-- HWMS: PART MASTER -->
     <div class="page" id="pageHwmsParts">
-      <div class="page-header"><div class="page-title">Part Master</div></div>
+      
       <div class="card">
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
           <div class="card-title">All Parts</div>
@@ -248,30 +265,31 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: INVOICE MASTER -->
     <div class="page" id="pageHwmsInvoices">
-      <div class="page-header"><div class="page-title">Invoices</div></div>
+      
       <div class="card">
-        <div class="card-header" style="flex-wrap:nowrap;gap:8px">
-          <div class="card-title">All Invoices</div>
-          <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div id="hwmsInvStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
+          <div id="hwmsInvButtons" style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
             <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
-            <button class="btn btn-secondary" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
-            <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add Invoice</button>
+            <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+            <label class="btn btn-secondary" id="btnHwmsInvImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
+            <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add MI</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:100%"><thead>
           <tr style="background:var(--surface2)">
             <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
-            <th style="padding:4px 6px;vertical-align:top;max-width:110px"><div style="font-size:11px;margin-bottom:3px">Invoice No.</div><input type="text" id="hwmsInvFilterInvNo" placeholder="Search..." oninput="renderHwmsInvoices()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
-            <th style="padding:4px 6px;vertical-align:top;max-width:100px"><div style="font-size:11px;margin-bottom:3px">Date</div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
+            <th style="padding:4px 6px;vertical-align:top;width:32px;text-align:center"><div style="font-size:10px">🇺🇸</div></th>
+            <th style="padding:4px 6px;vertical-align:top;max-width:110px"><div style="font-size:11px;margin-bottom:3px">MI No.</div><input type="text" id="hwmsInvFilterInvNo" placeholder="Search..." oninput="renderHwmsInvoices()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
+            <th style="padding:4px 6px;vertical-align:top;min-width:140px"><div style="font-size:11px;margin-bottom:3px">Date</div><div style="display:flex;gap:2px;flex-wrap:nowrap;margin-bottom:3px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date</div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status</div><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">WH</option></select></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Status</div><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">WH</option></select></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($)</div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
-            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div></th>
-            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div><div id="hwmsInvHeaderSiTotal" style="font-size:12px;font-weight:900;color:#7c3aed;font-family:var(--mono);margin-top:3px"></div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div><div id="hwmsInvHeaderBalTotal" style="font-size:12px;font-weight:900;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsInvClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
           </tr>
         </thead><tbody id="hwmsInvBody"></tbody></table></div>
@@ -294,10 +312,10 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <!-- Invoice Details (blue tint) -->
           <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px">
-            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Invoice Details</div>
+            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Main Invoice (MI) Details</div>
             <div style="display:grid;grid-template-columns:60px 100px 1fr;gap:8px;align-items:end">
-              <div class="form-group" style="margin:0"><label>FY</label><input type="text" id="hwmsInvFY" readonly style="padding:6px 8px;font-family:var(--mono);font-weight:800;font-size:14px;text-align:center;background:var(--surface2);color:var(--accent);letter-spacing:1px"></div>
-              <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsInvSuffix" maxlength="5" placeholder="00001" style="padding:6px 8px;font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:1px"></div>
+              <div class="form-group" style="margin:0"><label>FY</label><input type="text" id="hwmsInvFY" readonly style="padding:6px 8px;font-family:var(--inv-mono);font-weight:800;font-size:14px;text-align:center;background:var(--surface2);color:var(--accent);letter-spacing:1px"></div>
+              <div class="form-group" style="margin:0"><label>MI No.</label><input type="text" id="hwmsInvSuffix" maxlength="5" placeholder="00001" style="padding:6px 8px;font-family:var(--inv-mono);font-weight:700;font-size:14px;letter-spacing:1px"></div>
               <div class="form-group" style="margin:0"><label>Date *</label><div style="position:relative;display:flex;align-items:center"><input type="text" id="hwmsInvDateDisplay" readonly onclick="document.getElementById('hwmsInvDate').showPicker()" placeholder="DD-MMM-YY" style="padding:6px 8px;padding-right:30px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--border);border-radius:var(--radius)"><span onclick="document.getElementById('hwmsInvDate').showPicker()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:15px;cursor:pointer;pointer-events:auto">📅</span><input type="date" id="hwmsInvDate" onchange="_hwmsInvDateChange();_hwmsInvDateSync()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
             </div>
           </div>
@@ -367,6 +385,13 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           </table>
         </div>
         </div><!-- /Line Items section -->
+        <!-- Invoice Notes selection -->
+        <div id="hwmsInvNotesSection" style="margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;background:#f8fafc">
+          <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">MI Notes (print on main invoice)</div>
+          <label id="hwmsInvNoteLabel1" style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;cursor:pointer;font-size:12px;color:var(--text)"><input type="checkbox" id="hwmsInvNote1Cb" checked style="margin-top:2px;accent-color:var(--accent)"><span id="hwmsInvNote1Text" style="flex:1"></span></label>
+          <label id="hwmsInvNoteLabel2" style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;cursor:pointer;font-size:12px;color:var(--text)"><input type="checkbox" id="hwmsInvNote2Cb" style="margin-top:2px;accent-color:var(--accent)"><span id="hwmsInvNote2Text" style="flex:1"></span></label>
+          <label id="hwmsInvNoteLabel3" style="display:flex;align-items:flex-start;gap:6px;cursor:pointer;font-size:12px;color:var(--text)"><input type="checkbox" id="hwmsInvNote3Cb" style="margin-top:2px;accent-color:var(--accent)"><span id="hwmsInvNote3Text" style="flex:1"></span></label>
+        </div>
       </div>
     </div>
 
@@ -386,26 +411,27 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: CONTAINER MASTER -->
     <div class="page" id="pageHwmsContainers">
-      <div class="page-header"><div class="page-title">Containers</div></div>
+      
       <div class="card">
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
-          <div class="card-title">All Containers</div>
+          <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
             <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
-            <button class="btn btn-secondary" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
+            <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
+            <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Add Container</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 160px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr>
           <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsContSelectAll" onchange="_hwmsContToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('containerNumber')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Container No. <span id="hwmsContSortIcon_containerNumber"></span></div><input type="text" id="hwmsContSearch" placeholder="Search..." oninput="renderHwmsContainers()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
-          <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('expectedPickupDate')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Pickup Date <span id="hwmsContSortIcon_expectedPickupDate"></span></div><div style="display:flex;gap:2px;margin-bottom:3px"><button onclick="event.stopPropagation();_hwmsContDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
-          <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('carrierName')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Carrier <span id="hwmsContSortIcon_carrierName"></span></div><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Invoices</div></th>
+          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Main Invoices</div></th>
+          <th style="padding:4px 6px;vertical-align:top;min-width:140px" class="sortable" onclick="_hwmsContSort('expectedPickupDate')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Pickup Date <span id="hwmsContSortIcon_expectedPickupDate"></span></div><div style="display:flex;gap:2px;flex-wrap:nowrap;margin-bottom:3px"><button onclick="event.stopPropagation();_hwmsContDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box;margin-bottom:2px"><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"></th>
+          <th style="padding:4px 6px;vertical-align:top;max-width:80px" class="sortable" onclick="_hwmsContSort('carrierName')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Carrier <span id="hwmsContSortIcon_carrierName"></span></div><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('invValue')"><div style="font-size:11px;cursor:pointer">Inv. Value <span id="hwmsContSortIcon_invValue"></span></div><div id="hwmsContInvValueTotal" style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('expectedReachDate')"><div style="font-size:11px;cursor:pointer">Reach Date <span id="hwmsContSortIcon_expectedReachDate"></span></div></th>
           <th style="padding:4px 6px;vertical-align:top" class="sortable" onclick="_hwmsContSort('status')"><div style="font-size:11px;margin-bottom:3px;cursor:pointer">Status <span id="hwmsContSortIcon_status"></span></div><select id="hwmsContFilterStatus" onchange="renderHwmsContainers()" style="font-size:10px;padding:2px 3px;border:1px solid var(--border2);border-radius:4px;width:100%;box-sizing:border-box"><option value="">All</option><option value="Draft">Draft</option><option value="Onwater">In Transit</option><option value="Reached">Warehouse</option></select></th>
+          <th style="padding:4px 6px;vertical-align:top;text-align:center;width:40px"><div style="font-size:10px">Days</div></th>
           <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsContClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
         </tr></thead><tbody id="hwmsContBody"></tbody></table></div>
       </div>
@@ -413,7 +439,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: CARRIER MASTER -->
     <div class="page" id="pageHwmsCarriers">
-      <div class="page-header"><div class="page-title">Carrier Master</div></div>
+      
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Carriers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
         <button class="btn btn-secondary" onclick="exportMaster('hwmsCarriers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
         <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
@@ -423,7 +449,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: HSN MASTER -->
     <div class="page" id="pageHwmsCompany">
-      <div class="page-header"><div class="page-title">Company Details</div></div>
+      
       <div class="card" style="padding:20px 24px;max-width:800px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div class="form-group" style="margin:0;grid-column:1/-1"><label>Company Name *</label><input type="text" id="hwmsCoName" style="padding:8px 12px;font-size:15px;font-weight:700"></div>
@@ -433,7 +459,9 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           <div class="form-group" style="margin:0"><label>REX Number</label><input type="text" id="hwmsCoRex" style="padding:8px 12px;font-family:var(--mono);font-size:12px"></div>
           <div class="form-group" style="margin:0"><label>Place of Receipt by Pre-carrier</label><input type="text" id="hwmsCoPlaceReceipt" style="padding:8px 12px" placeholder="e.g. Pune, Maharashtra"></div>
           <div class="form-group" style="margin:0"><label>Country of Origin</label><input type="text" id="hwmsCoCountry" value="India" style="padding:8px 12px"></div>
-          <div class="form-group" style="margin:0;grid-column:1/-1"><label>Invoice Note (Bottom)</label><textarea id="hwmsCoNote" rows="2" style="padding:8px 12px" placeholder="e.g. Supply Meant For Export On Payment Of IGST Under Rebate Claim"></textarea></div>
+          <div class="form-group" style="margin:0;grid-column:1/-1"><label>MI Note 1</label><textarea id="hwmsCoNote1" rows="2" style="padding:8px 12px" placeholder="e.g. Supply Meant For Export On Payment Of IGST Under Rebate Claim"></textarea></div>
+          <div class="form-group" style="margin:0;grid-column:1/-1"><label>MI Note 2</label><textarea id="hwmsCoNote2" rows="2" style="padding:8px 12px" placeholder="Second invoice note (optional)"></textarea></div>
+          <div class="form-group" style="margin:0;grid-column:1/-1"><label>MI Note 3</label><textarea id="hwmsCoNote3" rows="2" style="padding:8px 12px" placeholder="Third invoice note (optional)"></textarea></div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-primary" onclick="saveHwmsCompany()" style="padding:8px 24px;font-size:14px">💾 Save</button></div>
       </div>
@@ -444,7 +472,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <!-- HWMS: HSN MASTER -->
     <!-- HWMS: OTHER MASTERS (Packaging + UOM + HSN combined) -->
     <div class="page" id="pageHwmsOtherMasters">
-      <div class="page-header"><div class="page-title">Other Masters</div></div>
+      
       <!-- Sub-tabs -->
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
         <button id="omTab_packing" onclick="hwmsOmTab('packing')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">📦 Packaging</button>
@@ -479,7 +507,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: CUSTOMER MASTER -->
     <div class="page" id="pageHwmsCustomers">
-      <div class="page-header"><div class="page-title">Customer Master</div></div>
+      
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Customers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
         <button class="btn btn-secondary" onclick="exportMaster('hwmsCustomers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
         <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCustomers',this)"></label>
@@ -492,7 +520,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: STEEL & FOREX RATES -->
     <div class="page" id="pageHwmsSteelRates">
-      <div class="page-header"><div class="page-title">Steel &amp; Forex Rates</div></div>
+      
       <div class="card">
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
           <div class="card-title">Customer Steel &amp; Forex Rates</div>
@@ -516,7 +544,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- HWMS: PORTS (Discharge + Loading combined) -->
     <div class="page" id="pageHwmsPorts">
-      <div class="page-header"><div class="page-title">Ports</div></div>
+      
       <!-- Sub-tabs -->
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
         <button id="ptTab_disch" onclick="hwmsPtTab('disch')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">🚢 Port of Discharge</button>
@@ -548,27 +576,16 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- INVENTORY -->
     <div class="page" id="pageHwmsInventory">
-      <div class="page-header"><div class="page-title">📦 Warehouse Inventory</div></div>
+      
       <div class="card">
-        <div class="card-header" style="flex-wrap:wrap;gap:8px">
-          <div class="card-title">Parts in Warehouse</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="text" id="hwmsInventorySearch" placeholder="🔍 Part number…" oninput="renderHwmsInventory()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-family:var(--mono);min-width:140px">
-            <select id="hwmsInventoryStockFilter" onchange="renderHwmsInventory()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">
-              <option value="all">All Parts</option>
-              <option value="instock">In Stock Only</option>
-              <option value="zero">Zero Stock</option>
-            </select>
-          </div>
-        </div>
-        <!-- Summary stats -->
-        <div id="hwmsInventoryStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <!-- Summary stats with search in same row -->
+        <div id="hwmsInventoryStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
         <!-- Table -->
         <div class="table-wrap">
           <table id="tHwmsInventory">
             <thead><tr>
-              <th class="sortable" onclick="_hwmsInventorySort('partNumber')">Part Number</th>
-              <th>Description</th>
+              <th class="sortable" onclick="_hwmsInventorySort('partNumber')" style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Part Number</div><input type="text" id="hwmsInventorySearch" placeholder="🔍 Search…" oninput="renderHwmsInventory()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box"></th>
+              <th style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Description</div><select id="hwmsInventoryStockFilter" onchange="renderHwmsInventory()" style="font-size:10px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);width:100%;box-sizing:border-box"><option value="all">All Parts</option><option value="instock">In Stock</option><option value="zero">Zero Stock</option></select></th>
               <th class="sortable" onclick="_hwmsInventorySort('totalQty')" style="text-align:right">Total Qty Received</th>
               <th class="sortable" onclick="_hwmsInventorySort('whQty')" style="text-align:right">Qty in Warehouse</th>
               <th class="sortable" onclick="_hwmsInventorySort('dispatchedQty')" style="text-align:right">Qty Dispatched</th>
@@ -582,16 +599,9 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- SUB-INVOICES -->
     <div class="page" id="pageHwmsSubInvoices">
-      <div class="page-header"><div class="page-title">📤 Sub-Invoices (Dispatch to Customer)</div></div>
+      
       <div class="card">
-        <div class="card-header" style="flex-wrap:wrap;gap:8px">
-          <div class="card-title">All Sub-Invoices</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>
-            <label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>
-          </div>
-        </div>
-        <div id="hwmsSiStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <div id="hwmsSiStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
         <!-- Bulk delete bar (above table) -->
         <div id="hwmsSiBulkBar" style="display:none;padding:10px 14px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;margin-bottom:10px;align-items:center;gap:10px">
           <span id="hwmsSiSelCount" style="font-size:13px;font-weight:700;color:#dc2626"></span>
@@ -611,6 +621,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           </style>
           <table id="hwmsSiTbl"><thead><tr>
             <th style="width:30px;text-align:center"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
+            <th style="width:30px;text-align:center"><div style="font-size:10px">🖨️</div></th>
             <th class="sortable" onclick="_hwmsSiSort('date')"><div>Date <span id="hwmsSiSortI_date"></span></div></th>
             <th class="sortable" onclick="_hwmsSiSort('subInvoiceNumber')"><div>Sub-Inv # <span id="hwmsSiSortI_subInvoiceNumber"></span></div><input type="text" id="hwmsSiFltNum" placeholder="Filter…" oninput="renderHwmsSubInvoices()"></th>
             <th class="sortable" onclick="_hwmsSiSort('customerName')"><div>Customer <span id="hwmsSiSortI_customerName"></span></div><input type="text" id="hwmsSiFltCust" placeholder="Filter…" oninput="renderHwmsSubInvoices()"></th>
@@ -644,15 +655,8 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 
     <!-- MATERIAL REQUEST PAGE -->
     <div class="page" id="pageHwmsMR">
-      <div class="page-header">
-        <div class="page-title">Material Requests</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-secondary" onclick="_hwmsMrExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsMrImport(this)"></label>
-          <button class="btn btn-primary" onclick="openHwmsMrModal()" style="font-size:13px;padding:8px 18px">+ New MR</button>
-        </div>
+      <div id="hwmsMrStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
       </div>
-      <div id="hwmsMrStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
       <div class="table-wrap">
         <table><thead><tr>
           <th class="sortable" onclick="_hwmsMrSort('mrNumber')">MR # <span id="hwmsMrSI_mrNumber"></span></th>
@@ -661,6 +665,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
           <th class="sortable" onclick="_hwmsMrSort('needByDate')">Need-by <span id="hwmsMrSI_needByDate"></span></th>
           <th style="text-align:center">Items</th>
           <th style="text-align:right">Total Amt ($)</th>
+          <th class="sortable" onclick="_hwmsMrSort('_status')">Status <span id="hwmsMrSI__status"></span></th>
           <th>Actions</th>
         </tr></thead><tbody id="hwmsMrBody"></tbody></table>
       </div>
@@ -717,7 +722,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
   <input type="hidden" id="hwmsSiId">
   <!-- Row 1: Sub-Invoice # + Date -->
   <div style="display:flex;gap:10px;margin-bottom:10px">
-    <div class="form-group" style="margin:0;flex:1"><label>Sub-Invoice Number *</label><input type="text" id="hwmsSiNum" placeholder="SI-001" style="font-family:var(--mono);font-weight:700"></div>
+    <div class="form-group" style="margin:0;flex:1"><label>Sub-Invoice Number *</label><input type="text" id="hwmsSiNum" placeholder="SI-001" style="font-family:var(--inv-mono);font-weight:700"></div>
     <div class="form-group" style="margin:0;width:160px"><label>Date *</label><input type="date" id="hwmsSiDate"></div>
   </div>
   <!-- MR Parts with Stock Reference -->
@@ -726,7 +731,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <div id="hwmsSiMrRefBody" style="max-height:260px;overflow-y:auto"></div>
   </div>
   <!-- Row 2: Original Invoice selector -->
-  <div class="form-group" style="margin-bottom:10px"><label>Original Invoice *</label>
+  <div class="form-group" style="margin-bottom:10px"><label>Original Main Invoice *</label>
     <select id="hwmsSiInvSel" onchange="_hwmsSiOnInvChange()" style="font-family:var(--mono)"><option value="">— Select Invoice —</option></select>
     <div id="hwmsSiInvInfo" style="display:none;font-size:11px;color:var(--text2);margin-top:4px;padding:6px 10px;background:var(--surface2);border-radius:6px"></div>
   </div>
@@ -856,16 +861,16 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <!-- SECTION 2: Linked Invoices (green tint) -->
     <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Linked Invoices</div>
+        <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Linked Main Invoices</div>
         <div style="display:flex;gap:6px;align-items:center">
-          <select id="hwmsContAddInvSel" style="padding:4px 8px;font-size:11px;border:1px solid var(--border2);border-radius:4px;min-width:180px"><option value="">-- Add Invoice --</option></select>
+          <select id="hwmsContAddInvSel" style="padding:4px 8px;font-size:11px;border:1px solid var(--border2);border-radius:4px;min-width:180px"><option value="">-- Add Main Invoice --</option></select>
           <button class="btn" onclick="_hwmsContAddInv()" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer">+ Add</button>
         </div>
       </div>
       <div class="table-wrap" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
         <table style="width:100%;font-size:12px" id="tHwmsContInvs">
           <thead><tr style="background:var(--surface2);position:sticky;top:0;z-index:1">
-            <th style="padding:4px 8px;font-size:9px">Invoice No.</th>
+            <th style="padding:4px 8px;font-size:9px">MI No.</th>
             <th style="padding:4px 8px;font-size:9px">Inv. Date</th>
             <th style="padding:4px 8px;font-size:9px">Customer</th>
             <th style="padding:4px 8px;font-size:9px">Consignee</th>
@@ -1112,9 +1117,23 @@ function hwmsGo(pageId){
   document.querySelectorAll('#hwmsApp .page').forEach(p=>p.classList.remove('active'));
   const pg=document.getElementById(pageId);
   if(pg) pg.classList.add('active');
-  // Update topbar title
+  // Update topbar title with badge
   const nav=document.querySelector(`.nav-item[onclick*="${pageId}"]`);
-  document.getElementById('hwmsPageTitle').textContent=nav?nav.textContent.trim():'HWMS';
+  var titleEl=document.getElementById('hwmsPageTitle');
+  if(titleEl&&nav){
+    // Extract text without badge count
+    var txt=nav.childNodes[0]?nav.childNodes[0].textContent.trim():'HWMS';
+    var badge=nav.querySelector('.hwms-cnt');
+    var badgeVal=badge?badge.textContent.trim():'';
+    var badgeCls=badge?badge.className.replace('hwms-cnt','').trim():'';
+    if(badgeVal){
+      titleEl.innerHTML=txt+' <span style="display:inline-block;font-size:12px;font-weight:800;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:6px" class="hwms-cnt '+badgeCls+'">'+badgeVal+'</span>';
+    } else {
+      titleEl.textContent=txt;
+    }
+  } else if(titleEl){
+    titleEl.textContent='HWMS';
+  }
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   if(nav) nav.classList.add('active');
@@ -1178,6 +1197,71 @@ function hwmsPtTab(tab){
 // Helper: check if current user is Super Admin (via VMS roles OR HWMS roles)
 function _hwmsIsSA(){return CU&&((CU.roles||[]).includes('Super Admin')||(CU.hwmsRoles||[]).includes('Super Admin'));}
 function _hwmsIsAdmin(){return _hwmsIsSA()||(CU&&(CU.hwmsRoles||[]).includes('HWMS Admin'));}
+function _hwmsRole(){
+  if(!CU) return '';
+  var r=(CU.hwmsRoles||[]);
+  if(r.includes('Super Admin')||(CU.roles||[]).includes('Super Admin')) return 'SA';
+  if(r.includes('HWMS Admin')) return 'HA';
+  if(r.includes('WH Admin')) return 'WA';
+  if(r.includes('WH User')) return 'WU';
+  return '';
+}
+// Granular permission check
+function _hwmsCan(action){
+  var role=_hwmsRole();
+  if(!role) return false;
+  if(role==='SA') return true;
+  var perms={
+    // Pages
+    'page.containers':['HA'],
+    'page.invoices':['HA','WA'],
+    'page.inventory':['HA','WA'],
+    'page.subinvoices':['HA','WA'],
+    'page.mr':['HA','WA','WU'],
+    'page.masters':['HA'],
+    // Container ops
+    'cont.add':['HA'],'cont.edit':['HA'],'cont.delete':[],'cont.import':['HA'],'cont.export':['HA'],
+    // MI ops
+    'mi.add':['HA'],'mi.edit':['HA'],'mi.delete':[],'mi.import':['HA'],'mi.export':['HA'],'mi.confirm':['HA'],
+    // SI ops
+    'si.add':['HA'],'si.edit':['HA'],'si.delete':[],'si.import':['HA'],'si.export':['HA'],
+    // MR ops
+    'mr.add':['HA','WA'],'mr.edit':['HA','WA'],'mr.delete':['HA'],'mr.import':['HA','WA'],'mr.export':['HA'],
+    'mr.gensi':['HA'],
+    'mr.pickup':['HA','WA','WU'],
+    // Masters
+    'masters.edit':['HA']
+  };
+  var allowed=perms[action];
+  if(!allowed) return false;
+  return allowed.includes(role);
+}
+// Apply nav visibility based on role
+function _hwmsApplyPermissions(){
+  var role=_hwmsRole();
+  if(!role) return;
+  var show=function(id,v){var el=document.getElementById(id);if(el) el.style.display=v?'':'none';};
+  // Nav pages
+  show('navContainers',role==='SA'||_hwmsCan('page.containers'));
+  show('navInvoices',role==='SA'||_hwmsCan('page.invoices'));
+  show('navInventory',role==='SA'||_hwmsCan('page.inventory'));
+  show('navSubInvoices',role==='SA'||_hwmsCan('page.subinvoices'));
+  show('navMR',role==='SA'||_hwmsCan('page.mr'));
+  // Masters section
+  var showMasters=role==='SA'||_hwmsCan('page.masters');
+  show('navSecMasters',showMasters);
+  show('navCustomers',showMasters);show('navParts',showMasters);
+  show('navCarriers',showMasters);show('navPorts',showMasters);
+  show('navOtherMasters',showMasters);show('navCompany',showMasters);
+  // MI page buttons
+  show('btnHwmsInvExport',_hwmsCan('mi.export'));
+  show('btnHwmsInvImport',_hwmsCan('mi.import'));
+  show('btnAddHwmsInv',_hwmsCan('mi.add'));
+  // Container page buttons
+  show('btnAddHwmsCont',_hwmsCan('cont.add'));
+  show('btnHwmsContExport',_hwmsCan('cont.export'));
+  show('btnHwmsContImport',_hwmsCan('cont.import'));
+}
 function hwmsLogout(){
   CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_pass');
   try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
@@ -1191,13 +1275,55 @@ function _hwmsUpdCounts(){
   var m={
     hcContainers:'hwmsContainers', hcInvoices:'hwmsInvoices',
     hcParts:'hwmsParts', hcHsn:'hwmsHsn', hcUom:'hwmsUom', hcPacking:'hwmsPacking',
-    hcCarriers:'hwmsCarriers', hcCompany:'hwmsCompany',
+    hcCarriers:'hwmsCarriers',
     hcCustomers:'hwmsCustomers', hcPortDischarge:'hwmsPortDischarge', hcPortLoading:'hwmsPortLoading',
     hcSubInvoices:'hwmsSubInvoices'
   };
   for(var id in m){
     var el=document.getElementById(id);
     if(el){ var n=(DB[m[id]]||[]).length; el.textContent=n||''; }
+  }
+  // MR: show only pending (Open + Partially Closed) count in red
+  var mrEl=document.getElementById('hcMR');
+  if(mrEl){
+    var pending=(DB.hwmsMaterialRequests||[]).filter(function(mr){
+      var st=_hwmsMrCalcStatus(mr);
+      return st==='Open'||st==='Partially Closed';
+    }).length;
+    mrEl.textContent=pending||'';
+  }
+  // Inventory: count of parts with stock > 0
+  var invEl=document.getElementById('hcInventory');
+  if(invEl){
+    var partsWithStock=0;
+    var _invMap={};
+    (DB.hwmsInvoices||[]).forEach(function(inv){
+      var cont=byId(DB.hwmsContainers||[],inv.containerId);
+      if(cont&&cont.status==='Reached'){
+        (inv.lineItems||[]).filter(function(li){return !li._meta;}).forEach(function(li){
+          if(li.partId) _invMap[li.partId]=(_invMap[li.partId]||0)+(li.quantity||0);
+        });
+      }
+    });
+    (DB.hwmsSubInvoices||[]).forEach(function(si){
+      (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
+        if(l.partId) _invMap[l.partId]=(_invMap[l.partId]||0)-(l.quantity||0);
+      });
+    });
+    for(var k in _invMap){if(_invMap[k]>0) partsWithStock++;}
+    invEl.textContent=partsWithStock||'';
+  }
+  // Ports: loading + discharge
+  var portsEl=document.getElementById('hcPorts');
+  if(portsEl){
+    var pc=((DB.hwmsPortLoading||[]).length)+((DB.hwmsPortDischarge||[]).length);
+    portsEl.textContent=pc||'';
+  }
+  // Other Masters: HSN + UOM + Packing
+  var omEl=document.getElementById('hcOtherMasters');
+  if(omEl){
+    var oc=((DB.hwmsHsn||[]).length)+((DB.hwmsUom||[]).length)+((DB.hwmsPacking||[]).length);
+    omEl.textContent=oc||'';
   }
 }
 
@@ -1242,6 +1368,12 @@ async function _hwmsBoot(){
       }
       hwmsGo('pageHwmsContainers');
       _hwmsUpdCounts();
+      _hwmsApplyPermissions();
+      // Navigate to appropriate default page based on role
+      var _role=_hwmsRole();
+      if(_role==='WU') hwmsGo('pageHwmsMR');
+      else if(_role==='WA') hwmsGo('pageHwmsInvoices');
+      else hwmsGo('pageHwmsContainers');
       // Immediate sync with database on first open (don't wait for 3s delay)
       if(typeof _bgSyncFromSupabase==='function'&&typeof _sbReady!=='undefined'&&_sbReady){
         _bgSyncFromSupabase();
@@ -1336,12 +1468,37 @@ function renderHwmsCompany(){
   document.getElementById('hwmsCoRex').value=c?.rex||'';
   document.getElementById('hwmsCoPlaceReceipt').value=c?.placeReceipt||'';
   document.getElementById('hwmsCoCountry').value=c?.country||'India';
-  document.getElementById('hwmsCoNote').value=c?.note||'';
+  var notes=_hwmsParseCoNotes(c?.note);
+  document.getElementById('hwmsCoNote1').value=notes.n1;
+  document.getElementById('hwmsCoNote2').value=notes.n2;
+  document.getElementById('hwmsCoNote3').value=notes.n3;
+}
+function _hwmsParseCoNotes(noteField){
+  if(!noteField) return{n1:'',n2:'',n3:''};
+  // Already an object (Supabase may return parsed JSON)
+  if(typeof noteField==='object'&&noteField.n1!==undefined) return{n1:noteField.n1||'',n2:noteField.n2||'',n3:noteField.n3||''};
+  if(typeof noteField!=='string') return{n1:'',n2:'',n3:''};
+  try{
+    var trimmed=noteField.trim();
+    if(trimmed.charAt(0)==='{'){var o=JSON.parse(trimmed);return{n1:o.n1||'',n2:o.n2||'',n3:o.n3||''};}
+  }catch(e){console.warn('_hwmsParseCoNotes parse error:',e.message);}
+  return{n1:noteField,n2:'',n3:''}; // backward compat: old single note → n1
+}
+function _hwmsGetCoNotes(){
+  var co=_getHwmsCompany();
+  return _hwmsParseCoNotes(co?.note);
+}
+function _hwmsInvGetNotes(inv){
+  if(!inv||!inv.lineItems) return [1];
+  var meta=inv.lineItems.find(function(li){return li._meta;});
+  if(meta&&Array.isArray(meta.selectedNotes)) return meta.selectedNotes;
+  return [1]; // default
 }
 async function saveHwmsCompany(){
   const companyName=document.getElementById('hwmsCoName').value.trim();
   if(!companyName){notify('Company Name is required',true);return;}
-  const data={companyName,address:document.getElementById('hwmsCoAddr').value.trim(),gstin:document.getElementById('hwmsCoGstin').value.trim(),iec:document.getElementById('hwmsCoIec').value.trim(),rex:document.getElementById('hwmsCoRex').value.trim(),placeReceipt:document.getElementById('hwmsCoPlaceReceipt').value.trim(),country:document.getElementById('hwmsCoCountry').value.trim()||'India',note:document.getElementById('hwmsCoNote').value.trim()};
+  var noteJson=JSON.stringify({n1:document.getElementById('hwmsCoNote1').value.trim(),n2:document.getElementById('hwmsCoNote2').value.trim(),n3:document.getElementById('hwmsCoNote3').value.trim()});
+  const data={companyName,address:document.getElementById('hwmsCoAddr').value.trim(),gstin:document.getElementById('hwmsCoGstin').value.trim(),iec:document.getElementById('hwmsCoIec').value.trim(),rex:document.getElementById('hwmsCoRex').value.trim(),placeReceipt:document.getElementById('hwmsCoPlaceReceipt').value.trim(),country:document.getElementById('hwmsCoCountry').value.trim()||'India',note:noteJson};
   if(!DB.hwmsCompany) DB.hwmsCompany=[];
   const existing=DB.hwmsCompany[0];
   if(existing){const bak={...existing};Object.assign(existing,data);if(!await _dbSave('hwmsCompany',existing)){Object.assign(existing,bak);return;}}
@@ -2105,12 +2262,12 @@ async function _hwmsConfirmInv(id){
   const errors=[];
   const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
   // Invoice header checks (container number NOT required)
-  if(!inv.invoiceNumber||inv.invoiceNumber.endsWith('-Draft')) errors.push('Invoice Number is not set (still Draft)');
+  if(!inv.invoiceNumber||inv.invoiceNumber.endsWith('Draft')) errors.push('MI Number is not set (still Draft)');
   else{
-    // Validate 5-digit invoice number (e.g. 2526-00001)
-    var invNumParts=(inv.invoiceNumber||'').split('-');
-    var invSuffix=invNumParts.length>=2?invNumParts[invNumParts.length-1]:'';
-    if(!/^\d{5}$/.test(invSuffix)) errors.push('Invoice Number must have a 5-digit number (e.g. 2526-00001). Current: '+inv.invoiceNumber);
+    // Validate invoice number has a numeric suffix (FY prefix 4 chars + 5-digit number)
+    var invNum=inv.invoiceNumber||'';
+    var invSuffix=invNum.length>=5?invNum.slice(-5):(invNum.length>4?invNum.slice(4):'');
+    if(!invSuffix||!/^\d{5}$/.test(invSuffix)) errors.push('MI Number must have a 5-digit number (e.g. 252600001). Current: '+invNum);
   }
   if(!inv.date) errors.push('Invoice Date is missing');
   if(!inv.buyerName&&!inv.buyerId) errors.push('Buyer (Customer) not selected');
@@ -2122,7 +2279,7 @@ async function _hwmsConfirmInv(id){
   if(!inv.portOfDischarge&&!inv.portOfDischargeId&&!cust?.defaultPortDischarge) errors.push('Port of Discharge missing — set in Customer Defaults');
   if(!inv.paymentTerms&&!cust?.defaultPaymentTerms) errors.push('Payment Terms missing — set in Customer Defaults');
   // Line items checks
-  const lis=inv.lineItems||[];
+  const lis=(inv.lineItems||[]).filter(li=>!li._meta);
   if(!lis.length) errors.push('No line items added');
   lis.forEach((li,i)=>{
     const part=byId(DB.hwmsParts||[],li.partId);
@@ -2145,21 +2302,21 @@ async function _hwmsConfirmInv(id){
     const bak={...inv};inv.confirmed=true;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
     renderHwmsInvoices();
-    notify('✅ Invoice '+inv.invoiceNumber+' confirmed as RFD');
+    notify('✅ MI '+inv.invoiceNumber+' confirmed as RFD');
     showHwmsInvDetail(id);
-  },{icon:'🔒',title:'Confirm & Lock Invoice',btnLabel:'🔒 Confirm',btnColor:'#16a34a'});
+  },{icon:'🔒',title:'Confirm & Lock Main Invoice',btnLabel:'🔒 Confirm MI',btnColor:'#16a34a'});
 }
 
 async function _hwmsRevokeInv(id){
   const inv=byId(DB.hwmsInvoices||[],id);if(!inv)return;
   if(!inv.confirmed){notify('Not confirmed',true);return;}
   const cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;
-  if(cont&&(cont.status==='Onwater'||cont.status==='Reached')){notify('⚠ Cannot revoke: Container '+cont.containerNumber+' is dispatched. Invoice is locked.',true);return;}
-  showConfirm('Revoke RFD for invoice '+inv.invoiceNumber+'? It will go back to Draft status and become editable again.', async ()=>{
+  if(cont&&(cont.status==='Onwater'||cont.status==='Reached')){notify('⚠ Cannot revoke: Container '+cont.containerNumber+' is dispatched. MI is locked.',true);return;}
+  showConfirm('Revoke RFD for Main Invoice '+inv.invoiceNumber+'? It will go back to Draft status and become editable again.', async ()=>{
     const bak={...inv};inv.confirmed=false;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
     renderHwmsInvoices();
-    notify('Invoice '+inv.invoiceNumber+' revoked to Draft');
+    notify('MI '+inv.invoiceNumber+' revoked to Draft');
     // Immediately refresh the detail view so buttons update without manual navigation
     showHwmsInvDetail(id);
   },{icon:'↩',title:'Revoke to Draft',btnLabel:'↩ Revoke',btnColor:'#f59e0b'});
@@ -2263,7 +2420,17 @@ function renderHwmsContainers(){
     const el=document.getElementById('hwmsContSortIcon_'+k);
     if(el) el.textContent=_hwmsContSortKey===k?(_hwmsContSortAsc?'▲':'▼'):'';
   });
-  var _contSA=CU&&CU.roles.includes('Super Admin');
+  // Container counter badges
+  var cDraft=conts.filter(function(c){return _hwmsContStatus(c).label==='Draft';}).length;
+  var cTransit=conts.filter(function(c){return _hwmsContStatus(c).label==='In Transit';}).length;
+  var cWH=conts.filter(function(c){return _hwmsContStatus(c).label==='Warehouse';}).length;
+  var contStatsEl=document.getElementById('hwmsContStats');
+  if(contStatsEl) contStatsEl.innerHTML=
+    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+conts.length+'</div><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase">Total</div></div>'
+    +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#64748b;font-family:var(--mono)">'+cDraft+'</div><div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase">Draft</div></div>'
+    +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+cTransit+'</div><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Transit</div></div>'
+    +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#15803d;font-family:var(--mono)">'+cWH+'</div><div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase">Warehouse</div></div>';
+  var _contSA=_hwmsIsSA();
   document.getElementById('hwmsContBody').innerHTML=conts.length?conts.map(c=>{
     const invs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===c.id);
     const st=_hwmsContStatus(c);
@@ -2274,14 +2441,22 @@ function renderHwmsContainers(){
       invs.forEach(inv=>{const cust=byId(DB.hwmsCustomers||[],inv.buyerId);const custName=inv.buyerName||cust?.customerName||'Unknown';if(!custMap[custName])custMap[custName]=[];custMap[custName].push(inv);});
       invHtml=Object.entries(custMap).map(([custName,custInvs])=>{
         const invLines=custInvs.map(inv=>{
-          const lis=inv.lineItems||[];const grossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);const totalAmt=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);const invSt=_hwmsInvStatus(inv);
-          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span style="font-weight:400;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15)">${_hwmsInvNum(inv.invoiceNumber)}</span><span style="font-family:var(--mono);color:var(--text2);font-size:11px">${grossWt.toFixed(1)}kg</span><span style="font-family:var(--mono);color:#16a34a;font-weight:700;font-size:11px">$${totalAmt.toFixed(2)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
+          const invSt=_hwmsInvStatus(inv);
+          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span style="font-weight:400;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15);font-family:var(--inv-mono)">${_hwmsInvNum(inv.invoiceNumber)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
         }).join('');
         return `<div style="margin-bottom:3px"><div style="font-weight:700;font-size:11px;color:var(--text)">🏢 ${custName}</div><div style="padding-left:8px;font-size:11px">${invLines}</div></div>`;
       }).join('');
     } else { invHtml='<span style="color:var(--text3);font-size:12px">—</span>'; }
     // Total invoice value for this container
-    const contInvTotal=invs.reduce((s,inv)=>(inv.lineItems||[]).reduce((s2,li)=>s2+(li.rate||0)*(li.quantity||0),s),0);
+    const contInvTotal=invs.reduce((s,inv)=>(inv.lineItems||[]).filter(li=>!li._meta).reduce((s2,li)=>s2+(li.rate||0)*(li.quantity||0),s),0);
+    // Transit days: reachDate(or expected) - pickupDate(or expected)
+    var _pickD=c.pickupDate||c.expectedPickupDate||'';
+    var _reachD=c.reachedDate||c.expectedReachDate||'';
+    var transitDays='—';
+    if(_pickD&&_reachD){
+      var _d1=new Date(_pickD+'T00:00:00'),_d2=new Date(_reachD+'T00:00:00');
+      if(!isNaN(_d1)&&!isNaN(_d2)){var diff=Math.round((_d2-_d1)/86400000);transitDays=String(diff);}
+    }
     // Pickup date: show actual if dispatched, else expected
     const pickupHtml=c.pickupDate
       ?`<div style="font-weight:700">${_fdate(c.pickupDate)}</div><div style="font-size:10px;color:#16a34a;font-weight:700">Dispatched</div>`
@@ -2293,15 +2468,16 @@ function renderHwmsContainers(){
     return `<tr class="clickable-row" onclick="openHwmsContModal('${c.id}')" style="cursor:pointer">
       ${_contSA?'<td style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
       <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px">${c.containerNumber}</td>
+      <td onclick="event.stopPropagation()">${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td>${c.carrierName||'—'}</td>
-      <td onclick="event.stopPropagation()">${invHtml}</td>
       <td style="white-space:nowrap;font-family:var(--mono);font-weight:900;font-size:16px;color:#16a34a;text-align:right">${contInvTotal?'$'+contInvTotal.toFixed(2):'—'}</td>
       <td style="white-space:nowrap">${reachHtml}</td>
       <td>${stBadge}</td>
+      <td style="text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;color:${transitDays==='—'?'var(--text3)':'#2563eb'}">${transitDays}</td>
       <td></td>
     </tr>`;
-  }).join(''):'<tr><td colspan="'+(_contSA?10:9)+'" class="empty-state">No containers found</td></tr>';
+  }).join(''):'<tr><td colspan="'+(_contSA?11:10)+'" class="empty-state">No containers found</td></tr>';
   // Calculate total invoice amount for all filtered containers
   var contGrandTotal=0;
   conts.forEach(function(c){
@@ -2326,7 +2502,7 @@ function _hwmsContUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsContChk:checked').length;
   var btn=document.getElementById('btnHwmsContDelSel');
   var cntEl=document.getElementById('hwmsContDelCount');
-  if(btn) btn.style.display=(count>0&&CU&&CU.roles.includes('Super Admin'))?'inline-flex':'none';
+  if(btn) btn.style.display=(count>0&&_hwmsIsSA())?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   var all=document.querySelectorAll('.hwmsContChk');
   var selAll=document.getElementById('hwmsContSelectAll');
@@ -2335,8 +2511,7 @@ function _hwmsContUpdateDelBtn(){
 async function _hwmsContDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsContChk:checked')];
   if(!checked.length){notify('No containers selected',true);return;}
-  var isSA=CU&&CU.roles.includes('Super Admin');
-  if(!isSA){notify('Only Super Admin can delete containers',true);return;}
+  if(!_hwmsIsSA()){notify('Only Super Admin can delete containers',true);return;}
   var ids=checked.map(function(cb){return cb.value;});
   var contDetails=[];
   ids.forEach(function(id){
@@ -2548,7 +2723,7 @@ function _hwmsContRenderLinkedInvs(contId){
     tbody.innerHTML=allInvs.map(inv=>{
       const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
       const consignee=cust?.consignees?.[inv.consigneeIdx];
-      const lis=inv.lineItems||[];
+      const lis=(inv.lineItems||[]).filter(li=>!li._meta);
       const totalAmt=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
       const st=_hwmsInvStatus(inv);
       // Check if invoice date is later than expected pickup date
@@ -2557,7 +2732,7 @@ function _hwmsContRenderLinkedInvs(contId){
       const dateClass=isLate?'hwms-date-flash':'';
       const dateStyle=isLate?'padding:5px 8px;font-size:11px;white-space:nowrap':'padding:5px 8px;font-size:11px;white-space:nowrap';
       return `<tr>
-        <td style="padding:5px 8px;font-family:var(--mono);font-weight:400;color:var(--accent)">${_hwmsInvNum(inv.invoiceNumber)}</td>
+        <td style="padding:5px 8px;font-family:var(--inv-mono);font-weight:400;color:var(--accent)">${_hwmsInvNum(inv.invoiceNumber)}</td>
         <td class="${dateClass}" style="${dateStyle}">${invDate?_fdate(invDate):'—'}${isLate?' ⚠':''}</td>
         <td style="padding:5px 8px;font-weight:600">${inv.buyerName||cust?.customerName||'—'}</td>
         <td style="padding:5px 8px;font-size:11px">${inv.consigneeName||consignee?.name||'—'}</td>
@@ -2572,7 +2747,7 @@ function _hwmsContRenderLinkedInvs(contId){
   if(addSel){
     const linkedIds=allInvs.map(function(i){return i.id;});
     const unassigned=(DB.hwmsInvoices||[]).filter(inv=>(!inv.containerId||inv.containerId==='')&&linkedIds.indexOf(inv.id)<0);
-    addSel.innerHTML='<option value="">-- Add Invoice --</option>'+unassigned.sort((a,b)=>(a.invoiceNumber||'').localeCompare(b.invoiceNumber||'')).map(inv=>{
+    addSel.innerHTML='<option value="">-- Add Main Invoice --</option>'+unassigned.sort((a,b)=>(a.invoiceNumber||'').localeCompare(b.invoiceNumber||'')).map(inv=>{
       const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
       return `<option value="${inv.id}">${inv.invoiceNumber} — ${inv.buyerName||cust?.customerName||'?'}</option>`;
     }).join('');
@@ -2599,7 +2774,7 @@ async function _hwmsContAddInv(){
   }
   _hwmsContRenderLinkedInvs(contId);
   renderHwmsInvoices();
-  notify('Invoice '+inv.invoiceNumber+' added to container');
+  notify('MI '+inv.invoiceNumber+' added to container');
 }
 
 async function _hwmsContRemoveInv(invId){
@@ -2617,7 +2792,7 @@ async function _hwmsContRemoveInv(invId){
   }
   _hwmsContRenderLinkedInvs(contId);
   renderHwmsInvoices();
-  notify('Invoice '+inv.invoiceNumber+' removed');
+  notify('MI '+inv.invoiceNumber+' removed');
   });
 }
 
@@ -2664,7 +2839,7 @@ async function _hwmsContDispatch(){
   const invs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===c.id);
   if(!invs.length) errors.push('No invoices linked to this container');
   invs.forEach(inv=>{
-    if(!inv.confirmed) errors.push('Invoice '+inv.invoiceNumber+' is not confirmed (RFD)');
+    if(!inv.confirmed) errors.push('MI '+inv.invoiceNumber+' is not confirmed (RFD)');
     // Invoice date must not be later than actual dispatch date
     if(actualPickup&&inv.date&&inv.date>actualPickup) errors.push('Invoice '+inv.invoiceNumber+' date ('+_fdate(inv.date)+') is later than dispatch date ('+_fdate(actualPickup)+')');
   });
@@ -2833,7 +3008,7 @@ function _hwmsContUpdateReachedUI(c){
 }
 
 async function _hwmsContRevokeReached(){
-  if(!CU||!CU.roles.includes('Super Admin')){notify('Only Super Admin can revoke reached status',true);return;}
+  if(!_hwmsIsSA()){notify('Only Super Admin can revoke reached status',true);return;}
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
@@ -3127,18 +3302,22 @@ function renderHwmsSubInvoices(){
     +'<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fmtAmt(fTotalRcvd)+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Received</div></div>'
     +'<div style="background:'+(fTotalBal>0?'#fef2f2':'#f0fdf4')+';border:1.5px solid '+(fTotalBal>0?'#fecaca':'#bbf7d0')+';border-radius:10px;padding:8px 14px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:'+(fTotalBal>0?'#dc2626':'#16a34a')+';font-family:var(--mono)">'+fmtAmt(fTotalBal)+'</div><div style="font-size:10px;font-weight:700;color:'+(fTotalBal>0?'#991b1b':'#15803d')+';text-transform:uppercase">Balance</div></div>'
     +'<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+paid+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Fully Paid</div></div>'
-    +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>';
+    +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>'
+    +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +(_hwmsCan('si.export')?'<button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>':'')
+    +(_hwmsCan('si.import')?'<label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>':'')
+    +'</div>';
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
-  var isSA=CU&&CU.roles&&CU.roles.includes('Super Admin');
+  var isSA=_hwmsIsSA();
   // Reset bulk bar + select-all checkbox
   var bulkBar=document.getElementById('hwmsSiBulkBar');if(bulkBar)bulkBar.style.display='none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
-  if(!rows.length){body.innerHTML='<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="16" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   body.innerHTML=rows.map(function(si){
     var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
     var invNum=inv?inv.invoiceNumber||'':'';
-    var lis=si.lineItems||[];
+    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
     var totalAmt=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
     var partsHtml=lis.map(function(l){
       var pLabel=(l.palletNumber?l.palletNumber+'-':'')+l.partNumber;
@@ -3150,8 +3329,9 @@ function renderHwmsSubInvoices(){
     var payB=_hwmsSiBadge(si.paymentStatus,'payment');
     return '<tr style="cursor:pointer" onclick="_hwmsSiRowClick(event,\''+si.id+'\')">'
       +'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>'
+      +'<td style="text-align:center;padding:2px 4px" onclick="event.stopPropagation()"><button onclick="_hwmsSiPreviewPopup(\''+si.id+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="Print Preview">🖨️</button></td>'
       +'<td style="font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap">'+fd2(si.date)+'</td>'
-      +'<td><div style="font-family:var(--mono);font-size:14px"><span style="font-weight:400">'+si.subInvoiceNumber.substring(0,4)+'</span><span style="font-weight:700">'+si.subInvoiceNumber.substring(4,9)+'</span><span style="font-weight:700;color:#2563eb">'+si.subInvoiceNumber.substring(9)+'</span></div><div onclick="event.stopPropagation();_hwmsSiPreviewPopup(\''+si.id+'\')" style="margin-top:3px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#2563eb;font-weight:700" title="Print Preview"><span style="font-size:13px">🖨️</span> Preview</div></td>'
+      +'<td><div style="font-family:var(--inv-mono);font-size:14px"><span style="font-weight:400">'+si.subInvoiceNumber.substring(0,4)+'</span><span style="font-weight:700">'+si.subInvoiceNumber.substring(4,9)+'</span><span style="font-weight:700;color:#2563eb">'+si.subInvoiceNumber.substring(9)+'</span></div></td>'
       +'<td style="font-size:13px;font-weight:700;white-space:nowrap" title="'+(si.customerName||'')+'">'+custFirst+'</td>'
       +'<td style="min-width:260px;white-space:normal;word-break:break-word;line-height:1.7">'+partsHtml+'</td>'
       +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:13px">$'+totalAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
@@ -3169,7 +3349,7 @@ function renderHwmsSubInvoices(){
   // Totals footer row
   if(rows.length){
     body.innerHTML+='<tr style="background:#f1f5f9;border-top:3px solid var(--accent);cursor:default">'
-      +'<td colspan="5" style="padding:10px 8px;font-size:13px;font-weight:900;color:var(--text);text-align:right;text-transform:uppercase;letter-spacing:.5px">Totals ('+rows.length+' rows)</td>'
+      +'<td colspan="6" style="padding:10px 8px;font-size:13px;font-weight:900;color:var(--text);text-align:right;text-transform:uppercase;letter-spacing:.5px">Totals ('+rows.length+' rows)</td>'
       +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:#2563eb">'+fmtAmt(fTotalAmt)+'</td>'
       +'<td colspan="7"></td>'
       +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:#16a34a">'+fmtAmt(fTotalRcvd)+'</td>'
@@ -3203,7 +3383,7 @@ function showHwmsSiDetail(id){
   var si=byId(DB.hwmsSubInvoices||[],id);if(!si) return;
   var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
   var invNum=inv?inv.invoiceNumber:'—';
-  var lis=si.lineItems||[];
+  var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
   var totalAmt=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
@@ -3217,9 +3397,9 @@ function showHwmsSiDetail(id){
   var tl='padding:8px 12px;font-size:12px;color:var(--text3);font-weight:700;white-space:nowrap;width:140px;vertical-align:top';
   var tv='padding:8px 12px;font-size:14px;font-weight:700;font-family:var(--mono)';
   var h='<table style="width:100%;border-collapse:collapse;margin-bottom:20px">';
-  h+='<tr><td style="'+tl+'">Sub-Invoice #</td><td style="'+tv+';color:var(--accent);font-size:16px">'+si.subInvoiceNumber+'</td>'
+  h+='<tr><td style="'+tl+'">Sub-Invoice #</td><td style="'+tv+';color:var(--accent);font-size:16px;font-family:var(--inv-mono)">'+si.subInvoiceNumber+'</td>'
     +'<td style="'+tl+'">Date</td><td style="'+tv+'">'+fd2(si.date)+'</td></tr>';
-  h+='<tr><td style="'+tl+'">Original Invoice</td><td style="'+tv+'">'+invNum+'</td>'
+  h+='<tr><td style="'+tl+'">Original MI</td><td style="'+tv+';font-family:var(--inv-mono)">'+invNum+'</td>'
     +'<td style="'+tl+'">Customer</td><td style="'+tv+';font-family:var(--sans)">'+(si.customerName||'—')+'</td></tr>';
   h+='<tr><td style="'+tl+'">Pickup Status</td><td style="'+tv+'">'+_hwmsSiBadge(si.pickupStatus)+' <span style="font-size:12px;color:var(--text3);margin-left:6px">'+fd2(si.pickupDate)+'</span></td>'
     +'<td style="'+tl+'">GRN Status</td><td style="'+tv+'">'+_hwmsSiBadge(si.grnStatus)+' <span style="font-size:12px;color:var(--text3);margin-left:6px">'+fd2(si.grnDate)+'</span></td></tr>';
@@ -3234,6 +3414,7 @@ function showHwmsSiDetail(id){
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8fafc">'
     +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">Pallet</th>'
     +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">Part Number</th>'
+    +'<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">PO #</th>'
     +'<th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">Qty</th>'
     +'<th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">Rate ($)</th>'
     +'<th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border)">Amount ($)</th>'
@@ -3243,18 +3424,28 @@ function showHwmsSiDetail(id){
     h+='<tr>'
       +'<td style="padding:6px 10px;font-family:var(--mono);font-weight:800;color:var(--accent);border-bottom:1px solid #f1f5f9">'+(l.palletNumber||'—')+'</td>'
       +'<td style="padding:6px 10px;font-family:var(--mono);font-weight:700;border-bottom:1px solid #f1f5f9">'+l.partNumber+'</td>'
+      +'<td style="padding:6px 10px;font-family:var(--mono);font-weight:600;color:#7c3aed;border-bottom:1px solid #f1f5f9">'+(l.poNumber||'—')+'</td>'
       +'<td style="padding:6px 10px;font-family:var(--mono);font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9">'+l.quantity.toLocaleString()+'</td>'
       +'<td style="padding:6px 10px;font-family:var(--mono);text-align:right;border-bottom:1px solid #f1f5f9">'+fAmt(l.rate)+'</td>'
       +'<td style="padding:6px 10px;font-family:var(--mono);font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9">'+fAmt(amt)+'</td>'
       +'</tr>';
   });
-  h+='<tr style="background:#f8fafc;font-weight:900"><td colspan="4" style="padding:8px 10px;text-align:right;font-size:13px">Total</td>'
+  h+='<tr style="background:#f8fafc;font-weight:900"><td colspan="5" style="padding:8px 10px;text-align:right;font-size:13px">Total</td>'
     +'<td style="padding:8px 10px;font-family:var(--mono);text-align:right;font-size:14px">'+fAmt(totalAmt)+'</td></tr>';
   h+='</tbody></table>';
   document.getElementById('hwmsSiViewBody').innerHTML=h;
   hwmsGo('pageHwmsSiView');
 }
 // ── Modal ──
+// ── Helper: get mrId from sub-invoice (reads from lineItems _mrMeta or fallback to si.mrId) ──
+function _hwmsSiGetMrId(si){
+  if(!si) return '';
+  if(si.lineItems&&Array.isArray(si.lineItems)){
+    var meta=si.lineItems.find(function(l){return l._mrMeta;});
+    if(meta&&meta.mrId) return meta.mrId;
+  }
+  return si.mrId||'';
+}
 function openHwmsSiModal(id){
   var si=id?byId(DB.hwmsSubInvoices||[],id):null;
   document.getElementById('hwmsSiId').value=id||'';
@@ -3343,7 +3534,7 @@ function _hwmsSiBuildMrRef(show){
     +'<th style="'+th+';text-align:left">Part</th>'
     +'<th style="'+th+';text-align:left">MR #</th>'
     +'<th style="'+th+';text-align:right">MR Qty</th>'
-    +'<th style="'+th+';text-align:left">Invoice</th>'
+    +'<th style="'+th+';text-align:left">MI</th>'
     +'<th style="'+th+';text-align:center">Pallet</th>'
     +'<th style="'+th+';text-align:right">Avail Qty</th>'
     +'<th style="'+th+';text-align:right">Rate ($)</th>'
@@ -3382,10 +3573,10 @@ function _hwmsSiOnInvChange(editSi){
   document.getElementById('hwmsSiCust').value=inv.buyerName||'';
   // Show invoice info
   var cont=byId(DB.hwmsContainers||[],inv.containerId);
-  infoEl.innerHTML='📦 Container: <b>'+(cont?cont.containerNumber:'—')+'</b> | 📅 Invoice Date: <b>'+(inv.date||'—')+'</b> | Items: <b>'+(inv.lineItems||[]).length+'</b>';
+  infoEl.innerHTML='📦 Container: <b>'+(cont?cont.containerNumber:'—')+'</b> | 📅 Invoice Date: <b>'+(inv.date||'—')+'</b> | Items: <b>'+(inv.lineItems||[]).filter(function(li){return !li._meta;}).length+'</b>';
   infoEl.style.display='block';
   // Build parts checklist — one row per pallet (invoice line item)
-  var lis=inv.lineItems||[];
+  var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
   // Track already-dispatched per pallet key (partId+palletNumber)
   var alreadyDispatched={};// key → qty
   (DB.hwmsSubInvoices||[]).forEach(function(si2){
@@ -3468,13 +3659,22 @@ async function saveHwmsSi(){
     var si2={id:'si'+uid()};Object.assign(si2,data);
     if(!await _dbSave('hwmsSubInvoices',si2)) return;
   }
-  cm('mHwmsSi');renderHwmsSubInvoices();_hwmsUpdCounts();notify('Sub-Invoice saved!');
+  cm('mHwmsSi');
+  // Recalculate MR line item statuses if this SI is linked to an MR
+  var savedSi=id?byId(DB.hwmsSubInvoices,id):si2;
+  var _savedMrId=_hwmsSiGetMrId(savedSi);
+  if(_savedMrId) await _hwmsMrUpdateLineStatuses(_savedMrId);
+  renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();notify('Sub-Invoice saved!');
 }
 async function _hwmsDelSi(id){
-  if(!CU||!CU.roles||!CU.roles.includes('Super Admin')){notify('⚠ Only Super Admin can delete sub-invoices',true);return;}
+  if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete sub-invoices',true);return;}
   if(!confirm('Delete this sub-invoice?')) return;
-  await _dbDel('hwmsSubInvoices',id);
-  renderHwmsSubInvoices();_hwmsUpdCounts();notify('Deleted');
+  var si=byId(DB.hwmsSubInvoices||[],id);
+  var mrId=_hwmsSiGetMrId(si);
+  var delResult=await _dbDel('hwmsSubInvoices',id);
+  if(delResult===false){notify('⚠ Delete failed',true);return;}
+  if(mrId) await _hwmsMrUpdateLineStatuses(mrId);
+  renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();notify('Deleted');
 }
 // ── Checkbox select all / bulk delete ──
 function _hwmsSiToggleAll(masterCb){
@@ -3486,7 +3686,7 @@ function _hwmsSiSelChange(){
   var cbs=document.querySelectorAll('.hwmsSiCb:checked');
   var bar=document.getElementById('hwmsSiBulkBar');
   var countEl=document.getElementById('hwmsSiSelCount');
-  var isSA=CU&&CU.roles&&CU.roles.includes('Super Admin');
+  var isSA=_hwmsIsSA();
   if(cbs.length>0&&isSA){
     bar.style.display='flex';
     countEl.textContent=cbs.length+' selected';
@@ -3504,20 +3704,42 @@ function _hwmsSiClearSel(){
   var bar=document.getElementById('hwmsSiBulkBar');if(bar)bar.style.display='none';
 }
 async function _hwmsSiBulkDel(){
-  if(!CU||!CU.roles||!CU.roles.includes('Super Admin')){notify('⚠ Only Super Admin can delete',true);return;}
+  if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete',true);return;}
   var cbs=document.querySelectorAll('.hwmsSiCb:checked');
   var ids=[];cbs.forEach(function(cb){ids.push(cb.dataset.id);});
   if(!ids.length) return;
   if(!confirm('Delete '+ids.length+' sub-invoices? This cannot be undone.')) return;
-  showSpinner('Deleting '+ids.length+' sub-invoices…');
+  // Collect affected mrIds before deletion
+  var affectedMrIds={};
+  ids.forEach(function(siId){
+    var si=byId(DB.hwmsSubInvoices||[],siId);
+    var _mid=_hwmsSiGetMrId(si);
+    if(_mid) affectedMrIds[_mid]=true;
+  });
   var ok=0,fail=0;
   for(var i=0;i<ids.length;i++){
-    _spinnerMsg('Deleting '+(i+1)+'/'+ids.length+'…');
     var r=await _dbDel('hwmsSubInvoices',ids[i]);
     if(r!==false) ok++; else fail++;
   }
-  hideSpinner();
-  renderHwmsSubInvoices();_hwmsUpdCounts();
+  // Force recalculate MR line item statuses for all affected MRs
+  var mrIds=Object.keys(affectedMrIds);
+  for(var j=0;j<mrIds.length;j++){
+    var mr2=byId(DB.hwmsMaterialRequests||[],mrIds[j]);
+    if(!mr2) continue;
+    var info2=_hwmsMrDispatchInfo(mr2);
+    // Consolidate total required per partId
+    var reqPerPart={};
+    (mr2.lineItems||[]).forEach(function(l){var k=l.partId||l.partNumber;reqPerPart[k]=(reqPerPart[k]||0)+(l.quantity||0);});
+    (mr2.lineItems||[]).forEach(function(l){
+      var k=l.partId||l.partNumber;
+      var dispatched=info2.perPart[k]?info2.perPart[k].totalQty:0;
+      var totalReq=reqPerPart[k]||0;
+      l.status=dispatched>=totalReq?'Closed':dispatched>0?'Partially Closed':'Open';
+    });
+    mr2.status=_hwmsMrCalcStatus(mr2);
+    await _dbSave('hwmsMaterialRequests',mr2);
+  }
+  renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
   notify('✅ Deleted '+ok+(fail?' ('+fail+' failed)':''));
 }
 
@@ -3574,7 +3796,7 @@ function _hwmsSiBuildPrintHtml(id){
   var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
   var cust=byId(DB.hwmsCustomers||[],si.customerId||(inv?inv.buyerId:''));
   var co=_getHwmsCompany()||{};
-  var lis=si.lineItems||[];
+  var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
   var totalQty=lis.reduce(function(s,l){return s+(l.quantity||0);},0);
   var totalAmt=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
   var fd=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();};
@@ -3640,9 +3862,9 @@ function _hwmsSiBuildPrintHtml(id){
 
   // Format sub-invoice number: first 4 normal, next 5 bold, rest bold+color
   var _siNum=si.subInvoiceNumber||'';
-  var _siNumHtml='<span style="font-weight:400">'+_siNum.substring(0,4)+'</span>'
-    +'<span style="font-weight:700">'+_siNum.substring(4,9)+'</span>'
-    +'<span style="font-weight:700;color:#2563eb">'+_siNum.substring(9)+'</span>';
+  var _siNumHtml='<span style="font-weight:400;letter-spacing:2px">'+_siNum.substring(0,4)+'</span>'
+    +'<span style="font-weight:700;letter-spacing:2px;margin-left:3px">'+_siNum.substring(4,9)+'</span>'
+    +'<span style="font-weight:700;color:#2563eb;letter-spacing:2px;margin-left:3px">'+_siNum.substring(9)+'</span>';
 
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sub-Invoice '+_m(si.subInvoiceNumber)+'</title>'
   +'<style>'
@@ -3651,12 +3873,12 @@ function _hwmsSiBuildPrintHtml(id){
   +'body{font-family:"Aptos Narrow",Arial,Helvetica,sans-serif;font-size:11px;color:#000;width:194mm;max-width:194mm;margin:0 auto;padding:8mm 0 0 0}'
   +'table{border-collapse:collapse;width:100%}'
   +'td,th{border:1px solid #000;padding:3px 5px;vertical-align:top}'
-  +'.c{text-align:center}.r{text-align:right}.b{font-weight:700}.mono{font-family:"Aptos Display","Courier New",monospace}'
+  +'.c{text-align:center}.r{text-align:right}.b{font-weight:700}.mono{font-family:"Aptos Mono","Aptos Display","Courier New",monospace}'
   +'.hdr{font-size:24px;font-weight:700;text-align:center;padding:8px;border:1px solid #000}'
   +'.lbl{font-size:10px;font-weight:700;background:#f8f8f8}'
   +'.val{font-size:12px}'
   +'.inv-label{font-size:18px;font-weight:700;font-family:"Aptos Narrow",Arial,sans-serif;text-align:center;vertical-align:middle}'
-  +'.inv-value{font-size:18px;font-weight:700;font-family:"Aptos Narrow",Arial,sans-serif;text-align:center;vertical-align:middle}'
+  +'.inv-value{font-size:18px;font-weight:700;font-family:"Aptos Mono","Aptos Narrow",Arial,sans-serif;text-align:center;vertical-align:middle}'
   +'.addr{font-size:11px;white-space:pre-line;line-height:1.4}'
   +'.tbl-hdr{font-size:12px;font-weight:700;background:#f0f0f0;text-align:center;padding:5px 4px}'
   +'.tbl-data{font-size:11px;padding:2px 4px}'
@@ -3755,13 +3977,13 @@ function _hwmsSiBuildPrintHtml(id){
   +'<td colspan="3"></td>'
   +'<td class="r" style="font-size:13px">Total Qty</td>'
   +'<td class="r" style="font-size:14px">'+totalQty.toLocaleString()+'</td>'
-  +'<td class="r" style="font-size:12px">Total Amount in USD</td>'
+  +'<td class="r" style="font-size:14px;font-weight:900">Total Amount in USD</td>'
   +'<td class="r mono" style="font-size:14px">'+_fmt(totalAmt)+'</td>'
   +'</tr>'
 
   // Amount in words
   +'<tr class="words-row">'
-  +'<td style="font-size:10px;font-weight:700">Amount in words (USD)</td>'
+  +'<td style="font-size:10px;font-weight:700">Amount in words</td>'
   +'<td colspan="6" style="font-size:12px;font-weight:700">'+_hwmsNumToWords(totalAmt)+'</td>'
   +'</tr>'
 
@@ -3993,8 +4215,16 @@ function _hwmsMrRate(partId){
 }
 function _hwmsMrSort(key){
   if(_hwmsMrSortKey===key) _hwmsMrSortAsc=!_hwmsMrSortAsc;
-  else{_hwmsMrSortKey=key;_hwmsMrSortAsc=key==='mrNumber';}
+  else{_hwmsMrSortKey=key;_hwmsMrSortAsc=false;}
   renderHwmsMR();
+}
+function _hwmsMrToggleSi(mrTid){
+  var row=document.getElementById('mrSi_'+mrTid);
+  var arrow=document.getElementById('mrArrow_'+mrTid);
+  if(!row) return;
+  var open=row.style.display!=='none';
+  row.style.display=open?'none':'table-row';
+  if(arrow) arrow.style.transform=open?'':'rotate(90deg)';
 }
 function renderHwmsMR(){
   var mrs=DB.hwmsMaterialRequests||[];
@@ -4010,43 +4240,124 @@ function renderHwmsMR(){
     var key=_hwmsMrSortKey;
     var va=key==='createdBy'?(a._raisedBy||''):key==='_status'?(a._status||''):(a[key]||'').toString();
     var vb=key==='createdBy'?(b._raisedBy||''):key==='_status'?(b._status||''):(b[key]||'').toString();
-    return _hwmsMrSortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    var cmp=_hwmsMrSortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    if(cmp===0) return(b.mrNumber||'').localeCompare(a.mrNumber||'');
+    return cmp;
   });
   // Sort icons
-  ['mrDate','mrNumber','needByDate','createdBy'].forEach(function(c){
+  ['mrDate','mrNumber','needByDate','createdBy','_status'].forEach(function(c){
     var el=document.getElementById('hwmsMrSI_'+c);
     if(el) el.textContent=_hwmsMrSortKey===c?(_hwmsMrSortAsc?'▲':'▼'):'';
   });
-  // Stats badge
-  var cEl=document.getElementById('hcMR');if(cEl)cEl.textContent=mrs.length||'';
+  // Stats badge — always show pending (Open+Partial) only
   var openCnt=mrs.filter(function(m){return m._status==='Open';}).length;
   var partCnt=mrs.filter(function(m){return m._status==='Partially Closed';}).length;
   var closedCnt=mrs.filter(function(m){return m._status==='Closed';}).length;
+  var cEl=document.getElementById('hcMR');if(cEl)cEl.textContent=(openCnt+partCnt)||'';
   var statsEl=document.getElementById('hwmsMrStats');
   if(statsEl) statsEl.innerHTML=
     '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+mrs.length+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Total</div></div>'
     +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+openCnt+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Open</div></div>'
     +'<div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#a16207;font-family:var(--mono)">'+partCnt+'</div><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase">Partial</div></div>'
-    +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#15803d;font-family:var(--mono)">'+closedCnt+'</div><div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">Closed</div></div>';
+    +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#15803d;font-family:var(--mono)">'+closedCnt+'</div><div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">Closed</div></div>'
+    +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +(_hwmsCan('mr.export')?'<button class="btn btn-secondary" onclick="_hwmsMrExport()" style="font-size:13px;padding:6px 14px">📤 Export</button>':'')
+    +(_hwmsCan('mr.import')?'<label class="btn btn-secondary" style="font-size:13px;padding:6px 14px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsMrImport(this)"></label>':'')
+    +(_hwmsCan('mr.add')?'<button class="btn btn-primary" onclick="openHwmsMrModal()" style="font-size:14px;padding:8px 20px">+ New MR</button>':'')
+    +'</div>';
   // Render table
   var body=document.getElementById('hwmsMrBody');if(!body) return;
-  if(!mrs.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3)">No material requests yet</td></tr>';return;}
+  if(!mrs.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3)">No material requests yet</td></tr>';return;}
   body.innerHTML=mrs.map(function(mr){
     var lis=mr.lineItems||[];
     var itemCount=lis.length;
     var totalAmt=lis.reduce(function(s,l){var rate=_hwmsMrRate(l.partId);return s+((l.quantity||0)*(rate||0));},0);
     var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
     var raisedFirst=(mr._raisedBy||'').split(' ')[0]||'—';
-    var isSA=CU&&CU.roles&&CU.roles.includes('Super Admin');
-    return '<tr style="cursor:pointer" onclick="showHwmsMrDetail(\''+mr.id+'\')">'
-      +'<td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:14px">'+mr.mrNumber+'</td>'
+    var isSA=_hwmsIsSA();
+    var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return _hwmsSiGetMrId(si)===mr.id;});
+    var hasSis=linkedSis.length>0;
+    var mrTid=mr.id.replace(/[^a-zA-Z0-9]/g,'_');
+    var toggleArrow=hasSis?'<span id="mrArrow_'+mrTid+'" style="cursor:pointer;font-size:12px;margin-right:4px;display:inline-block;transition:transform .2s" onclick="event.stopPropagation();_hwmsMrToggleSi(\''+mrTid+'\')">▶</span>':'';
+    var row='<tr style="cursor:'+(hasSis?'pointer':'default')+'" onclick="'+(hasSis?'_hwmsMrToggleSi(\''+mrTid+'\')':'')+'">'
+      +'<td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:14px">'+toggleArrow+mr.mrNumber+'</td>'
       +'<td style="font-family:var(--mono);font-size:13px;font-weight:600">'+fd2(mr.mrDate)+'</td>'
-      +'<td style="font-size:12px;font-weight:600" title="'+(mr._raisedBy||'')+'">'+raisedFirst+'</td>'
+      +'<td style="font-size:13px;font-weight:600" title="'+(mr._raisedBy||'')+'">'+raisedFirst+'</td>'
       +'<td style="font-family:var(--mono);font-size:13px;font-weight:600">'+fd2(mr.needByDate)+'</td>'
       +'<td style="text-align:center;font-family:var(--mono);font-weight:800;font-size:14px">'+itemCount+'</td>'
       +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:13px">'+fAmt(totalAmt)+'</td>'
-      +'<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openHwmsMrModal(\''+mr.id+'\')">✏️</button>'+(isSA?'<button class="action-btn" onclick="_hwmsMrDel(\''+mr.id+'\')">🗑️</button>':'')+'</td>'
+      +'<td style="text-align:center"><span style="'+(({'Open':'background:#fef2f2;color:#dc2626','Partially Closed':'background:#fefce8;color:#a16207','Closed':'background:#dcfce7;color:#15803d'})[mr._status]||'')+';font-size:11px;font-weight:800;padding:3px 10px;border-radius:5px">'+mr._status+'</span></td>'
+      +'<td style="white-space:nowrap" onclick="event.stopPropagation()">'
+      +(_hwmsCan('mr.edit')?'<button class="action-btn" onclick="openHwmsMrModal(\''+mr.id+'\')" title="Edit MR" style="font-size:14px">✏️</button>':'')
+      +(mr._status!=='Closed'&&_hwmsCan('mr.gensi')?'<button onclick="showHwmsMrDetail(\''+mr.id+'\')" style="font-size:11px;font-weight:800;padding:3px 10px;background:#7c3aed;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:4px" title="Generate Sub-Invoice">📤 Gen SI</button>':'')
+      +(_hwmsCan('mr.delete')&&!hasSis?'<button class="action-btn" onclick="_hwmsMrDel(\''+mr.id+'\')" style="margin-left:4px;font-size:14px">🗑️</button>':'')+'</td>'
       +'</tr>';
+    // Sub-invoices detail row — always visible
+    if(hasSis){
+      linkedSis.sort(function(a,b){return(a.subInvoiceNumber||'').localeCompare(b.subInvoiceNumber||'');});
+      var grandSiAmt=0;
+      var siRows=linkedSis.map(function(si,idx){
+        var siLis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
+        var siAmt=siLis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
+        grandSiAmt+=siAmt;
+        var siPOs=siLis.map(function(l){return l.poNumber||'';}).filter(Boolean);
+        var poText=siPOs.length?[...new Set(siPOs)].join(', '):'—';
+        var siNum=si.subInvoiceNumber||'—';
+        var siNumHtml='<span style="font-weight:400">'+siNum.substring(0,4)+'</span>'
+          +'<span style="font-weight:700">'+siNum.substring(4,9)+'</span>'
+          +'<span style="font-weight:700;color:#2563eb">'+siNum.substring(9)+'</span>';
+        var isPicked=si.pickupStatus==='Picked';
+        var rowBg=isPicked?'background:rgba(22,163,74,.08)':'background:rgba(239,68,68,.06)';
+        var pickStClr=isPicked?'background:#dcfce7;color:#15803d':'background:#fef2f2;color:#dc2626';
+        var pickupDate=si.pickupDate||'';
+        var canRevoke=false;
+        if(isPicked&&si.pickupDate){
+          var pickTs=new Date(si.pickupDate+'T00:00:00').getTime();
+          canRevoke=(Date.now()-pickTs)<86400000;
+        }
+        var actionBtn='';
+        if(isPicked){
+          actionBtn=canRevoke?'<button onclick="_hwmsMrSiRevoke(\''+si.id+'\',\''+mr.id+'\')" style="font-size:11px;font-weight:800;padding:3px 10px;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer" title="Revoke within 24hrs">↩ Revoke</button>':'<span style="font-size:11px;color:#16a34a;font-weight:700">✓ Done</span>';
+        } else {
+          actionBtn='<input type="date" class="mrSiPickDate" data-siid="'+si.id+'" value="'+(pickupDate||new Date().toISOString().slice(0,10))+'" style="font-size:13px;padding:2px 3px;border:1px solid #c4b5fd;border-radius:4px;width:105px;vertical-align:middle;margin-right:4px">'
+            +'<button onclick="_hwmsMrSiSubmitOne(\''+si.id+'\',\''+mr.id+'\')" style="font-size:11px;font-weight:800;padding:3px 10px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer">📦 Material Picked</button>';
+        }
+        return '<tr style="border-bottom:1px solid #ede9fe;'+rowBg+'">'
+          +'<td style="padding:5px 8px;font-weight:600;color:var(--text3);font-size:13px;text-align:right">'+(idx+1)+'</td>'
+          +'<td style="padding:5px 8px;font-family:var(--inv-mono);font-size:14px">'+siNumHtml+'</td>'
+          +'<td style="padding:5px 8px;font-family:var(--mono);font-size:13px">'+fd2(si.date)+'</td>'
+          +'<td style="padding:5px 8px;font-family:var(--mono);font-size:12px;color:#7c3aed;font-weight:600">'+poText+'</td>'
+          +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:800;font-size:14px;text-align:right;color:#16a34a">'+fAmt(siAmt)+'</td>'
+          +'<td style="padding:5px 8px;text-align:center"><span style="'+pickStClr+';font-size:11px;font-weight:800;padding:2px 8px;border-radius:4px">'+(si.pickupStatus||'Pending')+'</span></td>'
+          +'<td style="padding:5px 8px;font-family:var(--mono);font-size:13px;text-align:center;color:'+(isPicked?'#15803d':'var(--text3)')+';font-weight:600">'+(isPicked&&pickupDate?fd2(pickupDate):'—')+'</td>'
+          +'<td style="padding:5px 8px;text-align:center;white-space:nowrap">'+actionBtn+'</td>'
+          +'<td style="padding:5px 8px;text-align:center">'
+          +'<button onclick="_hwmsSiPreviewPopup(\''+si.id+'\')" style="background:none;border:none;cursor:pointer;font-size:16px" title="Print Preview">🖨️</button>'
+          +'</td>'
+          +'</tr>';
+      }).join('');
+      // Total row
+      siRows+='<tr style="background:rgba(124,58,237,.08);border-top:2px solid #c4b5fd">'
+        +'<td colspan="4" style="padding:5px 8px;font-weight:900;text-align:right;font-size:13px;color:#7c3aed">Total SI Amount</td>'
+        +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:900;font-size:14px;text-align:right;color:#16a34a">'+fAmt(grandSiAmt)+'</td>'
+        +'<td colspan="4"></td></tr>';
+      row+='<tr id="mrSi_'+mrTid+'" style="display:none"><td colspan="8" style="padding:0;background:#f5f3ff;border-bottom:2px solid #c4b5fd">'
+        +'<div style="padding:8px 12px">'
+        +'<span style="font-size:13px;font-weight:800;color:#7c3aed">📤 Sub-Invoices ('+linkedSis.length+')</span>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:6px"><thead><tr style="background:rgba(124,58,237,.06)">'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right">#</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:left">Sub-Inv #</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed">Date</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:left">PO #</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:right">Amount</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:center">Status</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:center">Picked Date</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:center">Action</th>'
+        +'<th style="padding:4px 8px;font-size:11px;font-weight:700;color:#7c3aed;text-align:center">Preview</th>'
+        +'</tr></thead><tbody>'+siRows+'</tbody></table>'
+        +'</div></td></tr>';
+    }
+    return row;
   }).join('');
 }
 // ── Detail view ──
@@ -4055,7 +4366,7 @@ function showHwmsMrDetail(id){
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
   document.getElementById('hwmsMrViewTitle').textContent=mr.mrNumber||'MR Details';
-  document.getElementById('hwmsMrViewActions').innerHTML='<button class="btn" onclick="openHwmsMrModal(\''+mr.id+'\')" style="padding:7px 18px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:800;border-radius:var(--radius);cursor:pointer">✏️ Edit</button>';
+  document.getElementById('hwmsMrViewActions').innerHTML='';
   var raisedUser=byId(DB.users||[],mr.createdBy);
   var raisedName=raisedUser?(raisedUser.fullName||raisedUser.name||''):'—';
   var mrStatus=_hwmsMrCalcStatus(mr);
@@ -4069,24 +4380,31 @@ function showHwmsMrDetail(id){
   h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;min-width:100px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Status</div><div><span style="'+(stClr[mrStatus]||'')+';font-size:13px;font-weight:800;padding:3px 12px;border-radius:6px;display:inline-block">'+mrStatus+'</span></div></div>';
   if(mr.remarks) h+='<div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 14px;flex:1;min-width:150px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Remarks</div><div style="font-size:13px;font-weight:400">'+mr.remarks+'</div></div>';
   h+='</div>';
-  // Consolidate line items by partId
+  // Consolidate line items by partId (only Open and Partially Closed)
   var lis=mr.lineItems||[];
   var consolidated={};// partId → {partNumber, totalQty, rate, stock, pos:[]}
   lis.forEach(function(l){
     var key=l.partId||l.partNumber;
-    if(!consolidated[key]) consolidated[key]={partId:l.partId,partNumber:l.partNumber,totalQty:0,pos:[]};
+    if(!consolidated[key]) consolidated[key]={partId:l.partId,partNumber:l.partNumber,totalQty:0,pos:[],allQty:0};
+    consolidated[key].allQty+=(l.quantity||0);
     consolidated[key].totalQty+=(l.quantity||0);
     if(l.poNumber) consolidated[key].pos.push({po:l.poNumber,qty:l.quantity||0});
   });
   var cParts=Object.keys(consolidated).map(function(k){return consolidated[k];});
+  // Parts with balance qty for warehouse stock panel (only Open/Partially Closed)
+  var openParts={};
+  lis.forEach(function(l){
+    var st=l.status||'Open';
+    if(st==='Closed') return;
+    var key=l.partId||l.partNumber;
+    if(!openParts[key]) openParts[key]={partId:l.partId,partNumber:l.partNumber,totalQty:0,pos:[]};
+    openParts[key].totalQty+=(l.quantity||0);
+    if(l.poNumber) openParts[key].pos.push({po:l.poNumber,qty:l.quantity||0});
+  });
+  var openCParts=Object.keys(openParts).map(function(k){return openParts[k];});
   // Totals
   var grandReq=cParts.reduce(function(s,p){return s+p.totalQty;},0);
   var grandShortage=0;
-  cParts.forEach(function(p){
-    var stock=_hwmsMrStock(p.partId);
-    var shortage=Math.max(0,p.totalQty-stock);
-    grandShortage+=shortage;
-  });
 
   // Get dispatch info for this MR
   var mrDispatch=_hwmsMrDispatchInfo(mr);
@@ -4120,7 +4438,6 @@ function showHwmsMrDetail(id){
     var transit=_hwmsPartTransit(p.partId);
     var amt=p.totalQty*(rate||0);
     grandAmt+=amt;
-    grandTransit+=transit;
     var stockClr=stock>=p.totalQty?'#16a34a':stock>0?'#a16207':'#dc2626';
     var shortClr=shortage>0?'#dc2626':'#16a34a';
     var poText=p.pos.length?p.pos.map(function(po){return po.po+' ×'+po.qty;}).join(', '):'—';
@@ -4134,13 +4451,17 @@ function showHwmsMrDetail(id){
     var siText=dInfo.subInvoices.length?dInfo.subInvoices.map(function(s){return '<div style="line-height:1.6">'+s.siNum+' <span style="color:var(--text3)">('+s.qty+')</span></div>';}).join(''):'—';
     var lineStatus=dispatched>=p.totalQty?'Closed':dispatched>0?'Partial':'Open';
     var lineStClr=lineStatus==='Closed'?'background:#dcfce7;color:#15803d':lineStatus==='Partial'?'background:#fefce8;color:#a16207':'background:#fef2f2;color:#dc2626';
-    h+='<tr>'
+    var isClosed=lineStatus==='Closed';
+    // For closed lines: don't count stock/shortage/transit in totals, show blanks
+    if(!isClosed){grandTransit+=transit;grandShortage+=shortage;}
+    var rowOpacity=isClosed?'opacity:0.5;':'';
+    h+='<tr style="'+rowOpacity+'">'
       +'<td style="'+cp+';font-family:var(--mono);font-weight:700;'+bd+'">'+p.partNumber+'</td>'
       +'<td style="'+cp+';font-size:10px;'+bd+';color:var(--text2)">'+poText+'</td>'
       +'<td style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;'+bd+'">'+p.totalQty.toLocaleString()+'</td>'
-      +'<td style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;color:'+stockClr+';'+bd+'">'+stock.toLocaleString()+'</td>'
-      +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;color:'+shortClr+';'+bd+'">'+(shortage>0?shortage.toLocaleString():'✓')+'</td>'
-      +'<td style="'+cp+';font-family:var(--mono);font-weight:700;text-align:right;color:'+(transit>0?'#2563eb':'var(--text3)')+';'+bd+'">'+(transit>0?transit.toLocaleString():'—')+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:800;text-align:right;color:'+(isClosed?'var(--text3)':stockClr)+';'+bd+'">'+(isClosed?'—':stock.toLocaleString())+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:900;text-align:right;color:'+(isClosed?'var(--text3)':shortClr)+';'+bd+'">'+(isClosed?'—':(shortage>0?shortage.toLocaleString():'✓'))+'</td>'
+      +'<td style="'+cp+';font-family:var(--mono);font-weight:700;text-align:right;color:'+(isClosed?'var(--text3)':(transit>0?'#2563eb':'var(--text3)'))+';'+bd+'">'+(isClosed?'—':(transit>0?transit.toLocaleString():'—'))+'</td>'
       +'<td style="'+cp+';font-family:var(--mono);text-align:right;'+bd+'">'+fAmt(rate)+'</td>'
       +'<td style="'+cp+';font-family:var(--mono);font-weight:700;text-align:right;'+bd+'">'+fAmt(amt)+'</td>'
       +'<td id="mrSumSi_'+p.partId+'" style="'+cp+';font-size:11px;color:var(--accent);font-weight:600;'+bd+'">'+siText+'</td>'
@@ -4169,6 +4490,7 @@ function showHwmsMrDetail(id){
     var dInfo=mrDispatch.perPart[p.partId]||{totalQty:0,subInvoices:[]};
     return{partId:p.partId,reqQty:p.totalQty,existDisp:dInfo.totalQty,existSis:dInfo.subInvoices.map(function(s){return{siNum:s.siNum,qty:s.qty};})}; 
   }))+'<\/script>';
+
   var contMap={};(DB.hwmsContainers||[]).forEach(function(c){contMap[c.id]=c;});
   var dispMap={};// 'partId|pallet|invId' → dispatched qty
   (DB.hwmsSubInvoices||[]).forEach(function(si){
@@ -4177,10 +4499,13 @@ function showHwmsMrDetail(id){
       dispMap[dk]=(dispMap[dk]||0)+(l.quantity||0);
     });
   });
-  // Collect rows grouped by part number
+
+  // Only show Warehouse Stock + Selected Invoices panels if MR is not fully Closed
+  if(mrStatus!=='Closed'){
+  // Collect rows grouped by part number (only Open/Partially Closed line items)
   var partRefMap={};
   var partRefOrder=[];
-  cParts.forEach(function(p){
+  openCParts.forEach(function(p){
     var invRows=[];
     (DB.hwmsInvoices||[]).forEach(function(inv){
       var cont=inv.containerId?contMap[inv.containerId]:null;
@@ -4216,7 +4541,7 @@ function showHwmsMrDetail(id){
     var rth='padding:6px 8px;font-size:11px;font-weight:700;color:#1d4ed8;border-bottom:1.5px solid #93c5fd;text-transform:uppercase;white-space:nowrap';
     h+='<table style="border-collapse:collapse;font-size:13px"><thead><tr style="background:rgba(59,130,246,.08)">'
       +'<th style="'+rth+';text-align:left">Part</th>'
-      +'<th style="'+rth+';text-align:left">Invoice</th>'
+      +'<th style="'+rth+';text-align:left">MI</th>'
       +'<th style="'+rth+';text-align:center">Pallet</th>'
       +'<th style="'+rth+';text-align:right">Avail Qty</th>'
       +'<th style="'+rth+';text-align:center;width:30px"><input type="checkbox" onchange="_hwmsMrRefToggleAll(this)" style="width:14px;height:14px;cursor:pointer;accent-color:#2563eb" title="Select All"></th>'
@@ -4261,12 +4586,13 @@ function showHwmsMrDetail(id){
       +'</tr>';
     h+='</tbody></table>';
     // Store part MR qtys as JSON for recalc
-    h+='<script id="mrRefPartData" type="application/json">'+JSON.stringify(partRefOrder.map(function(pid){var cp=consolidated[pid]||consolidated[Object.keys(consolidated).find(function(k){return consolidated[k].partId===pid;})||''];return{partId:pid,mrQty:partRefMap[pid].mrQty,pos:cp?cp.pos:[]};}))+'<\/script>';
+    h+='<script id="mrRefPartData" type="application/json">'+JSON.stringify(partRefOrder.map(function(pid){var cp=openParts[pid]||openParts[Object.keys(openParts).find(function(k){return openParts[k].partId===pid;})||''];return{partId:pid,mrQty:partRefMap[pid].mrQty,pos:cp?cp.pos:[]};}))+'<\/script>';
     h+='</div>';
     // RIGHT panel: Selected Invoices Summary (populated dynamically by _hwmsMrRefRecalc)
     h+='<div id="mrRefSelectedPanel" data-mrid="'+mrIdForRef+'" style="flex-shrink:0"></div>';
     h+='</div>';
   }
+  } // end if mrStatus!=='Closed'
 
   document.getElementById('hwmsMrViewBody').innerHTML=h;
   hwmsGo('pageHwmsMrView');
@@ -4415,10 +4741,10 @@ function _hwmsMrRefRecalc(){
   });
   var fAmt2=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
   var s='<div style="border:1.5px solid #7dd3fc;border-radius:10px;background:#f0f9ff;padding:12px 14px">';
-  s+='<div style="font-size:13px;font-weight:800;color:#0369a1;margin-bottom:10px">📋 Selected Invoices Summary</div>';
+  s+='<div style="font-size:13px;font-weight:800;color:#0369a1;margin-bottom:10px">📋 Selected Main Invoices Summary</div>';
   var sth='padding:5px 8px;font-size:11px;font-weight:700;color:#0369a1;border-bottom:1.5px solid #7dd3fc;text-transform:uppercase;white-space:nowrap';
   s+='<table style="border-collapse:collapse;font-size:13px"><thead><tr style="background:rgba(14,165,233,.08)">'
-    +'<th style="'+sth+';text-align:left">Invoice</th>'
+    +'<th style="'+sth+';text-align:left">MI</th>'
     +'<th style="'+sth+';text-align:left">Part Number</th>'
     +'<th style="'+sth+';text-align:left">PO Number</th>'
     +'<th style="'+sth+';text-align:center">Pallet</th>'
@@ -4587,6 +4913,7 @@ async function _hwmsMrCreateSiFromRef(mrId){
       availQty:Number(cb.getAttribute('data-qty'))||0,
       partNumber:cb.getAttribute('data-partnum')||'',
       invNum:cb.getAttribute('data-invnum')||'',
+      poNumber:cb.getAttribute('data-po')||'',
       rate:Number(cb.getAttribute('data-rate'))||0
     });
   });
@@ -4599,6 +4926,7 @@ async function _hwmsMrCreateSiFromRef(mrId){
   if(!confirm('Create '+invOrder.length+' sub-invoice'+(invOrder.length>1?'s':'')+' from '+selected.length+' confirmed line'+(selected.length>1?'s':'')+'?')) return;
   showSpinner('Creating sub-invoices…');
   if(!DB.hwmsSubInvoices) DB.hwmsSubInvoices=[];
+  var mr2=byId(DB.hwmsMaterialRequests||[],mrId);
   var created=0;
   var today=new Date().toISOString().slice(0,10);
   for(var i=0;i<invOrder.length;i++){
@@ -4615,10 +4943,18 @@ async function _hwmsMrCreateSiFromRef(mrId){
       return si.subInvoiceNumber&&si.subInvoiceNumber.substring(0,9)===first9;
     }).length;
     var siNum=invNum+'WH'+(matchCount+1);
-    // Build line items from confirmed selections
+    // Build line items from confirmed selections with MR line index mapping
+    var mrLis=mr2.lineItems||[];
     var lineItems=g.items.map(function(item){
-      return{partId:item.partId,partNumber:item.partNumber,palletNumber:item.pallet,quantity:item.availQty,rate:item.rate};
+      // Find matching MR line index (by partId + poNumber)
+      var mrLineIdx=-1;
+      for(var mi=0;mi<mrLis.length;mi++){
+        if(mrLis[mi].partId===item.partId){mrLineIdx=mi;break;}
+      }
+      return{partId:item.partId,partNumber:item.partNumber,palletNumber:item.pallet,quantity:item.availQty,rate:item.rate,poNumber:item.poNumber||'',mrLineIdx:mrLineIdx};
     });
+    // Store MR link inside lineItems as _mrMeta (persists through Supabase round-trips)
+    lineItems.push({_mrMeta:true,mrId:mrId,mrNumber:mr2.mrNumber||''});
     var data={
       subInvoiceNumber:siNum,
       date:today,
@@ -4632,21 +4968,21 @@ async function _hwmsMrCreateSiFromRef(mrId){
       grnDate:'',
       paymentStatus:'Pending',
       paymentReceived:0,
-      paymentBalance:lineItems.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0),
+      paymentBalance:lineItems.filter(function(l){return !l._mrMeta;}).reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0),
       tariffPercent:0,
       tariffAmount:0,
-      remarks:'Created from MR',
-      mrId:mrId
+      remarks:'Created from MR'
     };
     var si={id:'si'+uid()};Object.assign(si,data);
     if(await _dbSave('hwmsSubInvoices',si)){
-      DB.hwmsSubInvoices.push(si);
       created++;
     }
   }
   hideSpinner();
   if(created>0){
-    renderHwmsSubInvoices();_hwmsUpdCounts();
+    // Update MR line item statuses based on dispatched qty
+    await _hwmsMrUpdateLineStatuses(mrId);
+    renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
     notify('✅ Created '+created+' sub-invoice'+(created>1?'s':''));
     // Refresh MR view to update stock
     var mr=byId(DB.hwmsMaterialRequests||[],mrId);
@@ -4660,15 +4996,22 @@ function _hwmsMrCalcStatus(mr){
   var lis=mr.lineItems||[];
   if(!lis.length) return 'Open';
   var info=_hwmsMrDispatchInfo(mr);
+  // Consolidate by partId
+  var parts={};
+  lis.forEach(function(l){
+    var k=l.partId||l.partNumber;
+    if(!parts[k]) parts[k]={totalReq:0};
+    parts[k].totalReq+=(l.quantity||0);
+  });
+  var partKeys=Object.keys(parts);
   var fullyDispatched=0;
   var partiallyDispatched=0;
-  lis.forEach(function(l){
-    var key=l.partId||l.partNumber;
-    var dispatched=info.perPart[key]?info.perPart[key].totalQty:0;
-    if(dispatched>=(l.quantity||0)) fullyDispatched++;
+  partKeys.forEach(function(k){
+    var dispatched=info.perPart[k]?info.perPart[k].totalQty:0;
+    if(dispatched>=parts[k].totalReq) fullyDispatched++;
     else if(dispatched>0) partiallyDispatched++;
   });
-  if(fullyDispatched>=lis.length) return 'Closed';
+  if(fullyDispatched>=partKeys.length) return 'Closed';
   if(fullyDispatched>0||partiallyDispatched>0) return 'Partially Closed';
   return 'Open';
 }
@@ -4676,11 +5019,11 @@ function _hwmsMrCalcStatus(mr){
 function _hwmsMrDispatchInfo(mr){
   var mrId=mr.id;
   // Find sub-invoices linked to this MR
-  var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return si.mrId===mrId;});
+  var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return _hwmsSiGetMrId(si)===mrId;});
   // Per-part dispatch: partId → {totalQty, subInvoices:[{siNum,qty}]}
   var perPart={};
   linkedSis.forEach(function(si){
-    (si.lineItems||[]).forEach(function(l){
+    (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
       var key=l.partId||l.partNumber;
       if(!perPart[key]) perPart[key]={totalQty:0,subInvoices:[]};
       perPart[key].totalQty+=(l.quantity||0);
@@ -4691,6 +5034,68 @@ function _hwmsMrDispatchInfo(mr){
     });
   });
   return{linkedSis:linkedSis,perPart:perPart};
+}
+// ── MR Sub-Invoice: Submit single SI as Picked ──
+async function _hwmsMrSiSubmitOne(siId,mrId){
+  var si=byId(DB.hwmsSubInvoices||[],siId);
+  if(!si){notify('⚠ Sub-invoice not found',true);return;}
+  if(si.pickupStatus==='Picked') return;
+  // Read date from picker if available
+  var dateEl=document.querySelector('.mrSiPickDate[data-siid="'+siId+'"]');
+  var pickDate=dateEl?dateEl.value:'';
+  if(!pickDate) pickDate=new Date().toISOString().slice(0,10);
+  if(!confirm('Mark sub-invoice '+si.subInvoiceNumber+' as Material Picked?')) return;
+  var bak={pickupStatus:si.pickupStatus,pickupDate:si.pickupDate};
+  si.pickupStatus='Picked';
+  si.pickupDate=pickDate;
+  if(await _dbSave('hwmsSubInvoices',si)){
+    notify('📦 '+si.subInvoiceNumber+' — Material Picked');
+    renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
+  } else {
+    si.pickupStatus=bak.pickupStatus;si.pickupDate=bak.pickupDate;
+  }
+}
+// ── MR Sub-Invoice: Revoke pickup (within 24hrs only) ──
+async function _hwmsMrSiRevoke(siId,mrId){
+  var si=byId(DB.hwmsSubInvoices||[],siId);
+  if(!si){notify('⚠ Sub-invoice not found',true);return;}
+  if(si.pickupStatus!=='Picked'){notify('⚠ Not picked yet',true);return;}
+  // Check 24hr window
+  if(si.pickupDate){
+    var pickTs=new Date(si.pickupDate+'T00:00:00').getTime();
+    if((Date.now()-pickTs)>=86400000){notify('⚠ Cannot revoke — more than 24 hours since pickup',true);return;}
+  }
+  if(!confirm('Revoke pickup for '+si.subInvoiceNumber+'?')) return;
+  var bak={pickupStatus:si.pickupStatus,pickupDate:si.pickupDate};
+  si.pickupStatus='Scheduled';
+  si.pickupDate='';
+  if(await _dbSave('hwmsSubInvoices',si)){
+    notify('↩ '+si.subInvoiceNumber+' pickup revoked');
+    renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
+  } else {
+    si.pickupStatus=bak.pickupStatus;si.pickupDate=bak.pickupDate;
+  }
+}
+// ── Update MR line item statuses based on dispatched qty ──
+async function _hwmsMrUpdateLineStatuses(mrId){
+  var mr=byId(DB.hwmsMaterialRequests||[],mrId);
+  if(!mr) return;
+  var info=_hwmsMrDispatchInfo(mr);
+  // Consolidate total required per partId (sum across all line items with same partId)
+  var reqPerPart={};
+  (mr.lineItems||[]).forEach(function(l){
+    var k=l.partId||l.partNumber;
+    reqPerPart[k]=(reqPerPart[k]||0)+(l.quantity||0);
+  });
+  // Set status for each line item based on consolidated totals
+  (mr.lineItems||[]).forEach(function(l){
+    var k=l.partId||l.partNumber;
+    var dispatched=info.perPart[k]?info.perPart[k].totalQty:0;
+    var totalReq=reqPerPart[k]||0;
+    l.status=dispatched>=totalReq?'Closed':dispatched>0?'Partially Closed':'Open';
+  });
+  mr.status=_hwmsMrCalcStatus(mr);
+  await _dbSave('hwmsMaterialRequests',mr);
 }
 // ── Auto-generate MR Number: MR-YYMM-NNN (per month, sequential) ──
 function _hwmsGenMrNumber(){
@@ -4715,7 +5120,7 @@ function openHwmsMrModal(id){
   document.getElementById('hwmsMrPartList').innerHTML=(DB.hwmsParts||[]).filter(function(p){return!p.inactive;}).map(function(p){return'<option value="'+p.partNumber+'">';}).join('');
   // Load lines
   _hwmsMrEditIdx=-1;
-  _hwmsMrLines=mr?(mr.lineItems||[]).map(function(l){return{partId:l.partId,partNumber:l.partNumber,poNumber:l.poNumber||'',quantity:l.quantity||0};}):[];
+  _hwmsMrLines=mr?(mr.lineItems||[]).map(function(l){return{partId:l.partId,partNumber:l.partNumber,poNumber:l.poNumber||'',quantity:l.quantity||0,status:l.status||'Open',siNumbers:l.siNumbers||[]};}):[];
   _hwmsMrRenderLines();
   _hwmsMrResetAddFields();
   _hwmsMrUpdateAddBtn();
@@ -4729,12 +5134,14 @@ function _hwmsMrAddLine(){
   if(!qty||qty<=0){notify('Enter quantity',true);return;}
   var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pn;});
   if(_hwmsMrEditIdx>=0){
-    // Amend existing line
-    _hwmsMrLines[_hwmsMrEditIdx]={partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty};
+    // Amend existing line — preserve status and siNumbers
+    var existStatus=_hwmsMrLines[_hwmsMrEditIdx].status||'Open';
+    var existSiNums=_hwmsMrLines[_hwmsMrEditIdx].siNumbers||[];
+    _hwmsMrLines[_hwmsMrEditIdx]={partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty,status:existStatus,siNumbers:existSiNums};
     _hwmsMrEditIdx=-1;
   } else {
     // Add new line
-    _hwmsMrLines.push({partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty});
+    _hwmsMrLines.push({partId:part?part.id:pn,partNumber:pn,poNumber:po,quantity:qty,status:'Open',siNumbers:[]});
   }
   _hwmsMrResetAddFields();
   _hwmsMrRenderLines();
@@ -4756,6 +5163,7 @@ function _hwmsMrUpdateAddBtn(){
 }
 function _hwmsMrRemLine(idx){
   var l=_hwmsMrLines[idx];
+  if((l.siNumbers||[]).length>0){notify('🔒 Cannot delete — sub-invoice generated ('+l.siNumbers.join(', ')+')',true);return;}
   if(!confirm('Delete line item #'+(idx+1)+' — '+l.partNumber+(l.poNumber?' ('+l.poNumber+')':'')+'?')) return;
   _hwmsMrLines.splice(idx,1);
   if(_hwmsMrEditIdx===idx){_hwmsMrEditIdx=-1;_hwmsMrResetAddFields();_hwmsMrUpdateAddBtn();}
@@ -4763,6 +5171,8 @@ function _hwmsMrRemLine(idx){
   _hwmsMrRenderLines();
 }
 function _hwmsMrEditLine(idx){
+  var l=_hwmsMrLines[idx];
+  if((l.siNumbers||[]).length>0){notify('🔒 Cannot edit — sub-invoice generated ('+l.siNumbers.join(', ')+')',true);return;}
   _hwmsMrEditIdx=idx;
   var l=_hwmsMrLines[idx];
   document.getElementById('hwmsMrAddPart').value=l.partNumber||'';
@@ -4787,8 +5197,10 @@ function _hwmsMrRenderLines(){
     +'<th style="padding:6px 8px;text-align:left">Part</th>'
     +'<th style="padding:6px 8px;text-align:left">PO #</th>'
     +'<th style="padding:6px 8px;text-align:right">Qty</th>'
-    +'<th style="padding:6px 8px;text-align:right">Avail. Stock</th>'
+    +'<th style="padding:6px 8px;text-align:right">Stock</th>'
     +'<th style="padding:6px 8px;text-align:right">Rate ($)</th>'
+    +'<th style="padding:6px 8px;text-align:center">Status</th>'
+    +'<th style="padding:6px 8px;text-align:left">Sub-Inv #</th>'
     +'<th style="padding:6px 8px;width:70px"></th>'
     +'</tr></thead><tbody>'
     +_hwmsMrLines.map(function(l,i){
@@ -4797,7 +5209,22 @@ function _hwmsMrRenderLines(){
       var stockClr=stock>=(l.quantity||0)?'#16a34a':stock>0?'#a16207':'#dc2626';
       var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
       var isEditing=_hwmsMrEditIdx===i;
-      var rowBg=isEditing?'background:#eff6ff;':'';
+      var isLocked=(l.siNumbers||[]).length>0;
+      var st=l.status||'Open';
+      var stClr=st==='Closed'?'background:#dcfce7;color:#15803d':st==='Partially Closed'?'background:#fefce8;color:#a16207':'background:#fef2f2;color:#dc2626';
+      var siText=isLocked?(l.siNumbers||[]).map(function(s){return'<div style="font-size:10px;color:#7c3aed;font-weight:700;line-height:1.5">'+s+'</div>';}).join(''):'—';
+      var rowBg=isEditing?'background:#eff6ff;':isLocked?'background:rgba(124,58,237,.03);':'';
+      var actCol='';
+      if(isLocked){
+        actCol='<span style="font-size:12px;color:#7c3aed" title="Locked — sub-invoice generated">🔒</span>';
+      } else if(isEditing){
+        actCol='<span style="font-size:11px;font-weight:700;color:#f59e0b">editing…</span>';
+      } else if(_hwmsMrEditIdx>=0){
+        actCol='<span style="opacity:0.3;font-size:13px">✏️ ✕</span>';
+      } else {
+        actCol='<button onclick="_hwmsMrEditLine('+i+')" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px" title="Edit">✏️</button>'
+          +'<button onclick="_hwmsMrRemLine('+i+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px" title="Delete">✕</button>';
+      }
       return '<tr style="border-bottom:1px solid #f1f5f9;'+rowBg+'">'
         +'<td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
         +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+l.partNumber+'</td>'
@@ -4805,13 +5232,10 @@ function _hwmsMrRenderLines(){
         +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700;text-align:right">'+l.quantity+'</td>'
         +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:'+stockClr+'">'+stock.toLocaleString()+'</td>'
         +'<td style="padding:6px 8px;font-family:var(--mono);text-align:right">'+fAmt(rate)+'</td>'
-        +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'
-        +(isEditing?'<span style="font-size:11px;font-weight:700;color:#f59e0b">editing…</span>'
-        :(_hwmsMrEditIdx>=0
-          ?'<span style="opacity:0.3;font-size:13px">✏️ ✕</span>'
-          :'<button onclick="_hwmsMrEditLine('+i+')" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:13px" title="Edit">✏️</button>'
-          +'<button onclick="_hwmsMrRemLine('+i+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px" title="Delete">✕</button>'))
-        +'</td></tr>';
+        +'<td style="padding:6px 8px;text-align:center"><span style="'+stClr+';font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px">'+st+'</span></td>'
+        +'<td style="padding:6px 8px">'+siText+'</td>'
+        +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+actCol+'</td>'
+        +'</tr>';
     }).join('')+'</tbody></table>';
 }
 // ── Save ──
@@ -4826,7 +5250,11 @@ async function saveHwmsMr(){
   if(!_hwmsMrLines.length){modalErr('mHwmsMr','Add at least one line item');return;}
   // Duplicate check
   if((DB.hwmsMaterialRequests||[]).find(function(m){return m.mrNumber===num&&m.id!==id;})){modalErr('mHwmsMr','MR Number already exists');return;}
-  var data={mrNumber:num,mrDate:mrDate,needByDate:needBy,status:'Open',lineItems:_hwmsMrLines,remarks:remarks,createdBy:CU?CU.id:''};
+  // Ensure each line item has a status field
+  var lineItemsWithStatus=_hwmsMrLines.map(function(l){
+    return{partId:l.partId,partNumber:l.partNumber,poNumber:l.poNumber||'',quantity:l.quantity||0,status:l.status||'Open',siNumbers:l.siNumbers||[]};
+  });
+  var data={mrNumber:num,mrDate:mrDate,needByDate:needBy,status:'Open',lineItems:lineItemsWithStatus,remarks:remarks,createdBy:CU?CU.id:''};
   if(!DB.hwmsMaterialRequests) DB.hwmsMaterialRequests=[];
   var savedId=id;
   if(id){
@@ -4840,15 +5268,19 @@ async function saveHwmsMr(){
     savedId=mr2.id;
   }
   cm('mHwmsMr');renderHwmsMR();_hwmsUpdCounts();notify('Material Request saved!');
-  // Navigate to the MR detail view with updated data
-  showHwmsMrDetail(savedId);
+  hwmsGo('pageHwmsMR');
 }
 // ── Delete ──
 async function _hwmsMrDel(id){
-  if(!CU||!CU.roles||!CU.roles.includes('Super Admin')){notify('⚠ Only Super Admin can delete',true);return;}
+  if(!_hwmsCan('mr.delete')){notify('⚠ No permission to delete MR',true);return;}
+  var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return _hwmsSiGetMrId(si)===id;});
+  if(linkedSis.length){
+    notify('⚠ Cannot delete — '+linkedSis.length+' sub-invoice'+(linkedSis.length>1?'s':'')+' linked to this MR',true);
+    return;
+  }
   if(!confirm('Delete this material request?')) return;
   await _dbDel('hwmsMaterialRequests',id);
-  renderHwmsMR();notify('Deleted');
+  renderHwmsMR();_hwmsUpdCounts();notify('Deleted');
 }
 // ── Export ──
 function _hwmsMrExport(){
@@ -5023,12 +5455,14 @@ function renderHwmsInventory(){
   var totDispatched=rows.reduce(function(s,r){return s+r.dispatchedQty;},0);
   var partsInStock=rows.filter(function(r){return r.whQty>0;}).length;
   var statsEl=document.getElementById('hwmsInventoryStats');
-  if(statsEl) statsEl.innerHTML=
+  if(statsEl){
+    statsEl.innerHTML=
     '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 16px;text-align:center;min-width:100px"><div style="font-size:22px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+totInWh.toLocaleString()+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">In Warehouse</div></div>'+
     '<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 16px;text-align:center;min-width:100px"><div style="font-size:22px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+totTransit.toLocaleString()+'</div><div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">In Transit</div></div>'+
     '<div style="background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center;min-width:100px"><div style="font-size:22px;font-weight:900;color:var(--text);font-family:var(--mono)">'+totReceived.toLocaleString()+'</div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px">Total Received</div></div>'+
     '<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:10px 16px;text-align:center;min-width:100px"><div style="font-size:22px;font-weight:900;color:#7c3aed;font-family:var(--mono)">'+totDispatched.toLocaleString()+'</div><div style="font-size:10px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">Dispatched</div></div>'+
     '<div style="background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;padding:10px 16px;text-align:center;min-width:100px"><div style="font-size:18px;font-weight:900;color:var(--text2);font-family:var(--mono)">'+partsInStock+' / '+totParts+'</div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px">Parts in Stock</div></div>';
+  }
   // Table
   var body=document.getElementById('hwmsInventoryBody');
   if(!body) return;
@@ -5060,26 +5494,54 @@ function renderHwmsInventory(){
       html+='<tr><td colspan="6" style="padding:0 0 8px 30px;background:#f8fafc;border-bottom:2px solid var(--accent)">'
         +'<table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:4px">'
         +'<thead><tr style="background:#eef2f7">'
-        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Invoice #</th>'
-        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Invoice Date</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">MI #</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">MI Date</th>'
         +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:right;border-bottom:1px solid var(--border)">Qty</th>'
         +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Container</th>'
         +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Dispatch Date</th>'
-        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Reached Warehouse</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:left;border-bottom:1px solid var(--border)">Reached WH</th>'
         +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)">Status</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:#7c3aed;text-align:left;border-bottom:1px solid var(--border)">SI #</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:#7c3aed;text-align:left;border-bottom:1px solid var(--border)">SI Pickup</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:#7c3aed;text-align:right;border-bottom:1px solid var(--border)">SI Qty</th>'
+        +'<th style="padding:5px 8px;font-size:10px;font-weight:700;color:var(--accent);text-align:right;border-bottom:1px solid var(--border)">Balance</th>'
         +'</tr></thead><tbody>';
+      // Build SI dispatch map per invoiceNumber for this part
+      var _siMapForPart={};
+      (DB.hwmsSubInvoices||[]).forEach(function(si){
+        (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
+          if(l.partId===r.id){
+            var key=si.invoiceId||'';
+            if(!_siMapForPart[key]) _siMapForPart[key]=[];
+            _siMapForPart[key].push({siNum:si.subInvoiceNumber||'',pickupDate:si.pickupDate||'',pickupStatus:si.pickupStatus||'',qty:l.quantity||0});
+          }
+        });
+      });
       r.details.forEach(function(d){
-        var stBadge=d.status==='Warehouse'?'<span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">📍 Warehouse</span>'
-          :d.status==='In Transit'?'<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">🚢 In Transit</span>'
+        var stBadge=d.status==='Warehouse'?'<span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">📍 WH</span>'
+          :d.status==='In Transit'?'<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">🚢 Transit</span>'
           :'<span style="background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">📝 Draft</span>';
+        // Find MI id from invoiceNumber
+        var miObj=(DB.hwmsInvoices||[]).find(function(inv){return inv.invoiceNumber===d.invoiceNumber;});
+        var miId=miObj?miObj.id:'';
+        var siList=_siMapForPart[miId]||[];
+        var siDispQty=siList.reduce(function(s,si){return s+si.qty;},0);
+        var balQty=d.qty-siDispQty;
+        var siText=siList.length?siList.map(function(si){return '<div style="font-family:var(--inv-mono);font-size:10px;font-weight:700;color:#7c3aed">'+si.siNum+'</div>';}).join(''):'—';
+        var siPickText=siList.length?siList.map(function(si){return '<div style="font-size:10px;'+(si.pickupStatus==='Picked'?'color:#16a34a;font-weight:700':'color:var(--text3)')+'">'+fd2(si.pickupDate)+'</div>';}).join(''):'—';
+        var siQtyText=siList.length?siList.map(function(si){return '<div style="font-family:var(--mono);font-size:10px;font-weight:700;color:#7c3aed">'+si.qty.toLocaleString()+'</div>';}).join(''):'—';
         html+='<tr>'
-          +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;color:var(--accent);border-bottom:1px solid #f1f5f9">'+d.invoiceNumber+'</td>'
+          +'<td style="padding:4px 8px;font-family:var(--inv-mono);font-weight:700;color:var(--accent);border-bottom:1px solid #f1f5f9">'+d.invoiceNumber+'</td>'
           +'<td style="padding:4px 8px;font-family:var(--mono);border-bottom:1px solid #f1f5f9">'+fd2(d.invoiceDate)+'</td>'
           +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9">'+d.qty.toLocaleString()+'</td>'
           +'<td style="padding:4px 8px;font-family:var(--mono);font-size:11px;border-bottom:1px solid #f1f5f9">'+d.containerNumber+'</td>'
           +'<td style="padding:4px 8px;font-family:var(--mono);border-bottom:1px solid #f1f5f9">'+(d.dispatchDate?fd2(d.dispatchDate):'—')+'</td>'
           +'<td style="padding:4px 8px;font-family:var(--mono);border-bottom:1px solid #f1f5f9;'+(d.reachedDate?'color:#16a34a;font-weight:700':'')+'">'+fd2(d.reachedDate)+'</td>'
           +'<td style="padding:4px 8px;text-align:center;border-bottom:1px solid #f1f5f9">'+stBadge+'</td>'
+          +'<td style="padding:4px 8px;border-bottom:1px solid #f1f5f9">'+siText+'</td>'
+          +'<td style="padding:4px 8px;border-bottom:1px solid #f1f5f9">'+siPickText+'</td>'
+          +'<td style="padding:4px 8px;text-align:right;border-bottom:1px solid #f1f5f9">'+siQtyText+'</td>'
+          +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right;border-bottom:1px solid #f1f5f9;color:'+(balQty>0?'#dc2626':'#16a34a')+'">'+balQty.toLocaleString()+'</td>'
           +'</tr>';
       });
       html+='</tbody></table></td></tr>';
@@ -5133,7 +5595,7 @@ function renderHwmsInvoices(){
   });
   // Calculate totals for filtered invoices
   var grandTotalAmt=0,grandTotalGrossWt=0;
-  var _invSA=CU&&CU.roles.includes('Super Admin');
+  var _invSA=_hwmsIsSA();
   // Pre-compute sub-invoice amounts per invoiceId
   var siAmtByInv={};
   (DB.hwmsSubInvoices||[]).forEach(function(si){
@@ -5141,10 +5603,25 @@ function renderHwmsInvoices(){
     var amt=(si.lineItems||[]).reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
     siAmtByInv[si.invoiceId]=(siAmtByInv[si.invoiceId]||0)+amt;
   });
+  // Invoice counter badges — filtered by selected date period
+  var iTotal=invs.length;
+  var iDraft=invs.filter(function(inv){return !inv.confirmed;}).length;
+  var iRFD=invs.filter(function(inv){return inv.confirmed&&!inv.containerId;}).length;
+  var iTransit=invs.filter(function(inv){var c=byId(DB.hwmsContainers||[],inv.containerId);return inv.confirmed&&c&&c.status==='Onwater';}).length;
+  var iWH=invs.filter(function(inv){var c=byId(DB.hwmsContainers||[],inv.containerId);return inv.confirmed&&c&&c.status==='Reached';}).length;
+  var iConfirmed=invs.filter(function(inv){return inv.confirmed;}).length;
+  var invStatsEl=document.getElementById('hwmsInvStats');
+  if(invStatsEl) invStatsEl.innerHTML=
+    '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+iTotal+'</div><div style="font-size:8px;font-weight:700;color:#15803d;text-transform:uppercase">Total</div></div>'
+    +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#64748b;font-family:var(--mono)">'+iDraft+'</div><div style="font-size:8px;font-weight:700;color:#475569;text-transform:uppercase">Draft</div></div>'
+    +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#15803d;font-family:var(--mono)">'+iConfirmed+'</div><div style="font-size:8px;font-weight:700;color:#166534;text-transform:uppercase">Confirmed</div></div>'
+    +'<div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#a16207;font-family:var(--mono)">'+iRFD+'</div><div style="font-size:8px;font-weight:700;color:#92400e;text-transform:uppercase">RFD</div></div>'
+    +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+iTransit+'</div><div style="font-size:8px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Transit</div></div>'
+    +'<div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:6px 10px;text-align:center;min-width:50px"><div style="font-size:17px;font-weight:900;color:#7c3aed;font-family:var(--mono)">'+iWH+'</div><div style="font-size:8px;font-weight:700;color:#6d28d9;text-transform:uppercase">WH</div></div>';
   var grandTotalSiAmt=0,grandTotalBal=0;
   var rowsHtml=invs.length?invs.map(inv=>{
     const cont=byId(DB.hwmsContainers||[],inv.containerId);
-    const lis=inv.lineItems||[];
+    const lis=(inv.lineItems||[]).filter(li=>!li._meta);
     const isDraft=!inv.confirmed;
     const isUnalloc=!inv.containerId;
     const st=_hwmsInvStatus(inv);
@@ -5160,12 +5637,13 @@ function renderHwmsInvoices(){
     const contHtml=isUnalloc?'<span style="color:#dc2626;font-weight:700">Unallocated</span>':'<span style="font-family:var(--mono);font-weight:700">'+(cont?.containerNumber||'—')+'</span>';
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
-    const invNumStyle=isDraft?'font-family:var(--mono);font-weight:400;color:#dc2626;font-size:13px;max-width:110px;word-break:break-all':'font-family:var(--mono);font-weight:400;color:var(--accent);font-size:13px;max-width:110px;word-break:break-all';
+    const invNumStyle=isDraft?'font-family:var(--inv-mono);font-weight:400;color:#dc2626;font-size:13px;max-width:110px;word-break:break-all':'font-family:var(--inv-mono);font-weight:400;color:var(--accent);font-size:13px;max-width:110px;word-break:break-all';
     const rowBg=(isDraft||isUnalloc)?';background:rgba(234,179,8,.04)':'';
     let actHtml='';
-    if(isDraft) actHtml='<button class="action-btn" onclick="event.stopPropagation();openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
+    if(isDraft&&_hwmsCan('mi.edit')) actHtml='<button class="action-btn" onclick="event.stopPropagation();openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
     return `<tr class="clickable-row" onclick="showHwmsInvDetail('${inv.id}')" style="cursor:pointer${rowBg}">
       ${_invSA?'<td style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
+      <td style="text-align:center;padding:2px 4px" onclick="event.stopPropagation()"><button onclick="_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="USA Print Preview">🖨️</button></td>
       <td style="${invNumStyle}">${_hwmsInvNum(inv.invoiceNumber)}</td>
       <td style="white-space:nowrap;font-size:12px">${_fdate(inv.date)}</td>
       <td>${contHtml}</td>
@@ -5178,14 +5656,22 @@ function renderHwmsInvoices(){
       <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${balAmt>0?'#dc2626':'#16a34a'}">${balAmt>0?'$'+balAmt.toFixed(2):'✓'}</td>
       <td style="white-space:nowrap" onclick="event.stopPropagation()">${actHtml}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="'+(_invSA?12:11)+'" class="empty-state">No invoices found</td></tr>';
+  }).join(''):'<tr><td colspan="'+(_invSA?13:12)+'" class="empty-state">No invoices found</td></tr>';
   // Add totals row
   if(invs.length){
-    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td colspan="'+(_invSA?7:6)+'" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px">$'+grandTotalAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px">'+grandTotalGrossWt.toFixed(1)+' kg</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#7c3aed;padding:8px">$'+grandTotalSiAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalBal>0?'#dc2626':'#16a34a')+';padding:8px">'+(grandTotalBal>0?'$'+grandTotalBal.toFixed(2):'✓')+'</td><td></td></tr>';
+    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td colspan="'+(_invSA?8:7)+'" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px">$'+grandTotalAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px">'+grandTotalGrossWt.toFixed(1)+' kg</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#7c3aed;padding:8px">$'+grandTotalSiAmt.toFixed(2)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalBal>0?'#dc2626':'#16a34a')+';padding:8px">'+(grandTotalBal>0?'$'+grandTotalBal.toFixed(2):'✓')+'</td><td></td></tr>';
   }
   document.getElementById('hwmsInvBody').innerHTML=rowsHtml;
   var htEl=document.getElementById('hwmsInvHeaderTotal');
   if(htEl) htEl.textContent=invs.length?'$'+grandTotalAmt.toFixed(2):'';
+  var siTotEl=document.getElementById('hwmsInvHeaderSiTotal');
+  if(siTotEl) siTotEl.textContent=invs.length&&grandTotalSiAmt>0?'$'+grandTotalSiAmt.toFixed(2):'';
+  var balTotEl=document.getElementById('hwmsInvHeaderBalTotal');
+  if(balTotEl){
+    if(invs.length&&grandTotalBal>0){balTotEl.textContent='$'+grandTotalBal.toFixed(2);balTotEl.style.color='#dc2626';}
+    else if(invs.length){balTotEl.textContent='✓';balTotEl.style.color='#16a34a';}
+    else{balTotEl.textContent='';}
+  }
   const cEl=document.getElementById('cHwmsInvoices');if(cEl)cEl.textContent=(DB.hwmsInvoices||[]).length;
   // Reset multi-select state
   var selAllCb=document.getElementById('hwmsInvSelectAll');if(selAllCb) selAllCb.checked=false;
@@ -5202,7 +5688,7 @@ function _hwmsInvUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsInvChk:checked').length;
   var btn=document.getElementById('btnHwmsInvDelSel');
   var cntEl=document.getElementById('hwmsInvDelCount');
-  if(btn) btn.style.display=(count>0&&CU&&CU.roles.includes('Super Admin'))?'inline-flex':'none';
+  if(btn) btn.style.display=(count>0&&_hwmsIsSA())?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsInvChk');
@@ -5212,8 +5698,7 @@ function _hwmsInvUpdateDelBtn(){
 async function _hwmsInvDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsInvChk:checked')];
   if(!checked.length){notify('No invoices selected',true);return;}
-  var isSA=CU&&CU.roles.includes('Super Admin');
-  if(!isSA){notify('Only Super Admin can delete invoices',true);return;}
+  if(!_hwmsIsSA()){notify('Only Super Admin can delete invoices',true);return;}
   // Gather all selected invoice IDs and details
   var ids=checked.map(function(cb){return cb.value;});
   var invDetails=[];
@@ -5277,7 +5762,7 @@ function showHwmsInvDetail(id){
   const plPort=byId(DB.hwmsPortLoading||[],inv.portOfLoadingId);
   const pdPort=byId(DB.hwmsPortDischarge||[],inv.portOfDischargeId);
   const st=_hwmsInvStatus(inv);
-  const lis=(inv.lineItems||[]).slice().sort(function(a,b){
+  const lis=(inv.lineItems||[]).filter(li=>!li._meta).slice().sort(function(a,b){
     var pa=parseInt((a.palletNumber||'').replace(/\D/g,''))||0;
     var pb=parseInt((b.palletNumber||'').replace(/\D/g,''))||0;
     return pa-pb;
@@ -5292,7 +5777,7 @@ function showHwmsInvDetail(id){
   const _f=(label,val,miss)=>'<div class="form-group" style="margin:0"><label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+label+'</label><div style="padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-height:32px">'+_v(val,miss)+'</div></div>';
 
   // Title — show Confirmed badge if confirmed
-  let titleHtml='<span style="font-family:var(--mono);font-weight:400">'+_hwmsInvNum(inv.invoiceNumber)+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
+  let titleHtml='<span style="font-family:var(--inv-mono);font-weight:400">'+_hwmsInvNum(inv.invoiceNumber)+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
   if(inv.confirmed) titleHtml+=' <span style="font-size:11px;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #86efac;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:6px">✅ Confirmed</span>';
   document.getElementById('hwmsInvViewTitle').innerHTML=titleHtml;
   _hwmsInvNavUpdate();
@@ -5303,15 +5788,17 @@ function showHwmsInvDetail(id){
   actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview India Invoice">'+_HWMS_LOGO_IMG+'</button>';
   actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview USA Invoice">'+_HWMS_LOGO_IMG+'</button>';
   actHtml+=' <button class="btn" onclick="_hwmsInvSaveBoth(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1.5px solid #86efac;color:#15803d;font-weight:800;border-radius:var(--radius);cursor:pointer" title="Auto-save both PDFs to HGAP Invoices folder">💾 Save Both PDFs</button>';
-  // Edit — disabled if confirmed
-  if(inv.confirmed){
-    actHtml+=' <button class="btn" disabled style="font-size:12px;padding:7px 16px;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#94a3b8;font-weight:700;border-radius:var(--radius);cursor:not-allowed;opacity:.6">✏️ Edit Invoice</button>';
-  } else {
-    actHtml+=' <button class="btn" onclick="openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">✏️ Edit Invoice</button>';
+  // Edit — disabled if confirmed, hidden if no permission
+  if(_hwmsCan('mi.edit')){
+    if(inv.confirmed){
+      actHtml+=' <button class="btn" disabled style="font-size:12px;padding:7px 16px;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#94a3b8;font-weight:700;border-radius:var(--radius);cursor:not-allowed;opacity:.6">✏️ Edit MI</button>';
+    } else {
+      actHtml+=' <button class="btn" onclick="openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">✏️ Edit MI</button>';
+    }
   }
-  // Confirm — only for drafts
-  if(!inv.confirmed){
-    actHtml+=' <button class="btn" onclick="_hwmsConfirmInv(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#16a34a;border:1.5px solid #15803d;color:#fff;font-weight:800;border-radius:var(--radius);cursor:pointer">🔒 Confirm & Lock Invoice</button>';
+  // Confirm — only for drafts with permission
+  if(!inv.confirmed&&_hwmsCan('mi.confirm')){
+    actHtml+=' <button class="btn" onclick="_hwmsConfirmInv(\''+inv.id+'\')" style="font-size:12px;padding:7px 16px;background:#16a34a;border:1.5px solid #15803d;color:#fff;font-weight:800;border-radius:var(--radius);cursor:pointer">🔒 Confirm & Lock MI</button>';
   }
   // Revoke — disabled if dispatched, shown only for confirmed
   if(inv.confirmed){
@@ -5391,7 +5878,7 @@ function showHwmsInvDetail(id){
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
       // Invoice Details (blue tint)
       '<div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 16px">'+
-        '<div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Invoice Details</div>'+
+        '<div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Main Invoice (MI) Details</div>'+
         '<div style="display:grid;grid-template-columns:60px 1fr 1fr;gap:8px">'+
           _f('FY',inv.invoiceNumber?inv.invoiceNumber.substring(0,4):'')+
           _f('Invoice No.',_hwmsInvNum((inv.invoiceNumber||"").substring(4)))+
@@ -5506,7 +5993,7 @@ function _hwmsInvBuildHtml(id){
   }
   const plPort=byId(DB.hwmsPortLoading||[],inv.portOfLoadingId);
   const pdPort=byId(DB.hwmsPortDischarge||[],inv.portOfDischargeId);
-  const lis=inv.lineItems||[];
+  const lis=(inv.lineItems||[]).filter(li=>!li._meta);
   const totalQty=lis.reduce((s,li)=>s+(li.quantity||0),0);
   const totalValue=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
   const totalNetWt=lis.reduce((s,li)=>s+(li.netWeight||0),0);
@@ -5524,7 +6011,7 @@ function _hwmsInvBuildHtml(id){
   const coSupplier=cust?.supplierCode||co.supplierCode||'';
   const coPlaceReceipt=co.placeReceipt||'';
   const coCountry=co.country||'India';
-  const coNote=co.note||'';
+  const _cn5=_hwmsParseCoNotes(co.note);const _invNotes5=_hwmsInvGetNotes(inv);const coNote=_invNotes5.map(function(n){return[_cn5.n1,_cn5.n2,_cn5.n3][n-1];}).filter(Boolean).join("<br>");
 
   const hsnSet=new Set();lis.forEach(li=>{if(li.hsnCode)hsnSet.add(li.hsnCode);});
   const hsnStr=[...hsnSet].join(', ');
@@ -5575,7 +6062,7 @@ function _hwmsInvBuildHtml(id){
   'table.items td,table.items th{border:1px solid #000;padding:3px 5px;font-size:11.5px;vertical-align:middle}'+
   'table.items th{background:#e8e8e8;font-size:10px;text-transform:uppercase;font-weight:700}'+
   '.c{text-align:center}.r{text-align:right}.b{font-weight:700}'+
-  '.mono{font-family:"Courier New",monospace}'+
+  '.mono{font-family:"Aptos Mono","Courier New",monospace}'+
   '.title{font-size:18px;font-weight:900;text-align:center;padding:10px;letter-spacing:1px;background:#e8e8e8}'+
   '.lbl{font-size:10px;color:#555;font-weight:700;text-transform:uppercase}'+
   '.val{font-size:12px;font-weight:600;margin-top:1px}'+
@@ -5663,7 +6150,7 @@ function _hwmsInvBuildHtml(id){
   '</table>'+
 
   '<table class="footer">'+
-    '<tr><td colspan="10" style="padding:6px 8px"><span class="lbl">Amount in words (USD):</span> <b style="font-size:12px">'+_hwmsAmtToWords(totalValue)+'</b></td></tr>'+
+    '<tr><td colspan="10" style="padding:6px 8px"><span class="lbl">Amount in words:</span> <b style="font-size:12px">'+_hwmsAmtToWords(totalValue)+'</b></td></tr>'+
     (coNote?'<tr><td colspan="10" style="padding:6px 8px;font-size:10px;color:#555">'+coNote.replace(/\n/g,'<br>')+'</td></tr>':'')+
     '<tr style="border-top:2px solid #000">'+
       '<td colspan="5" style="padding:6px 8px"><div><b>Total Gross Weight:</b> <span class="mono b">'+Math.round(totalGrossWt)+' Kg</span></div><div style="margin-top:3px"><b>Total Net Weight:</b> <span class="mono b">'+Math.round(totalNetWt)+' Kg</span></div></td>'+
@@ -5695,7 +6182,7 @@ function _hwmsInvBuildHtmlUSA(id){
   }
   const plPort=byId(DB.hwmsPortLoading||[],inv.portOfLoadingId);
   const pdPort=byId(DB.hwmsPortDischarge||[],inv.portOfDischargeId);
-  const lis=inv.lineItems||[];
+  const lis=(inv.lineItems||[]).filter(li=>!li._meta);
   const totalQty=lis.reduce((s,li)=>s+(li.quantity||0),0);
   const totalValue=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
   const totalNetWt=lis.reduce((s,li)=>s+(li.netWeight||0),0);
@@ -5714,7 +6201,7 @@ function _hwmsInvBuildHtmlUSA(id){
   const coSupplier=cust?.supplierCode||co.supplierCode||'';
   const coPlaceReceipt=co.placeReceipt||'';
   const coCountry=co.country||'India';
-  const coNote=co.note||'';
+  const _cn6=_hwmsParseCoNotes(co.note);const _invNotes6=_hwmsInvGetNotes(inv);const coNote=_invNotes6.map(function(n){return[_cn6.n1,_cn6.n2,_cn6.n3][n-1];}).filter(Boolean).join("<br>");
 
   // Steel/Forex rates
   const sr=_hwmsGetLatestSteelRate(inv.buyerId, inv.date);
@@ -5790,7 +6277,7 @@ function _hwmsInvBuildHtmlUSA(id){
   'table.items td,table.items th{border:1px solid #000;padding:3px 5px;font-size:11.5px;vertical-align:middle}'+
   'table.items th{background:#e8e8e8;font-size:10px;text-transform:uppercase;font-weight:700}'+
   '.c{text-align:center}.r{text-align:right}.b{font-weight:700}'+
-  '.mono{font-family:"Courier New",monospace}'+
+  '.mono{font-family:"Aptos Mono","Courier New",monospace}'+
   '.title{font-size:18px;font-weight:900;text-align:center;padding:10px;letter-spacing:1px;background:#e8e8e8}'+
   '.lbl{font-size:10px;color:#555;font-weight:700;text-transform:uppercase}'+
   '.val{font-size:12px;font-weight:600;margin-top:1px}'+
@@ -5855,14 +6342,14 @@ function _hwmsInvBuildHtmlUSA(id){
   '<table class="items">'+
     '<thead><tr>'+
       '<th style="width:30px">Plt</th>'+
-      '<th style="width:90px">Pkg L×W×H</th>'+
-      '<th style="min-width:160px">Part No. / Description</th>'+
-      '<th style="width:50px">HSN</th>'+
+      '<th style="width:112px">Pkg L×W×H</th>'+
+      '<th style="min-width:147px">Part No. / Description</th>'+
+      '<th style="width:40px">HSN</th>'+
       '<th style="width:70px">Buyer PO</th>'+
       '<th class="r" style="width:35px">Qty</th>'+
       '<th class="r" style="width:55px">Ex-Works<br>Rate (USD)</th>'+
       '<th class="r" style="width:65px">Amount<br>(USD)</th>'+
-      '<th class="r" style="width:50px">Steelage<br>Wt (Kg)</th>'+
+      '<th class="r" style="width:38px">Steelage<br>Wt (Kg)</th>'+
       '<th class="r" style="width:50px">Net Wt<br>(Kg)</th>'+
       '<th class="r" style="width:50px">Gross Wt<br>(Kg)</th>'+
     '</tr></thead>'+
@@ -5895,7 +6382,7 @@ function _hwmsInvBuildHtmlUSA(id){
       '<td colspan="3" style="font-size:10px;color:#555">Tariff not applicable on this cost (if any)</td>'+
     '</tr>'+
     '<tr class="calc-row" style="background:#e8e8e8;border-top:2px solid #000">'+
-      '<td colspan="7" style="font-weight:900;font-size:12px">Total Invoice Amount in USD</td>'+
+      '<td colspan="7" style="font-weight:900;font-size:14px">Total Main Invoice Amount in USD</td>'+
       '<td class="r mono b" style="font-size:18px;color:#000;font-weight:900">$'+_fmt(totalInvAmt)+'</td>'+
       '<td colspan="3"></td>'+
     '</tr>'+
@@ -5903,7 +6390,7 @@ function _hwmsInvBuildHtmlUSA(id){
 
   // ═══ SAME FOOTER AS INDIA ═══
   '<table class="footer">'+
-    '<tr><td colspan="11" style="padding:6px 8px"><span class="lbl">Amount in words (USD):</span> <b style="font-size:12px">'+_hwmsAmtToWords(totalValue)+'</b></td></tr>'+
+    '<tr><td colspan="11" style="padding:6px 8px"><span class="lbl">Amount in words:</span> <b style="font-size:12px">'+_hwmsAmtToWords(totalValue)+'</b></td></tr>'+
     (coNote?'<tr><td colspan="11" style="padding:6px 8px;font-size:10px;color:#555">'+coNote.replace(/\n/g,'<br>')+'</td></tr>':'')+
     '<tr style="border-top:2px solid #000">'+
       '<td colspan="5" style="padding:6px 8px"><div><b>Total Gross Weight:</b> <span class="mono b">'+Math.round(totalGrossWt)+' Kg</span></div><div style="margin-top:3px"><b>Total Net Weight:</b> <span class="mono b">'+Math.round(totalNetWt)+' Kg</span></div></td>'+
@@ -6443,10 +6930,10 @@ function openHwmsInvModal(id){
     const isConfirmed=!!inv?.confirmed;
     const cont=inv?.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;
     const isDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
-    if(isConfirmed&&isDispatched){notify('⚠ Invoice is locked (container dispatched). Cannot edit.',true);return;}
+    if(isConfirmed&&isDispatched){notify('⚠ Main Invoice is locked (container dispatched). Cannot edit.',true);return;}
     // 1. Populate ALL form fields (elements exist in DOM even when page is hidden)
     document.getElementById('eHwmsInvId').value=id||'';
-    document.getElementById('mHwmsInvTitle').textContent=id?'Edit Invoice':'Add Invoice';
+    document.getElementById('mHwmsInvTitle').textContent=id?'Edit Main Invoice':'Add Main Invoice';
     // Date + FY
     const dateVal=inv?.date||new Date().toISOString().split('T')[0];
     document.getElementById('hwmsInvDate').value=dateVal;
@@ -6482,13 +6969,36 @@ function openHwmsInvModal(id){
     // 3. Load line items — THIS IS CRITICAL
     _hwmsLiItems=[];
     if(inv&&inv.lineItems&&Array.isArray(inv.lineItems)){
-      _hwmsLiItems=inv.lineItems.map((li,i)=>({...li,palletNumber:li.palletNumber||'P'+(i+1)}));
+      _hwmsLiItems=inv.lineItems.filter(function(li){return !li._meta;}).map((li,i)=>({...li,palletNumber:li.palletNumber||'P'+(i+1)}));
     }
     _hwmsLiRenderTable();
     _hwmsLiResetAddRow();
     // 4. Clear errors
     const errEl=document.getElementById('merr_mHwmsInv');
     if(errEl) errEl.innerHTML='';
+    // 5. Populate invoice note checkboxes
+    var coNotes=_hwmsGetCoNotes();
+    var existingNotes=inv?_hwmsInvGetNotes(inv):[1]; // default: note 1 for new
+    var noteLabels=[
+      {cb:'hwmsInvNote1Cb',txt:'hwmsInvNote1Text',lbl:'hwmsInvNoteLabel1',val:coNotes.n1},
+      {cb:'hwmsInvNote2Cb',txt:'hwmsInvNote2Text',lbl:'hwmsInvNoteLabel2',val:coNotes.n2},
+      {cb:'hwmsInvNote3Cb',txt:'hwmsInvNote3Text',lbl:'hwmsInvNoteLabel3',val:coNotes.n3}
+    ];
+    noteLabels.forEach(function(n,i){
+      var lbl=document.getElementById(n.lbl);
+      var txt=document.getElementById(n.txt);
+      var cb=document.getElementById(n.cb);
+      if(lbl) lbl.style.display='flex';
+      if(n.val){
+        if(txt) txt.textContent=n.val;
+        if(lbl) lbl.style.opacity='1';
+        if(cb){cb.disabled=false;cb.checked=existingNotes.indexOf(i+1)>=0;}
+      } else {
+        if(txt) txt.textContent='(Note '+(i+1)+' not set — edit in Company Details)';
+        if(lbl) lbl.style.opacity='0.4';
+        if(cb){cb.disabled=true;cb.checked=false;}
+      }
+    });
     // 6. Show the page AFTER everything is populated
     hwmsGo('pageHwmsInvEdit');
     // 6. Scroll to top
@@ -6529,6 +7039,14 @@ async function saveHwmsInv(){
   const invoiceNumber=suffix?fy+suffix.padStart(5,'0'):(fy+'Draft');
   if(suffix&&(DB.hwmsInvoices||[]).find(inv=>inv.invoiceNumber===invoiceNumber&&inv.id!==id)){modalErr('mHwmsInv','Invoice Number '+invoiceNumber+' already exists');return;}
   const lineItems=_hwmsCollectLineItems();
+  // Add selected invoice notes as metadata
+  var selNotes=[];
+  if(document.getElementById('hwmsInvNote1Cb')?.checked) selNotes.push(1);
+  if(document.getElementById('hwmsInvNote2Cb')?.checked) selNotes.push(2);
+  if(document.getElementById('hwmsInvNote3Cb')?.checked) selNotes.push(3);
+  // Remove any existing meta entry, then add fresh one
+  var cleanLi=lineItems.filter(function(li){return !li._meta;});
+  cleanLi.push({_meta:true,selectedNotes:selNotes});
   const cust=byId(DB.hwmsCustomers||[],buyerId);
   // Derive consignee from customer defaults (default consignee or first)
   const cons=cust?.consignees||[];
@@ -6556,7 +7074,7 @@ async function saveHwmsInv(){
     portOfLoadingId:plId,portOfLoading:plPort?.name||'',
     portOfDischargeId:pdId,portOfDischarge:pdPort?.name||'',
     countryOfDest:consignee?.country||cust?.country||'',
-    lineItems};
+    lineItems:cleanLi};
   if(!DB.hwmsInvoices)DB.hwmsInvoices=[];
   let savedId=id;
   if(id){const inv=byId(DB.hwmsInvoices,id);const bak={...inv};Object.assign(inv,data);if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}}
