@@ -1172,6 +1172,12 @@
       </div>
     </div>
 
+    <!-- HELPER (Super Admin only) -->
+    <div class="page" id="pageHelper">
+      <div class="page-header"><div class="page-title">System Helper</div></div>
+      <div id="helperContent" style="max-width:800px"></div>
+    </div>
+
 <!-- MODALS -->
 <div class="modal-overlay" id="mTripBooking"><div class="modal" style="max-width:640px;overflow-y:auto;overflow-x:hidden;margin:0 auto">
       <div class="modal-header" style="border-bottom:1px solid var(--border);padding-bottom:12px">
@@ -2699,6 +2705,8 @@ const NAV=[
   {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
   {id:'Drivers',   l:'Drivers',       i:'🧑‍✈️',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
   {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',app:'vms'},
+  {sec:'SYSTEM',app:'vms'},
+  {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
 ];
 
 function initApp(){
@@ -2833,7 +2841,7 @@ function _runInitApp(){
         var activePage=document.querySelector('.page.active');
         if(activePage){
           var pid=activePage.id;
-          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips};
+          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
           if(map[pid]) map[pid]();
         }
       }catch(e){ console.warn('_onRefreshViews error:',e); }
@@ -2934,7 +2942,7 @@ function showPage(pid,nid){
 
   // Always scroll to top of content area
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const map={pageMyApps:renderMyApps,pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageVendorTrips:renderVendorTrips};
+  const map={pageMyApps:renderMyApps,pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
   console.log('[showPage] navigating to:', pid, '| page found:', !!pg, '| render fn:', !!map[pid]);
   if(map[pid]){
     try{map[pid]();}
@@ -5002,6 +5010,26 @@ function tripsForMyPlant(){
     return false;
   });
 }
+// Narrower filter for Trip Booking page: only plant/tripBook locations + own bookings
+function _tripsForMyBookingPlant(){
+  if(!CU) return [];
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  if(isSA){
+    if(_adminLocFilter) return DB.trips.filter(t=>t.startLoc===_adminLocFilter);
+    return [...DB.trips];
+  }
+  const myPlantLocs=new Set();
+  if(CU.plant) myPlantLocs.add(CU.plant);
+  DB.locations.filter(l=>(l.tripBook||[]).includes(CU.id)).forEach(l=>myPlantLocs.add(l.id));
+  return DB.trips.filter(trip=>{
+    if(myPlantLocs.has(trip.startLoc)) return true;
+    if(trip.dest1 && myPlantLocs.has(trip.dest1)) return true;
+    if(trip.dest2 && myPlantLocs.has(trip.dest2)) return true;
+    if(trip.dest3 && myPlantLocs.has(trip.dest3)) return true;
+    if(trip.bookedBy===CU.id) return true;
+    return false;
+  });
+}
 
 function renderMyTrips(){
   initDfMonth('tbHist','tbHistFrom','tbHistTo');
@@ -5011,7 +5039,7 @@ function renderMyTrips(){
   const toVal=document.getElementById('tbHistTo')?.value||'';
 
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
-  let trips=tripsForMyPlant();
+  let trips=_tripsForMyBookingPlant();
   // Trip ID search filter
   const tbSearch=(document.getElementById('tbTripSearch')?.value||'').toLowerCase();
   if(tbSearch) trips=trips.filter(t=>(t.id||'').toLowerCase().includes(tbSearch));
@@ -9221,6 +9249,155 @@ document.addEventListener('keydown', function(e){
     if(btn2&&!btn2.disabled){e.preventDefault();btn2.click();return;}
   }
 });
+
+// ===== HELPER PAGE (Super Admin only) =====
+function renderHelper(){
+  const el=document.getElementById('helperContent');if(!el)return;
+  const s=(title,color,content)=>`<div style="background:${color};border-radius:10px;padding:16px 18px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;color:var(--text)">${title}</div>
+    <div style="font-size:13px;line-height:1.7;color:var(--text2)">${content}</div></div>`;
+  const t=(rows)=>rows.map(r=>`<tr>${r.map(c=>`<td style="padding:5px 10px;border:1px solid var(--border);font-size:12px">${c}</td>`).join('')}</tr>`).join('');
+  const th=(cols)=>`<thead><tr>${cols.map(c=>`<th style="padding:5px 10px;border:1px solid var(--border);font-size:11px;background:var(--surface2);font-weight:700;text-transform:uppercase">${c}</th>`).join('')}</tr></thead>`;
+
+  el.innerHTML=`
+  ${s('📋 Trip ID Generation','rgba(59,130,246,.06)',`
+    <p style="margin:0 0 8px"><strong>Format:</strong> <code style="background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:700">Y + P# + - + Serial</code></p>
+    <p style="margin:0 0 6px"><strong>Y</strong> = Last digit of year (2026 → 6)</p>
+    <p style="margin:0 0 6px"><strong>P#</strong> = Plant code from location name digits (KAP 2 → P2, KAP 13 → P13)</p>
+    <p style="margin:0 0 6px"><strong>Serial</strong> = Auto-incremented per prefix</p>
+    <p style="margin:0 0 10px"><strong>Example:</strong> <span style="font-family:var(--mono);font-weight:800;color:var(--accent)">6P2-15</span> = Year 2026, Plant 2, Trip #15</p>
+    <div style="font-size:12px;font-weight:700;margin-bottom:4px">Plant code resolution:</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Trip Type','Plant Code Source','Example'])}
+    <tbody>
+    ${t([
+      ['KAP → Any','Start location','KAP 2 → External = 6P2-xx'],
+      ['External → KAP','Destination location','External → KAP 3 = 6P3-xx'],
+      ['External → External','Booking user\'s plant','User at KAP 1 = 6P1-xx'],
+    ])}
+    </tbody></table>
+  `)}
+
+  ${s('🔀 Segment Allocation (A / B / C)','rgba(42,154,160,.06)',`
+    <p style="margin:0 0 8px">Each trip can have <strong>1 to 3 segments</strong> based on number of destinations:</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Destinations','Segments Created','Route'])}
+    <tbody>
+    ${t([
+      ['1 destination','Segment A only','Start → Dest1'],
+      ['2 destinations','Segment A + B','Start → Dest1 (A), Dest1 → Dest2 (B)'],
+      ['3 destinations','Segment A + B + C','Start → Dest1 (A), Dest1 → Dest2 (B), Dest2 → Dest3 (C)'],
+    ])}
+    </tbody></table>
+    <p style="margin:8px 0 0"><strong>Segment locking:</strong> B is locked until A completes Gate Exit + Entry. C is locked until B completes Gate Exit + Entry.</p>
+  `)}
+
+  ${s('🔄 5-Step Workflow Per Segment','rgba(34,197,94,.06)',`
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Step','Name','Role','Location','Action'])}
+    <tbody>
+    ${t([
+      ['1','🚪 Gate Exit','KAP Security','Source (sLoc)','Record vehicle exit from plant gate'],
+      ['2','🏁 Gate Entry','KAP Security','Destination (dLoc)','Record vehicle entry at destination gate'],
+      ['3','📦 Material Receipt','Material Receiver','Destination (dLoc)','Acknowledge material received / discrepancy / not received'],
+      ['4','✅ Trip Approval','Trip Approver','Destination (dLoc)','Approve or reject the trip segment'],
+      ['5','📤 Empty Exit','KAP Security','Destination (dLoc)','Record empty vehicle exit (auto-skipped for last segment if vehicle returns)'],
+    ])}
+    </tbody></table>
+    <p style="margin:8px 0 4px"><strong>Step 5 skip rules:</strong></p>
+    <p style="margin:0 0 4px">• Single-segment trip (A only): Step 5 is active — vehicle exits empty</p>
+    <p style="margin:0 0 4px">• Multi-segment: Intermediate segments auto-skip step 5 (vehicle continues to next destination)</p>
+    <p style="margin:0">• Last segment: Step 5 is active if vehicle needs empty exit</p>
+  `)}
+
+  ${s('👥 User Roles & Permissions','rgba(139,92,246,.06)',`
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Role','Access Pages','Can Do'])}
+    <tbody>
+    ${t([
+      ['<strong>Super Admin</strong>','All pages + Helper','Everything: all masters, all operations, reports, delete trips, revoke actions, approve rates'],
+      ['<strong>Admin</strong>','Dashboard, all operations, all masters','Same as Super Admin minus Helper page'],
+      ['<strong>Trip Booking User</strong>','Trip Booking, Vehicles, Drivers','Book/edit trips at their assigned plant locations only; see only their plant trips + trips they booked'],
+      ['<strong>KAP Security</strong>','KAP Security','Gate Exit (step 1) and Gate Entry (step 2) at assigned location; Empty Exit (step 5); Spot vehicle entry'],
+      ['<strong>Material Receiver</strong>','Material Receipt, Vehicles, Drivers','Acknowledge material receipt (step 3) at assigned location'],
+      ['<strong>Trip Approver</strong>','Trip Approvals','Approve/reject trips (step 4) at assigned location'],
+      ['<strong>Vendor</strong>','My Trips (Vendor)','View-only: see trips for their vendor\'s vehicles, trip status, rates'],
+    ])}
+    </tbody></table>
+  `)}
+
+  ${s('📍 Location-Based Access','rgba(234,88,12,.06)',`
+    <p style="margin:0 0 8px">Each location in Location Master has role assignments:</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Location Field','Controls Access To'])}
+    <tbody>
+    ${t([
+      ['<strong>KAP Security</strong>','Who can do Gate Exit/Entry at this location'],
+      ['<strong>Trip Booking</strong>','Who can book trips from/to this location; which trips they see on Trip Booking page'],
+      ['<strong>Material Receiver(s)</strong>','Who can acknowledge material receipt at this location'],
+      ['<strong>Approver(s)</strong>','Who can approve/reject trips at this location'],
+    ])}
+    </tbody></table>
+    <p style="margin:8px 0 4px"><strong>Location types:</strong></p>
+    <p style="margin:0 0 4px">• <span class="badge badge-amber" style="font-size:10px">KAP</span> = Internal plant (has gate security, material receipt, approvals)</p>
+    <p style="margin:0">• <span class="badge badge-blue" style="font-size:10px">External</span> = External vendor/customer location</p>
+  `)}
+
+  ${s('👁 Trip Visibility Rules','rgba(220,38,38,.06)',`
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Page','Who Sees What'])}
+    <tbody>
+    ${t([
+      ['<strong>Trip Booking</strong>','Only trips where start/destination matches user\'s plant or tripBook locations, OR trips booked by the user'],
+      ['<strong>KAP Security</strong>','Pending segments where user is assigned as KAP Security at source (exit) or destination (entry) location'],
+      ['<strong>Material Receipt</strong>','Pending segments where user is Material Receiver at destination location'],
+      ['<strong>Trip Approval</strong>','Pending segments where user is Approver at destination location'],
+      ['<strong>Dashboard</strong>','Aggregated stats for all trips the user can access via any role assignment'],
+      ['<strong>My Trips (Vendor)</strong>','Trips using vehicles owned by the vendor linked to user account'],
+    ])}
+    </tbody></table>
+  `)}
+
+  ${s('💰 Trip Rate Matching','rgba(234,179,8,.06)',`
+    <p style="margin:0 0 8px">Rates are matched by <strong>vehicle type + exact route + date within valid period</strong>:</p>
+    <p style="margin:0 0 4px">1. Match <code>vehicleTypeId</code> + <code>startLoc</code> + <code>dest1</code> + <code>dest2</code> + <code>dest3</code></p>
+    <p style="margin:0 0 4px">2. Trip date must fall within rate's <code>validStart</code> – <code>validEnd</code> range</p>
+    <p style="margin:0 0 4px">3. Rate must be <code>approved</code> status</p>
+    <p style="margin:0 0 8px">4. If multiple rates match, the one with latest <code>validStart</code> wins</p>
+    <p style="margin:0"><strong>Unapproved rates</strong> are visible in Trip Rate Master but not applied to trips until approved by Admin/Super Admin.</p>
+  `)}
+
+  ${s('🔢 Trip ID Color Coding','rgba(42,154,160,.06)',`
+    <p style="margin:0 0 8px">Trip IDs show the <strong>plant code portion</strong> in the location's assigned color:</p>
+    <p style="margin:0 0 4px">• <span style="font-family:var(--mono);font-weight:800">6<span style="background:#0d9488;color:#fff;padding:1px 4px;border-radius:4px">P2</span>-15</span> = Plant 2 trips use Plant 2's color tag</p>
+    <p style="margin:0 0 4px">• <span style="font-family:var(--mono);font-weight:800">6<span style="background:#ea580c;color:#fff;padding:1px 4px;border-radius:4px">P1</span>-8</span> = Plant 1 trips use Plant 1's color tag</p>
+    <p style="margin:0">• Colors are assigned in <strong>Location Master → Colour Tag</strong></p>
+  `)}
+
+  ${s('📱 Spot Vehicle Entry','rgba(22,163,74,.06)',`
+    <p style="margin:0 0 8px"><strong>Purpose:</strong> Record unplanned/spot vehicle entries that don't have a pre-booked trip.</p>
+    <p style="margin:0 0 4px">• Available on KAP Security page → Spot Entry tab</p>
+    <p style="margin:0 0 4px">• KAP Security user records vehicle number, driver, supplier, challan details</p>
+    <p style="margin:0 0 4px">• Creates a spot record (not a full trip) for tracking purposes</p>
+    <p style="margin:0">• Spot entries show in history with timestamp and recording user</p>
+  `)}
+
+  ${s('⚙ Data Model Summary','rgba(107,114,128,.06)',`
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['Table','Key Fields','Notes'])}
+    <tbody>
+    ${t([
+      ['<strong>trips</strong>','id, startLoc, dest1/2/3, vehicleId, driverId, bookedBy, date, challan1/2/3','One row per trip booking'],
+      ['<strong>segments</strong>','id, tripId, label (A/B/C), sLoc, dLoc, steps[1-5], currentStep, status','One row per segment; steps object tracks each step\'s done/time/by/photo'],
+      ['<strong>locations</strong>','id, name, type (KAP/External), colour, kapSec, tripBook[], matRecv[], approvers[]','Role assignments per location'],
+      ['<strong>vehicles</strong>','id, number, typeId, vendorId, pucExpiry, rtpExpiry, insExpiry','Linked to vendor and vehicle type'],
+      ['<strong>tripRates</strong>','id, vTypeId, start, dest1/2/3, rate, validStart, validEnd, status','Route+type+period based rates'],
+      ['<strong>users</strong>','id, name, fullName, roles[], plant, apps[]','Multi-role, single plant assignment'],
+    ])}
+    </tbody></table>
+  `)}
+  `;
+}
 
 // ── Boot trigger ──
 if(!_commonMissing){
