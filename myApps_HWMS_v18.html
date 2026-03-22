@@ -54,6 +54,7 @@
 #pageHwmsMR .btn{font-size:14px!important}
 #pageHwmsMR .hwms-cnt{font-size:13px!important}
 /* Shared styles */
+body{scrollbar-width:none;-ms-overflow-style:none}body::-webkit-scrollbar{display:none}
 .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}.card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px}.page-title{font-size:clamp(18px,5vw,24px);font-weight:900;color:var(--text)}
 table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px}th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:2px solid var(--border);border-right:1px solid #eef0f3;position:sticky;top:0;z-index:2}th:last-child{border-right:none}td{padding:8px 10px;font-size:13px;border-bottom:1px solid #e8ecf0;border-right:1px solid #f1f5f9;vertical-align:middle}td:last-child{border-right:none}
 tbody tr:nth-child(even){background:#fafbfc}
@@ -412,14 +413,14 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
     <!-- HWMS: CONTAINER MASTER -->
     <div class="page" id="pageHwmsContainers">
       
-      <div class="card">
+      <div class="card" id="hwmsContListView">
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
           <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
             <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
-            <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Add Container</button>
+            <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Container</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 160px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr>
@@ -435,6 +436,117 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsContClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
         </tr></thead><tbody id="hwmsContBody"></tbody></table></div>
       </div>
+
+      <!-- IN-PAGE FORM VIEW (replaces modal) -->
+      <div id="hwmsContFormView" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <button onclick="_hwmsContCancel()" style="font-size:14px;font-weight:800;padding:8px 16px;border:2px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;color:var(--text)">← Back</button>
+          <div id="mHwmsContTitle" style="font-size:18px;font-weight:900;color:var(--text)">Plan New Container</div>
+          <div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)"></div>
+          <div id="hwmsContStatusBadge" style="display:inline-block"></div>
+        </div>
+        <input type="hidden" id="eHwmsContId">
+
+        <!-- SECTION 1: Container Details (blue tint) -->
+        <div style="font-size:14px;font-weight:900;color:#2563eb;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(59,130,246,.3)">🚢 Container Details</div>
+        <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container Details</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group" style="margin:0"><label>Container No. *</label><div style="display:flex;align-items:center;gap:0"><span style="padding:6px 8px;font-family:var(--mono);font-weight:900;font-size:15px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="document.getElementById('hwmsContNumDisplay').textContent='CN-'+this.value" style="padding:6px 10px;font-weight:700;font-family:var(--mono);font-size:15px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
+            <div class="form-group" style="margin:0"><label>Expected Pickup Date *</label><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+          </div>
+        </div>
+        <!-- Linked Invoices (green tint) -->
+        <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Linked Main Invoices</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select id="hwmsContAddInvSel" style="padding:4px 8px;font-size:11px;border:1px solid var(--border2);border-radius:4px;min-width:180px"><option value="">-- Add Main Invoice --</option></select>
+              <button class="btn" onclick="_hwmsContAddInv()" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer">+ Add</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+            <table style="width:100%;font-size:12px" id="tHwmsContInvs">
+              <thead><tr style="background:var(--surface2);position:sticky;top:0;z-index:1">
+                <th style="padding:4px 8px;font-size:9px">MI No.</th>
+                <th style="padding:4px 8px;font-size:9px">Inv. Date</th>
+                <th style="padding:4px 8px;font-size:9px">Customer</th>
+                <th style="padding:4px 8px;font-size:9px">Consignee</th>
+                <th style="padding:4px 8px;font-size:9px">Amount ($)</th>
+                <th style="padding:4px 8px;font-size:9px">Status</th>
+                <th style="padding:4px 8px;font-size:9px;width:36px"></th>
+              </tr></thead>
+              <tbody id="hwmsContInvBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Dispatch Details (orange tint) -->
+        <div style="background:rgba(234,88,12,.05);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🚢 Dispatch Details</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="form-group" style="margin:0"><label>Carrier *</label><select id="hwmsContCarrier" style="padding:7px 8px"><option value="">--</option></select></div>
+            <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+            <div class="form-group" style="margin:0;grid-column:1/-1"><label>Container Serial Number</label><input type="text" id="hwmsContSerialNum" placeholder="e.g. MSCU1234567" style="padding:7px 8px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:12px;padding:8px 20px;background:#ea580c;border-color:#ea580c;font-weight:800">🚢 Container Dispatched</button>
+            <button class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Undo Dispatch</button>
+          </div>
+          <div id="hwmsContDispatchLabel" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:12px;font-weight:700;color:#16a34a"></div>
+        </div>
+
+        <!-- SECTION 2: Post Shipment Details -->
+        <div id="hwmsContPostShipSection">
+          <div style="font-size:14px;font-weight:900;color:#7c3aed;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(139,92,246,.3)">📋 Post Shipment Details</div>
+          <!-- Shipment Summary -->
+          <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📋 Shipment Summary</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="form-group" style="margin:0"><label>Carrier</label><input type="text" id="hwmsContCarrierName2" readonly style="padding:7px 10px;background:var(--surface2);font-weight:700"></div>
+              <div class="form-group" style="margin:0"><label>Actual Dispatch Date</label><input type="text" id="hwmsContPickup2" readonly style="padding:7px 10px;background:var(--surface2);font-weight:700;font-family:var(--mono);font-size:13px"></div>
+            </div>
+          </div>
+          <!-- Carrier Invoice -->
+          <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Carrier Invoice</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px">
+              <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsContCarrInv" style="padding:7px 10px"></div>
+              <div class="form-group" style="margin:0"><label>Invoice Date</label><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+              <div class="form-group" style="margin:0"><label>Amount</label><div style="display:flex;gap:4px;align-items:center"><input type="number" id="hwmsContCarrAmt" step="0.01" class="no-spin" style="padding:7px 10px;flex:1;min-width:0"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:16px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="flex-shrink:0"></div></div></div>
+            </div>
+          </div>
+          <!-- Entry Summary -->
+          <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📄 Entry Summary</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px">
+              <div class="form-group" style="margin:0"><label>ES Number</label><input type="text" id="hwmsContESNum" style="padding:7px 10px"></div>
+              <div class="form-group" style="margin:0"><label>ES Date</label><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+              <div class="form-group" style="margin:0"><label>Tariff Paid ($)</label><div style="display:flex;gap:4px;align-items:center"><input type="number" id="hwmsContTariffPaid" step="0.01" class="no-spin" style="padding:7px 10px;flex:1;min-width:0"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:16px" title="Attach entry summary photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="flex-shrink:0"></div></div></div>
+            </div>
+          </div>
+          <!-- Destination -->
+          <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+            <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📍 Destination</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+              <div class="form-group" style="margin:0"><label>Expected Reach Date</label><div style="position:relative"><input type="text" id="hwmsContExpReach_fmt" readonly style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;background:var(--surface2);width:100%;box-sizing:border-box"><input type="date" id="hwmsContExpReach" onchange="_hwmsContDateFmt('hwmsContExpReach')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" readonly></div></div>
+              <div class="form-group" style="margin:0"><label>Container Reached Date</label><div style="position:relative"><input type="text" id="hwmsContReachedDate_fmt" readonly onclick="document.getElementById('hwmsContReachedDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContReachedDate" onchange="_hwmsContDateFmt('hwmsContReachedDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn" id="btnHwmsContReached" onclick="_hwmsContReached()" style="font-size:12px;padding:8px 20px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer">📍 Container Reached</button>
+              <button class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Revoke Reached</button>
+            </div>
+            <div id="hwmsContReachedInfo" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
+          </div>
+        </div>
+
+        <!-- Save/Cancel footer -->
+        <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 0;border-top:2px solid var(--border);margin-top:12px">
+          <div class="modal-err" id="merr_mHwmsCont"></div>
+          <button class="btn btn-secondary" onclick="_hwmsContCancel()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveHwmsCont()">Save</button>
+        </div>
+      </div><!-- end hwmsContFormView -->
+
     </div>
 
     <!-- HWMS: CARRIER MASTER -->
@@ -841,106 +953,6 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 </div></div>
 
 <!-- HWMS CONTAINER MODAL -->
-<div class="modal-overlay" id="mHwmsCont"><div class="modal" style="max-width:780px;width:94vw;max-height:calc(100vh - 20px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div style="display:flex;align-items:center;gap:12px"><div class="modal-title" id="mHwmsContTitle">Add Container</div><div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)"></div><div id="hwmsContStatusBadge" style="display:inline-block"></div></div><div class="modal-close" onclick="_hwmsContCancel()">×</div></div>
-  <input type="hidden" id="eHwmsContId">
-  <!-- TAB BUTTONS -->
-  <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--surface2);border-radius:10px;padding:4px;border:1px solid var(--border)">
-    <button id="hwmsContTab1Btn" onclick="_hwmsContTab(1)" style="flex:1;padding:10px 16px;font-size:13px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--accent);color:#fff;transition:all .2s;letter-spacing:0.3px">🚢 Container Details</button>
-    <button id="hwmsContTab2Btn" onclick="_hwmsContTab(2)" style="flex:1;padding:10px 16px;font-size:13px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:transparent;color:var(--text3);transition:all .2s;letter-spacing:0.3px">📋 Post Shipment</button>
-  </div>
-  <!-- TAB 1: Container Details + Linked Invoices + Dispatch -->
-  <div id="hwmsContTab1">
-    <!-- SECTION 1: Container Details (blue tint) -->
-    <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container Details</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="form-group" style="margin:0"><label>Container No. *</label><div style="display:flex;align-items:center;gap:0"><span style="padding:6px 8px;font-family:var(--mono);font-weight:900;font-size:15px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="document.getElementById('hwmsContNumDisplay').textContent='CN-'+this.value" style="padding:6px 10px;font-weight:700;font-family:var(--mono);font-size:15px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
-        <div class="form-group" style="margin:0"><label>Expected Pickup Date *</label><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-      </div>
-    </div>
-    <!-- SECTION 2: Linked Invoices (green tint) -->
-    <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Linked Main Invoices</div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <select id="hwmsContAddInvSel" style="padding:4px 8px;font-size:11px;border:1px solid var(--border2);border-radius:4px;min-width:180px"><option value="">-- Add Main Invoice --</option></select>
-          <button class="btn" onclick="_hwmsContAddInv()" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer">+ Add</button>
-        </div>
-      </div>
-      <div class="table-wrap" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
-        <table style="width:100%;font-size:12px" id="tHwmsContInvs">
-          <thead><tr style="background:var(--surface2);position:sticky;top:0;z-index:1">
-            <th style="padding:4px 8px;font-size:9px">MI No.</th>
-            <th style="padding:4px 8px;font-size:9px">Inv. Date</th>
-            <th style="padding:4px 8px;font-size:9px">Customer</th>
-            <th style="padding:4px 8px;font-size:9px">Consignee</th>
-            <th style="padding:4px 8px;font-size:9px">Amount ($)</th>
-            <th style="padding:4px 8px;font-size:9px">Status</th>
-            <th style="padding:4px 8px;font-size:9px;width:36px"></th>
-          </tr></thead>
-          <tbody id="hwmsContInvBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <!-- SECTION 3: Dispatch Details (orange tint) -->
-    <div style="background:rgba(234,88,12,.05);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🚢 Dispatch Details</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div class="form-group" style="margin:0"><label>Carrier *</label><select id="hwmsContCarrier" style="padding:7px 8px"><option value="">--</option></select></div>
-        <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-        <div class="form-group" style="margin:0;grid-column:1/-1"><label>Container Serial Number</label><input type="text" id="hwmsContSerialNum" placeholder="e.g. MSCU1234567" style="padding:7px 8px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px"></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:12px;padding:8px 20px;background:#ea580c;border-color:#ea580c;font-weight:800">🚢 Container Dispatched</button>
-        <button class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Undo Dispatch</button>
-      </div>
-      <div id="hwmsContDispatchLabel" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:12px;font-weight:700;color:#16a34a"></div>
-    </div>
-  </div>
-  <!-- TAB 2: Post Shipment Details -->
-  <div id="hwmsContTab2" style="display:none">
-    <!-- Carrier Info (readonly summary) -->
-    <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📋 Shipment Summary</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="form-group" style="margin:0"><label>Carrier</label><input type="text" id="hwmsContCarrierName2" readonly style="padding:7px 10px;background:var(--surface2);font-weight:700"></div>
-        <div class="form-group" style="margin:0"><label>Actual Dispatch Date</label><input type="text" id="hwmsContPickup2" readonly style="padding:7px 10px;background:var(--surface2);font-weight:700;font-family:var(--mono);font-size:13px"></div>
-      </div>
-    </div>
-    <!-- Carrier Invoice -->
-    <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Carrier Invoice</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px">
-        <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsContCarrInv" style="padding:7px 10px"></div>
-        <div class="form-group" style="margin:0"><label>Invoice Date</label><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-        <div class="form-group" style="margin:0"><label>Amount</label><div style="display:flex;gap:4px;align-items:center"><input type="number" id="hwmsContCarrAmt" step="0.01" class="no-spin" style="padding:7px 10px;flex:1;min-width:0"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:16px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="flex-shrink:0"></div></div></div>
-      </div>
-    </div>
-    <!-- Entry Summary -->
-    <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📄 Entry Summary</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px">
-        <div class="form-group" style="margin:0"><label>ES Number</label><input type="text" id="hwmsContESNum" style="padding:7px 10px"></div>
-        <div class="form-group" style="margin:0"><label>ES Date</label><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-        <div class="form-group" style="margin:0"><label>Tariff Paid ($)</label><div style="display:flex;gap:4px;align-items:center"><input type="number" id="hwmsContTariffPaid" step="0.01" class="no-spin" style="padding:7px 10px;flex:1;min-width:0"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:16px" title="Attach entry summary photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="flex-shrink:0"></div></div></div>
-      </div>
-    </div>
-    <!-- Reach Destination -->
-    <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px">
-      <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📍 Destination</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <div class="form-group" style="margin:0"><label>Expected Reach Date</label><div style="position:relative"><input type="text" id="hwmsContExpReach_fmt" readonly style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;background:var(--surface2);width:100%;box-sizing:border-box"><input type="date" id="hwmsContExpReach" onchange="_hwmsContDateFmt('hwmsContExpReach')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" readonly></div></div>
-        <div class="form-group" style="margin:0"><label>Container Reached Date</label><div style="position:relative"><input type="text" id="hwmsContReachedDate_fmt" readonly onclick="document.getElementById('hwmsContReachedDate').showPicker()" placeholder="Select date" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box"><input type="date" id="hwmsContReachedDate" onchange="_hwmsContDateFmt('hwmsContReachedDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn" id="btnHwmsContReached" onclick="_hwmsContReached()" style="font-size:12px;padding:8px 20px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer">📍 Container Reached</button>
-        <button class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Revoke Reached</button>
-      </div>
-      <div id="hwmsContReachedInfo" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
-    </div>
-  </div>
-  <div class="modal-footer" style="flex-wrap:wrap;margin-top:10px;padding-top:10px"><div class="modal-err" id="merr_mHwmsCont"></div><button class="btn btn-secondary" onclick="_hwmsContCancel()">Cancel</button><button class="btn btn-primary" onclick="saveHwmsCont()">Save</button></div>
-</div></div>
 
 <!-- HWMS CUSTOMER MODAL -->
 <div class="modal-overlay" id="mHwmsCust"><div class="modal" style="max-width:680px;width:96vw;max-height:calc(100vh - 40px);overflow-y:auto;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsCustTitle">Add Customer</div><div class="modal-close" onclick="cm('mHwmsCust')">×</div></div>
@@ -2555,7 +2567,7 @@ function openHwmsContModal(id){
   _hwmsContIsNew=!id;
   const c=id?byId(DB.hwmsContainers||[],id):null;
   document.getElementById('eHwmsContId').value=id||'';
-  document.getElementById('mHwmsContTitle').textContent=id?'Edit Container':'Add Container';
+  document.getElementById('mHwmsContTitle').textContent=id?'Edit Container':'Plan New Container';
   document.getElementById('hwmsContNumDisplay').textContent=c?.containerNumber||'';
   // Auto-generate NNN/YY suffix for new containers (CN- prefix is static)
   if(!id){
@@ -2645,10 +2657,12 @@ function openHwmsContModal(id){
   _hwmsContShowPreview(c?.esPhoto||'','hwmsContESPhotoPreview');
   document.getElementById('hwmsContCarrPhoto').value='';
   document.getElementById('hwmsContESPhoto').value='';
-  // Default to tab 2 (Post Shipment) if dispatched, tab 1 otherwise
-  _hwmsContTab(isDispatched?2:1);
   _hwmsContSyncAllDates();
-  om('mHwmsCont');
+  // Show in-page form, hide list
+  document.getElementById('hwmsContListView').style.display='none';
+  document.getElementById('hwmsContFormView').style.display='block';
+  // Scroll to top of form
+  document.getElementById('hwmsContFormView').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function _hwmsContDateFmt(id){
@@ -2698,14 +2712,7 @@ function _hwmsContUpdateDatePickers(c, isDispatched){
 }
 
 function _hwmsContTab(n){
-  document.getElementById('hwmsContTab1').style.display=n===1?'':'none';
-  document.getElementById('hwmsContTab2').style.display=n===2?'':'none';
-  var btn1=document.getElementById('hwmsContTab1Btn');
-  var btn2=document.getElementById('hwmsContTab2Btn');
-  btn1.style.background=n===1?'var(--accent)':'transparent';
-  btn1.style.color=n===1?'#fff':'var(--text3)';
-  btn2.style.background=n===2?'var(--accent)':'transparent';
-  btn2.style.color=n===2?'#fff':'var(--text3)';
+  // Tabs removed — container details and post shipment now shown in separate sections on same page
 }
 
 function _hwmsContRenderLinkedInvs(contId){
@@ -3047,7 +3054,9 @@ function _hwmsContCancel(){
     });
     _hwmsContPreSaveInvIds=[];
   }
-  cm('mHwmsCont');
+  document.getElementById('hwmsContFormView').style.display='none';
+  document.getElementById('hwmsContListView').style.display='block';
+  renderHwmsContainers();
 }
 
 async function saveHwmsCont(){
@@ -3109,7 +3118,8 @@ async function saveHwmsCont(){
     }
     _hwmsContPreSaveInvIds=[];
   }
-  cm('mHwmsCont');
+  document.getElementById('hwmsContFormView').style.display='none';
+  document.getElementById('hwmsContListView').style.display='block';
   renderHwmsContainers();renderHwmsInvoices();
   notify('Container saved!');
 }
