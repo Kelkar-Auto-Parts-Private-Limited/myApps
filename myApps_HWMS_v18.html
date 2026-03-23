@@ -217,9 +217,9 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
   <div class="nav-item" onclick="_navigateTo('index.html')" style="background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.15);margin:8px 10px;border-radius:8px;font-weight:700;color:var(--accent)">&#x1F3E0; My Apps</div>
   <div class="nav-sec" id="navSecOps">OPERATIONS</div>
   <div class="nav-item" id="navContainers" onclick="hwmsGo('pageHwmsContainers')">&#x1F6A2; Containers <span class="hwms-cnt hwms-cnt-blue" id="hcContainers"></span></div>
-  <div class="nav-item" id="navInvoices" onclick="hwmsGo('pageHwmsInvoices')">&#x1F9FE; Main Invoices (MI) <span class="hwms-cnt hwms-cnt-green" id="hcInvoices"></span></div>
+  <div class="nav-item" id="navInvoices" onclick="hwmsGo(_hwmsActiveMiPage)">&#x1F9FE; Main Invoices (MI) <span class="hwms-cnt hwms-cnt-green" id="hcInvoices"></span></div>
   <div class="nav-item" id="navInventory" onclick="hwmsGo('pageHwmsInventory')">&#x1F4E6; Inventory <span class="hwms-cnt hwms-cnt-amber" id="hcInventory"></span></div>
-  <div class="nav-item" id="navSubInvoices" onclick="hwmsGo('pageHwmsSubInvoices')">&#x1F4E4; Sub-Invoices (SI) <span class="hwms-cnt hwms-cnt-purple" id="hcSubInvoices"></span></div>
+  <div class="nav-item" id="navSubInvoices" onclick="hwmsGo(_hwmsActiveSiPage)">&#x1F4E4; Sub-Invoices (SI) <span class="hwms-cnt hwms-cnt-purple" id="hcSubInvoices"></span></div>
   <div class="nav-item" id="navMR" onclick="hwmsGo('pageHwmsMR')">&#x1F4DD; Material Requests <span class="hwms-cnt hwms-cnt-red" id="hcMR"></span></div>
   <div class="nav-sec" id="navSecMasters">MASTERS</div>
   <div class="nav-item" id="navCustomers" onclick="hwmsGo('pageHwmsCustomers')">&#x1F3ED; Customer Master <span class="hwms-cnt" id="hcCustomers"></span></div>
@@ -228,6 +228,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
   <div class="nav-item" id="navPorts" onclick="hwmsGo('pageHwmsPorts')">&#x2693; Ports <span class="hwms-cnt" id="hcPorts"></span></div>
   <div class="nav-item" id="navOtherMasters" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters <span class="hwms-cnt" id="hcOtherMasters"></span></div>
   <div class="nav-item" id="navCompany" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details</div>
+  <div class="nav-item" id="navSysGuide" onclick="hwmsGo('pageHwmsSysGuide')" style="display:none">&#x1F4D6; System Guide</div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div id="hwmsConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
@@ -442,13 +443,16 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
       <div id="hwmsContFormView" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
           <button onclick="_hwmsContCancel()" style="font-size:14px;font-weight:800;padding:8px 16px;border:2px solid var(--border2);border-radius:8px;background:var(--surface2);cursor:pointer;color:var(--text)">← Back</button>
+          <button id="hwmsContPrevBtn" onclick="_hwmsContNav(-1)" title="Previous Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
+          <button id="hwmsContNextBtn" onclick="_hwmsContNav(1)" title="Next Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
           <div id="mHwmsContTitle" style="font-size:18px;font-weight:900;color:var(--text)">Plan New Container</div>
           <div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)"></div>
           <div id="hwmsContStatusBadge" style="display:inline-block"></div>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
             <div class="modal-err" id="merr_mHwmsCont"></div>
             <button class="btn btn-secondary" onclick="_hwmsContCancel()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveHwmsCont()">Save</button>
+            <button class="btn" id="btnHwmsContEdit" onclick="_hwmsContEnableEdit()" style="font-size:12px;padding:7px 16px;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;font-weight:800;border-radius:var(--radius);cursor:pointer;display:none">✏️ Edit</button>
+            <button class="btn btn-primary" id="btnHwmsContSave" onclick="saveHwmsCont()">Save</button>
           </div>
         </div>
         <input type="hidden" id="eHwmsContId"><input type="hidden" id="hwmsContCarrierName2"><input type="hidden" id="hwmsContPickup2">
@@ -461,7 +465,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container Details</div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px">
               <div class="form-group" style="margin:0"><label>Container No. *</label><div style="display:flex;align-items:center;gap:0"><span style="padding:6px 8px;font-family:var(--mono);font-weight:900;font-size:15px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="document.getElementById('hwmsContNumDisplay').textContent='CN-'+this.value" style="padding:6px 10px;font-weight:700;font-family:var(--mono);font-size:15px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
-              <div class="form-group" style="margin:0"><label>Expected Pickup Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContExpPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
+              <div class="form-group" style="margin:0"><label>Expected Pickup Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContExpPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
             </div>
           </div>
           <!-- Linked Invoices (green tint) -->
@@ -482,6 +486,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
                   <th style="padding:4px 8px;font-size:9px">Consignee</th>
                   <th style="padding:4px 8px;font-size:9px">Amount ($)</th>
                   <th style="padding:4px 8px;font-size:9px">Status</th>
+                  <th style="padding:4px 8px;font-size:9px;width:30px">🖨️</th>
                   <th style="padding:4px 8px;font-size:9px;width:36px"></th>
                 </tr></thead>
                 <tbody id="hwmsContInvBody"></tbody>
@@ -500,11 +505,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
               <div class="form-group" style="margin:0"><label>Container Serial Number</label><input type="text" id="hwmsContSerialNum" placeholder="e.g. MSCU1234567" style="padding:7px 8px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px"></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
-              <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup');_hwmsContOnDispatchDate()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:12px;padding:8px 20px;background:#ea580c;border-color:#ea580c;font-weight:800">🚀 Dispatch Container</button>
-              <button class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Undo Dispatch</button>
+              <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup');_hwmsContOnDispatchDate()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span><button type="button" class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:11px;padding:6px 14px;background:#ea580c;border-color:#ea580c;font-weight:800;white-space:nowrap">🚀 Dispatch Container</button><button type="button" class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Undo Dispatch</button></div></div>
             </div>
             <div id="hwmsContDispatchLabel" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:12px;font-weight:700;color:#16a34a"></div>
           </div>
@@ -513,11 +514,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📍 Destination</div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
               <div class="form-group" style="margin:0"><label>Expected Reach Date</label><div style="position:relative"><input type="text" id="hwmsContExpReach_fmt" readonly style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;background:var(--surface2);width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpReach" onchange="_hwmsContDateFmt('hwmsContExpReach')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" readonly></div></div>
-              <div class="form-group" style="margin:0"><label>Container Reached Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContReachedDate_fmt" readonly onclick="document.getElementById('hwmsContReachedDate').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContReachedDate" onchange="_hwmsContDateFmt('hwmsContReachedDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContReachedDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:12px;padding:8px 20px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer">📦 Receive this Container</button>
-              <button class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:11px;padding:8px 14px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer">↩ Revoke Reached</button>
+              <div class="form-group" style="margin:0"><label>Container Reached Date</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContReachedDate_fmt" readonly onclick="document.getElementById('hwmsContReachedDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContReachedDate" onchange="_hwmsContDateFmt('hwmsContReachedDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContReachedDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span><button type="button" class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:11px;padding:6px 14px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer;white-space:nowrap">📦 Receive this Container</button><button type="button" class="btn" id="btnHwmsContEditReceived" onclick="_hwmsContOpenReceive()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:var(--radius);cursor:pointer;white-space:nowrap">✏️ Edit Received Container</button><button type="button" class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Revoke Reached</button></div></div>
             </div>
             <div id="hwmsContReachedInfo" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
           </div>
@@ -532,20 +529,20 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
               <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Carrier Invoice</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
                 <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsContCarrInv" style="padding:7px 10px"></div>
-                <div class="form-group" style="margin:0"><label>Invoice Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContCarrDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
+                <div class="form-group" style="margin:0"><label>Invoice Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContCarrDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
               </div>
-              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Amount</label><input type="number" id="hwmsContCarrAmt" step="0.01" class="no-spin" style="padding:7px 10px;width:100%;box-sizing:border-box"></div>
-              <div class="form-group" style="margin:0"><label style="font-size:10px;color:#a16207;font-weight:700">Attach Invoice Photo</label><div style="display:flex;gap:8px;align-items:flex-start;margin-top:4px"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:18px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="min-height:100px;max-width:200px"></div></div></div>
+              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Amount</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContCarrAmt" inputmode="numeric" pattern="[0-9]*" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="padding:7px 8px;width:80px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:16px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label></div></div>
+              <div class="form-group" style="margin:0"><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="min-height:44px;max-width:200px"></div></div>
             </div>
             <!-- Entry Summary (purple tint) -->
             <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px">
               <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📄 Entry Summary</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
                 <div class="form-group" style="margin:0"><label>ES Number</label><input type="text" id="hwmsContESNum" style="padding:7px 10px"></div>
-                <div class="form-group" style="margin:0"><label>ES Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContESDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
+                <div class="form-group" style="margin:0"><label>ES Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContESDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
               </div>
-              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Tariff Paid ($)</label><input type="number" id="hwmsContTariffPaid" step="0.01" class="no-spin" style="padding:7px 10px;width:100%;box-sizing:border-box"></div>
-              <div class="form-group" style="margin:0"><label style="font-size:10px;color:#7c3aed;font-weight:700">Attach ES Photo / PDF</label><div style="display:flex;gap:8px;align-items:flex-start;margin-top:4px"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:18px" title="Attach entry summary photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="min-height:100px;max-width:200px"></div></div></div>
+              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Tariff Paid ($)</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContTariffPaid" inputmode="numeric" pattern="[0-9]*" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="padding:7px 8px;width:80px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:16px" title="Attach ES photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label></div></div>
+              <div class="form-group" style="margin:0"><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="min-height:44px;max-width:200px"></div></div>
             </div>
           </div>
         </div>
@@ -701,7 +698,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <div class="table-wrap">
           <table id="tHwmsInventory">
             <thead><tr>
-              <th class="sortable" onclick="_hwmsInventorySort('partNumber')" style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Part Number</div><input type="text" id="hwmsInventorySearch" placeholder="🔍 Search Part…" oninput="renderHwmsInventory()" style="font-size:13px;padding:8px 10px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"></th>
+              <th class="sortable" onclick="_hwmsInventorySort('partNumber')" style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Part Number</div><div style="position:relative"><input type="text" id="hwmsInventorySearch" placeholder="🔍 Search Part…" oninput="renderHwmsInventory();_hwmsInvSearchXBtn()" style="font-size:13px;padding:8px 10px;padding-right:28px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><button type="button" id="hwmsInvSearchClear" onclick="document.getElementById('hwmsInventorySearch').value='';renderHwmsInventory();this.style.display='none'" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;font-weight:800;color:var(--text3);cursor:pointer;padding:2px 4px;line-height:1" title="Clear search">✕</button></div></th>
               <th style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Description</div><select id="hwmsInventoryStockFilter" onchange="renderHwmsInventory()" style="font-size:12px;padding:7px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="all">All Parts</option><option value="instock">In Stock</option><option value="zero">Zero Stock</option></select></th>
               <th class="sortable" onclick="_hwmsInventorySort('whLocation')" style="text-align:left">WH Location</th>
               <th class="sortable" onclick="_hwmsInventorySort('totalQty')" style="text-align:right">Total Qty Received</th>
@@ -720,12 +717,6 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
       
       <div class="card">
         <div id="hwmsSiStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
-        <!-- Bulk delete bar (above table) -->
-        <div id="hwmsSiBulkBar" style="display:none;padding:10px 14px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;margin-bottom:10px;align-items:center;gap:10px">
-          <span id="hwmsSiSelCount" style="font-size:13px;font-weight:700;color:#dc2626"></span>
-          <button onclick="_hwmsSiBulkDel()" style="padding:6px 16px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer">🗑 Delete Selected</button>
-          <button onclick="_hwmsSiClearSel()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">Cancel</button>
-        </div>
         <div class="table-wrap">
           <style>
             #hwmsSiTbl thead th{background:var(--surface2);color:var(--text);font-size:12px;font-weight:800;letter-spacing:.3px;padding:8px 8px 6px;vertical-align:top;border-bottom:3px solid var(--accent);white-space:nowrap}
@@ -763,7 +754,9 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
     <div class="page" id="pageHwmsSiView">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="btn" onclick="hwmsGo('pageHwmsSubInvoices')" style="padding:6px 14px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">← Back</button>
+          <button class="btn" onclick="_hwmsActiveSiPage='pageHwmsSubInvoices';hwmsGo('pageHwmsSubInvoices')" style="padding:6px 14px;font-size:13px;background:#e0f2fe;border:1.5px solid #7dd3fc;color:#0369a1;font-weight:700;border-radius:var(--radius);cursor:pointer">← Back</button>
+          <button id="hwmsSiPrevBtn" onclick="_hwmsSiNav(-1)" title="Previous Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
+          <button id="hwmsSiNextBtn" onclick="_hwmsSiNav(1)" title="Next Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
           <div class="page-title" id="hwmsSiViewTitle">Sub-Invoice Details</div>
         </div>
         <div id="hwmsSiViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
@@ -832,6 +825,81 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
     <div class="page" id="pageCheckpoints">
 
 </div>
+    <div class="page" id="pageHwmsSysGuide">
+      <div class="card" style="padding:24px;max-width:1100px">
+        <div style="font-size:20px;font-weight:900;color:var(--accent);margin-bottom:20px">📖 HWMS System Guide <span style="font-size:12px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:8px">Super Admin Only</span></div>
+
+        <!-- SECTION 1: ROLES -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">👥 HWMS Roles</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Code</th>
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Role Name</th>
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Description</th>
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Default Landing Page</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#7c3aed">SA</td><td style="padding:6px 10px;border:1px solid var(--border)">Super Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">Full access to all pages, masters, operations, delete, undo dispatch, revoke reached</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
+              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#2563eb">HA</td><td style="padding:6px 10px;border:1px solid var(--border)">HWMS Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">All ops pages + masters. Add/edit containers, invoices, sub-invoices. Cannot delete containers.</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
+              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#ea580c">WA</td><td style="padding:6px 10px;border:1px solid var(--border)">WH Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">Invoices, Inventory, Sub-Invoices, Material Requests. Can add/edit MR and mark pickup.</td><td style="padding:6px 10px;border:1px solid var(--border)">Invoices</td></tr>
+              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#16a34a">WU</td><td style="padding:6px 10px;border:1px solid var(--border)">WH User</td><td style="padding:6px 10px;border:1px solid var(--border)">Material Requests only. Can view MR and mark pickup on sub-invoices.</td><td style="padding:6px 10px;border:1px solid var(--border)">Material Requests</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- SECTION 2: PAGE ACCESS MATRIX -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔐 Page Access Matrix</div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800;min-width:180px">Page / Action</th>
+              <th style="padding:8px 10px;text-align:center;border:1px solid var(--border);font-weight:800;color:#7c3aed;min-width:50px">SA</th>
+              <th style="padding:8px 10px;text-align:center;border:1px solid var(--border);font-weight:800;color:#2563eb;min-width:50px">HA</th>
+              <th style="padding:8px 10px;text-align:center;border:1px solid var(--border);font-weight:800;color:#ea580c;min-width:50px">WA</th>
+              <th style="padding:8px 10px;text-align:center;border:1px solid var(--border);font-weight:800;color:#16a34a;min-width:50px">WU</th>
+            </tr></thead>
+            <tbody id="sysGuideMatrix"></tbody>
+          </table>
+          </div>
+        </div>
+
+        <!-- SECTION 3: DATABASE TABLES -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🗄️ Supabase Database Tables</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">App Key</th>
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Supabase Table</th>
+              <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Description</th>
+              <th style="padding:8px 10px;text-align:right;border:1px solid var(--border);font-weight:800">Records</th>
+            </tr></thead>
+            <tbody id="sysGuideDbTables"></tbody>
+          </table>
+        </div>
+
+        <!-- SECTION 4: PROCESS FLOW -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">📋 Process Flow</div>
+          <div id="sysGuideFlow" style="font-size:13px;line-height:1.8"></div>
+        </div>
+
+        <!-- SECTION 5: STATUS LIFECYCLE -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔄 Container Status Lifecycle</div>
+          <div id="sysGuideContLife" style="font-size:13px"></div>
+        </div>
+
+        <!-- SECTION 6: INVOICE STATUS LIFECYCLE -->
+        <div style="margin-bottom:24px">
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔄 Invoice Status Lifecycle</div>
+          <div id="sysGuideInvLife" style="font-size:13px"></div>
+        </div>
+
+      </div>
+    </div>
+
 <!-- HWMS MODALS -->
 <!-- HWMS SUB-INVOICE MODAL -->
 <div class="modal-overlay" id="mHwmsSi"><div class="modal" style="max-width:680px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;padding:20px 24px">
@@ -968,7 +1036,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
     <div class="modal-close" onclick="cm('mHwmsContReceive')">×</div>
   </div>
   <div style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-    <div class="form-group" style="margin:0"><label style="font-weight:700">Receipt Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsRecvDate_fmt" readonly onclick="document.getElementById('hwmsRecvDate').showPicker()" placeholder="dd-Mon-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsRecvDate" onchange="_hwmsContDateFmt('hwmsRecvDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsRecvDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
+    <div class="form-group" style="margin:0"><label style="font-weight:700">Receipt Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsRecvDate_fmt" readonly onclick="document.getElementById('hwmsRecvDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsRecvDate" onchange="_hwmsContDateFmt('hwmsRecvDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsRecvDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
     <div class="form-group" style="margin:0"><label style="font-weight:700;font-size:10px;color:var(--text3)">Container Photo (optional)</label><div style="display:flex;gap:6px;align-items:center"><label style="margin:0;cursor:pointer;display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:rgba(42,154,160,.1);border:1.5px solid var(--accent);border-radius:var(--radius);font-size:16px" title="Upload container photo" onclick="document.getElementById('hwmsRecvContPhoto').click()">📷</label><input type="file" id="hwmsRecvContPhoto" accept="image/*" onchange="_hwmsRecvPhotoPreview(this,'hwmsRecvContPhotoPreview')" style="display:none"><div id="hwmsRecvContPhotoPreview"></div></div></div>
   </div>
   <div id="hwmsRecvBody" style="margin-bottom:12px"></div>
@@ -1150,12 +1218,22 @@ function toggleHwmsNav(){
     document.body.classList.toggle('hwms-nav-hidden');
   }
 }
+// Track active sub-pages for MI and SI (so nav click resumes where user was)
+var _hwmsActiveMiPage='pageHwmsInvoices';
+var _hwmsActiveSiPage='pageHwmsSubInvoices';
+
 function hwmsGo(pageId){
+  // Track active sub-page for MI group
+  if(pageId==='pageHwmsInvoices'||pageId==='pageHwmsInvEdit'||pageId==='pageHwmsInvView') _hwmsActiveMiPage=pageId;
+  // Track active sub-page for SI group
+  if(pageId==='pageHwmsSubInvoices'||pageId==='pageHwmsSiView') _hwmsActiveSiPage=pageId;
   document.querySelectorAll('#hwmsApp .page').forEach(p=>p.classList.remove('active'));
   const pg=document.getElementById(pageId);
   if(pg) pg.classList.add('active');
-  // Update topbar title with badge
-  const nav=document.querySelector(`.nav-item[onclick*="${pageId}"]`);
+  // Update topbar title with badge — map sub-pages to parent nav ID
+  var _navIdMap={'pageHwmsInvoices':'navInvoices','pageHwmsInvEdit':'navInvoices','pageHwmsInvView':'navInvoices','pageHwmsSubInvoices':'navSubInvoices','pageHwmsSiView':'navSubInvoices','pageHwmsMR':'navMR','pageHwmsMrView':'navMR','pageHwmsContainers':'navContainers','pageHwmsInventory':'navInventory','pageHwmsParts':'navParts','pageHwmsCarriers':'navCarriers','pageHwmsCompany':'navCompany','pageHwmsOtherMasters':'navOtherMasters','pageHwmsPorts':'navPorts','pageHwmsSteelRates':'navCustomers','pageHwmsCustomers':'navCustomers','pageHwmsSysGuide':'navSysGuide'};
+  var _navId=_navIdMap[pageId];
+  const nav=_navId?document.getElementById(_navId):null;
   var titleEl=document.getElementById('hwmsPageTitle');
   if(titleEl&&nav){
     // Extract text without badge count
@@ -1179,8 +1257,10 @@ function hwmsGo(pageId){
   document.getElementById('hwmsOverlay').classList.remove('show');
   // Trigger render
   const renderMap={
-    pageHwmsContainers: ()=>{ if(typeof renderHwmsContainers==='function') renderHwmsContainers(); },
+    pageHwmsContainers: ()=>{ if(typeof renderHwmsContainers==='function') renderHwmsContainers(); var _cid2=document.getElementById('eHwmsContId');if(_cid2&&_cid2.value&&document.getElementById('hwmsContFormView')?.style.display!=='none') _hwmsContRenderLinkedInvs(_cid2.value); },
     pageHwmsInvoices: ()=>{ if(typeof renderHwmsInvoices==='function') renderHwmsInvoices(); },
+    pageHwmsInvEdit: ()=>{}, // content persists from openHwmsInvModal
+    pageHwmsInvView: ()=>{}, // content persists from showHwmsInvDetail
     pageHwmsInventory: ()=>{ if(typeof renderHwmsInventory==='function') renderHwmsInventory(); },
     pageHwmsSubInvoices: ()=>{ if(typeof renderHwmsSubInvoices==='function') renderHwmsSubInvoices(); },
     pageHwmsSiView: ()=>{}, // rendered by showHwmsSiDetail
@@ -1200,6 +1280,7 @@ function hwmsGo(pageId){
     pageHwmsCompany: ()=>{ if(typeof renderHwmsCompany==='function') renderHwmsCompany(); },
     pageHwmsCustomers: ()=>{ if(typeof renderHwmsCustomers==='function') renderHwmsCustomers(); },
     pageHwmsSteelRates: ()=>{ renderHwmsSteelRates(); },
+    pageHwmsSysGuide: ()=>{ if(typeof _hwmsRenderSysGuide==='function') _hwmsRenderSysGuide(); },
     pageHwmsPorts: ()=>{
       if(typeof renderHwmsPortDisch==='function') renderHwmsPortDisch();
       if(typeof renderHwmsPortLoad==='function') renderHwmsPortLoad();
@@ -1290,6 +1371,8 @@ function _hwmsApplyPermissions(){
   show('navCustomers',showMasters);show('navParts',showMasters);
   show('navCarriers',showMasters);show('navPorts',showMasters);
   show('navOtherMasters',showMasters);show('navCompany',showMasters);
+  // System Guide — Super Admin only
+  show('navSysGuide',role==='SA');
   // MI page buttons
   show('btnHwmsInvExport',_hwmsCan('mi.export'));
   show('btnHwmsInvImport',_hwmsCan('mi.import'));
@@ -1364,6 +1447,230 @@ function _hwmsUpdCounts(){
   }
 }
 
+// ═══ HWMS IMPORT / EXPORT SCHEMA ═══════════════════════════════════════════
+const MASTER_SCHEMA={
+  hwmsContainers:{
+    label:'Containers',
+    render:renderHwmsContainers,
+    toRow:function(c){
+      var st=c.status==='Onwater'?'In Transit':c.status==='Reached'?'Warehouse':'Draft';
+      var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
+      var invNums=invs.map(function(inv){return inv.invoiceNumber;}).join('; ');
+      return {'Container No.':c.containerNumber||'','Serial No.':c.containerSerialNumber||'','Expected Pickup':c.expectedPickupDate||'','Actual Dispatch':c.pickupDate||'','Carrier':c.carrierName||'','Status':st,'Expected Reach':c.expectedReachDate||'','Reached Date':c.reachedDate||'','Carrier Inv No.':c.carrierInvNumber||'','Carrier Inv Date':c.carrierInvDate||'','Carrier Inv Amount':c.carrierInvAmount||0,'ES Number':c.entrySummaryNumber||'','ES Date':c.esDate||'','Tariff Paid':c.tariffPaid||0,'Linked Invoices':invNums};
+    },
+    fromRow:function(r){
+      var cn=(r['Container No.']||'').toString().trim();
+      if(!cn) return null;
+      if(!cn.startsWith('CN-')) cn='CN-'+cn;
+      var carrierId='';var carrierName=(r['Carrier']||'').toString().trim();
+      if(carrierName){var cr=(DB.hwmsCarriers||[]).find(function(c){return(c.carrierName||'').toLowerCase()===carrierName.toLowerCase();});if(cr)carrierId=cr.id;}
+      return {id:'hc'+uid(),status:'',confirmed:false,containerNumber:cn,containerSerialNumber:(r['Serial No.']||'').toString().trim(),expectedPickupDate:(r['Expected Pickup']||'').toString().trim(),pickupDate:'',carrierId:carrierId,carrierName:carrierName,expectedReachDate:'',reachedDate:'',carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,entrySummaryNumber:'',esDate:'',esPhoto:'',tariffPaid:0,tariffPercent:0};
+    },
+    matchKey:function(r){return(r['Container No.']||'').toString().trim().toUpperCase();},
+    dbMatchKey:function(c){return(c.containerNumber||'').toUpperCase();},
+    merge:function(e,r){
+      if(r['Serial No.']!==undefined)e.containerSerialNumber=(r['Serial No.']||'').toString().trim();
+      if(r['Expected Pickup']!==undefined)e.expectedPickupDate=(r['Expected Pickup']||'').toString().trim();
+      if(r['Carrier']!==undefined){var cn2=(r['Carrier']||'').toString().trim();var cr2=(DB.hwmsCarriers||[]).find(function(c){return(c.carrierName||'').toLowerCase()===cn2.toLowerCase();});if(cr2){e.carrierId=cr2.id;e.carrierName=cr2.carrierName;}}
+    }
+  },
+  hwmsInvoices:{
+    label:'Invoices',
+    render:renderHwmsInvoices,
+    _flatExport:true,
+    toRow:function(inv){
+      var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+      if(!lis.length){
+        return [{'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':inv.confirmed?'RFD':'Draft','Container':inv.containerNumber||'','Pallet':'','Part No.':'','PO No.':'','Qty':'','UOM':'','Rate':'','Net Wt':'','Pkg Wt':'','Gross Wt':'','Package':'','HSN':'','L':'','W':'','H':''}];
+      }
+      return lis.map(function(li){
+        var part=byId(DB.hwmsParts||[],li.partId);
+        var pn=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):'';
+        return {'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':inv.confirmed?'RFD':'Draft','Container':inv.containerNumber||'','Pallet':li.palletNumber||'','Part No.':pn,'PO No.':li.poNumber||'','Qty':li.quantity||0,'UOM':li.uom||'','Rate':li.rate||0,'Net Wt':li.netWeight||0,'Pkg Wt':li.pkgWeight||0,'Gross Wt':li.grossWeight||0,'Package':li.packageType||'','HSN':li.hsnCode||'','L':li.pkgL||'','W':li.pkgW||'','H':li.pkgH||''};
+      });
+    },
+    fromRow:function(r){
+      var invNum=(r['MI Number']||'').toString().trim();
+      if(!invNum) return null;
+      var buyerName=(r['Buyer']||'').toString().trim();
+      var buyerId='';
+      if(buyerName){var cust=(DB.hwmsCustomers||[]).find(function(c){return(c.customerName||'').toLowerCase()===buyerName.toLowerCase();});if(cust)buyerId=cust.id;}
+      var pn=(r['Part No.']||'').toString().trim();
+      var partId='';
+      if(pn){var pnClean=pn.replace(/\s+R\d+$/,'').trim();var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pnClean;});if(part)partId=part.id;}
+      var li={partId:partId,palletNumber:(r['Pallet']||'').toString().trim(),poNumber:(r['PO No.']||'').toString().trim(),quantity:parseInt(r['Qty'])||0,uom:(r['UOM']||'').toString().trim(),rate:parseFloat(r['Rate'])||0,netWeight:parseFloat(r['Net Wt'])||0,pkgWeight:parseFloat(r['Pkg Wt'])||0,grossWeight:parseFloat(r['Gross Wt'])||0,packageType:(r['Package']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),pkgL:(r['L']||'').toString().trim(),pkgW:(r['W']||'').toString().trim(),pkgH:(r['H']||'').toString().trim()};
+      return {_invNum:invNum,_date:(r['Date']||'').toString().trim(),_buyerName:buyerName,_buyerId:buyerId,_consigneeName:(r['Consignee']||'').toString().trim(),_lineItem:li};
+    },
+    // Custom import logic for flat invoice rows
+    _customImport:true,
+    matchKey:function(r){return(r['MI Number']||'').toString().trim();},
+    dbMatchKey:function(inv){return inv.invoiceNumber||'';},
+  },
+  hwmsParts:{
+    label:'Parts',
+    render:renderHwmsParts,
+    toRow:function(p){return {'Part No.':p.partNumber||'','Revision':p.partRevision||'','Description':p.description||'','Status':p.status||'Active','UOM':p.uom||'','HSN':p.hsnCode||'','Net Wt (Kg)':p.netWeightKg||0,'Package Type':p.packingType||'','Pkg Weight (Kg)':p.packingWeight||0,'Dimensions (LxWxH)':p.packingDimensions||'','Qty/Pkg':p.qtyPerPackage||0,'Rate':p.finalRate||0};},
+    fromRow:function(r){
+      var pn=(r['Part No.']||'').toString().trim();
+      if(!pn) return null;
+      return {id:'hp'+uid(),partNumber:pn,partRevision:(r['Revision']||'').toString().trim(),description:(r['Description']||'').toString().trim(),status:(r['Status']||'Active').toString().trim(),uom:(r['UOM']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),netWeightKg:parseFloat(r['Net Wt (Kg)'])||0,packingType:(r['Package Type']||'').toString().trim(),packingWeight:parseFloat(r['Pkg Weight (Kg)'])||0,packingDimensions:(r['Dimensions (LxWxH)']||'').toString().trim(),qtyPerPackage:parseInt(r['Qty/Pkg'])||0,finalRate:parseFloat(r['Rate'])||0,rates:[]};
+    },
+    matchKey:function(r){return((r['Part No.']||'')+'|'+(r['Revision']||'')).toString().trim().toLowerCase();},
+    dbMatchKey:function(p){return(p.partNumber+'|'+(p.partRevision||'')).toLowerCase();},
+    merge:function(e,r){
+      if(r['Description']!==undefined)e.description=(r['Description']||'').toString().trim();
+      if(r['UOM']!==undefined)e.uom=(r['UOM']||'').toString().trim();
+      if(r['HSN']!==undefined)e.hsnCode=(r['HSN']||'').toString().trim();
+      if(r['Net Wt (Kg)']!==undefined)e.netWeightKg=parseFloat(r['Net Wt (Kg)'])||e.netWeightKg;
+      if(r['Package Type']!==undefined)e.packingType=(r['Package Type']||'').toString().trim();
+      if(r['Pkg Weight (Kg)']!==undefined)e.packingWeight=parseFloat(r['Pkg Weight (Kg)'])||e.packingWeight;
+      if(r['Dimensions (LxWxH)']!==undefined)e.packingDimensions=(r['Dimensions (LxWxH)']||'').toString().trim();
+      if(r['Rate']!==undefined)e.finalRate=parseFloat(r['Rate'])||e.finalRate;
+    }
+  },
+  hwmsCarriers:{
+    label:'Carriers',
+    render:renderHwmsCarriers,
+    toRow:function(c){return {'Carrier Name':c.carrierName||'','Address':c.address||'','Contact':c.contact||''};},
+    fromRow:function(r){var n=(r['Carrier Name']||'').toString().trim();if(!n)return null;return {id:'hcr'+uid(),carrierName:n,address:(r['Address']||'').toString().trim(),contact:(r['Contact']||'').toString().trim()};},
+    matchKey:function(r){return(r['Carrier Name']||'').toString().trim().toLowerCase();},
+    dbMatchKey:function(c){return(c.carrierName||'').toLowerCase();},
+    merge:function(e,r){if(r['Address']!==undefined)e.address=(r['Address']||'').toString().trim();if(r['Contact']!==undefined)e.contact=(r['Contact']||'').toString().trim();}
+  },
+  hwmsCustomers:{
+    label:'Customers',
+    render:renderHwmsCustomers,
+    toRow:function(c){return {'Customer Name':c.customerName||'','Address':c.address||'','Country':c.country||'','Transport':c.defaultTransport||'','Delivery':c.defaultDelivery||'','Payment Terms':c.defaultPaymentTerms||''};},
+    fromRow:function(r){var n=(r['Customer Name']||'').toString().trim();if(!n)return null;return {id:'hcu'+uid(),customerName:n,address:(r['Address']||'').toString().trim(),country:(r['Country']||'').toString().trim(),defaultTransport:(r['Transport']||'').toString().trim(),defaultDelivery:(r['Delivery']||'').toString().trim(),defaultPaymentTerms:(r['Payment Terms']||'').toString().trim(),consignees:[]};},
+    matchKey:function(r){return(r['Customer Name']||'').toString().trim().toLowerCase();},
+    dbMatchKey:function(c){return(c.customerName||'').toLowerCase();},
+    merge:function(e,r){if(r['Address']!==undefined)e.address=(r['Address']||'').toString().trim();if(r['Country']!==undefined)e.country=(r['Country']||'').toString().trim();}
+  },
+  hwmsHsn:{
+    label:'HSN Codes',
+    render:renderHwmsHsn,
+    toRow:function(h){return {'HSN Number':h.hsnNumber||'','Description':h.description||''};},
+    fromRow:function(r){var n=(r['HSN Number']||'').toString().trim();if(!n)return null;return {id:'hh'+uid(),hsnNumber:n,description:(r['Description']||'').toString().trim()};},
+    matchKey:function(r){return(r['HSN Number']||'').toString().trim();},
+    dbMatchKey:function(h){return h.hsnNumber||'';},
+    merge:function(e,r){if(r['Description']!==undefined)e.description=(r['Description']||'').toString().trim();}
+  },
+  hwmsUom:{
+    label:'UOM',
+    render:renderHwmsUom,
+    toRow:function(u){return {'UOM':u.uom||'','Description':u.description||''};},
+    fromRow:function(r){var n=(r['UOM']||'').toString().trim();if(!n)return null;return {id:'hu'+uid(),uom:n,description:(r['Description']||'').toString().trim()};},
+    matchKey:function(r){return(r['UOM']||'').toString().trim().toLowerCase();},
+    dbMatchKey:function(u){return(u.uom||'').toLowerCase();},
+    merge:function(e,r){if(r['Description']!==undefined)e.description=(r['Description']||'').toString().trim();}
+  },
+  hwmsPacking:{
+    label:'Packing Types',
+    render:renderHwmsPacking,
+    toRow:function(p){return {'Name':p.name||'','Description':p.description||''};},
+    fromRow:function(r){var n=(r['Name']||'').toString().trim();if(!n)return null;return {id:'hpk'+uid(),name:n,description:(r['Description']||'').toString().trim()};},
+    matchKey:function(r){return(r['Name']||'').toString().trim().toLowerCase();},
+    dbMatchKey:function(p){return(p.name||'').toLowerCase();},
+    merge:function(e,r){if(r['Description']!==undefined)e.description=(r['Description']||'').toString().trim();}
+  }
+};
+
+function exportMaster(col){
+  if(!_hwmsIsAdmin()&&!_hwmsIsSA()){notify('⚠ Export is restricted to Admin users only.',true);return;}
+  var schema=MASTER_SCHEMA[col];
+  if(!schema){notify('Export not supported for this master',true);return;}
+  var objRows;
+  if(schema._flatExport){
+    objRows=[];
+    (DB[col]||[]).forEach(function(item){
+      var rows=schema.toRow(item);
+      if(Array.isArray(rows)) objRows=objRows.concat(rows);
+      else objRows.push(rows);
+    });
+  } else {
+    objRows=(DB[col]||[]).map(schema.toRow);
+  }
+  if(!objRows.length){notify('No data to export',true);return;}
+  var headers=Object.keys(objRows[0]);
+  var data=[headers].concat(objRows.map(function(r){return headers.map(function(h){return r[h]===undefined||r[h]===null?'':r[h];});}));
+  var fname='KAP_'+schema.label.replace(/\s+/g,'_')+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
+  _downloadAsXls(data, schema.label, fname);
+  notify('✅ '+schema.label+' exported to Excel!');
+}
+
+// Override importMaster for HWMS role checks + invoice grouping
+function importMaster(col,inputEl){
+  if(!_hwmsIsAdmin()&&!_hwmsIsSA()){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
+  var file=inputEl.files[0];
+  if(!file) return;
+  inputEl.value='';
+  var schema=MASTER_SCHEMA[col];
+  if(!schema){notify('Import not supported for this master',true);return;}
+  var ext=file.name.split('.').pop().toLowerCase();
+  if(ext!=='xlsx'){notify('⚠ Unsupported format. Use .xlsx file.',true);return;}
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      var rows=await _parseXLSX(e.target.result);
+      if(!rows.length){notify('No data found in file',true);return;}
+      if(schema._customImport&&col==='hwmsInvoices'){
+        await _hwmsImportInvoices(rows);
+      } else {
+        await _applyImportRows(rows,col,schema);
+      }
+    }catch(err){notify('⚠ '+err.message,true);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Custom invoice import: group flat rows by MI Number into invoice objects
+async function _hwmsImportInvoices(rows){
+  showSpinner('Importing invoices…');
+  try{
+  var grouped={};
+  rows.forEach(function(r){
+    var invNum=(r['MI Number']||'').toString().trim();
+    if(!invNum) return;
+    if(!grouped[invNum]) grouped[invNum]={invNum:invNum,date:(r['Date']||'').toString().trim(),buyerName:(r['Buyer']||'').toString().trim(),consigneeName:(r['Consignee']||'').toString().trim(),containerNum:(r['Container']||'').toString().trim(),lineItems:[]};
+    var pn=(r['Part No.']||'').toString().trim();
+    if(!pn) return;
+    var pnClean=pn.replace(/\s+R\d+$/,'').trim();
+    var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pnClean;});
+    grouped[invNum].lineItems.push({
+      partId:part?.id||'',palletNumber:(r['Pallet']||'').toString().trim(),
+      poNumber:(r['PO No.']||'').toString().trim(),quantity:parseInt(r['Qty'])||0,
+      uom:(r['UOM']||'').toString().trim()||(part?.uom||''),rate:parseFloat(r['Rate'])||0,
+      netWeight:parseFloat(r['Net Wt'])||0,pkgWeight:parseFloat(r['Pkg Wt'])||0,grossWeight:parseFloat(r['Gross Wt'])||0,
+      packageType:(r['Package']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),
+      pkgL:(r['L']||'').toString().trim(),pkgW:(r['W']||'').toString().trim(),pkgH:(r['H']||'').toString().trim()
+    });
+  });
+  var added=0,updated=0,skipped=0;
+  var invNums=Object.keys(grouped);
+  for(var i=0;i<invNums.length;i++){
+    var g=grouped[invNums[i]];
+    _spinnerMsg('Processing '+(i+1)+'/'+invNums.length+'…');
+    var existing=(DB.hwmsInvoices||[]).find(function(inv){return inv.invoiceNumber===g.invNum;});
+    if(existing){
+      // Update line items (replace all)
+      var metaLi=(existing.lineItems||[]).filter(function(li){return li._meta;});
+      existing.lineItems=g.lineItems.concat(metaLi);
+      if(await _dbSave('hwmsInvoices',existing)) updated++;
+      else skipped++;
+    } else {
+      // New invoice
+      var buyerId='';
+      if(g.buyerName){var cust=(DB.hwmsCustomers||[]).find(function(c){return(c.customerName||'').toLowerCase()===g.buyerName.toLowerCase();});if(cust)buyerId=cust.id;}
+      var inv={id:'hi'+uid(),invoiceNumber:g.invNum,date:g.date,buyerId:buyerId,buyerName:g.buyerName,consigneeName:g.consigneeName,consigneeIdx:0,confirmed:false,containerId:'',containerNumber:g.containerNum,lineItems:g.lineItems,modeOfTransport:'',delivery:'',paymentTerms:'',paymentStatus:'Pending',portOfLoading:'',portOfDischarge:'',countryOfDest:''};
+      if(await _dbSave('hwmsInvoices',inv)) added++;
+      else skipped++;
+    }
+  }
+  renderHwmsInvoices();
+  notify('Import done: '+added+' added, '+updated+' updated'+(skipped?', '+skipped+' skipped':''));
+  }finally{hideSpinner();}
+}
+
 // ── HWMS Boot ───────────────────────────────────────────────────────────────
 async function _hwmsBoot(){
   // Guard: myApps_Common_v18.js must be loaded before this runs.
@@ -1431,6 +1738,9 @@ async function _hwmsBoot(){
           var ap=document.querySelector('.hwms-page.active');
           if(ap){ hwmsGo(ap.id); }
           _hwmsUpdCounts();
+          // Refresh container form's linked invoices if open
+          var _cid=document.getElementById('eHwmsContId');
+          if(_cid&&_cid.value&&document.getElementById('hwmsContFormView')?.style.display!=='none') _hwmsContRenderLinkedInvs(_cid.value);
         }catch(e){}
       };
       return;
@@ -1568,9 +1878,17 @@ async function saveHwmsHsn(){
   if(!hsnNumber){modalErr('mHwmsHsn','HSN Number is required');return;}
   if((DB.hwmsHsn||[]).find(h=>h.hsnNumber===hsnNumber&&h.id!==id)){modalErr('mHwmsHsn','HSN Number already exists');return;}
   if(!DB.hwmsHsn)DB.hwmsHsn=[];
+  var oldHsn=id?byId(DB.hwmsHsn,id)?.hsnNumber:'';
   if(id){const h=byId(DB.hwmsHsn,id);const bak={...h};Object.assign(h,{hsnNumber,description});if(!await _dbSave('hwmsHsn',h)){Object.assign(h,bak);return;}}
   else{const h={id:'hh'+uid(),hsnNumber,description};if(!await _dbSave('hwmsHsn',h))return;}
   cm('mHwmsHsn');renderHwmsHsn();notify('HSN saved!');
+  // Cascade: if HSN code changed, update all parts and their invoices
+  if(id&&oldHsn&&oldHsn!==hsnNumber){
+    var affectedPartIds=[];
+    (DB.hwmsParts||[]).forEach(function(p){if(p.hsnCode===oldHsn){p.hsnCode=hsnNumber;_dbSave('hwmsParts',p);affectedPartIds.push(p.id);}});
+    for(var _i=0;_i<affectedPartIds.length;_i++) await _hwmsSyncPartToInvoices(affectedPartIds[_i]);
+    if(affectedPartIds.length) notify('🔄 Updated HSN in '+affectedPartIds.length+' part(s)');
+  }
 }
 
 // ===== HWMS: UOM MASTER =====
@@ -1598,9 +1916,16 @@ async function saveHwmsUom(){
   if(!uom){modalErr('mHwmsUom','UOM is required');return;}
   if((DB.hwmsUom||[]).find(u=>u.uom.toLowerCase()===uom.toLowerCase()&&u.id!==id)){modalErr('mHwmsUom','UOM already exists');return;}
   if(!DB.hwmsUom)DB.hwmsUom=[];
+  var oldUom=id?byId(DB.hwmsUom,id)?.uom:'';
   if(id){const u=byId(DB.hwmsUom,id);const bak={...u};Object.assign(u,{uom,description});if(!await _dbSave('hwmsUom',u)){Object.assign(u,bak);return;}}
   else{const u={id:'hu'+uid(),uom,description};if(!await _dbSave('hwmsUom',u))return;}
   cm('mHwmsUom');renderHwmsUom();notify('UOM saved!');
+  if(id&&oldUom&&oldUom!==uom){
+    var affectedPartIds=[];
+    (DB.hwmsParts||[]).forEach(function(p){if(p.uom===oldUom){p.uom=uom;_dbSave('hwmsParts',p);affectedPartIds.push(p.id);}});
+    for(var _i=0;_i<affectedPartIds.length;_i++) await _hwmsSyncPartToInvoices(affectedPartIds[_i]);
+    if(affectedPartIds.length) notify('🔄 Updated UOM in '+affectedPartIds.length+' part(s)');
+  }
 }
 
 // ===== HWMS: PACKAGING MASTER =====
@@ -1628,9 +1953,16 @@ async function saveHwmsPacking(){
   if(!name){modalErr('mHwmsPacking','Packaging Name is required');return;}
   if((DB.hwmsPacking||[]).find(pk=>pk.name.toLowerCase()===name.toLowerCase()&&pk.id!==id)){modalErr('mHwmsPacking','Packaging name already exists');return;}
   if(!DB.hwmsPacking)DB.hwmsPacking=[];
+  var oldName=id?byId(DB.hwmsPacking,id)?.name:'';
   if(id){const pk=byId(DB.hwmsPacking,id);const bak={...pk};Object.assign(pk,{name,description});if(!await _dbSave('hwmsPacking',pk)){Object.assign(pk,bak);return;}}
   else{const pk={id:'hpk'+uid(),name,description};if(!await _dbSave('hwmsPacking',pk))return;}
   cm('mHwmsPacking');renderHwmsPacking();notify('Packaging saved!');
+  if(id&&oldName&&oldName!==name){
+    var affectedPartIds=[];
+    (DB.hwmsParts||[]).forEach(function(p){if(p.packingType===oldName){p.packingType=name;_dbSave('hwmsParts',p);affectedPartIds.push(p.id);}});
+    for(var _i=0;_i<affectedPartIds.length;_i++) await _hwmsSyncPartToInvoices(affectedPartIds[_i]);
+    if(affectedPartIds.length) notify('🔄 Updated Packing in '+affectedPartIds.length+' part(s)');
+  }
 }
 
 // ===== HWMS: CUSTOMER MASTER =====
@@ -2289,6 +2621,68 @@ async function saveHwmsPart(){
   else{const p={id:'hp'+uid(),...data};if(!await _dbSave('hwmsParts',p))return;}
   cm('mHwmsPart');renderHwmsParts();notify('Part saved!');
   if(typeof _hwmsLiRenderTable==='function'&&_hwmsLiItems&&_hwmsLiItems.length) _hwmsLiRenderTable();
+  // Sync updated part data to all invoice line items referencing this part
+  var savedPartId=id||(DB.hwmsParts||[]).slice(-1)[0]?.id;
+  if(savedPartId) await _hwmsSyncPartToInvoices(savedPartId);
+}
+
+// Sync part master data to all invoice line items referencing this part
+async function _hwmsSyncPartToInvoices(partId){
+  var part=byId(DB.hwmsParts||[],partId);
+  if(!part) return;
+  var dims=(part.packingDimensions||'').split(/[xX×]/).map(function(v){return v.trim();});
+  var pkgL=dims[0]||'';var pkgW=dims[1]||'';var pkgH=dims[2]||'';
+  var updated=0;
+  for(var i=0;i<(DB.hwmsInvoices||[]).length;i++){
+    var inv=DB.hwmsInvoices[i];
+    var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+    var changed=false;
+    lis.forEach(function(li){
+      if(li.partId!==partId) return;
+      // Sync fields from part master
+      if(li.hsnCode!==(part.hsnCode||'')){li.hsnCode=part.hsnCode||'';changed=true;}
+      if(li.uom!==(part.uom||'')){li.uom=part.uom||'';changed=true;}
+      if(li.packageType!==(part.packingType||'')){li.packageType=part.packingType||'';changed=true;}
+      // Rate
+      var newRate=part.finalRate||0;
+      if(li.rate!==newRate){li.rate=newRate;changed=true;}
+      // Dimensions
+      if((li.pkgL||'')!==pkgL){li.pkgL=pkgL;changed=true;}
+      if((li.pkgW||'')!==pkgW){li.pkgW=pkgW;changed=true;}
+      if((li.pkgH||'')!==pkgH){li.pkgH=pkgH;changed=true;}
+      // Packing weight
+      var newPkgWt=part.packingWeight||0;
+      if((li.pkgWeight||0)!==newPkgWt){li.pkgWeight=newPkgWt;changed=true;}
+      // Net weight = unit weight × qty
+      var newNetWt=Math.round((part.netWeightKg||0)*(li.quantity||0));
+      if((li.netWeight||0)!==newNetWt){li.netWeight=newNetWt;changed=true;}
+      // Gross weight = net + pkg
+      var newGrossWt=newNetWt+(li.pkgWeight||0);
+      if((li.grossWeight||0)!==newGrossWt){li.grossWeight=newGrossWt;changed=true;}
+    });
+    if(changed){
+      await _dbSave('hwmsInvoices',inv);
+      updated++;
+    }
+  }
+  if(updated) notify('📦 Synced part data to '+updated+' invoice'+(updated>1?'s':''));
+  // Also sync rate to sub-invoice line items
+  var siUpdated=0;
+  for(var j=0;j<(DB.hwmsSubInvoices||[]).length;j++){
+    var si=DB.hwmsSubInvoices[j];
+    var siLis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
+    var siChanged=false;
+    siLis.forEach(function(l){
+      if(l.partId!==partId) return;
+      var newRate=part.finalRate||0;
+      if(l.rate!==newRate){l.rate=newRate;siChanged=true;}
+    });
+    if(siChanged){
+      await _dbSave('hwmsSubInvoices',si);
+      siUpdated++;
+    }
+  }
+  if(siUpdated) notify('📤 Synced rate to '+siUpdated+' sub-invoice'+(siUpdated>1?'s':''));
 }
 
 // ===== HWMS: CONTAINER MASTER =====
@@ -2339,6 +2733,9 @@ async function _hwmsConfirmInv(id){
     const bak={...inv};inv.confirmed=true;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
     renderHwmsInvoices();
+    // Refresh container form's linked invoices if open
+    var _contId=document.getElementById('eHwmsContId');
+    if(_contId&&_contId.value&&document.getElementById('hwmsContFormView')?.style.display!=='none') _hwmsContRenderLinkedInvs(_contId.value);
     notify('✅ MI '+inv.invoiceNumber+' confirmed as RFD');
     showHwmsInvDetail(id);
   },{icon:'🔒',title:'Confirm & Lock Main Invoice',btnLabel:'🔒 Confirm MI',btnColor:'#16a34a'});
@@ -2353,6 +2750,9 @@ async function _hwmsRevokeInv(id){
     const bak={...inv};inv.confirmed=false;
     if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}
     renderHwmsInvoices();
+    // Refresh container form's linked invoices if open
+    var _contId2=document.getElementById('eHwmsContId');
+    if(_contId2&&_contId2.value&&document.getElementById('hwmsContFormView')?.style.display!=='none') _hwmsContRenderLinkedInvs(_contId2.value);
     notify('MI '+inv.invoiceNumber+' revoked to Draft');
     // Immediately refresh the detail view so buttons update without manual navigation
     showHwmsInvDetail(id);
@@ -2567,18 +2967,25 @@ async function _hwmsContDeleteSelected(){
     var st=c.status==='Onwater'?'In Transit':c.status==='Reached'?'Warehouse':'Draft';
     msg+='  • '+c.containerNumber+' ('+st+')\n';
   });
-  if(hasLinked.length) msg+='\n📋 Containers with linked invoices:\n'+hasLinked.map(function(n){return '  • '+n;}).join('\n')+'\n';
+  if(hasLinked.length) msg+='\n📋 Containers with linked invoices (will be delinked):\n'+hasLinked.map(function(n){return '  • '+n;}).join('\n')+'\n';
   msg+='\n⛔ This action cannot be undone!';
   showConfirm(msg, async ()=>{
     var deleted=0;var failed=0;
     for(var i=0;i<contDetails.length;i++){
       try{
+        // Delink all invoices from this container before deleting
+        var linkedInvs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===contDetails[i].id;});
+        for(var j=0;j<linkedInvs.length;j++){
+          linkedInvs[j].containerId='';
+          linkedInvs[j].containerNumber='';
+          await _dbSave('hwmsInvoices',linkedInvs[j]);
+        }
         if(await _dbDel('hwmsContainers',contDetails[i].id)){
           deleted++;
         } else { failed++; }
       }catch(e){ console.error('Delete error:',e);failed++; }
     }
-    renderHwmsContainers();updBadges();
+    renderHwmsContainers();renderHwmsInvoices();updBadges();
     if(failed>0) notify('✅ Deleted '+deleted+', ⚠ Failed '+failed,true);
     else notify('✅ Deleted '+deleted+' container'+(deleted>1?'s':''));
   });
@@ -2586,13 +2993,62 @@ async function _hwmsContDeleteSelected(){
 // Track pre-save linked invoices for new containers
 var _hwmsContPreSaveInvIds=[];
 var _hwmsContIsNew=false;
+var _hwmsContEditMode=false;
+
+function _hwmsContEnableEdit(){
+  _hwmsContEditMode=true;
+  document.getElementById('btnHwmsContEdit').style.display='none';
+  document.getElementById('btnHwmsContSave').style.display='';
+  document.getElementById('mHwmsContTitle').textContent='Edit Container';
+  _hwmsContSetFormReadOnly(false);
+  // Re-apply dispatched constraints on top of edit mode
+  var id=document.getElementById('eHwmsContId').value;
+  var c=id?byId(DB.hwmsContainers||[],id):null;
+  var isDispatched=c&&(c.status==='Onwater'||c.status==='Reached');
+  if(isDispatched){
+    ['hwmsContNum','hwmsContCarrier','hwmsContSerialNum'].forEach(function(fid){var el=document.getElementById(fid);if(el)el.disabled=true;});
+    _hwmsContUpdateDatePickers(c, true);
+  }
+  // Re-render linked invoices to show remove buttons
+  if(id) _hwmsContRenderLinkedInvs(id);
+}
+
+function _hwmsContSetFormReadOnly(ro){
+  // Core fields
+  var coreFields=['hwmsContNum','hwmsContExpPickup','hwmsContCarrier','hwmsContSerialNum'];
+  coreFields.forEach(function(fid){
+    var el=document.getElementById(fid);if(el) el.disabled=ro;
+  });
+  // Expected pickup date picker
+  var expFmt=document.getElementById('hwmsContExpPickup_fmt');
+  if(expFmt){
+    expFmt.style.opacity=ro?'.6':'1';
+    expFmt.style.cursor=ro?'not-allowed':'pointer';
+    expFmt.onclick=ro?null:function(){var el=document.getElementById('hwmsContExpPickup');if(el&&!el.disabled)el.showPicker();};
+  }
+  // Add invoice dropdown + button
+  var addSel=document.getElementById('hwmsContAddInvSel');if(addSel) addSel.disabled=ro;
+  // Post-shipment fields
+  var postFields=['hwmsContCarrInv','hwmsContCarrDate','hwmsContCarrAmt','hwmsContESNum','hwmsContESDate','hwmsContTariffPaid'];
+  postFields.forEach(function(fid){
+    var el=document.getElementById(fid);if(el) el.disabled=ro;
+  });
+  // Post-shipment date pickers
+  ['hwmsContCarrDate','hwmsContESDate'].forEach(function(fid){
+    var fmt=document.getElementById(fid+'_fmt');
+    if(fmt){fmt.style.opacity=ro?'.6':'1';fmt.style.cursor=ro?'not-allowed':'pointer';fmt.onclick=ro?null:function(){var el=document.getElementById(fid);if(el&&!el.disabled)el.showPicker();};}
+  });
+  // Photo file inputs
+  ['hwmsContCarrPhoto','hwmsContESPhoto'].forEach(function(fid){var el=document.getElementById(fid);if(el)el.disabled=ro;});
+}
 
 function openHwmsContModal(id){
   _hwmsContPreSaveInvIds=[];
   _hwmsContIsNew=!id;
+  _hwmsContEditMode=!id; // New containers start in edit mode
   const c=id?byId(DB.hwmsContainers||[],id):null;
   document.getElementById('eHwmsContId').value=id||'';
-  document.getElementById('mHwmsContTitle').textContent=id?'Edit Container':'Plan New Container';
+  document.getElementById('mHwmsContTitle').textContent=id?'Container Details':'Plan New Container';
   document.getElementById('hwmsContNumDisplay').textContent=c?.containerNumber||'';
   // Auto-generate NNN/YY suffix for new containers (CN- prefix is static)
   if(!id){
@@ -2684,11 +3140,27 @@ function openHwmsContModal(id){
   document.getElementById('hwmsContESPhoto').value='';
   _hwmsContSyncAllDates();
   _hwmsContShowCarrierInfo();
+  // Edit mode: new containers editable immediately, existing start read-only
+  var editBtn=document.getElementById('btnHwmsContEdit');
+  var saveBtn=document.getElementById('btnHwmsContSave');
+  if(_hwmsContIsNew){
+    // New container — edit mode, no Edit button
+    if(editBtn) editBtn.style.display='none';
+    if(saveBtn) saveBtn.style.display='';
+    _hwmsContSetFormReadOnly(false);
+  } else {
+    // Existing container — read-only, show Edit button
+    if(editBtn) editBtn.style.display='';
+    if(saveBtn) saveBtn.style.display='none';
+    _hwmsContSetFormReadOnly(true);
+  }
   // Show in-page form, hide list
   document.getElementById('hwmsContListView').style.display='none';
   document.getElementById('hwmsContFormView').style.display='block';
   // Scroll to top of form
   document.getElementById('hwmsContFormView').scrollIntoView({behavior:'smooth',block:'start'});
+  // Update prev/next nav buttons
+  _hwmsContNavUpdate();
 }
 
 function _hwmsContDateFmt(id){
@@ -2783,7 +3255,7 @@ function _hwmsContRenderLinkedInvs(contId){
   const isDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
   const expPickup=cont?.expectedPickupDate||document.getElementById('hwmsContExpPickup')?.value||'';
   if(!allInvs.length){
-    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:12px;color:var(--text3);font-size:11px">No invoices linked</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:12px;color:var(--text3);font-size:11px">No invoices linked</td></tr>';
   } else {
     tbody.innerHTML=allInvs.map(inv=>{
       const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
@@ -2803,7 +3275,8 @@ function _hwmsContRenderLinkedInvs(contId){
         <td style="padding:5px 8px;font-size:11px">${inv.consigneeName||consignee?.name||'—'}</td>
         <td style="padding:5px 8px;font-family:var(--mono);font-weight:700;color:#16a34a">$${totalAmt.toFixed(2)}</td>
         <td style="padding:5px 8px"><span class="badge ${st.cls}" style="font-weight:700">${st.label}</span></td>
-        <td style="padding:5px 8px">${!isDispatched?`<button class="action-btn" onclick="_hwmsContRemoveInv('${inv.id}')" title="Remove" style="font-size:11px;color:#dc2626">✕</button>`:''}</td>
+        <td style="padding:3px 4px;text-align:center"><button onclick="event.stopPropagation();_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px" title="USA Print Preview">🖨️</button></td>
+        <td style="padding:5px 8px">${(!isDispatched&&_hwmsContEditMode)?`<button class="action-btn" onclick="_hwmsContRemoveInv('${inv.id}')" title="Remove" style="font-size:11px;color:#dc2626">✕</button>`:''}</td>
       </tr>`;
     }).join('');
   }
@@ -2816,7 +3289,7 @@ function _hwmsContRenderLinkedInvs(contId){
       const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
       return `<option value="${inv.id}">${inv.invoiceNumber} — ${inv.buyerName||cust?.customerName||'?'}</option>`;
     }).join('');
-    addSel.disabled=isDispatched;
+    addSel.disabled=isDispatched||!_hwmsContEditMode;
   }
 }
 
@@ -2969,13 +3442,21 @@ async function _hwmsContUndoDispatch(){
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
   if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Container is not dispatched',true);return;}
-  showConfirm('Undo dispatch for container '+c.containerNumber+'? Status will revert and invoices will be unlocked.', async ()=>{
+  showConfirm('Undo dispatch for container '+c.containerNumber+'? Status will revert to Draft, invoices will be delinked and unlocked.', async ()=>{
     const bak={...c};
     c.status='';
     c.expectedReachDate='';
   c.reachedDate='';
   c.pickupDate='';
   if(!await _dbSave('hwmsContainers',c)){Object.assign(c,bak);return;}
+  // Delink all invoices from this container
+  const linkedInvs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===id);
+  for(const inv of linkedInvs){
+    const invBak={containerId:inv.containerId,containerNumber:inv.containerNumber};
+    inv.containerId='';
+    inv.containerNumber='';
+    if(!await _dbSave('hwmsInvoices',inv)){inv.containerId=invBak.containerId;inv.containerNumber=invBak.containerNumber;}
+  }
   // Update UI
   const dispBtn=document.getElementById('btnHwmsContDispatch');
   dispBtn.disabled=false;dispBtn.textContent='🚀 Dispatch Container';dispBtn.style.background='#ea580c';dispBtn.style.borderColor='#ea580c';
@@ -3051,7 +3532,7 @@ function _hwmsContOpenReceive(){
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
-  if(c.status!=='Onwater'){notify('Container must be In Transit to receive',true);return;}
+  if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Container must be In Transit or Received to edit',true);return;}
   const reachedDate=document.getElementById('hwmsContReachedDate').value;
   document.getElementById('hwmsRecvContNum').textContent=c.containerNumber;
   // Reset container photo
@@ -3169,6 +3650,9 @@ async function _hwmsContSaveReceive(){
   // Update UI
   _hwmsContUpdateReachedUI(c);
   _hwmsContUpdateDatePickers(c, true);
+  // Hide undo dispatch button (no longer applicable in Warehouse status)
+  const _undoBtn=document.getElementById('btnHwmsContUndoDispatch');
+  if(_undoBtn) _undoBtn.style.display='none';
   const st=_hwmsContStatus(c);
   document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
   document.getElementById('hwmsContReachedDate').value=recvDate;
@@ -3195,6 +3679,9 @@ async function _hwmsContReached(){
   // Update UI
   _hwmsContUpdateReachedUI(c);
   _hwmsContUpdateDatePickers(c, true);
+  // Hide undo dispatch button (no longer applicable in Warehouse status)
+  var _undoBtn2=document.getElementById('btnHwmsContUndoDispatch');
+  if(_undoBtn2) _undoBtn2.style.display='none';
   const st=_hwmsContStatus(c);
   document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
   renderHwmsContainers();renderHwmsInvoices();
@@ -3208,33 +3695,37 @@ function _hwmsContUpdateReachedUI(c){
   const isOnwater=c?.status==='Onwater';
   const isSA=CU&&CU.roles.includes('Super Admin');
   const reachedBtn=document.getElementById('btnHwmsContReached');
+  const editRecvBtn=document.getElementById('btnHwmsContEditReceived');
   const revokeBtn=document.getElementById('btnHwmsContRevokeReached');
   const infoEl=document.getElementById('hwmsContReachedInfo');
   const dateEl=document.getElementById('hwmsContReachedDate');
   const dateFmt=document.getElementById('hwmsContReachedDate_fmt');
   if(isReached){
-    // Reached: lock everything
-    if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent='✅ Received';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#16a34a';reachedBtn.style.opacity='.7';reachedBtn.style.cursor='not-allowed';}
+    // Reached: hide receive, show edit received button
+    if(reachedBtn){reachedBtn.style.display='none';}
+    if(editRecvBtn){editRecvBtn.style.display='inline-flex';}
     if(revokeBtn) revokeBtn.style.display=isSA?'':'none';
     if(dateEl) dateEl.disabled=true;
     if(dateFmt){dateFmt.style.opacity='.7';dateFmt.style.cursor='not-allowed';dateFmt.onclick=null;}
     if(infoEl&&c.reachedDate){
       const dt=new Date(c.reachedDate+'T00:00:00');
       const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const fmtDate=dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();
-      infoEl.innerHTML='📦 Container received at the Warehouse on <strong>'+fmtDate+'</strong>';
+      const fmtDate=dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);
+      infoEl.innerHTML='📦 Container received on <strong>'+fmtDate+'</strong>';
       infoEl.style.display='';
     }
   } else if(isOnwater){
-    // In Transit: enable date picker and button
-    if(reachedBtn){reachedBtn.disabled=false;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};}
+    // In Transit: enable date picker and receive button
+    if(reachedBtn){reachedBtn.disabled=false;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};reachedBtn.style.display='inline-flex';}
+    if(editRecvBtn){editRecvBtn.style.display='none';}
     if(revokeBtn) revokeBtn.style.display='none';
     if(dateEl) dateEl.disabled=false;
     if(dateFmt){dateFmt.style.opacity='1';dateFmt.style.cursor='pointer';dateFmt.onclick=function(){document.getElementById('hwmsContReachedDate').showPicker();};}
     if(infoEl) infoEl.style.display='none';
   } else {
     // Draft: disable date picker and button
-    if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';}
+    if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.style.display='inline-flex';}
+    if(editRecvBtn){editRecvBtn.style.display='none';}
     if(revokeBtn) revokeBtn.style.display='none';
     if(dateEl) dateEl.disabled=true;
     if(dateFmt){dateFmt.style.opacity='.5';dateFmt.style.cursor='not-allowed';dateFmt.onclick=null;}
@@ -3287,6 +3778,33 @@ function _hwmsContCancel(){
   renderHwmsContainers();
 }
 
+function _hwmsGetSortedConts(){
+  var sk=_hwmsContSortKey,asc=_hwmsContSortAsc;
+  return [...(DB.hwmsContainers||[])].sort(function(a,b){
+    if(sk==='containerNumber'){return asc?_hwmsContNumToSortVal(a.containerNumber)-_hwmsContNumToSortVal(b.containerNumber):_hwmsContNumToSortVal(b.containerNumber)-_hwmsContNumToSortVal(a.containerNumber);}
+    var va=(a[sk]||'').toString().toLowerCase(),vb=(b[sk]||'').toString().toLowerCase();
+    return asc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+}
+function _hwmsContNavUpdate(){
+  var id=document.getElementById('eHwmsContId').value;
+  var sorted=_hwmsGetSortedConts();
+  var idx=sorted.findIndex(function(c){return c.id===id;});
+  var prevBtn=document.getElementById('hwmsContPrevBtn');
+  var nextBtn=document.getElementById('hwmsContNextBtn');
+  var isNew=!id;
+  if(prevBtn){prevBtn.disabled=isNew||idx<=0;prevBtn.style.opacity=(isNew||idx<=0)?'0.35':'1';prevBtn.style.display=isNew?'none':'';}
+  if(nextBtn){nextBtn.disabled=isNew||idx<0||idx>=sorted.length-1;nextBtn.style.opacity=(isNew||idx<0||idx>=sorted.length-1)?'0.35':'1';nextBtn.style.display=isNew?'none':'';}
+}
+function _hwmsContNav(dir){
+  var id=document.getElementById('eHwmsContId').value;
+  var sorted=_hwmsGetSortedConts();
+  var idx=sorted.findIndex(function(c){return c.id===id;});
+  if(idx<0) return;
+  var next=sorted[idx+dir];
+  if(next) openHwmsContModal(next.id);
+}
+
 async function saveHwmsCont(){
   const id=document.getElementById('eHwmsContId').value;
   const suffix=document.getElementById('hwmsContNum').value.trim();
@@ -3300,26 +3818,28 @@ async function saveHwmsCont(){
   // Photo data
   const carrInvPhotoEl=document.getElementById('hwmsContCarrPhotoPreview');
   const esPhotoEl=document.getElementById('hwmsContESPhotoPreview');
+  const existing=id?byId(DB.hwmsContainers||[],id):null;
+  const isDispatched=existing&&(existing.status==='Onwater'||existing.status==='Reached');
+  // Core data — fields that Save always manages
   const data={
     containerNumber,expectedPickupDate,
     containerSerialNumber:(document.getElementById('hwmsContSerialNum').value||'').trim().toUpperCase(),
-    pickupDate:document.getElementById('hwmsContPickup').value,
     carrierId,carrierName:carrier?.carrierName||'',
-    carrierInvNumber:document.getElementById('hwmsContCarrInv').value.trim(),
-    carrierInvDate:document.getElementById('hwmsContCarrDate').value,
-    carrierInvAmount:parseFloat(document.getElementById('hwmsContCarrAmt').value)||0,
-    carrierInvPhoto:carrInvPhotoEl?.dataset?.base64||'',
-    entrySummaryNumber:document.getElementById('hwmsContESNum').value.trim(),
-    esDate:document.getElementById('hwmsContESDate').value,
-    esPhoto:esPhotoEl?.dataset?.base64||'',
-    tariffPaid:parseFloat(document.getElementById('hwmsContTariffPaid').value)||0,
   };
-  data.esAmount=data.tariffPaid; // backward compat — single field now
-  // If container is not dispatched, always reset actual pickup date to blank
-  const existing=id?byId(DB.hwmsContainers||[],id):null;
-  if(!existing||(!existing.status||existing.status==='')){
-    data.pickupDate='';
+  // Post-shipment fields — only saveable when already dispatched
+  if(isDispatched){
+    data.carrierInvNumber=document.getElementById('hwmsContCarrInv').value.trim();
+    data.carrierInvDate=document.getElementById('hwmsContCarrDate').value;
+    data.carrierInvAmount=parseFloat(document.getElementById('hwmsContCarrAmt').value)||0;
+    data.carrierInvPhoto=carrInvPhotoEl?.dataset?.base64||'';
+    data.entrySummaryNumber=document.getElementById('hwmsContESNum').value.trim();
+    data.esDate=document.getElementById('hwmsContESDate').value;
+    data.esPhoto=esPhotoEl?.dataset?.base64||'';
+    data.tariffPaid=parseFloat(document.getElementById('hwmsContTariffPaid').value)||0;
+    data.esAmount=data.tariffPaid;
   }
+  // NEVER set pickupDate, status, expectedReachDate, reachedDate here —
+  // those are exclusively managed by _hwmsContDispatch / _hwmsContOpenReceive
   if(!DB.hwmsContainers)DB.hwmsContainers=[];
   let savedId=id;
   if(id){
@@ -3327,7 +3847,7 @@ async function saveHwmsCont(){
     Object.assign(c,data);
     if(!await _dbSave('hwmsContainers',c)){Object.assign(c,bak);return;}
   } else {
-    const c={id:'hc'+uid(),status:'',confirmed:false,reachDate:'',expectedReachDate:'',reachedDate:'',tariffPaid:0,tariffPercent:0,...data};
+    const c={id:'hc'+uid(),status:'',confirmed:false,pickupDate:'',reachDate:'',expectedReachDate:'',reachedDate:'',tariffPaid:0,tariffPercent:0,carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,carrierInvPhoto:'',entrySummaryNumber:'',esDate:'',esPhoto:'',esAmount:0,...data};
     savedId=c.id;
     if(!await _dbSave('hwmsContainers',c))return;
     document.getElementById('eHwmsContId').value=savedId;
@@ -3543,14 +4063,13 @@ function renderHwmsSubInvoices(){
     +'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>'
     +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<button id="hwmsSiDelBtn" onclick="_hwmsSiBulkDel()" style="display:none;padding:5px 14px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer">🗑 Delete <span id="hwmsSiDelCount2"></span></button>'
+    +'<button id="hwmsSiCancelSelBtn" onclick="_hwmsSiClearSel()" style="display:none;padding:5px 12px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">✕ Cancel</button>'
     +(_hwmsCan('si.export')?'<button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>':'')
     +(_hwmsCan('si.import')?'<label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>':'')
     +'</div>';
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var isSA=_hwmsIsSA();
-  // Reset bulk bar + select-all checkbox
-  var bulkBar=document.getElementById('hwmsSiBulkBar');if(bulkBar)bulkBar.style.display='none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
   if(!rows.length){body.innerHTML='<tr><td colspan="16" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   body.innerHTML=rows.map(function(si){
@@ -3673,7 +4192,31 @@ function showHwmsSiDetail(id){
     +'<td style="padding:8px 10px;font-family:var(--mono);text-align:right;font-size:14px">'+fAmt(totalAmt)+'</td></tr>';
   h+='</tbody></table>';
   document.getElementById('hwmsSiViewBody').innerHTML=h;
+  _hwmsCurrentSiId=id;
   hwmsGo('pageHwmsSiView');
+  _hwmsSiNavUpdate();
+}
+
+var _hwmsCurrentSiId=null;
+function _hwmsGetSortedSis(){
+  return [...(DB.hwmsSubInvoices||[])].sort(function(a,b){
+    return (b.subInvoiceNumber||'').localeCompare(a.subInvoiceNumber||'');
+  });
+}
+function _hwmsSiNavUpdate(){
+  var sorted=_hwmsGetSortedSis();
+  var idx=sorted.findIndex(function(s){return s.id===_hwmsCurrentSiId;});
+  var prevBtn=document.getElementById('hwmsSiPrevBtn');
+  var nextBtn=document.getElementById('hwmsSiNextBtn');
+  if(prevBtn){prevBtn.disabled=idx<=0;prevBtn.style.opacity=idx<=0?'0.35':'1';}
+  if(nextBtn){nextBtn.disabled=idx<0||idx>=sorted.length-1;nextBtn.style.opacity=(idx<0||idx>=sorted.length-1)?'0.35':'1';}
+}
+function _hwmsSiNav(dir){
+  var sorted=_hwmsGetSortedSis();
+  var idx=sorted.findIndex(function(s){return s.id===_hwmsCurrentSiId;});
+  if(idx<0) return;
+  var next=sorted[idx+dir];
+  if(next) showHwmsSiDetail(next.id);
 }
 // ── Modal ──
 // ── Helper: get mrId from sub-invoice (reads from lineItems _mrMeta or fallback to si.mrId) ──
@@ -3923,18 +4466,16 @@ function _hwmsSiToggleAll(masterCb){
 }
 function _hwmsSiSelChange(){
   var cbs=document.querySelectorAll('.hwmsSiCb:checked');
-  var bar=document.getElementById('hwmsSiBulkBar');
-  var countEl=document.getElementById('hwmsSiSelCount');
   var delBtn=document.getElementById('hwmsSiDelBtn');
   var delCount2=document.getElementById('hwmsSiDelCount2');
+  var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');
   var isSA=_hwmsIsSA();
   if(cbs.length>0&&isSA){
-    bar.style.display='flex';
-    countEl.textContent=cbs.length+' selected';
     if(delBtn){delBtn.style.display='';if(delCount2)delCount2.textContent='('+cbs.length+')';}
+    if(cancelBtn) cancelBtn.style.display='';
   } else {
-    bar.style.display='none';
     if(delBtn) delBtn.style.display='none';
+    if(cancelBtn) cancelBtn.style.display='none';
   }
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsSiCb');
@@ -3944,8 +4485,8 @@ function _hwmsSiSelChange(){
 function _hwmsSiClearSel(){
   document.querySelectorAll('.hwmsSiCb').forEach(function(cb){cb.checked=false;});
   var selAll=document.getElementById('hwmsSiSelectAll');if(selAll)selAll.checked=false;
-  var bar=document.getElementById('hwmsSiBulkBar');if(bar)bar.style.display='none';
   var delBtn=document.getElementById('hwmsSiDelBtn');if(delBtn)delBtn.style.display='none';
+  var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');if(cancelBtn)cancelBtn.style.display='none';
 }
 async function _hwmsSiBulkDel(){
   if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete',true);return;}
@@ -4495,13 +5036,15 @@ function _hwmsMrPrint(mrId){
     // Build MR planned qty per part for excess detection
     var mrPlannedQty={};
     lis.forEach(function(l){if(l.partId) mrPlannedQty[l.partId]=(mrPlannedQty[l.partId]||0)+(l.quantity||0);});
-    // Build SI total qty per part
+    // Build SI total qty per part (for summary note only)
     var siTotalQty={};
     linkedSis.forEach(function(si){
       (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
         if(l.partId) siTotalQty[l.partId]=(siTotalQty[l.partId]||0)+(l.quantity||0);
       });
     });
+    // Running total per part to detect which specific pallet causes excess
+    var _runQty={};
     var grandSiAmt=0;
     var siTableRows=linkedSis.map(function(si,idx){
       var siLis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
@@ -4523,15 +5066,19 @@ function _hwmsMrPrint(mrId){
         var pn=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):(l.partNumber||'—');
         var whLoc=_hwmsGetPartWhLoc(l.partId);
         var planned=mrPlannedQty[l.partId]||0;
-        var totalSi=siTotalQty[l.partId]||0;
-        var isExcess=totalSi>planned;
+        var prevRun=_runQty[l.partId]||0;
+        var newRun=prevRun+(l.quantity||0);
+        _runQty[l.partId]=newRun;
+        // This pallet's excess = how much of its qty goes beyond planned
+        var palletExcess=0;
+        if(newRun>planned) palletExcess=Math.min(l.quantity||0, newRun-planned);
         partTblPrint+='<tr style="border-bottom:1px solid #eee">'
           +'<td style="padding:2px 6px;text-align:center;border:1px solid #eee">'+(li+1)+'</td>'
           +'<td style="padding:2px 6px;font-weight:700;border:1px solid #eee">'+(l.palletNumber||'—')+'</td>'
           +'<td style="padding:2px 6px;font-weight:700;color:#2a9aa0;border:1px solid #eee">'+pn+'</td>'
           +'<td style="padding:2px 6px;color:#7c3aed;border:1px solid #eee">'+(whLoc||'—')+'</td>'
           +'<td style="padding:2px 6px;text-align:right;font-weight:700;border:1px solid #eee">'+(l.quantity||0)+'</td>'
-          +'<td style="padding:2px 6px;text-align:center;border:1px solid #eee;'+(isExcess?'color:#dc2626;font-weight:700':'color:#16a34a')+'">'+(isExcess?'⚠ +'+(totalSi-planned):'✓')+'</td>'
+          +'<td style="padding:2px 6px;text-align:center;border:1px solid #eee;'+(palletExcess>0?'color:#dc2626;font-weight:700':'color:#16a34a')+'">'+(palletExcess>0?'⚠ +'+palletExcess:'✓')+'</td>'
           +'</tr>';
       });
       partTblPrint+='</tbody></table>';
@@ -4679,8 +5226,8 @@ function renderHwmsMR(){
       // Build MR planned qty per part for excess detection
       var _mrPlanQty={};
       (mr.lineItems||[]).forEach(function(l){if(l.partId) _mrPlanQty[l.partId]=(_mrPlanQty[l.partId]||0)+(l.quantity||0);});
-      var _siTotQty={};
-      linkedSis.forEach(function(si){(si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){if(l.partId) _siTotQty[l.partId]=(_siTotQty[l.partId]||0)+(l.quantity||0);});});
+      // Running total per part to detect which specific pallet causes excess
+      var _runQty2={};
       var siRows=linkedSis.map(function(si,idx){
         var siLis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
         var siAmt=siLis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
@@ -4722,15 +5269,18 @@ function renderHwmsMR(){
           var pn=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):(l.partNumber||'—');
           var whLoc=_hwmsGetPartWhLoc(l.partId);
           var _planned=_mrPlanQty[l.partId]||0;
-          var _totalSi=_siTotQty[l.partId]||0;
-          var _isExcess=_totalSi>_planned;
+          var _prevRun=_runQty2[l.partId]||0;
+          var _newRun=_prevRun+(l.quantity||0);
+          _runQty2[l.partId]=_newRun;
+          var _palletExcess=0;
+          if(_newRun>_planned) _palletExcess=Math.min(l.quantity||0, _newRun-_planned);
           partTbl+='<tr style="border-bottom:1px solid rgba(42,154,160,.1)">'
             +'<td style="padding:2px 6px;font-size:11px;font-weight:600;color:var(--text3);text-align:center">'+_pSr+'</td>'
             +'<td style="padding:2px 8px;font-family:var(--mono);font-weight:700;font-size:12px;white-space:nowrap">'+(l.palletNumber||'—')+'</td>'
             +'<td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap">'+pn+'</td>'
             +'<td style="padding:2px 8px;font-family:var(--mono);font-weight:600;color:#7c3aed;font-size:12px;white-space:nowrap">'+(whLoc||'—')+'</td>'
             +'<td style="padding:2px 8px;font-family:var(--mono);font-weight:800;text-align:right;font-size:12px">'+( l.quantity||0)+'</td>'
-            +'<td style="padding:2px 8px;text-align:center;font-size:11px;font-weight:700;'+(_isExcess?'color:#dc2626':'color:#16a34a')+'">'+(_isExcess?'⚠ +'+(_totalSi-_planned):'✓')+'</td>'
+            +'<td style="padding:2px 8px;text-align:center;font-size:11px;font-weight:700;'+(_palletExcess>0?'color:#dc2626':'color:#16a34a')+'">'+(_palletExcess>0?'⚠ +'+_palletExcess:'✓')+'</td>'
             +'</tr>';
         });
         partTbl+='</tbody></table>';
@@ -5787,6 +6337,7 @@ function _hwmsInventorySort(key){
   else{_hwmsInventorySortKey=key;_hwmsInventorySortAsc=true;}
   renderHwmsInventory();
 }
+function _hwmsInvSearchXBtn(){var el=document.getElementById('hwmsInventorySearch');var btn=document.getElementById('hwmsInvSearchClear');if(btn) btn.style.display=(el&&el.value)?'block':'none';}
 function renderHwmsInventory(){
   var parts=DB.hwmsParts||[];
   var invoices=DB.hwmsInvoices||[];
@@ -6372,68 +6923,272 @@ function _hwmsPrintPalletLabel(invId, liIdx){
   const li=lis[liIdx];if(!li)return;
   const part=byId(DB.hwmsParts||[],li.partId);
   const cont=byId(DB.hwmsContainers||[],inv.containerId);
+  const co=_getHwmsCompany();
+  const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
   const contNum=cont?.containerNumber||'—';
-  const partNum=part?part.partNumber+(part.partRevision?' '+part.partRevision:''):'—';
+  const partNum=part?part.partNumber+(part.partRevision?'-'+part.partRevision:''):'—';
   const partDesc=part?.description||'';
   const invNum=inv.invoiceNumber||'—';
   const palletNum=li.palletNumber||'—';
   const qty=li.quantity||0;
-  const uom=li.uom||'pcs';
+  const netWt=li.netWeight?Math.round(li.netWeight):0;
+  const grossWt=li.grossWeight?Math.round(li.grossWeight):0;
+  const pkgType=li.packageType||part?.packingType||'';
+  const palletIdx=liIdx+1;
+  const totalPallets=lis.length;
+  const exporterName=co?.companyName||'';
+  const exporterAddr=(co?.address||'').split('\n')[0]||'';
+  const exporterCountry=co?.country||'India';
+  const customerName=inv.buyerName||cust?.customerName||'';
+  const customerCountry=cust?.country||'';
+  const invDate=inv.date||'';
   const partPhoto=part?.partPhoto||part?.photo||li.partPhoto||li.photo||'';
-
-  // Store photo on window so popup can access via opener
-  window._labelPhoto=partPhoto;
-
+  // Format date as dd/mm/yyyy
+  var fmtDate='';
+  if(invDate){var dt=new Date(invDate+'T00:00:00');if(!isNaN(dt))fmtDate=String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();}
   const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-  const w=window.open('','_blank','width=800,height=1000');
+  const w=window.open('','_blank','width=900,height=1000');
   if(!w){notify('Popup blocked — please allow popups',true);return;}
-  w.document.write('<!DOCTYPE html><html><head><title>Pallet Label</title>\
+  // Build photo HTML
+  var photoCell='';
+  if(partPhoto&&partPhoto.indexOf('data:')===0){
+    photoCell='<img src="'+partPhoto+'" style="max-width:260px;max-height:180px;object-fit:contain">';
+  } else {
+    photoCell='<div style="width:200px;height:140px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:40px">📷</div>';
+  }
+  w.document.write('<!DOCTYPE html><html><head><title>Pallet Label — '+esc(palletNum)+'</title>\
 <style>\
-@page{size:A4 portrait;margin:15mm}\
+@page{size:A4 landscape;margin:10mm}\
 *{margin:0;padding:0;box-sizing:border-box}\
-body{font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff}\
-.label{width:100%;max-width:180mm;padding:20mm 15mm;display:flex;flex-direction:column;align-items:center;gap:24px}\
-.photo-wrap{display:flex;align-items:center;justify-content:center;min-height:200px}\
-.info{width:100%;border:3px solid #000;border-radius:16px;overflow:hidden}\
-.info-row{display:flex;border-bottom:2px solid #000}\
-.info-row:last-child{border-bottom:none}\
-.info-label{flex:0 0 140px;padding:14px 16px;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#555;background:#f3f4f6;border-right:2px solid #000}\
-.info-value{flex:1;padding:14px 18px;font-size:22px;font-weight:900;font-family:"Courier New",monospace;color:#000;display:flex;align-items:center}\
-.pallet-big{font-size:56px;font-weight:900;letter-spacing:3px;font-family:"Courier New",monospace;text-align:center}\
-.qty-big{font-size:42px;font-weight:900;font-family:"Courier New",monospace;text-align:center}\
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}\
+body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:10mm}\
+.label{width:100%;border:3px solid #000}\
+.row{display:flex;border-bottom:3px solid #000}\
+.row:last-child{border-bottom:none}\
+.cell{padding:8px 12px;border-right:3px solid #000;display:flex;flex-direction:column;justify-content:center}\
+.cell:last-child{border-right:none}\
+.cell-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#000;margin-bottom:2px}\
+.cell-value{font-size:14px;font-weight:900;color:#000}\
+.cell-value-big{font-size:36px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:1px}\
+.cell-value-huge{font-size:52px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:2px}\
+table.items{width:100%;border-collapse:collapse}\
+table.items th{padding:8px 12px;font-size:13px;font-weight:800;text-transform:uppercase;text-align:left;border-bottom:2px solid #000;border-right:2px solid #000;background:#fff}\
+table.items th:last-child{border-right:none}\
+table.items td{padding:10px 12px;font-size:16px;font-weight:700;border-bottom:1px solid #999;border-right:2px solid #000;vertical-align:top}\
+table.items td:last-child{border-right:none}\
+table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:16px;font-weight:900}\
+.r{text-align:right}\
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0}}\
 @media screen{.no-print{display:block;text-align:center;margin-top:16px}.no-print button{font-size:16px;padding:12px 40px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700}}\
 @media print{.no-print{display:none}}\
 </style></head><body>\
 <div class="label">\
-  <div class="photo-wrap" id="photoArea"></div>\
-  <div style="font-size:18px;font-weight:700;color:#555;text-align:center;max-width:400px;line-height:1.4">'+esc(partDesc)+'</div>\
-  <div class="pallet-big">'+esc(palletNum)+'</div>\
-  <div class="info">\
-    <div class="info-row"><div class="info-label">Container</div><div class="info-value">'+esc(contNum)+'</div></div>\
-    <div class="info-row"><div class="info-label">Invoice</div><div class="info-value">'+esc(invNum)+'</div></div>\
-    <div class="info-row"><div class="info-label">Part No.</div><div class="info-value" style="color:#2a9aa0">'+esc(partNum)+'</div></div>\
-    <div class="info-row"><div class="info-label">Pallet</div><div class="info-value" style="font-size:28px">'+esc(palletNum)+'</div></div>\
-    <div class="info-row"><div class="info-label">Quantity</div><div class="info-value"><span class="qty-big">'+qty+'</span><span style="font-size:16px;color:#888;margin-left:8px">'+esc(uom)+'</span></div></div>\
+  <!-- ROW 1: Exporter + Container Number -->\
+  <div class="row">\
+    <div class="cell" style="flex:1;padding:10px 14px">\
+      <div style="font-size:11px;margin-bottom:2px">EXPORTER: <b>'+esc(exporterName)+',</b></div>\
+      <div style="font-size:11px;margin-bottom:2px"><b>'+esc(exporterAddr)+'</b></div>\
+      <div style="font-size:11px;margin-bottom:2px">END CUSTOMER: <b>'+esc(customerName)+(customerCountry?', '+esc(customerCountry):'')+'</b></div>\
+      <div style="font-size:11px">COUNTRY OF ORIGIN: <b>'+esc(exporterCountry)+'</b></div>\
+    </div>\
+    <div class="cell" style="flex:0 0 auto;min-width:140px;text-align:center;align-items:center;padding:10px 20px">\
+      <div class="cell-label" style="font-size:16px;font-weight:900;margin-bottom:4px">CONTAINER<br>NUMBER</div>\
+      <div class="cell-value-big">'+esc(contNum.replace('CN-',''))+'</div>\
+    </div>\
   </div>\
-  <div class="no-print"><button onclick="window.print()">🖨 Print Label</button></div>\
+  <!-- ROW 2: Photo + Invoice Number + Pallet Number -->\
+  <div class="row">\
+    <div class="cell" style="flex:1;align-items:center;padding:12px;min-height:160px">\
+      '+photoCell+'\
+    </div>\
+    <div style="flex:0 0 auto;min-width:300px;display:flex;flex-direction:column;border-left:none">\
+      <div class="cell" style="flex:1;border-bottom:3px solid #000;text-align:center;align-items:center;padding:14px 20px">\
+        <div class="cell-label" style="font-size:18px;font-weight:900;margin-bottom:6px">INVOICE<br>NUMBER</div>\
+        <div class="cell-value-huge">'+esc(invNum)+'</div>\
+      </div>\
+      <div class="cell" style="flex:1;text-align:center;align-items:center;padding:14px 20px">\
+        <div class="cell-label" style="font-size:18px;font-weight:900;margin-bottom:6px">PALLET NUMBER</div>\
+        <div class="cell-value-huge">'+esc(palletNum)+'</div>\
+      </div>\
+    </div>\
+  </div>\
+  <!-- ROW 3: Date + Package + Pallet count -->\
+  <div class="row">\
+    <div class="cell" style="flex:1"><div class="cell-label">DATE OF SUPPLY</div><div class="cell-value" style="font-size:18px">'+esc(fmtDate)+'</div></div>\
+    <div class="cell" style="flex:1;text-align:center;align-items:center"><div class="cell-label">PACKAGE</div><div class="cell-value" style="font-size:16px">'+esc(pkgType)+'</div></div>\
+    <div class="cell" style="flex:0 0 auto;min-width:100px;text-align:center;align-items:center"><div class="cell-value" style="font-size:18px">'+esc(String(palletIdx).padStart(2,'0'))+' Of '+esc(String(totalPallets).padStart(2,'0'))+'</div></div>\
+  </div>\
+  <!-- ROW 4: Items table -->\
+  <div style="width:100%">\
+    <table class="items">\
+      <thead><tr>\
+        <th style="width:30%">ITEM NUMBER</th>\
+        <th>DESCRIPTION</th>\
+        <th class="r" style="width:10%">QTY</th>\
+        <th class="r" style="width:15%">NET WT. IN KG</th>\
+        <th class="r" style="width:15%">GRS WT. IN KG</th>\
+      </tr></thead>\
+      <tbody>\
+        <tr>\
+          <td style="font-size:24px;font-weight:900;padding:14px 12px">'+esc(partNum)+'</td>\
+          <td style="font-size:16px;font-weight:700">'+esc(partDesc)+'</td>\
+          <td class="r" style="font-size:20px;font-weight:900">'+qty+'</td>\
+          <td class="r" style="font-size:20px;font-weight:900">'+netWt+'</td>\
+          <td class="r" style="font-size:20px;font-weight:900">'+grossWt+'</td>\
+        </tr>\
+        <tr><td style="border-bottom:none">&nbsp;</td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td></tr>\
+        <tr><td style="border-bottom:none">&nbsp;</td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td></tr>\
+        <tr class="total">\
+          <td colspan="2" class="r" style="font-size:18px">TOTAL</td>\
+          <td class="r" style="font-size:20px">'+qty+'</td>\
+          <td class="r" style="font-size:20px">'+netWt+'</td>\
+          <td class="r" style="font-size:20px">'+grossWt+'</td>\
+        </tr>\
+      </tbody>\
+    </table>\
+  </div>\
 </div>\
-<script>\
-try{\
-  var ph=window.opener&&window.opener._labelPhoto;\
-  var el=document.getElementById("photoArea");\
-  if(el&&ph&&ph.indexOf("data:")===0){\
-    var img=document.createElement("img");\
-    img.src=ph;\
-    img.style.cssText="max-width:280px;max-height:280px;object-fit:contain;border:2px solid #ccc;border-radius:12px";\
-    el.appendChild(img);\
-  }else if(el){\
-    el.innerHTML=\'<div style="width:200px;height:200px;border:3px dashed #ccc;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:48px;color:#ccc">📷</div>\';\
-  }\
-}catch(e){console.error("Label photo:",e);}\
-<\/script>\
+<div class="no-print"><button onclick="window.print()">🖨 Print Label</button></div>\
 </body></html>');
   w.document.close();
+}
+
+// ===== HWMS: SYSTEM GUIDE (Super Admin only) =====
+function _hwmsRenderSysGuide(){
+  if(!_hwmsIsSA()) return;
+  // --- Page Access Matrix ---
+  var y='<span style="color:#16a34a;font-weight:800">✓</span>';
+  var n='<span style="color:#d1d5db">—</span>';
+  var matrix=[
+    {page:'🚢 Containers',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Plan / Edit Container',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Dispatch Container',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Undo Dispatch',sa:1,ha:0,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Receive Container',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Edit Received Container',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Revoke Reached',sa:1,ha:0,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Delete Container',sa:1,ha:0,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Import / Export',sa:1,ha:1,wa:0,wu:0},
+    {page:'🧾 Main Invoices (MI)',sa:1,ha:1,wa:1,wu:0},
+    {page:'&nbsp;&nbsp;↳ Add / Edit MI',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Confirm MI (RFD)',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ View MI / Print',sa:1,ha:1,wa:1,wu:0},
+    {page:'&nbsp;&nbsp;↳ Delete MI',sa:1,ha:0,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Import / Export',sa:1,ha:1,wa:0,wu:0},
+    {page:'📦 Inventory',sa:1,ha:1,wa:1,wu:0},
+    {page:'📤 Sub-Invoices (SI)',sa:1,ha:1,wa:1,wu:0},
+    {page:'&nbsp;&nbsp;↳ Add / Edit SI',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Delete SI',sa:1,ha:0,wa:0,wu:0},
+    {page:'📝 Material Requests (MR)',sa:1,ha:1,wa:1,wu:1},
+    {page:'&nbsp;&nbsp;↳ Add / Edit MR',sa:1,ha:1,wa:1,wu:0},
+    {page:'&nbsp;&nbsp;↳ Generate SI from MR',sa:1,ha:1,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Mark SI Pickup',sa:1,ha:1,wa:1,wu:1},
+    {page:'&nbsp;&nbsp;↳ Delete MR',sa:1,ha:1,wa:0,wu:0},
+    {page:'🏭 Customer Master',sa:1,ha:1,wa:0,wu:0},
+    {page:'⚙️ Part Master',sa:1,ha:1,wa:0,wu:0},
+    {page:'🚢 Carrier Master',sa:1,ha:1,wa:0,wu:0},
+    {page:'⚓ Ports',sa:1,ha:1,wa:0,wu:0},
+    {page:'📋 Other Masters (HSN/UOM/Packing)',sa:1,ha:1,wa:0,wu:0},
+    {page:'🏢 Company Details',sa:1,ha:1,wa:0,wu:0},
+    {page:'📖 System Guide',sa:1,ha:0,wa:0,wu:0}
+  ];
+  var matEl=document.getElementById('sysGuideMatrix');
+  var rBg=false;
+  matEl.innerHTML=matrix.map(function(r){
+    var isSection=r.page.charAt(0)!=='&';
+    rBg=isSection?!rBg:rBg;
+    var bg=isSection?(rBg?'background:rgba(42,154,160,.04)':''):'background:rgba(0,0,0,.015)';
+    var fw=isSection?'font-weight:700':'font-weight:400;font-size:11px;color:var(--text2)';
+    return '<tr style="'+bg+'">'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);'+fw+'">'+r.page+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);text-align:center">'+(r.sa?y:n)+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);text-align:center">'+(r.ha?y:n)+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);text-align:center">'+(r.wa?y:n)+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);text-align:center">'+(r.wu?y:n)+'</td>'
+      +'</tr>';
+  }).join('');
+  // --- Database Tables ---
+  var dbMap=[
+    {key:'hwmsContainers',tbl:'hwms_containers',desc:'Container records (Draft / In Transit / Warehouse)'},
+    {key:'hwmsInvoices',tbl:'hwms_invoices',desc:'Main Invoices with line items (pallets, parts, qty, rates)'},
+    {key:'hwmsSubInvoices',tbl:'hwms_sub_invoices',desc:'Sub-Invoices dispatched to customers from warehouse'},
+    {key:'hwmsMaterialRequests',tbl:'hwms_material_requests',desc:'Material Requests from buyers with planned parts'},
+    {key:'hwmsParts',tbl:'hwms_parts',desc:'Part Master — part numbers, revisions, photos, descriptions'},
+    {key:'hwmsCustomers',tbl:'hwms_customers',desc:'Customer Master with consignees and PO data'},
+    {key:'hwmsCarriers',tbl:'hwms_carriers',desc:'Shipping carrier master (carrier name, contact)'},
+    {key:'hwmsCompany',tbl:'hwms_company',desc:'Company details, GSTIN, IEC, notes for MI print'},
+    {key:'hwmsHsn',tbl:'hwms_hsn',desc:'HSN code master'},
+    {key:'hwmsUom',tbl:'hwms_uom',desc:'Unit of Measure master'},
+    {key:'hwmsPacking',tbl:'hwms_packing',desc:'Packing type master'},
+    {key:'hwmsPortDischarge',tbl:'hwms_port_discharge',desc:'Port of Discharge master'},
+    {key:'hwmsPortLoading',tbl:'hwms_port_loading',desc:'Port of Loading master'},
+    {key:'hwmsSteelRates',tbl:'hwms_steel_rates',desc:'Steel & Forex rate history'}
+  ];
+  var dbEl=document.getElementById('sysGuideDbTables');
+  dbEl.innerHTML=dbMap.map(function(d){
+    var cnt=(DB[d.key]||[]).length;
+    return '<tr><td style="padding:5px 10px;border:1px solid var(--border);font-family:var(--mono);font-weight:700;color:var(--accent);font-size:11px">'+d.key+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);font-family:var(--mono);font-size:11px">'+d.tbl+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border)">'+d.desc+'</td>'
+      +'<td style="padding:5px 10px;border:1px solid var(--border);text-align:right;font-family:var(--mono);font-weight:700">'+cnt+'</td>'
+      +'</tr>';
+  }).join('');
+  // --- Process Flow ---
+  var flowEl=document.getElementById('sysGuideFlow');
+  var step=function(num,icon,title,desc,color){
+    return '<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:14px">'
+      +'<div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:'+color+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px">'+num+'</div>'
+      +'<div style="flex:1;padding-top:2px"><div style="font-weight:800;font-size:14px;margin-bottom:3px">'+icon+' '+title+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);line-height:1.6">'+desc+'</div></div></div>';
+  };
+  var arrow='<div style="margin-left:17px;border-left:2px dashed var(--border);height:8px;margin-bottom:2px"></div>';
+  flowEl.innerHTML=
+    step(1,'📋','Setup Masters','Create Company Details, Customers (with consignees & POs), Part Master, Carrier Master, Ports, HSN, UOM, Packing types.','#64748b')
+    +arrow
+    +step(2,'🧾','Create Main Invoice (MI)','Add MI with buyer, consignee, PO reference. Add line items: pallet number, part, quantity, rate, packaging, weights, dimensions.','#2563eb')
+    +arrow
+    +step(3,'✅','Confirm MI → RFD','Mark invoice as "Ready for Dispatch". Validates all required fields. Invoice becomes read-only after confirmation.','#7c3aed')
+    +arrow
+    +step(4,'📦','Plan Container','Create a container with expected pickup date, carrier, serial number. Link one or more confirmed (RFD) invoices to the container.','#ea580c')
+    +arrow
+    +step(5,'🚀','Dispatch Container','Set actual dispatch date and click "Dispatch Container". Status → In Transit. All linked invoices are locked. Expected reach date auto-calculated (+63 days).','#dc2626')
+    +arrow
+    +step(6,'🧾','Post Shipment Details','Fill in Carrier Invoice (number, date, amount, photo) and Entry Summary (ES number, date, tariff paid, photo). Editable while In Transit or Warehouse.','#a16207')
+    +arrow
+    +step(7,'📦','Receive Container','Set Container Reached Date and click "Receive this Container". Verify each pallet — received/missing, condition, WH location. Status → Warehouse. Inventory becomes available.','#16a34a')
+    +arrow
+    +step(8,'📝','Material Request (MR)','Buyer creates MR with required parts and quantities. MR references available warehouse inventory.','#0369a1')
+    +arrow
+    +step(9,'📤','Generate Sub-Invoice (SI)','From MR, generate sub-invoices selecting pallets and quantities from warehouse stock. SI references the original main invoice.','#7c3aed')
+    +arrow
+    +step(10,'🚚','SI Pickup','Mark sub-invoice as Picked with pickup date. Material leaves the warehouse. Inventory is reduced accordingly.','#15803d');
+  // --- Container Status Lifecycle ---
+  var contLifeEl=document.getElementById('sysGuideContLife');
+  var badge=function(label,bg,clr){return '<span style="display:inline-block;padding:4px 14px;border-radius:6px;font-weight:800;font-size:13px;background:'+bg+';color:'+clr+';margin:0 4px">'+label+'</span>';};
+  var arr2='<span style="font-size:18px;color:var(--text3);margin:0 6px">→</span>';
+  contLifeEl.innerHTML='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:12px">'
+    +badge('Draft','#f1f5f9','#64748b')+arr2
+    +badge('In Transit','#dbeafe','#1d4ed8')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Dispatch)</span>'+arr2
+    +badge('Warehouse','#dcfce7','#15803d')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Receive)</span>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--text2);line-height:1.8">'
+    +'<b>Draft:</b> Container planned, invoices can be linked/unlinked, fields editable.<br>'
+    +'<b>In Transit:</b> Dispatched. Invoice fields locked. Post-shipment details (carrier invoice, entry summary) become editable. Undo Dispatch reverts to Draft and delinks all invoices.<br>'
+    +'<b>Warehouse:</b> Received at destination. All pallets marked with WH location. Inventory is now active. Revoke Reached (SA only) reverts to In Transit.</div>';
+  // --- Invoice Status Lifecycle ---
+  var invLifeEl=document.getElementById('sysGuideInvLife');
+  invLifeEl.innerHTML='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:12px">'
+    +badge('Draft','#f1f5f9','#64748b')+arr2
+    +badge('RFD','#fef9c3','#854d0e')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Confirm)</span>'+arr2
+    +badge('Loading','#e0f2fe','#0369a1')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Link to Container)</span>'+arr2
+    +badge('Dispatched','#dbeafe','#1d4ed8')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Container Dispatched)</span>'+arr2
+    +badge('Warehouse','#dcfce7','#15803d')+'<span style="font-size:10px;color:var(--text3);margin:0 2px">(Container Received)</span>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--text2);line-height:1.8">'
+    +'<b>Draft:</b> Invoice being prepared, all fields editable.<br>'
+    +'<b>RFD (Ready for Dispatch):</b> Confirmed by HWMS Admin. Line items validated. Can be linked to a container.<br>'
+    +'<b>Container Loading:</b> Linked to a Draft container, awaiting dispatch.<br>'
+    +'<b>Dispatched:</b> Container is In Transit. Invoice locked.<br>'
+    +'<b>Warehouse:</b> Container received. Inventory active for sub-invoice dispatch.</div>';
 }
 
 // ===== HWMS: STEEL & FOREX RATE FUNCTIONS =====
@@ -7140,6 +7895,7 @@ async function _hwmsInvSaveUSA(id){
   }catch(e){ notify('Save failed: '+e.message,true); }
 }
 function _hwmsInvBack(){
+  _hwmsActiveMiPage='pageHwmsInvoices';
   hwmsGo('pageHwmsInvoices');
 }
 function _hwmsGetSortedInvs(){
@@ -7273,10 +8029,19 @@ function _hwmsLiCalcWeights(){
   const qty=parseInt(document.getElementById('hwmsLiAddQty').value)||0;
   const pkgWt=parseInt(document.getElementById('hwmsLiAddPkgWt').value)||0;
   const rate=parseFloat(document.getElementById('hwmsLiAddRate').value)||0;
-  const netWt=Math.round(unitNetWt*qty);
-  document.getElementById('hwmsLiAddNetWt').value=netWt||'';
-  const grossWt=netWt+pkgWt;
-  document.getElementById('hwmsLiAddGrossWt').value=grossWt||'';
+  const netWtEl=document.getElementById('hwmsLiAddNetWt');
+  if(qty>0){
+    const netWt=Math.round(unitNetWt*qty);
+    netWtEl.value=netWt||'';
+    netWtEl.style.color='';
+    const grossWt=netWt+pkgWt;
+    document.getElementById('hwmsLiAddGrossWt').value=grossWt||'';
+  } else {
+    // Show unit weight as hint when part selected but no qty
+    netWtEl.value=unitNetWt?('×'+unitNetWt+'/pc'):'';
+    netWtEl.style.color='#94a3b8';
+    document.getElementById('hwmsLiAddGrossWt').value='';
+  }
   const amt=rate*qty;
   document.getElementById('hwmsLiAddAmt').value=amt?amt.toFixed(2):'';
 }
@@ -7470,7 +8235,25 @@ function openHwmsInvModal(id){
     // 3. Load line items — THIS IS CRITICAL
     _hwmsLiItems=[];
     if(inv&&inv.lineItems&&Array.isArray(inv.lineItems)){
-      _hwmsLiItems=inv.lineItems.filter(function(li){return !li._meta;}).map((li,i)=>({...li,palletNumber:li.palletNumber||'P'+(i+1)}));
+      _hwmsLiItems=inv.lineItems.filter(function(li){return !li._meta;}).map(function(li,i){
+        var item={...li,palletNumber:li.palletNumber||'P'+(i+1)};
+        // Refresh part-derived fields from current Part Master
+        var part=byId(DB.hwmsParts||[],item.partId);
+        if(part){
+          item.hsnCode=part.hsnCode||'';
+          item.uom=part.uom||'';
+          item.packageType=part.packingType||item.packageType||'';
+          item.rate=part.finalRate||item.rate||0;
+          var dims=(part.packingDimensions||'').split(/[xX×]/);
+          item.pkgL=(dims[0]||'').trim()||item.pkgL||'';
+          item.pkgW=(dims[1]||'').trim()||item.pkgW||'';
+          item.pkgH=(dims[2]||'').trim()||item.pkgH||'';
+          item.pkgWeight=part.packingWeight||item.pkgWeight||0;
+          item.netWeight=Math.round((part.netWeightKg||0)*(item.quantity||0));
+          item.grossWeight=(item.netWeight||0)+(item.pkgWeight||0);
+        }
+        return item;
+      });
     }
     _hwmsLiRenderTable();
     _hwmsLiResetAddRow();
@@ -7581,6 +8364,9 @@ async function saveHwmsInv(){
   if(id){const inv=byId(DB.hwmsInvoices,id);const bak={...inv};Object.assign(inv,data);if(!await _dbSave('hwmsInvoices',inv)){Object.assign(inv,bak);return;}}
   else{const inv={id:'hi'+uid(),...data};savedId=inv.id;if(!await _dbSave('hwmsInvoices',inv))return;}
   renderHwmsInvoices();
+  // Refresh container form's linked invoices if open
+  var _contId3=document.getElementById('eHwmsContId');
+  if(_contId3&&_contId3.value&&document.getElementById('hwmsContFormView')?.style.display!=='none') _hwmsContRenderLinkedInvs(_contId3.value);
   showHwmsInvDetail(savedId);
   notify('Invoice saved!');
 }
