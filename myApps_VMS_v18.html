@@ -1866,7 +1866,8 @@ var _vmsIncr={
   lastTs:{},
   mode:'unknown',
   skipCount:0,
-  lastSaveAt:0
+  lastSaveAt:0,
+  probed:false
 };
 
 // Track local saves
@@ -1879,11 +1880,42 @@ if(_origDbSave2){
   };
 }
 
+// Probe: test if updated_at column exists on first hot table
+async function _vmsProbeIncremental(){
+  if(_vmsIncr.probed) return;
+  _vmsIncr.probed=true;
+  var firstTbl=_HOT_TABLES[0];
+  var sbTbl=SB_TABLES[firstTbl];
+  if(!sbTbl||!_sbReady||!_sb){_vmsIncr.mode='full';return;}
+  try{
+    var res=await _sb.from(sbTbl).select('updated_at').limit(1);
+    if(res.error){
+      console.warn('⚠ VMS Sync: updated_at probe failed on '+sbTbl+':',res.error.message||res.error.code,'→ Full sync mode (30s)');
+      _vmsIncr.mode='full';
+    } else {
+      _vmsIncr.mode='incremental';
+      console.log('✅ VMS Sync: incremental mode active (updated_at column found on '+sbTbl+')');
+    }
+  }catch(e){
+    console.warn('⚠ VMS Sync: probe exception:',e.message,'→ Full sync mode');
+    _vmsIncr.mode='full';
+  }
+}
+
 // Override _bgSyncHot — incremental or throttled full
 var _origBgSyncHot2=typeof _bgSyncHot==='function'?_bgSyncHot:null;
 _bgSyncHot=function(){
   if(!_sbReady||!_sb) return;
   if(Date.now()-_vmsIncr.lastSaveAt<5000) return;
+
+  // Probe on first call
+  if(_vmsIncr.mode==='unknown'){
+    _vmsProbeIncremental().then(function(){
+      if(_vmsIncr.mode==='incremental') _vmsIncrSyncHot();
+      else if(_origBgSyncHot2) _origBgSyncHot2();
+    });
+    return;
+  }
 
   if(_vmsIncr.mode==='full'){
     _vmsIncr.skipCount++;
@@ -1901,23 +1933,10 @@ function _vmsIncrSyncHot(){
     var lastTs=_vmsIncr.lastTs[tbl]||new Date(Date.now()-35000).toISOString();
     try{
       var res=await _sb.from(sbTbl).select('*').gt('updated_at',lastTs);
-      if(res.error){
-        if(String(res.error.message||'').indexOf('updated_at')>=0||String(res.error.code||'')==='42703'){
-          _vmsIncr.mode='full';
-          console.warn('⚠ VMS Sync: updated_at column not found on '+sbTbl+'. Run the SQL migration. Falling back to full sync (30s).');
-          if(_origBgSyncHot2) _origBgSyncHot2();
-          return null;
-        }
-        return null;
-      }
-      if(_vmsIncr.mode==='unknown'){
-        _vmsIncr.mode='incremental';
-        console.log('✅ VMS Sync: incremental mode active (updated_at detected)');
-      }
+      if(res.error){console.warn('VMS incr sync error on '+sbTbl+':',res.error.message);return null;}
       return {tbl:tbl,rows:res.data||[]};
     }catch(e){return null;}
   })).then(function(results){
-    if(_vmsIncr.mode==='full') return;
     if(!results) return;
     var totalChanged=0;
     results.filter(Boolean).forEach(function(r){
