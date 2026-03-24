@@ -1014,8 +1014,8 @@
                 <!-- Challans: 3 per row, each = [text above photo] -->
                 <div>
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers <span style="color:var(--text3);font-weight:600">(max 9)</span></label>
-                    <button id="spotAddChallanBtn" onclick="_spotAddChallanRow()" style="font-size:10px;padding:2px 8px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:5px;color:#1d6f73;font-weight:700;cursor:pointer">+ Add</button>
+                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers</label>
+                    <button onclick="_spotAddChallanRow()" style="font-size:10px;padding:2px 8px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:5px;color:#1d6f73;font-weight:700;cursor:pointer">+ Add</button>
                   </div>
                   <div id="spotChallanRows" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
                 </div>
@@ -1837,6 +1837,120 @@ function _applyPhotoInputMode(){
   });
 }
 function _photoAccept(){ return 'image/*'; }
+
+// ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
+// Instead of SELECT * on all hot tables every 10s, only fetch rows changed
+// since last sync using the updated_at column (requires Supabase trigger).
+// Falls back to throttled full sync (30s) if column doesn't exist.
+//
+// To enable incremental sync, run this SQL in Supabase SQL Editor:
+// ──────────────────────────────────────────────────────────────────────
+// CREATE OR REPLACE FUNCTION update_updated_at_column()
+// RETURNS TRIGGER AS $$
+// BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+// $$ LANGUAGE plpgsql;
+//
+// DO $$ DECLARE t TEXT; BEGIN
+//   FOR t IN SELECT unnest(ARRAY[
+//     'vms_trips','vms_segments','vms_spot_trips'
+//   ]) LOOP
+//     EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()', t);
+//     EXECUTE format('DROP TRIGGER IF EXISTS set_updated_at ON %I', t);
+//     EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()', t);
+//     EXECUTE format('UPDATE %I SET updated_at = NOW() WHERE updated_at IS NULL', t);
+//   END LOOP;
+// END $$;
+// ──────────────────────────────────────────────────────────────────────
+
+var _vmsIncr={
+  lastTs:{},
+  mode:'unknown',
+  skipCount:0,
+  lastSaveAt:0
+};
+
+// Track local saves
+var _origDbSave2=typeof _dbSave==='function'?_dbSave:null;
+if(_origDbSave2){
+  _dbSave=async function(tbl,record){
+    var result=await _origDbSave2(tbl,record);
+    if(result) _vmsIncr.lastSaveAt=Date.now();
+    return result;
+  };
+}
+
+// Override _bgSyncHot — incremental or throttled full
+var _origBgSyncHot2=typeof _bgSyncHot==='function'?_bgSyncHot:null;
+_bgSyncHot=function(){
+  if(!_sbReady||!_sb) return;
+  if(Date.now()-_vmsIncr.lastSaveAt<5000) return;
+
+  if(_vmsIncr.mode==='full'){
+    _vmsIncr.skipCount++;
+    if(_vmsIncr.skipCount%3!==0) return;
+    if(_origBgSyncHot2) _origBgSyncHot2();
+    return;
+  }
+  _vmsIncrSyncHot();
+};
+
+function _vmsIncrSyncHot(){
+  var now=new Date().toISOString();
+  Promise.all(_HOT_TABLES.map(async function(tbl){
+    var sbTbl=SB_TABLES[tbl];if(!sbTbl) return null;
+    var lastTs=_vmsIncr.lastTs[tbl]||new Date(Date.now()-35000).toISOString();
+    try{
+      var res=await _sb.from(sbTbl).select('*').gt('updated_at',lastTs);
+      if(res.error){
+        if(String(res.error.message||'').indexOf('updated_at')>=0||String(res.error.code||'')==='42703'){
+          _vmsIncr.mode='full';
+          console.warn('⚠ VMS Sync: updated_at column not found on '+sbTbl+'. Run the SQL migration. Falling back to full sync (30s).');
+          if(_origBgSyncHot2) _origBgSyncHot2();
+          return null;
+        }
+        return null;
+      }
+      if(_vmsIncr.mode==='unknown'){
+        _vmsIncr.mode='incremental';
+        console.log('✅ VMS Sync: incremental mode active (updated_at detected)');
+      }
+      return {tbl:tbl,rows:res.data||[]};
+    }catch(e){return null;}
+  })).then(function(results){
+    if(_vmsIncr.mode==='full') return;
+    if(!results) return;
+    var totalChanged=0;
+    results.filter(Boolean).forEach(function(r){
+      _vmsIncr.lastTs[r.tbl]=now;
+      if(!r.rows.length) return;
+      totalChanged+=r.rows.length;
+      var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      var arr=DB[r.tbl]||[];
+      var idMap={};
+      for(var i=0;i<arr.length;i++) idMap[arr[i].id]=i;
+      parsed.forEach(function(rec){
+        var idx=idMap[rec.id];
+        if(idx!==undefined) arr[idx]=rec; else arr.push(rec);
+      });
+      DB[r.tbl]=arr;
+    });
+    if(totalChanged>0){
+      _bgSyncDone=true;
+      if(_sbStatus!=='ok') _sbSetStatus('ok');
+      if(!_kapPopupOpen) _onRefreshViews();
+    }
+  }).catch(function(e){console.warn('VMS incr sync error:',e.message);});
+}
+
+// Reset incremental timestamps after full sync
+var _origBgSyncFull2=typeof _bgSyncFromSupabase==='function'?_bgSyncFromSupabase:null;
+_bgSyncFromSupabase=function(){
+  if(_origBgSyncFull2) _origBgSyncFull2();
+  setTimeout(function(){
+    var ts=new Date().toISOString();
+    (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=ts;});
+  },5000);
+};
 
 async function _appBoot(){
   var splash=document.getElementById('dbSplash');
@@ -4145,9 +4259,18 @@ function _tripIdPrefix(tripId){
   const m=tripId.match(/^(\d+P\d+-)/);
   return m?m[1]:'';
 }
-// Trip ID display (plain, no colorization)
+// Colorize trip ID: plant code portion gets location background color
 function _cTid(tripId){
-  return tripId||'';
+  if(!tripId) return '';
+  const m=tripId.match(/^(\d+)(P\d+)(-.*)?$/);
+  if(!m) return tripId;
+  const yr=m[1], pc=m[2], rest=m[3]||'';
+  // Find location matching plant code
+  const pcDigits=pc.replace(/\D/g,'');
+  const loc=DB.locations.find(l=>{const d=(l.name||'').replace(/[^0-9]/g,'');return d&&d===pcDigits;});
+  const bg=loc?.colour||'var(--accent)';
+  const fg=loc?.colour?colourContrast(loc.colour):'#fff';
+  return `${yr}<span style="background:${bg};color:${fg};padding:1px 4px;border-radius:4px;margin:0 1px">${pc}</span>${rest}`;
 }
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
@@ -5390,11 +5513,8 @@ function _spotInitChallans(challans){
   box.innerHTML='';
   const list=Array.isArray(challans)&&challans.length?challans:[{no:'',photo:''}];
   list.forEach(c=>_spotAddChallanRow(c.no||'',c.photo||''));
-  _spotUpdateAddBtn();
 }
 function _spotAddChallanRow(no='',photo=''){
-  var currentCount=document.querySelectorAll('[id^="spotChallanRow_"]').length;
-  if(currentCount>=9){notify('Maximum 9 challans allowed',true);return;}
   _spotChallanCount++;const i=_spotChallanCount;
   const box=document.getElementById('spotChallanRows');if(!box)return;
   const row=document.createElement('div');
@@ -5406,15 +5526,8 @@ function _spotAddChallanRow(no='',photo=''){
   row.innerHTML=`<input type="text" id="spotChallanNo_${i}" value="${noQ}" placeholder="Challan no." style="padding:4px 6px;font-size:13px;border:1.5px solid var(--border2);border-radius:6px;box-sizing:border-box;width:100%">`
     +`<div id="spotChallanThumb_${i}" onclick="_showPhotoChoice('spotChallanFile_${i}','spotChallanThumb_${i}')" style="height:60px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;background:var(--surface2);cursor:pointer">${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover">`:'📄'}</div>`
     +`<input type="file" id="spotChallanFile_${i}" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotChallanThumb_${i}')">`
-    +(i>1?`<button onclick="document.getElementById('spotChallanRow_${i}').remove();_spotUpdateAddBtn()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1;z-index:1">×</button>`:'');
+    +(i>1?`<button onclick="document.getElementById('spotChallanRow_${i}').remove()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1;z-index:1">×</button>`:'');
   box.appendChild(row);
-  _spotUpdateAddBtn();
-}
-function _spotUpdateAddBtn(){
-  var btn=document.getElementById('spotAddChallanBtn');
-  if(!btn) return;
-  var count=document.querySelectorAll('[id^="spotChallanRow_"]').length;
-  btn.style.display=count>=9?'none':'';
 }
 function _spotGetChallans(){
   const rows=document.querySelectorAll('[id^="spotChallanRow_"]');
@@ -9366,6 +9479,13 @@ function renderHelper(){
     <p style="margin:0 0 4px">3. Rate must be <code>approved</code> status</p>
     <p style="margin:0 0 8px">4. If multiple rates match, the one with latest <code>validStart</code> wins</p>
     <p style="margin:0"><strong>Unapproved rates</strong> are visible in Trip Rate Master but not applied to trips until approved by Admin/Super Admin.</p>
+  `)}
+
+  ${s('🔢 Trip ID Color Coding','rgba(42,154,160,.06)',`
+    <p style="margin:0 0 8px">Trip IDs show the <strong>plant code portion</strong> in the location's assigned color:</p>
+    <p style="margin:0 0 4px">• <span style="font-family:var(--mono);font-weight:800">6<span style="background:#0d9488;color:#fff;padding:1px 4px;border-radius:4px">P2</span>-15</span> = Plant 2 trips use Plant 2's color tag</p>
+    <p style="margin:0 0 4px">• <span style="font-family:var(--mono);font-weight:800">6<span style="background:#ea580c;color:#fff;padding:1px 4px;border-radius:4px">P1</span>-8</span> = Plant 1 trips use Plant 1's color tag</p>
+    <p style="margin:0">• Colors are assigned in <strong>Location Master → Colour Tag</strong></p>
   `)}
 
   ${s('📱 Spot Vehicle Entry','rgba(22,163,74,.06)',`

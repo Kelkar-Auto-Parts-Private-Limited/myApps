@@ -347,9 +347,8 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <!-- Container Details (purple tint) -->
           <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px">
             <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container & Shipping</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
               <div class="form-group" style="margin:0"><label>Container</label><input type="text" id="hwmsInvContainerDisplay" readonly style="padding:6px 6px;background:var(--surface2);font-family:var(--mono);font-weight:700;color:var(--accent)"><input type="hidden" id="hwmsInvContainer"></div>
-              <div class="form-group" style="margin:0"><label>Delivery Terms</label><select id="hwmsInvDelivery" style="padding:6px 6px"><option value="">--</option><option value="DDP">DDP</option><option value="DAP">DAP</option><option value="Ex-Works">Ex-Works</option></select></div>
               <div class="form-group" style="margin:0"><label>Mode of Transport</label><select id="hwmsInvTransport" style="padding:6px 6px"><option value="">--</option><option value="By Sea">By Sea</option><option value="By Air">By Air</option></select></div>
             </div>
           </div>
@@ -357,8 +356,15 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <!-- SECTION 3: Customer (green tint) -->
         <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
           <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">👤 Customer</div>
-          <div style="display:grid;grid-template-columns:1fr;gap:8px;align-items:end">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;margin-bottom:8px">
             <div class="form-group" style="margin:0"><label>Buyer (Customer) *</label><select id="hwmsInvBuyer" onchange="_hwmsInvOnBuyerChange()" style="padding:6px 6px"><option value="">--</option></select></div>
+            <div class="form-group" style="margin:0"><label>Consignee</label><select id="hwmsInvConsignee" style="padding:6px 6px"><option value="">--</option></select></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end">
+            <div class="form-group" style="margin:0"><label>Port of Loading</label><select id="hwmsInvPortLoad" style="padding:6px 6px"><option value="">--</option></select></div>
+            <div class="form-group" style="margin:0"><label>Port of Discharge</label><select id="hwmsInvPortDisch" style="padding:6px 6px"><option value="">--</option></select></div>
+            <div class="form-group" style="margin:0"><label>Payment Terms</label><input type="text" id="hwmsInvPayTerms" placeholder="e.g. NET 30" style="padding:6px 6px"></div>
+            <div class="form-group" style="margin:0"><label>Delivery Terms</label><select id="hwmsInvDelivery" style="padding:6px 6px"><option value="">--</option><option value="DDP">DDP</option><option value="DAP">DAP</option><option value="Ex-Works">Ex-Works</option></select></div>
           </div>
         </div>
         <!-- SECTION 4: Line Items (amber tint) -->
@@ -381,6 +387,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div class="form-group" style="margin:0;width:78px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Net Wt (Kg)</label><input type="text" id="hwmsLiAddNetWt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);text-align:right" readonly></div>
             <div class="form-group" style="margin:0;width:75px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Pkg Wt (Kg)</label><input type="number" id="hwmsLiAddPkgWt" step="1" min="0" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%"></div>
             <div class="form-group" style="margin:0;width:82px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Gross Wt (Kg)</label><input type="text" id="hwmsLiAddGrossWt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;text-align:right" readonly></div>
+            <div class="form-group" style="margin:0;width:72px;flex-shrink:0"><label style="font-size:11px;font-weight:600">HSN</label><input type="text" id="hwmsLiAddHsn" style="padding:6px 4px;font-size:13px;font-family:var(--mono);width:100%;background:var(--surface2)" readonly></div>
             <button class="btn btn-primary" id="hwmsLiAddBtn" onclick="_hwmsLiAdd()" style="padding:0;font-size:20px;font-weight:900;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:flex;align-items:center;justify-content:center" title="Add line item">+</button>
             <button class="btn btn-secondary" id="hwmsLiCancelBtn" onclick="_hwmsLiResetAddRow()" style="padding:0;font-size:14px;font-weight:700;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:none;align-items:center;justify-content:center" title="Cancel edit">✕</button>
           </div>
@@ -444,7 +451,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
-            <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Container</button>
+            <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Consignment</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 160px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr>
@@ -478,13 +485,16 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <input type="hidden" id="eHwmsContId"><input type="hidden" id="hwmsContCarrierName2"><input type="hidden" id="hwmsContPickup2">
 
         <!-- ROW 1: Container Details + Linked Invoices side by side -->
-        <div id="hwmsContRow1Details" style="font-size:14px;font-weight:900;color:#2563eb;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(59,130,246,.3)">🚢 Container Details</div>
+        <div id="hwmsContRow1Details" style="font-size:14px;font-weight:900;color:#2563eb;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(59,130,246,.3)">🚢 Consignment Details</div>
+        <div id="hwmsContTypeBadge" style="display:none;margin-bottom:10px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:start">
           <!-- Container Details (blue tint) -->
           <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px">
-            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container Details</div>
+            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Consignment Details</div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px">
-              <div class="form-group" style="margin:0"><label>Container No. *</label><div style="display:flex;align-items:center;gap:0"><span style="padding:6px 8px;font-family:var(--mono);font-weight:900;font-size:15px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="document.getElementById('hwmsContNumDisplay').textContent='CN-'+this.value" style="padding:6px 10px;font-weight:700;font-family:var(--mono);font-size:15px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
+              <div class="form-group" style="margin:0"><label>Consignment Type *</label><div style="display:flex;gap:6px" id="hwmsContTypeWrap"><button type="button" id="hwmsContTypeSea" onclick="_hwmsContSetType('sea')" class="btn" style="flex:1;padding:6px 10px;font-size:12px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid #2563eb;background:#dbeafe;color:#1d4ed8">🚢 By Sea (CN-)</button><button type="button" id="hwmsContTypeAir" onclick="_hwmsContSetType('air')" class="btn" style="flex:1;padding:6px 10px;font-size:12px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid var(--border);background:#f8fafc;color:var(--text3)">✈️ By Air (AC-)</button></div></div>
+              <input type="hidden" id="hwmsContType" value="sea">
+              <div class="form-group" style="margin:0"><label>Consignment No. *</label><div style="display:flex;align-items:center;gap:0"><span id="hwmsContPrefix" style="padding:6px 8px;font-family:var(--mono);font-weight:900;font-size:15px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="_hwmsContNumInput()" style="padding:6px 10px;font-weight:700;font-family:var(--mono);font-size:15px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
               <div class="form-group" style="margin:0"><label>Expected Pickup Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContExpPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
             </div>
           </div>
@@ -521,9 +531,10 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <div id="hwmsContDispatchSection" style="background:rgba(234,88,12,.05);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px">
             <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🚢 Dispatch Details</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
-              <div class="form-group" style="margin:0"><label>Carrier *</label><select id="hwmsContCarrier" onchange="_hwmsContShowCarrierInfo()" style="padding:7px 8px"><option value="">--</option></select><div id="hwmsContCarrierInfo" style="display:none;padding:3px 0;font-size:10px;color:var(--text3);line-height:1.4"></div></div>
+              <div class="form-group" style="margin:0"><label>Carrier *</label><select id="hwmsContCarrier" onchange="_hwmsContShowCarrierInfo()" style="padding:7px 8px"><option value="">--</option></select></div>
               <div class="form-group" style="margin:0"><label>Container Serial Number</label><input type="text" id="hwmsContSerialNum" placeholder="e.g. MSCU1234567" style="padding:7px 8px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px"></div>
             </div>
+            <div id="hwmsContCarrierInfo" style="display:none;line-height:1.4;margin-bottom:6px"></div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
               <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup');_hwmsContOnDispatchDate()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span><button type="button" class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:11px;padding:6px 14px;background:#ea580c;border-color:#ea580c;font-weight:800;white-space:nowrap">🚀 Dispatch Container</button><button type="button" class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Undo Dispatch</button></div></div>
             </div>
@@ -534,9 +545,14 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📍 Destination</div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
               <div class="form-group" style="margin:0"><label>Expected Reach Date</label><div style="position:relative"><input type="text" id="hwmsContExpReach_fmt" readonly style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;background:var(--surface2);width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpReach" onchange="_hwmsContDateFmt('hwmsContExpReach')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" readonly></div></div>
-              <div class="form-group" style="margin:0"><label>Container Reached Date</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContReachedDate_fmt" readonly onclick="document.getElementById('hwmsContReachedDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContReachedDate" onchange="_hwmsContDateFmt('hwmsContReachedDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContReachedDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span><button type="button" class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:11px;padding:6px 14px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer;white-space:nowrap">📦 Receive this Container</button><button type="button" class="btn" id="btnHwmsContEditReceived" onclick="_hwmsContOpenReceive()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:var(--radius);cursor:pointer;white-space:nowrap">✏️ Edit Received Container</button><button type="button" class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Revoke Reached</button></div></div>
+              <input type="hidden" id="hwmsContReachedDate"><input type="hidden" id="hwmsContReachedDate_fmt">
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <button type="button" class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:11px;padding:6px 14px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer;white-space:nowrap">📦 Receive this Container</button>
+                <button type="button" class="btn" id="btnHwmsContEditReceived" onclick="_hwmsContOpenReceive()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:var(--radius);cursor:pointer;white-space:nowrap">✏️ Edit Received Container</button>
+                <button type="button" class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Undo Received</button>
+              </div>
             </div>
-            <div id="hwmsContReachedInfo" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
+            <div id="hwmsContReachedInfo" style="display:none;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
           </div>
         </div>
 
@@ -548,21 +564,19 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:12px 14px">
               <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Carrier Invoice</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-                <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsContCarrInv" style="padding:7px 10px"></div>
+                <div class="form-group" style="margin:0"><label>Invoice No.</label><input type="text" id="hwmsContCarrInv" maxlength="15" style="padding:7px 10px;width:120px;box-sizing:border-box"></div>
                 <div class="form-group" style="margin:0"><label>Invoice Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContCarrDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
               </div>
-              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Amount ($)</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContCarrAmt" inputmode="decimal" maxlength="10" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="padding:7px 8px;width:100px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:16px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label></div></div>
-              <div class="form-group" style="margin:0"><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="min-height:44px;max-width:200px"></div></div>
+              <div class="form-group" style="margin:0"><label>Amount ($)</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContCarrAmt" inputmode="decimal" maxlength="10" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="padding:7px 8px;width:100px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:var(--radius);font-size:16px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label><input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none"><div id="hwmsContCarrPhotoPreview" style="max-width:120px"></div></div></div>
             </div>
             <!-- Entry Summary (purple tint) -->
             <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px">
               <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📄 Entry Summary</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-                <div class="form-group" style="margin:0"><label>ES Number</label><input type="text" id="hwmsContESNum" style="padding:7px 10px"></div>
+                <div class="form-group" style="margin:0"><label>ES Number</label><input type="text" id="hwmsContESNum" maxlength="15" style="padding:7px 10px;width:120px;box-sizing:border-box"></div>
                 <div class="form-group" style="margin:0"><label>ES Date</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContESDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
               </div>
-              <div class="form-group" style="margin:0;margin-bottom:8px"><label>Tariff Paid ($)</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContTariffPaid" inputmode="decimal" maxlength="10" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="padding:7px 8px;width:100px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:16px" title="Attach ES photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label></div></div>
-              <div class="form-group" style="margin:0"><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="min-height:44px;max-width:200px"></div></div>
+              <div class="form-group" style="margin:0"><label>Tariff Paid ($)</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="hwmsContTariffPaid" inputmode="decimal" maxlength="10" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="padding:7px 8px;width:100px;box-sizing:border-box;font-family:var(--mono);font-weight:700;text-align:right"><label style="margin:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:var(--radius);font-size:16px" title="Attach ES photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label><input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none"><div id="hwmsContESPhotoPreview" style="max-width:120px"></div></div></div>
             </div>
           </div>
         </div>
@@ -578,7 +592,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <button class="btn btn-secondary" onclick="exportMaster('hwmsCarriers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
         <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
         <button class="btn btn-primary" onclick="openHwmsCarrierModal()">+ Add Carrier</button>
-      </div></div><div class="table-wrap"><table id="tHwmsCarriers"><thead><tr><th class="sortable" onclick="sortTable('hwmsCarrBody',0)">Carrier Name</th><th>Address</th><th>Contact</th><th>Actions</th></tr></thead><tbody id="hwmsCarrBody"></tbody></table></div></div>
+      </div></div><div class="table-wrap"><table id="tHwmsCarriers"><thead><tr><th class="sortable" onclick="sortTable('hwmsCarrBody',0)">Carrier Name</th><th>Address</th><th>🇮🇳 India Contact</th><th>🇺🇸 USA Contact</th><th>Actions</th></tr></thead><tbody id="hwmsCarrBody"></tbody></table></div></div>
     </div>
 
     <!-- HWMS: HSN MASTER -->
@@ -829,7 +843,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             #hwmsSiTbl tbody td{padding:10px 8px;font-size:13px;border-bottom:1.5px solid #e8ecf0}
           </style>
           <table id="hwmsSiTbl"><thead><tr>
-            <th style="width:30px;text-align:center"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
+            <th id="hwmsSiSelectAllTh" style="width:30px;text-align:center;display:none"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
             <th style="width:30px;text-align:center"><div style="font-size:10px">🖨️</div></th>
             <th><div>Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('date')" title="Sort"><span id="hwmsSiSortI_date">⇅</span></button></div></th>
             <th><div>Sub-Inv # <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('subInvoiceNumber')" title="Sort"><span id="hwmsSiSortI_subInvoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltNum" placeholder="🔍 Filter…" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltNum')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltNum_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltNum').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
@@ -942,7 +956,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
               <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Default Landing Page</th>
             </tr></thead>
             <tbody>
-              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#7c3aed">SA</td><td style="padding:6px 10px;border:1px solid var(--border)">Super Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">Full access to all pages, masters, operations, delete, undo dispatch, revoke reached</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
+              <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#7c3aed">SA</td><td style="padding:6px 10px;border:1px solid var(--border)">Super Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">Full access to all pages, masters, operations, delete, undo dispatch, undo received</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
               <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#2563eb">HA</td><td style="padding:6px 10px;border:1px solid var(--border)">HWMS Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">All ops pages + masters. Add/edit containers, invoices, sub-invoices. Cannot delete containers.</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
               <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#ea580c">WA</td><td style="padding:6px 10px;border:1px solid var(--border)">WH Admin</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers (view only: destination section). Inventory, Sub-Invoices (list only, no amounts), Material Requests (add/edit/import/export, mark pickup). No generate SI, no invoices, no masters.</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
               <tr><td style="padding:6px 10px;border:1px solid var(--border);font-weight:800;color:#16a34a">WU</td><td style="padding:6px 10px;border:1px solid var(--border)">WH User</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers (view only: destination section). Inventory, Sub-Invoices (list only, no amounts), Material Requests (view &amp; mark pickup only). No invoices, no masters.</td><td style="padding:6px 10px;border:1px solid var(--border)">Containers</td></tr>
@@ -1245,12 +1259,23 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 </div></div>
 
 <!-- HWMS CARRIER MODAL -->
-<div class="modal-overlay" id="mHwmsCarrier"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mHwmsCarrierTitle">Add Carrier</div><div class="modal-close" onclick="cm('mHwmsCarrier')">×</div></div>
+<div class="modal-overlay" id="mHwmsCarrier"><div class="modal" style="width:560px;padding:20px 24px"><div class="modal-header" style="margin-bottom:14px"><div class="modal-title" id="mHwmsCarrierTitle">Add Carrier</div><div class="modal-close" onclick="cm('mHwmsCarrier')">×</div></div>
   <input type="hidden" id="eHwmsCarrierId">
-  <div class="form-group"><label>Carrier Name *</label><input type="text" id="hwmsCarrierName"></div>
-  <div class="form-group"><label>Address</label><textarea id="hwmsCarrierAddr" rows="3" style="resize:vertical;min-height:60px"></textarea></div>
-  <div class="form-group"><label>Contact Number</label><input type="tel" id="hwmsCarrierContact" maxlength="15"></div>
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mHwmsCarrier"></div><button class="btn btn-secondary" onclick="cm('mHwmsCarrier')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsCarrier()">Save</button></div>
+  <div class="form-group" style="margin-bottom:12px"><label style="font-size:12px;font-weight:700;margin-bottom:4px;display:block">Carrier Name *</label><input type="text" id="hwmsCarrierName" style="padding:8px 10px;font-size:14px;font-weight:700"></div>
+  <div class="form-group" style="margin-bottom:14px"><label style="font-size:12px;font-weight:700;margin-bottom:4px;display:block">Address</label><textarea id="hwmsCarrierAddr" rows="2" style="resize:vertical;min-height:50px;padding:8px 10px;font-size:13px"></textarea></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    <div style="background:rgba(234,88,12,.06);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🇮🇳 India Contact</div>
+      <div class="form-group" style="margin-bottom:10px"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Phone</label><input type="tel" id="hwmsCarrierInPhone" maxlength="15" placeholder="+91 XXXXX XXXXX" style="padding:7px 10px;font-family:var(--mono);font-size:13px"></div>
+      <div class="form-group" style="margin:0"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Email</label><input type="email" id="hwmsCarrierInEmail" placeholder="contact@example.com" style="padding:7px 10px;font-size:13px"></div>
+    </div>
+    <div style="background:rgba(37,99,235,.06);border:1.5px solid rgba(37,99,235,.2);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🇺🇸 USA Contact</div>
+      <div class="form-group" style="margin-bottom:10px"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Phone</label><input type="tel" id="hwmsCarrierUsPhone" maxlength="15" placeholder="+1 XXX XXX XXXX" style="padding:7px 10px;font-family:var(--mono);font-size:13px"></div>
+      <div class="form-group" style="margin:0"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Email</label><input type="email" id="hwmsCarrierUsEmail" placeholder="contact@example.com" style="padding:7px 10px;font-size:13px"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)"><div class="modal-err" id="merr_mHwmsCarrier"></div><button class="btn btn-secondary" onclick="cm('mHwmsCarrier')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsCarrier()">Save</button></div>
 </div></div>
 
 <!-- HWMS HSN MODAL -->
@@ -1593,15 +1618,16 @@ const MASTER_SCHEMA={
       var st=c.status==='Onwater'?'In Transit':c.status==='Reached'?'Warehouse':'Draft';
       var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
       var invNums=invs.map(function(inv){return inv.invoiceNumber;}).join('; ');
-      return {'Container No.':c.containerNumber||'','Serial No.':c.containerSerialNumber||'','Expected Pickup':c.expectedPickupDate||'','Actual Dispatch':c.pickupDate||'','Carrier':c.carrierName||'','Status':st,'Expected Reach':c.expectedReachDate||'','Reached Date':c.reachedDate||'','Carrier Inv No.':c.carrierInvNumber||'','Carrier Inv Date':c.carrierInvDate||'','Carrier Inv Amount':c.carrierInvAmount||0,'ES Number':c.entrySummaryNumber||'','ES Date':c.esDate||'','Tariff Paid':c.tariffPaid||0,'Linked Invoices':invNums};
+      return {'Container No.':c.containerNumber||'','Type':_hwmsContGetType(c)==='air'?'Air':'Sea','Serial No.':c.containerSerialNumber||'','Expected Pickup':c.expectedPickupDate||'','Actual Dispatch':c.pickupDate||'','Carrier':c.carrierName||'','Status':st,'Expected Reach':c.expectedReachDate||'','Reached Date':c.reachedDate||'','Carrier Inv No.':c.carrierInvNumber||'','Carrier Inv Date':c.carrierInvDate||'','Carrier Inv Amount':c.carrierInvAmount||0,'ES Number':c.entrySummaryNumber||'','ES Date':c.esDate||'','Tariff Paid':c.tariffPaid||0,'Linked Invoices':invNums};
     },
     fromRow:function(r){
       var cn=(r['Container No.']||'').toString().trim();
       if(!cn) return null;
-      if(!cn.startsWith('CN-')) cn='CN-'+cn;
+      var isAir=(r['Type']||'').toString().trim().toLowerCase()==='air'||cn.startsWith('AC-');
+      if(!cn.startsWith('CN-')&&!cn.startsWith('AC-')) cn=(isAir?'AC-':'CN-')+cn;
       var carrierId='';var carrierName=(r['Carrier']||'').toString().trim();
       if(carrierName){var cr=(DB.hwmsCarriers||[]).find(function(c){return(c.carrierName||'').toLowerCase()===carrierName.toLowerCase();});if(cr)carrierId=cr.id;}
-      return {id:'hc'+uid(),status:'',confirmed:false,containerNumber:cn,containerSerialNumber:(r['Serial No.']||'').toString().trim(),expectedPickupDate:(r['Expected Pickup']||'').toString().trim(),pickupDate:'',carrierId:carrierId,carrierName:carrierName,expectedReachDate:'',reachedDate:'',carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,entrySummaryNumber:'',esDate:'',esPhoto:'',tariffPaid:0,tariffPercent:0};
+      return {id:'hc'+uid(),status:'',confirmed:false,consignmentType:isAir?'air':'sea',containerNumber:cn,containerSerialNumber:(r['Serial No.']||'').toString().trim(),expectedPickupDate:(r['Expected Pickup']||'').toString().trim(),pickupDate:'',carrierId:carrierId,carrierName:carrierName,expectedReachDate:'',reachedDate:'',carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,entrySummaryNumber:'',esDate:'',esPhoto:'',tariffPaid:0,tariffPercent:0};
     },
     matchKey:function(r){return(r['Container No.']||'').toString().trim().toUpperCase();},
     dbMatchKey:function(c){return(c.containerNumber||'').toUpperCase();},
@@ -1617,13 +1643,17 @@ const MASTER_SCHEMA={
     _flatExport:true,
     toRow:function(inv){
       var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+      var plPort=byId(DB.hwmsPortLoading||[],inv.portOfLoadingId);
+      var pdPort=byId(DB.hwmsPortDischarge||[],inv.portOfDischargeId);
+      var notes=_hwmsInvGetNotes(inv);
+      var base={'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':inv.confirmed?'RFD':'Draft','Container':inv.containerNumber||'','Delivery Terms':inv.delivery||'','Mode of Transport':inv.modeOfTransport||'','Payment Terms':inv.paymentTerms||'','Port of Loading':inv.portOfLoading||plPort?.portName||plPort?.name||'','Port of Discharge':inv.portOfDischarge||pdPort?.portName||pdPort?.name||'','Note 1':notes.indexOf(1)>=0?'Yes':'No','Note 2':notes.indexOf(2)>=0?'Yes':'No','Note 3':notes.indexOf(3)>=0?'Yes':'No'};
       if(!lis.length){
-        return [{'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':inv.confirmed?'RFD':'Draft','Container':inv.containerNumber||'','Pallet':'','Part No.':'','PO No.':'','Qty':'','UOM':'','Rate':'','Net Wt':'','Pkg Wt':'','Gross Wt':'','Package':'','HSN':'','L':'','W':'','H':''}];
+        return [Object.assign({},base,{'Pallet':'','Part No.':'','PO No.':'','Qty':'','UOM':'','Rate':'','Net Wt':'','Pkg Wt':'','Gross Wt':'','Package':'','HSN':'','L':'','W':'','H':''})];
       }
       return lis.map(function(li){
         var part=byId(DB.hwmsParts||[],li.partId);
         var pn=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):'';
-        return {'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':inv.confirmed?'RFD':'Draft','Container':inv.containerNumber||'','Pallet':li.palletNumber||'','Part No.':pn,'PO No.':li.poNumber||'','Qty':li.quantity||0,'UOM':li.uom||'','Rate':li.rate||0,'Net Wt':li.netWeight||0,'Pkg Wt':li.pkgWeight||0,'Gross Wt':li.grossWeight||0,'Package':li.packageType||'','HSN':li.hsnCode||'','L':li.pkgL||'','W':li.pkgW||'','H':li.pkgH||''};
+        return Object.assign({},base,{'Pallet':li.palletNumber||'','Part No.':pn,'PO No.':li.poNumber||'','Qty':li.quantity||0,'UOM':li.uom||'','Rate':li.rate||0,'Net Wt':li.netWeight||0,'Pkg Wt':li.pkgWeight||0,'Gross Wt':li.grossWeight||0,'Package':li.packageType||'','HSN':li.hsnCode||'','L':li.pkgL||'','W':li.pkgW||'','H':li.pkgH||''});
       });
     },
     fromRow:function(r){
@@ -1636,7 +1666,7 @@ const MASTER_SCHEMA={
       var partId='';
       if(pn){var pnClean=pn.replace(/\s+R\d+$/,'').trim();var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pnClean;});if(part)partId=part.id;}
       var li={partId:partId,palletNumber:(r['Pallet']||'').toString().trim(),poNumber:(r['PO No.']||'').toString().trim(),quantity:parseInt(r['Qty'])||0,uom:(r['UOM']||'').toString().trim(),rate:parseFloat(r['Rate'])||0,netWeight:parseFloat(r['Net Wt'])||0,pkgWeight:parseFloat(r['Pkg Wt'])||0,grossWeight:parseFloat(r['Gross Wt'])||0,packageType:(r['Package']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),pkgL:(r['L']||'').toString().trim(),pkgW:(r['W']||'').toString().trim(),pkgH:(r['H']||'').toString().trim()};
-      return {_invNum:invNum,_date:(r['Date']||'').toString().trim(),_buyerName:buyerName,_buyerId:buyerId,_consigneeName:(r['Consignee']||'').toString().trim(),_lineItem:li};
+      return {_invNum:invNum,_date:(r['Date']||'').toString().trim(),_buyerName:buyerName,_buyerId:buyerId,_consigneeName:(r['Consignee']||'').toString().trim(),_delivery:(r['Delivery Terms']||'').toString().trim(),_modeOfTransport:(r['Mode of Transport']||'').toString().trim(),_paymentTerms:(r['Payment Terms']||'').toString().trim(),_portOfLoading:(r['Port of Loading']||'').toString().trim(),_portOfDischarge:(r['Port of Discharge']||'').toString().trim(),_note1:(r['Note 1']||'').toString().trim(),_note2:(r['Note 2']||'').toString().trim(),_note3:(r['Note 3']||'').toString().trim(),_lineItem:li};
     },
     // Custom import logic for flat invoice rows
     _customImport:true,
@@ -1668,8 +1698,8 @@ const MASTER_SCHEMA={
   hwmsCarriers:{
     label:'Carriers',
     render:renderHwmsCarriers,
-    toRow:function(c){return {'Carrier Name':c.carrierName||'','Address':c.address||'','Contact':c.contact||''};},
-    fromRow:function(r){var n=(r['Carrier Name']||'').toString().trim();if(!n)return null;return {id:'hcr'+uid(),carrierName:n,address:(r['Address']||'').toString().trim(),contact:(r['Contact']||'').toString().trim()};},
+    toRow:function(c){return {'Carrier Name':c.carrierName||'','Address':c.address||'','India Phone':c.indiaPhone||c.contact||'','India Email':c.indiaEmail||'','USA Phone':c.usaPhone||'','USA Email':c.usaEmail||''};},
+    fromRow:function(r){var n=(r['Carrier Name']||'').toString().trim();if(!n)return null;return {id:'hcr'+uid(),carrierName:n,address:(r['Address']||'').toString().trim(),contact:(r['India Phone']||r['Contact']||'').toString().trim(),indiaPhone:(r['India Phone']||r['Contact']||'').toString().trim(),indiaEmail:(r['India Email']||'').toString().trim(),usaPhone:(r['USA Phone']||'').toString().trim(),usaEmail:(r['USA Email']||'').toString().trim()};},
     matchKey:function(r){return(r['Carrier Name']||'').toString().trim().toLowerCase();},
     dbMatchKey:function(c){return(c.carrierName||'').toLowerCase();},
     merge:function(e,r){if(r['Address']!==undefined)e.address=(r['Address']||'').toString().trim();if(r['Contact']!==undefined)e.contact=(r['Contact']||'').toString().trim();}
@@ -1768,7 +1798,7 @@ async function _hwmsImportInvoices(rows){
   rows.forEach(function(r){
     var invNum=(r['MI Number']||'').toString().trim();
     if(!invNum) return;
-    if(!grouped[invNum]) grouped[invNum]={invNum:invNum,date:(r['Date']||'').toString().trim(),buyerName:(r['Buyer']||'').toString().trim(),consigneeName:(r['Consignee']||'').toString().trim(),containerNum:(r['Container']||'').toString().trim(),lineItems:[]};
+    if(!grouped[invNum]) grouped[invNum]={invNum:invNum,date:(r['Date']||'').toString().trim(),buyerName:(r['Buyer']||'').toString().trim(),consigneeName:(r['Consignee']||'').toString().trim(),containerNum:(r['Container']||'').toString().trim(),delivery:(r['Delivery Terms']||'').toString().trim(),modeOfTransport:(r['Mode of Transport']||'').toString().trim(),paymentTerms:(r['Payment Terms']||'').toString().trim(),portOfLoading:(r['Port of Loading']||'').toString().trim(),portOfDischarge:(r['Port of Discharge']||'').toString().trim(),note1:(r['Note 1']||'').toString().trim(),note2:(r['Note 2']||'').toString().trim(),note3:(r['Note 3']||'').toString().trim(),lineItems:[]};
     var pn=(r['Part No.']||'').toString().trim();
     if(!pn) return;
     var pnClean=pn.replace(/\s+R\d+$/,'').trim();
@@ -1787,18 +1817,38 @@ async function _hwmsImportInvoices(rows){
   for(var i=0;i<invNums.length;i++){
     var g=grouped[invNums[i]];
     _spinnerMsg('Processing '+(i+1)+'/'+invNums.length+'…');
+    // Resolve port IDs
+    var plPortId='';if(g.portOfLoading){var plP=(DB.hwmsPortLoading||[]).find(function(p){return(p.portName||p.name||'').toLowerCase()===g.portOfLoading.toLowerCase();});if(plP)plPortId=plP.id;}
+    var pdPortId='';if(g.portOfDischarge){var pdP=(DB.hwmsPortDischarge||[]).find(function(p){return(p.portName||p.name||'').toLowerCase()===g.portOfDischarge.toLowerCase();});if(pdP)pdPortId=pdP.id;}
+    // Build notes meta
+    var selectedNotes=[];
+    if((g.note1||'').toLowerCase()==='yes') selectedNotes.push(1);
+    if((g.note2||'').toLowerCase()==='yes') selectedNotes.push(2);
+    if((g.note3||'').toLowerCase()==='yes') selectedNotes.push(3);
+    if(!selectedNotes.length) selectedNotes=[1];
+    var metaLi={_meta:true,selectedNotes:selectedNotes};
     var existing=(DB.hwmsInvoices||[]).find(function(inv){return inv.invoiceNumber===g.invNum;});
     if(existing){
-      // Update line items (replace all)
-      var metaLi=(existing.lineItems||[]).filter(function(li){return li._meta;});
-      existing.lineItems=g.lineItems.concat(metaLi);
+      // Update line items (replace all) + header fields
+      var oldMeta=(existing.lineItems||[]).filter(function(li){return li._meta;});
+      // Update meta notes
+      if(oldMeta.length){oldMeta[0].selectedNotes=selectedNotes;}
+      else{oldMeta=[metaLi];}
+      existing.lineItems=g.lineItems.concat(oldMeta);
+      if(g.delivery) existing.delivery=g.delivery;
+      if(g.modeOfTransport) existing.modeOfTransport=g.modeOfTransport;
+      if(g.paymentTerms) existing.paymentTerms=g.paymentTerms;
+      if(plPortId) existing.portOfLoadingId=plPortId;
+      if(g.portOfLoading) existing.portOfLoading=g.portOfLoading;
+      if(pdPortId) existing.portOfDischargeId=pdPortId;
+      if(g.portOfDischarge) existing.portOfDischarge=g.portOfDischarge;
       if(await _dbSave('hwmsInvoices',existing)) updated++;
       else skipped++;
     } else {
       // New invoice
       var buyerId='';
       if(g.buyerName){var cust=(DB.hwmsCustomers||[]).find(function(c){return(c.customerName||'').toLowerCase()===g.buyerName.toLowerCase();});if(cust)buyerId=cust.id;}
-      var inv={id:'hi'+uid(),invoiceNumber:g.invNum,date:g.date,buyerId:buyerId,buyerName:g.buyerName,consigneeName:g.consigneeName,consigneeIdx:0,confirmed:false,containerId:'',containerNumber:g.containerNum,lineItems:g.lineItems,modeOfTransport:'',delivery:'',paymentTerms:'',paymentStatus:'Pending',portOfLoading:'',portOfDischarge:'',countryOfDest:''};
+      var inv={id:'hi'+uid(),invoiceNumber:g.invNum,date:g.date,buyerId:buyerId,buyerName:g.buyerName,consigneeName:g.consigneeName,consigneeIdx:0,confirmed:false,containerId:'',containerNumber:g.containerNum,lineItems:g.lineItems.concat([metaLi]),modeOfTransport:g.modeOfTransport||'',delivery:g.delivery||'',paymentTerms:g.paymentTerms||'',paymentStatus:'Pending',portOfLoading:g.portOfLoading||'',portOfLoadingId:plPortId,portOfDischarge:g.portOfDischarge||'',portOfDischargeId:pdPortId,countryOfDest:''};
       if(await _dbSave('hwmsInvoices',inv)) added++;
       else skipped++;
     }
@@ -1962,6 +2012,128 @@ _rtRefreshFor=function(tbl){
   if(_origRtRefreshFor) _origRtRefreshFor(tbl);
 };
 
+// ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
+// Instead of SELECT * on all hot tables every 10s, only fetch rows changed
+// since last sync using the updated_at column (requires Supabase trigger).
+// Falls back to full sync (every 30s effective) if column doesn't exist.
+// Realtime WebSocket remains the primary sync mechanism for instant updates.
+//
+// To enable incremental sync, run this SQL in Supabase SQL Editor:
+// ──────────────────────────────────────────────────────────────────────
+// CREATE OR REPLACE FUNCTION update_updated_at_column()
+// RETURNS TRIGGER AS $$
+// BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+// $$ LANGUAGE plpgsql;
+//
+// DO $$ DECLARE t TEXT; BEGIN
+//   FOR t IN SELECT unnest(ARRAY[
+//     'hwms_containers','hwms_invoices','hwms_sub_invoices',
+//     'hwms_material_requests','hwms_parts'
+//   ]) LOOP
+//     EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()', t);
+//     EXECUTE format('DROP TRIGGER IF EXISTS set_updated_at ON %I', t);
+//     EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()', t);
+//     EXECUTE format('UPDATE %I SET updated_at = NOW() WHERE updated_at IS NULL', t);
+//   END LOOP;
+// END $$;
+// ──────────────────────────────────────────────────────────────────────
+
+var _hwmsIncr={
+  lastTs:{},        // per-table last sync ISO timestamp
+  mode:'unknown',   // 'incremental'|'full'|'unknown'
+  skipCount:0,      // tick counter for 30s effective polling in full mode
+  lastSaveAt:0      // Date.now() of last local _dbSave
+};
+
+// Track local saves — override _dbSave wrapper
+var _origDbSave=typeof _dbSave==='function'?_dbSave:null;
+if(_origDbSave){
+  _dbSave=async function(tbl,record){
+    var result=await _origDbSave(tbl,record);
+    if(result) _hwmsIncr.lastSaveAt=Date.now();
+    return result;
+  };
+}
+
+// Override _bgSyncHot — incremental or throttled full
+var _origBgSyncHot=typeof _bgSyncHot==='function'?_bgSyncHot:null;
+_bgSyncHot=function(){
+  if(!_sbReady||!_sb) return;
+  // Skip if local save was <5s ago (data is fresh, avoid conflict)
+  if(Date.now()-_hwmsIncr.lastSaveAt<5000) return;
+
+  if(_hwmsIncr.mode==='full'){
+    // In full mode, only sync every 3rd tick → effective 30s
+    _hwmsIncr.skipCount++;
+    if(_hwmsIncr.skipCount%3!==0) return;
+    if(_origBgSyncHot) _origBgSyncHot();
+    return;
+  }
+  // Try incremental sync
+  _hwmsIncrSyncHot();
+};
+
+function _hwmsIncrSyncHot(){
+  var now=new Date().toISOString();
+  Promise.all(_HOT_TABLES.map(async function(tbl){
+    var sbTbl=SB_TABLES[tbl];if(!sbTbl) return null;
+    var lastTs=_hwmsIncr.lastTs[tbl]||new Date(Date.now()-35000).toISOString();
+    try{
+      var res=await _sb.from(sbTbl).select('*').gt('updated_at',lastTs);
+      if(res.error){
+        // Column doesn't exist — fall back permanently for this session
+        if(String(res.error.message||'').indexOf('updated_at')>=0||String(res.error.code||'')==='42703'){
+          _hwmsIncr.mode='full';
+          console.warn('⚠ HWMS Sync: updated_at column not found on '+sbTbl+'. Run the SQL migration in Supabase to enable incremental sync. Falling back to full sync (30s).');
+          if(_origBgSyncHot) _origBgSyncHot();
+          return null;
+        }
+        return null;
+      }
+      if(_hwmsIncr.mode==='unknown'){
+        _hwmsIncr.mode='incremental';
+        console.log('✅ HWMS Sync: incremental mode active (updated_at detected)');
+      }
+      return {tbl:tbl,rows:res.data||[]};
+    }catch(e){return null;}
+  })).then(function(results){
+    if(_hwmsIncr.mode==='full') return; // already fell back
+    if(!results) return;
+    var totalChanged=0;
+    results.filter(Boolean).forEach(function(r){
+      _hwmsIncr.lastTs[r.tbl]=now;
+      if(!r.rows.length) return;
+      totalChanged+=r.rows.length;
+      var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      // Merge: upsert changed rows into existing array (don't replace entire array)
+      var arr=DB[r.tbl]||[];
+      var idMap={};
+      for(var i=0;i<arr.length;i++) idMap[arr[i].id]=i;
+      parsed.forEach(function(rec){
+        var idx=idMap[rec.id];
+        if(idx!==undefined) arr[idx]=rec; else arr.push(rec);
+      });
+      DB[r.tbl]=arr;
+    });
+    if(totalChanged>0){
+      _bgSyncDone=true;
+      if(_sbStatus!=='ok') _sbSetStatus('ok');
+      if(!_kapPopupOpen) _onRefreshViews();
+    }
+  }).catch(function(e){console.warn('HWMS incr sync error:',e.message);});
+}
+
+// Override _bgSyncFromSupabase — reset incremental timestamps after full sync
+var _origBgSyncFull=typeof _bgSyncFromSupabase==='function'?_bgSyncFromSupabase:null;
+_bgSyncFromSupabase=function(){
+  if(_origBgSyncFull) _origBgSyncFull();
+  // Reset timestamps after full sync completes (async, so delay)
+  setTimeout(function(){
+    var ts=new Date().toISOString();
+    (_HOT_TABLES||[]).forEach(function(t){_hwmsIncr.lastTs[t]=ts;});
+  },5000);
+};
+
 async function _hwmsBoot(){
   // Guard: myApps_Common_v18.js must be loaded before this runs.
   // If it isn't, bootDB and _sessionGet will be undefined and we show a clear error.
@@ -1977,13 +2149,14 @@ async function _hwmsBoot(){
     return;
   }
   const splash=document.getElementById('dbSplash');
-  if(splash) splash.style.display='none';
+  var splashMsg2=document.getElementById('splashMsg');
+  if(splashMsg2) splashMsg2.textContent='Connecting to database…';
   // Load only HWMS tables — not VMS/Security tables
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests'];
   // Override hot tables BEFORE boot so polling syncs HWMS data from the start
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['hwmsContainers','hwmsInvoices','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
-  if(splash) splash.style.display='none';
+  if(splashMsg2) splashMsg2.textContent='Loading app…';
   // Replace VMS realtime channel with HWMS-specific one
   _hwmsStartRealtime();
   // Auto-login from session
@@ -1991,10 +2164,12 @@ async function _hwmsBoot(){
   if(su&&sp){
     const user=(DB.users||[]).find(u=>u&&u.name.toLowerCase()===su&&u.password===sp);
     if(user&&!user.inactive){
+      try{
       CU=user;
       _enrichCU();
       document.getElementById('hwmsTopbar').style.display='flex';
       document.getElementById('hwmsApp').style.display='block';
+      if(splash) splash.style.display='none';
       document.getElementById('hwmsUserName').textContent=CU.fullName||CU.name;
       var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()||'?';
       var av=document.getElementById('hwmsAvatar');
@@ -2037,6 +2212,9 @@ async function _hwmsBoot(){
           if(pid==='pageHwmsInvEdit') isEditing=true;
           if(pid==='pageHwmsContainers'&&document.getElementById('hwmsContFormView')?.style.display!=='none'&&_hwmsContEditMode) isEditing=true;
           if(document.querySelector('.modal-overlay.open')) isEditing=true;
+          // Don't re-render if checkboxes are selected (user is selecting items)
+          if(pid==='pageHwmsSubInvoices'&&document.querySelectorAll('.hwmsSiCb:checked').length) isEditing=true;
+          if(pid==='pageHwmsInvoices'&&document.querySelectorAll('.hwmsInvChk:checked').length) isEditing=true;
           // List pages — safe to re-render
           if(!isEditing){
             if(pid==='pageHwmsInvoices'||pid==='pageHwmsContainers'||pid==='pageHwmsSubInvoices'||pid==='pageHwmsMR'||pid==='pageHwmsInventory'||pid==='pageHwmsParts'){
@@ -2061,13 +2239,19 @@ async function _hwmsBoot(){
         }catch(e){console.warn('HWMS refresh error:',e);}
       };
       return;
+      }catch(bootUiErr){
+        console.error('HWMS UI init error:',bootUiErr);
+        // User is valid — stay on page, don't redirect
+        return;
+      }
     }
   }
+  if(splash) splash.style.display='none';
   _navigateTo('index.html');
 }
 // Safety: redirect to portal if boot hangs
 let _hwmsBootDone=false;
-setTimeout(()=>{if(!_hwmsBootDone){console.warn('HWMS: safety timeout');const sp=document.getElementById('dbSplash');if(sp)sp.style.display='none';_navigateTo('index.html');}},12000);
+setTimeout(()=>{if(!_hwmsBootDone){console.warn('HWMS: safety timeout — boot took too long');const sp=document.getElementById('dbSplash');if(sp)sp.style.display='none';_navigateTo('index.html');}},30000);
 
 // Global Enter key handler for HWMS form submission
 document.addEventListener('keydown', function(e){
@@ -2084,7 +2268,10 @@ document.addEventListener('keydown', function(e){
 document.addEventListener('DOMContentLoaded', ()=>{
   _hwmsBoot().then(()=>{_hwmsBootDone=true;}).catch(e=>{
     console.error('HWMS boot failed:',e);
-    _navigateTo('index.html');
+    // Don't redirect immediately — show error for debugging
+    var sp2=document.getElementById('dbSplash');
+    if(sp2){sp2.style.display='flex';var msg2=document.getElementById('splashMsg');if(msg2)msg2.textContent='Boot error: '+e.message+'. Redirecting...';}
+    setTimeout(()=>_navigateTo('index.html'),3000);
   });
 });
 
@@ -2092,12 +2279,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
 // ===== HWMS: CARRIER MASTER =====
 function renderHwmsCarriers(){
   const items=(DB.hwmsCarriers||[]).sort((a,b)=>(a.carrierName||'').localeCompare(b.carrierName||''));
-  document.getElementById('hwmsCarrBody').innerHTML=items.length?items.map(c=>`<tr>
+  document.getElementById('hwmsCarrBody').innerHTML=items.length?items.map(c=>{
+    var inParts=[];
+    if(c.indiaPhone) inParts.push('📞 '+c.indiaPhone);
+    if(c.indiaEmail) inParts.push('✉ '+c.indiaEmail);
+    if(!inParts.length&&c.contact) inParts.push('📞 '+c.contact);
+    var usParts=[];
+    if(c.usaPhone) usParts.push('📞 '+c.usaPhone);
+    if(c.usaEmail) usParts.push('✉ '+c.usaEmail);
+    return `<tr>
     <td style="font-weight:700">${c.carrierName}</td>
     <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.address||'—'}</td>
-    <td style="font-family:var(--mono)">${c.contact||'—'}</td>
+    <td style="font-size:11px;line-height:1.5">${inParts.length?inParts.join('<br>'):'—'}</td>
+    <td style="font-size:11px;line-height:1.5">${usParts.length?usParts.join('<br>'):'—'}</td>
     <td style="white-space:nowrap"><button class="action-btn" onclick="openHwmsCarrierModal('${c.id}')">✏️</button><button class="action-btn" onclick="del('hwmsCarriers','${c.id}',renderHwmsCarriers)">🗑️</button></td>
-  </tr>`).join(''):'<tr><td colspan="4" class="empty-state">No carriers found</td></tr>';
+  </tr>`}).join(''):'<tr><td colspan="5" class="empty-state">No carriers found</td></tr>';
   const cEl=document.getElementById('cHwmsCarriers');if(cEl)cEl.textContent=items.length;
 }
 function openHwmsCarrierModal(id){
@@ -2106,7 +2302,10 @@ function openHwmsCarrierModal(id){
   document.getElementById('mHwmsCarrierTitle').textContent=id?'Edit Carrier':'Add Carrier';
   document.getElementById('hwmsCarrierName').value=c?.carrierName||'';
   document.getElementById('hwmsCarrierAddr').value=c?.address||'';
-  document.getElementById('hwmsCarrierContact').value=c?.contact||'';
+  document.getElementById('hwmsCarrierInPhone').value=c?.indiaPhone||c?.contact||'';
+  document.getElementById('hwmsCarrierInEmail').value=c?.indiaEmail||'';
+  document.getElementById('hwmsCarrierUsPhone').value=c?.usaPhone||'';
+  document.getElementById('hwmsCarrierUsEmail').value=c?.usaEmail||'';
   om('mHwmsCarrier');
 }
 async function saveHwmsCarrier(){
@@ -2114,7 +2313,15 @@ async function saveHwmsCarrier(){
   const carrierName=document.getElementById('hwmsCarrierName').value.trim();
   if(!carrierName){modalErr('mHwmsCarrier','Carrier Name is required');return;}
   if((DB.hwmsCarriers||[]).find(c=>c.carrierName.toLowerCase()===carrierName.toLowerCase()&&c.id!==id)){modalErr('mHwmsCarrier','Carrier name already exists');return;}
-  const data={carrierName,address:document.getElementById('hwmsCarrierAddr').value.trim(),contact:document.getElementById('hwmsCarrierContact').value.trim()};
+  const data={
+    carrierName,
+    address:document.getElementById('hwmsCarrierAddr').value.trim(),
+    contact:document.getElementById('hwmsCarrierInPhone').value.trim(),
+    indiaPhone:document.getElementById('hwmsCarrierInPhone').value.trim(),
+    indiaEmail:document.getElementById('hwmsCarrierInEmail').value.trim(),
+    usaPhone:document.getElementById('hwmsCarrierUsPhone').value.trim(),
+    usaEmail:document.getElementById('hwmsCarrierUsEmail').value.trim()
+  };
   if(!DB.hwmsCarriers)DB.hwmsCarriers=[];
   if(id){const c=byId(DB.hwmsCarriers,id);const bak={...c};Object.assign(c,data);if(!await _dbSave('hwmsCarriers',c)){Object.assign(c,bak);return;}}
   else{const c={id:'hcr'+uid(),...data};if(!await _dbSave('hwmsCarriers',c))return;}
@@ -2956,26 +3163,28 @@ async function _hwmsSyncPartToInvoices(partId){
     var changed=false;
     lis.forEach(function(li){
       if(li.partId!==partId) return;
-      // Sync fields from part master
-      if(li.hsnCode!==(part.hsnCode||'')){li.hsnCode=part.hsnCode||'';changed=true;}
-      if(li.uom!==(part.uom||'')){li.uom=part.uom||'';changed=true;}
-      if(li.packageType!==(part.packingType||'')){li.packageType=part.packingType||'';changed=true;}
+      // Sync fields from part master (only when part master has data)
+      if(part.hsnCode&&li.hsnCode!==(part.hsnCode||'')){li.hsnCode=part.hsnCode;changed=true;}
+      if(part.uom&&li.uom!==(part.uom||'')){li.uom=part.uom;changed=true;}
+      if(part.packingType&&li.packageType!==(part.packingType||'')){li.packageType=part.packingType;changed=true;}
       // Rate
-      var newRate=part.finalRate||0;
-      if(li.rate!==newRate){li.rate=newRate;changed=true;}
+      if(part.finalRate){var newRate=part.finalRate;if(li.rate!==newRate){li.rate=newRate;changed=true;}}
       // Dimensions
-      if((li.pkgL||'')!==pkgL){li.pkgL=pkgL;changed=true;}
-      if((li.pkgW||'')!==pkgW){li.pkgW=pkgW;changed=true;}
-      if((li.pkgH||'')!==pkgH){li.pkgH=pkgH;changed=true;}
+      if(pkgL){
+        if((li.pkgL||'')!==pkgL){li.pkgL=pkgL;changed=true;}
+        if((li.pkgW||'')!==pkgW){li.pkgW=pkgW;changed=true;}
+        if((li.pkgH||'')!==pkgH){li.pkgH=pkgH;changed=true;}
+      }
       // Packing weight
-      var newPkgWt=part.packingWeight||0;
-      if((li.pkgWeight||0)!==newPkgWt){li.pkgWeight=newPkgWt;changed=true;}
+      if(part.packingWeight){var newPkgWt=part.packingWeight;if((li.pkgWeight||0)!==newPkgWt){li.pkgWeight=newPkgWt;changed=true;}}
       // Net weight = unit weight × qty
-      var newNetWt=Math.round((part.netWeightKg||0)*(li.quantity||0));
-      if((li.netWeight||0)!==newNetWt){li.netWeight=newNetWt;changed=true;}
-      // Gross weight = net + pkg
-      var newGrossWt=newNetWt+(li.pkgWeight||0);
-      if((li.grossWeight||0)!==newGrossWt){li.grossWeight=newGrossWt;changed=true;}
+      if(part.netWeightKg){
+        var newNetWt=Math.round(part.netWeightKg*(li.quantity||0));
+        if((li.netWeight||0)!==newNetWt){li.netWeight=newNetWt;changed=true;}
+        // Gross weight = net + pkg
+        var newGrossWt=newNetWt+(li.pkgWeight||0);
+        if((li.grossWeight||0)!==newGrossWt){li.grossWeight=newGrossWt;changed=true;}
+      }
     });
     if(changed){
       await _dbSave('hwmsInvoices',inv);
@@ -3101,10 +3310,50 @@ function _hwmsContStatus(c){
 // Sort state for containers
 let _hwmsContSortKey='containerNumber',_hwmsContSortAsc=false;
 function _hwmsContNumToSortVal(cn){
-  // CN-NNN/YY → YY*1000+NNN for numeric sorting
-  var m=(cn||'').match(/CN-(\d+)\/(\d+)/);
-  if(m) return parseInt(m[2])*1000+parseInt(m[1]);
+  // CN-NNN/YY or AC-NNN/YY → type*100000 + YY*1000+NNN
+  var m=(cn||'').match(/(CN|AC)-(\d+)\/(\d+)/);
+  if(m) return (m[1]==='AC'?100000:0)+parseInt(m[3])*1000+parseInt(m[2]);
   return 0;
+}
+function _hwmsContGetType(c){return (c?.consignmentType==='air'||/^AC-/.test(c?.containerNumber))?'air':'sea';}
+function _hwmsContSetType(type){
+  document.getElementById('hwmsContType').value=type;
+  var prefix=type==='air'?'AC-':'CN-';
+  document.getElementById('hwmsContPrefix').textContent=prefix;
+  var seaBtn=document.getElementById('hwmsContTypeSea');
+  var airBtn=document.getElementById('hwmsContTypeAir');
+  if(type==='air'){
+    airBtn.style.border='2px solid #7c3aed';airBtn.style.background='#ede9fe';airBtn.style.color='#6d28d9';
+    seaBtn.style.border='2px solid var(--border)';seaBtn.style.background='#f8fafc';seaBtn.style.color='var(--text3)';
+  } else {
+    seaBtn.style.border='2px solid #2563eb';seaBtn.style.background='#dbeafe';seaBtn.style.color='#1d4ed8';
+    airBtn.style.border='2px solid var(--border)';airBtn.style.background='#f8fafc';airBtn.style.color='var(--text3)';
+  }
+  _hwmsContNumInput();
+  // Re-filter invoice dropdown
+  _hwmsContFilterInvDropdown();
+}
+function _hwmsContNumInput(){
+  var type=document.getElementById('hwmsContType').value||'sea';
+  var prefix=type==='air'?'AC-':'CN-';
+  var val=document.getElementById('hwmsContNum').value;
+  document.getElementById('hwmsContNumDisplay').textContent=prefix+val;
+}
+function _hwmsContFilterInvDropdown(){
+  var type=document.getElementById('hwmsContType').value||'sea';
+  var contId=document.getElementById('eHwmsContId').value;
+  var sel=document.getElementById('hwmsContAddInvSel');if(!sel)return;
+  var transportFilter=type==='air'?'By Air':'By Sea';
+  var avail=(DB.hwmsInvoices||[]).filter(function(inv){
+    if(!inv.confirmed)return false;
+    if(inv.containerId&&inv.containerId!==contId)return false;
+    if(type==='air'&&inv.modeOfTransport!=='By Air')return false;
+    if(type==='sea'&&inv.modeOfTransport==='By Air')return false;
+    return true;
+  });
+  sel.innerHTML='<option value="">-- Add Invoice --</option>'+avail.map(function(inv){
+    return '<option value="'+inv.id+'">'+inv.invoiceNumber+' — '+(inv.buyerName||'')+'</option>';
+  }).join('');
 }
 function _hwmsContSort(key){
   if(_hwmsContSortKey===key) _hwmsContSortAsc=!_hwmsContSortAsc;
@@ -3222,7 +3471,7 @@ function renderHwmsContainers(){
       :(c.expectedReachDate?`<div>${_fdate(c.expectedReachDate)}</div><div style="font-size:10px;color:#b45309;font-weight:700">Expected</div>`:'—');
     return `<tr class="clickable-row" onclick="openHwmsContModal('${c.id}')" style="cursor:pointer">
       ${_contSA?'<td style="text-align:center;padding:4px 6px" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px">${c.containerNumber}</td>
+      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px">${_hwmsContGetType(c)==='air'?'<span style="font-size:12px" title="Air Consignment">✈️</span> ':''}${c.containerNumber}</td>
       <td onclick="event.stopPropagation()">${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td>${c.carrierName||'—'}</td>
@@ -3368,18 +3617,35 @@ function openHwmsContModal(id){
   _hwmsContIsNew=!id;
   _hwmsContEditMode=!id; // New containers start in edit mode
   const c=id?byId(DB.hwmsContainers||[],id):null;
+  var cType=c?_hwmsContGetType(c):'sea';
   document.getElementById('eHwmsContId').value=id||'';
-  document.getElementById('mHwmsContTitle').textContent=id?'Container Details':'Plan New Container';
+  var typeLabel=cType==='air'?'Air Consignment':'Container';
+  document.getElementById('mHwmsContTitle').textContent=id?typeLabel+' Details':'Plan New Consignment';
   document.getElementById('hwmsContNumDisplay').textContent=c?.containerNumber||'';
-  // Auto-generate NNN/YY suffix for new containers (CN- prefix is static)
+  // Set consignment type
+  _hwmsContSetType(cType);
+  // Lock type toggle when editing existing
+  var typeWrap=document.getElementById('hwmsContTypeWrap');
+  if(typeWrap){if(id){typeWrap.querySelectorAll('button').forEach(function(b){b.disabled=true;b.style.opacity='.7';b.style.cursor='not-allowed';});}else{typeWrap.querySelectorAll('button').forEach(function(b){b.disabled=false;b.style.opacity='1';b.style.cursor='pointer';});}}
+  // Type badge (prominent, on view)
+  var typeBadge=document.getElementById('hwmsContTypeBadge');
+  if(typeBadge){
+    if(id){
+      if(cType==='air') typeBadge.innerHTML='<div style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#ede9fe;border:2px solid #a78bfa;border-radius:8px;font-size:16px;font-weight:900;color:#6d28d9">✈️ Air Consignment</div>';
+      else typeBadge.innerHTML='<div style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:#dbeafe;border:2px solid #93c5fd;border-radius:8px;font-size:16px;font-weight:900;color:#1d4ed8">🚢 By Sea — Container</div>';
+      typeBadge.style.display='';
+    } else { typeBadge.style.display='none'; }
+  }
+  // Auto-generate NNN/YY suffix for new containers
   if(!id){
+    var prefix=cType==='air'?'AC-':'CN-';
     const yr=new Date().getFullYear().toString().slice(-2);
-    const existing=(DB.hwmsContainers||[]).filter(c2=>(c2.containerNumber||'').endsWith('/'+yr));
+    const existing=(DB.hwmsContainers||[]).filter(c2=>(c2.containerNumber||'').startsWith(prefix)&&(c2.containerNumber||'').endsWith('/'+yr));
     let maxNum=0;
-    existing.forEach(c2=>{const m=(c2.containerNumber||'').match(/CN-(\d+)\//);if(m) maxNum=Math.max(maxNum,parseInt(m[1]));});
-    document.getElementById('hwmsContNum').value=String(maxNum+1).padStart(3,'0')+'/'+yr;
+    existing.forEach(c2=>{const m=(c2.containerNumber||'').match(/(?:CN|AC)-(\d+)\//);if(m) maxNum=Math.max(maxNum,parseInt(m[1]));});
+    document.getElementById('hwmsContNum').value=String(maxNum+1).padStart(2,'0')+'/'+yr;
   } else {
-    document.getElementById('hwmsContNum').value=(c?.containerNumber||'').replace(/^CN-/,'');
+    document.getElementById('hwmsContNum').value=(c?.containerNumber||'').replace(/^(CN|AC)-/,'');
   }
   document.getElementById('hwmsContExpPickup').value=c?.expectedPickupDate||'';
   document.getElementById('hwmsContPickup').value=c?.pickupDate||'';
@@ -3407,18 +3673,19 @@ function openHwmsContModal(id){
   const isDispatched=c?.status==='Onwater'||c?.status==='Reached';
   const isReachedStatus=c?.status==='Reached';
   const isSA=CU&&CU.roles.includes('Super Admin');
+  var _dispLabel2=cType==='air'?'Consignment':'Container';
   if(isDispatched){
     dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';
     dispBtn.style.display='';dispBtn.style.opacity='.7';dispBtn.style.cursor='not-allowed';
     if(undoBtn) undoBtn.style.display=(!isReachedStatus)?'inline-flex':'none';
     if(dispLabel){
       const dDate=c.pickupDate?_hwmsFmtDateDMY(c.pickupDate):'';
-      dispLabel.innerHTML='🚢 Container dispatched on <strong>'+dDate+'</strong>';
+      var dispIcon=cType==='air'?'✈️':'🚢';
+      dispLabel.innerHTML=dispIcon+' '+_dispLabel2+' dispatched on <strong>'+dDate+'</strong>';
       dispLabel.style.display='';
     }
-    // Show actual dispatch date (readonly when dispatched)
   } else {
-    dispBtn.disabled=false;dispBtn.textContent='🚢 Container Dispatched';dispBtn.style.background='#ea580c';dispBtn.style.borderColor='#ea580c';
+    dispBtn.disabled=false;dispBtn.textContent='🚀 Dispatch '+_dispLabel2;dispBtn.style.background='#ea580c';dispBtn.style.borderColor='#ea580c';
     dispBtn.style.display='';dispBtn.style.opacity='1';dispBtn.style.cursor='pointer';
     if(undoBtn) undoBtn.style.display='none';
     if(dispLabel) dispLabel.style.display='none';
@@ -3504,13 +3771,31 @@ function _hwmsContShowCarrierInfo(){
   const info=document.getElementById('hwmsContCarrierInfo');
   if(!sel||!info)return;
   const cr=byId(DB.hwmsCarriers||[],sel.value);
-  if(cr&&(cr.contact||cr.email||cr.phone||cr.address)){
-    const parts=[];
-    if(cr.email) parts.push('✉ '+cr.email);
-    if(cr.phone) parts.push('📞 '+cr.phone);
-    if(!cr.email&&!cr.phone&&cr.contact) parts.push('📞 '+cr.contact);
-    info.innerHTML=parts.join(' &nbsp;·&nbsp; ');
-    info.style.display=parts.length?'block':'none';
+  if(cr){
+    var html='<div style="background:rgba(42,154,160,.05);border:1.5px solid rgba(42,154,160,.2);border-radius:6px;padding:8px 12px;margin-top:6px">';
+    // Address
+    if(cr.address) html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.4">📍 '+cr.address+'</div>';
+    // Contacts grid — always show both cards
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    // India card
+    html+='<div style="background:rgba(234,88,12,.06);border:1.5px solid rgba(234,88,12,.2);border-radius:6px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🇮🇳 India Contact</div>';
+    if(cr.indiaPhone||cr.contact) html+='<div style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text);margin-bottom:2px">📞 '+(cr.indiaPhone||cr.contact)+'</div>';
+    else html+='<div style="font-size:11px;color:var(--text3)">📞 —</div>';
+    if(cr.indiaEmail) html+='<div style="font-size:12px;font-weight:600;color:var(--text2)">✉ '+cr.indiaEmail+'</div>';
+    else html+='<div style="font-size:11px;color:var(--text3)">✉ —</div>';
+    html+='</div>';
+    // USA card
+    html+='<div style="background:rgba(37,99,235,.06);border:1.5px solid rgba(37,99,235,.2);border-radius:6px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">🇺🇸 USA Contact</div>';
+    if(cr.usaPhone) html+='<div style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text);margin-bottom:2px">📞 '+cr.usaPhone+'</div>';
+    else html+='<div style="font-size:11px;color:var(--text3)">📞 —</div>';
+    if(cr.usaEmail) html+='<div style="font-size:12px;font-weight:600;color:var(--text2)">✉ '+cr.usaEmail+'</div>';
+    else html+='<div style="font-size:11px;color:var(--text3)">✉ —</div>';
+    html+='</div>';
+    html+='</div></div>';
+    info.innerHTML=html;
+    info.style.display='block';
   } else {
     info.style.display='none';
   }
@@ -3518,12 +3803,14 @@ function _hwmsContShowCarrierInfo(){
 function _hwmsContOnDispatchDate(){
   const dEl=document.getElementById('hwmsContPickup');
   const btn=document.getElementById('btnHwmsContDispatch');
+  var cType4=document.getElementById('hwmsContType')?.value||'sea';
+  var _dL=cType4==='air'?'Consignment':'Container';
   if(dEl&&dEl.value&&btn&&!btn.disabled){
-    btn.textContent='🚀 Dispatch Container';
-    // Auto-fill expected reach date: dispatch + 63 days
+    btn.textContent='🚀 Dispatch '+_dL;
+    // Auto-fill expected reach date: dispatch + 63 days (sea) or 7 days (air)
     const dd=new Date(dEl.value+'T00:00:00');
     if(!isNaN(dd)){
-      dd.setDate(dd.getDate()+63);
+      dd.setDate(dd.getDate()+(cType4==='air'?7:63));
       const pad=n=>String(n).padStart(2,'0');
       const reachVal=dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate());
       const rEl=document.getElementById('hwmsContExpReach');
@@ -3606,8 +3893,16 @@ function _hwmsContRenderLinkedInvs(contId){
   // Populate add-invoice dropdown with unassigned invoices (exclude pre-save linked)
   const addSel=document.getElementById('hwmsContAddInvSel');
   if(addSel){
+    var cType5=document.getElementById('hwmsContType')?.value||'sea';
     const linkedIds=allInvs.map(function(i){return i.id;});
-    const unassigned=(DB.hwmsInvoices||[]).filter(inv=>(!inv.containerId||inv.containerId==='')&&linkedIds.indexOf(inv.id)<0);
+    const unassigned=(DB.hwmsInvoices||[]).filter(function(inv){
+      if(inv.containerId&&inv.containerId!=='') return false;
+      if(linkedIds.indexOf(inv.id)>=0) return false;
+      // Filter by transport mode matching container type
+      if(cType5==='air'&&inv.modeOfTransport!=='By Air') return false;
+      if(cType5==='sea'&&inv.modeOfTransport==='By Air') return false;
+      return true;
+    });
     addSel.innerHTML='<option value="">-- Add Main Invoice --</option>'+unassigned.sort((a,b)=>(a.invoiceNumber||'').localeCompare(b.invoiceNumber||'')).map(inv=>{
       const cust=byId(DB.hwmsCustomers||[],inv.buyerId);
       return `<option value="${inv.id}">${inv.invoiceNumber} — ${inv.buyerName||cust?.customerName||'?'}</option>`;
@@ -3706,15 +4001,18 @@ async function _hwmsContDispatch(){
   });
   if(errors.length){notify('⚠ Cannot dispatch:\n• '+errors.join('\n• '),true);return;}
   const carrier=byId(DB.hwmsCarriers||[],carrierId);
-  showConfirm('Dispatch container '+c.containerNumber+'? Carrier: '+(carrier?.carrierName||'—')+', Actual Dispatch: '+actualPickup+'. All invoices will be locked.', async ()=>{
+  var _cType2=_hwmsContGetType(c);
+  var _dLabel=_cType2==='air'?'consignment':'container';
+  var _dIcon=_cType2==='air'?'✈️':'🚢';
+  showConfirm('Dispatch '+_dLabel+' '+c.containerNumber+'? Carrier: '+(carrier?.carrierName||'—')+', Actual Dispatch: '+actualPickup+'. All invoices will be locked.', async ()=>{
   const bak={...c};
   c.carrierId=carrierId;
   c.carrierName=carrier?.carrierName||'';
   c.pickupDate=actualPickup;
   c.status='Onwater';
   c.confirmed=true;
-  // Auto-calculate expected reach date (always 63 days after dispatch)
-  const erd=new Date(actualPickup+'T00:00:00');erd.setDate(erd.getDate()+63);
+  // Auto-calculate expected reach date (63 days for sea, 7 days for air)
+  const erd=new Date(actualPickup+'T00:00:00');erd.setDate(erd.getDate()+(_cType2==='air'?7:63));
   c.expectedReachDate=erd.toISOString().slice(0,10);
   if(!await _dbSave('hwmsContainers',c)){Object.assign(c,bak);return;}
   // Update dispatch button — disabled but visible
@@ -3730,7 +4028,7 @@ async function _hwmsContDispatch(){
   // Show dispatch label
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
   if(dispLabel){
-    dispLabel.innerHTML='🚢 Container dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';
+    dispLabel.innerHTML=_dIcon+' '+(_cType2==='air'?'Consignment':'Container')+' dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';
     dispLabel.style.display='';
   }
   // Disable tab1 fields
@@ -3756,7 +4054,7 @@ async function _hwmsContDispatch(){
   _hwmsContTab(2);
   renderHwmsContainers();renderHwmsInvoices();
   _hwmsContSyncAllDates();
-  notify('🚢 Container '+c.containerNumber+' dispatched! Status: In Transit');
+  notify(_dIcon+' '+(_cType2==='air'?'Consignment':'Container')+' '+c.containerNumber+' dispatched! Status: In Transit');
   });
 }
 
@@ -3764,8 +4062,10 @@ async function _hwmsContUndoDispatch(){
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
-  if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Container is not dispatched',true);return;}
-  showConfirm('Undo dispatch for container '+c.containerNumber+'? Status will revert to Draft, invoices will be delinked and unlocked.', async ()=>{
+  if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Not dispatched',true);return;}
+  var _udType=_hwmsContGetType(c);
+  var _udLabel=_udType==='air'?'consignment':'container';
+  showConfirm('Undo dispatch for '+_udLabel+' '+c.containerNumber+'? Status will revert to Draft, invoices will be delinked and unlocked.', async ()=>{
     const bak={...c};
     c.status='';
     c.expectedReachDate='';
@@ -3817,7 +4117,7 @@ async function _hwmsContUndoDispatch(){
   _hwmsContTab(1);
   renderHwmsContainers();renderHwmsInvoices();
   _hwmsContSyncAllDates();
-  notify('↩ Container '+c.containerNumber+' dispatch undone');
+  notify('↩ '+(_udType==='air'?'Consignment':'Container')+' '+c.containerNumber+' dispatch undone');
   });
 }
 
@@ -3855,7 +4155,43 @@ function _hwmsContOpenReceive(){
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
-  if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Container must be In Transit or Received to edit',true);return;}
+  if(c.status!=='Onwater'&&c.status!=='Reached'){notify('Consignment must be In Transit or Received to edit',true);return;}
+  var cType=_hwmsContGetType(c);
+  // Air consignment: simple confirm — no WH form needed
+  if(cType==='air'&&c.status==='Onwater'){
+    if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only SA/HA can receive air consignments',true);return;}
+    showConfirm('Receive air consignment '+c.containerNumber+'?\n\nAll line items will be marked as <b>Sold</b>. No warehouse storage — SI not applicable.', async ()=>{
+      var recvDate=new Date().toISOString().slice(0,10);
+      var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===id;});
+      for(var i=0;i<invs.length;i++){
+        var inv=invs[i];
+        var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+        lis.forEach(function(li){
+          li.soldStatus='Sold';
+          li.airSold=true;
+          li.whReceivedDate=recvDate;
+          li.status='Sold';
+        });
+        await _dbSave('hwmsInvoices',inv);
+      }
+      var bak={...c};
+      c.status='Reached';
+      c.reachedDate=recvDate;
+      if(!await _dbSave('hwmsContainers',c)){Object.assign(c,bak);return;}
+      _hwmsContUpdateReachedUI(c);
+      _hwmsContUpdateDatePickers(c,true);
+      var _undoBtn3=document.getElementById('btnHwmsContUndoDispatch');
+      if(_undoBtn3) _undoBtn3.style.display='none';
+      var st2=_hwmsContStatus(c);
+      document.getElementById('hwmsContStatusBadge').innerHTML='<span class="badge '+st2.cls+'" style="font-weight:800;font-size:12px">'+st2.label+'</span>';
+      document.getElementById('hwmsContReachedDate').value=recvDate;
+      renderHwmsContainers();renderHwmsInvoices();
+      _hwmsContRenderLinkedInvs(id);
+      _hwmsContSyncAllDates();
+      notify('✈️ Air consignment '+c.containerNumber+' received! All items marked as Sold.');
+    });
+    return;
+  }
   const reachedDate=document.getElementById('hwmsContReachedDate').value;
   document.getElementById('hwmsRecvContNum').textContent=c.containerNumber;
   // Reset container photo
@@ -3981,6 +4317,7 @@ async function _hwmsContSaveReceive(){
   document.getElementById('hwmsContReachedDate').value=recvDate;
   _hwmsContDateFmt('hwmsContReachedDate');
   renderHwmsContainers();renderHwmsInvoices();
+  _hwmsContRenderLinkedInvs(contId);
   _hwmsContSyncAllDates();
   notify('📦 Container '+c.containerNumber+' received! All pallets marked as WH.');
 }
@@ -4008,6 +4345,7 @@ async function _hwmsContReached(){
   const st=_hwmsContStatus(c);
   document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
   renderHwmsContainers();renderHwmsInvoices();
+  _hwmsContRenderLinkedInvs(id);
   _hwmsContSyncAllDates();
   notify('📍 Container '+c.containerNumber+' reached the Warehouse!');
   });
@@ -4017,73 +4355,96 @@ function _hwmsContUpdateReachedUI(c){
   const isReached=c?.status==='Reached';
   const isOnwater=c?.status==='Onwater';
   const isSA=CU&&CU.roles.includes('Super Admin');
+  const isAdmin=_hwmsIsAdmin()||isSA;
+  const cType=_hwmsContGetType(c);
+  var recvLabel=cType==='air'?'📦 Receive this Consignment':'📦 Receive this Container';
+  var recvMsg=cType==='air'?'✈️ Consignment received on <strong>':'📦 Container received on <strong>';
   const reachedBtn=document.getElementById('btnHwmsContReached');
   const editRecvBtn=document.getElementById('btnHwmsContEditReceived');
   const revokeBtn=document.getElementById('btnHwmsContRevokeReached');
   const infoEl=document.getElementById('hwmsContReachedInfo');
-  const dateEl=document.getElementById('hwmsContReachedDate');
-  const dateFmt=document.getElementById('hwmsContReachedDate_fmt');
   if(isReached){
-    // Reached: hide receive, show edit received button
     if(reachedBtn){reachedBtn.style.display='none';}
-    if(editRecvBtn){editRecvBtn.style.display='inline-flex';}
-    if(revokeBtn) revokeBtn.style.display=isSA?'':'none';
-    if(dateEl) dateEl.disabled=true;
-    if(dateFmt){dateFmt.style.opacity='.7';dateFmt.style.cursor='not-allowed';dateFmt.onclick=null;}
+    if(editRecvBtn){editRecvBtn.style.display=cType==='air'?'none':'inline-flex';}
+    if(revokeBtn) revokeBtn.style.display=isAdmin?'':'none';
     if(infoEl&&c.reachedDate){
       const dt=new Date(c.reachedDate+'T00:00:00');
       const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const fmtDate=dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);
-      infoEl.innerHTML='📦 Container received on <strong>'+fmtDate+'</strong>';
+      infoEl.innerHTML=recvMsg+fmtDate+'</strong>'+(cType==='air'?' — All items marked as <span style="color:#dc2626;font-weight:900">Sold</span>':'');
       infoEl.style.display='';
     }
   } else if(isOnwater){
-    // In Transit: enable date picker and receive button
-    if(reachedBtn){reachedBtn.disabled=false;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};reachedBtn.style.display='inline-flex';}
+    // Air consignment receive: SA/HA only
+    var canReceive=cType==='air'?isAdmin:true;
+    if(reachedBtn){reachedBtn.disabled=!canReceive;reachedBtn.textContent=recvLabel;reachedBtn.style.background=cType==='air'?'#7c3aed':'#16a34a';reachedBtn.style.borderColor=cType==='air'?'#6d28d9':'#15803d';reachedBtn.style.opacity=canReceive?'1':'.5';reachedBtn.style.cursor=canReceive?'pointer':'not-allowed';reachedBtn.onclick=canReceive?function(){_hwmsContOpenReceive();}:null;reachedBtn.style.display='inline-flex';}
     if(editRecvBtn){editRecvBtn.style.display='none';}
     if(revokeBtn) revokeBtn.style.display='none';
-    if(dateEl) dateEl.disabled=false;
-    if(dateFmt){dateFmt.style.opacity='1';dateFmt.style.cursor='pointer';dateFmt.onclick=function(){document.getElementById('hwmsContReachedDate').showPicker();};}
     if(infoEl) infoEl.style.display='none';
   } else {
-    // Draft: disable date picker and button
-    if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent='📦 Receive this Container';reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.style.display='inline-flex';}
+    if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.style.display='inline-flex';}
     if(editRecvBtn){editRecvBtn.style.display='none';}
     if(revokeBtn) revokeBtn.style.display='none';
-    if(dateEl) dateEl.disabled=true;
-    if(dateFmt){dateFmt.style.opacity='.5';dateFmt.style.cursor='not-allowed';dateFmt.onclick=null;}
     if(infoEl) infoEl.style.display='none';
   }
 }
 
 async function _hwmsContRevokeReached(){
-  if(!_hwmsIsSA()){notify('Only Super Admin can revoke reached status',true);return;}
+  if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only Admin can undo received status',true);return;}
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
   if(c.status!=='Reached'){notify('Container is not in Reached status',true);return;}
-  showConfirm('Revoke Reached status for '+c.containerNumber+'? Status will revert to In Transit.', async ()=>{
+  // Check if any sub-invoices reference pallets in this container
+  var linkedInvIds={};
+  (DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===id;}).forEach(function(inv){linkedInvIds[inv.id]=true;});
+  var hasSis=(DB.hwmsSubInvoices||[]).some(function(si){return linkedInvIds[si.invoiceId];});
+  if(hasSis){notify('⚠ Cannot undo: Sub-invoices exist for pallets in this container. Delete/revoke SIs first.',true);return;}
+  var cType3=_hwmsContGetType(c);
+  var _dIcon3=cType3==='air'?'✈️':'🚢';
+  var _dLabel3=cType3==='air'?'Consignment':'Container';
+  showConfirm('Undo Received for '+c.containerNumber+'? Status will revert to In Transit.'+(cType3==='air'?' All Sold marks will be cleared.':' All WH data will be cleared.'), async ()=>{
     const bak={...c};
     c.status='Onwater';
     c.reachedDate='';
+    delete c.receiptPhoto;
   if(!await _dbSave('hwmsContainers',c)){Object.assign(c,bak);return;}
+  // Clear WH/sold data from all invoice line items
+  var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===id;});
+  for(var i=0;i<invs.length;i++){
+    var inv=invs[i];
+    var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+    var changed=false;
+    lis.forEach(function(li){
+      if(li.whReceived!==undefined){li.whReceived=undefined;changed=true;}
+      if(li.whLocation){li.whLocation='';changed=true;}
+      if(li.whCondition){li.whCondition='';changed=true;}
+      if(li.whRemarks){li.whRemarks='';changed=true;}
+      if(li.whPhoto){li.whPhoto='';changed=true;}
+      if(li.whReceivedDate){li.whReceivedDate='';changed=true;}
+      if(li.status==='WH'||li.status==='Sold'){li.status='';changed=true;}
+      // Clear air-sold flags
+      if(li.airSold){delete li.airSold;changed=true;}
+      if(li.soldStatus==='Sold'){li.soldStatus='';changed=true;}
+    });
+    if(changed) await _dbSave('hwmsInvoices',inv);
+  }
   // Update UI
   document.getElementById('hwmsContReachedDate').value='';
   _hwmsContUpdateReachedUI(c);
   _hwmsContUpdateDatePickers(c, true);
-  // Re-enable dispatched button as "✅ Dispatched" and show undo dispatch button
   const dispBtn=document.getElementById('btnHwmsContDispatch');
   if(dispBtn){dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';dispBtn.style.opacity='.7';dispBtn.style.cursor='not-allowed';dispBtn.style.display='';}
   const undoBtn=document.getElementById('btnHwmsContUndoDispatch');
   if(undoBtn) undoBtn.style.display='inline-flex';
-  // Show dispatch label
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
-  if(dispLabel){dispLabel.innerHTML='🚢 Container dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';dispLabel.style.display='';}
+  if(dispLabel){dispLabel.innerHTML=_dIcon3+' '+_dLabel3+' dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';dispLabel.style.display='';}
   const st=_hwmsContStatus(c);
   document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
-  renderHwmsContainers();renderHwmsInvoices();
+  _hwmsContRenderLinkedInvs(id);
+  renderHwmsContainers();renderHwmsInvoices();renderHwmsInventory();
   _hwmsContSyncAllDates();
-  notify('↩ Container '+c.containerNumber+' reverted to In Transit');
+  notify('↩ '+_dLabel3+' '+c.containerNumber+' reverted to In Transit.');
   });
 }
 
@@ -4131,8 +4492,10 @@ function _hwmsContNav(dir){
 async function saveHwmsCont(){
   const id=document.getElementById('eHwmsContId').value;
   const suffix=document.getElementById('hwmsContNum').value.trim();
-  if(!suffix){modalErr('mHwmsCont','Container Number required');return;}
-  const containerNumber='CN-'+suffix;
+  if(!suffix){modalErr('mHwmsCont','Consignment Number required');return;}
+  const cType=document.getElementById('hwmsContType').value||'sea';
+  const prefix=cType==='air'?'AC-':'CN-';
+  const containerNumber=prefix+suffix;
   const expectedPickupDate=document.getElementById('hwmsContExpPickup').value;
   if(!expectedPickupDate){modalErr('mHwmsCont','Expected Pickup Date required');return;}
   if((DB.hwmsContainers||[]).find(c=>c.containerNumber===containerNumber&&c.id!==id)){modalErr('mHwmsCont','Container Number '+containerNumber+' already exists');return;}
@@ -4145,7 +4508,7 @@ async function saveHwmsCont(){
   const isDispatched=existing&&(existing.status==='Onwater'||existing.status==='Reached');
   // Core data — fields that Save always manages
   const data={
-    containerNumber,expectedPickupDate,
+    containerNumber,expectedPickupDate,consignmentType:cType,
     containerSerialNumber:(document.getElementById('hwmsContSerialNum').value||'').trim().toUpperCase(),
     carrierId,carrierName:carrier?.carrierName||'',
   };
@@ -4394,8 +4757,10 @@ function renderHwmsSubInvoices(){
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var isSA=_hwmsIsSA();
+  var selAllTh=document.getElementById('hwmsSiSelectAllTh');
+  if(selAllTh) selAllTh.style.display=isSA?'table-cell':'none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
-  if(!rows.length){body.innerHTML='<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
+  if(!rows.length){body.innerHTML='<tr><td colspan="'+(isSA?11:10)+'" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   var _siCursor=_siShowAmts?'cursor:pointer':'cursor:default';
   body.innerHTML=rows.map(function(si){
     var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
@@ -4411,7 +4776,7 @@ function renderHwmsSubInvoices(){
     var grnB=_hwmsSiBadge(si.grnStatus,'grn');
     var payB=_hwmsSiBadge(si.paymentStatus,'payment');
     return '<tr style="'+_siCursor+'" onclick="_hwmsSiRowClick(event,\''+si.id+'\')">'
-      +'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>'
+      +(isSA?'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>':'')
       +'<td style="text-align:center;padding:2px 4px" onclick="event.stopPropagation()"><button onclick="_hwmsSiPreviewPopup(\''+si.id+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="Print Preview">🖨️</button></td>'
       +'<td style="font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap">'+fd2(si.date)+'</td>'
       +'<td><div style="font-family:var(--inv-mono);font-size:14px"><span style="font-weight:400">'+si.subInvoiceNumber.substring(0,4)+'</span><span style="font-weight:700">'+si.subInvoiceNumber.substring(4,9)+'</span><span style="font-weight:700;color:#2563eb">'+si.subInvoiceNumber.substring(9)+'</span></div></td>'
@@ -4427,7 +4792,7 @@ function renderHwmsSubInvoices(){
   // Totals footer row
   if(rows.length&&_siShowAmts){
     body.innerHTML+='<tr style="background:#f1f5f9;border-top:3px solid var(--accent);cursor:default">'
-      +'<td colspan="6" style="padding:10px 8px;font-size:13px;font-weight:900;color:var(--text);text-align:right;text-transform:uppercase;letter-spacing:.5px">Totals ('+rows.length+' rows)</td>'
+      +'<td colspan="'+(isSA?7:6)+'" style="padding:10px 8px;font-size:13px;font-weight:900;color:var(--text);text-align:right;text-transform:uppercase;letter-spacing:.5px">Totals ('+rows.length+' rows)</td>'
       +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:#2563eb">'+fmtAmt(fTotalAmt)+'</td>'
       +'<td colspan="3"></td>'
       +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:14px;color:'+(fTotalBal>0?'#dc2626':'#16a34a')+'">'+fmtAmt(fTotalBal)+'</td>'
@@ -4584,7 +4949,7 @@ function openHwmsSiModal(id){
   document.getElementById('mHwmsSiTitle').textContent=id?'Edit Sub-Invoice':'New Sub-Invoice';
   // Populate invoice dropdown — only confirmed invoices with warehouse containers
   var invSel=document.getElementById('hwmsSiInvSel');
-  var reachedContIds=new Set((DB.hwmsContainers||[]).filter(function(c){return c.status==='Reached';}).map(function(c){return c.id;}));
+  var reachedContIds=new Set((DB.hwmsContainers||[]).filter(function(c){return c.status==='Reached'&&_hwmsContGetType(c)!=='air';}).map(function(c){return c.id;}));
   var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.confirmed&&inv.containerId&&reachedContIds.has(inv.containerId);});
   invs.sort(function(a,b){return(b.date||'').localeCompare(a.date||'');});
   invSel.innerHTML='<option value="">— Select Invoice —</option>'+invs.map(function(inv){
@@ -4748,6 +5113,8 @@ async function _hwmsMarkSoldPallets(){
     var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
     var invChanged=false;
     lis.forEach(function(li){
+      // Don't override air consignment sold status
+      if(li.airSold) return;
       var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
       var newStatus=soldSet[key]?'Sold':'';
       if((li.soldStatus||'')!==newStatus){
@@ -5059,8 +5426,8 @@ function _hwmsSiBuildPrintHtml(id){
 
   // Company address + IEC
   +'<tr>'
-  +'<td colspan="2" class="addr" rowspan="4" style="font-weight:700;font-size:13px">'+_m(coName)+(coAddr?'\\n'+coAddr:'')+(coGstin?'\\n\\nGSTIN: '+coGstin:'')+'</td>'
-  +'<td colspan="2" class="val">'+(coIec?'CBP - '+coIec:'')+(coRex?'\\nREX: '+coRex:'')+'</td>'
+  +'<td colspan="2" class="addr" rowspan="4"><div style="font-weight:900;font-size:15px;margin-bottom:4px">'+_m(coName)+'</div>'+(coAddr?'<div style="font-size:12px;font-weight:700;line-height:1.4">'+coAddr+'</div>':'')+(coGstin?'<div style="font-size:11px;font-weight:700;margin-top:6px">GSTIN: '+coGstin+'</div>':'')+'</td>'
+  +'<td colspan="2" class="val">'+(coIec?'CBP - '+coIec:'')+(coRex?'\nREX: '+coRex:'')+'</td>'
   +'</tr>'
 
   // Delivery terms + Invoice Number label + value (centered)
@@ -5083,8 +5450,8 @@ function _hwmsSiBuildPrintHtml(id){
   +'<td colspan="5" class="lbl">Consignee:</td>'
   +'</tr>'
   +'<tr>'
-  +'<td colspan="2" class="addr" style="min-height:50px;font-size:13px">'+_m(buyerName)+(buyerAddr?'\\n'+buyerAddr:'')+'</td>'
-  +'<td colspan="5" class="addr" style="min-height:50px;font-size:13px">'+_m(consName)+(consAddr?'\\n'+consAddr:'')+'</td>'
+  +'<td colspan="2" class="addr" style="min-height:50px"><div style="font-weight:900;font-size:15px;margin-bottom:3px">'+_m(buyerName)+'</div>'+(buyerAddr?'<div style="font-size:11px;font-weight:600;line-height:1.4">'+buyerAddr+'</div>':'')+'</td>'
+  +'<td colspan="5" style="min-height:50px"></td>'
   +'</tr>'
 
   // Shipping info
@@ -6872,7 +7239,7 @@ function _hwmsHoldRenderPallets(partId){
     (inv.lineItems||[]).forEach(function(li,liIdx){
       if(li.partId!==partId) return;
       if(li._meta) return;
-      if(li.soldStatus==='Sold') return;
+      if(li.soldStatus==='Sold'||li.airSold) return;
       if(li.holdStatus==='hold') return; // already held — show on Release tab
       rows.push({
         invId:inv.id,liIdx:liIdx,
@@ -6929,7 +7296,7 @@ function _hwmsHoldUpdateActions(){
     if(cell) cell.innerHTML='';
     // Remove any split/merge row below
     var next=cb.closest('tr').nextElementSibling;
-    if(next&&(next.classList.contains('hwms-split-row')||next.classList.contains('hwms-merge-row')||next.classList.contains('hwms-chgqty-row'))) next.remove();
+    if(next&&(next.classList.contains('hwms-split-row')||next.classList.contains('hwms-merge-row'))) next.remove();
   });
   // Build map of base pallet → checked siblings (split pallets only)
   var baseMap={};
@@ -6950,11 +7317,7 @@ function _hwmsHoldUpdateActions(){
     var isSplit=cb.dataset.split==='1';
     var base=cb.dataset.base;
     var html='';
-    // Show Change Qty only for non-split pallets
-    if(!isSplit){
-      html+='<button onclick="_hwmsHoldShowChgQty(this)" data-inv="'+invId+'" data-li="'+liIdx+'" data-qty="'+qty+'" data-pallet="'+pallet+'" style="font-size:9px;padding:2px 6px;background:#2563eb;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:700;margin:1px">✏️ Qty</button>';
-    }
-    // Show Split button (for non-split or already-split, as long as qty > 1)
+    // Show Split button (as long as qty > 1)
     if(parseInt(qty)>1){
       html+='<button onclick="_hwmsHoldShowSplit(this)" data-inv="'+invId+'" data-li="'+liIdx+'" data-pallet="'+pallet+'" data-qty="'+qty+'" style="font-size:9px;padding:2px 6px;background:#f59e0b;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:700;margin:1px">✂ Split</button>';
     }
@@ -6973,7 +7336,7 @@ function _hwmsHoldShowSplit(btn){
   var tr=btn.closest('td').closest('tr');
   // Remove existing inline row of any type
   var next=tr.nextElementSibling;
-  if(next&&(next.classList.contains('hwms-split-row')||next.classList.contains('hwms-chgqty-row')||next.classList.contains('hwms-merge-row'))){next.remove();return;}
+  if(next&&(next.classList.contains('hwms-split-row')||next.classList.contains('hwms-merge-row'))){next.remove();return;}
   var pallet=btn.dataset.pallet;var qty=parseInt(btn.dataset.qty)||0;
   var invId=btn.dataset.inv;var liIdx=btn.dataset.li;
   var basePallet=pallet.replace(/#[A-Z]$/,'');
@@ -7054,46 +7417,6 @@ function _hwmsHoldUpdateCount(){
   if(el) el.textContent=cbs.length?cbs.length+' selected':'';
 }
 
-// --- Change Qty inline ---
-function _hwmsHoldShowChgQty(btn){
-  var tr=btn.closest('td').closest('tr');
-  // Remove existing inline row
-  var next=tr.nextElementSibling;
-  if(next&&(next.classList.contains('hwms-split-row')||next.classList.contains('hwms-chgqty-row')||next.classList.contains('hwms-merge-row'))){next.remove();return;}
-  var invId=btn.dataset.inv;var liIdx=btn.dataset.li;var qty=parseInt(btn.dataset.qty)||0;var pallet=btn.dataset.pallet;
-  var html='<tr class="hwms-chgqty-row" style="background:#eff6ff;border-bottom:1px solid var(--border)">'
-    +'<td colspan="9" style="padding:8px 12px 10px">'
-    +'<div style="font-size:11px;font-weight:800;color:#2563eb;margin-bottom:6px">✏️ Change Qty for <b>'+pallet+'</b> (current: '+qty+')</div>'
-    +'<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">'
-    +'<div><label style="font-size:10px;font-weight:700;color:var(--text2);display:block">New Qty</label>'
-    +'<input type="number" id="hwmsChgQty_'+liIdx+'" min="1" value="'+qty+'" style="width:100px;padding:5px 8px;border:1.5px solid #2563eb;border-radius:5px;font-family:var(--mono);font-weight:700;text-align:right;font-size:13px"></div>'
-    +'<button onclick="_hwmsDoChgQty(\''+invId+'\','+liIdx+','+qty+')" style="padding:7px 16px;font-size:12px;font-weight:800;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Save Qty</button>'
-    +'</div></td></tr>';
-  tr.insertAdjacentHTML('afterend',html);
-}
-
-async function _hwmsDoChgQty(invId,liIdx,oldQty){
-  var inv=byId(DB.hwmsInvoices||[],invId);if(!inv) return;
-  var lis=inv.lineItems||[];
-  var li=lis[liIdx];if(!li) return;
-  var newQty=parseInt(document.getElementById('hwmsChgQty_'+liIdx).value)||0;
-  if(newQty<=0){notify('⚠ Qty must be greater than 0',true);return;}
-  if(newQty===oldQty){notify('Qty unchanged');return;}
-  // Adjust weights proportionally
-  if(oldQty>0){
-    var ratio=newQty/oldQty;
-    if(li.netWeight) li.netWeight=Math.round(li.netWeight*ratio*100)/100;
-    if(li.pkgWeight) li.pkgWeight=Math.round(li.pkgWeight*ratio*100)/100;
-    if(li.grossWeight) li.grossWeight=Math.round(li.grossWeight*ratio*100)/100;
-  }
-  li.quantity=newQty;
-  if(await _dbSave('hwmsInvoices',inv)){
-    notify('✏️ Qty changed: '+(li.palletNumber||'Pallet')+' → '+newQty);
-    _hwmsHoldRenderPallets(_hwmsHoldSelectedPartId);
-    renderHwmsInventory();
-  }
-}
-
 // --- Merge split pallets ---
 async function _hwmsHoldDoMerge(basePallet){
   // Find all checked CBs with this base pallet
@@ -7168,6 +7491,7 @@ async function _hwmsHoldSelected(){
   }
   notify('🚫 '+count+' pallet(s) marked as HOLD');
   _hwmsHoldRenderPallets(_hwmsHoldSelectedPartId);
+  _hwmsRenderReleaseTab();
   _hwmsUpdateHoldCount();
   renderHwmsInventory();
 }
@@ -7250,6 +7574,7 @@ async function _hwmsReleaseSelected(){
   }
   notify('✅ '+count+' pallet(s) released from hold');
   _hwmsRenderReleaseTab();
+  if(_hwmsHoldSelectedPartId) _hwmsHoldRenderPallets(_hwmsHoldSelectedPartId);
   _hwmsUpdateHoldCount();
   renderHwmsInventory();
 }
@@ -7278,6 +7603,9 @@ function renderHwmsInventory(){
     var isOnwater=cSt==='Onwater';
     (inv.lineItems||[]).forEach(function(li){
       if(!li.partId) return;
+      if(li._meta) return;
+      // Exclude air consignment items (sold directly, not stored in WH)
+      if(li.airSold) return;
       if(!partMap[li.partId]) partMap[li.partId]={totalQty:0,whQty:0,dispatchedQty:0,transitQty:0,whLocations:[],details:[]};
       var qty=li.quantity||0;
       partMap[li.partId].totalQty+=qty;
@@ -7885,9 +8213,8 @@ function showHwmsInvDetail(id){
       // Container & Shipping (purple tint)
       '<div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 16px">'+
         '<div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container & Shipping</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
           _f('Container',cont?.containerNumber||'','Not assigned')+
-          _f('Delivery Terms',inv.delivery,'Missing')+
           _f('Mode of Transport',inv.modeOfTransport,'Missing')+
         '</div>'+
       '</div>'+
@@ -7895,12 +8222,13 @@ function showHwmsInvDetail(id){
     // SECTION 3: Buyer & Shipping (green tint)
     '<div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 16px;margin-bottom:10px">'+
       '<div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Buyer & Shipping</div>'+
-      '<div style="display:grid;grid-template-columns:1.5fr 1.5fr 0.8fr 0.8fr 125px;gap:8px">'+
+      '<div style="display:grid;grid-template-columns:1.5fr 1.5fr 0.8fr 0.8fr 1fr 1fr;gap:8px">'+
         _f('Buyer (Customer)',inv.buyerName||cust?.customerName||'','—')+
         _f('Consignee',inv.consigneeName||consignee?.name||'','—')+
         _f('Port of Loading',inv.portOfLoading||plPort?.name||'','Missing')+
         _f('Port of Discharge',inv.portOfDischarge||pdPort?.name||'','Missing')+
         _f('Payment Terms',inv.paymentTerms,'Missing')+
+        _f('Delivery Terms',inv.delivery,'Missing')+
       '</div>'+
     '</div>'+
     // SECTION 3: Line Items (amber tint)
@@ -7929,7 +8257,23 @@ function showHwmsInvDetail(id){
         '<tbody>'+liRows+'</tbody>'+
         '<tfoot>'+tfootHtml+'</tfoot>'+
       '</table></div>'+
-    '</div>';
+    '</div>'+
+    // SECTION 4: Notes
+    (function(){
+      var co2=_getHwmsCompany()||{};
+      var cn2=_hwmsParseCoNotes(co2.note);
+      var invNotes=_hwmsInvGetNotes(inv);
+      var noteTexts=[[1,cn2.n1],[2,cn2.n2],[3,cn2.n3]];
+      var activeNotes=noteTexts.filter(function(n){return invNotes.indexOf(n[0])>=0&&n[1];});
+      if(!activeNotes.length) return '';
+      return '<div style="background:rgba(107,114,128,.05);border:1.5px solid rgba(107,114,128,.2);border-radius:8px;padding:12px 16px;margin-top:10px">'
+        +'<div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">📝 Invoice Notes</div>'
+        +activeNotes.map(function(n){
+          return '<div style="font-size:12px;color:var(--text);margin-bottom:4px;padding:4px 8px;background:#fff;border-radius:4px;border:1px solid var(--border)">'
+            +'<span style="font-weight:700;color:var(--accent);margin-right:6px">Note '+n[0]+':</span>'+n[1]+'</div>';
+        }).join('')
+        +'</div>';
+    })();
 
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
 }
@@ -8098,7 +8442,7 @@ function _hwmsRenderSysGuide(){
     {page:'&nbsp;&nbsp;↳ Dispatch Container',sa:1,ha:1,wa:0,wu:0},
     {page:'&nbsp;&nbsp;↳ Undo Dispatch',sa:1,ha:0,wa:0,wu:0},
     {page:'&nbsp;&nbsp;↳ Receive Container',sa:1,ha:1,wa:0,wu:0},
-    {page:'&nbsp;&nbsp;↳ Revoke Reached',sa:1,ha:0,wa:0,wu:0},
+    {page:'&nbsp;&nbsp;↳ Undo Received',sa:1,ha:1,wa:0,wu:0},
     {page:'&nbsp;&nbsp;↳ Delete Container',sa:1,ha:0,wa:0,wu:0},
     {page:'&nbsp;&nbsp;↳ Import / Export',sa:1,ha:1,wa:0,wu:0},
     {page:'🧾 Main Invoices (MI)',sa:1,ha:1,wa:0,wu:0},
@@ -8210,7 +8554,7 @@ function _hwmsRenderSysGuide(){
     +'<div style="font-size:12px;color:var(--text2);line-height:1.8">'
     +'<b>Draft:</b> Container planned, invoices can be linked/unlinked, fields editable.<br>'
     +'<b>In Transit:</b> Dispatched. Invoice fields locked. Post-shipment details (carrier invoice, entry summary) become editable. Undo Dispatch reverts to Draft and delinks all invoices.<br>'
-    +'<b>Warehouse:</b> Received at destination. All pallets marked with WH location. Inventory is now active. Revoke Reached (SA only) reverts to In Transit.</div>';
+    +'<b>Warehouse:</b> Received at destination. All pallets marked with WH location. Inventory is now active. Undo Received (SA/HA) reverts to In Transit and clears all WH data.</div>';
   // --- Invoice Status Lifecycle ---
   var invLifeEl=document.getElementById('sysGuideInvLife');
   invLifeEl.innerHTML='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:12px">'
@@ -8986,6 +9330,7 @@ function _hwmsLiResetAddRow(){
   document.getElementById('hwmsLiAddNetWt').value='';
   document.getElementById('hwmsLiAddPkgWt').value='';
   document.getElementById('hwmsLiAddGrossWt').value='';
+  var _hsnEl=document.getElementById('hwmsLiAddHsn');if(_hsnEl)_hsnEl.value='';
   const addBtn=document.getElementById('hwmsLiAddBtn');
   if(addBtn){addBtn.innerHTML='+';addBtn.title='Add line item';}
   const cancelBtn=document.getElementById('hwmsLiCancelBtn');
@@ -9052,6 +9397,7 @@ function _hwmsLiOnPartChange(){
   document.getElementById('hwmsLiAddUom').value=part?.uom||'';
   document.getElementById('hwmsLiAddRate').value=part?.finalRate?Number(part.finalRate).toFixed(2):'';
   document.getElementById('hwmsLiAddPkgWt').value=part?.packingWeight?Math.round(part.packingWeight):'';
+  document.getElementById('hwmsLiAddHsn').value=part?.hsnCode||'';
   const dims=(part?.packingDimensions||'').split(/[xX×]/);
   document.getElementById('hwmsLiAddPkgL').value=(dims[0]||'').trim()||'';
   document.getElementById('hwmsLiAddPkgW').value=(dims[1]||'').trim()||'';
@@ -9158,14 +9504,14 @@ function _hwmsLiAdd(){
   const qty=parseInt(document.getElementById('hwmsLiAddQty').value)||0;
   const unitNetWt=part?.netWeightKg||0;
   const pkgWt=parseInt(document.getElementById('hwmsLiAddPkgWt').value)||0;
-  const netWt=Math.round(unitNetWt*qty);
-  const grossWt=netWt+pkgWt;
+  var netWt=unitNetWt>0?Math.round(unitNetWt*qty):parseInt(document.getElementById('hwmsLiAddNetWt').value)||0;
+  var grossWt=netWt+pkgWt;
   const item={partId:partId,palletNumber:document.getElementById('hwmsLiAddPallet').value||'',
     packageType:document.getElementById('hwmsLiAddPkg').value||part?.packingType||'',
     poNumber:document.getElementById('hwmsLiAddPo').value||'',quantity:qty,uom:part?.uom||'',
     rate:part?.finalRate||0,
     pkgL:document.getElementById('hwmsLiAddPkgL').value||'',pkgW:document.getElementById('hwmsLiAddPkgW').value||'',pkgH:document.getElementById('hwmsLiAddPkgH').value||'',
-    netWeight:netWt,pkgWeight:pkgWt,grossWeight:grossWt,hsnCode:part?.hsnCode||''};
+    netWeight:netWt,pkgWeight:pkgWt,grossWeight:grossWt,hsnCode:document.getElementById('hwmsLiAddHsn')?.value||part?.hsnCode||''};
   if(_hwmsLiEditIdx>=0){ _hwmsLiItems[_hwmsLiEditIdx]=item; }
   else { if(_hwmsLiItems.length>=15){notify('Maximum 15 line items (P1–P15)',true);return;} _hwmsLiItems.push(item); }
   _hwmsLiRenderTable();
@@ -9185,12 +9531,22 @@ function _hwmsLiEdit(idx){
   document.getElementById('hwmsLiAddPo').value=li.poNumber||'';
   document.getElementById('hwmsLiAddQty').value=li.quantity||'';
   _hwmsLiOnPartChange();
-  document.getElementById('hwmsLiAddPkg').value=li.packageType||'';
+  // Preserve line item values if part master fields are empty
+  var _hsnEl2=document.getElementById('hwmsLiAddHsn');
+  if(_hsnEl2&&!_hsnEl2.value&&li.hsnCode) _hsnEl2.value=li.hsnCode;
+  document.getElementById('hwmsLiAddPkg').value=li.packageType||document.getElementById('hwmsLiAddPkg').value||'';
   document.getElementById('hwmsLiAddPkgL').value=li.pkgL||'';
   document.getElementById('hwmsLiAddPkgW').value=li.pkgW||'';
   document.getElementById('hwmsLiAddPkgH').value=li.pkgH||'';
   document.getElementById('hwmsLiAddPkgWt').value=li.pkgWeight?Math.round(li.pkgWeight):'';
   _hwmsLiCalcWeights();
+  // If part has no netWeightKg, preserve existing line item weights
+  if(!(part?.netWeightKg)){
+    var _nwEl=document.getElementById('hwmsLiAddNetWt');
+    if(_nwEl&&li.netWeight){_nwEl.value=Math.round(li.netWeight);_nwEl.style.color='';}
+    var _gwEl=document.getElementById('hwmsLiAddGrossWt');
+    if(_gwEl&&li.grossWeight) _gwEl.value=Math.round(li.grossWeight);
+  }
   const addBtn=document.getElementById('hwmsLiAddBtn');
   if(addBtn){addBtn.innerHTML='✓';addBtn.title='Save changes';}
   const cancelBtn=document.getElementById('hwmsLiCancelBtn');
@@ -9212,19 +9568,69 @@ function _hwmsCollectLineItems(){
 }
 // ===== HWMS: BUYER SELECTION =====
 function _hwmsInvOnBuyerChange(){
-  // Only sets delivery terms and transport from customer defaults
-  var bSel=document.getElementById('hwmsInvBuyer');
-  if(!bSel) return;
-  var buyerId=bSel.value||'';
-  var cust=null;
-  if(buyerId){
-    var arr=DB.hwmsCustomers||[];
-    for(var k=0;k<arr.length;k++){if(arr[k].id===buyerId){cust=arr[k];break;}}
+  var buyerId=document.getElementById('hwmsInvBuyer').value||'';
+  var cust=buyerId?byId(DB.hwmsCustomers||[],buyerId):null;
+
+  // 1. Consignee dropdown — populate from selected customer's consignees
+  var cSel=document.getElementById('hwmsInvConsignee');
+  if(cSel){
+    cSel.innerHTML='<option value="">--</option>';
+    if(cust&&cust.consignees&&cust.consignees.length){
+      var defIdx=-1;
+      cust.consignees.forEach(function(cn,i){
+        var opt=document.createElement('option');
+        opt.value=String(i);
+        opt.textContent=cn.name+(cn.country?' — '+cn.country:'');
+        if(cn.isDefault) defIdx=i;
+        cSel.appendChild(opt);
+      });
+      // Select default consignee, or first if only one
+      if(defIdx>=0) cSel.value=String(defIdx);
+      else if(cust.consignees.length===1) cSel.value='0';
+    }
   }
-  var el=document.getElementById('hwmsInvDelivery');
-  if(el){el.selectedIndex=0;if(cust&&cust.defaultDelivery){for(var i=0;i<el.options.length;i++){if(el.options[i].value===cust.defaultDelivery){el.selectedIndex=i;break;}}}}
-  el=document.getElementById('hwmsInvTransport');
-  if(el){el.selectedIndex=0;if(cust&&cust.defaultTransport){for(var i=0;i<el.options.length;i++){if(el.options[i].value===cust.defaultTransport){el.selectedIndex=i;break;}}}}
+
+  // 2. Port of Loading — populate master list, select customer default
+  var plSel=document.getElementById('hwmsInvPortLoad');
+  if(plSel){
+    var ports=(DB.hwmsPortLoading||[]).slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+    plSel.innerHTML='<option value="">--</option>'+ports.map(function(p){return '<option value="'+p.id+'">'+p.name+(p.country?' — '+p.country:'')+'</option>';}).join('');
+    if(cust&&cust.defaultPortLoading) plSel.value=cust.defaultPortLoading;
+  }
+
+  // 3. Port of Discharge — populate master list, select customer default
+  var pdSel=document.getElementById('hwmsInvPortDisch');
+  if(pdSel){
+    var ports2=(DB.hwmsPortDischarge||[]).slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+    pdSel.innerHTML='<option value="">--</option>'+ports2.map(function(p){return '<option value="'+p.id+'">'+p.name+(p.country?' — '+p.country:'')+'</option>';}).join('');
+    if(cust&&cust.defaultPortDischarge) pdSel.value=cust.defaultPortDischarge;
+  }
+
+  // 4. Payment Terms — fill from customer default
+  var ptEl=document.getElementById('hwmsInvPayTerms');
+  if(ptEl) ptEl.value=cust&&cust.defaultPaymentTerms?cust.defaultPaymentTerms:'';
+
+  // 5. Delivery Terms — select customer default
+  var dlEl=document.getElementById('hwmsInvDelivery');
+  if(dlEl){
+    dlEl.value='';
+    if(cust&&cust.defaultDelivery){
+      for(var i=0;i<dlEl.options.length;i++){
+        if(dlEl.options[i].value===cust.defaultDelivery){dlEl.value=cust.defaultDelivery;break;}
+      }
+    }
+  }
+
+  // 6. Mode of Transport — select customer default
+  var trEl=document.getElementById('hwmsInvTransport');
+  if(trEl){
+    trEl.value='';
+    if(cust&&cust.defaultTransport){
+      for(var i=0;i<trEl.options.length;i++){
+        if(trEl.options[i].value===cust.defaultTransport){trEl.value=cust.defaultTransport;break;}
+      }
+    }
+  }
 }
 
 function openHwmsInvModal(id){
@@ -9260,13 +9666,21 @@ function openHwmsInvModal(id){
     document.getElementById('hwmsInvContainer').value=contId;
     const contObj=contId?byId(DB.hwmsContainers||[],contId):null;
     document.getElementById('hwmsInvContainerDisplay').value=contObj?.containerNumber||'— Not assigned —';
-    // Simple dropdowns — blank for new, saved values for edit
-    document.getElementById('hwmsInvDelivery').value=inv?.delivery||'';
-    document.getElementById('hwmsInvTransport').value=inv?.modeOfTransport||'';
     // Buyer dropdown — populate all customers
     const bSel=document.getElementById('hwmsInvBuyer');
     bSel.innerHTML='<option value="">-- Select Customer --</option>'+(DB.hwmsCustomers||[]).sort((a,b)=>(a.customerName||'').localeCompare(b.customerName||'')).map(c=>`<option value="${c.id}">${c.customerName}${c.country?' — '+c.country:''}</option>`).join('');
     bSel.value=inv?.buyerId||'';
+    // Populate consignee, ports, payment, delivery from customer defaults
+    _hwmsInvOnBuyerChange();
+    // Override with saved invoice values when editing
+    if(inv){
+      if(inv.modeOfTransport) document.getElementById('hwmsInvTransport').value=inv.modeOfTransport;
+      if(inv.delivery) document.getElementById('hwmsInvDelivery').value=inv.delivery;
+      if(inv.consigneeIdx>=0){var csSel=document.getElementById('hwmsInvConsignee');if(csSel)csSel.value=String(inv.consigneeIdx);}
+      if(inv.portOfLoadingId){var plS=document.getElementById('hwmsInvPortLoad');if(plS)plS.value=inv.portOfLoadingId;}
+      if(inv.portOfDischargeId){var pdS=document.getElementById('hwmsInvPortDisch');if(pdS)pdS.value=inv.portOfDischargeId;}
+      if(inv.paymentTerms) document.getElementById('hwmsInvPayTerms').value=inv.paymentTerms;
+    }
     // 2. Part dropdown for line items
     _hwmsLiPopulatePartDropdown();
     // 3. Load line items — THIS IS CRITICAL
@@ -9274,20 +9688,24 @@ function openHwmsInvModal(id){
     if(inv&&inv.lineItems&&Array.isArray(inv.lineItems)){
       _hwmsLiItems=inv.lineItems.filter(function(li){return !li._meta;}).map(function(li,i){
         var item={...li,palletNumber:li.palletNumber||'P'+(i+1)};
-        // Refresh part-derived fields from current Part Master
+        // Refresh part-derived fields from current Part Master (only override if part master has data)
         var part=byId(DB.hwmsParts||[],item.partId);
         if(part){
-          item.hsnCode=part.hsnCode||'';
-          item.uom=part.uom||'';
-          item.packageType=part.packingType||item.packageType||'';
-          item.rate=part.finalRate||item.rate||0;
+          if(part.hsnCode) item.hsnCode=part.hsnCode;
+          if(part.uom) item.uom=part.uom;
+          if(part.packingType) item.packageType=part.packingType;
+          if(part.finalRate) item.rate=part.finalRate;
           var dims=(part.packingDimensions||'').split(/[xX×]/);
-          item.pkgL=(dims[0]||'').trim()||item.pkgL||'';
-          item.pkgW=(dims[1]||'').trim()||item.pkgW||'';
-          item.pkgH=(dims[2]||'').trim()||item.pkgH||'';
-          item.pkgWeight=part.packingWeight||item.pkgWeight||0;
-          item.netWeight=Math.round((part.netWeightKg||0)*(item.quantity||0));
-          item.grossWeight=(item.netWeight||0)+(item.pkgWeight||0);
+          if(dims.length===3&&dims[0].trim()){
+            item.pkgL=dims[0].trim();
+            item.pkgW=(dims[1]||'').trim();
+            item.pkgH=(dims[2]||'').trim();
+          }
+          if(part.packingWeight) item.pkgWeight=part.packingWeight;
+          if(part.netWeightKg&&item.quantity){
+            item.netWeight=Math.round(part.netWeightKg*(item.quantity||0));
+            item.grossWeight=(item.netWeight||0)+(item.pkgWeight||0);
+          }
         }
         return item;
       });
@@ -9345,7 +9763,11 @@ function _hwmsInvHighlightIncomplete(){
     if(!el)return;
     if(!f.check(el.value)) el.classList.add('hwms-incomplete');
     else el.classList.remove('hwms-incomplete');
-    el.onchange=function(){if(f.check(this.value))this.classList.remove('hwms-incomplete');else this.classList.add('hwms-incomplete');};
+    // Use addEventListener instead of el.onchange to avoid overwriting existing handlers
+    if(!el._hwmsHighlightBound){
+      el._hwmsHighlightBound=true;
+      el.addEventListener('change',function(){if(f.check(this.value))this.classList.remove('hwms-incomplete');else this.classList.add('hwms-incomplete');});
+    }
   });
 }
 
@@ -9369,17 +9791,18 @@ async function saveHwmsInv(){
   var cleanLi=lineItems.filter(function(li){return !li._meta;});
   cleanLi.push({_meta:true,selectedNotes:selNotes});
   const cust=byId(DB.hwmsCustomers||[],buyerId);
-  // Derive consignee from customer defaults (default consignee or first)
+  // Read consignee from dropdown
+  var consigneeIdx=parseInt(document.getElementById('hwmsInvConsignee').value);
+  if(isNaN(consigneeIdx)) consigneeIdx=-1;
   const cons=cust?.consignees||[];
-  let consigneeIdx=-1;
-  for(var i=0;i<cons.length;i++){if(cons[i].isDefault){consigneeIdx=i;break;}}
-  if(consigneeIdx<0&&cons.length>0) consigneeIdx=0;
   const consignee=cons[consigneeIdx]||null;
-  // Derive ports from customer defaults
-  const plId=cust?.defaultPortLoading||'';
-  const pdId=cust?.defaultPortDischarge||'';
+  // Read ports from dropdowns
+  const plId=document.getElementById('hwmsInvPortLoad').value||'';
+  const pdId=document.getElementById('hwmsInvPortDisch').value||'';
   const plPort=byId(DB.hwmsPortLoading||[],plId);
   const pdPort=byId(DB.hwmsPortDischarge||[],pdId);
+  // Payment terms from text input
+  const payTerms=document.getElementById('hwmsInvPayTerms').value.trim();
   const existingInv=id?byId(DB.hwmsInvoices||[],id):null;
   const contIdVal=document.getElementById('hwmsInvContainer').value;
   const contObj=contIdVal?byId(DB.hwmsContainers||[],contIdVal):null;
@@ -9387,7 +9810,7 @@ async function saveHwmsInv(){
     containerId:contIdVal,
     containerNumber:contObj?.containerNumber||'',
     delivery:document.getElementById('hwmsInvDelivery').value,
-    paymentTerms:cust?.defaultPaymentTerms||existingInv?.paymentTerms||'',
+    paymentTerms:payTerms||existingInv?.paymentTerms||'',
     paymentStatus:existingInv?.paymentStatus||'Pending',
     buyerId,buyerName:cust?.customerName||'',
     consigneeIdx,consigneeName:consignee?.name||'',
