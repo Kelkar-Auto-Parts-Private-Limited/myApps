@@ -1838,137 +1838,291 @@ function _applyPhotoInputMode(){
 }
 function _photoAccept(){ return 'image/*'; }
 
-// ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
-// Instead of SELECT * on all hot tables every 10s, only fetch rows changed
-// since last sync using the updated_at column (requires Supabase trigger).
-// Falls back to throttled full sync (30s) if column doesn't exist.
-//
-// To enable incremental sync, run this SQL in Supabase SQL Editor:
-// ──────────────────────────────────────────────────────────────────────
-// CREATE OR REPLACE FUNCTION update_updated_at_column()
-// RETURNS TRIGGER AS $$
-// BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
-// $$ LANGUAGE plpgsql;
-//
-// DO $$ DECLARE t TEXT; BEGIN
-//   FOR t IN SELECT unnest(ARRAY[
-//     'vms_trips','vms_segments','vms_spot_trips'
-//   ]) LOOP
-//     EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()', t);
-//     EXECUTE format('DROP TRIGGER IF EXISTS set_updated_at ON %I', t);
-//     EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()', t);
-//     EXECUTE format('UPDATE %I SET updated_at = NOW() WHERE updated_at IS NULL', t);
-//   END LOOP;
-// END $$;
-// ──────────────────────────────────────────────────────────────────────
+// ═══ DEMAND-DRIVEN SYNC ══════════════════════════════════════════════════
+var _loadedTables={};
 
-var _vmsIncr={
-  lastTs:{},
-  mode:'unknown',
-  skipCount:0,
-  lastSaveAt:0,
-  probed:false
+var _PAGE_TABLES={
+  'pageDashboard':['trips','segments','locations','drivers','vehicles','vehicleTypes','vendors'],
+  'pageTripBooking':['trips','segments','locations','drivers','vehicles','vehicleTypes','vendors','tripRates'],
+  'pageKapSecurity':['spotTrips','locations'],
+  'pageUsers':[],
+  'pageDrivers':['drivers','vendors'],
+  'pageVehicles':['vehicles','vehicleTypes','vendors'],
+  'pageLocations':['locations'],
+  'pageTripRates':['tripRates','vehicleTypes','locations'],
+  'pageVTypes':['vehicleTypes'],
+  'pageVendors':['vendors'],
+  'pageMR':['trips','segments','locations'],
+  'pageApprove':['tripRates','vehicleTypes','locations'],
+  'pageProfile':[],
+  'pageVendorTrips':['trips','segments','vendors'],
+  'pageHelper':[]
 };
 
-// Track local saves
-var _origDbSave2=typeof _dbSave==='function'?_dbSave:null;
-if(_origDbSave2){
-  _dbSave=async function(tbl,record){
-    var result=await _origDbSave2(tbl,record);
-    if(result) _vmsIncr.lastSaveAt=Date.now();
-    return result;
-  };
+async function _demandLoad(tables){
+  if(!_sbReady||!_sb) return;
+  var needed=tables.filter(function(t){return !_loadedTables[t]&&SB_TABLES[t];});
+  if(!needed.length) return;
+  var results=await Promise.all(needed.map(async function(tbl){
+    var sbTbl=SB_TABLES[tbl];
+    try{
+      var sel=_syncSelect(sbTbl);
+      var res=await _sb.from(sbTbl).select(sel);
+      if(res.error){console.warn('demandLoad '+tbl+':',res.error.message);return null;}
+      return {tbl:tbl,rows:res.data||[]};
+    }catch(e){return null;}
+  }));
+  results.filter(Boolean).forEach(function(r){
+    var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+    _syncMergeRows(r.tbl,parsed,true);
+    _loadedTables[r.tbl]=true;
+  });
+  console.log('📦 Demand loaded: '+needed.join(', '));
 }
 
-// Probe: test if updated_at column exists on first hot table
-async function _vmsProbeIncremental(){
-  if(_vmsIncr.probed) return;
-  _vmsIncr.probed=true;
-  var firstTbl=_HOT_TABLES[0];
-  var sbTbl=SB_TABLES[firstTbl];
-  if(!sbTbl||!_sbReady||!_sb){_vmsIncr.mode='full';return;}
+function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t){return _loadedTables[t];});}
+
+// ═══ PHOTO-EXCLUDED SYNC ═════════════════════════════════════════════════
+// Exclude large photo columns from sync queries to reduce egress ~80%.
+// Photos loaded on-demand when user opens a record.
+// Low-volume tables (users, drivers) keep photos in sync for instant display.
+var _SYNC_SELECT={
+  'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
+  'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
+};
+
+// ── Date filtering: only fetch recent data, load history on-demand ──
+var _DATE_FILTER_DAYS=60; // default cutoff
+// Supabase table name → date column name
+var _DATE_FILTER_COL={
+  'vms_trips':'date',
+  'vms_segments':'date',
+  'vms_spot_trips':'date'
+};
+var _dateFilterLoaded={}; // tbl → earliest date loaded (ISO string)
+
+function _dateCutoff(days){
+  var d=new Date();d.setDate(d.getDate()-(days||_DATE_FILTER_DAYS));
+  return d.toISOString().slice(0,10);
+}
+
+// Apply date filter to a Supabase query builder
+function _applyDateFilter(q,sbTbl,cutoff){
+  var col=_DATE_FILTER_COL[sbTbl];
+  if(!col) return q;
+  var c=cutoff||_dateCutoff();
+  return q.gte(col,c);
+}
+
+// Load older data beyond the current cutoff
+async function _loadOlderData(localTbl,extraDays){
+  var sbTbl=SB_TABLES[localTbl];
+  var col=_DATE_FILTER_COL[sbTbl];
+  if(!sbTbl||!col||!_sbReady||!_sb) return 0;
+  var currentCutoff=_dateFilterLoaded[localTbl]||_dateCutoff();
+  var newDays=(extraDays||60)+_DATE_FILTER_DAYS;
+  var newCutoff=_dateCutoff(newDays);
+  if(newCutoff>=currentCutoff) return 0; // already have this range
+  showSpinner('Loading older records…');
   try{
-    var res=await _sb.from(sbTbl).select('updated_at').limit(1);
-    if(res.error){
-      console.warn('⚠ VMS Sync: updated_at probe failed on '+sbTbl+':',res.error.message||res.error.code,'→ Full sync mode (30s)');
-      _vmsIncr.mode='full';
-    } else {
-      _vmsIncr.mode='incremental';
-      console.log('✅ VMS Sync: incremental mode active (updated_at column found on '+sbTbl+')');
+    var sel=_syncSelect(sbTbl);
+    // Fetch records between newCutoff and currentCutoff
+    var res=await _sb.from(sbTbl).select(sel).gte(col,newCutoff).lt(col,currentCutoff);
+    if(res.error||!res.data){hideSpinner();return 0;}
+    var parsed=res.data.map(function(row){return _fromRow(localTbl,row);}).filter(Boolean);
+    // Merge into existing DB
+    var arr=DB[localTbl]||[];
+    var idMap={};for(var i=0;i<arr.length;i++)idMap[arr[i].id]=i;
+    var added=0;
+    parsed.forEach(function(rec){
+      if(idMap[rec.id]===undefined){arr.push(rec);added++;}
+    });
+    DB[localTbl]=arr;
+    _dateFilterLoaded[localTbl]=newCutoff;
+    _DATE_FILTER_DAYS=newDays; // expand window for future syncs
+    if(added>0&&!_kapPopupOpen) _onRefreshViews();
+    console.log('📜 Loaded '+added+' older '+localTbl+' records (back to '+newCutoff+')');
+    return added;
+  }catch(e){console.warn('_loadOlderData error:',e.message);return 0;}
+  finally{hideSpinner();}
+}
+var _PHOTO_PRESERVE={
+  'spotTrips':['challanPhoto','driverPhoto','entryVehiclePhoto','exitVehiclePhoto'],
+  'trips':['photo1','photo2','photo3']
+};
+var _PHOTO_DB_COLS={
+  'vms_spot_trips':['challan_photo','driver_photo','entry_vehicle_photo','exit_vehicle_photo']
+};
+function _syncSelect(sbTbl){return _SYNC_SELECT[sbTbl]||'*';}
+
+function _syncMergeRows(localTbl,newParsed,replace){
+  var pf=_PHOTO_PRESERVE[localTbl]||[];
+  var existing=DB[localTbl]||[];
+  if(replace){
+    if(pf.length>0){
+      var oldMap={};existing.forEach(function(r){oldMap[r.id]=r;});
+      newParsed.forEach(function(rec){var old=oldMap[rec.id];if(old)pf.forEach(function(f){if(old[f]&&!rec[f])rec[f]=old[f];});});
     }
-  }catch(e){
-    console.warn('⚠ VMS Sync: probe exception:',e.message,'→ Full sync mode');
-    _vmsIncr.mode='full';
+    DB[localTbl]=newParsed;
+  } else {
+    var idMap={};for(var i=0;i<existing.length;i++)idMap[existing[i].id]=i;
+    newParsed.forEach(function(rec){
+      var idx=idMap[rec.id];
+      if(idx!==undefined){pf.forEach(function(f){if(existing[idx][f]&&!rec[f])rec[f]=existing[idx][f];});existing[idx]=rec;}
+      else existing.push(rec);
+    });
+    DB[localTbl]=existing;
   }
 }
 
-// Override _bgSyncHot — incremental or throttled full
+async function _loadPhotos(localTbl,recordId){
+  var sbTbl=SB_TABLES[localTbl];var photoCols=_PHOTO_DB_COLS[sbTbl];
+  if(!sbTbl||!photoCols||!photoCols.length||!_sbReady||!_sb) return null;
+  var rec=byId(DB[localTbl]||[],recordId);if(!rec) return null;
+  var jsFields=_PHOTO_PRESERVE[localTbl]||[];
+  if(jsFields.length&&jsFields.every(function(f){return !!rec[f];})) return rec;
+  try{
+    var res=await _sb.from(sbTbl).select('code,'+photoCols.join(',')).eq('code',recordId).limit(1);
+    if(res.error||!res.data||!res.data.length) return rec;
+    var mapped=_fromRow(localTbl,res.data[0]);
+    if(mapped) jsFields.forEach(function(f){if(mapped[f])rec[f]=mapped[f];});
+    return rec;
+  }catch(e){return rec;}
+}
+
+// ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
+var _vmsIncr={lastTs:{},mode:'unknown',skipCount:0,lastSaveAt:0,probed:false};
+
+var _origDbSave2=typeof _dbSave==='function'?_dbSave:null;
+if(_origDbSave2){_dbSave=async function(tbl,record){var result=await _origDbSave2(tbl,record);if(result)_vmsIncr.lastSaveAt=Date.now();return result;};}
+
+async function _vmsProbeIncremental(){
+  if(_vmsIncr.probed)return;_vmsIncr.probed=true;
+  var sbTbl=SB_TABLES[_HOT_TABLES[0]];
+  if(!sbTbl||!_sbReady||!_sb){_vmsIncr.mode='full';return;}
+  try{var res=await _sb.from(sbTbl).select('updated_at').limit(1);
+    if(res.error){console.warn('⚠ VMS Hot: probe failed →',res.error.message);_vmsIncr.mode='full';}
+    else{_vmsIncr.mode='incremental';console.log('✅ VMS Hot: incremental mode active');}
+  }catch(e){_vmsIncr.mode='full';}
+}
+
 var _origBgSyncHot2=typeof _bgSyncHot==='function'?_bgSyncHot:null;
 _bgSyncHot=function(){
-  if(!_sbReady||!_sb) return;
-  if(Date.now()-_vmsIncr.lastSaveAt<5000) return;
-
-  // Probe on first call
-  if(_vmsIncr.mode==='unknown'){
-    _vmsProbeIncremental().then(function(){
-      if(_vmsIncr.mode==='incremental') _vmsIncrSyncHot();
-      else if(_origBgSyncHot2) _origBgSyncHot2();
-    });
-    return;
-  }
-
-  if(_vmsIncr.mode==='full'){
-    _vmsIncr.skipCount++;
-    if(_vmsIncr.skipCount%3!==0) return;
-    if(_origBgSyncHot2) _origBgSyncHot2();
-    return;
-  }
+  if(!_sbReady||!_sb)return;if(Date.now()-_vmsIncr.lastSaveAt<5000)return;
+  if(_vmsIncr.mode==='unknown'){_vmsProbeIncremental().then(function(){if(_vmsIncr.mode==='incremental')_vmsIncrSyncHot();else if(_origBgSyncHot2)_origBgSyncHot2();});return;}
+  if(_vmsIncr.mode==='full'){_vmsIncr.skipCount++;if(_vmsIncr.skipCount%3!==0)return;if(_origBgSyncHot2)_origBgSyncHot2();return;}
   _vmsIncrSyncHot();
 };
 
 function _vmsIncrSyncHot(){
   var now=new Date().toISOString();
-  Promise.all(_HOT_TABLES.map(async function(tbl){
-    var sbTbl=SB_TABLES[tbl];if(!sbTbl) return null;
+  var hotLoaded=_HOT_TABLES.filter(function(t){return _loadedTables[t];});
+  if(!hotLoaded.length) return;
+  Promise.all(hotLoaded.map(async function(tbl){
+    var sbTbl=SB_TABLES[tbl];if(!sbTbl)return null;
     var lastTs=_vmsIncr.lastTs[tbl]||new Date(Date.now()-35000).toISOString();
-    try{
-      var res=await _sb.from(sbTbl).select('*').gt('updated_at',lastTs);
-      if(res.error){console.warn('VMS incr sync error on '+sbTbl+':',res.error.message);return null;}
-      return {tbl:tbl,rows:res.data||[]};
+    try{var res=await _sb.from(sbTbl).select(_syncSelect(sbTbl)).gt('updated_at',lastTs);
+      if(res.error)return null;return{tbl:tbl,rows:res.data||[]};
     }catch(e){return null;}
   })).then(function(results){
-    if(!results) return;
-    var totalChanged=0;
-    results.filter(Boolean).forEach(function(r){
-      _vmsIncr.lastTs[r.tbl]=now;
-      if(!r.rows.length) return;
-      totalChanged+=r.rows.length;
-      var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
-      var arr=DB[r.tbl]||[];
-      var idMap={};
-      for(var i=0;i<arr.length;i++) idMap[arr[i].id]=i;
-      parsed.forEach(function(rec){
-        var idx=idMap[rec.id];
-        if(idx!==undefined) arr[idx]=rec; else arr.push(rec);
-      });
-      DB[r.tbl]=arr;
+    if(!results)return;var tc=0;
+    results.filter(Boolean).forEach(function(r){_vmsIncr.lastTs[r.tbl]=now;if(!r.rows.length)return;tc+=r.rows.length;
+      _syncMergeRows(r.tbl,r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean),false);
     });
-    if(totalChanged>0){
-      _bgSyncDone=true;
-      if(_sbStatus!=='ok') _sbSetStatus('ok');
-      if(!_kapPopupOpen) _onRefreshViews();
-    }
-  }).catch(function(e){console.warn('VMS incr sync error:',e.message);});
+    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');if(!_kapPopupOpen)_onRefreshViews();}
+  }).catch(function(e){console.warn('VMS hot sync error:',e.message);});
 }
 
-// Reset incremental timestamps after full sync
+// Full sync override — incremental on all tables, true full every 5th call
 var _origBgSyncFull2=typeof _bgSyncFromSupabase==='function'?_bgSyncFromSupabase:null;
+var _vmsFullIncr={lastTs:{},callCount:0,mode:'unknown',probed:false};
+
+async function _vmsProbeFullIncr(){
+  if(_vmsFullIncr.probed)return;_vmsFullIncr.probed=true;
+  try{var res=await _sb.from('vms_users').select('updated_at').limit(1);
+    _vmsFullIncr.mode=res.error?'full':'incremental';
+    console.log(_vmsFullIncr.mode==='incremental'?'✅ VMS Full: incremental (all tables)':'⚠ VMS Full: standard');
+  }catch(e){_vmsFullIncr.mode='full';}
+}
+
 _bgSyncFromSupabase=function(){
-  if(_origBgSyncFull2) _origBgSyncFull2();
-  setTimeout(function(){
-    var ts=new Date().toISOString();
-    (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=ts;});
-  },5000);
+  if(!_sbReady||!_sb)return;
+  if(!_vmsFullIncr.probed){_vmsProbeFullIncr().then(function(){_vmsDoFullSync();});return;}
+  _vmsDoFullSync();
+};
+
+function _vmsDoFullSync(){
+  _vmsFullIncr.callCount++;
+  var loaded=_getLoadedTables();
+  var at=loaded.length?loaded:_getActiveTables();
+  var trueFull=_vmsFullIncr.mode==='full'||_vmsFullIncr.callCount%5===0;
+
+  // Both true-full and incremental use photo-excluded selects
+  var now=new Date().toISOString();
+  var isIncr=!trueFull;
+  var cutoff=_dateCutoff();
+  Promise.all(at.map(async function(tbl){
+    var sbTbl=SB_TABLES[tbl];if(!sbTbl)return null;
+    try{
+      var q=_sb.from(sbTbl).select(_syncSelect(sbTbl));
+      q=_applyDateFilter(q,sbTbl,cutoff);
+      if(isIncr){var lastTs=_vmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();q=q.gt('updated_at',lastTs);}
+      var res=await q;if(res.error)return null;return{tbl:tbl,rows:res.data||[]};
+    }catch(e){return null;}
+  })).then(function(results){
+    if(!results)return;var tc=0;
+    results.filter(Boolean).forEach(function(r){
+      _vmsFullIncr.lastTs[r.tbl]=now;
+      if(!r.rows.length&&isIncr)return;
+      tc+=r.rows.length;
+      var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      _syncMergeRows(r.tbl,parsed,trueFull);
+    });
+    (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=now;});
+    _bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');
+    if(!_kapPopupOpen)_onRefreshViews();
+    if(tc>0||trueFull)console.log('📡 VMS '+(trueFull?'true full':'incr full')+' sync: '+tc+' rows');
+  }).catch(function(e){console.warn('VMS full sync error:',e.message);});
+}
+
+// Override bootDB to use photo-excluded selects on initial load
+var _origBootDB=typeof bootDB==='function'?bootDB:null;
+bootDB=async function(){
+  if(!_origBootDB) return;
+  // If _SYNC_SELECT not defined yet or Supabase not ready, fall back to original
+  if(!_SYNC_SELECT||!_sb||!_sbReady){ return _origBootDB(); }
+  try{
+    showSpinner('Loading…');
+    var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Connecting to database…';
+    var activeTables=_getActiveTables();
+    var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
+    var cutoff=_dateCutoff();
+    var fetchAll=Promise.all(activeTables.map(async function(tbl){
+      var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
+      try{
+        var sel=_syncSelect(sbTbl);
+        var q=_sb.from(sbTbl).select(sel);
+        q=_applyDateFilter(q,sbTbl,cutoff);
+        var res=await q;
+        if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
+        return{tbl:tbl,rows:res.data||[]};
+      }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
+    }));
+    var results=await Promise.race([fetchAll,timeout]);
+    results.forEach(function(r){
+      DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
+    });
+    console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d filter) — users='+((DB.users||[]).length)+' trips='+((DB.trips||[]).length));
+    _bgSyncDone=true;
+    _sbSetStatus('ok');
+    if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+    _onPostBoot();
+    _sbStartRealtime();
+  }catch(e){
+    console.warn('Photo-excluded bootDB failed:',e.message,'→ falling back to original');
+    return _origBootDB();
+  }finally{hideSpinner();}
 };
 
 async function _appBoot(){
@@ -1976,8 +2130,10 @@ async function _appBoot(){
   // dbSplash kept only for error states (Common.js not loaded).
   // bootDB() already shows its own spinner via showSpinner() — no need for a second overlay.
   // Load only VMS + Security tables — not HWMS tables
+  // Set all VMS tables (bootDB override only fetches these with photo exclusion)
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
+  _getActiveTables().forEach(function(t){_loadedTables[t]=true;});
   if(splash) splash.style.display='none';
   try{ _applyPhotoInputMode(); }catch(e){}
   // Check session
@@ -3078,6 +3234,19 @@ function showPage(pid,nid){
   const map={pageMyApps:renderMyApps,pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
   console.log('[showPage] navigating to:', pid, '| page found:', !!pg, '| render fn:', !!map[pid]);
   if(map[pid]){
+    // Demand-load required tables before rendering
+    var reqTables=_PAGE_TABLES[pid];
+    if(reqTables&&reqTables.length){
+      var needed=reqTables.filter(function(t){return !_loadedTables[t]&&SB_TABLES[t];});
+      if(needed.length){
+        showSpinner('Loading data…');
+        _demandLoad(reqTables).then(function(){
+          hideSpinner();
+          try{map[pid]();}catch(e){console.error('[showPage] render error:',e);notify('⚠ Page render error: '+e.message,true);}
+        }).catch(function(){hideSpinner();try{map[pid]();}catch(e){}});
+        return;
+      }
+    }
     try{map[pid]();}
     catch(e){
       console.error('[showPage] render error for '+pid+':', e);
@@ -4278,18 +4447,9 @@ function _tripIdPrefix(tripId){
   const m=tripId.match(/^(\d+P\d+-)/);
   return m?m[1]:'';
 }
-// Colorize trip ID: plant code portion gets location background color
+// Format trip ID for display (plain text, no colored badge)
 function _cTid(tripId){
-  if(!tripId) return '';
-  const m=tripId.match(/^(\d+)(P\d+)(-.*)?$/);
-  if(!m) return tripId;
-  const yr=m[1], pc=m[2], rest=m[3]||'';
-  // Find location matching plant code
-  const pcDigits=pc.replace(/\D/g,'');
-  const loc=DB.locations.find(l=>{const d=(l.name||'').replace(/[^0-9]/g,'');return d&&d===pcDigits;});
-  const bg=loc?.colour||'var(--accent)';
-  const fg=loc?.colour?colourContrast(loc.colour):'#fff';
-  return `${yr}<span style="background:${bg};color:${fg};padding:1px 4px;border-radius:4px;margin:0 1px">${pc}</span>${rest}`;
+  return tripId||'';
 }
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
@@ -5573,6 +5733,19 @@ function _kapOpenSpotPopup(spotId){
     // Editing existing record
     const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);
     if(!s){_kapPopupOpen=false;return;}
+    // Load photos on-demand if not cached — updates thumbnails after fetch
+    _loadPhotos('spotTrips',spotId).then(function(){
+      _spotRestoreThumb('spotVehThumb',s.entryVehiclePhoto);
+      _spotRestoreThumb('spotDriverThumb',s.driverPhoto);
+      if(s.exitVehiclePhoto) _spotRestoreThumb('spotExitVehThumb',s.exitVehiclePhoto);
+      // Update onclick handlers with loaded photos
+      var vt2=document.getElementById('spotVehThumb');
+      if(vt2&&s.exitTime) vt2.onclick=function(){openPhoto(s.entryVehiclePhoto||'');};
+      var dt2=document.getElementById('spotDriverThumb');
+      if(dt2&&s.exitTime) dt2.onclick=function(){openPhoto(s.driverPhoto||'');};
+      var et2=document.getElementById('spotExitVehThumb');
+      if(et2&&s.exitVehiclePhoto) et2.onclick=function(){openPhoto(s.exitVehiclePhoto);};
+    });
     // Fill entry fields
     document.getElementById('spotEditId').value=spotId;
     document.getElementById('spotVehNum').value=s.vehicleNum||'';
@@ -5581,8 +5754,6 @@ function _kapOpenSpotPopup(spotId){
     document.getElementById('spotSupplier').value=s.supplier||'';
     _spotInitChallans(s.challans||(s.challan?[{no:s.challan,photo:s.challanPhoto||''}]:[]));
     document.getElementById('spotEntryRemarks').value=s.entryRemarks||'';
-    _spotRestoreThumb('spotVehThumb',s.entryVehiclePhoto);
-    _spotRestoreThumb('spotDriverThumb',s.driverPhoto);
     if(popupId) popupId.textContent=spotId;
     const hasExited=!!s.exitTime;
     const canExit=!hasExited&&!!s.entryTime;

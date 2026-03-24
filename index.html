@@ -378,6 +378,62 @@ if(typeof _COMMON_LOADED==='undefined'){
 </script>
 <script>
 // ── All portal code (global scope — no block wrappers) ──────────────────────
+
+// Photo-excluded sync selects for boot (same tables as VMS+HWMS apps)
+var _SYNC_SELECT={
+  'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
+  'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at',
+  'hwms_parts':'id,code,part_number,part_revision,description,status,net_weight_kg,uom,hsn_code,packing_type,packing_dimensions,qty_per_package,packing_weight,ex_works_rate,freight,warehouse_cost,icc_cost,final_rate,rate_valid_from,rate_valid_to,rates,updated_at',
+  'hwms_containers':'id,code,container_number,container_serial_number,expected_pickup_date,pickup_date,status,reach_date,expected_reach_date,reached_date,carrier_id,carrier_name,carrier_inv_number,carrier_inv_date,carrier_inv_amount,entry_summary_number,es_date,es_amount,tariff_paid,tariff_percent,confirmed,updated_at'
+};
+function _syncSelect(sbTbl){return _SYNC_SELECT[sbTbl]||'*';}
+
+// ── Date filtering ──
+var _DATE_FILTER_DAYS=60;
+var _DATE_FILTER_COL={
+  'vms_trips':'date','vms_segments':'date','vms_spot_trips':'date'
+};
+function _dateCutoff(days){var d=new Date();d.setDate(d.getDate()-(days||_DATE_FILTER_DAYS));return d.toISOString().slice(0,10);}
+function _applyDateFilter(q,sbTbl,cutoff){var col=_DATE_FILTER_COL[sbTbl];if(!col)return q;return q.gte(col,cutoff||_dateCutoff());}
+
+// Override bootDB to exclude photos + date filter on initial load
+var _origBootDB=typeof bootDB==='function'?bootDB:null;
+bootDB=async function(){
+  if(!_origBootDB) return;
+  if(!_sb||!_sbReady){ return _origBootDB(); }
+  try{
+    showSpinner('Loading…');
+    var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Connecting to database…';
+    var activeTables=_getActiveTables();
+    var cutoff=_dateCutoff();
+    var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
+    var fetchAll=Promise.all(activeTables.map(async function(tbl){
+      var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
+      try{
+        var sel=_syncSelect(sbTbl);
+        var q=_sb.from(sbTbl).select(sel);
+        q=_applyDateFilter(q,sbTbl,cutoff);
+        var res=await q;
+        if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
+        return{tbl:tbl,rows:res.data||[]};
+      }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
+    }));
+    var results=await Promise.race([fetchAll,timeout]);
+    results.forEach(function(r){
+      DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+    });
+    console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d) — users='+((DB.users||[]).length));
+    _bgSyncDone=true;
+    _sbSetStatus('ok');
+    if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+    _onPostBoot();
+    _sbStartRealtime();
+  }catch(e){
+    console.warn('Photo-excluded bootDB failed:',e.message,'→ falling back to original');
+    return _origBootDB();
+  }finally{hideSpinner();}
+};
+
 // Override _navigateTo to cache ALL tables (not just portal's 2 tables)
 var _origNavigateTo=_navigateTo;
 _navigateTo=function(url){
@@ -690,9 +746,13 @@ var _portalPreFetchDone=false;
 function _portalPreFetchAll(){
   if(_portalPreFetchDone||!_sbReady||!_sb) return;
   console.log('[portal] pre-fetching all tables in background…');
+  var cutoff=_dateCutoff();
   Promise.all(DB_TABLES.map(function(tbl){
     if(!SB_TABLES[tbl]) return Promise.resolve(null);
-    return _sb.from(SB_TABLES[tbl]).select('*').then(function(res){
+    var sel=_syncSelect(SB_TABLES[tbl]);
+    var q=_sb.from(SB_TABLES[tbl]).select(sel);
+    q=_applyDateFilter(q,SB_TABLES[tbl],cutoff);
+    return q.then(function(res){
       if(res.error) return null;
       return {tbl:tbl, rows:res.data||[]};
     }).catch(function(){return null;});
@@ -706,22 +766,19 @@ function _portalPreFetchAll(){
 }
 
 // ── DB Storage Analysis (all apps) ─────────────────────────────────────────
-// ── DB Storage Analysis (all apps) ─────────────────────────────────────────
-var _portalSyncProbe={vms:'unknown',hwms:'unknown',done:false};
+var _portalSyncProbe={vms:'unknown',hwms:'unknown',vmsFull:'unknown',hwmsFull:'unknown',done:false};
 async function _portalProbeSyncModes(){
   if(_portalSyncProbe.done||!_sbReady||!_sb) return;
   _portalSyncProbe.done=true;
-  // Probe VMS: check updated_at on vms_trips
-  try{
-    var r1=await _sb.from('vms_trips').select('updated_at').limit(1);
-    _portalSyncProbe.vms=r1.error?'full':'incremental';
-  }catch(e){_portalSyncProbe.vms='full';}
-  // Probe HWMS: check updated_at on hwms_containers
-  try{
-    var r2=await _sb.from('hwms_containers').select('updated_at').limit(1);
-    _portalSyncProbe.hwms=r2.error?'full':'incremental';
-  }catch(e){_portalSyncProbe.hwms='full';}
-  console.log('[portal] Sync probe: VMS='+_portalSyncProbe.vms+', HWMS='+_portalSyncProbe.hwms);
+  // Probe VMS hot: vms_trips
+  try{var r1=await _sb.from('vms_trips').select('updated_at').limit(1);_portalSyncProbe.vms=r1.error?'full':'incremental';}catch(e){_portalSyncProbe.vms='full';}
+  // Probe HWMS hot: hwms_containers
+  try{var r2=await _sb.from('hwms_containers').select('updated_at').limit(1);_portalSyncProbe.hwms=r2.error?'full':'incremental';}catch(e){_portalSyncProbe.hwms='full';}
+  // Probe VMS all-tables: vms_users (master table)
+  try{var r3=await _sb.from('vms_users').select('updated_at').limit(1);_portalSyncProbe.vmsFull=r3.error?'full':'incremental';}catch(e){_portalSyncProbe.vmsFull='full';}
+  // Probe HWMS all-tables: hwms_hsn (master table)
+  try{var r4=await _sb.from('hwms_hsn').select('updated_at').limit(1);_portalSyncProbe.hwmsFull=r4.error?'full':'incremental';}catch(e){_portalSyncProbe.hwmsFull='full';}
+  console.log('[portal] Sync probe: VMS hot='+_portalSyncProbe.vms+' full='+_portalSyncProbe.vmsFull+', HWMS hot='+_portalSyncProbe.hwms+' full='+_portalSyncProbe.hwmsFull);
 }
 
 function renderPortalDbStorage(){
@@ -919,6 +976,9 @@ function _renderDbStorageAnalysis(body){
     // Detect sync modes (from portal probe)
     var isVmsIncr=_portalSyncProbe.vms==='incremental';
     var isHwmsIncr=_portalSyncProbe.hwms==='incremental';
+    var isVmsFullIncr=_portalSyncProbe.vmsFull==='incremental';
+    var isHwmsFullIncr=_portalSyncProbe.hwmsFull==='incremental';
+    var isFullIncr=isVmsFullIncr&&isHwmsFullIncr;
 
     // Egress per user per hour:
     // Hot poll: every 10s = 360/hr. Full mode: SELECT * every 30s=120/hr. Incremental: ~0 bytes
@@ -949,16 +1009,17 @@ function _renderDbStorageAnalysis(body){
 
     // Sync mode badges
     html+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
-    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isVmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">VMS: '+(isVmsIncr?'✅ Incremental':'⚠️ Full Sync')+'</div>';
-    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isHwmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">HWMS: '+(isHwmsIncr?'✅ Incremental':'⚠️ Full Sync')+'</div>';
-    if(!isVmsIncr||!isHwmsIncr) html+='<div style="font-size:10px;padding:4px 10px;border-radius:6px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-weight:600">Run the updated_at SQL migration to enable incremental sync and reduce egress by ~60%</div>';
+    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isVmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">VMS Hot: '+(isVmsIncr?'✅ Incremental':'⚠️ Full')+'</div>';
+    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isHwmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">HWMS Hot: '+(isHwmsIncr?'✅ Incremental':'⚠️ Full')+'</div>';
+    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isFullIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">Full Sync: '+(isFullIncr?'✅ Incremental':'⚠️ Standard')+'</div>';
+    if(!isVmsIncr||!isHwmsIncr||!isFullIncr) html+='<div style="font-size:10px;padding:4px 10px;border-radius:6px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-weight:600">Run the updated_at SQL migration on ALL tables to enable full incremental sync</div>';
     html+='</div>';
 
     html+='<div id="dbEgressResults"></div>';
     html+='</div></div>';
 
     // Store egress data globally for recalc
-    window._egData={hotVMS:hotSizeVMS,hotHWMS:hotSizeHWMS,allSize:allSize,vmsIncr:isVmsIncr,hwmsIncr:isHwmsIncr};
+    window._egData={hotVMS:hotSizeVMS,hotHWMS:hotSizeHWMS,allSize:allSize,vmsIncr:isVmsIncr,hwmsIncr:isHwmsIncr,fullIncr:isFullIncr};
 
     // Tips
     html+='<div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;line-height:1.6">';
@@ -977,7 +1038,10 @@ function _recalcEgress(){
   var fmt2=function(b){if(b>=1073741824)return(b/1073741824).toFixed(2)+' GB';if(b>=1048576)return(b/1048576).toFixed(1)+' MB';if(b>=1024)return(b/1024).toFixed(0)+' KB';return b+' B';};
   var hotPollVMS=d.vmsIncr?360*500:120*d.hotVMS;
   var hotPollHWMS=d.hwmsIncr?360*500:120*d.hotHWMS;
-  var fullSync=60*d.allSize;
+  // Full sync: 60 calls/hr. If incremental: 4 out of 5 are ~500 bytes, 1 out of 5 is true full
+  var fullSyncIncr=(48*500)+(12*d.allSize); // 48 incremental (near-zero) + 12 true full per hr (every 5 min)
+  var fullSyncStd=60*d.allSize; // standard: 60 SELECT * per hr
+  var fullSync=d.fullIncr?fullSyncIncr:fullSyncStd;
   var bootSync=0.08*d.allSize;
   var saves=20*2048;
   var rt=50*2048;
@@ -985,21 +1049,23 @@ function _recalcEgress(){
   var totalHr=perUserHr*users;
   var totalDay=totalHr*8;
   var totalMonth=totalDay*26;
-  // What-if incremental
-  var perUserHrI=(360*500)+(360*500)+fullSync+bootSync+saves+rt;
+  // What-if: everything incremental
+  var perUserHrI=(360*500)+(360*500)+fullSyncIncr+bootSync+saves+rt;
   var totalHrI=perUserHrI*users;var totalDayI=totalHrI*8;var totalMonthI=totalDayI*26;
   var el=document.getElementById('dbEgressResults');if(!el)return;
   var h='<table style="width:100%;font-size:12px;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px">';
   h+='<thead><tr style="background:#f8fafc"><th style="padding:6px 10px;text-align:left;font-size:10px">Source</th><th style="padding:6px 10px;text-align:right;font-size:10px">Per User/Hr</th><th style="padding:6px 10px;text-align:right;font-size:10px">'+users+' Users/Hr</th><th style="padding:6px 10px;text-align:right;font-size:10px">Daily (8hr)</th><th style="padding:6px 10px;text-align:right;font-size:10px">Monthly (26d)</th></tr></thead><tbody>';
   var rows=[
-    ['Hot Poll (VMS)',hotPollVMS],['Hot Poll (HWMS)',hotPollHWMS],
-    ['Full Sync (60s, all tables)',fullSync],
+    ['Hot Poll — VMS (10s)',hotPollVMS],['Hot Poll — HWMS (10s)',hotPollHWMS],
+    ['Full Sync — '+(d.fullIncr?'Incremental (60s) + True Full (5min)':'Standard SELECT * (60s)'),fullSync],
     ['Boot (session start)',bootSync],
     ['Save responses',saves],
     ['Realtime events',rt]
   ];
   rows.forEach(function(r){
-    var c=r[0].indexOf('Hot Poll')>=0?(d.vmsIncr&&r[0].indexOf('VMS')>=0||d.hwmsIncr&&r[0].indexOf('HWMS')>=0?'#16a34a':'#dc2626'):'#475569';
+    var c='#475569';
+    if(r[0].indexOf('Hot Poll')>=0) c=(d.vmsIncr&&r[0].indexOf('VMS')>=0||d.hwmsIncr&&r[0].indexOf('HWMS')>=0)?'#16a34a':'#dc2626';
+    if(r[0].indexOf('Full Sync')>=0) c=d.fullIncr?'#16a34a':'#dc2626';
     h+='<tr style="border-top:1px solid #e2e8f0"><td style="padding:5px 10px;font-weight:600;color:'+c+'">'+r[0]+'</td>';
     h+='<td style="padding:5px 10px;text-align:right;font-family:monospace">'+fmt2(r[1])+'</td>';
     h+='<td style="padding:5px 10px;text-align:right;font-family:monospace">'+fmt2(r[1]*users)+'</td>';
@@ -1012,15 +1078,15 @@ function _recalcEgress(){
   h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;color:#4338ca">'+fmt2(totalHr)+'</td>';
   h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;color:#4338ca">'+fmt2(totalDay)+'</td>';
   h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;color:#4338ca">'+fmt2(totalMonth)+'</td></tr>';
-  // If not fully incremental, show savings
-  if(!d.vmsIncr||!d.hwmsIncr){
-    h+='<tr style="background:#f0fdf4"><td style="padding:8px 10px;font-weight:800;color:#16a34a">WITH Incremental Sync ✅</td>';
+  // If not fully optimized, show potential savings
+  if(!d.vmsIncr||!d.hwmsIncr||!d.fullIncr){
+    h+='<tr style="background:#f0fdf4"><td style="padding:8px 10px;font-weight:800;color:#16a34a">WITH All Incremental ✅</td>';
     h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:800;color:#16a34a">'+fmt2(perUserHrI)+'</td>';
     h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:800;color:#16a34a">'+fmt2(totalHrI)+'</td>';
     h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:800;color:#16a34a">'+fmt2(totalDayI)+'</td>';
     h+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:800;color:#16a34a">'+fmt2(totalMonthI)+'</td></tr>';
     var saved=totalMonth-totalMonthI;
-    h+='<tr style="background:#dcfce7"><td style="padding:6px 10px;font-weight:700;color:#166534" colspan="4">Potential monthly savings with incremental sync</td>';
+    h+='<tr style="background:#dcfce7"><td style="padding:6px 10px;font-weight:700;color:#166534" colspan="4">Potential monthly savings with full incremental sync</td>';
     h+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:900;color:#166534">↓ '+fmt2(saved)+'</td></tr>';
   }
   h+='</tbody></table>';
@@ -1060,9 +1126,13 @@ function openApp(id,file){
     _APP_TABLES=null;
     _navigateTo(file+'?app='+id);
   },4000);
+  var _openAppCutoff=_dateCutoff();
   Promise.all(allTables.map(function(tbl){
     if(!SB_TABLES[tbl]) return Promise.resolve(null);
-    return _sb.from(SB_TABLES[tbl]).select('*').then(function(res){
+    var sel=_syncSelect(SB_TABLES[tbl]);
+    var q=_sb.from(SB_TABLES[tbl]).select(sel);
+    q=_applyDateFilter(q,SB_TABLES[tbl],_openAppCutoff);
+    return q.then(function(res){
       if(res.error) return null;
       return {tbl:tbl, rows:res.data||[]};
     }).catch(function(){return null;});
