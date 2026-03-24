@@ -150,6 +150,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')">🏠 Apps</div>
       <div class="ps-nav" id="psNavUsers" onclick="showTab('users')" style="display:none">👥 Users <span id="pSideUserCount" style="font-size:10px;background:rgba(42,154,160,.12);color:var(--accent);padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:800"></span></div>
       <div class="ps-nav" id="psNavProfile" onclick="showTab('profile')">👤 Profile</div>
+      <div class="ps-nav" id="psNavDbstorage" onclick="showTab('dbstorage')" style="display:none">📊 DB Storage</div>
     </div>
     <!-- Bottom: Connection + Sign Out -->
     <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
@@ -250,10 +251,21 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
         </div>
       </div>
     </div>
+    <!-- DB STORAGE -->
+    <div id="dbStorageSection" style="display:none;max-width:1100px">
+      <div style="margin-bottom:12px">
+        <button onclick="showTab('apps')" style="display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">← Back to Apps</button>
+      </div>
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div style="font-size:20px;font-weight:900;color:var(--accent)">📊 Database Storage Analysis</div>
+          <button onclick="renderPortalDbStorage()" style="font-size:11px;padding:5px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer">🔄 Refresh</button>
+        </div>
+        <div id="portalDbStorageBody"><div style="text-align:center;padding:20px;color:#94a3b8">Click Refresh or navigate to this tab to analyze storage.</div></div>
+      </div>
+    </div>
   </div>
 </div>
-
-<!-- USER MODAL -->
 <div class="modal-overlay" id="mUser">
   <div class="modal">
     <div class="modal-header"><div class="modal-title" id="muTitle">Add User</div><div class="modal-close" onclick="cm('mUser')">×</div></div>
@@ -643,6 +655,7 @@ function showPortal(){
   var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=isAdmin?'':'none';
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=isAdmin?'':'none';
+  var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=isAdmin?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
@@ -661,6 +674,7 @@ function showTab(tab){
   document.getElementById('appsSection').style.display=tab==='apps'?'block':'none';
   document.getElementById('usersSection').style.display=tab==='users'?'block':'none';
   document.getElementById('profileSection').style.display=tab==='profile'?'block':'none';
+  document.getElementById('dbStorageSection').style.display=tab==='dbstorage'?'block':'none';
   // Sidebar nav highlighting
   document.querySelectorAll('.ps-nav').forEach(n=>n.classList.remove('active'));
   var sn=document.getElementById('psNav'+tab.charAt(0).toUpperCase()+tab.slice(1));
@@ -668,6 +682,7 @@ function showTab(tab){
   if(tab==='apps') renderAppGrid();
   if(tab==='users') renderPortalUsers();
   if(tab==='profile') ppLoadProfile();
+  if(tab==='dbstorage') renderPortalDbStorage();
 }
 
 // ── Background pre-fetch ALL tables so app opens fast ───────────────────────
@@ -688,6 +703,168 @@ function _portalPreFetchAll(){
     _portalPreFetchDone=true;
     console.log('[portal] pre-fetch done — '+DB_TABLES.map(function(t){return t+'='+((DB[t]||[]).length);}).join(', '));
   }).catch(function(e){console.warn('[portal] pre-fetch error:',e.message);});
+}
+
+// ── DB Storage Analysis (all apps) ─────────────────────────────────────────
+function renderPortalDbStorage(){
+  var body=document.getElementById('portalDbStorageBody');if(!body)return;
+  body.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8">Analyzing database storage…</div>';
+  setTimeout(function(){
+    var tables=typeof DB_TABLES!=='undefined'?DB_TABLES:[];
+    if(!tables.length){body.innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8">No tables found</div>';return;}
+    // Group tables by app
+    var appGroups={
+      'VMS':['users','vehicleTypes','vendors','drivers','vehicles','locations','tripRates','trips','segments','spotTrips'],
+      'Security':['checkpoints','guards','roundSchedules'],
+      'HWMS':['hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests']
+    };
+    var results=[];
+    var grandTotal=0,grandImg=0,grandJson=0,grandRecords=0;
+    tables.forEach(function(tbl){
+      var arr=DB[tbl]||[];
+      var totalBytes=0,imgBytes=0,imgCount=0;
+      var fieldBreakdown={};
+      arr.forEach(function(rec){
+        var recStr=JSON.stringify(rec);
+        var recBytes=recStr.length*2;
+        totalBytes+=recBytes;
+        for(var key in rec){
+          if(!rec.hasOwnProperty(key)) continue;
+          var val=rec[key];
+          var valStr=typeof val==='string'?val:JSON.stringify(val||'');
+          var valBytes=valStr.length*2;
+          if(!fieldBreakdown[key]) fieldBreakdown[key]={bytes:0,imgBytes:0,imgCount:0,isArray:false};
+          fieldBreakdown[key].bytes+=valBytes;
+          if(typeof val==='string'&&val.startsWith('data:image/')){
+            fieldBreakdown[key].imgBytes+=valBytes;
+            fieldBreakdown[key].imgCount++;
+            imgBytes+=valBytes;imgCount++;
+          }
+          if(Array.isArray(val)){
+            fieldBreakdown[key].isArray=true;
+            val.forEach(function(item){
+              if(typeof item==='object'&&item){
+                for(var k2 in item){
+                  if(typeof item[k2]==='string'&&item[k2].startsWith('data:image/')){
+                    var ib=item[k2].length*2;
+                    fieldBreakdown[key].imgBytes+=ib;
+                    fieldBreakdown[key].imgCount++;
+                    imgBytes+=ib;imgCount++;
+                  }
+                }
+              }
+            });
+          }
+        }
+      });
+      var tableImgBytes=0;
+      for(var fk in fieldBreakdown) tableImgBytes+=fieldBreakdown[fk].imgBytes;
+      var jsonBytes=Math.max(0,totalBytes-tableImgBytes);
+      // Determine app
+      var app='Other';
+      for(var appName in appGroups){if(appGroups[appName].indexOf(tbl)>=0){app=appName;break;}}
+      results.push({tbl:tbl,app:app,records:arr.length,totalBytes:totalBytes,imgBytes:tableImgBytes,jsonBytes:jsonBytes,imgCount:imgCount,fields:fieldBreakdown});
+      grandTotal+=totalBytes;grandImg+=tableImgBytes;grandJson+=jsonBytes;grandRecords+=arr.length;
+    });
+    results.sort(function(a,b){return b.totalBytes-a.totalBytes;});
+    var fmt=function(b){if(b>=1048576)return(b/1048576).toFixed(2)+' MB';if(b>=1024)return(b/1024).toFixed(1)+' KB';return b+' B';};
+    var pct=function(part,whole){return whole>0?Math.round(part/whole*100):0;};
+    var barColor=function(p){return p>60?'#dc2626':p>30?'#f59e0b':'#16a34a';};
+    var appColor={'VMS':'#2563eb','HWMS':'#7c3aed','Security':'#ea580c','Other':'#64748b'};
+    var appBg={'VMS':'#eff6ff','HWMS':'#faf5ff','Security':'#fff7ed','Other':'#f8fafc'};
+    // Per-app totals
+    var appTotals={};
+    results.forEach(function(r){
+      if(!appTotals[r.app]) appTotals[r.app]={total:0,img:0,json:0,records:0,count:0};
+      appTotals[r.app].total+=r.totalBytes;appTotals[r.app].img+=r.imgBytes;appTotals[r.app].json+=r.jsonBytes;appTotals[r.app].records+=r.records;appTotals[r.app].count++;
+    });
+    // Summary cards
+    var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+    html+='<div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#0369a1;font-family:monospace">'+fmt(grandTotal)+'</div><div style="font-size:10px;font-weight:700;color:#0c4a6e;text-transform:uppercase">Total In-Memory</div></div>';
+    html+='<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626;font-family:monospace">'+fmt(grandImg)+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Images ('+pct(grandImg,grandTotal)+'%)</div></div>';
+    html+='<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#16a34a;font-family:monospace">'+fmt(grandJson)+'</div><div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">JSON Data ('+pct(grandJson,grandTotal)+'%)</div></div>';
+    html+='<div style="background:#faf5ff;border:1.5px solid #d8b4fe;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#7c3aed;font-family:monospace">'+grandRecords+'</div><div style="font-size:10px;font-weight:700;color:#5b21b6;text-transform:uppercase">Total Records</div></div>';
+    html+='</div>';
+    // Per-app summary
+    html+='<div style="display:grid;grid-template-columns:repeat('+Object.keys(appTotals).length+',1fr);gap:10px;margin-bottom:16px">';
+    for(var appK in appTotals){
+      var at=appTotals[appK];
+      var ac=appColor[appK]||'#64748b',ab=appBg[appK]||'#f8fafc';
+      html+='<div style="background:'+ab+';border:1.5px solid '+ac+'33;border-radius:10px;padding:10px 14px">';
+      html+='<div style="font-size:13px;font-weight:800;color:'+ac+';margin-bottom:6px">'+appK+' <span style="font-size:10px;color:#64748b;font-weight:600">('+at.count+' tables)</span></div>';
+      html+='<div style="display:flex;gap:12px;font-size:11px">';
+      html+='<div><div style="font-weight:900;font-family:monospace;color:'+ac+'">'+fmt(at.total)+'</div><div style="font-size:9px;color:#64748b">Total</div></div>';
+      html+='<div><div style="font-weight:900;font-family:monospace;color:#dc2626">'+fmt(at.img)+'</div><div style="font-size:9px;color:#64748b">Images</div></div>';
+      html+='<div><div style="font-weight:900;font-family:monospace;color:#16a34a">'+fmt(at.json)+'</div><div style="font-size:9px;color:#64748b">Data</div></div>';
+      html+='<div><div style="font-weight:900;font-family:monospace">'+at.records+'</div><div style="font-size:9px;color:#64748b">Records</div></div>';
+      html+='</div></div>';
+    }
+    html+='</div>';
+    // Table breakdown
+    html+='<div style="border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden">';
+    html+='<table style="width:100%;font-size:12px;border-collapse:collapse">';
+    html+='<thead><tr style="background:#f8fafc">';
+    html+='<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:800">Table</th>';
+    html+='<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:800">App</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Records</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Total Size</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Images</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Img #</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">JSON Data</th>';
+    html+='<th style="padding:8px 10px;font-size:10px;font-weight:800;min-width:120px">Image %</th>';
+    html+='</tr></thead><tbody>';
+    results.forEach(function(r,i){
+      var ip=pct(r.imgBytes,r.totalBytes);
+      var bc=barColor(ip);
+      var ac2=appColor[r.app]||'#64748b';
+      html+='<tr style="border-top:1px solid #e2e8f0;'+(i%2?'background:#fafafa;':'')+'cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'table-row\':\'none\'">';
+      html+='<td style="padding:6px 10px;font-weight:700;color:#2a9aa0">'+r.tbl+' <span style="font-size:9px;color:#94a3b8">▼</span></td>';
+      html+='<td style="padding:6px 10px"><span style="font-size:10px;font-weight:700;color:'+ac2+';background:'+ac2+'15;padding:2px 8px;border-radius:4px">'+r.app+'</span></td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700">'+r.records+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700">'+fmt(r.totalBytes)+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:monospace;font-weight:700;color:'+(r.imgBytes>0?'#dc2626':'#94a3b8')+'">'+fmt(r.imgBytes)+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:monospace">'+r.imgCount+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:monospace">'+fmt(r.jsonBytes)+'</td>';
+      html+='<td style="padding:6px 10px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+ip+'%;background:'+bc+';border-radius:4px"></div></div><span style="font-size:10px;font-weight:700;color:'+bc+';min-width:28px;text-align:right">'+ip+'%</span></div></td>';
+      html+='</tr>';
+      // Expandable field breakdown
+      html+='<tr style="display:none"><td colspan="8" style="padding:0"><div style="padding:8px 20px 10px;background:rgba(42,154,160,.04);border-top:1px dashed #e2e8f0">';
+      html+='<div style="font-size:10px;font-weight:800;color:#475569;margin-bottom:4px">FIELD BREAKDOWN</div>';
+      html+='<table style="width:100%;font-size:11px;border-collapse:collapse">';
+      html+='<tr style="color:#94a3b8"><th style="text-align:left;padding:2px 6px;font-size:9px">Field</th><th style="text-align:right;padding:2px 6px;font-size:9px">Size</th><th style="text-align:right;padding:2px 6px;font-size:9px">Images</th><th style="text-align:right;padding:2px 6px;font-size:9px">Img Size</th></tr>';
+      var fields=Object.entries(r.fields).sort(function(a,b){return b[1].bytes-a[1].bytes;});
+      fields.forEach(function(f){
+        var fk=f[0],fv=f[1];
+        if(fk==='_dbId'||fk==='id') return;
+        var hasImg=fv.imgBytes>0;
+        html+='<tr style="border-top:1px solid rgba(0,0,0,.05)">';
+        html+='<td style="padding:2px 6px;font-family:monospace;font-weight:600;color:'+(hasImg?'#dc2626':'#1e293b')+'">'+fk+(fv.isArray?' []':'')+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:monospace">'+fmt(fv.bytes)+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:monospace;color:'+(hasImg?'#dc2626':'#94a3b8')+'">'+fv.imgCount+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:monospace;color:'+(hasImg?'#dc2626':'#94a3b8')+'">'+fmt(fv.imgBytes)+'</td>';
+        html+='</tr>';
+      });
+      html+='</table></div></td></tr>';
+    });
+    // Grand total
+    html+='<tr style="border-top:3px solid #2a9aa0;background:#f0f9ff">';
+    html+='<td style="padding:8px 10px;font-weight:900;font-size:13px" colspan="2">TOTAL ('+tables.length+' tables)</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;font-size:13px">'+grandRecords+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;font-size:13px;color:#0369a1">'+fmt(grandTotal)+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;font-size:13px;color:#dc2626">'+fmt(grandImg)+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900"></td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:900;font-size:13px;color:#16a34a">'+fmt(grandJson)+'</td>';
+    html+='<td style="padding:8px 10px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct(grandImg,grandTotal)+'%;background:#dc2626;border-radius:5px"></div></div><span style="font-size:11px;font-weight:900;color:#dc2626;min-width:32px;text-align:right">'+pct(grandImg,grandTotal)+'%</span></div></td>';
+    html+='</tr>';
+    html+='</tbody></table></div>';
+    // Tips
+    html+='<div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;line-height:1.6">';
+    html+='<div style="font-weight:800;margin-bottom:4px">💡 Storage Tips</div>';
+    html+='All data is synced to every user\'s browser. Large tables with images increase bandwidth and slow sync.<br>';
+    html+='Photos are compressed to ~100-150KB before saving. Click any table row to see per-field breakdown.';
+    html+='</div>';
+    body.innerHTML=html;
+  },50);
 }
 
 // ── App grid ────────────────────────────────────────────────────────────────

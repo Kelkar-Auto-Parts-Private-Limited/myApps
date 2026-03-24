@@ -249,6 +249,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
   <div class="nav-item" id="navOtherMasters" onclick="hwmsGo('pageHwmsOtherMasters')">&#x1F4CB; Other Masters <span class="hwms-cnt" id="hcOtherMasters"></span></div>
   <div class="nav-item" id="navCompany" onclick="hwmsGo('pageHwmsCompany')">&#x1F3E2; Company Details</div>
   <div class="nav-item" id="navSysGuide" onclick="hwmsGo('pageHwmsSysGuide')" style="display:none">&#x1F4D6; System Guide</div>
+  <div class="nav-item" id="navDbStorage" onclick="hwmsGo('pageHwmsDbStorage')" style="display:none">&#x1F4CA; DB Storage</div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div id="hwmsConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
@@ -1016,6 +1017,17 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
       </div>
     </div>
 
+    <!-- DB STORAGE PAGE -->
+    <div class="page" id="pageHwmsDbStorage">
+      <div class="card" style="padding:24px;max-width:1100px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div style="font-size:20px;font-weight:900;color:var(--accent)">📊 Database Storage Analysis</div>
+          <button class="btn btn-primary" onclick="renderHwmsDbStorage()" style="font-size:11px;padding:5px 14px">🔄 Refresh</button>
+        </div>
+        <div id="hwmsDbStorageBody"></div>
+      </div>
+    </div>
+
 <!-- HWMS MODALS -->
 <!-- HWMS SUB-INVOICE MODAL -->
 <div class="modal-overlay" id="mHwmsSi"><div class="modal" style="max-width:680px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;padding:20px 24px">
@@ -1358,7 +1370,7 @@ function hwmsGo(pageId){
   const pg=document.getElementById(pageId);
   if(pg) pg.classList.add('active');
   // Update topbar title with badge — map sub-pages to parent nav ID
-  var _navIdMap={'pageHwmsInvoices':'navInvoices','pageHwmsInvEdit':'navInvoices','pageHwmsInvView':'navInvoices','pageHwmsSubInvoices':'navSubInvoices','pageHwmsSiView':'navSubInvoices','pageHwmsMR':'navMR','pageHwmsMrView':'navMR','pageHwmsContainers':'navContainers','pageHwmsInventory':'navInventory','pageHwmsParts':'navParts','pageHwmsCarriers':'navCarriers','pageHwmsCompany':'navCompany','pageHwmsOtherMasters':'navOtherMasters','pageHwmsPorts':'navPorts','pageHwmsSteelRates':'navCustomers','pageHwmsCustomers':'navCustomers','pageHwmsSysGuide':'navSysGuide'};
+  var _navIdMap={'pageHwmsInvoices':'navInvoices','pageHwmsInvEdit':'navInvoices','pageHwmsInvView':'navInvoices','pageHwmsSubInvoices':'navSubInvoices','pageHwmsSiView':'navSubInvoices','pageHwmsMR':'navMR','pageHwmsMrView':'navMR','pageHwmsContainers':'navContainers','pageHwmsInventory':'navInventory','pageHwmsParts':'navParts','pageHwmsCarriers':'navCarriers','pageHwmsCompany':'navCompany','pageHwmsOtherMasters':'navOtherMasters','pageHwmsPorts':'navPorts','pageHwmsSteelRates':'navCustomers','pageHwmsCustomers':'navCustomers','pageHwmsSysGuide':'navSysGuide','pageHwmsDbStorage':'navDbStorage'};
   var _navId=_navIdMap[pageId];
   const nav=_navId?document.getElementById(_navId):null;
   var titleEl=document.getElementById('hwmsPageTitle');
@@ -1408,6 +1420,7 @@ function hwmsGo(pageId){
     pageHwmsCustomers: ()=>{ if(typeof renderHwmsCustomers==='function') renderHwmsCustomers(); },
     pageHwmsSteelRates: ()=>{ renderHwmsSteelRates(); },
     pageHwmsSysGuide: ()=>{ if(typeof _hwmsRenderSysGuide==='function') _hwmsRenderSysGuide(); },
+    pageHwmsDbStorage: ()=>{ if(typeof renderHwmsDbStorage==='function') renderHwmsDbStorage(); },
     pageHwmsPorts: ()=>{
       if(typeof renderHwmsPortDisch==='function') renderHwmsPortDisch();
       if(typeof renderHwmsPortLoad==='function') renderHwmsPortLoad();
@@ -1505,6 +1518,7 @@ function _hwmsApplyPermissions(){
   show('navOtherMasters',showMasters);show('navCompany',showMasters);
   // System Guide — Super Admin only
   show('navSysGuide',role==='SA');
+  show('navDbStorage',role==='SA'||role==='HA');
   // MI page buttons
   show('btnHwmsInvExport',_hwmsCan('mi.export'));
   show('btnHwmsInvImport',_hwmsCan('mi.import'));
@@ -2011,6 +2025,152 @@ _rtRefreshFor=function(tbl){
   // Non-HWMS tables: fall back to original
   if(_origRtRefreshFor) _origRtRefreshFor(tbl);
 };
+
+// ═══ DB STORAGE ANALYSIS ═════════════════════════════════════════════════
+function renderHwmsDbStorage(){
+  var body=document.getElementById('hwmsDbStorageBody');if(!body)return;
+  body.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3)">Analyzing database storage…</div>';
+  setTimeout(function(){
+    var tables=typeof _APP_TABLES!=='undefined'&&_APP_TABLES?_APP_TABLES:(typeof DB_TABLES!=='undefined'?DB_TABLES:[]);
+    if(!tables.length){body.innerHTML='<div class="empty-state">No tables found</div>';return;}
+    var results=[];
+    var grandTotal=0,grandImg=0,grandJson=0,grandRecords=0;
+    tables.forEach(function(tbl){
+      var arr=DB[tbl]||[];
+      var totalBytes=0,imgBytes=0,jsonBytes=0,imgCount=0;
+      var fieldBreakdown={};
+      arr.forEach(function(rec){
+        var recStr=JSON.stringify(rec);
+        var recBytes=recStr.length*2; // approximate UTF-16
+        totalBytes+=recBytes;
+        // Scan each field
+        for(var key in rec){
+          if(!rec.hasOwnProperty(key)) continue;
+          var val=rec[key];
+          var valStr=typeof val==='string'?val:JSON.stringify(val||'');
+          var valBytes=valStr.length*2;
+          if(!fieldBreakdown[key]) fieldBreakdown[key]={bytes:0,imgBytes:0,imgCount:0,isArray:false};
+          fieldBreakdown[key].bytes+=valBytes;
+          // Detect base64 images
+          if(typeof val==='string'&&val.startsWith('data:image/')){
+            fieldBreakdown[key].imgBytes+=valBytes;
+            fieldBreakdown[key].imgCount++;
+            imgBytes+=valBytes;
+            imgCount++;
+          }
+          // Detect base64 in arrays (lineItems photos etc)
+          if(Array.isArray(val)){
+            fieldBreakdown[key].isArray=true;
+            val.forEach(function(item){
+              if(typeof item==='object'&&item){
+                for(var k2 in item){
+                  if(typeof item[k2]==='string'&&item[k2].startsWith('data:image/')){
+                    var ib=item[k2].length*2;
+                    fieldBreakdown[key].imgBytes+=ib;
+                    fieldBreakdown[key].imgCount++;
+                    imgBytes+=ib;
+                    imgCount++;
+                  }
+                }
+              }
+            });
+          }
+        }
+        jsonBytes+=(recBytes-imgBytes);
+      });
+      // Fix jsonBytes (can't be negative)
+      var tableImgBytes=0;
+      for(var fk in fieldBreakdown) tableImgBytes+=fieldBreakdown[fk].imgBytes;
+      jsonBytes=Math.max(0,totalBytes-tableImgBytes);
+      results.push({tbl:tbl,records:arr.length,totalBytes:totalBytes,imgBytes:tableImgBytes,jsonBytes:jsonBytes,imgCount:imgCount,fields:fieldBreakdown});
+      grandTotal+=totalBytes;grandImg+=tableImgBytes;grandJson+=jsonBytes;grandRecords+=arr.length;
+    });
+    // Sort by totalBytes descending
+    results.sort(function(a,b){return b.totalBytes-a.totalBytes;});
+    var fmt=function(b){
+      if(b>=1048576) return (b/1048576).toFixed(2)+' MB';
+      if(b>=1024) return (b/1024).toFixed(1)+' KB';
+      return b+' B';
+    };
+    var pct=function(part,whole){return whole>0?Math.round(part/whole*100):0;};
+    var barColor=function(p){return p>60?'#dc2626':p>30?'#f59e0b':'#16a34a';};
+    // Summary cards
+    var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+    html+='<div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#0369a1;font-family:var(--mono)">'+fmt(grandTotal)+'</div><div style="font-size:10px;font-weight:700;color:#0c4a6e;text-transform:uppercase">Total In-Memory</div></div>';
+    html+='<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+fmt(grandImg)+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Images ('+pct(grandImg,grandTotal)+'%)</div></div>';
+    html+='<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fmt(grandJson)+'</div><div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">JSON Data ('+pct(grandJson,grandTotal)+'%)</div></div>';
+    html+='<div style="background:#faf5ff;border:1.5px solid #d8b4fe;border-radius:10px;padding:12px 16px;text-align:center"><div style="font-size:22px;font-weight:900;color:#7c3aed;font-family:var(--mono)">'+grandRecords+'</div><div style="font-size:10px;font-weight:700;color:#5b21b6;text-transform:uppercase">Total Records</div></div>';
+    html+='</div>';
+    // Sync mode indicator
+    var syncMode=(typeof _hwmsIncr!=='undefined')?_hwmsIncr.mode:'unknown';
+    var syncLabel=syncMode==='incremental'?'✅ Incremental (updated_at)':syncMode==='full'?'⚠️ Full Sync (30s, no updated_at column)':'⏳ Not determined yet';
+    var syncColor=syncMode==='incremental'?'#16a34a':syncMode==='full'?'#f59e0b':'#64748b';
+    html+='<div style="padding:8px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px;font-size:12px"><span style="font-weight:800;color:var(--text)">Sync Mode:</span> <span style="font-weight:700;color:'+syncColor+'">'+syncLabel+'</span> · <span style="color:var(--text3)">Hot tables polled every 10s, full sync every 60s</span></div>';
+    // Table breakdown
+    html+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden">';
+    html+='<table style="width:100%;font-size:12px;border-collapse:collapse">';
+    html+='<thead><tr style="background:var(--surface2)">';
+    html+='<th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:800">Table</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Records</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Total Size</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Images</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">Img Count</th>';
+    html+='<th style="padding:8px 10px;text-align:right;font-size:10px;font-weight:800">JSON Data</th>';
+    html+='<th style="padding:8px 10px;font-size:10px;font-weight:800;min-width:120px">Image %</th>';
+    html+='</tr></thead><tbody>';
+    results.forEach(function(r,i){
+      var ip=pct(r.imgBytes,r.totalBytes);
+      var bc=barColor(ip);
+      html+='<tr style="border-top:1px solid var(--border);'+(i%2?'background:var(--surface2);':'')+'cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'table-row\':\'none\'">';
+      html+='<td style="padding:6px 10px;font-weight:700;color:var(--accent)">'+r.tbl+' <span style="font-size:9px;color:var(--text3)">▼</span></td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700">'+r.records+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700">'+fmt(r.totalBytes)+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:'+(r.imgBytes>0?'#dc2626':'var(--text3)')+'">'+fmt(r.imgBytes)+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">'+r.imgCount+'</td>';
+      html+='<td style="padding:6px 10px;text-align:right;font-family:var(--mono)">'+fmt(r.jsonBytes)+'</td>';
+      html+='<td style="padding:6px 10px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+ip+'%;background:'+bc+';border-radius:4px"></div></div><span style="font-size:10px;font-weight:700;color:'+bc+';min-width:28px;text-align:right">'+ip+'%</span></div></td>';
+      html+='</tr>';
+      // Expandable field breakdown
+      html+='<tr style="display:none"><td colspan="7" style="padding:0"><div style="padding:8px 20px 10px;background:rgba(42,154,160,.04);border-top:1px dashed var(--border)">';
+      html+='<div style="font-size:10px;font-weight:800;color:var(--text2);margin-bottom:4px">FIELD BREAKDOWN</div>';
+      html+='<table style="width:100%;font-size:11px;border-collapse:collapse">';
+      html+='<tr style="color:var(--text3)"><th style="text-align:left;padding:2px 6px;font-size:9px">Field</th><th style="text-align:right;padding:2px 6px;font-size:9px">Size</th><th style="text-align:right;padding:2px 6px;font-size:9px">Images</th><th style="text-align:right;padding:2px 6px;font-size:9px">Img Size</th></tr>';
+      var fields=Object.entries(r.fields).sort(function(a,b){return b[1].bytes-a[1].bytes;});
+      fields.forEach(function(f){
+        var fk=f[0],fv=f[1];
+        if(fk==='_dbId'||fk==='id') return;
+        var hasImg=fv.imgBytes>0;
+        html+='<tr style="border-top:1px solid rgba(0,0,0,.05)">';
+        html+='<td style="padding:2px 6px;font-family:var(--mono);font-weight:600;color:'+(hasImg?'#dc2626':'var(--text)')+'">'+fk+(fv.isArray?' []':'')+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:var(--mono)">'+fmt(fv.bytes)+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:var(--mono);color:'+(hasImg?'#dc2626':'var(--text3)')+'">'+fv.imgCount+'</td>';
+        html+='<td style="padding:2px 6px;text-align:right;font-family:var(--mono);color:'+(hasImg?'#dc2626':'var(--text3)')+'">'+fmt(fv.imgBytes)+'</td>';
+        html+='</tr>';
+      });
+      html+='</table></div></td></tr>';
+    });
+    // Grand total row
+    html+='<tr style="border-top:3px solid var(--accent);background:#f0f9ff">';
+    html+='<td style="padding:8px 10px;font-weight:900;font-size:13px;color:var(--text)">TOTAL</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px">'+grandRecords+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#0369a1">'+fmt(grandTotal)+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#dc2626">'+fmt(grandImg)+'</td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:900"></td>';
+    html+='<td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#16a34a">'+fmt(grandJson)+'</td>';
+    html+='<td style="padding:8px 10px"><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden"><div style="height:100%;width:'+pct(grandImg,grandTotal)+'%;background:#dc2626;border-radius:5px"></div></div><span style="font-size:11px;font-weight:900;color:#dc2626;min-width:32px;text-align:right">'+pct(grandImg,grandTotal)+'%</span></div></td>';
+    html+='</tr>';
+    html+='</tbody></table></div>';
+    // Tips
+    html+='<div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:11px;color:#92400e;line-height:1.6">';
+    html+='<div style="font-weight:800;margin-bottom:4px">💡 Storage Tips</div>';
+    html+='• Images are stored as base64 strings directly in Supabase JSON columns — each photo adds ~100-200KB to the record.<br>';
+    html+='• All new photos are compressed to ~100-150KB before saving (max 900px, JPEG quality stepped down).<br>';
+    html+='• Tables with high image % are the main bandwidth consumers during sync.<br>';
+    html+='• Click any table row to see per-field breakdown and identify which fields contain images.';
+    html+='</div>';
+    body.innerHTML=html;
+  },50);
+}
 
 // ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
 // Instead of SELECT * on all hot tables every 10s, only fetch rows changed
@@ -2913,9 +3073,9 @@ function renderHwmsParts(){
   }).join(''):'<tr><td colspan="12" class="empty-state">No parts found</td></tr>';
   const cEl=document.getElementById('cHwmsParts');if(cEl)cEl.textContent=(DB.hwmsParts||[]).length;
 }
-function _hwmsOnPartPhoto(inp){if(!inp.files[0])return;const r=new FileReader();r.onload=e=>{const t=document.getElementById('hwmsPartPhotoThumb');t.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;t.style.border='2px solid var(--green)';document.getElementById('hwmsPartPhotoClear').style.display='inline';inp._data=e.target.result;};r.readAsDataURL(inp.files[0]);}
+function _hwmsOnPartPhoto(inp){if(!inp.files[0])return;var file=inp.files[0];const r=new FileReader();r.onload=e=>{const t=document.getElementById('hwmsPartPhotoThumb');t.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;t.style.border='2px solid var(--green)';document.getElementById('hwmsPartPhotoClear').style.display='inline';inp._data=e.target.result;compressImage(file,150).then(c=>{inp._data=c;}).catch(()=>{});};r.readAsDataURL(file);}
 function _hwmsClearPartPhoto(){const t=document.getElementById('hwmsPartPhotoThumb');t.innerHTML='📷';t.style.border='2px dashed var(--border2)';document.getElementById('hwmsPartPhotoClear').style.display='none';const inp=document.getElementById('hwmsPartPhotoFile');if(inp){inp.value='';inp._data='__clear__';}}
-function _hwmsOnPackPhoto(inp){if(!inp.files[0])return;const r=new FileReader();r.onload=e=>{const t=document.getElementById('hwmsPackPhotoThumb');t.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;t.style.border='2px solid var(--green)';document.getElementById('hwmsPackPhotoClear').style.display='inline';inp._data=e.target.result;};r.readAsDataURL(inp.files[0]);}
+function _hwmsOnPackPhoto(inp){if(!inp.files[0])return;var file=inp.files[0];const r=new FileReader();r.onload=e=>{const t=document.getElementById('hwmsPackPhotoThumb');t.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:6px">`;t.style.border='2px solid var(--green)';document.getElementById('hwmsPackPhotoClear').style.display='inline';inp._data=e.target.result;compressImage(file,150).then(c=>{inp._data=c;}).catch(()=>{});};r.readAsDataURL(file);}
 function _hwmsClearPackPhoto(){const t=document.getElementById('hwmsPackPhotoThumb');t.innerHTML='📷';t.style.border='2px dashed var(--border2)';document.getElementById('hwmsPackPhotoClear').style.display='none';const inp=document.getElementById('hwmsPackPhotoFile');if(inp){inp.value='';inp._data='__clear__';}}
 function _hwmsCalcFinalRate(){
   const v=id=>parseFloat(document.getElementById(id)?.value)||0;
@@ -3962,10 +4122,15 @@ function _hwmsContFilePreview(input,previewId){
     const data=e.target.result;
     if(file.type.startsWith('image/')){
       prev.innerHTML=`<img src="${data}" onclick="openPhoto(this.src)" style="max-height:120px;max-width:180px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;object-fit:cover">`;
+      prev.dataset.base64=data;
+      // Compress image in background, then update stored data
+      compressImage(file,150).then(function(c){
+        if(c) prev.dataset.base64=c;
+      }).catch(function(){});
     } else {
       prev.innerHTML=`<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:inline-flex;align-items:center;gap:6px"><span style="font-size:24px">📄</span><span style="font-size:11px;color:var(--accent);font-weight:700">${file.name}</span></div>`;
+      prev.dataset.base64=data;
     }
-    prev.dataset.base64=data;
   };
   reader.readAsDataURL(file);
 }
@@ -4147,6 +4312,10 @@ function _hwmsRecvPhotoPreview(inp,prevId){
   reader.onload=function(e){
     prev.innerHTML=`<img src="${e.target.result}" onclick="openPhoto(this.src)" style="height:36px;border-radius:4px;border:1px solid var(--border);cursor:pointer;object-fit:cover">`;
     prev.dataset.base64=e.target.result;
+    // Compress image in background
+    compressImage(file,100).then(function(c){
+      if(c) prev.dataset.base64=c;
+    }).catch(function(){});
   };
   reader.readAsDataURL(file);
 }

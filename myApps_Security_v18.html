@@ -973,6 +973,7 @@ function renderGuards(){
 }
 function _guardOnPhoto(inp){
   if(!inp.files[0])return;
+  var file=inp.files[0];
   const reader=new FileReader();
   reader.onload=e=>{
     const thumb=document.getElementById('guardPhotoThumb');
@@ -981,8 +982,10 @@ function _guardOnPhoto(inp){
     thumb.style.border='2px solid var(--green)';
     if(clear)clear.style.display='inline';
     inp._data=e.target.result;
+    // Compress image in background
+    compressImage(file,100).then(c=>{if(c)inp._data=c;}).catch(()=>{});
   };
-  reader.readAsDataURL(inp.files[0]);
+  reader.readAsDataURL(file);
 }
 function _guardClearPhoto(){
   const thumb=document.getElementById('guardPhotoThumb');
