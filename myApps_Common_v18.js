@@ -1390,7 +1390,7 @@ function _downloadAsXlsx(data,sheetName,filename){
     +'<sheetViews><sheetView workbookViewId="0" tabSelected="1"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
     +'<sheetFormatPr defaultRowHeight="15"/>'
     +'<sheetData>'+rowsXml+'</sheetData>'
-    +(colCount>0?'<autoFilter ref="A1:'+_xlCol(colCount-1)+'1"/>':'')
+    +(colCount>0?'<autoFilter ref="A1:'+_xlCol(colCount-1)+rowCount+'"/>':'')
     +'</worksheet>';
   const stylesXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     +'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
