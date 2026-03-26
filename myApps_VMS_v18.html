@@ -1367,74 +1367,114 @@
 
 <div class="modal-overlay" id="mVehicle"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVehTitle">Add Vehicle</div><div class="modal-close" onclick="cm('mVehicle')">×</div></div><input type="hidden" id="eVehId"><div class="form-row"><div class="form-group"><label>Vehicle Number *</label><input type="text" id="vehNumI" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:1px;text-transform:uppercase"><div class="form-hint">Format: MH12-AB-0047 (2 letters, 2 digits, 1-2 letters, 4 digits)</div></div><div class="form-group"><label>Vehicle Type *</label><select id="vehTypeS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>Vendor *</label><select id="vehVendorS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>PUC Expiry (Optional)</label><input type="date" id="vehPUC"></div><div class="form-group"><label>RTO Expiry (Optional)</label><input type="date" id="vehRTP"></div><div class="form-group"><label>Insurance Expiry (Optional)</label><input type="date" id="vehIns"></div></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vehInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVehicle"></div><button class="btn btn-secondary" onclick="cm('mVehicle')">Cancel</button><button class="btn btn-primary" onclick="saveVehicle()">Save</button></div></div></div>
 
-<div class="modal-overlay" id="mLoc"><div class="modal"><div class="modal-header"><div class="modal-title" id="mLocTitle">Add Location</div><div class="modal-close" onclick="cm('mLoc')">×</div></div><input type="hidden" id="eLocId"><div class="form-row"><div class="form-group"><label>Location Name *</label><input type="text" id="locNameI"></div><div class="form-group"><label>Location Type *</label><select id="locTypeS" onchange="toggleKapFields()"><option value="">-- Select --</option><option value="KAP">KAP</option><option value="External">External</option></select></div></div><div class="form-group"><label>Address (Optional)</label><textarea id="locAddr" rows="2"></textarea></div><div class="form-group"><label>Geo Coordinates (Optional)</label><input type="text" id="locGeo" placeholder="lat,lng"></div>
-  <!-- Colour tag -->
-  <div class="form-group">
-    <label>Colour Tag <span style="font-size:11px;font-weight:400;color:var(--text3)">(highlights location name across all pages)</span></label>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,24px);gap:4px;margin-top:6px;max-width:400px" id="locColourPicker">
-      <button type="button" onclick="setLocColour('')" id="lc_none" style="width:24px;height:24px;border-radius:5px;border:2px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center" title="No colour">✕</button>
-      <button type="button" onclick="setLocColour('#fda4af')" id="lc_rose_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fda4af" title="Rose Light"></button>
-      <button type="button" onclick="setLocColour('#f43f5e')" id="lc_rose" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f43f5e" title="Rose"></button>
-      <button type="button" onclick="setLocColour('#dc2626')" id="lc_red" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#dc2626" title="Red"></button>
-      <button type="button" onclick="setLocColour('#991b1b')" id="lc_red_dk" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#991b1b" title="Maroon"></button>
-      <button type="button" onclick="setLocColour('#9f1239')" id="lc_crimson" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#9f1239" title="Crimson"></button>
-      <button type="button" onclick="setLocColour('#fdba74')" id="lc_orange_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fdba74" title="Orange Light"></button>
-      <button type="button" onclick="setLocColour('#ea580c')" id="lc_orange" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#ea580c" title="Orange"></button>
-      <button type="button" onclick="setLocColour('#d97706')" id="lc_amber" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d97706" title="Amber"></button>
-      <button type="button" onclick="setLocColour('#92400e')" id="lc_brown" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#92400e" title="Brown"></button>
-      <button type="button" onclick="setLocColour('#fde047')" id="lc_yellow_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fde047" title="Yellow Light"></button>
-      <button type="button" onclick="setLocColour('#eab308')" id="lc_yellow" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#eab308" title="Yellow"></button>
-      <button type="button" onclick="setLocColour('#b45309')" id="lc_gold" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#b45309" title="Gold"></button>
-      <button type="button" onclick="setLocColour('#bef264')" id="lc_lime_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#bef264" title="Lime Light"></button>
-      <button type="button" onclick="setLocColour('#65a30d')" id="lc_lime" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#65a30d" title="Lime"></button>
-      <button type="button" onclick="setLocColour('#86efac')" id="lc_green_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#86efac" title="Green Light"></button>
-      <button type="button" onclick="setLocColour('#16a34a')" id="lc_green" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#16a34a" title="Green"></button>
-      <button type="button" onclick="setLocColour('#166534')" id="lc_green_dk" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#166534" title="Forest"></button>
-      <button type="button" onclick="setLocColour('#059669')" id="lc_emerald" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#059669" title="Emerald"></button>
-      <button type="button" onclick="setLocColour('#5eead4')" id="lc_teal_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#5eead4" title="Teal Light"></button>
-      <button type="button" onclick="setLocColour('#0d9488')" id="lc_teal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0d9488" title="Teal"></button>
-      <button type="button" onclick="setLocColour('#67e8f9')" id="lc_cyan_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#67e8f9" title="Cyan Light"></button>
-      <button type="button" onclick="setLocColour('#0891b2')" id="lc_cyan" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0891b2" title="Cyan"></button>
-      <button type="button" onclick="setLocColour('#0284c7')" id="lc_sky" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0284c7" title="Sky"></button>
-      <button type="button" onclick="setLocColour('#93c5fd')" id="lc_blue_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#93c5fd" title="Blue Light"></button>
-      <button type="button" onclick="setLocColour('#0369a1')" id="lc_blue" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0369a1" title="Blue"></button>
-      <button type="button" onclick="setLocColour('#175c60')" id="lc_royal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#175c60" title="Royal"></button>
-      <button type="button" onclick="setLocColour('#1e3a8a')" id="lc_navy" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#1e3a8a" title="Navy"></button>
-      <button type="button" onclick="setLocColour('#334155')" id="lc_slate" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#334155" title="Slate"></button>
-      <button type="button" onclick="setLocColour('#a5b4fc')" id="lc_indigo_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a5b4fc" title="Indigo Light"></button>
-      <button type="button" onclick="setLocColour('#4338ca')" id="lc_indigo" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#4338ca" title="Indigo"></button>
-      <button type="button" onclick="setLocColour('#c4b5fd')" id="lc_violet_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#c4b5fd" title="Violet Light"></button>
-      <button type="button" onclick="setLocColour('#7c3aed')" id="lc_violet" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#7c3aed" title="Violet"></button>
-      <button type="button" onclick="setLocColour('#d8b4fe')" id="lc_purple_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d8b4fe" title="Purple Light"></button>
-      <button type="button" onclick="setLocColour('#9333ea')" id="lc_purple" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#9333ea" title="Purple"></button>
-      <button type="button" onclick="setLocColour('#f0abfc')" id="lc_fuchsia_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f0abfc" title="Fuchsia Light"></button>
-      <button type="button" onclick="setLocColour('#a21caf')" id="lc_fuchsia" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a21caf" title="Fuchsia"></button>
-      <button type="button" onclick="setLocColour('#f9a8d4')" id="lc_pink_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f9a8d4" title="Pink Light"></button>
-      <button type="button" onclick="setLocColour('#be185d')" id="lc_pink" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#be185d" title="Pink"></button>
-      <button type="button" onclick="setLocColour('#db2777')" id="lc_hotpink" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#db2777" title="Hot Pink"></button>
-      <button type="button" onclick="setLocColour('#d1d5db')" id="lc_gray_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d1d5db" title="Silver"></button>
-      <button type="button" onclick="setLocColour('#6b7280')" id="lc_gray" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#6b7280" title="Gray"></button>
-      <button type="button" onclick="setLocColour('#374151')" id="lc_charcoal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#374151" title="Charcoal"></button>
-      <button type="button" onclick="setLocColour('#52525b')" id="lc_zinc" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#52525b" title="Zinc"></button>
-      <button type="button" onclick="setLocColour('#78716c')" id="lc_stone" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#78716c" title="Stone"></button>
-      <button type="button" onclick="setLocColour('#a8a29e')" id="lc_warm" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a8a29e" title="Warm Gray"></button>
-      <button type="button" onclick="setLocColour('#ef6c56')" id="lc_coral" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#ef6c56" title="Coral"></button>
-      <button type="button" onclick="setLocColour('#e8795a')" id="lc_salmon" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#e8795a" title="Salmon"></button>
-      <button type="button" onclick="setLocColour('#f4a261')" id="lc_peach" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f4a261" title="Peach"></button>
-      <button type="button" onclick="setLocColour('#34d399')" id="lc_mint" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#34d399" title="Mint"></button>
-      <button type="button" onclick="setLocColour('#22d3ee')" id="lc_aqua" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#22d3ee" title="Aqua"></button>
-      <button type="button" onclick="setLocColour('#a78bfa')" id="lc_lavender" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a78bfa" title="Lavender"></button>
-    </div>
-    <div style="margin-top:8px">
-      <span id="locColourPreview" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;display:none"></span>
-    </div>
-    <input type="hidden" id="locColour">
+<div class="modal-overlay" id="mLoc"><div class="modal" style="max-width:420px;padding:0"><div class="modal-header" style="padding:10px 14px"><div class="modal-title" id="mLocTitle">Add Location</div><div class="modal-close" onclick="cm('mLoc')">×</div></div><div style="padding:4px 14px 10px"><input type="hidden" id="eLocId">
+<div class="form-row" style="gap:6px;margin-bottom:6px"><div class="form-group" style="flex:2;margin:0"><label style="font-size:10px;margin-bottom:3px">Location Name *</label><input type="text" id="locNameI" style="padding:7px 10px;font-size:13px"></div><div class="form-group" style="flex:1;margin:0"><label style="font-size:10px;margin-bottom:3px">Type *</label><select id="locTypeS" onchange="toggleKapFields()" style="padding:7px 6px;font-size:13px"><option value="">--</option><option value="KAP">KAP</option><option value="External">External</option></select></div></div>
+<div class="form-row" style="gap:6px;margin-bottom:6px"><div class="form-group" style="flex:2;margin:0"><label style="font-size:10px;margin-bottom:3px">Address</label><textarea id="locAddr" rows="2" style="padding:7px 10px;font-size:12px;resize:vertical;min-height:38px"></textarea></div><div class="form-group" style="flex:1;margin:0"><label style="font-size:10px;margin-bottom:3px">Geo</label><input type="text" id="locGeo" placeholder="lat,lng" style="padding:7px 10px;font-size:12px"></div></div>
+<div style="margin-bottom:6px">
+  <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.caret').textContent=this.nextElementSibling.style.display==='none'?'▸':'▾'">
+    <label style="font-size:10px;margin:0;cursor:pointer">Colour Tag</label>
+    <span id="locColourPreview" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;display:none;flex-shrink:0"></span>
+    <span class="caret" style="font-size:10px;color:var(--text3)">▸</span>
   </div>
-<div id="kapLocFields"><div class="divider"></div><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px">👤 KAP User Assignments</div><div class="form-group"><label>KAP Security User</label><select id="locKapSec"><option value="">-- None --</option></select></div>
-<div style="border:1.5px solid #b3dfe0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(59,130,246,.03)"><div style="font-size:11px;font-weight:700;color:#2a9aa0;margin-bottom:6px;display:flex;align-items:center;gap:4px">📋 Trip Booking User(s)</div><div id="locTripBook" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-<div style="border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(34,197,94,.03)"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;display:flex;align-items:center;gap:4px">📦 Material Receiver(s)</div><div id="locMatRecv" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-<div style="border:1.5px solid #e9d5ff;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(139,92,246,.03)"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px;display:flex;align-items:center;gap:4px">✅ Trip Approver(s)</div><div id="locApprover" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-</div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="locInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mLoc"></div><button class="btn btn-secondary" onclick="cm('mLoc')">Cancel</button><button class="btn btn-primary" onclick="saveLoc()">Save</button></div></div></div>
+  <div style="display:none;margin-top:4px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,18px);gap:2px" id="locColourPicker">
+      <button type="button" onclick="setLocColour('')" id="lc_none" style="width:18px;height:18px;border-radius:3px;border:2px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center" title="None">✕</button>
+      <button type="button" onclick="setLocColour('#fda4af')" id="lc_rose_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#fda4af" title="Rose Light"></button>
+      <button type="button" onclick="setLocColour('#f43f5e')" id="lc_rose" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#f43f5e" title="Rose"></button>
+      <button type="button" onclick="setLocColour('#dc2626')" id="lc_red" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#dc2626" title="Red"></button>
+      <button type="button" onclick="setLocColour('#991b1b')" id="lc_red_dk" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#991b1b" title="Maroon"></button>
+      <button type="button" onclick="setLocColour('#9f1239')" id="lc_crimson" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#9f1239" title="Crimson"></button>
+      <button type="button" onclick="setLocColour('#fdba74')" id="lc_orange_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#fdba74" title="Orange Light"></button>
+      <button type="button" onclick="setLocColour('#ea580c')" id="lc_orange" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#ea580c" title="Orange"></button>
+      <button type="button" onclick="setLocColour('#d97706')" id="lc_amber" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#d97706" title="Amber"></button>
+      <button type="button" onclick="setLocColour('#92400e')" id="lc_brown" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#92400e" title="Brown"></button>
+      <button type="button" onclick="setLocColour('#fde047')" id="lc_yellow_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#fde047" title="Yellow Light"></button>
+      <button type="button" onclick="setLocColour('#eab308')" id="lc_yellow" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#eab308" title="Yellow"></button>
+      <button type="button" onclick="setLocColour('#b45309')" id="lc_gold" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#b45309" title="Gold"></button>
+      <button type="button" onclick="setLocColour('#bef264')" id="lc_lime_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#bef264" title="Lime Light"></button>
+      <button type="button" onclick="setLocColour('#65a30d')" id="lc_lime" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#65a30d" title="Lime"></button>
+      <button type="button" onclick="setLocColour('#86efac')" id="lc_green_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#86efac" title="Green Light"></button>
+      <button type="button" onclick="setLocColour('#16a34a')" id="lc_green" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#16a34a" title="Green"></button>
+      <button type="button" onclick="setLocColour('#166534')" id="lc_green_dk" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#166534" title="Forest"></button>
+      <button type="button" onclick="setLocColour('#059669')" id="lc_emerald" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#059669" title="Emerald"></button>
+      <button type="button" onclick="setLocColour('#5eead4')" id="lc_teal_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#5eead4" title="Teal Light"></button>
+      <button type="button" onclick="setLocColour('#0d9488')" id="lc_teal" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#0d9488" title="Teal"></button>
+      <button type="button" onclick="setLocColour('#67e8f9')" id="lc_cyan_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#67e8f9" title="Cyan Light"></button>
+      <button type="button" onclick="setLocColour('#0891b2')" id="lc_cyan" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#0891b2" title="Cyan"></button>
+      <button type="button" onclick="setLocColour('#0284c7')" id="lc_sky" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#0284c7" title="Sky"></button>
+      <button type="button" onclick="setLocColour('#93c5fd')" id="lc_blue_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#93c5fd" title="Blue Light"></button>
+      <button type="button" onclick="setLocColour('#0369a1')" id="lc_blue" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#0369a1" title="Blue"></button>
+      <button type="button" onclick="setLocColour('#175c60')" id="lc_royal" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#175c60" title="Royal"></button>
+      <button type="button" onclick="setLocColour('#1e3a8a')" id="lc_navy" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#1e3a8a" title="Navy"></button>
+      <button type="button" onclick="setLocColour('#334155')" id="lc_slate" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#334155" title="Slate"></button>
+      <button type="button" onclick="setLocColour('#a5b4fc')" id="lc_indigo_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#a5b4fc" title="Indigo Light"></button>
+      <button type="button" onclick="setLocColour('#4338ca')" id="lc_indigo" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#4338ca" title="Indigo"></button>
+      <button type="button" onclick="setLocColour('#c4b5fd')" id="lc_violet_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#c4b5fd" title="Violet Light"></button>
+      <button type="button" onclick="setLocColour('#7c3aed')" id="lc_violet" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#7c3aed" title="Violet"></button>
+      <button type="button" onclick="setLocColour('#d8b4fe')" id="lc_purple_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#d8b4fe" title="Purple Light"></button>
+      <button type="button" onclick="setLocColour('#9333ea')" id="lc_purple" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#9333ea" title="Purple"></button>
+      <button type="button" onclick="setLocColour('#f0abfc')" id="lc_fuchsia_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#f0abfc" title="Fuchsia Light"></button>
+      <button type="button" onclick="setLocColour('#a21caf')" id="lc_fuchsia" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#a21caf" title="Fuchsia"></button>
+      <button type="button" onclick="setLocColour('#f9a8d4')" id="lc_pink_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#f9a8d4" title="Pink Light"></button>
+      <button type="button" onclick="setLocColour('#be185d')" id="lc_pink" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#be185d" title="Pink"></button>
+      <button type="button" onclick="setLocColour('#db2777')" id="lc_hotpink" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#db2777" title="Hot Pink"></button>
+      <button type="button" onclick="setLocColour('#d1d5db')" id="lc_gray_lt" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#d1d5db" title="Silver"></button>
+      <button type="button" onclick="setLocColour('#6b7280')" id="lc_gray" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#6b7280" title="Gray"></button>
+      <button type="button" onclick="setLocColour('#374151')" id="lc_charcoal" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#374151" title="Charcoal"></button>
+      <button type="button" onclick="setLocColour('#52525b')" id="lc_zinc" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#52525b" title="Zinc"></button>
+      <button type="button" onclick="setLocColour('#78716c')" id="lc_stone" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#78716c" title="Stone"></button>
+      <button type="button" onclick="setLocColour('#a8a29e')" id="lc_warm" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#a8a29e" title="Warm Gray"></button>
+      <button type="button" onclick="setLocColour('#ef6c56')" id="lc_coral" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#ef6c56" title="Coral"></button>
+      <button type="button" onclick="setLocColour('#e8795a')" id="lc_salmon" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#e8795a" title="Salmon"></button>
+      <button type="button" onclick="setLocColour('#f4a261')" id="lc_peach" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#f4a261" title="Peach"></button>
+      <button type="button" onclick="setLocColour('#34d399')" id="lc_mint" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#34d399" title="Mint"></button>
+      <button type="button" onclick="setLocColour('#22d3ee')" id="lc_aqua" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#22d3ee" title="Aqua"></button>
+      <button type="button" onclick="setLocColour('#a78bfa')" id="lc_lavender" style="width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer;background:#a78bfa" title="Lavender"></button>
+    </div>
+  </div>
+  <input type="hidden" id="locColour">
+</div>
+<!-- KAP User Assignments — compact role tiles that open picker popup -->
+<div id="kapLocFields"><div style="border-top:1px solid var(--border);margin:4px 0 6px"></div>
+  <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">👤 User Assignments</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:5px">
+    <div style="border:1.5px solid #b3dfe0;border-radius:6px;padding:6px 8px;background:rgba(42,154,160,.03);cursor:pointer" onclick="_openUserPicker('kapSec')">
+      <div style="font-size:10px;font-weight:700;color:#2a9aa0;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">🔒 KAP Security</div>
+      <div id="locKapSecDisplay" style="font-size:12px;font-weight:600;color:var(--text);min-height:20px"></div>
+    </div>
+    <div style="border:1.5px solid #b3dfe0;border-radius:6px;padding:6px 8px;background:rgba(59,130,246,.03);cursor:pointer" onclick="_openUserPicker('tripBook')">
+      <div style="font-size:10px;font-weight:700;color:#2a9aa0;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">📋 Trip Booking</div>
+      <div id="locTripBookDisplay" style="font-size:12px;font-weight:600;color:var(--text);min-height:20px"></div>
+    </div>
+    <div style="border:1.5px solid #bbf7d0;border-radius:6px;padding:6px 8px;background:rgba(34,197,94,.03);cursor:pointer" onclick="_openUserPicker('matRecv')">
+      <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">📦 Material Receiver</div>
+      <div id="locMatRecvDisplay" style="font-size:12px;font-weight:600;color:var(--text);min-height:20px"></div>
+    </div>
+    <div style="border:1.5px solid #e9d5ff;border-radius:6px;padding:6px 8px;background:rgba(139,92,246,.03);cursor:pointer" onclick="_openUserPicker('approver')">
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px">✅ Trip Approver</div>
+      <div id="locApproverDisplay" style="font-size:12px;font-weight:600;color:var(--text);min-height:20px"></div>
+    </div>
+  </div>
+  <!-- Hidden inputs for saveLoc -->
+  <select id="locKapSec" style="display:none"><option value="">-- None --</option></select>
+  <div id="locTripBook" style="display:none"></div>
+  <div id="locMatRecv" style="display:none"></div>
+  <div id="locApprover" style="display:none"></div>
+</div>
+<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-weight:600;color:var(--text);font-size:11px"><input type="checkbox" id="locInactive" style="width:13px;height:13px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Inactive</span></label></div>
+</div><!-- end padding wrapper -->
+<div class="modal-footer" style="flex-wrap:wrap;padding:8px 14px"><div class="modal-err" id="merr_mLoc"></div><button class="btn btn-secondary" onclick="cm('mLoc')">Cancel</button><button class="btn btn-primary" onclick="saveLoc()">Save</button></div></div></div>
+
+<!-- User Picker Popup for Location Master -->
+<div class="modal-overlay" id="mUserPicker" style="z-index:100001"><div class="modal" style="max-width:380px;max-height:75vh;display:flex;flex-direction:column">
+  <div class="modal-header" style="flex-shrink:0;padding:10px 14px"><div class="modal-title" id="mUserPickerTitle" style="font-size:13px">Select User</div><div class="modal-close" onclick="cm('mUserPicker')">×</div></div>
+  <div style="padding:0 14px 6px;flex-shrink:0"><input type="text" id="userPickerSearch" placeholder="🔍 Search user or location…" oninput="_filterUserPicker()" style="font-size:12px;padding:7px 10px;border-radius:7px;border:1.5px solid var(--border)"></div>
+  <div id="userPickerBody" style="flex:1;overflow-y:auto;padding:0 14px 8px;-webkit-overflow-scrolling:touch"></div>
+  <div style="padding:6px 14px 10px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:6px">
+    <button class="btn btn-secondary" onclick="cm('mUserPicker')" style="flex:1;padding:8px;font-size:12px">Cancel</button>
+    <button class="btn btn-primary" onclick="_confirmUserPicker()" style="flex:1;padding:8px;font-size:12px">Done</button>
+  </div>
+</div></div>
 
 <div class="modal-overlay" id="mRate"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title">Add Trip Rate</div><div class="modal-close" onclick="cm('mRate')">×</div></div>
@@ -2089,39 +2129,98 @@ function _vmsDoFullSync(){
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
   if(!_origBootDB) return;
-  // If _SYNC_SELECT not defined yet or Supabase not ready, fall back to original
-  if(!_SYNC_SELECT||!_sb||!_sbReady){ return _origBootDB(); }
+
+  // ── Step 0: localStorage handoff from Portal (instant boot) ────────────
+  // Portal writes kap_db_cache before navigating. If cache has ALL essential
+  // VMS tables, use it for instant display. If cache only has users/locations
+  // (portal pre-fetch hadn't completed), pre-load those but still do Step 2.
+  var _cachePartial=false;
   try{
-    showSpinner('Loading…');
-    var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Connecting to database…';
-    var activeTables=_getActiveTables();
-    var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
-    var cutoff=_dateCutoff();
-    var fetchAll=Promise.all(activeTables.map(async function(tbl){
-      var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
-      try{
-        var sel=_syncSelect(sbTbl);
-        var q=_sb.from(sbTbl).select(sel);
-        q=_applyDateFilter(q,sbTbl,cutoff);
-        var res=await q;
-        if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
-        return{tbl:tbl,rows:res.data||[]};
-      }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
-    }));
-    var results=await Promise.race([fetchAll,timeout]);
-    results.forEach(function(r){
-      DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
-      if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
-    });
-    console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d filter) — users='+((DB.users||[]).length)+' trips='+((DB.trips||[]).length));
-    _bgSyncDone=true;
-    _sbSetStatus('ok');
+    var _cached=localStorage.getItem('kap_db_cache');
+    if(_cached){
+      var _cObj=JSON.parse(_cached);
+      var _age=Date.now()-(_cObj.ts||0);
+      if(_age<60000){
+        _getActiveTables().forEach(function(t){if(Array.isArray(_cObj[t]))DB[t]=_cObj[t];});
+        localStorage.removeItem('kap_db_cache');
+        // Check if cache has essential VMS data (not just users/locations from portal)
+        var _hasTrips=(DB.trips||[]).length>0||(DB.segments||[]).length>0;
+        if(_hasTrips){
+          // Full cache — instant boot, delayed background refresh
+          console.log('bootDB(VMS): instant from cache (~'+_age+'ms) — users='+DB.users.length+' trips='+DB.trips.length);
+          _bgSyncDone=true;
+          if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+          _onPostBoot();
+          if(!_sbReady) _initSupabase();
+          if(_sbReady&&_sb){
+            _sbSetStatus('ok');
+            _sbStartRealtime();
+            setTimeout(function(){_bgSyncFromSupabase();},3000);
+          } else {
+            _startBgReconnect(true);
+          }
+          return;
+        } else {
+          // Partial cache — have users/locations (enables fast login), but need trips
+          console.log('bootDB(VMS): partial cache (users='+DB.users.length+' but trips=0) — will fetch from Supabase');
+          _cachePartial=true;
+          // Don't return — fall through to Step 1/2 for immediate Supabase fetch
+        }
+      } else {
+        localStorage.removeItem('kap_db_cache');
+      }
+    }
+  }catch(e){console.warn('bootDB(VMS): cache read failed:',e.message);}
+
+  // ── Step 1: Wait for Supabase client to be ready ───────────────────────
+  if(!_cachePartial) showSpinner('Loading…');
+  else showSpinner('Loading trips…');
+  try{
+    if(!_sbReady) _initSupabase();
+    if(!_sbReady){
+      for(var _w=0;_w<12&&!_sbReady;_w++){
+        await new Promise(function(r){setTimeout(r,250);});
+        _initSupabase();
+      }
+    }
+
+    // ── Step 2: Fetch with photo-excluded selects (fast) ─────────────────
+    if(_sbReady&&_sb&&_SYNC_SELECT){
+      var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Loading data…';
+      var activeTables=_getActiveTables();
+      var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
+      var cutoff=_dateCutoff();
+      var fetchAll=Promise.all(activeTables.map(async function(tbl){
+        var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
+        try{
+          var sel=_syncSelect(sbTbl);
+          var q=_sb.from(sbTbl).select(sel);
+          q=_applyDateFilter(q,sbTbl,cutoff);
+          var res=await q;
+          if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
+          return{tbl:tbl,rows:res.data||[]};
+        }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
+      }));
+      var results=await Promise.race([fetchAll,timeout]);
+      results.forEach(function(r){
+        DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+        if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
+      });
+      console.log('bootDB(VMS): ready (photo-excluded, '+_DATE_FILTER_DAYS+'d) — users='+((DB.users||[]).length)+' trips='+((DB.trips||[]).length));
+      _bgSyncDone=true;
+      _sbSetStatus('ok');
+      if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+      _onPostBoot();
+      _sbStartRealtime();
+      return;
+    }
+
+    // ── Step 3: Supabase unavailable — start with whatever we have ───────
+    console.warn('bootDB(VMS): Supabase unavailable after 3s — starting'+ (_cachePartial?' with partial cache':'empty'));
+    _sbSetStatus('offline','Offline');
     if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
     _onPostBoot();
-    _sbStartRealtime();
-  }catch(e){
-    console.warn('Photo-excluded bootDB failed:',e.message,'→ falling back to original');
-    return _origBootDB();
+    _startBgReconnect();
   }finally{hideSpinner();}
 };
 
@@ -2156,6 +2255,68 @@ async function _appBoot(){
     }
   }
   _showLogin(su||'');
+
+  // ── Auto-retry login when DB arrives late ──────────────────────────────
+  // If DB.users is empty (CDN/Supabase was slow), poll every 2s to auto-login
+  // as soon as background sync populates the data. Stops after 60s or on success.
+  if(!DB.users.length){
+    _startLoginRetry(ss, sp2, su, sp);
+  }
+}
+
+var _loginRetryTimer=null;
+function _startLoginRetry(sessUser, sessPass, rmUser, rmPass){
+  if(_loginRetryTimer) return;
+  var _retryCount=0;
+  const _loginIndicator=document.getElementById('loginError');
+  if(_loginIndicator){
+    _loginIndicator.style.display='block';
+    _loginIndicator.style.background='rgba(42,154,160,.08)';
+    _loginIndicator.style.borderColor='rgba(42,154,160,.25)';
+    _loginIndicator.style.color='#1d6f73';
+    _loginIndicator.textContent='⏳ Connecting to database… please wait';
+  }
+  _loginRetryTimer=setInterval(function(){
+    _retryCount++;
+    // Stop if user already logged in (CU set by manual login)
+    if(CU){clearInterval(_loginRetryTimer);_loginRetryTimer=null;return;}
+    // Stop after 30 attempts (60s)
+    if(_retryCount>30){
+      clearInterval(_loginRetryTimer);_loginRetryTimer=null;
+      if(_loginIndicator){
+        _loginIndicator.style.background='rgba(239,68,68,.08)';
+        _loginIndicator.style.borderColor='rgba(239,68,68,.25)';
+        _loginIndicator.style.color='#dc2626';
+        _loginIndicator.textContent='Database connection slow. Please try logging in manually.';
+      }
+      return;
+    }
+    // Check if data arrived
+    if(!DB.users.length) return;
+    // Data arrived — try auto-login
+    clearInterval(_loginRetryTimer);_loginRetryTimer=null;
+    // Reset indicator
+    if(_loginIndicator) _loginIndicator.style.display='none';
+    // Try session credentials
+    if(sessUser&&sessPass){
+      var user=DB.users.find(function(x){return x&&x.name.toLowerCase()===sessUser&&x.password===sessPass;});
+      if(user){_tryAutoLogin(user);return;}
+    }
+    // Try remember-me credentials
+    if(rmUser&&rmPass){
+      var user2=DB.users.find(function(x){return x&&x.name.toLowerCase()===rmUser&&x.password===rmPass;});
+      if(user2){_tryAutoLogin(user2);return;}
+    }
+    // Data arrived but no stored credentials — just update the indicator
+    if(_loginIndicator){
+      _loginIndicator.style.display='block';
+      _loginIndicator.style.background='rgba(34,197,94,.08)';
+      _loginIndicator.style.borderColor='rgba(34,197,94,.25)';
+      _loginIndicator.style.color='#16a34a';
+      _loginIndicator.textContent='✅ Connected! Please log in.';
+      setTimeout(function(){if(_loginIndicator)_loginIndicator.style.display='none';},3000);
+    }
+  },2000);
 }
 
 function launchVMS(targetPage, appId){
@@ -2582,6 +2743,23 @@ function stepsOneAndTwoDone(seg){
 function segGatesDone(seg){
   return [1,2,5].every(s => seg.steps[s]?.done || seg.steps[s]?.skip);
 }
+// Dynamic lock check: is this segment effectively locked?
+// Returns true if DB status is Locked, OR if predecessor gate steps aren't done
+// and no work has started on this segment yet. Used by ALL pages (KAP Security,
+// MR, Approval, Dashboard, Trip Booking) for consistent lock enforcement.
+function isSegLocked(seg){
+  if(seg.status==='Locked') return true;
+  if(seg.status==='Cancelled') return false;
+  if(seg.label==='A') return false; // Segment A is never locked
+  if(seg.status!=='Active') return false; // Completed/Rejected — not locked
+  const prevLabel={B:'A',C:'B'}[seg.label];
+  if(!prevLabel) return false;
+  const prevSeg=DB.segments.find(s=>s.tripId===seg.tripId&&s.label===prevLabel);
+  if(!prevSeg) return false;
+  if(segGatesDone(prevSeg)) return false; // predecessor done — not locked
+  // Predecessor gates not done — lock only if no step started on this segment
+  return ![1,2,3,4,5].some(n=>seg.steps[n]?.done);
+}
 function stepsUpTo3Done(seg){
   return [1,2,3].every(s => seg.steps[s]?.done || seg.steps[s]?.skip);
 }
@@ -2622,28 +2800,40 @@ function recalcSegSteps(seg, siblingSegs){
 
   let changed = false;
 
-  // ── FIX 1: Unlock stuck-Locked segments ────────────────────────────────────
-  // Segment A should NEVER be Locked. Segment B/C should unlock when predecessor's
-  // gate steps (1, 2, AND 5 if applicable) are all done.
+  // ── FIX 1: Lock/Unlock segment status ───────────────────────────────────────
+  // Segment A should NEVER be Locked.
+  // Segment B/C: unlock when predecessor's gate steps (1, 2, AND 5) are all done.
+  // Also RE-LOCK: if segment is Active but predecessor gates aren't done AND
+  // no step on this segment has started (safe to re-lock without losing work).
   if(seg.status === 'Locked'){
     let shouldUnlock = false;
     if(seg.label === 'A'){
-      // Segment A is never locked
       shouldUnlock = true;
     } else {
-      // Check if predecessor segment has gate steps done (1, 2, and 5 if not skipped)
       const prevLabel = {B:'A', C:'B'}[seg.label];
       if(prevLabel){
         const prevSeg = allSegsForTrip.find(s => s.label === prevLabel);
-        if(prevSeg && segGatesDone(prevSeg)){
-          shouldUnlock = true;
-        }
+        if(prevSeg && segGatesDone(prevSeg)) shouldUnlock = true;
       }
     }
     if(shouldUnlock){
       seg.status = 'Active';
       seg.date = new Date().toISOString();
       changed = true;
+    }
+  } else if(seg.status === 'Active' && seg.label !== 'A'){
+    // Re-lock prematurely unlocked segments (from old stepsOneAndTwoDone logic)
+    const prevLabel = {B:'A', C:'B'}[seg.label];
+    if(prevLabel){
+      const prevSeg = allSegsForTrip.find(s => s.label === prevLabel);
+      if(prevSeg && !segGatesDone(prevSeg)){
+        // Only re-lock if NO step on this segment has been started
+        const anyStepStarted = [1,2,3,4,5].some(n => seg.steps[n]?.done);
+        if(!anyStepStarted){
+          seg.status = 'Locked';
+          changed = true;
+        }
+      }
     }
   }
 
@@ -2834,14 +3024,26 @@ function _isLockedOut(){ return Date.now()<_lockoutUntil; }
 document.addEventListener('DOMContentLoaded',()=>_refreshCaptcha());
 
 function doLogin(){
+  // Stop auto-retry timer if running
+  if(_loginRetryTimer){clearInterval(_loginRetryTimer);_loginRetryTimer=null;}
   // Check database connection
-  if(_sbStatus!=='ok'){
+  if(!DB.users.length){
+    document.getElementById('loginError').style.display='block';
+    document.getElementById('loginError').style.background='rgba(42,154,160,.08)';
+    document.getElementById('loginError').style.borderColor='rgba(42,154,160,.25)';
+    document.getElementById('loginError').style.color='#1d6f73';
+    document.getElementById('loginError').textContent='⏳ Still loading data from database… please wait a moment and try again.';
+    // Restart retry timer to auto-login when data arrives
+    const u=document.getElementById('loginUser').value.toLowerCase().trim();
+    const p=document.getElementById('loginPass').value;
+    if(u&&p) _startLoginRetry(u, p, null, null);
+    return;
+  }
+  if(_sbStatus!=='ok'&&!DB.users.length){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='Database not connected. Please wait for connection…';
     return;
   }
-  // Stop retry timer
-  if(_loginRetryTimer){clearInterval(_loginRetryTimer);_loginRetryTimer=null;}
   // Check lockout
   if(_isLockedOut()){
     document.getElementById('loginError').style.display='block';
@@ -3146,7 +3348,7 @@ const NAV=[
   {id:'Drivers',   l:'Drivers',       i:'🧑‍✈️',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
   {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',app:'vms'},
   {sec:'SYSTEM',app:'vms'},
-  {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
+  {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin','Admin'],app:'vms'},
 ];
 
 function initApp(){
@@ -3293,7 +3495,7 @@ function updBadges(){
   const me=CU.id;
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
   const kap=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     const cs=s.currentStep;
     if(cs===1||cs===2){if(s.steps[cs]?.skip)return false;return canDoStep(s,cs);}
     // Step 5 parallel
@@ -3301,13 +3503,13 @@ function updBadges(){
     return false;
   }).length;
   const mr=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     if(s.steps[3]?.done||s.steps[3]?.skip)return false;
     if(!stepsOneAndTwoDone(s))return false;
     return canDoStep(s,3);
   }).length;
   const apSegs=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     const needsApproval=(!s.steps[4]?.done&&!s.steps[4]?.rejected&&!s.steps[4]?.skip)||(s.steps[4]?.rejected&&s.status==='Rejected');
     if(!needsApproval)return false;
     // Step 4 only available after steps 1&2 done
@@ -3319,7 +3521,7 @@ function updBadges(){
   let ap=0;
   apTripIds.forEach(tid=>{
     const allSegs=DB.segments.filter(s=>s.tripId===tid);
-    if(allSegs.every(s=>s.status==='Completed'||s.status==='Locked'||stepsUpTo3Done(s)||s.status==='Rejected')) ap++;
+    if(allSegs.every(s=>s.status==='Completed'||isSegLocked(s)||stepsUpTo3Done(s)||s.status==='Rejected')) ap++;
   });
   const set=(id,n)=>{const el=document.getElementById(id);if(el){el.textContent=n||'';el.style.display=n?'inline':'none';}};
   set('bKS',kap);set('bMR',mr);set('bAP',ap);
@@ -3695,6 +3897,36 @@ function renderDashTrips(){
     const rate=getMatchedRate(t.id);
 
     const segBlocks=segs.map(s=>{
+      const segClr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[s.label]||'var(--accent)';
+
+      // ── Compute visual lock state dynamically ──
+      let visuallyLocked = isSegLocked(s);
+
+      // ── LOCKED segment: show compact card with lock icon ──
+      if(visuallyLocked){
+        // Find predecessor and show what's needed to unlock
+        const prevLabel={B:'A',C:'B'}[s.label];
+        const prevSeg=prevLabel?segs.find(ps=>ps.label===prevLabel):null;
+        let waitMsg='Waiting for previous segment';
+        if(prevSeg){
+          const gateSteps=[];
+          if(!prevSeg.steps[1]?.done&&!prevSeg.steps[1]?.skip) gateSteps.push('Step1 Exit');
+          if(!prevSeg.steps[2]?.done&&!prevSeg.steps[2]?.skip) gateSteps.push('Step2 Entry');
+          if(!prevSeg.steps[5]?.done&&!prevSeg.steps[5]?.skip) gateSteps.push('Step5 Empty Exit');
+          if(gateSteps.length) waitMsg=`Waiting for Seg ${prevLabel}: ${gateSteps.join(', ')}`;
+          else waitMsg=`Seg ${prevLabel} gates done — unlocking…`;
+        }
+        return `<div style="background:rgba(0,0,0,.03);border:2px dashed var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:6px;opacity:.7">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:20px;height:20px;border-radius:50%;background:${segClr};color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${s.label}</span>
+            <span style="font-size:11px;font-weight:700;flex:1">${lnameText(s.sLoc)} → ${lnameText(s.dLoc)}</span>
+            <span style="font-size:11px;font-weight:800;color:#6b7280;display:inline-flex;align-items:center;gap:4px">🔒 Locked</span>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;padding-left:28px">${waitMsg}</div>
+        </div>`;
+      }
+
+      // ── ACTIVE / COMPLETED / REJECTED segment: full content ──
       const idx=s.label==='A'?1:s.label==='B'?2:3;
       const challans=t?.['challans'+idx]||[];
       const legCh=t?.['challan'+idx]||'';const legWt=t?.['weight'+idx]||'';const legPh=t?.['photo'+idx]||'';
@@ -3703,11 +3935,10 @@ function renderDashTrips(){
       const dLoc=byId(DB.locations,s.dLoc);
       const sBg=dLoc?.colour?dLoc.colour+'18':'var(--surface2)';
       const sBorder=dLoc?.colour||'var(--border)';
-      const segClr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[s.label]||'var(--accent)';
-      const stClr=s.status==='Completed'?'#16a34a':s.status==='Rejected'?'#dc2626':s.currentStep===5?'#ea580c':s.currentStep===4?'var(--accent)':'var(--text3)';
+      const stClr=s.status==='Completed'?'#16a34a':s.status==='Rejected'?'#dc2626':s.status==='Locked'?'#6b7280':s.currentStep===5?'#ea580c':s.currentStep===4?'var(--accent)':'var(--text3)';
       const _dDiscrep=s.steps[3]?.discrepancy;const _dNotRcvd=s.steps[3]?.notReceived;
       const _dDiscTag=_dDiscrep?' <span style="font-size:9px;font-weight:700;background:#ea580c;color:#fff;padding:1px 5px;border-radius:4px">⚠</span>':_dNotRcvd?' <span style="font-size:9px;font-weight:700;background:#dc2626;color:#fff;padding:1px 5px;border-radius:4px">✗</span>':'';
-      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.currentStep===5?'📤 Empty Exit Pending':s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
+      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.status==='Locked'?'🔒 Locked':s.currentStep===5?'📤 Empty Exit Pending':s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
       const mrByU=byId(DB.users,s.steps[3]?.by);const mrByName=mrByU?.fullName||mrByU?.name||'';
       const apByU=byId(DB.users,s.steps[4]?.by);const apByName=apByU?.fullName||apByU?.name||'';
       const fmtTs=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'';
@@ -5561,7 +5792,7 @@ function renderMyTrips(){
           const st=seg.steps[stepNum];
           if(!st||st.skip) return '';
           const done=st.done&&(stepNum!==4||!st.rejected);
-          const active=!done&&seg.currentStep===stepNum&&seg.status!=='Completed'&&seg.status!=='Locked';
+          const active=!done&&!_visLocked&&seg.currentStep===stepNum&&seg.status!=='Completed'&&seg.status!=='Locked';
           const loc=byId(DB.locations,st.ownerLoc||st.loc);
           const locName=loc?.name||'';
           const locHtml=locName?` <span style="font-size:7px;font-weight:600;opacity:.75">(${locName})</span>`:'';
@@ -5574,19 +5805,22 @@ function renderMyTrips(){
           // Incomplete / waiting
           return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,0.03);color:var(--text3);border:1px solid transparent;white-space:nowrap">○ ${label}${locHtml}</span>`;
         };
-        const lockBdg=seg.status==='Locked'?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:rgba(0,0,0,0.04);color:var(--text3);white-space:nowrap">🔒 Locked</span>':'';
+        // Compute visual lock state dynamically (same as dashboard)
+        let _visLocked=isSegLocked(seg);
+        const lockBdg=_visLocked?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:rgba(107,114,128,.1);color:#6b7280;border:1px solid rgba(107,114,128,.2);white-space:nowrap">🔒 Locked</span>':'';
         const completeBdg=seg.status==='Completed'?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:#dcfce7;color:#16a34a;border:1px solid #86efac;white-space:nowrap">✅ Done</span>':'';
         const rejBdg=seg.status==='Rejected'?'<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;white-space:nowrap">⚠ Rejected</span>':'';
-        stepProgress=[
-          lockBdg,
-          _stepBdg(1,'Gate Exit','#2a9aa0'),
-          _stepBdg(2,'Gate Entry','#0d9488'),
-          _stepBdg(3,'Mat. Receipt','#16a34a'),
-          _stepBdg(4,'Trip Approval','#7c3aed'),
-          _stepBdg(5,'Empty Exit','#ea580c'),
-          completeBdg,
-          rejBdg
-        ].filter(Boolean).join('');
+        stepProgress=_visLocked
+          ? lockBdg
+          : [
+              _stepBdg(1,'Gate Exit','#2a9aa0'),
+              _stepBdg(2,'Gate Entry','#0d9488'),
+              _stepBdg(3,'Mat. Receipt','#16a34a'),
+              _stepBdg(4,'Trip Approval','#7c3aed'),
+              _stepBdg(5,'Empty Exit','#ea580c'),
+              completeBdg,
+              rejBdg
+            ].filter(Boolean).join('');
       }
       // Show all challans for this destination (multi-challan support)
       const challansArr=t['challans'+idx]||[];
@@ -5793,7 +6027,7 @@ function _kapUpdateCounts(){
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
   // Exit count: segments at step 1 pending
   const exitCount=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked') return false;
+    if(s.status==='Completed'||isSegLocked(s)) return false;
     const cs=s.currentStep;
     if(cs===1&&!s.steps[1]?.skip&&!s.steps[1]?.done) return canDoStep(s,1);
     if(!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s)) return canDoStep(s,5);
@@ -5801,7 +6035,7 @@ function _kapUpdateCounts(){
   }).length;
   // Entry count: segments at step 2 pending
   const entryCount=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked') return false;
+    if(s.status==='Completed'||isSegLocked(s)) return false;
     const cs=s.currentStep;
     if(cs===2&&!s.steps[2]?.skip&&!s.steps[2]?.done) return canDoStep(s,2);
     return false;
@@ -6057,7 +6291,7 @@ function renderKap(){
 
   // All active (pending) segments across both steps — show ALL until recorded
   let allPending=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     const cs=s.currentStep;
     // Steps 1 & 2: sequential KAP gate actions
     if(cs===1||cs===2){if(s.steps[cs]?.skip)return false;return canDoStep(s,cs);}
@@ -6916,7 +7150,7 @@ async function doKapInline(segId,step){
   // Remember which trip comes next so we can auto-expand it
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
   const _pendingSegsAfter=DB.segments.filter(s=>{
-    if(s.id===seg.id||s.status==='Completed'||s.status==='Locked'||s.status==='Rejected') return false;
+    if(s.id===seg.id||s.status==='Completed'||isSegLocked(s)||s.status==='Rejected') return false;
     if(s.currentStep!==step) return false;
     return canDoStep(s,step);
   });
@@ -6982,7 +7216,7 @@ function renderMR(){
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
   const _myTripIds=new Set(tripsForMyPlant().map(t=>t.id));
   let pending=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     if(s.steps[3]?.done||s.steps[3]?.skip)return false;
     if(!stepsOneAndTwoDone(s))return false;
     return canDoStep(s,3);
@@ -7370,7 +7604,7 @@ function renderApprove(){
 
   const _apTripIds=new Set(tripsForMyPlant().map(t=>t.id));
   let pendingSegs=DB.segments.filter(s=>{
-    if(s.status==='Completed'||s.status==='Locked')return false;
+    if(s.status==='Completed'||isSegLocked(s))return false;
     if(!stepsOneAndTwoDone(s))return false;
     const isPendingStep4=!s.steps[4]?.done&&!s.steps[4]?.rejected;
     const isRejected=s.status==='Rejected'||s.steps[4]?.rejected;
@@ -7390,7 +7624,7 @@ function renderApprove(){
   // Filter: keep only trips where every active segment has completed gate ops AND material receipt (or is skipped/locked)
   const pendingTrips=Object.entries(tripGroups).filter(([tripId])=>{
     const allSegs=DB.segments.filter(s=>s.tripId===tripId);
-    return allSegs.every(s=>s.status==='Completed'||s.status==='Locked'||stepsUpTo3Done(s)||s.status==='Rejected');
+    return allSegs.every(s=>s.status==='Completed'||isSegLocked(s)||stepsUpTo3Done(s)||s.status==='Rejected');
   });
 
   // Sort pending trips by booking date descending (newest first)
@@ -8384,33 +8618,146 @@ function toggleKapFields(){document.getElementById('kapLocFields').style.display
 function openLocModal(id){
   const l=id?byId(DB.locations,id):null;
   document.getElementById('eLocId').value=id||'';document.getElementById('locNameI').value=l?.name||'';document.getElementById('locTypeS').value=l?.type||'';document.getElementById('locAddr').value=l?.address||'';document.getElementById('locGeo').value=l?.geo||'';
-  // Helper: display user fullName with location in brackets
-  const _uLabel=(u)=>{
-    const fn=u.fullName||u.name;
-    const loc=byId(DB.locations,u.plant);
-    if(!loc?.name) return fn;
-    const bg=loc.colour||'#e2e8f0';const fg=colourContrast(bg);
-    return `${fn} <span style="background:${bg};color:${fg};font-size:8px;font-weight:700;padding:0 5px;border-radius:3px;margin-left:2px;vertical-align:middle">${loc.name}</span>`;
+  // Store current selections in memory for picker to use
+  _locPickerState={
+    kapSec: l?.kapSec||'',
+    tripBook: [...(l?.tripBook||[])],
+    matRecv: [...(l?.matRecv||[])],
+    approver: [...(l?.approvers||[])],
   };
-  const _uLabelPlain=(u)=>{
-    const fn=u.fullName||u.name;
-    const loc=byId(DB.locations,u.plant);
-    const locName=loc?.name||'';
-    return locName?`${fn} [${locName}]`:fn;
-  };
-  const kU=sortBy(DB.users.filter(u=>u.roles.includes('KAP Security')),u=>(u.fullName||u.name));
-  const tU=sortBy(DB.users.filter(u=>u.roles.includes('Trip Booking User')),u=>(u.fullName||u.name));
-  const mU=sortBy(DB.users.filter(u=>u.roles.includes('Material Receiver')),u=>(u.fullName||u.name));
-  const aU=sortBy(DB.users.filter(u=>u.roles.includes('Trip Approver')),u=>(u.fullName||u.name));
-  document.getElementById('locKapSec').innerHTML='<option value="">-- None --</option>'+kU.map(u=>`<option value="${u.id}"${u.id===l?.kapSec?' selected':''}>${_uLabelPlain(u)}</option>`).join('');
-  document.getElementById('locTripBook').innerHTML=tU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.tripBook||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.tripBook||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Trip Booking Users in User Master</span>';
-  document.getElementById('locMatRecv').innerHTML=mU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.matRecv||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.matRecv||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Material Receivers in User Master</span>';
-  document.getElementById('locApprover').innerHTML=aU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.approvers||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.approvers||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Approvers in User Master</span>';
+  // Sync hidden form elements
+  _syncLocHiddenFields();
+  // Update display chips
+  _updateLocRoleDisplays();
   toggleKapFields();document.getElementById('mLocTitle').textContent=id?'Edit Location':'Add Location';
-  // Load colour
   setLocColour(l?.colour||'');
   const locICb=document.getElementById('locInactive');if(locICb)locICb.checked=l?.inactive===true;
   om('mLoc');
+}
+
+// ── Location User Picker State ──
+var _locPickerState={kapSec:'',tripBook:[],matRecv:[],approver:[]};
+var _locPickerMode=''; // 'kapSec','tripBook','matRecv','approver'
+
+// Sort users by location name, then user name
+function _sortUsersByLoc(users){
+  return [...users].sort((a,b)=>{
+    const aLoc=byId(DB.locations,a.plant)?.name||'zzz';
+    const bLoc=byId(DB.locations,b.plant)?.name||'zzz';
+    const cmp=aLoc.localeCompare(bLoc);
+    if(cmp!==0) return cmp;
+    return (a.fullName||a.name).localeCompare(b.fullName||b.name);
+  });
+}
+
+function _openUserPicker(mode){
+  _locPickerMode=mode;
+  const titles={kapSec:'🔒 Select KAP Security User',tripBook:'📋 Select Trip Booking Users',matRecv:'📦 Select Material Receivers',approver:'✅ Select Trip Approvers'};
+  const roleFilter={kapSec:'KAP Security',tripBook:'Trip Booking User',matRecv:'Material Receiver',approver:'Trip Approver'};
+  document.getElementById('mUserPickerTitle').textContent=titles[mode]||'Select Users';
+  document.getElementById('userPickerSearch').value='';
+  const isSingle=(mode==='kapSec');
+  const users=_sortUsersByLoc(DB.users.filter(u=>u.roles.includes(roleFilter[mode])));
+  const selected=isSingle?[_locPickerState.kapSec].filter(Boolean):[..._locPickerState[mode]];
+
+  _renderUserPickerList(users,selected,isSingle);
+  om('mUserPicker');
+  setTimeout(()=>document.getElementById('userPickerSearch')?.focus(),100);
+}
+
+function _renderUserPickerList(users,selected,isSingle){
+  const body=document.getElementById('userPickerBody');
+  if(!body) return;
+  let lastLocGroup='';
+  let html='';
+  users.forEach(u=>{
+    const loc=byId(DB.locations,u.plant);
+    const locName=loc?.name||'No Location';
+    const locClr=loc?.colour||'#e2e8f0';
+    const fg=colourContrast(locClr);
+    // Group header by location
+    if(locName!==lastLocGroup){
+      lastLocGroup=locName;
+      html+=`<div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 0 2px;border-bottom:1px solid var(--border);margin-top:${html?'4':'0'}px;display:flex;align-items:center;gap:4px"><span style="background:${locClr};color:${fg};padding:1px 5px;border-radius:3px;font-size:8px">${locName}</span></div>`;
+    }
+    const isSelected=selected.includes(u.id);
+    const inputType=isSingle?'radio':'checkbox';
+    html+=`<label data-uname="${(u.fullName||u.name).toLowerCase()}" data-uloc="${locName.toLowerCase()}" style="display:flex;align-items:center;gap:6px;padding:5px 4px;cursor:pointer;border-radius:5px;transition:background .1s;font-size:12px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <input type="${inputType}" name="_upRadio" value="${u.id}" ${isSelected?'checked':''} style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent);flex-shrink:0"${isSingle?` onchange="_upRadioChanged(this)"`:''}> 
+      <span style="font-weight:600;flex:1;font-size:12px">${u.fullName||u.name}</span>
+      <span style="background:${locClr};color:${fg};font-size:7px;font-weight:700;padding:1px 4px;border-radius:3px;flex-shrink:0">${locName}</span>
+    </label>`;
+  });
+  if(!users.length) html='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No users with this role found</div>';
+  body.innerHTML=html;
+}
+
+function _upRadioChanged(el){
+  // For single-select (KAP Security), uncheck all others
+  document.querySelectorAll('#userPickerBody input[type="radio"]').forEach(r=>{if(r!==el)r.checked=false;});
+}
+
+function _filterUserPicker(){
+  const q=(document.getElementById('userPickerSearch')?.value||'').toLowerCase();
+  const items=document.querySelectorAll('#userPickerBody label[data-uname]');
+  items.forEach(el=>{
+    const name=el.getAttribute('data-uname')||'';
+    const loc=el.getAttribute('data-uloc')||'';
+    el.style.display=(!q||name.includes(q)||loc.includes(q))?'flex':'none';
+  });
+  // Also hide/show group headers
+  const groups=document.querySelectorAll('#userPickerBody > div');
+  groups.forEach(g=>{
+    const next=[];let sib=g.nextElementSibling;
+    while(sib&&sib.tagName==='LABEL'){next.push(sib);sib=sib.nextElementSibling;}
+    const anyVisible=next.some(n=>n.style.display!=='none');
+    g.style.display=anyVisible?'flex':'none';
+  });
+}
+
+function _confirmUserPicker(){
+  const mode=_locPickerMode;
+  const isSingle=(mode==='kapSec');
+  if(isSingle){
+    const checked=document.querySelector('#userPickerBody input[type="radio"]:checked');
+    _locPickerState.kapSec=checked?checked.value:'';
+  } else {
+    const checked=[...document.querySelectorAll('#userPickerBody input[type="checkbox"]:checked')].map(c=>c.value);
+    _locPickerState[mode]=checked;
+  }
+  _syncLocHiddenFields();
+  _updateLocRoleDisplays();
+  cm('mUserPicker');
+}
+
+function _syncLocHiddenFields(){
+  // Sync picker state → hidden form fields that saveLoc reads
+  const kapSel=document.getElementById('locKapSec');
+  if(kapSel) kapSel.innerHTML=`<option value="${_locPickerState.kapSec}" selected></option>`;
+  const tbDiv=document.getElementById('locTripBook');
+  if(tbDiv) tbDiv.innerHTML=_locPickerState.tripBook.map(id=>`<input type="checkbox" value="${id}" checked style="display:none">`).join('');
+  const mrDiv=document.getElementById('locMatRecv');
+  if(mrDiv) mrDiv.innerHTML=_locPickerState.matRecv.map(id=>`<input type="checkbox" value="${id}" checked style="display:none">`).join('');
+  const apDiv=document.getElementById('locApprover');
+  if(apDiv) apDiv.innerHTML=_locPickerState.approver.map(id=>`<input type="checkbox" value="${id}" checked style="display:none">`).join('');
+}
+
+function _updateLocRoleDisplays(){
+  const _chip=(uid)=>{
+    const u=byId(DB.users,uid);if(!u)return '';
+    const loc=byId(DB.locations,u.plant);
+    const bg=loc?.colour||'#e2e8f0';const fg=colourContrast(bg);
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap">${u.fullName||u.name}<span style="background:${bg};color:${fg};font-size:8px;font-weight:700;padding:0 4px;border-radius:2px">${loc?.name||''}</span></span>`;
+  };
+  const _none='<span style="color:var(--text3);font-size:11px">Tap to assign ›</span>';
+  const ks=document.getElementById('locKapSecDisplay');
+  if(ks) ks.innerHTML=_locPickerState.kapSec?_chip(_locPickerState.kapSec):_none;
+  const tb=document.getElementById('locTripBookDisplay');
+  if(tb) tb.innerHTML=_locPickerState.tripBook.length?_locPickerState.tripBook.map(_chip).join(' '):_none;
+  const mr=document.getElementById('locMatRecvDisplay');
+  if(mr) mr.innerHTML=_locPickerState.matRecv.length?_locPickerState.matRecv.map(_chip).join(' '):_none;
+  const ap=document.getElementById('locApproverDisplay');
+  if(ap) ap.innerHTML=_locPickerState.approver.length?_locPickerState.approver.map(_chip).join(' '):_none;
 }
 async function saveLoc(){
   const id=document.getElementById('eLocId').value;const name=document.getElementById('locNameI').value.trim();const type=document.getElementById('locTypeS').value;const address=document.getElementById('locAddr').value;const geo=document.getElementById('locGeo').value;
@@ -8419,6 +8766,15 @@ async function saveLoc(){
   const matRecv=[...document.querySelectorAll('#locMatRecv input:checked')].map(o=>o.value);
   const approvers=[...document.querySelectorAll('#locApprover input:checked')].map(o=>o.value);
   if(!name||!type){modalErr('mLoc','Fill required fields');return;}
+  // KAP locations must have at least one user assigned for each role
+  if(type==='KAP'){
+    const missing=[];
+    if(!kapSec) missing.push('KAP Security');
+    if(!tripBook.length) missing.push('Trip Booking');
+    if(!matRecv.length) missing.push('Material Receiver');
+    if(!approvers.length) missing.push('Trip Approver');
+    if(missing.length){modalErr('mLoc','KAP location requires at least one user for: '+missing.join(', '));return;}
+  }
   if(!id){
     const _inactLoc=DB.locations.find(l=>l&&l.name.trim().toLowerCase()===name.toLowerCase()&&l.id!==id&&l.inactive===true);
     if(_inactLoc){modalErr('mLoc',`"${name}" already exists in Inactive Records. Activate it to use.`);return;}
@@ -9744,451 +10100,127 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// ===== HELPER PAGE (Super Admin only) =====
-// ── Repair: Comprehensive segment health checker and fixer ────────────────
-// Scans ALL segments for: allocation mismatches, stuck-Locked status,
-// wrong currentStep, missing step objects. Shows detailed diagnostic.
-function _scanRepairableSegs(){
-  const results=[];
-  const segsByTrip=new Map();
-  DB.segments.forEach(s=>{
-    if(!segsByTrip.has(s.tripId)) segsByTrip.set(s.tripId,[]);
-    segsByTrip.get(s.tripId).push(s);
-  });
 
-  DB.segments.forEach(seg=>{
-    if(seg.status==='Cancelled') return;
-    const trip=byId(DB.trips,seg.tripId);
-    if(!trip) return;
+
+// ── Trip Allocation Lookup ────────────────────────────────────────────────
+function _lookupTrip(){
+  const input=document.getElementById('hlpTripInput');
+  const el=document.getElementById('hlpTripResult');
+  if(!input||!el) return;
+  const tid=input.value.trim();
+  if(!tid){el.innerHTML='';return;}
+  const trip=DB.trips.find(t=>t.id.toLowerCase()===tid.toLowerCase());
+  if(!trip){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px;font-size:12px">Trip "${tid}" not found</div>`;return;}
+
+  const segs=DB.segments.filter(s=>s.tripId===trip.id).sort((a,b)=>a.label.localeCompare(b.label));
+  if(!segs.length){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px;font-size:12px">Trip "${trip.id}" has no segments</div>`;return;}
+
+  const bu=byId(DB.users,trip.bookedBy);
+  const buLoc=bu?(getUserLocation(bu.id)||byId(DB.locations,bu.plant)):null;
+  const drv=byId(DB.drivers,trip.driverId);
+
+  let h=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;line-height:1.7">
+    <strong>${_cTid(trip.id)}</strong> · ${fd(trip.date)} · By: ${bu?.fullName||bu?.name||'?'} (${buLoc?.name||'?'})
+    · Vehicle: ${vnum(trip.vehicleId)||'None'}${drv?' · Driver: '+drv.name:''}
+    <br><strong>Route:</strong> ${lnameText(trip.startLoc)} → ${lnameText(trip.dest1)}${trip.dest2?' → '+lnameText(trip.dest2):''}${trip.dest3?' → '+lnameText(trip.dest3):''}
+  </div>`;
+
+  segs.forEach(seg=>{
     const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
     const crit=getCriteria(sType,dType);
     const cat=CRITERIA_LABEL[crit]||'?';
-    const dl=byId(DB.locations,seg.dLoc);
     const sl=byId(DB.locations,seg.sLoc);
+    const dl=byId(DB.locations,seg.dLoc);
+    const segClr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[seg.label]||'var(--accent)';
+
+    // Predecessor gate status for lock display
+    let lockInfo='';
+    if(seg.label!=='A'){
+      const prevLabel={B:'A',C:'B'}[seg.label];
+      const prevSeg=prevLabel?segs.find(ps=>ps.label===prevLabel):null;
+      if(prevSeg){
+        const gd=segGatesDone(prevSeg);
+        const s1=prevSeg.steps[1]?.done||prevSeg.steps[1]?.skip?'✓':'✗';
+        const s2=prevSeg.steps[2]?.done||prevSeg.steps[2]?.skip?'✓':'✗';
+        const s5=prevSeg.steps[5]?.done||prevSeg.steps[5]?.skip?'✓':'✗';
+        lockInfo=`<span style="font-size:9px;color:var(--text3);margin-left:8px">Predecessor ${prevLabel}: S1${s1} S2${s2} S5${s5} → ${gd?'<span style="color:#16a34a">Unlocked</span>':'<span style="color:#dc2626">Locked</span>'}</span>`;
+      }
+    }
+
+    // Expected allocation
     const bookingUser=byId(DB.users,trip.bookedBy)||CU;
     const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
     const alloc=_resolveStepAlloc(crit,sl,dl,seg.sLoc,seg.dLoc,bookingLoc);
-    const siblings=segsByTrip.get(seg.tripId)||[];
-
-    const issues=[];
-
-    // ── CHECK 1: Stuck-Locked segment ────────────────────────────────────
-    if(seg.status==='Locked'){
-      let shouldBeActive=false;
-      if(seg.label==='A'){
-        shouldBeActive=true; // Segment A should never be Locked
-      } else {
-        const prevLabel={B:'A',C:'B'}[seg.label];
-        const prevSeg=prevLabel?siblings.find(s=>s.label===prevLabel):null;
-        if(prevSeg&&segGatesDone(prevSeg)) shouldBeActive=true;
-      }
-      if(shouldBeActive){
-        issues.push({type:'status',step:'-',from:'Locked',to:'Active',icon:'🔒'});
-      }
-    }
-
-    // ── CHECK 2: Wrong currentStep ───────────────────────────────────────
-    if(seg.status!=='Locked'&&seg.status!=='Cancelled'){
-      // Ensure all 5 steps exist before checking
-      const hasAllSteps=[1,2,3,4,5].every(n=>!!seg.steps[n]);
-      if(hasAllSteps){
-        const expectedStep=nextStep(seg);
-        if(seg.currentStep!==expectedStep){
-          const stepNames={1:'Step1',2:'Step2',3:'Step3',4:'Step4',5:'Step5',6:'Done'};
-          issues.push({type:'currentStep',step:'-',from:stepNames[seg.currentStep]||seg.currentStep,to:stepNames[expectedStep]||expectedStep,icon:'🔢'});
-        }
-      }
-    }
-
-    // ── CHECK 3: Missing step objects ────────────────────────────────────
-    for(let n=1;n<=5;n++){
-      if(!seg.steps[n]){
-        issues.push({type:'missing',step:'Step'+n,from:'Missing',to:'Create',icon:'⚠'});
-      }
-    }
-
-    // ── CHECK 4: Step allocation, role, users for ALL 5 steps (undone only) ─
-    const EXPECTED_ROLES={1:'KAP Security',2:'KAP Security',3:'Material Receiver',4:'Trip Approver',5:'KAP Security'};
-    // Compute step 5 expected state
-    const hasSegB=siblings.some(s=>s.label==='B');
-    const hasSegC=siblings.some(s=>s.label==='C');
+    const hasSegB=segs.some(ss=>ss.label==='B');
+    const hasSegC=segs.some(ss=>ss.label==='C');
     const tripHasDest2=!!(trip.dest2&&trip.dest2!=='');
     const tripHasDest3=!!(trip.dest3&&trip.dest3!=='');
     const aIsLast=seg.label==='A'&&!hasSegB&&!tripHasDest2;
     const bIsLast=seg.label==='B'&&!hasSegC&&!tripHasDest3;
     const isLast=aIsLast||bIsLast||seg.label==='C';
-    const s5ShouldBeActive=isLast&&dType==='KAP';
-    // Expected allocation for all 5 steps
-    const expectedAlloc={
-      1:{ skip:alloc.s1.skip, locId:alloc.s1.locId, loc:alloc.s1.loc },
-      2:{ skip:alloc.s2.skip, locId:alloc.s2.locId, loc:alloc.s2.loc },
-      3:{ skip:alloc.s3.skip, locId:alloc.s3.locId, loc:alloc.s3.loc },
-      4:{ skip:false,         locId:alloc.s4.locId, loc:alloc.s4.loc },
-      5:{ skip:!s5ShouldBeActive, locId:s5ShouldBeActive?seg.dLoc:null, loc:s5ShouldBeActive?dl:null },
+    const s5Active=isLast&&dType==='KAP';
+
+    const stepNames={1:'Gate Exit',2:'Gate Entry',3:'Mat. Receipt',4:'Approval',5:'Empty Exit'};
+    const stepRoles={1:'KAP Security',2:'KAP Security',3:'Material Receiver',4:'Trip Approver',5:'KAP Security'};
+    const expAlloc={
+      1:{skip:alloc.s1.skip, locId:alloc.s1.locId, loc:alloc.s1.loc},
+      2:{skip:alloc.s2.skip, locId:alloc.s2.locId, loc:alloc.s2.loc},
+      3:{skip:alloc.s3.skip, locId:alloc.s3.locId, loc:alloc.s3.loc},
+      4:{skip:false,         locId:alloc.s4.locId, loc:alloc.s4.loc},
+      5:{skip:!s5Active,     locId:s5Active?seg.dLoc:null, loc:s5Active?dl:null}
     };
-    for(let n=1;n<=5;n++){
-      const step=seg.steps[n];
-      if(!step||step.done) continue;
-      const exp=expectedAlloc[n];
-      const expRole=EXPECTED_ROLES[n];
-      // Check skip
-      if(!!step.skip!==exp.skip){
-        issues.push({type:'alloc',step:'Step'+n,from:step.skip?'Skip':'Active',to:exp.skip?'Skip':'Active',icon:'📍'});
-      }
-      // Check ownerLoc
-      if(!exp.skip && (step.ownerLoc||null)!==(exp.locId||null)){
-        const fromName=step.ownerLoc?(byId(DB.locations,step.ownerLoc)?.name||step.ownerLoc):'null';
-        const toName=exp.locId?(byId(DB.locations,exp.locId)?.name||exp.locId):'null';
-        issues.push({type:'alloc',step:'Step'+n+' loc',from:fromName,to:toName,icon:'📍'});
-      }
-      // Check role
-      if(step.role!==expRole){
-        issues.push({type:'role',step:'Step'+n,from:step.role||'none',to:expRole,icon:'👤'});
-      }
-      // Check users: if step is active (not skip, not done), users should be populated
-      if(!exp.skip && exp.loc){
-        const expUsers=_locRoleUsers(exp.loc, expRole);
-        const curUsers=JSON.stringify(step.users||[]);
-        const expUsersStr=JSON.stringify(expUsers);
-        if(curUsers!==expUsersStr){
-          const fromNames=(step.users||[]).map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(',')||'none';
-          const toNames=expUsers.map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(',')||'none';
-          issues.push({type:'users',step:'Step'+n,from:fromNames,to:toNames,icon:'👥'});
-        }
-      }
-      // Warning: step is active but no user assigned at location
-      if(!exp.skip && exp.loc){
-        const roleUsers=_locRoleUsers(exp.loc, expRole);
-        if(!roleUsers.length){
-          const locName=exp.loc?.name||'?';
-          issues.push({type:'noUser',step:'Step'+n,from:`No ${expRole} at ${locName}`,to:'Assign in Location Master',icon:'⚠'});
-        }
-      }
-    }
 
-    if(issues.length){
-      results.push({seg,trip,cat,issues});
-    }
-  });
-  return results;
-}
-
-async function repairEKTrips(){
-  const btn=document.getElementById('btnRepairTrips');
-  if(btn){btn.innerHTML='⏳ Repairing…';btn.style.pointerEvents='none';btn.style.opacity='.6';}
-
-  // ── CRITICAL: Group by trip, sort A→B→C within each trip ──────────────
-  // Multi-location trips require A to be fixed BEFORE B (so B's unlock check
-  // sees A's corrected skip/done state), and B before C.
-  const segsByTrip=new Map();
-  DB.segments.forEach(s=>{
-    if(!segsByTrip.has(s.tripId)) segsByTrip.set(s.tripId,[]);
-    segsByTrip.get(s.tripId).push(s);
-  });
-  // Sort siblings A→B→C within each trip group
-  segsByTrip.forEach(arr=>arr.sort((a,b)=>a.label.localeCompare(b.label)));
-
-  // Build ordered list: all A segments first, then all B, then all C
-  // This ensures predecessors are always fixed before successors
-  const ordered=[];
-  segsByTrip.forEach(arr=>arr.forEach(s=>ordered.push(s)));
-  ordered.sort((a,b)=>a.label.localeCompare(b.label));
-
-  // ── Multi-pass: repeat until no more changes (handles cascading) ─────
-  let fixedSegs=0, fixedTrips=new Set(), totalPasses=0;
-  const savedIds=new Set(); // track segments we've already saved
-  let moreChanges=true;
-  while(moreChanges && totalPasses<5){
-    moreChanges=false;
-    totalPasses++;
-    for(const seg of ordered){
-      if(seg.status==='Cancelled') continue;
-      const siblings=segsByTrip.get(seg.tripId)||[];
-      const changed=recalcSegSteps(seg,siblings);
-      if(changed){
-        moreChanges=true;
-        if(!savedIds.has(seg.id)){ fixedSegs++; }
-        savedIds.add(seg.id);
-        fixedTrips.add(seg.tripId);
-      }
-    }
-  }
-
-  // ── Save all changed segments to Supabase ──────────────────────────────
-  for(const segId of savedIds){
-    const seg=byId(DB.segments,segId);
-    if(seg) await _dbSave('segments',seg);
-  }
-
-  if(btn){btn.innerHTML='🔧 Repair Trips';btn.style.pointerEvents='';btn.style.opacity='1';}
-
-  // Refresh all views
-  updBadges();
-  try{renderDash();}catch(e){}
-  try{renderDashTrips();}catch(e){}
-  try{renderTripBooking();}catch(e){}
-  try{renderKap();}catch(e){}
-  try{renderMR();}catch(e){}
-  try{renderApprove();}catch(e){}
-
-  const resEl=document.getElementById('repairResults');
-  if(resEl){
-    if(fixedSegs===0){
-      resEl.innerHTML='<div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:14px">✅ All segments already correct — nothing to repair</div>';
-    } else {
-      resEl.innerHTML=`<div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:14px">✅ Repaired ${fixedSegs} segment${fixedSegs!==1?'s':''} across ${fixedTrips.size} trip${fixedTrips.size!==1?'s':''} (${totalPasses} pass${totalPasses!==1?'es':''})</div>`;
-    }
-  }
-  _renderRepairScan();
-}
-
-function _renderRepairScan(){
-  const el=document.getElementById('repairScanBody');
-  if(!el) return;
-  const results=_scanRepairableSegs();
-
-  // Also count total segments by category for info
-  const catCounts={};
-  DB.segments.forEach(seg=>{
-    if(seg.status==='Cancelled') return;
-    const sType=ltype(seg.sLoc),dType=ltype(seg.dLoc);
-    const c=getCriteria(sType,dType);
-    const cat=CRITERIA_LABEL[c]||'?';
-    catCounts[cat]=(catCounts[cat]||0)+1;
-  });
-  const catSummary=Object.entries(catCounts).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>`<span style="background:rgba(42,154,160,.1);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px">${k}: ${v}</span>`).join(' ');
-
-  if(!results.length){
-    el.innerHTML=`<div style="padding:8px 0;font-size:12px;color:var(--text2)">Segment totals: ${catSummary}</div><div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:13px">✅ All ${DB.segments.length} segments are healthy — no repairs needed</div>`;
-    const btn=document.getElementById('btnRepairTrips');
-    if(btn){btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='not-allowed';}
-    return;
-  }
-  const btn=document.getElementById('btnRepairTrips');
-  if(btn){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';}
-
-  const uniqueTrips=new Set(results.map(r=>r.trip.id));
-  const issueTypes=new Map();
-  results.forEach(r=>r.issues.forEach(i=>{issueTypes.set(i.type,(issueTypes.get(i.type)||0)+1);}));
-  const issueSummary=[...issueTypes.entries()].map(([t,c])=>{
-    const labels={status:'🔒 Stuck Locked',currentStep:'🔢 Wrong Step',missing:'⚠ Missing Step',alloc:'📍 Wrong Allocation',role:'👤 Wrong Role',users:'👥 Wrong Users',noUser:'⚠ No User Assigned'};
-    return `<span style="font-size:11px">${labels[t]||t}: <strong>${c}</strong></span>`;
-  }).join(' · ');
-
-  el.innerHTML=`
-    <div style="padding:6px 0;font-size:12px;color:var(--text2)">Segment totals: ${catSummary}</div>
-    <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">Found <strong style="color:#dc2626">${results.length} segment${results.length!==1?'s':''}</strong> across <strong>${uniqueTrips.size} trip${uniqueTrips.size!==1?'s':''}</strong> with issues: ${issueSummary}</div>
-    <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Trip</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Seg</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Cat</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Status</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Issue</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Current →</th>
-        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Correct</th>
-      </tr></thead>
-      <tbody>
-      ${results.map(({seg,trip,cat,issues})=>{
-        const sName=byId(DB.locations,seg.sLoc)?.name||'?';
-        const dName=byId(DB.locations,seg.dLoc)?.name||'?';
-        return issues.map((iss,i)=>`<tr style="border-bottom:1px solid var(--border)${i===0?';border-top:2px solid var(--border2)':''}">
-          ${i===0?`<td rowspan="${issues.length}" style="padding:5px 8px;font-family:var(--mono);font-weight:800;color:var(--accent);vertical-align:top">${_cTid(trip.id)}</td>
-          <td rowspan="${issues.length}" style="padding:5px 8px;font-weight:700;vertical-align:top">${seg.label}<div style="font-size:9px;color:var(--text3)">${sName}→${dName}</div></td>
-          <td rowspan="${issues.length}" style="padding:5px 8px;vertical-align:top"><span style="background:rgba(42,154,160,.12);padding:1px 6px;border-radius:4px;font-weight:700;font-size:11px">${cat}</span></td>
-          <td rowspan="${issues.length}" style="padding:5px 8px;font-size:11px;vertical-align:top;font-weight:600;color:${seg.status==='Locked'?'#dc2626':seg.status==='Active'?'#16a34a':'var(--text3)'}">${seg.status}</td>`:''}
-          <td style="padding:5px 8px;font-weight:600;white-space:nowrap">${iss.icon} ${iss.step}</td>
-          <td style="padding:5px 8px;color:#dc2626;font-weight:700">${iss.from}</td>
-          <td style="padding:5px 8px;color:#16a34a;font-weight:700">${iss.to}</td>
-        </tr>`).join('');
-      }).join('')}
-      </tbody>
-    </table>
-    </div>
-    <div style="margin-top:10px;padding:12px 14px;background:rgba(234,179,8,.08);border:2px solid rgba(234,179,8,.3);border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:180px">
-        <div style="font-size:13px;font-weight:800;color:#92400e;margin-bottom:4px">⚠ ${results.length} issue${results.length!==1?'s':''} found across ${uniqueTrips.size} trip${uniqueTrips.size!==1?'s':''}</div>
-        <div style="font-size:11px;color:#92400e">${issueSummary}</div>
+    h+=`<div style="border:1.5px solid ${segClr}66;border-radius:8px;margin-bottom:8px;overflow:hidden">
+      <div style="background:${segClr}18;padding:6px 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="width:20px;height:20px;border-radius:50%;background:${segClr};color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${seg.label}</span>
+        <span style="font-size:11px;font-weight:800">${sl?.name||'?'} <span style="color:var(--text3)">(${sType})</span> → ${dl?.name||'?'} <span style="color:var(--text3)">(${dType})</span></span>
+        <span style="background:${segClr}33;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:800">${cat}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:800;color:${seg.status==='Completed'?'#16a34a':seg.status==='Locked'?'#dc2626':'var(--accent)'}">${seg.status} · Step ${seg.currentStep}</span>
+        ${lockInfo}
       </div>
-      <button class="btn btn-danger" onclick="repairEKTrips()" style="font-size:13px;padding:10px 20px;font-weight:800;white-space:nowrap;flex-shrink:0">🔧 Repair All — Fix Allocation & Users</button>
-    </div>`;
-}
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">Step</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">Status</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">ActionLoc (Expected)</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">ActionLoc (Actual)</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">Role</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">Assigned User</th>
+          <th style="padding:4px 8px;text-align:left;border:1px solid var(--border);font-size:9px;font-weight:700">Done By / Time</th>
+        </tr></thead><tbody>`;
 
-// ── Trip Diagnostic: trace every filter gate for a specific trip ──────────
-function _diagTrip(){
-  const input=document.getElementById('diagTripInput');
-  const el=document.getElementById('diagResult');
-  if(!input||!el) return;
-  const tid=input.value.trim();
-  if(!tid){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">Enter a Trip ID above</div>';return;}
+    for(let n=1;n<=5;n++){
+      const st=seg.steps[n];
+      const exp=expAlloc[n];
+      const isCs=seg.currentStep===n;
+      if(!st){h+=`<tr><td style="padding:3px 8px;border:1px solid var(--border);font-weight:700">${stepNames[n]}</td><td colspan="6" style="padding:3px 8px;border:1px solid var(--border);color:#dc2626;font-weight:700">MISSING</td></tr>`;continue;}
 
-  const trip=DB.trips.find(t=>t.id.toLowerCase()===tid.toLowerCase());
-  if(!trip){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px">❌ Trip "${tid}" not found in database (${DB.trips.length} trips loaded)</div>`;return;}
+      const expLocName=exp.skip?'Skip':(byId(DB.locations,exp.locId)?.name||exp.locId||'—');
+      const actLocName=st.skip?'Skip':(byId(DB.locations,st.ownerLoc)?.name||st.ownerLoc||'—');
+      const locMatch=exp.skip===!!st.skip&&(exp.skip||(st.ownerLoc||null)===(exp.locId||null));
+      const expUsers=exp.skip?[]:_locRoleUsers(exp.loc,stepRoles[n]);
+      const actUsers=st.users||[];
+      const userNames=actUsers.map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(', ')||'—';
+      const byU=st.done?byId(DB.users,st.by):null;
+      const byInfo=st.done?`${byU?.fullName||byU?.name||st.by||'?'} · ${fdt(st.time)}`:'—';
 
-  const segs=DB.segments.filter(s=>s.tripId===trip.id).sort((a,b)=>a.label.localeCompare(b.label));
-  if(!segs.length){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px">❌ Trip "${trip.id}" exists but has 0 segments</div>`;return;}
+      const rowBg=st.done?'background:rgba(22,163,74,.04)':st.skip?'background:rgba(220,38,38,.03)':isCs?'background:rgba(22,163,74,.08)':'';
+      const statusText=st.done?'<span style="color:#16a34a;font-weight:700">✓ Done</span>':st.skip?'<span style="color:#dc2626;font-weight:600">⊘ Skip</span>':isCs?'<span class="flash-green" style="font-weight:700">▶ Active</span>':'<span style="color:var(--text3)">○ Pending</span>';
 
-  const isSA=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
-  const stepNames={1:'Step1 Gate Exit',2:'Step2 Gate Entry',3:'Step3 Mat.Receipt',4:'Step4 Approval',5:'Step5 Empty Exit'};
-
-  let html=`<div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:8px">🔍 Diagnostic: ${_cTid(trip.id)}</div>`;
-
-  // Trip-level info
-  const bu=byId(DB.users,trip.bookedBy);
-  const buLoc=bu?(getUserLocation(bu.id)||byId(DB.locations,bu.plant)):null;
-  html+=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;line-height:1.8">
-    <strong>Trip:</strong> ${trip.id} · <strong>Date:</strong> ${fd(trip.date)} · <strong>Booked by:</strong> ${bu?.fullName||bu?.name||trip.bookedBy||'?'} (plant: ${buLoc?.name||bu?.plant||'?'})
-    <br><strong>Route:</strong> ${lnameText(trip.startLoc)} → ${lnameText(trip.dest1)}${trip.dest2?' → '+lnameText(trip.dest2):''}${trip.dest3?' → '+lnameText(trip.dest3):''}
-    <br><strong>Vehicle:</strong> ${vnum(trip.vehicleId)||'None'} · <strong>Segments:</strong> ${segs.length} (${segs.map(s=>s.label).join(', ')})
-  </div>`;
-
-  // Each segment diagnostic
-  segs.forEach(seg=>{
-    const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
-    const crit=getCriteria(sType,dType);
-    const cat=CRITERIA_LABEL[crit]||'?';
-    const sl=byId(DB.locations,seg.sLoc);
-    const dl=byId(DB.locations,seg.dLoc);
-
-    html+=`<div style="border:2px solid ${seg.status==='Completed'?'#16a34a':seg.status==='Locked'?'#dc2626':'var(--border2)'};border-radius:8px;padding:10px;margin-bottom:8px">`;
-    html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;flex-wrap:wrap">
-      <span style="font-weight:900;font-size:14px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:6px">Seg ${seg.label}</span>
-      <span style="background:rgba(42,154,160,.12);padding:2px 8px;border-radius:4px;font-weight:700">${cat}</span>
-      <span>${sl?.name||'?'} (${sType}) → ${dl?.name||'?'} (${dType})</span>
-      <span style="margin-left:auto;font-weight:800;color:${seg.status==='Completed'?'#16a34a':seg.status==='Locked'?'#dc2626':seg.status==='Rejected'?'#dc2626':'var(--accent)'}">Status: ${seg.status}</span>
-      <span style="font-weight:700;background:#fef08a;padding:1px 6px;border-radius:4px">currentStep: ${seg.currentStep}</span>
-    </div>`;
-
-    // KAP Security visibility check
-    html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px">🔒 KAP Security Page Visibility</div>`;
-    const kapGates=[];
-    // Gate 1: status
-    if(seg.status==='Completed') kapGates.push({pass:false,reason:'status=Completed → filtered out'});
-    else if(seg.status==='Locked'){
-      const prevLabel={B:'A',C:'B'}[seg.label];
-      const prevSeg=prevLabel?segs.find(ss=>ss.label===prevLabel):null;
-      let lockDetail='no predecessor found';
-      if(prevSeg){
-        const s1=prevSeg.steps[1]?.done?'✓':'✗';const s1sk=prevSeg.steps[1]?.skip?'(skip)':'';
-        const s2=prevSeg.steps[2]?.done?'✓':'✗';const s2sk=prevSeg.steps[2]?.skip?'(skip)':'';
-        const s5=prevSeg.steps[5]?.done?'✓':'✗';const s5sk=prevSeg.steps[5]?.skip?'(skip)':'';
-        lockDetail=`Seg ${prevLabel}: Step1=${s1}${s1sk} Step2=${s2}${s2sk} Step5=${s5}${s5sk} → segGatesDone=${segGatesDone(prevSeg)?'YES':'NO'}`;
-      }
-      kapGates.push({pass:false,reason:`status=Locked → filtered out (${lockDetail})`});
+      h+=`<tr style="${rowBg}">
+        <td style="padding:3px 8px;border:1px solid var(--border);font-weight:700;white-space:nowrap">${isCs&&!st.done&&!st.skip?'▶ ':''}${stepNames[n]}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border)">${statusText}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border);font-weight:600;color:${exp.skip?'#dc2626':'#16a34a'}">${expLocName}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border);font-weight:600;color:${locMatch?'inherit':'#dc2626'}">${actLocName}${!locMatch?' ⚠':''}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border);font-size:10px">${st.role||'—'}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border);font-size:10px">${userNames}</td>
+        <td style="padding:3px 8px;border:1px solid var(--border);font-size:10px">${byInfo}</td>
+      </tr>`;
     }
-    else if(seg.status==='Cancelled') kapGates.push({pass:false,reason:'status=Cancelled → filtered out'});
-    else kapGates.push({pass:true,reason:`status=${seg.status} → ✓ passes`});
-
-    // Gate 2: currentStep
-    const cs=seg.currentStep;
-    const isKapStep=(cs===1||cs===2);
-    const couldBeStep5=!seg.steps[5]?.skip&&!seg.steps[5]?.done&&stepsOneAndTwoDone(seg);
-    if(isKapStep){
-      kapGates.push({pass:true,reason:`currentStep=${cs} (${cs===1?'Exit':'Entry'}) → ✓ KAP Security step`});
-      // Gate 3: skip check
-      if(seg.steps[cs]?.skip){
-        kapGates.push({pass:false,reason:`steps[${cs}].skip=true → filtered out (${cat}: ${cs===1?'sLoc':'dLoc'} is External)`});
-      } else {
-        kapGates.push({pass:true,reason:`steps[${cs}].skip=false → ✓ not skipped`});
-      }
-    } else if(couldBeStep5){
-      kapGates.push({pass:true,reason:`currentStep=${cs} but Step5 available (steps 1&2 done, step5 not skip/done) → ✓ shows on Exit tab`});
-    } else {
-      const stepLabel=cs<=5?(stepNames[cs]||'Step'+cs):'All Done';
-      kapGates.push({pass:false,reason:`currentStep=${cs} (${stepLabel}) → NOT a KAP Security step (only 1, 2, or 5)`});
-    }
-
-    // Gate 4: canDoStep
-    const kapStepToCheck=isKapStep?cs:couldBeStep5?5:null;
-    if(kapStepToCheck!==null){
-      const step=seg.steps[kapStepToCheck];
-      if(!step){
-        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}] is missing/null`});
-      } else if(step.skip){
-        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].skip=true`});
-      } else if(step.done){
-        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].done=true (already completed)`});
-      } else {
-        const ownerLocId=step.ownerLoc;
-        const ownerLoc=byId(DB.locations,ownerLocId);
-        if(!ownerLocId){
-          kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].ownerLoc is null/empty → canDoStep fails`});
-        } else if(!ownerLoc){
-          kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].ownerLoc="${ownerLocId}" → location not found in DB`});
-        } else {
-          const kapSecUser=ownerLoc.kapSec;
-          const kapSecName=byId(DB.users,kapSecUser);
-          if(isSA){
-            kapGates.push({pass:true,reason:`You are Admin/Super Admin → ✓ canDoStep always true`});
-          } else if(kapSecUser===CU.id){
-            kapGates.push({pass:true,reason:`ownerLoc="${ownerLoc.name}" kapSec="${kapSecName?.fullName||kapSecName?.name||kapSecUser}" === YOU → ✓ canDoStep passes`});
-          } else {
-            kapGates.push({pass:false,reason:`ownerLoc="${ownerLoc.name}" kapSec="${kapSecName?.fullName||kapSecName?.name||kapSecUser||'NONE'}" ≠ you (${CU.fullName||CU.name}, id=${CU.id}) → canDoStep FAILS`});
-          }
-        }
-      }
-    }
-
-    const allPass=kapGates.every(g=>g.pass);
-    html+=`<div style="border:1px solid ${allPass?'#16a34a':'#dc2626'};border-radius:6px;padding:6px 8px;margin-bottom:8px;background:${allPass?'rgba(22,163,74,.05)':'rgba(220,38,38,.05)'}">
-      <div style="font-size:11px;font-weight:800;margin-bottom:4px;color:${allPass?'#16a34a':'#dc2626'}">${allPass?'✅ VISIBLE on KAP Security page':'❌ NOT visible on KAP Security page'}</div>
-      ${kapGates.map(g=>`<div style="font-size:10px;padding:2px 0;color:${g.pass?'#16a34a':'#dc2626'}">${g.pass?'✓':'✗'} ${g.reason}</div>`).join('')}
-    </div>`;
-
-    // Step details table
-    html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:4px 0;text-transform:uppercase;letter-spacing:.5px">Step Details</div>`;
-    html+=`<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:4px">
-      <tr style="background:var(--surface2)">
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Step</th>
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Skip</th>
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Done</th>
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">ownerLoc</th>
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Users</th>
-        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">By / Time</th>
-      </tr>
-      ${[1,2,3,4,5].map(n=>{
-        const st=seg.steps[n];
-        if(!st) return `<tr><td style="padding:3px 6px;border:1px solid var(--border);font-weight:700">${stepNames[n]||n}</td><td colspan="5" style="padding:3px 6px;border:1px solid var(--border);color:#dc2626;font-weight:700">MISSING</td></tr>`;
-        const isCs=seg.currentStep===n;
-        const loc=byId(DB.locations,st.ownerLoc);
-        const userNames=(st.users||[]).map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(', ')||'—';
-        const byU=byId(DB.users,st.by);
-        const rowBg=st.done?'background:rgba(22,163,74,.06)':st.skip?'background:rgba(220,38,38,.04)':isCs?'background:rgba(22,163,74,.12)':'';
-        return `<tr style="${rowBg}">
-          <td style="padding:3px 6px;border:1px solid var(--border);font-weight:700;white-space:nowrap">${isCs?'▶ ':''}${stepNames[n]||n}</td>
-          <td style="padding:3px 6px;border:1px solid var(--border);color:${st.skip?'#dc2626':'#16a34a'};font-weight:700">${st.skip?'YES':'no'}</td>
-          <td style="padding:3px 6px;border:1px solid var(--border);color:${st.done?'#16a34a':'var(--text3)'};font-weight:700">${st.done?'YES':'no'}</td>
-          <td style="padding:3px 6px;border:1px solid var(--border)">${loc?`<span style="font-weight:700">${loc.name}</span> <span style="color:var(--text3)">(${st.ownerLoc})</span>`:st.ownerLoc||'<span style="color:#dc2626">null</span>'}</td>
-          <td style="padding:3px 6px;border:1px solid var(--border);font-size:9px">${userNames}</td>
-          <td style="padding:3px 6px;border:1px solid var(--border);font-size:9px">${st.done?(byU?.fullName||byU?.name||st.by||'?')+' · '+fdt(st.time):'—'}</td>
-        </tr>`;
-      }).join('')}
-    </table>`;
-    html+=`</div>`;
+    h+=`</tbody></table></div>`;
   });
 
-  // Show expected allocation from table for comparison
-  html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px">📋 Expected Allocation (from table)</div>`;
-  segs.forEach(seg=>{
-    const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
-    const crit=getCriteria(sType,dType);
-    const cat=CRITERIA_LABEL[crit]||'?';
-    const sl=byId(DB.locations,seg.sLoc);
-    const dl=byId(DB.locations,seg.dLoc);
-    const bookingUser=byId(DB.users,trip.bookedBy)||CU;
-    const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
-    const alloc=_resolveStepAlloc(crit,sl,dl,seg.sLoc,seg.dLoc,bookingLoc);
-    html+=`<div style="font-size:10px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin-bottom:3px">
-      <strong>Seg ${seg.label} (${cat}):</strong>
-      S1=${alloc.s1.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s1.locId)?.name||alloc.s1.locId)+'</span>'}
-      · S2=${alloc.s2.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s2.locId)?.name||alloc.s2.locId)+'</span>'}
-      · S3=${alloc.s3.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s3.locId)?.name||alloc.s3.locId)+'</span>'}
-      · S4=<span style="color:#16a34a">${byId(DB.locations,alloc.s4.locId)?.name||alloc.s4.locId||'null'}</span>
-    </div>`;
-  });
-
-  el.innerHTML=html;
+  el.innerHTML=h;
 }
 
 function renderHelper(){
@@ -10200,38 +10232,13 @@ function renderHelper(){
   const th=(cols)=>`<thead><tr>${cols.map(c=>`<th style="padding:5px 10px;border:1px solid var(--border);font-size:11px;background:var(--surface2);font-weight:700;text-transform:uppercase">${c}</th>`).join('')}</tr></thead>`;
 
   el.innerHTML=`
-  <div style="background:rgba(220,38,38,.06);border:2px solid rgba(220,38,38,.2);border-radius:12px;padding:18px 20px;margin-bottom:18px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-      <div>
-        <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;color:#dc2626">🔧 Repair Trip Allocation</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px">Scans all segments for incorrect step ↔ actionLoc allocation and fixes them using the current allocation table</div>
-      </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        <button class="btn btn-secondary" onclick="_renderRepairScan()" style="font-size:12px;padding:8px 14px">🔍 Scan</button>
-        <button class="btn btn-danger" id="btnRepairTrips" onclick="repairEKTrips()" style="font-size:12px;padding:8px 14px" disabled>🔧 Repair Trips</button>
-      </div>
+  <div style="background:rgba(42,154,160,.06);border:2px solid rgba(42,154,160,.2);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin-bottom:8px">🔍 Trip Allocation Lookup</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="hlpTripInput" placeholder="Enter Trip ID e.g. 6P2-30" style="font-family:var(--mono);font-size:14px;font-weight:800;padding:8px 12px;border:2px solid var(--accent);border-radius:8px;width:200px;background:#fffbea" onkeydown="if(event.key==='Enter')_lookupTrip()">
+      <button class="btn btn-primary" onclick="_lookupTrip()" style="font-size:12px;padding:8px 16px">🔍 Lookup</button>
     </div>
-    <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#92400e">
-      <strong>What this repairs:</strong>
-      <div style="margin-top:4px">📍 <strong>Wrong Step Allocation</strong> — EK trips had Step4 (Approval) assigned to booking user's plant instead of destination KAP location (dLoc)</div>
-      <div style="margin-top:3px">🔒 <strong>Stuck-Locked Segments</strong> — Segments B/C stuck in Locked status even though predecessor completed Steps 1 & 2 (processes A→B→C order with multi-pass to handle cascading unlocks)</div>
-      <div style="margin-top:3px">🔢 <strong>Wrong Current Step</strong> — Segment's currentStep doesn't match actual step completion state</div>
-      <div style="margin-top:3px">⚠ <strong>Missing Steps</strong> — Step objects missing from segment data (creates them with correct allocation)</div>
-      <div style="margin-top:3px">👤 <strong>Wrong Role</strong> — Steps 1, 2, 5 must be 'KAP Security'; Step 3 must be 'Material Receiver'; Step 4 must be 'Trip Approver'</div>
-      <div style="margin-top:3px">👥 <strong>Wrong/Missing Users</strong> — Step's users array doesn't match the current KAP Security / Mat. Receiver / Approver assigned at the actionLoc</div>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(234,179,8,.2)"><strong>ℹ EE trips:</strong> Steps 1, 2, 3, 5 are all <em>Skip</em> for External→External per the allocation table. EE trips only have Step 4 (Trip Approval by Booking User). They will <strong>never</strong> appear on the KAP Security page — this is correct behaviour.</div>
-    </div>
-    <div id="repairScanBody" style="font-size:13px;color:var(--text2);padding:4px 0">Click <strong>Scan</strong> to check for affected segments</div>
-    <div id="repairResults"></div>
-    <div style="margin-top:14px;padding-top:14px;border-top:2px solid rgba(220,38,38,.15)">
-      <div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:8px">🔍 Trip Diagnostic</div>
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Enter a Trip ID to see exactly why it is or isn't visible on each page, with full step state and allocation details</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="diagTripInput" placeholder="e.g. 6P2-30" style="font-family:var(--mono);font-size:14px;font-weight:800;padding:8px 12px;border:2px solid var(--accent);border-radius:8px;width:180px;background:#fffbea" onkeydown="if(event.key==='Enter')_diagTrip()">
-        <button class="btn btn-primary" onclick="_diagTrip()" style="font-size:12px;padding:8px 14px">🔍 Diagnose</button>
-      </div>
-      <div id="diagResult" style="margin-top:10px"></div>
-    </div>
+    <div id="hlpTripResult" style="margin-top:10px"></div>
   </div>
 
   ${s('📋 Trip ID Generation','rgba(59,130,246,.06)',`

@@ -711,7 +711,7 @@ function showPortal(){
   var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=isAdmin?'':'none';
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=isAdmin?'':'none';
-  var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=isAdmin?'':'none';
+  var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isAdmin||(CU.hwmsRoles||[]).some(function(r){return r==='HWMS Admin';}))?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
@@ -986,12 +986,15 @@ function _renderDbStorageAnalysis(body){
     // Boot: 1× per session (assume 2 sessions/day = 0.08/hr)
     // Realtime: ~negligible for egress (server→client push)
     // Save: .upsert().select() returns row back ~1KB avg, assume 20 saves/hr
+    // VISIBILITY OPTIMIZATION: polling pauses when tab hidden. Active screen
+    // time is ~50% of business hours. Polls + syncs reduced proportionally.
+    // Saves and realtime only happen during active use, so they stay as-is.
     function calcEgress(users,hotSize,fullSize,isIncr){
-      var hotPerHr=isIncr?360*500:120*hotSize; // incremental: 360 polls × ~500 bytes (empty response); full: 120 polls × full size
-      var fullPerHr=60*fullSize; // full sync every 60s
-      var bootPerHr=0.08*fullSize; // ~2 boots per day
-      var savePerHr=20*2048; // ~20 saves/hr, ~2KB each return
-      var rtPerHr=50*2048; // ~50 realtime events/hr, ~2KB each
+      var hotPerHr=isIncr?360*500:120*hotSize;
+      var fullPerHr=60*fullSize;
+      var bootPerHr=0.08*fullSize;
+      var savePerHr=20*2048;
+      var rtPerHr=50*2048;
       var perUser=hotPerHr+fullPerHr+bootPerHr+savePerHr+rtPerHr;
       return perUser*users;
     }
@@ -1000,15 +1003,21 @@ function _renderDbStorageAnalysis(body){
     html+='<div style="background:#eef2ff;padding:12px 16px;font-size:14px;font-weight:900;color:#4338ca;border-bottom:1.5px solid #818cf8">📡 Estimated Supabase Egress</div>';
     html+='<div style="padding:16px">';
 
-    // User count input
-    html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">';
+    // User count + active screen ratio inputs
+    html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
     html+='<label style="font-size:12px;font-weight:700;color:#475569">Active users:</label>';
     html+='<input type="number" id="dbEgressUsers" value="5" min="1" max="50" style="width:60px;padding:6px 8px;font-size:14px;font-weight:800;font-family:monospace;border:1.5px solid #818cf8;border-radius:6px;text-align:center" onchange="_recalcEgress()" oninput="_recalcEgress()">';
     html+='<span style="font-size:11px;color:#64748b">concurrent users during business hours (8 hrs)</span>';
     html+='</div>';
+    html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">';
+    html+='<label style="font-size:12px;font-weight:700;color:#475569">Screen active:</label>';
+    html+='<input type="number" id="dbEgressScreenPct" value="50" min="10" max="100" step="5" style="width:60px;padding:6px 8px;font-size:14px;font-weight:800;font-family:monospace;border:1.5px solid #818cf8;border-radius:6px;text-align:center" onchange="_recalcEgress()" oninput="_recalcEgress()">';
+    html+='<span style="font-size:11px;color:#64748b">% of time tab is visible (polling pauses when hidden)</span>';
+    html+='</div>';
 
     // Sync mode badges
     html+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
+    html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;background:#dcfce7;color:#16a34a;border:1px solid #86efac">⏸ Visibility Polling: ✅ Active</div>';
     html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isVmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">VMS Hot: '+(isVmsIncr?'✅ Incremental':'⚠️ Full')+'</div>';
     html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isHwmsIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">HWMS Hot: '+(isHwmsIncr?'✅ Incremental':'⚠️ Full')+'</div>';
     html+='<div style="font-size:11px;padding:4px 10px;border-radius:6px;font-weight:700;'+(isFullIncr?'background:#dcfce7;color:#16a34a;border:1px solid #86efac':'background:#fef9c3;color:#a16207;border:1px solid #fde68a')+'">Full Sync: '+(isFullIncr?'✅ Incremental':'⚠️ Standard')+'</div>';
@@ -1034,30 +1043,39 @@ function _renderDbStorageAnalysis(body){
 }
 function _recalcEgress(){
   var users=parseInt((document.getElementById('dbEgressUsers')||{}).value)||5;
+  var screenPct=parseInt((document.getElementById('dbEgressScreenPct')||{}).value)||50;
+  var screenRatio=Math.max(0.1,Math.min(1,screenPct/100));
   var d=window._egData;if(!d) return;
   var fmt2=function(b){if(b>=1073741824)return(b/1073741824).toFixed(2)+' GB';if(b>=1048576)return(b/1048576).toFixed(1)+' MB';if(b>=1024)return(b/1024).toFixed(0)+' KB';return b+' B';};
-  var hotPollVMS=d.vmsIncr?360*500:120*d.hotVMS;
-  var hotPollHWMS=d.hwmsIncr?360*500:120*d.hotHWMS;
-  // Full sync: 60 calls/hr. If incremental: 4 out of 5 are ~500 bytes, 1 out of 5 is true full
-  var fullSyncIncr=(48*500)+(12*d.allSize); // 48 incremental (near-zero) + 12 true full per hr (every 5 min)
-  var fullSyncStd=60*d.allSize; // standard: 60 SELECT * per hr
+  // Polling-based egress scales with screen active ratio (paused when tab hidden)
+  var hotPollVMS=(d.vmsIncr?360*500:120*d.hotVMS)*screenRatio;
+  var hotPollHWMS=(d.hwmsIncr?360*500:120*d.hotHWMS)*screenRatio;
+  var fullSyncIncr=((48*500)+(12*d.allSize))*screenRatio;
+  var fullSyncStd=(60*d.allSize)*screenRatio;
   var fullSync=d.fullIncr?fullSyncIncr:fullSyncStd;
+  // Boot, saves, realtime don't scale with visibility (they happen on active use)
   var bootSync=0.08*d.allSize;
   var saves=20*2048;
   var rt=50*2048;
-  var perUserHr=hotPollVMS+hotPollHWMS+fullSync+bootSync+saves+rt;
+  // + 1 catch-up sync per resume (~2 resumes/hr on avg when screenRatio<1)
+  var resumeSyncs=screenRatio<1?2*d.allSize:0;
+  var perUserHr=hotPollVMS+hotPollHWMS+fullSync+bootSync+saves+rt+resumeSyncs;
   var totalHr=perUserHr*users;
   var totalDay=totalHr*8;
   var totalMonth=totalDay*26;
   // What-if: everything incremental
-  var perUserHrI=(360*500)+(360*500)+fullSyncIncr+bootSync+saves+rt;
+  var hotPollVMSI=(360*500)*screenRatio;
+  var hotPollHWMSI=(360*500)*screenRatio;
+  var fullSyncI=fullSyncIncr;
+  var perUserHrI=hotPollVMSI+hotPollHWMSI+fullSyncI+bootSync+saves+rt+resumeSyncs;
   var totalHrI=perUserHrI*users;var totalDayI=totalHrI*8;var totalMonthI=totalDayI*26;
   var el=document.getElementById('dbEgressResults');if(!el)return;
   var h='<table style="width:100%;font-size:12px;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:6px">';
   h+='<thead><tr style="background:#f8fafc"><th style="padding:6px 10px;text-align:left;font-size:10px">Source</th><th style="padding:6px 10px;text-align:right;font-size:10px">Per User/Hr</th><th style="padding:6px 10px;text-align:right;font-size:10px">'+users+' Users/Hr</th><th style="padding:6px 10px;text-align:right;font-size:10px">Daily (8hr)</th><th style="padding:6px 10px;text-align:right;font-size:10px">Monthly (26d)</th></tr></thead><tbody>';
   var rows=[
-    ['Hot Poll — VMS (10s)',hotPollVMS],['Hot Poll — HWMS (10s)',hotPollHWMS],
-    ['Full Sync — '+(d.fullIncr?'Incremental (60s) + True Full (5min)':'Standard SELECT * (60s)'),fullSync],
+    ['Hot Poll — VMS (10s) ×'+screenPct+'%',hotPollVMS],['Hot Poll — HWMS (10s) ×'+screenPct+'%',hotPollHWMS],
+    ['Full Sync — '+(d.fullIncr?'Incremental':'Standard')+' ×'+screenPct+'%',fullSync],
+    ['Resume catch-up syncs',resumeSyncs],
     ['Boot (session start)',bootSync],
     ['Save responses',saves],
     ['Realtime events',rt]
@@ -1094,6 +1112,7 @@ function _recalcEgress(){
   var planColor=totalMonth>5*1073741824?'#dc2626':'#16a34a';
   h+='<div style="margin-top:10px;font-size:11px;color:#64748b;line-height:1.6">';
   h+='<strong>Supabase Free plan:</strong> 5 GB egress/month · <strong>Pro plan:</strong> 250 GB egress/month · Current estimated: <strong style="color:'+planColor+'">'+fmt2(totalMonth)+'/month</strong>';
+  h+='<br><strong>⏸ Visibility optimization:</strong> Polling pauses when tab is hidden/minimized. At '+screenPct+'% screen time, polling egress is reduced by '+(100-screenPct)+'%.';
   h+='</div>';
   el.innerHTML=h;
 }

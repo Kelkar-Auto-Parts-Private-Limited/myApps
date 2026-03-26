@@ -973,7 +973,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
     </div>
     <div class="page" id="pageHwmsSysGuide">
       <div class="card" style="padding:24px;max-width:1100px">
-        <div style="font-size:20px;font-weight:900;color:var(--accent);margin-bottom:20px">📖 HWMS System Guide <span style="font-size:12px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:8px">Super Admin Only</span></div>
+        <div style="font-size:20px;font-weight:900;color:var(--accent);margin-bottom:20px">📖 HWMS System Guide <span style="font-size:12px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:8px">Admin</span></div>
 
         <!-- SECTION 1: ROLES -->
         <div style="margin-bottom:24px">
@@ -1552,8 +1552,8 @@ function _hwmsApplyPermissions(){
   show('navCustomers',showMasters);show('navParts',showMasters);
   show('navCarriers',showMasters);show('navPorts',showMasters);
   show('navOtherMasters',showMasters);show('navCompany',showMasters);
-  // System Guide — Super Admin only
-  show('navSysGuide',role==='SA');
+  // System Guide — Super Admin and HWMS Admin
+  show('navSysGuide',role==='SA'||role==='HA');
   // MI page buttons
   show('btnHwmsInvExport',_hwmsCan('mi.export'));
   show('btnHwmsInvImport',_hwmsCan('mi.import'));
@@ -2322,38 +2322,85 @@ function _hwmsDoFullSync(){
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
   if(!_origBootDB) return;
-  if(!_SYNC_SELECT||!_sb||!_sbReady){ return _origBootDB(); }
+
+  // ── Step 0: localStorage handoff from Portal (instant boot) ────────────
+  var _cachePartial=false;
   try{
-    showSpinner('Loading…');
-    var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Connecting to database…';
-    var activeTables=_getActiveTables();
-    var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
-    var cutoff=_dateCutoff();
-    var fetchAll=Promise.all(activeTables.map(async function(tbl){
-      var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
-      try{
-        var sel=_syncSelect(sbTbl);
-        var q=_sb.from(sbTbl).select(sel);
-        q=_applyDateFilter(q,sbTbl,cutoff);
-        var res=await q;
-        if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
-        return{tbl:tbl,rows:res.data||[]};
-      }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
-    }));
-    var results=await Promise.race([fetchAll,timeout]);
-    results.forEach(function(r){
-      DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
-      if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
-    });
-    console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d filter) — users='+((DB.users||[]).length)+' invoices='+((DB.hwmsInvoices||[]).length)+' subInvoices='+((DB.hwmsSubInvoices||[]).length));
-    _bgSyncDone=true;
-    _sbSetStatus('ok');
+    var _cached=localStorage.getItem('kap_db_cache');
+    if(_cached){
+      var _cObj=JSON.parse(_cached);
+      var _age=Date.now()-(_cObj.ts||0);
+      if(_age<60000){
+        _getActiveTables().forEach(function(t){if(Array.isArray(_cObj[t]))DB[t]=_cObj[t];});
+        localStorage.removeItem('kap_db_cache');
+        var _hasData=(DB.hwmsInvoices||[]).length>0||(DB.hwmsParts||[]).length>0;
+        if(_hasData){
+          console.log('bootDB(HWMS): instant from cache (~'+_age+'ms) — users='+DB.users.length+' invoices='+(DB.hwmsInvoices||[]).length);
+          _bgSyncDone=true;
+          if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+          _onPostBoot();
+          if(!_sbReady) _initSupabase();
+          if(_sbReady&&_sb){
+            _sbSetStatus('ok');_sbStartRealtime();
+            setTimeout(function(){_bgSyncFromSupabase();},3000);
+          } else { _startBgReconnect(true); }
+          return;
+        } else {
+          console.log('bootDB(HWMS): partial cache (users='+DB.users.length+' but invoices=0) — will fetch');
+          _cachePartial=true;
+        }
+      } else { localStorage.removeItem('kap_db_cache'); }
+    }
+  }catch(e){console.warn('bootDB(HWMS): cache read failed:',e.message);}
+
+  // ── Step 1: Wait for Supabase client ───────────────────────────────────
+  showSpinner(_cachePartial?'Loading data…':'Loading…');
+  try{
+    if(!_sbReady) _initSupabase();
+    if(!_sbReady){
+      for(var _w=0;_w<12&&!_sbReady;_w++){
+        await new Promise(function(r){setTimeout(r,250);});
+        _initSupabase();
+      }
+    }
+
+    // ── Step 2: Fetch with photo-excluded selects ────────────────────────
+    if(_sbReady&&_sb&&_SYNC_SELECT){
+      var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Loading data…';
+      var activeTables=_getActiveTables();
+      var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
+      var cutoff=_dateCutoff();
+      var fetchAll=Promise.all(activeTables.map(async function(tbl){
+        var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
+        try{
+          var sel=_syncSelect(sbTbl);
+          var q=_sb.from(sbTbl).select(sel);
+          q=_applyDateFilter(q,sbTbl,cutoff);
+          var res=await q;
+          if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
+          return{tbl:tbl,rows:res.data||[]};
+        }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
+      }));
+      var results=await Promise.race([fetchAll,timeout]);
+      results.forEach(function(r){
+        DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+        if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
+      });
+      console.log('bootDB(HWMS): ready (photo-excluded, '+_DATE_FILTER_DAYS+'d) — users='+((DB.users||[]).length)+' invoices='+((DB.hwmsInvoices||[]).length));
+      _bgSyncDone=true;
+      _sbSetStatus('ok');
+      if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+      _onPostBoot();
+      _sbStartRealtime();
+      return;
+    }
+
+    // ── Step 3: Supabase unavailable ─────────────────────────────────────
+    console.warn('bootDB(HWMS): Supabase unavailable — starting'+(_cachePartial?' with partial cache':' empty'));
+    _sbSetStatus('offline','Offline');
     if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
     _onPostBoot();
-    _sbStartRealtime();
-  }catch(e){
-    console.warn('Photo-excluded bootDB failed:',e.message,'→ falling back to original');
-    return _origBootDB();
+    _startBgReconnect();
   }finally{hideSpinner();}
 };
 

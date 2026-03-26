@@ -921,6 +921,30 @@ function _startBgPoll(){
   }, 10000);
 }
 
+// ── Visibility-aware polling ─────────────────────────────────────────────
+// Pauses all background Supabase queries when the browser tab is hidden
+// (minimized, screen off, switched tab/app). Resumes + immediate sync when
+// the user returns. Saves network traffic and battery on mobile devices.
+(function(){
+  var _visPaused=false;
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      // Tab hidden → stop all polling
+      if(_bgPollTimer){clearInterval(_bgPollTimer);_bgPollTimer=null;}
+      if(_sbPingTimer){clearInterval(_sbPingTimer);_sbPingTimer=null;}
+      _visPaused=true;
+      console.log('⏸ Polling paused (tab hidden)');
+    } else if(_visPaused){
+      // Tab visible again → restart polling + immediate catch-up sync
+      _visPaused=false;
+      console.log('▶ Polling resumed (tab visible)');
+      _startBgPoll();
+      _sbStartPing();
+      if(_sbReady&&_sb&&_sbStatus==='ok') _bgSyncFromSupabase();
+    }
+  });
+})();
+
 function _startBgReconnect(silentMode){
   // silentMode=true: called after a cache hit — we have data, don't flash status widget
   var _rcDone=false;
