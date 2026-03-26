@@ -63,7 +63,10 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
 .action-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 6px;border-radius:4px}.action-btn:hover{background:var(--surface2)}
 .btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)!important}.btn-danger{background:var(--red);color:#fff}
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}.badge-blue{background:rgba(42,154,160,.12);color:var(--accent)}.badge-green{background:#16a34a;color:#fff}.badge-yellow{background:#fef9c3;color:#92400e}.badge-red{background:#dc2626;color:#fff}.badge-reached{background:var(--green-bg);color:var(--green)}.badge-wh{background:#dcfce7;color:#14532d;font-weight:900}.badge-onwater{background:#dbeafe;color:#1d4ed8}.badge-sold{background:#dbeafe;color:#1d4ed8;font-weight:900}.badge-rfd{background:#dcfce7;color:#16a34a;font-weight:900}.badge-whok{background:#dcfce7;color:#15803d;font-weight:800}.badge-whhold{background:#fef2f2;color:#dc2626;font-weight:800}.badge-whwp{background:#fef3c7;color:#a16207;font-weight:800}.badge-partsold{background:#e0f2fe;color:#0369a1;font-weight:800}.badge-grnpend{background:#fff7ed;color:#c2410c;font-weight:800}.badge-pmtpend{background:#faf5ff;color:#7c3aed;font-weight:800}.badge-fullpaid{background:#d1fae5;color:#065f46;font-weight:900}.badge-partpaid{background:#fef3c7;color:#92400e;font-weight:900}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px}.badge-blue{background:rgba(42,154,160,.12);color:var(--accent)}.badge-green{background:#16a34a;color:#fff}.badge-yellow{background:#fef9c3;color:#92400e}.badge-red{background:#dc2626;color:#fff}.badge-reached{background:var(--green-bg);color:var(--green)}.badge-wh{background:#dcfce7;color:#14532d;font-weight:900}.badge-onwater{background:#dbeafe;color:#1d4ed8}.badge-sold{background:#dbeafe;color:#1d4ed8;font-weight:900}.badge-rfd{background:#dcfce7;color:#16a34a;font-weight:900}.badge-whok{background:#dcfce7;color:#15803d;font-weight:800}.badge-whhold{background:#fef2f2;color:#dc2626;font-weight:800}.badge-whwp{background:#fef3c7;color:#a16207;font-weight:800}.badge-partsold{background:#e0f2fe;color:#0369a1;font-weight:800}.badge-sidraft{background:#fff7ed;color:#c2410c;font-weight:900}.badge-grnpend{background:#fff7ed;color:#c2410c;font-weight:800}.badge-pmtpend{background:#faf5ff;color:#7c3aed;font-weight:800}.badge-fullpaid{background:#d1fae5;color:#065f46;font-weight:900}.badge-partpaid{background:#fef3c7;color:#92400e;font-weight:900}
+tr.hwms-air-row>td{background:rgba(139,92,246,.08)!important;border-left:none}
+tr.hwms-air-row>td:first-child{border-left:3px solid #8b5cf6!important}
+tr.hwms-air-row:hover>td{background:rgba(139,92,246,.14)!important}
 .form-group{margin-bottom:12px}.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:var(--sans)}.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
 .form-row{display:flex;gap:12px}.form-row>.form-group{flex:1}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:5000;padding:16px}.modal-overlay.open{display:flex}
@@ -188,7 +191,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 @media(max-width:600px){.form-row{flex-direction:column;gap:0}.topbar .title{font-size:13px}}
 @media(max-width:768px){#hwmsContFormView>div[style*="grid-template-columns:1fr 1fr"],#hwmsContPostShipSection>div[style*="grid-template-columns:1fr 1fr"],div[style*="grid-template-columns:minmax(280px"]{grid-template-columns:1fr!important}}
 /* Column resize handles */
-.hwms-resizable{table-layout:fixed}.hwms-resizable th{position:relative;overflow:hidden;text-overflow:ellipsis}
+.hwms-resizable th{position:relative;overflow:hidden;text-overflow:ellipsis}
 .hwms-col-resize{position:absolute;right:-2px;top:0;bottom:0;width:5px;cursor:col-resize;z-index:2;user-select:none;-webkit-user-select:none}
 .hwms-col-resize:hover,.hwms-col-resize.active{background:rgba(42,154,160,.4)}
 .hwms-resizing{cursor:col-resize!important;-webkit-user-select:none;user-select:none}
@@ -313,11 +316,11 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <tr style="background:var(--surface2)">
             <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
             <th style="padding:4px 6px;vertical-align:top;width:32px;text-align:center"><div style="font-size:10px">🇺🇸</div></th>
-            <th style="padding:4px 6px;vertical-align:top;max-width:110px"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="🔍 Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;min-width:165px"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="🔍 Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
             <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('date')" title="Sort"><span id="hwmsInvSortI_date">⇅</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="_hwmsInvDateRange('CFY')" class="hwms-dr-btn" title="Current Financial Year">CFY</button><button onclick="_hwmsInvDateRange('LFY')" class="hwms-dr-btn" title="Last Financial Year">LFY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('containerNumber')" title="Sort"><span id="hwmsInvSortI_containerNumber">⇅</span></button></div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('pickupDate')" title="Sort"><span id="hwmsInvSortI_pickupDate">⇅</span></button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Status <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('status')" title="Sort"><span id="hwmsInvSortI_status">⇅</span></button></div><div style="position:relative"><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterStatus')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">Warehouse</option><option value="Partially Sold">Part. Sold</option><option value="Sold">Sold</option><option value="Partially Paid">Part. Paid</option><option value="Fully Paid">Fully Paid</option></select><button type="button" class="hwms-filter-x" id="hwmsInvFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterStatus').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Status <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('status')" title="Sort"><span id="hwmsInvSortI_status">⇅</span></button></div><div style="position:relative"><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterStatus')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="In Transit">In Transit</option><option value="Warehouse">Warehouse</option><option value="SI (Draft)">SI (Draft)</option><option value="Partially Sold">Part. Sold</option><option value="Sold">Sold</option><option value="Partially Paid">Part. Paid</option><option value="Fully Paid">Fully Paid</option></select><button type="button" class="hwms-filter-x" id="hwmsInvFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterStatus').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($) <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('amount')" title="Sort"><span id="hwmsInvSortI_amount">⇅</span></button></div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
@@ -439,7 +442,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 
     <!-- HWMS: INVOICE VIEW FULL PAGE -->
     <div class="page" id="pageHwmsInvView">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:48px;z-index:10;background:var(--bg);padding:10px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:12px">
           <button class="hwms-back-btn" onclick="_hwmsInvBack()">← Back</button>
           <button id="hwmsInvPrevBtn" onclick="_hwmsInvNav(-1)" title="Previous Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
@@ -491,7 +494,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <input type="hidden" id="eHwmsContId"><input type="hidden" id="hwmsContCarrierName2"><input type="hidden" id="hwmsContPickup2">
 
         <!-- SECTION 1: Consignment Details (left 2x2) + Linked Invoices (right) -->
-        <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:14px 16px;margin-bottom:14px">
+        <div id="hwmsContSection1" style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:14px 16px;margin-bottom:14px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
             <div id="hwmsContRow1Details" style="font-size:13px;font-weight:900;color:#2563eb;text-transform:uppercase;letter-spacing:1px">📦 Consignment Details</div>
             <button class="btn btn-primary hwms-cont-save" onclick="saveHwmsCont()" style="font-size:11px;padding:6px 16px;font-weight:800">💾 Save</button>
@@ -750,7 +753,10 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
       
       <div class="card">
         <!-- Summary stats with search in same row -->
-        <div id="hwmsInventoryStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <div id="hwmsInventoryStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
+          <button class="btn btn-secondary" onclick="_hwmsInventoryExport()" style="font-size:12px;padding:7px 12px">📤 Export</button>
+        </div>
         <!-- Table -->
         <div class="table-wrap">
           <table id="tHwmsInventory">
@@ -1658,6 +1664,54 @@ function _hwmsUpdCounts(){
 }
 
 // ═══ HWMS IMPORT / EXPORT SCHEMA ═══════════════════════════════════════════
+// ── Date helpers ─────────────────────────────────────────────────────────
+// DB storage + Excel export: always YYYY-MM-DD (e.g. "2025-03-26")
+// Display in app: always dd-MMM-yy via _fdate() from Common.js
+// Convert any date input (Excel serial, dd-MMM-yy, DD/MM/YYYY, etc.) → YYYY-MM-DD
+var _MON_MAP={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function _xlSerialToISO(n){
+  if(n>=1&&n<100000){
+    var d=new Date(Math.round((n-25569)*86400000));
+    if(!isNaN(d)){var iso=d.toISOString().slice(0,10);var yr=parseInt(iso);if(yr>=1900&&yr<=2100) return iso;}
+  }
+  return null;
+}
+function _fixExcelDate(v){
+  if(v===null||v===undefined||v==='') return '';
+  // Handle raw JS numbers directly
+  if(typeof v==='number'){if(!v) return '';var r=_xlSerialToISO(v);return r||String(v);}
+  var s=String(v).trim();
+  if(!s) return '';
+  // 1. Already YYYY-MM-DD — pass through
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // 2. Any pure number (integer or decimal) — try as Excel serial
+  var num=parseFloat(s);
+  if(!isNaN(num)&&/^-?\d+\.?\d*$/.test(s)){var r2=_xlSerialToISO(num);if(r2) return r2;}
+  // 3. dd-MMM-yy or dd-MMM-yyyy (e.g. 26-Mar-25, 26-Mar-2025)
+  var m1=s.match(/^(\d{1,2})[- ](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[- ](\d{2,4})$/i);
+  if(m1){
+    var dd=parseInt(m1[1]),mm=_MON_MAP[m1[2].toLowerCase()],yy=parseInt(m1[3]);
+    if(yy<100) yy+=2000;
+    return yy+'-'+String(mm+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+  }
+  // 4. DD/MM/YYYY or MM/DD/YYYY
+  var m2=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  if(m2){
+    var p1=parseInt(m2[1]),p2=parseInt(m2[2]),p3=parseInt(m2[3]);
+    if(p1>12){var dt2=new Date(p3,p2-1,p1);if(!isNaN(dt2)) return dt2.toISOString().slice(0,10);}
+    else{var dt3=new Date(p3,p1-1,p2);if(!isNaN(dt3)) return dt3.toISOString().slice(0,10);}
+  }
+  // 5. DD/MM/YY
+  var m3=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2})$/);
+  if(m3){var dt4=new Date(2000+parseInt(m3[3]),parseInt(m3[2])-1,parseInt(m3[1]));if(!isNaN(dt4)) return dt4.toISOString().slice(0,10);}
+  // 6. Native fallback
+  var dt5=new Date(s);
+  if(!isNaN(dt5)&&s.length>4) return dt5.toISOString().slice(0,10);
+  return s;
+}
+// Export uses same YYYY-MM-DD format as DB
+function _exportDate(v){ return _fixExcelDate(v); }
+
 const MASTER_SCHEMA={
   hwmsContainers:{
     label:'Containers',
@@ -1666,7 +1720,7 @@ const MASTER_SCHEMA={
       var st=_hwmsContStatus(c).label;
       var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
       var invNums=invs.map(function(inv){return inv.invoiceNumber;}).join('; ');
-      return {'Container No.':c.containerNumber||'','Type':_hwmsContGetType(c)==='air'?'Air':'Sea','Serial No.':c.containerSerialNumber||'','Expected Pickup':c.expectedPickupDate||'','Actual Dispatch':c.pickupDate||'','Carrier':c.carrierName||'','Status':st,'Expected Reach':c.expectedReachDate||'','Reached Date':c.reachedDate||'','Carrier Inv No.':c.carrierInvNumber||'','Carrier Inv Date':c.carrierInvDate||'','Carrier Inv Amount':c.carrierInvAmount||0,'ES Number':c.entrySummaryNumber||'','ES Date':c.esDate||'','Tariff Paid':c.tariffPaid||0,'Linked Invoices':invNums};
+      return {'Container No.':c.containerNumber||'','Type':_hwmsContGetType(c)==='air'?'Air':'Sea','Serial No.':c.containerSerialNumber||'','Expected Pickup':_exportDate(c.expectedPickupDate),'Actual Dispatch':_exportDate(c.pickupDate),'Carrier':c.carrierName||'','Status':st,'Expected Reach':_exportDate(c.expectedReachDate),'Reached Date':_exportDate(c.reachedDate),'Carrier Inv No.':c.carrierInvNumber||'','Carrier Inv Date':_exportDate(c.carrierInvDate),'Carrier Inv Amount':c.carrierInvAmount||0,'ES Number':c.entrySummaryNumber||'','ES Date':_exportDate(c.esDate),'Tariff Paid':c.tariffPaid||0,'Linked Invoices':invNums};
     },
     fromRow:function(r){
       var cn=(r['Container No.']||'').toString().trim();
@@ -1675,14 +1729,30 @@ const MASTER_SCHEMA={
       if(!cn.startsWith('CN-')&&!cn.startsWith('AC-')) cn=(isAir?'AC-':'CN-')+cn;
       var carrierId='';var carrierName=(r['Carrier']||'').toString().trim();
       if(carrierName){var cr=(DB.hwmsCarriers||[]).find(function(c){return(c.carrierName||'').toLowerCase()===carrierName.toLowerCase();});if(cr)carrierId=cr.id;}
-      return {id:'hc'+uid(),status:'',confirmed:false,consignmentType:isAir?'air':'sea',containerNumber:cn,containerSerialNumber:(r['Serial No.']||'').toString().trim(),expectedPickupDate:(r['Expected Pickup']||'').toString().trim(),pickupDate:'',carrierId:carrierId,carrierName:carrierName,expectedReachDate:'',reachedDate:'',carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,entrySummaryNumber:'',esDate:'',esPhoto:'',tariffPaid:0,tariffPercent:0};
+      return {id:'hc'+uid(),status:'',confirmed:false,consignmentType:isAir?'air':'sea',containerNumber:cn,containerSerialNumber:(r['Serial No.']||'').toString().trim(),expectedPickupDate:_fixExcelDate(r['Expected Pickup']),pickupDate:'',carrierId:carrierId,carrierName:carrierName,expectedReachDate:'',reachedDate:'',carrierInvNumber:'',carrierInvDate:'',carrierInvAmount:0,entrySummaryNumber:'',esDate:'',esPhoto:'',tariffPaid:0,tariffPercent:0};
     },
     matchKey:function(r){return(r['Container No.']||'').toString().trim().toUpperCase();},
     dbMatchKey:function(c){return(c.containerNumber||'').toUpperCase();},
     merge:function(e,r){
       if(r['Serial No.']!==undefined)e.containerSerialNumber=(r['Serial No.']||'').toString().trim();
-      if(r['Expected Pickup']!==undefined)e.expectedPickupDate=(r['Expected Pickup']||'').toString().trim();
+      if(r['Expected Pickup']!==undefined)e.expectedPickupDate=_fixExcelDate(r['Expected Pickup']);
       if(r['Carrier']!==undefined){var cn2=(r['Carrier']||'').toString().trim();var cr2=(DB.hwmsCarriers||[]).find(function(c){return(c.carrierName||'').toLowerCase()===cn2.toLowerCase();});if(cr2){e.carrierId=cr2.id;e.carrierName=cr2.carrierName;}}
+    },
+    getFiltered:function(){
+      var search=(document.getElementById('hwmsContSearch')?.value||'').toLowerCase();
+      var fStatus=document.getElementById('hwmsContFilterStatus')?.value||'';
+      var fCarrier=document.getElementById('hwmsContFilterCarrier')?.value||'';
+      var fFrom=document.getElementById('hwmsContFilterFrom')?.value||'';
+      var fTo=document.getElementById('hwmsContFilterTo')?.value||'';
+      return (DB.hwmsContainers||[]).filter(function(c){
+        if(search&&!(c.containerNumber+' '+c.carrierName).toLowerCase().includes(search)) return false;
+        if(fStatus){var st=c.status||'';if(fStatus==='Draft'&&st)return false;if(fStatus==='Onwater'&&st!=='Onwater')return false;if(fStatus==='Reached'&&st!=='Reached')return false;}
+        if(fCarrier&&(c.carrierName||'')!==fCarrier) return false;
+        var cDate=c.pickupDate||c.expectedPickupDate||'';
+        if(fFrom&&cDate<fFrom) return false;
+        if(fTo&&cDate>fTo) return false;
+        return true;
+      });
     }
   },
   hwmsInvoices:{
@@ -1705,7 +1775,7 @@ const MASTER_SCHEMA={
           siSoldMap[pk].amt+=(l.quantity||0)*(l.rate||0);
         });
       });
-      var base={'MI Number':inv.invoiceNumber||'','Date':inv.date||'','Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':_hwmsInvStatus(inv).label,'Container':inv.containerNumber||'','Delivery Terms':inv.delivery||'','Mode of Transport':inv.modeOfTransport||'','Payment Terms':inv.paymentTerms||'','Port of Loading':inv.portOfLoading||plPort?.portName||plPort?.name||'','Port of Discharge':inv.portOfDischarge||pdPort?.portName||pdPort?.name||'','Note 1':notes.indexOf(1)>=0?'Yes':'No','Note 2':notes.indexOf(2)>=0?'Yes':'No','Note 3':notes.indexOf(3)>=0?'Yes':'No'};
+      var base={'MI Number':inv.invoiceNumber||'','Date':_exportDate(inv.date),'Buyer':inv.buyerName||'','Consignee':inv.consigneeName||'','Status':_hwmsInvStatus(inv).label,'Container':inv.containerNumber||'','Delivery Terms':inv.delivery||'','Mode of Transport':inv.modeOfTransport||'','Payment Terms':inv.paymentTerms||'','Port of Loading':inv.portOfLoading||plPort?.portName||plPort?.name||'','Port of Discharge':inv.portOfDischarge||pdPort?.portName||pdPort?.name||'','Note 1':notes.indexOf(1)>=0?'Yes':'No','Note 2':notes.indexOf(2)>=0?'Yes':'No','Note 3':notes.indexOf(3)>=0?'Yes':'No'};
       if(!lis.length){
         return [Object.assign({},base,{'Pallet':'','Part No.':'','PO No.':'','Qty':'','UOM':'','Rate':'','Line Amount':'','Line Balance':'','Net Wt':'','Pkg Wt':'','Gross Wt':'','Package':'','HSN':'','L':'','W':'','H':''})];
       }
@@ -1729,12 +1799,27 @@ const MASTER_SCHEMA={
       var partId='';
       if(pn){var pnClean=pn.replace(/\s+R\d+$/,'').trim();var part=(DB.hwmsParts||[]).find(function(p){return p.partNumber===pnClean;});if(part)partId=part.id;}
       var li={partId:partId,palletNumber:(r['Pallet']||'').toString().trim(),poNumber:(r['PO No.']||'').toString().trim(),quantity:parseInt(r['Qty'])||0,uom:(r['UOM']||'').toString().trim(),rate:parseFloat(r['Rate'])||0,netWeight:parseFloat(r['Net Wt'])||0,pkgWeight:parseFloat(r['Pkg Wt'])||0,grossWeight:parseFloat(r['Gross Wt'])||0,packageType:(r['Package']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),pkgL:(r['L']||'').toString().trim(),pkgW:(r['W']||'').toString().trim(),pkgH:(r['H']||'').toString().trim()};
-      return {_invNum:invNum,_date:(r['Date']||'').toString().trim(),_buyerName:buyerName,_buyerId:buyerId,_consigneeName:(r['Consignee']||'').toString().trim(),_delivery:(r['Delivery Terms']||'').toString().trim(),_modeOfTransport:(r['Mode of Transport']||'').toString().trim(),_paymentTerms:(r['Payment Terms']||'').toString().trim(),_portOfLoading:(r['Port of Loading']||'').toString().trim(),_portOfDischarge:(r['Port of Discharge']||'').toString().trim(),_note1:(r['Note 1']||'').toString().trim(),_note2:(r['Note 2']||'').toString().trim(),_note3:(r['Note 3']||'').toString().trim(),_lineItem:li};
+      return {_invNum:invNum,_date:_fixExcelDate(r['Date']),_buyerName:buyerName,_buyerId:buyerId,_consigneeName:(r['Consignee']||'').toString().trim(),_delivery:(r['Delivery Terms']||'').toString().trim(),_modeOfTransport:(r['Mode of Transport']||'').toString().trim(),_paymentTerms:(r['Payment Terms']||'').toString().trim(),_portOfLoading:(r['Port of Loading']||'').toString().trim(),_portOfDischarge:(r['Port of Discharge']||'').toString().trim(),_note1:(r['Note 1']||'').toString().trim(),_note2:(r['Note 2']||'').toString().trim(),_note3:(r['Note 3']||'').toString().trim(),_lineItem:li};
     },
     // Custom import logic for flat invoice rows
     _customImport:true,
     matchKey:function(r){return(r['MI Number']||'').toString().trim();},
     dbMatchKey:function(inv){return inv.invoiceNumber||'';},
+    getFiltered:function(){
+      var fStatus=document.getElementById('hwmsInvFilterStatus')?.value||'';
+      var fInvNo=(document.getElementById('hwmsInvFilterInvNo')?.value||'').toLowerCase();
+      var fPart=document.getElementById('hwmsInvFilterPart')?.value||'';
+      var fFrom=document.getElementById('hwmsInvFilterFrom')?.value||'';
+      var fTo=document.getElementById('hwmsInvFilterTo')?.value||'';
+      return (DB.hwmsInvoices||[]).filter(function(inv){
+        if(fStatus){var st=_hwmsInvStatus(inv).label;if(st!==fStatus) return false;}
+        if(fInvNo&&!(inv.invoiceNumber||'').toLowerCase().includes(fInvNo)) return false;
+        if(fPart){var hasP=(inv.lineItems||[]).some(function(li){return li.partId===fPart;});if(!hasP) return false;}
+        if(fFrom&&(inv.date||'')<fFrom) return false;
+        if(fTo&&(inv.date||'')>fTo) return false;
+        return true;
+      });
+    }
   },
   hwmsParts:{
     label:'Parts',
@@ -1756,6 +1841,13 @@ const MASTER_SCHEMA={
       if(r['Pkg Weight (Kg)']!==undefined)e.packingWeight=parseFloat(r['Pkg Weight (Kg)'])||e.packingWeight;
       if(r['Dimensions (LxWxH)']!==undefined)e.packingDimensions=(r['Dimensions (LxWxH)']||'').toString().trim();
       if(r['Rate']!==undefined)e.finalRate=parseFloat(r['Rate'])||e.finalRate;
+    },
+    getFiltered:function(){
+      var search=(document.getElementById('hwmsPartSearch')?.value||'').toLowerCase();
+      return (DB.hwmsParts||[]).filter(function(p){
+        if(search&&!(p.partNumber+' '+p.partRevision+' '+p.description).toLowerCase().includes(search)) return false;
+        return true;
+      });
     }
   },
   hwmsCarriers:{
@@ -1809,23 +1901,26 @@ function exportMaster(col){
   if(!_hwmsIsAdmin()&&!_hwmsIsSA()){notify('⚠ Export is restricted to Admin users only.',true);return;}
   var schema=MASTER_SCHEMA[col];
   if(!schema){notify('Export not supported for this master',true);return;}
+  // Use filtered data if getFiltered exists, else fall back to all DB data
+  var sourceData=schema.getFiltered?schema.getFiltered():(DB[col]||[]);
   var objRows;
   if(schema._flatExport){
     objRows=[];
-    (DB[col]||[]).forEach(function(item){
+    sourceData.forEach(function(item){
       var rows=schema.toRow(item);
       if(Array.isArray(rows)) objRows=objRows.concat(rows);
       else objRows.push(rows);
     });
   } else {
-    objRows=(DB[col]||[]).map(schema.toRow);
+    objRows=sourceData.map(schema.toRow);
   }
   if(!objRows.length){notify('No data to export',true);return;}
   var headers=Object.keys(objRows[0]);
   var data=[headers].concat(objRows.map(function(r){return headers.map(function(h){return r[h]===undefined||r[h]===null?'':r[h];});}));
+  var countLabel=sourceData.length<(DB[col]||[]).length?' (filtered: '+sourceData.length+'/'+((DB[col]||[]).length)+')':'';
   var fname='KAP_'+schema.label.replace(/\s+/g,'_')+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
   _downloadAsXls(data, schema.label, fname);
-  notify('✅ '+schema.label+' exported to Excel!');
+  notify('✅ '+schema.label+' exported'+countLabel+'!');
 }
 
 // Override importMaster for HWMS role checks + invoice grouping
@@ -1843,6 +1938,25 @@ function importMaster(col,inputEl){
     try{
       var rows=await _parseXLSX(e.target.result);
       if(!rows.length){notify('No data found in file',true);return;}
+      // ── Pre-process: fix ALL date columns in every row ──────────────
+      // Detect date columns by header name, convert any numeric values to YYYY-MM-DD.
+      // This is the SINGLE guaranteed place where date conversion happens,
+      // regardless of whether _parseXLSX detected the cell format or not.
+      var dateHeaders=[];
+      if(rows.length){
+        var allHeaders=Object.keys(rows[0]);
+        allHeaders.forEach(function(h){
+          if(/date|pickup|reach|dispatch|expir|valid/i.test(h)) dateHeaders.push(h);
+        });
+      }
+      if(dateHeaders.length){
+        rows.forEach(function(r){
+          dateHeaders.forEach(function(h){
+            if(r[h]!==undefined&&r[h]!=='') r[h]=_fixExcelDate(r[h]);
+          });
+        });
+      }
+      // ── Route to import handler ─────────────────────────────────────
       if(schema._customImport&&col==='hwmsInvoices'){
         await _hwmsImportInvoices(rows);
       } else {
@@ -1857,11 +1971,13 @@ function importMaster(col,inputEl){
 async function _hwmsImportInvoices(rows){
   showSpinner('Importing invoices…');
   try{
+  // Pre-process: normalize all date fields in every row BEFORE grouping
+  rows.forEach(function(r){ if(r['Date']!==undefined) r['Date']=_fixExcelDate(r['Date']); });
   var grouped={};
   rows.forEach(function(r){
     var invNum=(r['MI Number']||'').toString().trim();
     if(!invNum) return;
-    if(!grouped[invNum]) grouped[invNum]={invNum:invNum,date:(r['Date']||'').toString().trim(),buyerName:(r['Buyer']||'').toString().trim(),consigneeName:(r['Consignee']||'').toString().trim(),containerNum:(r['Container']||'').toString().trim(),delivery:(r['Delivery Terms']||'').toString().trim(),modeOfTransport:(r['Mode of Transport']||'').toString().trim(),paymentTerms:(r['Payment Terms']||'').toString().trim(),portOfLoading:(r['Port of Loading']||'').toString().trim(),portOfDischarge:(r['Port of Discharge']||'').toString().trim(),note1:(r['Note 1']||'').toString().trim(),note2:(r['Note 2']||'').toString().trim(),note3:(r['Note 3']||'').toString().trim(),lineItems:[]};
+    if(!grouped[invNum]) grouped[invNum]={invNum:invNum,date:_fixExcelDate(r['Date']),buyerName:(r['Buyer']||'').toString().trim(),consigneeName:(r['Consignee']||'').toString().trim(),containerNum:(r['Container']||'').toString().trim(),delivery:(r['Delivery Terms']||'').toString().trim(),modeOfTransport:(r['Mode of Transport']||'').toString().trim(),paymentTerms:(r['Payment Terms']||'').toString().trim(),portOfLoading:(r['Port of Loading']||'').toString().trim(),portOfDischarge:(r['Port of Discharge']||'').toString().trim(),note1:(r['Note 1']||'').toString().trim(),note2:(r['Note 2']||'').toString().trim(),note3:(r['Note 3']||'').toString().trim(),lineItems:[]};
     var pn=(r['Part No.']||'').toString().trim();
     if(!pn) return;
     var pnClean=pn.replace(/\s+R\d+$/,'').trim();
@@ -1932,27 +2048,24 @@ function _hwmsInitColResize(tableId){
   if(tbl._hwmsResizeInit) return;
   tbl._hwmsResizeInit=true;
   tbl.classList.add('hwms-resizable');
-  // Set initial widths from computed sizes so table-layout:fixed works
+  // Set initial min-widths from computed sizes
   var ths=thead.querySelectorAll('tr:first-child th');
-  var totalW=tbl.offsetWidth;
   ths.forEach(function(th){
-    var w=th.offsetWidth;
-    th.style.width=w+'px';
+    if(!th.style.minWidth) th.style.minWidth=th.offsetWidth+'px';
   });
   // Add resize handles
   ths.forEach(function(th,i){
     if(i===ths.length-1) return; // no handle on last column
     var handle=document.createElement('div');
     handle.className='hwms-col-resize';
-    handle.addEventListener('mousedown',function(e){_startResize(e,th,ths[i+1],tbl);});
-    handle.addEventListener('touchstart',function(e){_startResize(e.touches[0],th,ths[i+1],tbl);},{passive:false});
+    handle.addEventListener('mousedown',function(e){_startResize(e,th);});
+    handle.addEventListener('touchstart',function(e){_startResize(e.touches[0],th);},{passive:false});
     th.appendChild(handle);
   });
-  function _startResize(e,thL,thR,table){
+  function _startResize(e,thL){
     e.preventDefault();e.stopPropagation();
     var startX=e.pageX||e.clientX;
-    var startWL=thL.offsetWidth;
-    var startWR=thR.offsetWidth;
+    var startW=thL.offsetWidth;
     var minW=30;
     document.body.classList.add('hwms-resizing');
     var handle=thL.querySelector('.hwms-col-resize');
@@ -1960,13 +2073,9 @@ function _hwmsInitColResize(tableId){
     function onMove(ev){
       var x=(ev.pageX||ev.clientX||(ev.touches&&ev.touches[0]?ev.touches[0].clientX:startX));
       var dx=x-startX;
-      var newWL=Math.max(minW,startWL+dx);
-      var newWR=Math.max(minW,startWR-dx);
-      // Only resize if both columns stay above minimum
-      if(newWL>=minW&&newWR>=minW){
-        thL.style.width=newWL+'px';
-        thR.style.width=newWR+'px';
-      }
+      var newW=Math.max(minW,startW+dx);
+      thL.style.width=newW+'px';
+      thL.style.minWidth=newW+'px';
     }
     function onUp(){
       document.removeEventListener('mousemove',onMove);
@@ -1994,12 +2103,12 @@ function _hwmsReapplyResize(tableId){
   // Handles are lost on innerHTML rebuild — re-add them
   var ths=tbl.querySelectorAll('thead tr:first-child th');
   var widths=[];
-  ths.forEach(function(th){widths.push(th.style.width||'');});
+  ths.forEach(function(th){widths.push({w:th.style.width||'',mw:th.style.minWidth||''});});
   tbl._hwmsResizeInit=false;
   _hwmsInitColResize(tableId);
   // Restore saved widths
   var ths2=tbl.querySelectorAll('thead tr:first-child th');
-  widths.forEach(function(w,i){if(w&&ths2[i]) ths2[i].style.width=w;});
+  widths.forEach(function(s,i){if(s.w&&ths2[i]){ths2[i].style.width=s.w;ths2[i].style.minWidth=s.mw||s.w;}});
 }
 
 // ── HWMS Realtime — subscribe to HWMS operational tables for instant cross-device sync ──
@@ -3576,18 +3685,40 @@ function _hwmsInvStatus(inv){
   if(!cont||!cst) return {label:'RFD',cls:'badge-rfd'};
   if(cst==='Onwater') return {label:'In Transit',cls:'badge-onwater'};
   if(cst!=='Reached') return {label:'RFD',cls:'badge-rfd'};
-  // Container Reached — check if parts are sold + payment
+  // ── Container Reached ──
+  var isAir=cont?_hwmsContGetType(cont)==='air':inv.modeOfTransport==='By Air';
   var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
-  if(!lis.length) return {label:'Warehouse',cls:'badge-wh'};
-  var hasAnySold=lis.some(function(li){return li.soldStatus==='Sold'||li.airSold;});
-  var allSold=lis.every(function(li){return li.soldStatus==='Sold'||li.airSold;});
-  if(!hasAnySold) return {label:'Warehouse',cls:'badge-wh'};
-  // Check payment across SIs for this invoice
   var siForInv=(DB.hwmsSubInvoices||[]).filter(function(si){return si.invoiceId===inv.id;});
+
+  if(isAir){
+    // ── AIR: CT received → MI = Sold immediately ──
+    // Check payment per SLI (directly on line items or via airSold flag)
+    var anyAirPaid=lis.some(function(li){return li.paymentStatus==='Fully Paid'||li.paymentStatus==='Partially Paid';});
+    var allAirFullyPaid=lis.length>0&&lis.every(function(li){return li.paymentStatus==='Fully Paid';});
+    // Also check via SI if any exist (backward compat)
+    if(!anyAirPaid&&siForInv.length){
+      anyAirPaid=siForInv.some(function(si){return si.paymentStatus==='Fully Paid'||si.paymentStatus==='Partially Paid';});
+      allAirFullyPaid=siForInv.length>0&&siForInv.every(function(si){return si.paymentStatus==='Fully Paid';});
+    }
+    if(allAirFullyPaid) return {label:'Fully Paid',cls:'badge-fullpaid'};
+    if(anyAirPaid) return {label:'Partially Paid',cls:'badge-partpaid'};
+    return {label:'Sold',cls:'badge-sold'};
+  }
+
+  // ── SEA: WH → SI(Draft) → Sold/Part.Sold → Paid ──
+  if(!lis.length) return {label:'Warehouse',cls:'badge-wh'};
+  // Check if any SI exists for this invoice
+  var hasSI=siForInv.length>0;
+  var hasAnySold=lis.some(function(li){return li.soldStatus==='Sold';});
+  var allSold=lis.every(function(li){return li.soldStatus==='Sold';});
+  // Check payment
   var allFullyPaid=siForInv.length>0&&siForInv.every(function(si){return si.paymentStatus==='Fully Paid';});
   var anyPayment=siForInv.some(function(si){return si.paymentStatus==='Fully Paid'||si.paymentStatus==='Partially Paid';});
   if(anyPayment) return allFullyPaid&&allSold?{label:'Fully Paid',cls:'badge-fullpaid'}:{label:'Partially Paid',cls:'badge-partpaid'};
-  return allSold?{label:'Sold',cls:'badge-sold'}:{label:'Partially Sold',cls:'badge-partsold'};
+  if(allSold) return {label:'Sold',cls:'badge-sold'};
+  if(hasAnySold) return {label:'Partially Sold',cls:'badge-partsold'};
+  if(hasSI) return {label:'SI (Draft)',cls:'badge-sidraft'};
+  return {label:'Warehouse',cls:'badge-wh'};
   }catch(e){console.warn('_hwmsInvStatus error:',e.message);return {label:'—',cls:'badge-yellow'};}
 }
 
@@ -3600,7 +3731,7 @@ function _hwmsContStatus(c){
   }catch(e){console.warn('_hwmsContStatus error:',e.message);return {label:'Draft',cls:'badge-yellow'};}
 }
 
-// Part + Pallet status (per line item within an MI)
+// Part + Pallet status (SLI = MI + PL + PRT)
 function _hwmsPartPalletStatus(inv,li,cont){
   try{
   if(!inv||!inv.confirmed) return {label:'Draft',cls:'badge-yellow'};
@@ -3608,11 +3739,21 @@ function _hwmsPartPalletStatus(inv,li,cont){
   if(!cont||!cst) return {label:'RFD',cls:'badge-rfd'};
   if(cst==='Onwater') return {label:'In Transit',cls:'badge-onwater'};
   if(cst!=='Reached') return {label:'RFD',cls:'badge-rfd'};
-  if(li.airSold) return {label:'Sold',cls:'badge-sold'};
+  // ── Container Reached ──
+  var isAir=cont?_hwmsContGetType(cont)==='air':inv.modeOfTransport==='By Air';
+
+  if(isAir){
+    // ── AIR: CT received → SLI = Sold immediately ──
+    // Check payment per SLI (directly on line item)
+    if(li.paymentStatus==='Fully Paid') return {label:'Fully Paid',cls:'badge-fullpaid'};
+    if(li.paymentStatus==='Partially Paid') return {label:'Partially Paid',cls:'badge-partpaid'};
+    return {label:'Sold',cls:'badge-sold'};
+  }
+
+  // ── SEA: WH → SI(Draft) → Sold → Paid ──
   if(li.holdStatus==='hold') return {label:'Warehouse-Hold',cls:'badge-whhold'};
   if(li.whCondition&&li.whCondition!=='good') return {label:'Warehouse-Hold',cls:'badge-whhold'};
-  if(li.soldStatus!=='Sold') return {label:'Warehouse-OK',cls:'badge-whok'};
-  // Sold via SI — find matching SI to check pickup/GRN/payment
+  // Check if this SLI is in any SI
   var palletKey=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
   var matchSi=null;
   (DB.hwmsSubInvoices||[]).forEach(function(si){
@@ -3621,23 +3762,31 @@ function _hwmsPartPalletStatus(inv,li,cont){
       if(!sl._mrMeta&&(si.invoiceId+'|'+(sl.partId||'')+'|'+(sl.palletNumber||''))===palletKey) matchSi=si;
     });
   });
-  if(!matchSi||matchSi.pickupStatus!=='Picked') return {label:'Warehouse (WP)',cls:'badge-whwp'};
-  if(!matchSi.grnStatus) return {label:'Sold, GRN Pending',cls:'badge-grnpend'};
+  if(!matchSi){
+    // Not in any SI yet
+    return li.soldStatus==='Sold'?{label:'Sold',cls:'badge-sold'}:{label:'Warehouse',cls:'badge-wh'};
+  }
+  // In an SI — check SI pickup status
+  if(matchSi.pickupStatus!=='Picked') return {label:'SI (Draft)',cls:'badge-sidraft'};
+  // Picked up = Sold → check payment
   if(matchSi.paymentStatus==='Fully Paid') return {label:'Fully Paid',cls:'badge-fullpaid'};
   if(matchSi.paymentStatus==='Partially Paid') return {label:'Partially Paid',cls:'badge-partpaid'};
-  return {label:'GRN Done, Payment Pending',cls:'badge-pmtpend'};
+  return {label:'Sold',cls:'badge-sold'};
   }catch(e){console.warn('_hwmsPartPalletStatus error:',e.message);return {label:'—',cls:'badge-yellow'};}
 }
 
-// SI status
+// SI status (sea only)
 function _hwmsSiStatus(si){
+  // Payment check first
+  if(si.paymentStatus==='Fully Paid') return {label:'Fully Paid',cls:'badge-fullpaid'};
+  if(si.paymentStatus==='Partially Paid') return {label:'Partially Paid',cls:'badge-partpaid'};
   if(si.pickupStatus==='Picked') return {label:'Sold',cls:'badge-sold'};
-  return {label:'Warehouse (WP)',cls:'badge-whwp'};
+  return {label:'SI (Draft)',cls:'badge-sidraft'};
 }
 
 
 // Sort state for containers
-let _hwmsContSortKey='containerNumber',_hwmsContSortAsc=false;
+let _hwmsContSortKey='expectedPickupDate',_hwmsContSortAsc=false;
 function _hwmsContNumToSortVal(cn){
   // CN-NNN/YY or AC-NNN/YY → type*100000 + YY*1000+NNN
   var m=(cn||'').match(/(CN|AC)-(\d+)\/(\d+)/);
@@ -3689,6 +3838,14 @@ function _hwmsContSetType(type){
   }
   _hwmsContNumInput();
   _hwmsContFilterInvDropdown();
+  // Auto-regenerate number for new containers when switching type
+  if(!contId){
+    var yr2=new Date().getFullYear().toString().slice(-2);
+    var existing2=(DB.hwmsContainers||[]).filter(function(c2){return (c2.containerNumber||'').startsWith(prefix)&&(c2.containerNumber||'').endsWith('/'+yr2);});
+    var maxN2=0;
+    existing2.forEach(function(c2){var m2=(c2.containerNumber||'').match(/(?:CN|AC)-(\d+)\//);if(m2) maxN2=Math.max(maxN2,parseInt(m2[1]));});
+    document.getElementById('hwmsContNum').value=String(maxN2+1).padStart(3,'0')+'/'+yr2;
+  }
   // Update top type badge
   var topBadge=document.getElementById('hwmsContTopTypeBadge');
   if(topBadge&&contId){
@@ -3781,7 +3938,10 @@ function renderHwmsContainers(){
     let va='',vb='';
     if(sk==='status'){va=_hwmsContStatus(a).label;vb=_hwmsContStatus(b).label;}
     else{va=(a[sk]||'').toString().toLowerCase();vb=(b[sk]||'').toString().toLowerCase();}
-    return asc?va.localeCompare(vb):vb.localeCompare(va);
+    var cmp=asc?va.localeCompare(vb):vb.localeCompare(va);
+    // Secondary: containerNumber descending
+    if(cmp===0){var na=_hwmsContNumToSortVal(a.containerNumber),nb=_hwmsContNumToSortVal(b.containerNumber);cmp=nb-na;}
+    return cmp;
   });
   // Sort icons
   ['containerNumber','expectedPickupDate','carrierName','invValue','status'].forEach(k=>{
@@ -3834,9 +3994,10 @@ function renderHwmsContainers(){
     const reachHtml=c.reachedDate
       ?`<div style="font-weight:700">${_fdate(c.reachedDate)}</div><div style="font-size:10px;color:#16a34a;font-weight:700">Warehouse</div>`
       :(c.expectedReachDate?`<div>${_fdate(c.expectedReachDate)}</div><div style="font-size:10px;color:#b45309;font-weight:700">Expected</div>`:'—');
-    return `<tr>
+    var _isAirCont=_hwmsContGetType(c)==='air';
+    return `<tr class="${_isAirCont?'hwms-air-row':''}">
       ${_contSA?'<td style="text-align:center;padding:4px 6px"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px;cursor:pointer;text-decoration:underline" onclick="openHwmsContModal('${c.id}')">${_hwmsContGetType(c)==='air'?'<span style="font-size:12px" title="Air Consignment">✈️</span> ':''}${c.containerNumber}</td>
+      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px;cursor:pointer;text-decoration:underline" onclick="openHwmsContModal('${c.id}')">${_isAirCont?'<span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;background:#ede9fe;color:#6d28d9">✈️ Air</span>':'<span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1d4ed8">🚢 Sea</span>'} ${c.containerNumber}</td>
       <td>${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td>${c.carrierName||'—'}</td>
@@ -4000,14 +4161,14 @@ function openHwmsContModal(id){
   // Type badge (prominent, in form body)
   var typeBadge=document.getElementById('hwmsContTypeBadge');
   if(typeBadge) typeBadge.style.display='none';
-  // Auto-generate NNN/YY suffix for new containers
+  // Auto-generate NNN/YY suffix for new containers (separate series for CN and AC)
   if(!id){
     var prefix=cType==='air'?'AC-':'CN-';
     const yr=new Date().getFullYear().toString().slice(-2);
     const existing=(DB.hwmsContainers||[]).filter(c2=>(c2.containerNumber||'').startsWith(prefix)&&(c2.containerNumber||'').endsWith('/'+yr));
     let maxNum=0;
     existing.forEach(c2=>{const m=(c2.containerNumber||'').match(/(?:CN|AC)-(\d+)\//);if(m) maxNum=Math.max(maxNum,parseInt(m[1]));});
-    document.getElementById('hwmsContNum').value=String(maxNum+1).padStart(2,'0')+'/'+yr;
+    document.getElementById('hwmsContNum').value=String(maxNum+1).padStart(3,'0')+'/'+yr;
   } else {
     document.getElementById('hwmsContNum').value=(c?.containerNumber||'').replace(/^(CN|AC)-/,'');
   }
@@ -4054,10 +4215,19 @@ function openHwmsContModal(id){
     if(undoBtn) undoBtn.style.display='none';
     if(dispLabel) dispLabel.style.display='none';
   }
-  // Disable Tab1 non-date fields when dispatched
-  ['hwmsContNum','hwmsContCarrier','hwmsContSerialNum'].forEach(fid=>{
-    const el=document.getElementById(fid);if(el) el.disabled=!!isDispatched;
-  });
+  // Disable entire consignment details section when dispatched
+  var _sec1=document.getElementById('hwmsContSection1');
+  if(_sec1){
+    if(isDispatched){
+      _sec1.style.opacity='.55';
+      _sec1.style.pointerEvents='none';
+      _sec1.style.userSelect='none';
+    } else {
+      _sec1.style.opacity='';
+      _sec1.style.pointerEvents='';
+      _sec1.style.userSelect='';
+    }
+  }
   // Tab 2: Post Shipment
   document.getElementById('hwmsContCarrierName2').value=c?.carrierName||'';
   document.getElementById('hwmsContPickup2').value=c?.pickupDate?_fdate(c.pickupDate):'';
@@ -4733,7 +4903,7 @@ function _hwmsContUpdateReachedUI(c){
   if(isReached){
     if(reachedBtn){reachedBtn.style.display='none';}
     if(editRecvBtn){editRecvBtn.style.display=cType==='air'?'none':'inline-flex';}
-    if(revokeBtn) revokeBtn.style.display=isAdmin?'':'none';
+    if(revokeBtn) revokeBtn.style.display=isAdmin?'inline-flex':'none';
     if(infoEl&&c.reachedDate){
       const dt=new Date(c.reachedDate+'T00:00:00');
       const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -4742,9 +4912,13 @@ function _hwmsContUpdateReachedUI(c){
       infoEl.style.display='';
     }
   } else if(isOnwater){
-    // Air consignment receive: SA/HA only
-    var canReceive=cType==='air'?isAdmin:true;
-    if(reachedBtn){reachedBtn.disabled=!canReceive;reachedBtn.textContent=recvLabel;reachedBtn.style.background=cType==='air'?'#7c3aed':'#16a34a';reachedBtn.style.borderColor=cType==='air'?'#6d28d9':'#15803d';reachedBtn.style.opacity=canReceive?'1':'.5';reachedBtn.style.cursor=canReceive?'pointer':'not-allowed';reachedBtn.onclick=canReceive?function(){_hwmsContOpenReceive();}:null;reachedBtn.style.display='inline-flex';}
+    if(cType==='air'){
+      // Air: receive is disabled (air consignments are auto-dispatched+received)
+      if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#7c3aed';reachedBtn.style.borderColor='#6d28d9';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.onclick=null;reachedBtn.style.display='inline-flex';}
+    } else {
+      // Sea: receive enabled normally
+      if(reachedBtn){reachedBtn.disabled=false;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};reachedBtn.style.display='inline-flex';}
+    }
     if(editRecvBtn){editRecvBtn.style.display='none';}
     if(revokeBtn) revokeBtn.style.display='none';
     if(infoEl) infoEl.style.display='none';
@@ -4754,6 +4928,63 @@ function _hwmsContUpdateReachedUI(c){
     if(revokeBtn) revokeBtn.style.display='none';
     if(infoEl) infoEl.style.display='none';
   }
+}
+
+// ── Bulk Dispatch + Receive ALL Air Containers ──
+async function _hwmsAirBulkDispatchReceive(){
+  var airDraft=(DB.hwmsContainers||[]).filter(function(c){
+    return _hwmsContGetType(c)==='air'&&c.status!=='Onwater'&&c.status!=='Reached';
+  });
+  if(!airDraft.length){notify('No air consignments in Draft status to process.',true);return;}
+  // Validate each has expectedPickupDate and linked confirmed invoices
+  var errors=[];
+  airDraft.forEach(function(c){
+    if(!c.expectedPickupDate) errors.push(c.containerNumber+': no expected pickup date');
+    var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
+    if(!invs.length) errors.push(c.containerNumber+': no linked invoices');
+    invs.forEach(function(inv){
+      if(!inv.confirmed) errors.push(c.containerNumber+': MI '+inv.invoiceNumber+' not confirmed');
+    });
+  });
+  if(errors.length){notify('⚠ Cannot process:\n• '+errors.join('\n• '),true);return;}
+  showConfirm('Dispatch AND receive '+airDraft.length+' air consignment(s) in one step?\n\nExpected pickup date will be used as dispatch date and received date.\n\n'+airDraft.map(function(c){return c.containerNumber+' ('+_fdate(c.expectedPickupDate)+')';}).join('\n'), async function(){
+    showSpinner('Processing air consignments…');
+    var done=0;
+    for(var i=0;i<airDraft.length;i++){
+      var c=airDraft[i];
+      var dt=c.expectedPickupDate;
+      _spinnerMsg('Processing '+(i+1)+'/'+airDraft.length+' — '+c.containerNumber+'…');
+      // Step 1: Dispatch
+      c.pickupDate=dt;
+      c.status='Onwater';
+      c.confirmed=true;
+      var erd=new Date(dt+'T00:00:00');erd.setDate(erd.getDate()+7);
+      c.expectedReachDate=erd.toISOString().slice(0,10);
+      if(!await _dbSave('hwmsContainers',c)) continue;
+      // Step 2: Receive immediately
+      c.status='Reached';
+      c.reachedDate=dt;
+      if(!await _dbSave('hwmsContainers',c)) continue;
+      // Step 3: Update linked invoice line items
+      var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
+      for(var j=0;j<invs.length;j++){
+        var inv=invs[j];
+        var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+        var changed=false;
+        lis.forEach(function(li){
+          li.whReceived=true;
+          li.whReceivedDate=dt;
+          li.status='WH';
+          changed=true;
+        });
+        if(changed) await _dbSave('hwmsInvoices',inv);
+      }
+      done++;
+    }
+    hideSpinner();
+    renderHwmsContainers();
+    notify('✅ '+done+' air consignment(s) dispatched and received.');
+  });
 }
 
 async function _hwmsContRevokeReached(){
@@ -4831,6 +5062,20 @@ function _hwmsContCancel(){
 
 // Cross-page navigation helpers
 function _hwmsNavToContainer(contId){
+  // Immediately clear stale header from previous container view
+  var _numDisp=document.getElementById('hwmsContNumDisplay');
+  if(_numDisp) _numDisp.textContent='';
+  var _titleDisp=document.getElementById('mHwmsContTitle');
+  if(_titleDisp) _titleDisp.textContent='';
+  var _typeBadge=document.getElementById('hwmsContTopTypeBadge');
+  if(_typeBadge) _typeBadge.style.display='none';
+  // Pre-set the container number from DB if available (shows immediately)
+  var _preC=byId(DB.hwmsContainers||[],contId);
+  if(_preC&&_numDisp) _numDisp.textContent=_preC.containerNumber||'';
+  // Store the target container ID so any refresh handler uses the correct one
+  var _eid=document.getElementById('eHwmsContId');
+  if(_eid) _eid.value=contId||'';
+
   var reqTables=_PAGE_TABLES['pageHwmsContainers']||[];
   var needed=reqTables.filter(function(t){return !_loadedTables[t]&&SB_TABLES[t];});
   var doOpen=function(){
@@ -4972,7 +5217,7 @@ async function saveHwmsCont(){
 
 // ===== HWMS: INVOICE MASTER =====
 // Sort state for invoices
-let _hwmsInvSortKey='invoiceNumber',_hwmsInvSortAsc=false;
+let _hwmsInvSortKey='date',_hwmsInvSortAsc=false;
 let _hwmsCurrentInvId=null;
 const _HWMS_LOGO_IMG='<img src="data:image/jpeg;base64,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hf4S1LxPq07qsrQqEtbFSf8AWTzNhIkHJyxHTjJ4r+iT4G/8Gg37Mvw41yC+8Wal47+ISQEE2V5qIsLSY/7YtgkuPYSCv0l+Bn7OngP9mXwTB4c+HvhDw74N0O3AC2ek2MdrGxAxubaAXY92YknuTT5QPk//AIIjf8EX9B/4JJ/B/UvtOpr4k+JPjBIT4h1WJnFpGseSltbI2MRqzMS5UM5wTgBVH3HRRVAMuLeO7geKVEkikUq6OAysDwQQeor+ef8A4OI/+DdiT4QT638ePgNoiv4Tmle88UeFbGPDaKWJZ7u0jHH2bdnfEv8AqtwKr5YOz+humXFvHd27xSoksUqlHR1DK4PBBB6ik0B/BkRg0V+2/wDwcR/8G7Enwln1v48fAXQvM8KzSve+KfCtinzaMWJZ7y1j72+7l4l/1e7Kr5YOz8SCMGoAKKKKAPU/2Lv2v/GX7Cn7SPhn4meBtRlsNa8O3SyPGDmHULc8TW0y9GjkQspB6ZDDDAEf2i/s0fHXS/2nf2ffBvxC0UFdL8ZaRb6tboWDGMSxhihI6lSSPwr+Gev7CP8Ag350nUdG/wCCO3wLh1NZFuH0J5kDgg+S9zM8XXt5bJVRA+yKKKKoAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigBlzbR3lu8UsaSxSqUdHUMrg8EEHqK/nt/wCDh/8A4N0pvhhea18dfgD4fkn8MzyNeeKPCenoWfSGY5e8tI+pgLHLxJny9xKgRghP6FaSSNZo2R1DKwwQRkEelJoD+DFlKMVYEEHBB6ikr+sH9uj/AINk/wBmr9tbxlc+KINN1j4Z+KL1jJdXXhWSKC0vnJyXltXRo955y0ewknLFjXhHw9/4MzfgRoPiGK58RfEf4leIbCJ9zWcH2Wx80dlZxG7Y9duD6EdamzA/Eb/glx/wTY8a/wDBTn9qPRvA3hq0mg0SOZbjxFrbxt9l0eyU5kdmHBkYZWNOrMw6AMw/sh+Fvw20n4OfDXQfCeg24tNF8N2EOm2UI58uGJAig+pwBk+tcr+y7+yJ8N/2LvhjbeD/AIY+EdI8I6DbgForOL95cuBjzJpWy8sh7s7E+9ekVSVgCiiimAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB//2Q==" style="width:22px;height:22px;object-fit:contain;vertical-align:middle">';
 let _hwmsInvFolderHandle=null; // File System Access API folder handle
@@ -5065,7 +5310,7 @@ function _hwmsContDateRange(mode){
 function _hwmsInvClearFilters(){
   ['hwmsInvFilterInvNo','hwmsInvFilterFrom','hwmsInvFilterTo','hwmsInvFilterPartSearch'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['hwmsInvFilterStatus','hwmsInvFilterPart'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  _hwmsInvSortKey='invoiceNumber';_hwmsInvSortAsc=false;
+  _hwmsInvSortKey='date';_hwmsInvSortAsc=false;
   renderHwmsInvoices();
 }
 // Close part dropdown on outside click
@@ -5248,9 +5493,10 @@ function _hwmsSiTotalRcvd(si){
   return parseFloat(si.paymentReceived)||0;
 }
 function _hwmsSiOverallStatus(si){
-  if(si.pickupStatus==='Picked'&&si.grnStatus==='Received') return 'Delivered';
-  if(si.pickupStatus==='Picked'||si.pickupStatus==='Scheduled') return 'Dispatched';
-  return 'Draft';
+  if(si.paymentStatus==='Fully Paid') return 'Fully Paid';
+  if(si.paymentStatus==='Partially Paid') return 'Partially Paid';
+  if(si.pickupStatus==='Picked') return 'Sold';
+  return 'SI (Draft)';
 }
 function _hwmsSiBadge(val,type){
   if(!val||val==='—') return '<span style="color:var(--text3);font-size:10px">—</span>';
@@ -6022,16 +6268,44 @@ function _hwmsSiBuildPrintHtml(id){
 // ── Sub-Invoice Export ──
 function _hwmsSiFmtDate(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);}
 function _hwmsSiExport(){
-  var subs=DB.hwmsSubInvoices||[];
+  // Replicate current page filter to export only what's visible
+  var allSubs=DB.hwmsSubInvoices||[];
+  var search=(document.getElementById('hwmsSiSearch')?.value||'').toLowerCase();
+  var statusF=document.getElementById('hwmsSiStatusFilter')?.value||'';
+  var fNum=(document.getElementById('hwmsSiFltNum')?.value||'').toLowerCase();
+  var fCust=(document.getElementById('hwmsSiFltCust')?.value||'').toLowerCase();
+  var fPart=(document.getElementById('hwmsSiFltPart')?.value||'').toLowerCase();
+  var fPickup=document.getElementById('hwmsSiFltPickup')?.value||'';
+  var fGrn=document.getElementById('hwmsSiFltGrn')?.value||'';
+  var fPay=document.getElementById('hwmsSiFltPay')?.value||'';
+  var subs=allSubs.filter(function(si){
+    if(search){
+      var match=(si.subInvoiceNumber||'').toLowerCase().indexOf(search)>=0
+        ||(si.customerName||'').toLowerCase().indexOf(search)>=0
+        ||(si.invoiceId||'').toLowerCase().indexOf(search)>=0;
+      if(!match) return false;
+    }
+    if(statusF){var st=_hwmsSiOverallStatus(si);if(st!==statusF) return false;}
+    if(fNum&&(si.subInvoiceNumber||'').toLowerCase().indexOf(fNum)<0) return false;
+    if(fCust&&(si.customerName||'').toLowerCase().indexOf(fCust)<0) return false;
+    if(fPart){
+      var hasP=(si.lineItems||[]).some(function(l){return((l.palletNumber||'')+(l.partNumber||'')).toLowerCase().indexOf(fPart)>=0;});
+      if(!hasP) return false;
+    }
+    if(fPickup&&(si.pickupStatus||'')!==fPickup) return false;
+    if(fGrn&&(si.grnStatus||'')!==fGrn) return false;
+    if(fPay&&(si.paymentStatus||'')!==fPay) return false;
+    return true;
+  });
   var headers=['Sub-Invoice #','Date','Original Invoice','Customer','PO No.','Pallet','Part Number','Quantity','Rate','Amount','Tariff %','Tariff Amount','Pickup Status','Pickup Date','GRN Status','GRN Date','Payment Status','Payment Received','Payment Balance','Remarks'];
   // Flatten: one row per line item
   var dataRows=[];
   subs.forEach(function(si){
     var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
     var invNum=inv?inv.invoiceNumber||'':'';
-    var dateFmt=_hwmsSiFmtDate(si.date);
-    var pickDtFmt=_hwmsSiFmtDate(si.pickupDate);
-    var grnDtFmt=_hwmsSiFmtDate(si.grnDate);
+    var dateFmt=_exportDate(si.date);
+    var pickDtFmt=_exportDate(si.pickupDate);
+    var grnDtFmt=_exportDate(si.grnDate);
     var lis=si.lineItems||[];
     if(!lis.length){
       dataRows.push([si.subInvoiceNumber,dateFmt,invNum,si.customerName,'','','',0,0,0,si.tariffPercent||0,si.tariffAmount||0,si.pickupStatus||'',pickDtFmt,si.grnStatus||'',grnDtFmt,si.paymentStatus||'',0,0,si.remarks||'']);
@@ -6046,49 +6320,13 @@ function _hwmsSiExport(){
   });
   var data=[headers].concat(dataRows);
   _downloadAsXlsx(data,'Sub-Invoices','HWMS_SubInvoices.xlsx');
-  notify('📤 Exported '+subs.length+' sub-invoices ('+dataRows.length+' rows)');
+  var countLabel=subs.length<allSubs.length?' (filtered: '+subs.length+'/'+allSubs.length+')':'';
+  notify('📤 Exported '+subs.length+' sub-invoices ('+dataRows.length+' rows)'+countLabel);
 }
 
 // ── Sub-Invoice Import ──
-// Parse any date format from Excel → ISO YYYY-MM-DD
-function _hwmsSiParseDate(v){
-  if(!v) return '';
-  var s=v.toString().trim();
-  // 1. Excel serial number (e.g. 45736)
-  if(/^\d{4,5}(\.\d+)?$/.test(s)){
-    var n=parseFloat(s);
-    if(n>30000&&n<70000){
-      var dt=new Date((n-25569)*86400000);
-      if(!isNaN(dt)) return dt.toISOString().slice(0,10);
-    }
-  }
-  // 2. Already ISO: YYYY-MM-DD
-  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-  // 3. dd-MMM-YY or dd-MMM-YYYY (e.g. 15-Mar-25, 15-Mar-2025)
-  var mMap={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  var m1=s.match(/^(\d{1,2})[- ](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[- ](\d{2,4})$/i);
-  if(m1){
-    var dd=parseInt(m1[1]),mm=mMap[m1[2].toLowerCase()],yy=parseInt(m1[3]);
-    if(yy<100) yy+=2000;
-    var dt2=new Date(yy,mm,dd);
-    if(!isNaN(dt2)) return dt2.toISOString().slice(0,10);
-  }
-  // 4. MM/DD/YYYY or M/D/YYYY (US)
-  var m2=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
-  if(m2){
-    var dt3=new Date(parseInt(m2[3]),parseInt(m2[1])-1,parseInt(m2[2]));
-    if(!isNaN(dt3)) return dt3.toISOString().slice(0,10);
-  }
-  // 5. DD/MM/YYYY (if day>12, must be DD/MM)
-  if(m2&&parseInt(m2[1])>12){
-    var dt4=new Date(parseInt(m2[3]),parseInt(m2[2])-1,parseInt(m2[1]));
-    if(!isNaN(dt4)) return dt4.toISOString().slice(0,10);
-  }
-  // 6. Try native Date parse as last resort
-  var dt5=new Date(s);
-  if(!isNaN(dt5)) return dt5.toISOString().slice(0,10);
-  return s; // return as-is if nothing works
-}
+// Parse any date format from Excel → YYYY-MM-DD (delegates to _fixExcelDate)
+function _hwmsSiParseDate(v){ return _fixExcelDate(v); }
 async function _hwmsSiImport(inputEl){
   if(!_hwmsCan('si.import')){notify('⚠ Import restricted to Admin',true);inputEl.value='';return;}
   var file=inputEl.files[0];if(!file){return;}inputEl.value='';
@@ -6098,6 +6336,12 @@ async function _hwmsSiImport(inputEl){
       try{
         var rows=await _parseXLSX(e.target.result);
         if(!rows.length){notify('No data in file',true);return;}
+        // Pre-process: fix all date columns before grouping
+        rows.forEach(function(row){
+          Object.keys(row).forEach(function(h){
+            if(/date|pickup|reach|dispatch|expir|valid/i.test(h)&&row[h]!=='') row[h]=_fixExcelDate(row[h]);
+          });
+        });
         // Group rows by Sub-Invoice # — multiple rows with same # are line items
         var grouped={};// subInvNum → {header, lineItems:[]}
         rows.forEach(function(row){
@@ -8309,6 +8553,51 @@ function renderHwmsInventory(){
   _hwmsReapplyResize('tHwmsInventory');
 
 }
+// ── Inventory Export (unsold WH stock only) ──
+function _hwmsInventoryExport(){
+  var invoices=DB.hwmsInvoices||[];
+  var containers=DB.hwmsContainers||[];
+  var parts=DB.hwmsParts||[];
+  var sis=DB.hwmsSubInvoices||[];
+  var contMap={};containers.forEach(function(c){contMap[c.id]=c;});
+  var partMap={};parts.forEach(function(p){partMap[p.id]=p;});
+  // Build sold qty map per SLI key (invId|partId|palletNumber)
+  var soldMap={};
+  sis.forEach(function(si){
+    (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
+      var key=(si.invoiceId||'')+'|'+(l.partId||'')+'|'+(l.palletNumber||'');
+      soldMap[key]=(soldMap[key]||0)+(l.quantity||0);
+    });
+  });
+  var rows=[['MI Number','MI Date','Part Number','Part Description','Pallet Number','Qty','Rate','Amount']];
+  invoices.forEach(function(inv){
+    var cont=inv.containerId?contMap[inv.containerId]:null;
+    if(!cont||cont.status!=='Reached') return;
+    (inv.lineItems||[]).filter(function(li){return li.partId&&!li._meta;}).forEach(function(li){
+      var totalQty=li.quantity||0;
+      var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
+      var sold=soldMap[key]||0;
+      var unsold=totalQty-sold;
+      if(unsold<=0) return;
+      var p=partMap[li.partId];
+      var rate=li.rate||0;
+      rows.push([
+        inv.invoiceNumber||'',
+        _exportDate(inv.date),
+        p?p.partNumber||'':'',
+        p?p.description||'':'',
+        li.palletNumber||'',
+        unsold,
+        rate,
+        unsold*rate
+      ]);
+    });
+  });
+  if(rows.length<=1){notify('No unsold warehouse inventory to export',true);return;}
+  _downloadAsXls(rows,'Inventory','HWMS_Inventory_Export.xlsx');
+  notify('📤 Exported '+(rows.length-1)+' unsold warehouse inventory rows');
+}
+
 var _hwmsInvExpanded={};
 function _hwmsInvToggle(partId){
   _hwmsInvExpanded[partId]=!_hwmsInvExpanded[partId];
@@ -8360,7 +8649,10 @@ function renderHwmsInvoices(){
     }
     let va=(a[sk]||'').toString().toLowerCase();
     let vb=(b[sk]||'').toString().toLowerCase();
-    return asc?va.localeCompare(vb):vb.localeCompare(va);
+    var cmp=asc?va.localeCompare(vb):vb.localeCompare(va);
+    // Secondary: invoiceNumber descending
+    if(cmp===0){var na2=parseInt((a.invoiceNumber||'0').replace(/\D/g,''))||0;var nb2=parseInt((b.invoiceNumber||'0').replace(/\D/g,''))||0;cmp=nb2-na2;}
+    return cmp;
   });
   // Update sort icons
   ['invoiceNumber','date','containerNumber','pickupDate','status','amount'].forEach(function(k){
@@ -8425,13 +8717,15 @@ function renderHwmsInvoices(){
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const invNumStyle=isDraft?'font-family:var(--inv-mono);font-weight:400;color:#dc2626;font-size:13px;max-width:110px;word-break:break-all':'font-family:var(--inv-mono);font-weight:400;color:var(--accent);font-size:13px;max-width:110px;word-break:break-all';
+    const _isAirInv=inv.modeOfTransport==='By Air';
+    const _transportBadge=_hwmsTransportBadge(inv,'sm');
     const rowBg=(isDraft||isUnalloc)?';background:rgba(234,179,8,.04)':'';
     let actHtml='';
     if(isDraft&&_hwmsCan('mi.edit')) actHtml='<button class="action-btn" onclick="openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
-    return `<tr style="${rowBg}">
+    return `<tr class="${_isAirInv?'hwms-air-row':''}" style="${rowBg}">
       ${_invSA?'<td style="text-align:center;padding:4px 6px"><input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
       <td style="text-align:center;padding:2px 4px"><button onclick="_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="USA Print Preview">🖨️</button></td>
-      <td style="${invNumStyle};cursor:pointer;text-decoration:underline" onclick="showHwmsInvDetail('${inv.id}')">${_hwmsInvNum(inv.invoiceNumber)}</td>
+      <td style="${invNumStyle};cursor:pointer;text-decoration:underline" onclick="showHwmsInvDetail('${inv.id}')">${_transportBadge} ${_hwmsInvNum(inv.invoiceNumber)}</td>
       <td style="white-space:nowrap;font-size:12px">${_fdate(inv.date)}</td>
       <td>${contHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
@@ -8569,8 +8863,8 @@ function showHwmsInvDetail(id){
   const _v=(val,miss)=>val?'<span style="font-size:14px;font-weight:600">'+val+'</span>':'<span style="font-size:13px;font-weight:700;color:#dc2626;font-style:italic">'+(miss||'Not set')+'</span>';
   const _f=(label,val,miss)=>'<div class="form-group" style="margin:0"><label style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">'+label+'</label><div style="padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);min-height:32px">'+_v(val,miss)+'</div></div>';
 
-  // Title — show Confirmed badge if confirmed
-  let titleHtml='<span style="font-family:var(--inv-mono);font-weight:400">'+_hwmsInvNum(inv.invoiceNumber)+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
+  // Title — show transport mode + Confirmed badge if confirmed
+  let titleHtml=_hwmsTransportBadge(inv,'lg')+' <span style="font-family:var(--inv-mono);font-weight:400">'+_hwmsInvNum(inv.invoiceNumber)+'</span> <span class="badge '+st.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+st.label+'</span>';
   if(inv.confirmed) titleHtml+=' <span style="font-size:11px;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #86efac;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:6px">✅ Confirmed</span>';
   document.getElementById('hwmsInvViewTitle').innerHTML=titleHtml;
   _hwmsInvNavUpdate();
@@ -8901,6 +9195,8 @@ table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:1
 // ===== HWMS: DASHBOARD =====
 function renderHwmsDashboard(){
   try{
+  // Auto-migrate 2-digit AC numbers to 3-digit on first render
+  if(!_hwmsAcMigrated) _hwmsRepairAcNumbers(true);
   var el=document.getElementById('hwmsDashContent');if(!el) return;
   var conts=DB.hwmsContainers||[];
   var invs=DB.hwmsInvoices||[];
@@ -8908,90 +9204,160 @@ function renderHwmsDashboard(){
   var mrs=DB.hwmsMaterialRequests||[];
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var fAmt=function(v){var n=parseFloat(v);if(!n||isNaN(n))return'—';return'$'+Math.round(n).toLocaleString('en-US');};
+  var now=new Date();
+  var _mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // ── Container status counts ──
-  var cCounts={};conts.forEach(function(c){var l=_hwmsContStatus(c).label;cCounts[l]=(cCounts[l]||0)+1;});
-  // ── MI status counts ──
-  var mCounts={};invs.forEach(function(inv){var l=_hwmsInvStatus(inv).label;mCounts[l]=(mCounts[l]||0)+1;});
-  // ── SI status counts ──
-  var sCounts={};sis.forEach(function(si){var l=_hwmsSiStatus(si).label;sCounts[l]=(sCounts[l]||0)+1;});
-  // ── MR status counts ──
-  var rCounts={};mrs.forEach(function(mr){var l=_hwmsMrCalcStatus(mr);rCounts[l]=(rCounts[l]||0)+1;});
+  // ── Split by mode ──
+  var seaConts=conts.filter(function(c){return _hwmsContGetType(c)==='sea';});
+  var airConts=conts.filter(function(c){return _hwmsContGetType(c)==='air';});
+  var seaContIds=new Set(seaConts.map(function(c){return c.id;}));
+  var airContIds=new Set(airConts.map(function(c){return c.id;}));
+  var seaInvs=invs.filter(function(inv){return inv.containerId?seaContIds.has(inv.containerId):inv.modeOfTransport!=='By Air';});
+  var airInvs=invs.filter(function(inv){return inv.containerId?airContIds.has(inv.containerId):inv.modeOfTransport==='By Air';});
+  var seaInvIds=new Set(seaInvs.map(function(inv){return inv.id;}));
+  var airInvIds=new Set(airInvs.map(function(inv){return inv.id;}));
+  var seaSis=sis.filter(function(si){return seaInvIds.has(si.invoiceId);});
+  var airSis=sis.filter(function(si){return airInvIds.has(si.invoiceId);});
 
-  // ── Payment summary ──
-  var totalSiAmt=0,totalRcvd=0;
-  sis.forEach(function(si){
-    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
-    totalSiAmt+=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
-    var rcvd=parseFloat(si.paymentReceived)||0;
-    if(!rcvd) rcvd=lis.reduce(function(s,l){return s+(parseFloat(l.paymentReceived)||0);},0);
-    totalRcvd+=rcvd;
-  });
-  var totalBal=totalSiAmt-totalRcvd;
-
-  // Helper: status badge bar
   var badge=function(label,count,cls){
     if(!count) return '';
     return '<span class="badge '+cls+'" style="font-size:10px;padding:2px 7px;margin:1px">'+label+' <b>'+count+'</b></span>';
   };
 
+  // ── Helper: build sold pallet map for a set of SIs ──
+  var _buildSoldMap=function(siList){
+    var map={};
+    siList.forEach(function(si){
+      (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
+        var key=(si.invoiceId||'')+'|'+(l.partId||'')+'|'+(l.palletNumber||'');
+        map[key]=(map[key]||0)+(l.quantity||0);
+      });
+    });
+    return map;
+  };
+
+  // ── Helper: compute payment totals for a set of SIs ──
+  var _payTotals=function(siList){
+    var amt=0,rcvd=0;
+    siList.forEach(function(si){
+      var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
+      amt+=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
+      var r=parseFloat(si.paymentReceived)||0;
+      if(!r) r=lis.reduce(function(s,l){return s+(parseFloat(l.paymentReceived)||0);},0);
+      rcvd+=r;
+    });
+    return {amt:amt,rcvd:rcvd,bal:amt-rcvd};
+  };
+
+  // ── Helper: build mode section ──
+  var _buildSection=function(mode,modeConts,modeInvs,modeSis){
+    var icon=mode==='sea'?'🚢':'✈️';
+    var label=mode==='sea'?'By Sea':'By Air';
+    var borderClr=mode==='sea'?'#93c5fd':'#c4b5fd';
+    var bgClr=mode==='sea'?'#eff6ff':'#faf5ff';
+    var accentClr=mode==='sea'?'#2563eb':'#7c3aed';
+
+    // Status counts
+    var cC={};modeConts.forEach(function(c){var l=_hwmsContStatus(c).label;cC[l]=(cC[l]||0)+1;});
+    var mC={};modeInvs.forEach(function(inv){var l=_hwmsInvStatus(inv).label;mC[l]=(mC[l]||0)+1;});
+    var sC={};modeSis.forEach(function(si){var l=_hwmsSiStatus(si).label;sC[l]=(sC[l]||0)+1;});
+
+    // Payment
+    var pay=_payTotals(modeSis);
+    // MI total value
+    var miTotalAmt=0;
+    modeInvs.forEach(function(inv){(inv.lineItems||[]).filter(function(li){return !li._meta;}).forEach(function(li){miTotalAmt+=(li.rate||0)*(li.quantity||0);});});
+
+    var s='';
+    // Section wrapper
+    s+='<div style="border:1.5px solid '+borderClr+';border-radius:12px;padding:14px;background:'+bgClr+'08">';
+
+    // Header with big totals
+    s+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
+    s+='<span style="font-size:16px;font-weight:900;color:var(--text)">'+icon+' '+label+'</span>';
+    s+='<span style="font-size:20px;font-weight:900;color:'+accentClr+';font-family:var(--mono)">'+fAmt(miTotalAmt)+'</span>';
+    s+='</div>';
+
+    // Big count row
+    s+='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
+    s+='<div style="text-align:center;min-width:60px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsContainers\')"><div style="font-size:24px;font-weight:900;color:'+accentClr+';font-family:var(--mono);line-height:1.2">'+modeConts.length+'</div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase">CT</div></div>';
+    s+='<div style="text-align:center;min-width:60px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsInvoices\')"><div style="font-size:24px;font-weight:900;color:#16a34a;font-family:var(--mono);line-height:1.2">'+modeInvs.length+'</div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase">MI</div></div>';
+    if(mode==='sea'){
+      s+='<div style="text-align:center;min-width:60px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsSubInvoices\')"><div style="font-size:24px;font-weight:900;color:#7c3aed;font-family:var(--mono);line-height:1.2">'+modeSis.length+'</div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase">SI</div></div>';
+    }
+    // Payment summary inline
+    s+='<div style="flex:1;min-width:120px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px">';
+    s+='<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Payment</div>';
+    s+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">';
+    s+='<span style="font-size:13px;font-family:var(--mono);font-weight:800;color:#2563eb" title="SI Amount">'+fAmt(pay.amt)+'</span>';
+    s+='<span style="font-size:13px;font-family:var(--mono);font-weight:800;color:#16a34a" title="Received">'+fAmt(pay.rcvd)+'</span>';
+    s+='<span style="font-size:15px;font-family:var(--mono);font-weight:900;color:'+(pay.bal>0?'#dc2626':'#16a34a')+'" title="Outstanding">'+fAmt(pay.bal)+'</span>';
+    s+='</div></div>';
+    s+='</div>';
+
+    // Status badges — CT
+    s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">CT:</span>'+badge('Draft',cC['Draft'],'badge-yellow')+badge('Transit',cC['In Transit'],'badge-onwater')+badge('WH',cC['Warehouse'],'badge-wh')+'</div>';
+    // Status badges — MI
+    s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">MI:</span>'+badge('Draft',mC['Draft'],'badge-yellow')+badge('RFD',mC['RFD'],'badge-rfd')+badge('Transit',mC['In Transit'],'badge-onwater')+(mode==='sea'?badge('WH',mC['Warehouse'],'badge-wh')+badge('SI(D)',mC['SI (Draft)'],'badge-sidraft'):'')+badge('Sold',mC['Sold'],'badge-sold')+(mode==='sea'?badge('P.Sold',mC['Partially Sold'],'badge-partsold'):'')+badge('Paid',mC['Fully Paid'],'badge-fullpaid')+badge('P.Paid',mC['Partially Paid'],'badge-partpaid')+'</div>';
+    // Status badges — SI (sea only)
+    if(mode==='sea'){
+      s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">SI:</span>'+badge('SI(D)',sC['SI (Draft)'],'badge-sidraft')+badge('Sold',sC['Sold'],'badge-sold')+badge('Paid',sC['Fully Paid'],'badge-fullpaid')+badge('P.Paid',sC['Partially Paid'],'badge-partpaid')+'</div>';
+    }
+
+    // ── Inventory: WH + Transit ──
+    var soldMap=_buildSoldMap(modeSis);
+    var whQty=0,whAmt=0,whPal=0,trQty=0,trAmt=0,trPal=0;
+    modeInvs.forEach(function(inv){
+      var cont=inv.containerId?byId(conts,inv.containerId):null;
+      if(!cont) return;
+      var cst=cont.status||'';
+      (inv.lineItems||[]).filter(function(li){return !li._meta&&!li.airSold;}).forEach(function(li){
+        var qty=li.quantity||0;var amt=qty*(li.rate||0);
+        if(cst==='Reached'){
+          var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
+          var sold=soldMap[key]||0;
+          var unsold=qty-sold;
+          if(unsold>0){whQty+=unsold;whAmt+=unsold*(li.rate||0);whPal++;}
+        } else if(cst==='Onwater'){
+          trQty+=qty;trAmt+=amt;trPal++;
+        }
+      });
+    });
+    s+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">';
+    s+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:6px 10px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase">WH</span><span style="font-size:16px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fAmt(whAmt)+'</span></div><div style="font-size:10px;font-family:var(--mono);color:#15803d;margin-top:2px">'+whQty.toLocaleString()+' qty · '+whPal+' pallets</div></div>';
+    s+='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px 10px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Transit</span><span style="font-size:16px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fAmt(trAmt)+'</span></div><div style="font-size:10px;font-family:var(--mono);color:#1d4ed8;margin-top:2px">'+trQty.toLocaleString()+' qty · '+trPal+' pallets</div></div>';
+    s+='</div>';
+
+    s+='</div>'; // end section border
+    return s;
+  };
+
   var h='';
 
-  // ── Summary Cards Row (compact) ──
+  // ── MR card (shared, not mode-specific) ──
+  var rCounts={};mrs.forEach(function(mr){var l=_hwmsMrCalcStatus(mr);rCounts[l]=(rCounts[l]||0)+1;});
+
+  // ── Sea + Air Side by Side ──
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start">';
+  h+=_buildSection('sea',seaConts,seaInvs,seaSis);
+  h+=_buildSection('air',airConts,airInvs,airSis);
+  h+='</div>';
+
+  // ── MR card (shared) ──
   h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px">';
-  h+='<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsContainers\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">🚢 Containers</span><span style="font-size:22px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+conts.length+'</span></div><div style="line-height:1.6">'+badge('Draft',cCounts['Draft'],'badge-yellow')+badge('Transit',cCounts['In Transit'],'badge-onwater')+badge('WH',cCounts['Warehouse'],'badge-wh')+'</div></div>';
-  h+='<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsInvoices\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase">🧾 Main Invoices</span><span style="font-size:22px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+invs.length+'</span></div><div style="line-height:1.6">'+badge('Draft',mCounts['Draft'],'badge-yellow')+badge('RFD',mCounts['RFD'],'badge-rfd')+badge('Transit',mCounts['In Transit'],'badge-onwater')+badge('WH',mCounts['Warehouse'],'badge-wh')+badge('Sold',mCounts['Sold'],'badge-sold')+badge('P.Sold',mCounts['Partially Sold'],'badge-partsold')+badge('Paid',mCounts['Fully Paid'],'badge-fullpaid')+badge('P.Paid',mCounts['Partially Paid'],'badge-partpaid')+'</div></div>';
-  h+='<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:10px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsSubInvoices\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase">📤 Sub-Invoices</span><span style="font-size:22px;font-weight:900;color:#7c3aed;font-family:var(--mono)">'+sis.length+'</span></div><div style="line-height:1.6">'+badge('WP',sCounts['Warehouse (WP)'],'badge-whwp')+badge('Sold',sCounts['Sold'],'badge-sold')+'</div></div>';
   h+='<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:10px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsMR\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase">📝 Material Req</span><span style="font-size:22px;font-weight:900;color:#ea580c;font-family:var(--mono)">'+mrs.length+'</span></div><div style="line-height:1.6">'+badge('Open',rCounts['Open'],'badge-yellow')+badge('P.Closed',rCounts['Partially Closed'],'badge-partpaid')+badge('Closed',rCounts['Closed'],'badge-fullpaid')+'</div></div>';
   h+='</div>';
 
-  // ── Payment Summary (compact inline) ──
+  // ── Combined Payment Summary ──
+  var allPay=_payTotals(sis);
   h+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
-  h+='<div style="flex:1;min-width:120px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:2px">Total SI Amt</div><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fAmt(totalSiAmt)+'</div></div>';
-  h+='<div style="flex:1;min-width:120px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:2px">Received</div><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fAmt(totalRcvd)+'</div></div>';
-  h+='<div style="flex:1;min-width:120px;background:'+(totalBal>0?'#fef2f2':'#f0fdf4')+';border:1.5px solid '+(totalBal>0?'#fecaca':'#bbf7d0')+';border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:'+(totalBal>0?'#991b1b':'#15803d')+';text-transform:uppercase;margin-bottom:2px">Outstanding</div><div style="font-size:18px;font-weight:900;color:'+(totalBal>0?'#dc2626':'#16a34a')+';font-family:var(--mono)">'+fAmt(totalBal)+'</div></div>';
+  h+='<div style="flex:1;min-width:120px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:2px">Total SI Amt</div><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fAmt(allPay.amt)+'</div></div>';
+  h+='<div style="flex:1;min-width:120px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:2px">Received</div><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fAmt(allPay.rcvd)+'</div></div>';
+  h+='<div style="flex:1;min-width:120px;background:'+(allPay.bal>0?'#fef2f2':'#f0fdf4')+';border:1.5px solid '+(allPay.bal>0?'#fecaca':'#bbf7d0')+';border-radius:8px;padding:8px 12px;text-align:center"><div style="font-size:9px;font-weight:700;color:'+(allPay.bal>0?'#991b1b':'#15803d')+';text-transform:uppercase;margin-bottom:2px">Outstanding</div><div style="font-size:18px;font-weight:900;color:'+(allPay.bal>0?'#dc2626':'#16a34a')+';font-family:var(--mono)">'+fAmt(allPay.bal)+'</div></div>';
   h+='</div>';
 
-
-  // ── Inventory Status Summary Cards ──
-  var now=new Date();
-  var _mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  // Build sold pallet map
-  var soldPallets={};
-  sis.forEach(function(si){
-    (si.lineItems||[]).filter(function(l){return !l._mrMeta;}).forEach(function(l){
-      var key=(si.invoiceId||'')+'|'+(l.partId||'')+'|'+(l.palletNumber||'');
-      soldPallets[key]=(soldPallets[key]||0)+(l.quantity||0);
-    });
-  });
-  var whQty=0,whAmt=0,whPallets=0,transitQty=0,transitAmt=0,transitPallets=0;
-  invs.forEach(function(inv){
-    var cont=inv.containerId?byId(conts,inv.containerId):null;
-    if(!cont) return;
-    var cst=cont.status||'';
-    (inv.lineItems||[]).filter(function(li){return !li._meta&&!li.airSold;}).forEach(function(li){
-      var qty=li.quantity||0;var amt=qty*(li.rate||0);
-      if(cst==='Reached'){
-        var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
-        var soldQty=soldPallets[key]||0;
-        var unsold=qty-soldQty;
-        if(unsold>0){whQty+=unsold;whAmt+=unsold*(li.rate||0);whPallets++;}
-      } else if(cst==='Onwater'){
-        transitQty+=qty;transitAmt+=amt;transitPallets++;
-      }
-    });
-  });
-  h+='<div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid var(--border)">📊 Current Inventory</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">';
-  h+='<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 12px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">🏭 Warehouse (Unsold)</span><span style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fAmt(whAmt)+'</span></div>'
-    +'<div style="display:flex;gap:12px;margin-top:3px;font-size:11px"><span style="font-family:var(--mono);font-weight:700;color:#15803d">'+whQty.toLocaleString()+' <span style="font-weight:400;color:var(--text3)">qty</span></span><span style="font-family:var(--mono);font-weight:700;color:#16a34a">'+whPallets+' <span style="font-weight:400;color:var(--text3)">pallets</span></span></div></div>';
-  h+='<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:8px 12px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">🚢 In Transit</span><span style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fAmt(transitAmt)+'</span></div>'
-    +'<div style="display:flex;gap:12px;margin-top:3px;font-size:11px"><span style="font-family:var(--mono);font-weight:700;color:#1d4ed8">'+transitQty.toLocaleString()+' <span style="font-weight:400;color:var(--text3)">qty</span></span><span style="font-family:var(--mono);font-weight:700;color:#2563eb">'+transitPallets+' <span style="font-weight:400;color:var(--text3)">pallets</span></span></div></div>';
-  h+='</div>';
-
-  // ── Inventory Aging (Month-wise) ──
+  // ── Inventory Aging (combined — unsold by WH Reached Month) ──
+  var soldPallets=_buildSoldMap(sis);
   h+='<div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid var(--border)">📦 Inventory Aging — Unsold (by WH Reached Month)</div>';
   var invAgingMonths={};
   var totalAgingAmt=0,totalAgingQty=0;
@@ -9051,17 +9417,17 @@ function renderHwmsDashboard(){
     h+='</tbody></table></div>';
   }
 
-  // ── Payment Aging Side by Side: by MI Date + by SI Date ──
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+  // ── Payment Aging by SI Date only (skip zero balance months) ──
 
   // Helper: build compact payment aging table with SI Amt, Received, Balance
   var _payAgingTable=function(title,dataMap,totalAmt,totalCnt){
-    var sorted=Object.values(dataMap).sort(function(a,b){return a.key.localeCompare(b.key);});
+    var sorted=Object.values(dataMap).filter(function(b){return b.amt>=5;}).sort(function(a,b){return a.key.localeCompare(b.key);});
     var t='<div style="font-size:12px;font-weight:900;color:var(--text);margin-bottom:5px;padding-bottom:3px;border-bottom:2px solid var(--border)">'+title+'</div>';
-    if(!totalCnt){return t+'<div style="padding:10px;text-align:center;color:var(--text3);font-size:11px">No outstanding payments ✓</div>';}
+    if(!sorted.length){return t+'<div style="padding:10px;text-align:center;color:var(--text3);font-size:11px">No outstanding payments ✓</div>';}
     var grandSiAmt=sorted.reduce(function(s,b){return s+(b.siAmt||0);},0);
     var grandRcvd=sorted.reduce(function(s,b){return s+(b.rcvd||0);},0);
-    t+='<div class="table-wrap" style="max-height:220px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--surface2);position:sticky;top:0;z-index:1">'
+    var grandBal=sorted.reduce(function(s,b){return s+(b.amt||0);},0);
+    t+='<div style="max-width:520px;margin-bottom:10px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--surface2)">'
       +'<th style="padding:3px 5px;text-align:left;font-size:9px;border-bottom:2px solid var(--accent)">Month</th>'
       +'<th style="padding:3px 5px;text-align:right;font-size:9px;border-bottom:2px solid var(--accent)">SIs</th>'
       +'<th style="padding:3px 5px;text-align:right;font-size:9px;border-bottom:2px solid var(--accent)">SI Amt</th>'
@@ -9085,31 +9451,12 @@ function renderHwmsDashboard(){
       +'<td style="padding:4px 5px;font-family:var(--mono);font-weight:900;text-align:right">'+totalCnt+'</td>'
       +'<td style="padding:4px 5px;font-family:var(--mono);font-weight:900;text-align:right;color:#2563eb">'+fAmt(grandSiAmt)+'</td>'
       +'<td style="padding:4px 5px;font-family:var(--mono);font-weight:900;text-align:right;color:#16a34a">'+fAmt(grandRcvd)+'</td>'
-      +'<td style="padding:4px 5px;font-family:var(--mono);font-weight:900;text-align:right;color:#dc2626">'+fAmt(totalAmt)+'</td></tr>';
+      +'<td style="padding:4px 5px;font-family:var(--mono);font-weight:900;text-align:right;color:#dc2626">'+fAmt(grandBal)+'</td></tr>';
     t+='</tbody></table></div>';
     return t;
   };
 
-  // Payment aging by MI date — ALL SIs grouped by MI month
-  var payByMi={},payByMiTotal=0,payByMiCount=0;
-  sis.forEach(function(si){
-    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
-    var siAmt=lis.reduce(function(s,l){return s+(l.quantity||0)*(l.rate||0);},0);
-    var rcvd=parseFloat(si.paymentReceived)||0;
-    if(!rcvd) rcvd=lis.reduce(function(s,l){return s+(parseFloat(l.paymentReceived)||0);},0);
-    var bal=siAmt-rcvd;
-    var inv=byId(invs,si.invoiceId);
-    var miDate=inv?inv.date:'';
-    if(!miDate) return;
-    var miDt=new Date(miDate.length===10?miDate+'T00:00:00':miDate);
-    if(isNaN(miDt)) return;
-    var mKey=miDt.getFullYear()+'-'+String(miDt.getMonth()+1).padStart(2,'0');
-    if(!payByMi[mKey]) payByMi[mKey]={label:_mon[miDt.getMonth()]+' '+miDt.getFullYear(),key:mKey,amt:0,siAmt:0,rcvd:0,count:0};
-    payByMi[mKey].amt+=Math.max(0,bal);payByMi[mKey].siAmt+=siAmt;payByMi[mKey].rcvd+=rcvd;payByMi[mKey].count++;
-    payByMiTotal+=Math.max(0,bal);payByMiCount++;
-  });
-
-  // Payment aging by SI date — ALL SIs grouped by SI month
+  // Payment aging by SI date only
   var payBySi={},payBySiTotal=0,payBySiCount=0;
   sis.forEach(function(si){
     var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
@@ -9127,9 +9474,7 @@ function renderHwmsDashboard(){
     payBySiTotal+=Math.max(0,bal);payBySiCount++;
   });
 
-  h+='<div>'+_payAgingTable('💳 SI Payment Aging (by MI Date)',payByMi,payByMiTotal,payByMiCount)+'</div>';
-  h+='<div>'+_payAgingTable('💳 SI Payment Aging (by SI Date)',payBySi,payBySiTotal,payBySiCount)+'</div>';
-  h+='</div>';
+  h+=_payAgingTable('💳 SI Payment Aging (by SI Date)',payBySi,payBySiTotal,payBySiCount);
 
   el.innerHTML=h;
   }catch(e){console.error('renderHwmsDashboard error:',e);var el2=document.getElementById('hwmsDashContent');if(el2)el2.innerHTML='<div style="padding:20px;color:#dc2626;font-weight:700">⚠ Dashboard error: '+e.message+'</div>';}
@@ -9327,9 +9672,115 @@ function _hwmsPayExportPending(){
   notify('📤 Exported '+pending.length+' pending sub-invoices ('+rows.length+' rows)');
 }
 
+// ===== HWMS: REPAIR TOOLS =====
+// Template: download a sample Excel with MI Number + Container No. columns
+function _hwmsRepairMapCtMiTemplate(){
+  var headers=['MI Number','Container No.'];
+  // Pre-fill with current unlinked MIs
+  var unlinked=(DB.hwmsInvoices||[]).filter(function(inv){return !inv.containerId;});
+  var rows=[headers];
+  if(unlinked.length){
+    unlinked.forEach(function(inv){rows.push([inv.invoiceNumber||'','']);});
+  } else {
+    rows.push(['MI-001','CN-01/25']);
+    rows.push(['MI-002','CN-01/25']);
+    rows.push(['MI-003','AC-02/25']);
+  }
+  _downloadAsXls(rows,'CT-MI Mapping','CT_MI_Mapping_Template.xlsx');
+  notify('📄 Template downloaded'+(unlinked.length?' with '+unlinked.length+' unlinked MIs':''));
+}
+
+// Upload: parse Excel and bulk-link MIs to CTs
+async function _hwmsRepairMapCtMi(inputEl){
+  var file=inputEl.files[0];if(!file){return;}inputEl.value='';
+  var resEl=document.getElementById('hwmsRepairCtMiResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Processing…</span>';}
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(e){
+      try{
+        var rows=await _parseXLSX(e.target.result);
+        if(!rows.length){_hwmsRepairCtMiShow('⚠ No data in file',true);return;}
+        // Build lookup maps
+        var invMap={};(DB.hwmsInvoices||[]).forEach(function(inv){invMap[(inv.invoiceNumber||'').trim().toUpperCase()]=inv;});
+        var contMap={};(DB.hwmsContainers||[]).forEach(function(c){contMap[(c.containerNumber||'').trim().toUpperCase()]=c;});
+        var linked=0,skipped=0,notFound=[],contNotFound=[],alreadyLinked=0;
+        showSpinner('Mapping CT → MI…');
+        for(var i=0;i<rows.length;i++){
+          var r=rows[i];
+          var miNum=(r['MI Number']||r['MI No.']||r['Invoice Number']||r['Invoice']||'').toString().trim();
+          var ctNum=(r['Container No.']||r['Container']||r['CT Number']||r['CT']||'').toString().trim();
+          if(!miNum||!ctNum){skipped++;continue;}
+          var inv=invMap[miNum.toUpperCase()];
+          var cont=contMap[ctNum.toUpperCase()];
+          if(!inv){notFound.push(miNum);continue;}
+          if(!cont){contNotFound.push(ctNum);continue;}
+          // Check transport mode match
+          var cType=_hwmsContGetType(cont);
+          var invTransport=(inv.modeOfTransport||'').toLowerCase();
+          if(cType==='air'&&invTransport!=='by air'){skipped++;continue;}
+          if(cType==='sea'&&invTransport==='by air'){skipped++;continue;}
+          // Already linked to same CT?
+          if(inv.containerId===cont.id){alreadyLinked++;continue;}
+          // Link it
+          inv.containerId=cont.id;
+          inv.containerNumber=cont.containerNumber;
+          _spinnerMsg('Saving '+(i+1)+'/'+rows.length+'…');
+          if(await _dbSave('hwmsInvoices',inv)) linked++;
+          else skipped++;
+        }
+        hideSpinner();
+        // Build result summary
+        var html='<div style="line-height:1.8">';
+        html+='<div style="font-weight:800;color:#16a34a">✅ Linked: '+linked+'</div>';
+        if(alreadyLinked) html+='<div style="color:var(--text3)">Already linked: '+alreadyLinked+'</div>';
+        if(skipped) html+='<div style="color:#a16207">Skipped (empty/mode mismatch): '+skipped+'</div>';
+        if(notFound.length) html+='<div style="color:#dc2626">MI not found: '+[...new Set(notFound)].join(', ')+'</div>';
+        if(contNotFound.length) html+='<div style="color:#dc2626">CT not found: '+[...new Set(contNotFound)].join(', ')+'</div>';
+        html+='</div>';
+        _hwmsRepairCtMiShow(html,false);
+        if(linked) renderHwmsInvoices();
+      }catch(err){hideSpinner();_hwmsRepairCtMiShow('⚠ '+err.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(err){_hwmsRepairCtMiShow('⚠ '+err.message,true);}
+}
+function _hwmsRepairCtMiShow(html,isErr){
+  var el=document.getElementById('hwmsRepairCtMiResult');
+  if(el){el.style.display='block';el.innerHTML=isErr?'<span style="color:#dc2626">'+html+'</span>':html;}
+}
+
+// ── Migrate AC-XX/YY → AC-XXX/YY (2-digit to 3-digit air consignment numbers) ──
+var _hwmsAcMigrated=false;
+async function _hwmsRepairAcNumbers(silent){
+  if(_hwmsAcMigrated) return;
+  _hwmsAcMigrated=true;
+  var toFix=(DB.hwmsContainers||[]).filter(function(c){return /^AC-\d{1,2}\/\d{2}$/.test(c.containerNumber||'');});
+  if(!toFix.length){if(!silent) notify('All air consignment numbers are already 3-digit ✓');return;}
+  if(!silent) showSpinner('Migrating AC numbers…');
+  var fixed=0;
+  for(var i=0;i<toFix.length;i++){
+    var c=toFix[i];
+    var m=c.containerNumber.match(/^AC-(\d{1,2})\/(\d{2})$/);
+    if(!m) continue;
+    var newNum='AC-'+m[1].padStart(3,'0')+'/'+m[2];
+    c.containerNumber=newNum;
+    if(await _dbSave('hwmsContainers',c)){
+      // Update linked invoices' containerNumber
+      var linked=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
+      for(var j=0;j<linked.length;j++){
+        linked[j].containerNumber=newNum;
+        await _dbSave('hwmsInvoices',linked[j]);
+      }
+      fixed++;
+    }
+  }
+  if(!silent){hideSpinner();notify('✅ Migrated '+fixed+' air consignment numbers to 3-digit format');}
+}
+
 // ===== HWMS: SYSTEM GUIDE (Super Admin only) =====
 function _hwmsRenderSysGuide(){
-  if(!_hwmsIsSA()) return;
+  if(!_hwmsIsSA()&&!_hwmsIsAdmin()) return;
   // --- Page Access Matrix ---
   var y='<span style="color:#16a34a;font-weight:800">✓</span>';
   var n='<span style="color:#d1d5db">—</span>';
@@ -9480,6 +9931,16 @@ function _hwmsInvNum(n){
   if(!n) return '';
   if(n.length<=5) return '<span style="font-weight:900;font-size:1.1em">'+n+'</span>';
   return '<span style="font-weight:300;opacity:.6">'+n.slice(0,-5)+'</span>'+'<span style="font-weight:900;font-size:1.1em">'+n.slice(-5)+'</span>';
+}
+function _hwmsTransportBadge(inv,size){
+  var sz=size||'sm';
+  var isAir=inv.modeOfTransport==='By Air';
+  if(sz==='lg') return isAir
+    ?'<span style="font-size:12px;font-weight:800;padding:3px 10px;border-radius:6px;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;white-space:nowrap;vertical-align:middle">✈️ By Air</span>'
+    :'<span style="font-size:12px;font-weight:800;padding:3px 10px;border-radius:6px;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;white-space:nowrap;vertical-align:middle">🚢 By Sea</span>';
+  return isAir
+    ?'<span title="By Air" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;background:#ede9fe;color:#6d28d9;white-space:nowrap">✈️ Air</span>'
+    :'<span title="By Sea" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1d4ed8;white-space:nowrap">🚢 Sea</span>';
 }
 function _hwmsGetLatestSteelRate(customerId, invoiceDate){
   // Steel rates are stored in the separate hwms_steel_rates table, linked by customerId
@@ -10543,7 +11004,7 @@ function openHwmsInvModal(id){
     if(isConfirmed&&isDispatched){notify('⚠ Main Invoice is locked (container dispatched). Cannot edit.',true);return;}
     // 1. Populate ALL form fields (elements exist in DOM even when page is hidden)
     document.getElementById('eHwmsInvId').value=id||'';
-    document.getElementById('mHwmsInvTitle').textContent=id?'Edit Main Invoice':'Add Main Invoice';
+    document.getElementById('mHwmsInvTitle').innerHTML=id?(inv?_hwmsTransportBadge(inv,'lg')+' Edit Main Invoice':'Edit Main Invoice'):'Add Main Invoice';
     // Date + FY
     const dateVal=inv?.date||new Date().toISOString().split('T')[0];
     document.getElementById('hwmsInvDate').value=dateVal;

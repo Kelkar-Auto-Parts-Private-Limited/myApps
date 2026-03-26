@@ -1589,18 +1589,18 @@ async function _parseXLSX(arrayBuffer){
 
   // ── 8. Number format detection for dates ────────────────────────────────
   // Load numFmts from styles.xml to detect date columns
-  const dateNumFmtIds=new Set([14,15,16,17,18,19,20,21,22,45,46,47]);
+  // Built-in date format IDs: 14-22 (standard), 27-36 (CJK/locale), 45-47 (time), 50-58 (more CJK)
+  const dateNumFmtIds=new Set([14,15,16,17,18,19,20,21,22,27,28,29,30,31,32,33,34,35,36,45,46,47,50,51,52,53,54,55,56,57,58]);
   const cellStyleFmtId={}; // style index → numFmtId
   try{
     const styXml=await readEntry('xl/styles.xml');
     if(styXml){
-      // Built-in date format IDs 14-22, 45-47
-      // Custom formats
+      // Custom formats — detect any containing date/time tokens (y, m, d, h, s)
       const cfRe=/<numFmt numFmtId="(\d+)" formatCode="([^"]+)"/g;
       let cf;
       while((cf=cfRe.exec(styXml))!==null){
         const code=cf[2].toLowerCase();
-        if(/[ymd]/.test(code)&&!/\[/.test(code)) dateNumFmtIds.add(+cf[1]);
+        if(/[ymdhYMDH]/.test(cf[2])&&!/\[/.test(code)) dateNumFmtIds.add(+cf[1]);
       }
       // xf entries → map cell style index to numFmtId
       const xfSection=styXml.match(/<cellXfs>([\s\S]*?)<\/cellXfs>/);
@@ -1612,10 +1612,13 @@ async function _parseXLSX(arrayBuffer){
     }
   }catch(_){}
 
-  // Excel serial date → YYYY-MM-DD
+  // Excel serial date → YYYY-MM-DD (with year validation)
   const xlDateToStr=n=>{
     const d=new Date(Math.round((n-25569)*86400000));
-    return d.toISOString().split('T')[0];
+    if(isNaN(d)) return String(n);
+    const iso=d.toISOString().split('T')[0];
+    const yr=parseInt(iso);
+    return (yr>=1900&&yr<=2100)?iso:String(n);
   };
 
   // ── 9. Parse rows ────────────────────────────────────────────────────────
@@ -1666,13 +1669,28 @@ async function _parseXLSX(arrayBuffer){
   const headers=[];
   for(let i=0;i<=maxCol;i++) headers.push(String(rawRows[0][i]||'').trim());
 
+  // Detect "date" columns by header name — auto-convert numeric values to YYYY-MM-DD
+  // This catches Excel serial numbers in date columns that weren't detected by cell style
+  const dateColIdxs=new Set();
+  headers.forEach((h,i)=>{
+    if(h&&/date|pickup|reach|dispatch|expir|valid/i.test(h)) dateColIdxs.add(i);
+  });
+
   const result=[];
   for(let ri=1;ri<rawRows.length;ri++){
     const obj={};
     let hasVal=false;
     headers.forEach((h,i)=>{
       if(!h) return;
-      const v=String(rawRows[ri][i]===undefined?'':rawRows[ri][i]).trim();
+      let v=String(rawRows[ri][i]===undefined?'':rawRows[ri][i]).trim();
+      // Auto-convert numeric values in date columns to YYYY-MM-DD
+      if(v&&dateColIdxs.has(i)){
+        const num=parseFloat(v);
+        if(!isNaN(num)&&/^\d+\.?\d*$/.test(v)&&num>=1&&num<100000){
+          const d=new Date(Math.round((num-25569)*86400000));
+          if(!isNaN(d)){const iso=d.toISOString().split('T')[0];const yr=parseInt(iso);if(yr>=1900&&yr<=2100) v=iso;}
+        }
+      }
       obj[h]=v;
       if(v) hasVal=true;
     });
