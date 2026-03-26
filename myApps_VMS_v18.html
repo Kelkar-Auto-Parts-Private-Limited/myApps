@@ -2353,20 +2353,33 @@ async function correctData(){
 
   // ── STEP 3: Recalculate undone step assignments on every segment ──────────
   // Must run AFTER trip fields are corrected above (recalcSegSteps reads trip.dest2/3)
-  const segsToSave=[];
-  for(const seg of segs){
-    if(!seg.steps||seg.status==='Cancelled') continue;
-    const siblings=segsByTrip.get(seg.tripId)||[];
-    const changed=recalcSegSteps(seg,siblings);
-    // Also save if step 5 was just backfilled (created by _fromRow for old records)
-        const hadBackfill=seg.steps[5]?._backfilled;
-    if(hadBackfill){delete seg.steps[5]._backfilled;}
-    if(changed||hadBackfill){
-      segsToSave.push(seg);
-      fixedSegs++;
-      console.log('correctData seg',seg.id,'→ step',seg.currentStep,'status',seg.status,'s5skip',seg.steps[5]?.skip);
+  // CRITICAL: Process in label order (A→B→C) within each trip so predecessor
+  // fixes (e.g. step2 skip correction) are visible to successor unlock checks.
+  // Use multi-pass to handle cascading changes across segments.
+  const orderedSegs=[];
+  segsByTrip.forEach(arr=>arr.forEach(s=>orderedSegs.push(s))); // already sorted A→B→C per trip
+  orderedSegs.sort((a,b)=>a.label.localeCompare(b.label)); // global: all A's, then B's, then C's
+
+  const segsToSave=new Set();
+  let _passes=0, _moreChanges=true;
+  while(_moreChanges && _passes<5){
+    _moreChanges=false;
+    _passes++;
+    for(const seg of orderedSegs){
+      if(!seg.steps||seg.status==='Cancelled') continue;
+      const siblings=segsByTrip.get(seg.tripId)||[];
+      const changed=recalcSegSteps(seg,siblings);
+      // Also save if step 5 was just backfilled (created by _fromRow for old records)
+      const hadBackfill=seg.steps[5]?._backfilled;
+      if(hadBackfill){delete seg.steps[5]._backfilled;}
+      if(changed||hadBackfill){
+        segsToSave.add(seg);
+        if(!_moreChanges) _moreChanges=true;
+        console.log('correctData seg',seg.id,'→ step',seg.currentStep,'status',seg.status,'s5skip',seg.steps[5]?.skip,'pass',_passes);
+      }
     }
   }
+  fixedSegs=segsToSave.size;
 
   // ── STEP 4: Enqueue all saves ─────────────────────────────────────────────
   for(const t of tripsToSave){await _dbSave('trips',t);}
@@ -2387,184 +2400,323 @@ async function correctData(){
 }
 // ===== PROCESS FLOW ENGINE =====
 /*
-  Step Ownership Logic (per segment, based on sLoc/dLoc types):
-  ┌──────────┬──────────┬───────────────┬────────────────┬─────────────────┬────────────────┐
-  │ sLoc     │ dLoc     │ Step1 Exit    │ Step2 Entry    │ Step3 Receipt   │ Step4 Approve  │
-  ├──────────┼──────────┼───────────────┼────────────────┼─────────────────┼────────────────┤
-  │ KAP      │ KAP      │ Start Loc     │ Dest Loc       │ Dest Loc        │ Start Loc      │
-  │ KAP      │ External │ Start Loc     │ SKIP           │ Start Loc       │ Start Loc      │
-  │ External │ KAP      │ SKIP          │ Dest Loc       │ Dest Loc        │ Booking User Loc│
-  │ External │ External │ SKIP          │ SKIP           │ Booking User Loc│ Booking User Loc│
-  └──────────┴──────────┴───────────────┴────────────────┴─────────────────┴────────────────┘
-  "Location" means: use that location's assigned role users (kapSec, matRecv, approvers)
-  "Booking User Loc" = the trip booker's plant/location from user master
+  Trip Allocation Logic — Split Trip (per Trip-Plant_Allocation_Logic_Split_Trip.xlsx)
+
+  ── tripCatId (per segment, based on sLoc/dLoc location types) ──
+  KK = KAP  → KAP
+  KE = KAP  → External
+  EK = External → KAP
+  EE = External → External
+
+  ── Step → actionLoc Allocation ──────────────────────────────────────────────
+  ┌───────────┬──────────────────┬──────────────────┬──────────────────┬──────────────────┬──────────────────┐
+  │ tripCatId │ Step1: Exit      │ Step2: Entry     │ Step3: Mat.Rcpt  │ Step4: Approve   │ Step5: Empty Exit│
+  │           │ (KAP Sec Exit)   │ (KAP Sec Entry)  │ (Material Recv)  │ (Trip Approval)  │ (KAP Sec Exit)   │
+  ├───────────┼──────────────────┼──────────────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ KK        │ sLoc             │ dLoc             │ dLoc             │ sLoc             │ dLoc             │
+  │ KE        │ sLoc             │ Skip             │ Skip             │ sLoc             │ Skip             │
+  │ EK        │ Skip             │ dLoc             │ dLoc             │ dLoc             │ dLoc             │
+  │ EE        │ Skip             │ Skip             │ Skip             │ Trip Booking User│ Skip             │
+  └───────────┴──────────────────┴──────────────────┴──────────────────┴──────────────────┴──────────────────┘
+
+  ── Sequence (execution order within a segment) ──
+  Step1 → Sequence1 (Gate Exit)
+  Step2 → Sequence2 (Gate Entry)
+  Step3 → Sequence3 (Material Receipt)
+  Step4 → Sequence4 (Trip Approval)
+  Step5 → Sequence1 (Empty Vehicle Exit — same gate-op level as Step1)
+
+  ── Connecting Trip Rule ──
+  Step5 of segment N is REPLACED by Step1 of segment N+1 (if next segment exists).
+  Only the LAST segment of a multi-segment trip keeps Step5 active.
+  Step5 is only active when destination is KAP (gate exit requires a KAP gate).
 */
-function getCriteria(st,dt){
-  if(st==='KAP'&&dt==='KAP') return 1;
-  if(st==='KAP'&&dt==='External') return 2;
-  if(st==='External'&&dt==='KAP') return 3;
-  return 4;
+
+// ── tripCatId: KK / KE / EK / EE ────────────────────────────────────────────
+function getCriteria(sType, dType){
+  if(sType==='KAP' && dType==='KAP')      return 1; // KK
+  if(sType==='KAP' && dType==='External')  return 2; // KE
+  if(sType==='External' && dType==='KAP')  return 3; // EK
+  return 4;                                           // EE
 }
-function getTripCatId(label,st,dt){
-  return label+(st==='KAP'?'K':'E')+(dt==='KAP'?'K':'E');
+const CRITERIA_LABEL = {1:'KK', 2:'KE', 3:'EK', 4:'EE'};
+const CRITERIA_DESC  = {1:'KAP→KAP', 2:'KAP→Ext', 3:'Ext→KAP', 4:'Ext→Ext'};
+
+function getTripCatId(label, sType, dType){
+  return label + (sType==='KAP'?'K':'E') + (dType==='KAP'?'K':'E');
 }
 
-function buildSegment(tripId,label,sLoc,dLoc){
-  const st=ltype(sLoc), dt=ltype(dLoc);
-  const c=getCriteria(st,dt);
-  const catId=getTripCatId(label,st,dt);
-  const sl=byId(DB.locations,sLoc);
-  const dl=byId(DB.locations,dLoc);
+// ── Helper: get users assigned to a role at a location ───────────────────────
+function _locRoleUsers(loc, role){
+  if(!loc) return [];
+  if(role==='KAP Security')     return loc.kapSec ? [loc.kapSec] : [];
+  if(role==='Material Receiver') return loc.matRecv || [];
+  if(role==='Trip Approver')     return loc.approvers || [];
+  return [];
+}
 
-  // Get booking user's location for Ext→Ext fallback
-  const trip=byId(DB.trips,tripId);
-  const bookingUser=trip?byId(DB.users,trip.bookedBy):CU;
-  const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
+// ── Resolve actionLoc for each step per tripCatId ────────────────────────────
+// Returns { loc, skip, ownerLoc } for each step based on the allocation table.
+// sl = source location object, dl = destination location object,
+// bookingLoc = trip booker's assigned location (fallback for EE Step4)
+function _resolveStepAlloc(crit, sl, dl, sLocId, dLocId, bookingLoc){
+  // Step1: KAP Security Gate Exit
+  const s1Skip = (crit===3 || crit===4); // Skip when sLoc is External (EK, EE)
+  const s1Loc  = s1Skip ? null : sl;
 
-  // Helper: get location's role users
-  const locUsers=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
+  // Step2: KAP Security Gate Entry
+  const s2Skip = (crit===2 || crit===4); // Skip when dLoc is External (KE, EE)
+  const s2Loc  = s2Skip ? null : dl;
+
+  // Step3: Material Receipt — Skip when dLoc is External (KE, EE)
+  const s3Skip = (crit===2 || crit===4);
+  const s3Loc  = s3Skip ? null : dl; // KK→dLoc, EK→dLoc
+
+  // Step4: Trip Approval — NEVER skipped
+  //   KK → sLoc,  KE → sLoc,  EK → dLoc,  EE → Trip Booking User
+  let s4Loc;
+  if(crit===1)      s4Loc = sl;          // KK: approval at source
+  else if(crit===2) s4Loc = sl;          // KE: approval at source
+  else if(crit===3) s4Loc = dl;          // EK: approval at destination
+  else              s4Loc = bookingLoc;  // EE: approval at booking user's location
+
+  return {
+    s1: { skip:s1Skip, loc:s1Loc, locId:s1Skip?null:sLocId },
+    s2: { skip:s2Skip, loc:s2Loc, locId:s2Skip?null:dLocId },
+    s3: { skip:s3Skip, loc:s3Loc, locId:s3Skip?null:(s3Loc?.id||null) },
+    s4: { skip:false,  loc:s4Loc, locId:s4Loc?.id||null },
+  };
+}
+
+// ── Build a new segment ──────────────────────────────────────────────────────
+function buildSegment(tripId, label, sLoc, dLoc){
+  const sType = ltype(sLoc), dType = ltype(dLoc);
+  const crit  = getCriteria(sType, dType);
+  const catId = getTripCatId(label, sType, dType);
+  const sl    = byId(DB.locations, sLoc);
+  const dl    = byId(DB.locations, dLoc);
+
+  // Booking user's location (fallback for EE Step4: Trip Booking User)
+  const trip        = byId(DB.trips, tripId);
+  const bookingUser = trip ? byId(DB.users, trip.bookedBy) : CU;
+  const bookingLoc  = bookingUser ? (getUserLocation(bookingUser.id) || byId(DB.locations, bookingUser.plant)) : null;
+
+  // Resolve actionLoc for steps 1–4 from allocation table
+  const alloc = _resolveStepAlloc(crit, sl, dl, sLoc, dLoc, bookingLoc);
+
+  // Step5: Empty Vehicle Exit — only on LAST segment when dLoc is KAP
+  // (replaced by Step1 of next connecting segment if not last)
+  const isLastSeg = (label==='A' && !trip?.dest2) || (label==='B' && !trip?.dest3) || label==='C';
+  const s5Active  = isLastSeg && dType==='KAP';
+
+  const steps = {
+    1: {
+      skip: alloc.s1.skip,
+      users: alloc.s1.skip ? [] : _locRoleUsers(alloc.s1.loc, 'KAP Security'),
+      label: 'Gate Exit', loc: alloc.s1.locId, ownerLoc: alloc.s1.locId,
+      role: 'KAP Security', done: false, time: null, by: null
+    },
+    2: {
+      skip: alloc.s2.skip,
+      users: alloc.s2.skip ? [] : _locRoleUsers(alloc.s2.loc, 'KAP Security'),
+      label: 'Gate Entry', loc: alloc.s2.locId, ownerLoc: alloc.s2.locId,
+      role: 'KAP Security', done: false, time: null, by: null
+    },
+    3: {
+      skip: alloc.s3.skip,
+      users: alloc.s3.skip ? [] : _locRoleUsers(alloc.s3.loc, 'Material Receiver'),
+      label: 'Material Receipt', loc: alloc.s3.locId, ownerLoc: alloc.s3.locId,
+      role: 'Material Receiver', done: false, time: null, by: null
+    },
+    4: {
+      skip: false,
+      users: _locRoleUsers(alloc.s4.loc, 'Trip Approver'),
+      label: 'Approve', loc: alloc.s4.locId, ownerLoc: alloc.s4.locId,
+      role: 'Trip Approver', done: false, time: null, by: null,
+      rejected: false, remarks: ''
+    },
+    5: {
+      skip: !s5Active,
+      users: s5Active ? _locRoleUsers(dl, 'KAP Security') : [],
+      label: 'Empty Vehicle Exit', loc: s5Active ? dLoc : null, ownerLoc: s5Active ? dLoc : null,
+      role: 'KAP Security', done: false, time: null, by: null
+    },
   };
 
-  // Determine owner location for each step
-  let s1Loc, s2Loc, s3Loc, s4Loc;
-  let s1Skip=false, s2Skip=false;
-
-  if(c===1){ // KAP→KAP
-    s1Loc=sl; s2Loc=dl; s3Loc=dl; s4Loc=sl;
-  } else if(c===2){ // KAP→External
-    s1Loc=sl; s2Skip=true; s3Loc=sl; s4Loc=sl;
-  } else if(c===3){ // External→KAP
-    s1Skip=true; s2Loc=dl; s3Loc=dl; s4Loc=bookingLoc;
-  } else { // External→External
-    s1Skip=true; s2Skip=true; s3Loc=bookingLoc; s4Loc=bookingLoc;
-  }
-
-  // Step 3 (Material Receipt) is skipped when destination is External — no KAP to receive at
-  const s3Skip=(dt==='External');
-
-  // Step 5: Empty Vehicle Exit — only on LAST segment when destination is KAP
-  const isLastSeg=(label==='A'&&!trip?.dest2)||(label==='B'&&!trip?.dest3)||label==='C';
-  const s5Active=isLastSeg&&dt==='KAP';
-
-  const steps={
-    1:{skip:s1Skip, users:s1Skip?[]:locUsers(s1Loc,'KAP Security'), label:'Gate Exit', loc:s1Skip?null:sLoc, ownerLoc:s1Skip?null:sLoc, role:'KAP Security', done:false, time:null, by:null},
-    2:{skip:s2Skip, users:s2Skip?[]:locUsers(s2Loc,'KAP Security'), label:'Gate Entry', loc:s2Skip?null:dLoc, ownerLoc:s2Skip?null:dLoc, role:'KAP Security', done:false, time:null, by:null},
-    3:{skip:s3Skip, users:s3Skip?[]:locUsers(s3Loc,'Material Receiver'), label:'Material Receipt', loc:s3Skip?null:(s3Loc?.id||null), ownerLoc:s3Skip?null:(s3Loc?.id||null), role:'Material Receiver', done:false, time:null, by:null},
-    4:{skip:false, users:locUsers(s4Loc,'Trip Approver'), label:'Approve', loc:s4Loc?.id||null, ownerLoc:s4Loc?.id||null, role:'Trip Approver', done:false, time:null, by:null, rejected:false, remarks:''},
-    5:{skip:!s5Active, users:s5Active?locUsers(dl,'KAP Security'):[], label:'Empty Vehicle Exit', loc:s5Active?dLoc:null, ownerLoc:s5Active?dLoc:null, role:'KAP Security', done:false, time:null, by:null},
+  const seg = {
+    id: tripId + label, tripId, label, sLoc, dLoc,
+    criteria: crit, tripCatId: catId, steps,
+    status: 'Active', date: new Date().toISOString()
   };
-
-  const seg={id:tripId+label, tripId, label, sLoc, dLoc, criteria:c, tripCatId:catId, steps, status:'Active', date:new Date().toISOString()};
-  seg.currentStep=nextStep(seg);
+  seg.currentStep = nextStep(seg);
   return seg;
 }
 
+// ── Step sequencing ──────────────────────────────────────────────────────────
+// Strict sequential order: Step1 → Step2 → Step3 → Step4 → Step5
+// Step5 shares Sequence1 (gate-exit level) — available after Step4 completes
 function nextStep(seg){
-  // Steps 1 & 2: sequential gate operations
-  if(!seg.steps[1]?.done&&!seg.steps[1]?.skip) return 1;
-  if(!seg.steps[2]?.done&&!seg.steps[2]?.skip) return 2;
-  // Once gate ops done: Step 5 (Empty Vehicle Exit) is next KAP priority — runs in parallel with 3 & 4
-  if(seg.steps[5]&&!seg.steps[5].skip&&!seg.steps[5].done) return 5;
-  // Steps 3 & 4: background MR & Approval (also run in parallel with step 5)
-  if(!seg.steps[3]?.done&&!seg.steps[3]?.skip) return 3;
-  if(!seg.steps[4]?.done&&!seg.steps[4]?.skip) return 4;
-  return 6; // all steps done
+  if(!seg.steps[1]?.done && !seg.steps[1]?.skip) return 1; // Sequence1: Gate Exit
+  if(!seg.steps[2]?.done && !seg.steps[2]?.skip) return 2; // Sequence2: Gate Entry
+  if(!seg.steps[3]?.done && !seg.steps[3]?.skip) return 3; // Sequence3: Material Receipt
+  if(!seg.steps[4]?.done && !seg.steps[4]?.skip) return 4; // Sequence4: Trip Approval
+  if(seg.steps[5] && !seg.steps[5].skip && !seg.steps[5].done) return 5; // Sequence1: Empty Exit
+  return 6; // all done
 }
+
 function allStepsDone(seg){
-  // True when ALL non-skipped steps (including step 5) are done
-  for(let s=1;s<=5;s++){const st=seg.steps[s];if(st&&!st.skip&&!st.done)return false;}
+  for(let s=1; s<=5; s++){
+    const st = seg.steps[s];
+    if(st && !st.skip && !st.done) return false;
+  }
   return true;
 }
 function stepsOneAndTwoDone(seg){
-  // Returns true when Steps 1 & 2 are each either done or skipped
-  return [1,2].every(s=>seg.steps[s]?.done||seg.steps[s]?.skip);
+  return [1,2].every(s => seg.steps[s]?.done || seg.steps[s]?.skip);
+}
+// Segment gate-ops complete: steps 1 (exit), 2 (entry), AND 5 (empty exit) all done/skipped.
+// Used for unlocking the NEXT segment — B waits for A's full gate cycle, C waits for B's.
+// Step 5 is skipped on intermediate segments (replaced by next segment's Step 1), so for
+// intermediate segments this effectively equals stepsOneAndTwoDone. For last segments with
+// active Step 5, the vehicle must physically exit before any successor is unlocked.
+function segGatesDone(seg){
+  return [1,2,5].every(s => seg.steps[s]?.done || seg.steps[s]?.skip);
 }
 function stepsUpTo3Done(seg){
-  // Returns true when Steps 1, 2 & 3 are each either done or skipped
-  return [1,2,3].every(s=>seg.steps[s]?.done||seg.steps[s]?.skip);
+  return [1,2,3].every(s => seg.steps[s]?.done || seg.steps[s]?.skip);
 }
 
-// Recalculate undone step properties for a segment.
-// Reads the full trip route AND sibling segments to determine isLastSeg correctly.
-// Recomputes skip, loc, ownerLoc, users for every undone step.
-// Also updates criteria, tripCatId, currentStep, status.
+// ── Recalculate undone step properties for a segment ─────────────────────────
+// Called after trip edits or data corrections. Recomputes skip, loc, ownerLoc,
+// users for every undone step. Also updates criteria, tripCatId, currentStep, status.
+// Now also: unlocks stuck-Locked segments, creates missing step objects.
 // Returns true if anything changed.
 function recalcSegSteps(seg, siblingSegs){
-  const trip=byId(DB.trips,seg.tripId);
-  if(!trip||seg.status==='Cancelled') return false;
-  const sLoc=seg.sLoc,dLoc=seg.dLoc;
-  const stype=ltype(sLoc),dtype=ltype(dLoc);
-  const crit=getCriteria(stype,dtype);
-  const sl=byId(DB.locations,sLoc);
-  const dl=byId(DB.locations,dLoc);
-  const bookingUser=byId(DB.users,trip.bookedBy)||CU;
-  const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
-  const locUsr=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
+  const trip = byId(DB.trips, seg.tripId);
+  if(!trip || seg.status==='Cancelled') return false;
+
+  const sLoc = seg.sLoc, dLoc = seg.dLoc;
+  const sType = ltype(sLoc), dType = ltype(dLoc);
+  const crit  = getCriteria(sType, dType);
+  const sl    = byId(DB.locations, sLoc);
+  const dl    = byId(DB.locations, dLoc);
+
+  // Booking user's location (for EE Step4 fallback)
+  const bookingUser = byId(DB.users, trip.bookedBy) || CU;
+  const bookingLoc  = bookingUser ? (getUserLocation(bookingUser.id) || byId(DB.locations, bookingUser.plant)) : null;
+
+  // Resolve allocation from table
+  const alloc = _resolveStepAlloc(crit, sl, dl, sLoc, dLoc, bookingLoc);
+
+  // isLastSeg: cross-check both sibling segments AND trip dest fields
+  const allSegsForTrip = siblingSegs || DB.segments.filter(s => s.tripId === seg.tripId);
+  const hasSegB = allSegsForTrip.some(s => s.label==='B');
+  const hasSegC = allSegsForTrip.some(s => s.label==='C');
+  const tripHasDest2 = !!(trip.dest2 && trip.dest2!=='');
+  const tripHasDest3 = !!(trip.dest3 && trip.dest3!=='');
+  const aIsLast = seg.label==='A' && !hasSegB && !tripHasDest2;
+  const bIsLast = seg.label==='B' && !hasSegC && !tripHasDest3;
+  const cIsLast = seg.label==='C';
+  const isLastSeg = aIsLast || bIsLast || cIsLast;
+  const s5Active  = isLastSeg && dType==='KAP';
+
+  let changed = false;
+
+  // ── FIX 1: Unlock stuck-Locked segments ────────────────────────────────────
+  // Segment A should NEVER be Locked. Segment B/C should unlock when predecessor's
+  // gate steps (1, 2, AND 5 if applicable) are all done.
+  if(seg.status === 'Locked'){
+    let shouldUnlock = false;
+    if(seg.label === 'A'){
+      // Segment A is never locked
+      shouldUnlock = true;
+    } else {
+      // Check if predecessor segment has gate steps done (1, 2, and 5 if not skipped)
+      const prevLabel = {B:'A', C:'B'}[seg.label];
+      if(prevLabel){
+        const prevSeg = allSegsForTrip.find(s => s.label === prevLabel);
+        if(prevSeg && segGatesDone(prevSeg)){
+          shouldUnlock = true;
+        }
+      }
+    }
+    if(shouldUnlock){
+      seg.status = 'Active';
+      seg.date = new Date().toISOString();
+      changed = true;
+    }
+  }
+
+  // ── FIX 2: Create missing step objects ─────────────────────────────────────
+  const stepDefaults = {
+    1: { label:'Gate Exit',          role:'KAP Security' },
+    2: { label:'Gate Entry',         role:'KAP Security' },
+    3: { label:'Material Receipt',   role:'Material Receiver' },
+    4: { label:'Approve',            role:'Trip Approver', rejected:false, remarks:'' },
+    5: { label:'Empty Vehicle Exit', role:'KAP Security' },
   };
-  let s1Loc,s2Loc,s3Loc,s4Loc,s1Skip=false,s2Skip=false;
-  if(crit===1){s1Loc=sl;s2Loc=dl;s3Loc=dl;s4Loc=sl;}
-  else if(crit===2){s1Loc=sl;s2Skip=true;s3Loc=sl;s4Loc=sl;}
-  else if(crit===3){s1Skip=true;s2Loc=dl;s3Loc=dl;s4Loc=bookingLoc;}
-  else{s1Skip=true;s2Skip=true;s3Loc=bookingLoc;s4Loc=bookingLoc;}
-  const s3Skip=(dtype==='External');
-  // isLastSeg: use BOTH trip.dest fields AND sibling segments to cross-check
-  // A segment is "last" if no later label (B or C) exists among sibling segments of the same trip
-  const allSegsForTrip=siblingSegs||DB.segments.filter(s=>s.tripId===seg.tripId);
-  const hasSegB=allSegsForTrip.some(s=>s.label==='B');
-  const hasSegC=allSegsForTrip.some(s=>s.label==='C');
-  // Also cross-check with trip destinations
-  const tripHasDest2=!!(trip.dest2&&trip.dest2!=='');
-  const tripHasDest3=!!(trip.dest3&&trip.dest3!=='');
-  // A is last only if no B exists AND trip has no dest2
-  const aIsLast=seg.label==='A'&&!hasSegB&&!tripHasDest2;
-  // B is last only if no C exists AND trip has no dest3
-  const bIsLast=seg.label==='B'&&!hasSegC&&!tripHasDest3;
-  const cIsLast=seg.label==='C';
-  const isLastSeg=aIsLast||bIsLast||cIsLast;
-  const s5Active=isLastSeg&&dtype==='KAP';
-  let changed=false;
-  const patch=(n,props)=>{
-    const step=seg.steps[n];
-    if(!step||step.done) return;
-    Object.keys(props).forEach(k=>{
-      if(JSON.stringify(step[k])!==JSON.stringify(props[k])){step[k]=props[k];changed=true;}
+  for(let n = 1; n <= 5; n++){
+    if(!seg.steps[n]){
+      seg.steps[n] = { skip:true, users:[], loc:null, ownerLoc:null,
+        done:false, time:null, by:null, ...stepDefaults[n] };
+      changed = true;
+    }
+  }
+
+  // ── FIX 3: Patch step allocation, role, label from table ─────────────────
+  // Ensures steps 1, 2, 5 are ALWAYS allocated to 'KAP Security' role,
+  // step 3 to 'Material Receiver', step 4 to 'Trip Approver'.
+  const EXPECTED_ROLE  = {1:'KAP Security', 2:'KAP Security', 3:'Material Receiver', 4:'Trip Approver', 5:'KAP Security'};
+  const EXPECTED_LABEL = {1:'Gate Exit', 2:'Gate Entry', 3:'Material Receipt', 4:'Approve', 5:'Empty Vehicle Exit'};
+
+  const patch = (n, props) => {
+    const step = seg.steps[n];
+    if(!step || step.done) return;
+    Object.keys(props).forEach(k => {
+      if(JSON.stringify(step[k]) !== JSON.stringify(props[k])){
+        step[k] = props[k];
+        changed = true;
+      }
     });
   };
-  patch(1,{skip:s1Skip,loc:s1Skip?null:sLoc,ownerLoc:s1Skip?null:sLoc,users:s1Skip?[]:locUsr(s1Loc,'KAP Security')});
-  patch(2,{skip:s2Skip,loc:s2Skip?null:dLoc,ownerLoc:s2Skip?null:dLoc,users:s2Skip?[]:locUsr(s2Loc,'KAP Security')});
-  patch(3,{skip:s3Skip,loc:s3Skip?null:(s3Loc?.id||null),ownerLoc:s3Skip?null:(s3Loc?.id||null),users:s3Skip?[]:locUsr(s3Loc,'Material Receiver')});
-  patch(4,{loc:s4Loc?.id||null,ownerLoc:s4Loc?.id||null,users:locUsr(s4Loc,'Trip Approver')});
-  // Step 5: create it if missing (trips booked before step 5 was introduced have no steps[5])
-  if(!seg.steps[5]){
-    seg.steps[5]={skip:!s5Active,label:'Empty Vehicle Exit',role:'KAP Security',done:false,time:null,by:null,
-      loc:s5Active?dLoc:null,ownerLoc:s5Active?dLoc:null,users:s5Active?locUsr(dl,'KAP Security'):[]};
-    changed=true;
-  } else {
-    patch(5,{skip:!s5Active,loc:s5Active?dLoc:null,ownerLoc:s5Active?dLoc:null,users:s5Active?locUsr(dl,'KAP Security'):[]});
+
+  // Patch steps 1–4 from allocation table (skip, loc, ownerLoc, users, role, label)
+  patch(1, { skip:alloc.s1.skip, loc:alloc.s1.locId, ownerLoc:alloc.s1.locId,
+             users:alloc.s1.skip ? [] : _locRoleUsers(alloc.s1.loc, 'KAP Security'),
+             role:EXPECTED_ROLE[1], label:EXPECTED_LABEL[1] });
+  patch(2, { skip:alloc.s2.skip, loc:alloc.s2.locId, ownerLoc:alloc.s2.locId,
+             users:alloc.s2.skip ? [] : _locRoleUsers(alloc.s2.loc, 'KAP Security'),
+             role:EXPECTED_ROLE[2], label:EXPECTED_LABEL[2] });
+  patch(3, { skip:alloc.s3.skip, loc:alloc.s3.locId, ownerLoc:alloc.s3.locId,
+             users:alloc.s3.skip ? [] : _locRoleUsers(alloc.s3.loc, 'Material Receiver'),
+             role:EXPECTED_ROLE[3], label:EXPECTED_LABEL[3] });
+  patch(4, { loc:alloc.s4.locId, ownerLoc:alloc.s4.locId,
+             users:_locRoleUsers(alloc.s4.loc, 'Trip Approver'),
+             role:EXPECTED_ROLE[4], label:EXPECTED_LABEL[4] });
+
+  // Step5: patch (already created above if missing)
+  patch(5, { skip:!s5Active, loc:s5Active?dLoc:null, ownerLoc:s5Active?dLoc:null,
+             users:s5Active ? _locRoleUsers(dl, 'KAP Security') : [],
+             role:EXPECTED_ROLE[5], label:EXPECTED_LABEL[5] });
+
+  // Update criteria & catId
+  const newCatId = getTripCatId(seg.label, sType, dType);
+  if(seg.criteria !== crit){ seg.criteria = crit; changed = true; }
+  if(seg.tripCatId !== newCatId){ seg.tripCatId = newCatId; changed = true; }
+
+  // Recompute currentStep and completion
+  const newStep = nextStep(seg);
+  if(seg.currentStep !== newStep){ seg.currentStep = newStep; changed = true; }
+  if(seg.status!=='Completed' && seg.status!=='Rejected' && allStepsDone(seg)){
+    seg.status = 'Completed'; changed = true;
   }
-  const newCatId=getTripCatId(seg.label,stype,dtype);
-  if(seg.criteria!==crit){seg.criteria=crit;changed=true;}
-  if(seg.tripCatId!==newCatId){seg.tripCatId=newCatId;changed=true;}
-  const newStep=nextStep(seg);
-  if(seg.currentStep!==newStep){seg.currentStep=newStep;changed=true;}
-  if(seg.status!=='Completed'&&seg.status!=='Rejected'&&allStepsDone(seg)){seg.status='Completed';changed=true;}
   return changed;
 }
 async function advance(seg){
   seg.currentStep=nextStep(seg);
   if(allStepsDone(seg)) seg.status='Completed';
-  // Unlock next segment as soon as Steps 1 & 2 are done
-  if(stepsOneAndTwoDone(seg)){
+  // Unlock next segment when gate steps (1, 2, AND 5 if applicable) are all done
+  if(segGatesDone(seg)){
     const nextLabel={A:'B',B:'C'}[seg.label];
     if(nextLabel){
       const next=DB.segments.find(s=>s.tripId===seg.tripId&&s.label===nextLabel);
@@ -2611,8 +2763,7 @@ function pfHTML(seg){
     if(s<maxStep) h+=`<span class="pf-arrow">➜</span>`;
   }
   h+='</div>';
-  const cl={1:'KAP→KAP',2:'KAP→Ext',3:'Ext→KAP',4:'Ext→Ext'};
-  h+=`<span class="c-badge">Criteria ${seg.criteria}: ${cl[seg.criteria]}</span>`;
+  h+=`<span class="c-badge">${CRITERIA_LABEL[seg.criteria]||'?'}: ${CRITERIA_DESC[seg.criteria]||'?'}</span>`;
   return h;
 }
 
@@ -3130,7 +3281,7 @@ function _runInitApp(){
         var activePage=document.querySelector('.page.active');
         if(activePage){
           var pid=activePage.id;
-          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
+          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips};
           if(map[pid]) map[pid]();
         }
       }catch(e){ console.warn('_onRefreshViews error:',e); }
@@ -3561,21 +3712,38 @@ function renderDashTrips(){
       const apByU=byId(DB.users,s.steps[4]?.by);const apByName=apByU?.fullName||apByU?.name||'';
       const fmtTs=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'';
       const _isSADash=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
-      const _stepLocName=(stepObj)=>{if(!_isSADash||!stepObj)return '';const loc=byId(DB.locations,stepObj.ownerLoc);return loc?` <span style="font-size:8px;font-weight:600;opacity:.75">(${loc.name})</span>`:stepObj.skip?` <span style="font-size:8px;font-weight:600;opacity:.6">(skip)</span>`:'';};
-      const stepBadgeLoc=(done,label,clr,stepObj)=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${done?clr+'22':'rgba(0,0,0,0.05)'};color:${done?clr:'var(--text3)'};border:1px solid ${done?clr+'44':'transparent'}">${done?'✓':' '}${label}${_stepLocName(stepObj)}</span>`;
+      const _stepLocTag=(stepObj)=>{if(!_isSADash||!stepObj)return '';const loc=byId(DB.locations,stepObj.ownerLoc);return loc?` <span style="font-size:8px;font-weight:600;opacity:.75">(${loc.name})</span>`:''};
+      // Enhanced step badge: ✓ done | ▶ active (flashing green) | ⊘ skip (red) | pending (gray)
+      const _stepBadge=(stepObj,stepNum,label,clr)=>{
+        if(!stepObj) return '';
+        const done=stepObj.done;
+        const skip=stepObj.skip;
+        const isActive=!done&&!skip&&s.currentStep===stepNum&&s.status!=='Completed'&&s.status!=='Locked';
+        const locTag=_stepLocTag(stepObj);
+        if(done){
+          return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${clr}22;color:${clr};border:1px solid ${clr}44">✓ ${label}${locTag}</span>`;
+        }
+        if(skip){
+          return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(220,38,38,.06);color:#dc2626;border:1px solid rgba(220,38,38,.15);text-decoration:line-through;opacity:.7">⊘ ${label}</span>`;
+        }
+        if(isActive){
+          return `<span class="flash-green" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;padding:3px 8px;border-radius:4px;border:1.5px solid #16a34a">▶ ${label}${locTag}</span>`;
+        }
+        return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,0.04);color:var(--text3);border:1px solid transparent">○ ${label}${locTag}</span>`;
+      };
       return `<div style="background:${sBg};border:1.5px solid ${sBorder}44;border-radius:8px;padding:8px 10px;margin-bottom:6px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
           <span style="width:20px;height:20px;border-radius:50%;background:${segClr};color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${s.label}</span>
           <span style="font-size:11px;font-weight:700;flex:1">${lnameText(s.sLoc)} → ${lnameText(s.dLoc)}</span>
           <span style="font-size:10px;font-weight:700;color:${stClr};white-space:nowrap">${stLabel}</span>
         </div>
-        <!-- Step badges -->
+        <!-- Step badges: ✓ done | ▶ active (flashing) | ⊘ skip (red) | ○ pending -->
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
-          ${stepBadgeLoc(s.steps[1]?.done,'Gate Exit','#2a9aa0',s.steps[1])}
-          ${stepBadgeLoc(s.steps[2]?.done,'Gate Entry','#0d9488',s.steps[2])}
-          ${stepBadgeLoc(s.steps[3]?.done,'Mat. Receipt','#16a34a',s.steps[3])}
-          ${stepBadgeLoc(s.steps[4]?.done&&!s.steps[4]?.rejected,'Trip Approval','#7c3aed',s.steps[4])}
-          ${s.steps[5]&&!s.steps[5].skip?stepBadgeLoc(s.steps[5]?.done,'Empty Vehicle Exit','#ea580c',s.steps[5]):''}
+          ${_stepBadge(s.steps[1],1,'Gate Exit','#2a9aa0')}
+          ${_stepBadge(s.steps[2],2,'Gate Entry','#0d9488')}
+          ${_stepBadge(s.steps[3],3,'Mat. Receipt','#16a34a')}
+          ${_stepBadge(s.steps[4],4,'Trip Approval','#7c3aed')}
+          ${s.steps[5]?_stepBadge(s.steps[5],5,'Empty Exit','#ea580c'):''}
           ${s.steps[3]?.discrepancy?'<span style="font-size:9px;font-weight:700;color:#dc2626;padding:2px 6px;background:#fee2e2;border-radius:4px;border:1px solid #fca5a5">⚠ Discrepancy</span>':''}
         </div>
         <!-- Photos row -->
@@ -4724,14 +4892,14 @@ function onLocChange(){
     if(d3)pairs.push([d2,d3,'C']);
     const lastIdx=pairs.length-1;
     prev='<div style="margin-bottom:3px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Segment Preview</div>';
-    const cf={1:'Gate Exit @ [Start] → Gate Entry @ [Dest] → Material Receipt @ [Dest] → Approve @ [Dest]',2:'Gate Exit @ [Start] → <s>Gate Entry</s> → <s>Material Receipt (skipped — Ext dest)</s> → Approve @ [Start]',3:'<s>Gate Exit</s> → Gate Entry @ [Dest] → Material Receipt @ [Dest] → Approve @ [Dest]',4:'<s>Gate Exit</s> → <s>Gate Entry</s> → <s>Material Receipt (skipped — Ext dest)</s> → Approve by Admin'};
-    const cl={1:'KAP→KAP',2:'KAP→Ext',3:'Ext→KAP',4:'Ext→Ext'};
+    const cf={1:'Gate Exit @ [Start] → Gate Entry @ [Dest] → Material Receipt @ [Dest] → Approve @ [Start]',2:'Gate Exit @ [Start] → <s>Gate Entry (skip)</s> → <s>Material Receipt (skip)</s> → Approve @ [Start]',3:'<s>Gate Exit (skip)</s> → Gate Entry @ [Dest] → Material Receipt @ [Dest] → Approve @ [Dest]',4:'<s>Gate Exit (skip)</s> → <s>Gate Entry (skip)</s> → <s>Material Receipt (skip)</s> → Approve by Booking User'};
+    const cl=CRITERIA_DESC;
     pairs.forEach(([from,to,lbl],idx)=>{
       const c=getCriteria(ltype(from),ltype(to));
       const isLast=idx===lastIdx;
       const flow=cf[c].replace('[Start]',lnameText(from)).replace('[Start]',lnameText(from)).replace('[Dest]',lnameText(to)).replace('[Dest]',lnameText(to));
-      const note=!isLast?'<div style="font-size:11px;color:var(--teal);margin-top:5px">🔄 Steps 3 & 4 run in background — next segment unlocks after Steps 1 & 2 complete</div>':'';
-      prev+=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:800">Seg ${lbl}</span><span class="c-badge" style="font-size:10px">C${c}</span><span style="font-size:11px;color:var(--text2)">${lname(from)} <span style="color:var(--accent)">⟶</span> ${lname(to)}</span><span style="font-size:10px;color:var(--text3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${flow}</span>${note}</div>`;
+      const note=!isLast?'<div style="font-size:11px;color:var(--teal);margin-top:5px">🔄 Step5 replaced by Step1 of next segment — next segment unlocks after Steps 1 & 2 complete</div>':'';
+      prev+=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:800">Seg ${lbl}</span><span class="c-badge" style="font-size:10px">${CRITERIA_LABEL[c]||'?'}</span><span style="font-size:11px;color:var(--text2)">${lname(from)} <span style="color:var(--accent)">⟶</span> ${lname(to)}</span><span style="font-size:10px;color:var(--text3);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${flow}</span>${note}</div>`;
     });
   }
   document.getElementById('segPreview').innerHTML=prev;
@@ -5176,7 +5344,7 @@ async function _doBookTrip(){
       const prevLabel={B:'A',C:'B'}[lbl];
       if(prevLabel){
         const prevSeg=DB.segments.find(s=>s.tripId===_editingTripId&&s.label===prevLabel);
-        if(prevSeg&&!stepsOneAndTwoDone(prevSeg)) seg.status='Locked';
+        if(prevSeg&&!segGatesDone(prevSeg)) seg.status='Locked';
       }
       _builtSegs.push(seg); // collect — DO NOT push to DB.segments yet (_dbSave does it)
     });
@@ -5191,7 +5359,8 @@ async function _doBookTrip(){
 
     // Recalculate step assignments for ALL segments (including preserved started ones)
     // Pass siblings so recalcSegSteps can determine isLastSeg correctly from full trip
-    const _editSegs=DB.segments.filter(s=>s.tripId===_editingTripId);
+    // CRITICAL: Process A→B→C order so predecessor fixes cascade to successor unlocks
+    const _editSegs=DB.segments.filter(s=>s.tripId===_editingTripId).sort((a,b)=>a.label.localeCompare(b.label));
     _editSegs.forEach(s=>recalcSegSteps(s,_editSegs));
 
     // Recalculate trip's tripCatId from segment A (may have changed if startLoc/dest1 changed)
@@ -5899,12 +6068,13 @@ function renderKap(){
   if(srch)allPending=allPending.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
 
   // Update tab counts (both tabs always)
+  // Step 5 (Empty Vehicle Exit) is an EXIT action — only show on exit tab, never entry tab
   const isStep5=(s)=>!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s);
   const exitCount=allPending.filter(s=>s.currentStep===1||isStep5(s)).length;
-  const entryCount=allPending.filter(s=>s.currentStep===2||isStep5(s)).length;
+  const entryCount=allPending.filter(s=>s.currentStep===2).length;
 
   const step=(_kapMode==='entry')?2:1; // map mode to step: exit=1, entry=2
-  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
+  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2));
 
   // Deduplicate by tripId — show one card per trip (card already shows all segments)
   const _seenTrips=new Set();
@@ -6012,7 +6182,7 @@ function renderKap(){
       const vn=vnum(trip?.vehicleId);
       // Coloured location pills for route
       // Action location: where the guard needs to act
-      const _actionLoc=_isStep5?seg.sLoc:cs===2?seg.dLoc:seg.sLoc;
+      const _actionLoc=_isStep5?seg.dLoc:cs===2?seg.dLoc:seg.sLoc;
       const routePills=allSegDests.map(([from,to,lbl,idx],i)=>{
         const lf=byId(DB.locations,from),lt=byId(DB.locations,to);
         const cf=lf?.colour||'var(--accent)',ct=lt?.colour||'var(--accent)';
@@ -6148,46 +6318,62 @@ function renderKap(){
   if(_pendingEl) _pendingEl.innerHTML=pendingHtml;
 
   // ── History section for this step ──
-  let histSegs=DB.segments.filter(s=>{
+  // Build history entries as {seg, sn} pairs where sn = effective step number
+  // Exit tab: include both step 1 (Gate Exit) and step 5 (Empty Vehicle Exit) history
+  // Entry tab: only step 2 (Gate Entry)
+  let histEntries=[];
+  DB.segments.forEach(s=>{
     const st=s.steps[step];
-    if(!st||!st.done||st.skip)return false;
-    if(isSA) return true;
-    // For exit history: only show if user is kapSec at START location
-    // For entry history: only show if user is kapSec at DEST location
-    const loc=step===1?byId(DB.locations,s.sLoc):byId(DB.locations,s.dLoc);
-    return loc?.kapSec===CU.id || st.by===CU.id; // also show if user performed the action
+    if(st&&st.done&&!st.skip){
+      if(isSA){histEntries.push({seg:s,sn:step});}
+      else {
+        const loc=step===1?byId(DB.locations,s.sLoc):byId(DB.locations,s.dLoc);
+        if(loc?.kapSec===CU.id || st.by===CU.id) histEntries.push({seg:s,sn:step});
+      }
+    }
+    // On exit tab, also include step 5 (Empty Vehicle Exit) done entries
+    if(step===1){
+      const st5=s.steps[5];
+      if(st5&&st5.done&&!st5.skip){
+        if(isSA){histEntries.push({seg:s,sn:5});}
+        else {
+          const loc5=byId(DB.locations,s.dLoc);
+          if(loc5?.kapSec===CU.id || st5.by===CU.id) histEntries.push({seg:s,sn:5});
+        }
+      }
+    }
   });
-  if(!srch&&fromVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
-  if(!srch&&toVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)<=toVal);
-  if(srch)histSegs=histSegs.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
-  histSegs.sort((a,b)=>{
-    const ta=a.steps[step]?.time?new Date(a.steps[step].time).getTime():0;
-    const tb=b.steps[step]?.time?new Date(b.steps[step].time).getTime():0;
+  if(!srch&&fromVal)histEntries=histEntries.filter(e=>(e.seg.date||'').slice(0,10)>=fromVal);
+  if(!srch&&toVal)histEntries=histEntries.filter(e=>(e.seg.date||'').slice(0,10)<=toVal);
+  if(srch)histEntries=histEntries.filter(e=>e.seg.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,e.seg.tripId)?.vehicleId).toLowerCase().includes(srch));
+  histEntries.sort((a,b)=>{
+    const ta=a.seg.steps[a.sn]?.time?new Date(a.seg.steps[a.sn].time).getTime():0;
+    const tb=b.seg.steps[b.sn]?.time?new Date(b.seg.steps[b.sn].time).getTime():0;
     return tb-ta;
   });
 
   let histHtml='';
-  if(histSegs.length){
+  if(histEntries.length){
     const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
     const stepLabel=step===1?'Gate Exit':'Gate Entry';
     const stepIcon=step===1?'🚪':'🏁';
     const clr=step===1?'#dc2626':'#16a34a';
     histHtml+=`<div>
-      <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">📋 ${stepLabel} History (${histSegs.length})</div>`;
-    histHtml+=histSegs.map(seg=>{
+      <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">📋 ${stepLabel} History (${histEntries.length})</div>`;
+    histHtml+=histEntries.map(({seg,sn},_hi)=>{
       const trip=byId(DB.trips,seg.tripId);
       const drv=byId(DB.drivers,trip?.driverId);
-      const st=seg.steps[step];
+      const st=seg.steps[sn];
       const byUser=byId(DB.users,st.by);
       const byName=byUser?.fullName||byUser?.name||'—';
       const isMine=st.by===CU.id;
       const tripApproved=seg.steps[4]?.done;
-      const nextStepNum=step===1?2:3;
-      const canRevoke=!tripApproved&&st.done&&!seg.steps[nextStepNum]?.done&&!seg.steps[3]?.done;
+      const nextStepNum=sn===5?null:(sn===1?2:3);
+      const canRevoke=!tripApproved&&st.done&&(sn===5?!seg.steps[4]?.done:(nextStepNum?!seg.steps[nextStepNum]?.done&&!seg.steps[3]?.done:false));
       const myStyle=isMine?'background:rgba(42,154,160,.06)':'background:rgba(0,0,0,.02)';
-      const actionLoc=step===1?seg.sLoc:seg.dLoc;
-      const actionLabel=step===1?`Exited from ${lname(seg.sLoc)}`:`Entered at ${lname(seg.dLoc)}`;
-      const hid='khist_'+seg.id.replace(/[^a-zA-Z0-9]/g,'_');
+      const actionLoc=sn===5?seg.dLoc:(sn===2?seg.dLoc:seg.sLoc);
+      const actionLabel=sn===5?`Empty Exit at ${lname(seg.dLoc)}`:(sn===1?`Exited from ${lname(seg.sLoc)}`:`Entered at ${lname(seg.dLoc)}`);
+      const hid='khist_'+seg.id.replace(/[^a-zA-Z0-9]/g,'_')+(sn===5?'_s5':'');
 
       // Build all split segment rows with challan
       const allSegDests=[[trip?.startLoc,trip?.dest1,'A',1]];
@@ -6207,9 +6393,9 @@ function renderKap(){
           else if(_seg.status==='Locked') segStatus='<span style="font-size:10px;color:var(--text3)">🔒</span>';
           else if(_seg.status==='Rejected') segStatus='<span class="badge badge-red" style="font-size:9px">⚠</span>';
           else{
-            const sn={1:'Gate Exit',2:'Gate Entry',3:'Mat.Rcpt',4:'Trip Approval',5:'Empty Exit'};
+            const _stepNames={1:'Gate Exit',2:'Gate Entry',3:'Mat.Rcpt',4:'Trip Approval',5:'Empty Exit'};
             const si={1:'🚪',2:'🏁',3:'📦',4:'✅'};
-            segStatus=`<span class="flash-green" style="font-size:10px">${si[_seg.currentStep]||''} ${sn[_seg.currentStep]||''}</span>`;
+            segStatus=`<span class="flash-green" style="font-size:10px">${si[_seg.currentStep]||''} ${_stepNames[_seg.currentStep]||''}</span>`;
           }
         }
         const rowBg=_isActive?'background:rgba(42,154,160,.07);':'';
@@ -6236,7 +6422,7 @@ function renderKap(){
           +`<span style="${_locPillStyle(lt?.colour,13)}">${lt?.name||'?'}</span>`;
       }).join('');
 
-      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
+      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histEntries.length-_hi}</div>
         <!-- Line 1: Trip ID + Vehicle -->
         <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
           <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${_cTid(trip?.id||seg.tripId)}</span>
@@ -6248,10 +6434,10 @@ function renderKap(){
         <div id="${hid}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
           ${splitRows}
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--border)">
-            <span style="font-size:10px;color:var(--text3)">${stepIcon} ${fmt(st.time)} &nbsp;·&nbsp; by <strong${isMine?' style="color:var(--accent)"':''}>${byName}${isMine?' (You)':''}</strong></span>
+            <span style="font-size:10px;color:var(--text3)">${sn===5?'📤':stepIcon} ${fmt(st.time)} &nbsp;·&nbsp; by <strong${isMine?' style="color:var(--accent)"':''}>${byName}${isMine?' (You)':''}</strong>${sn===5?' <em style="color:#ea580c;font-size:9px">(Empty Exit)</em>':''}</span>
             ${st.remarks?`<span style="font-size:10px;color:var(--text2)">💬 ${st.remarks}</span>`:''}
-            ${st.photo?`<img src="${st.photo}" onclick="openPhoto(this.src)" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:2px solid ${clr};cursor:pointer">`:''}
-            ${canRevoke&&(isSA||isMine)?`<button class="kap-revoke-btn" style="font-size:10px;padding:1px 6px;margin-left:auto" onclick="revokeKapStep('${seg.id}',${step})">↩ Revoke</button>`:''}
+            ${st.photo?`<img src="${st.photo}" onclick="openPhoto(this.src)" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:2px solid ${sn===5?'#ea580c':clr};cursor:pointer">`:''}
+            ${canRevoke&&(isSA||isMine)?`<button class="kap-revoke-btn" style="font-size:10px;padding:1px 6px;margin-left:auto" onclick="revokeKapStep('${seg.id}',${sn})">↩ Revoke</button>`:''}
           </div>
         </div>
       </div>`;
@@ -6263,6 +6449,9 @@ function renderKap(){
   const _histTarget=_kapMode==='entry'?'kapEntryHistoryContent':'kapExitHistoryContent';
   const _histEl=document.getElementById(_histTarget);
   if(_histEl) _histEl.innerHTML=histHtml;
+
+  // Always update tab badge counts (exit/entry/spot) after rendering
+  _kapUpdateCounts();
 }
 
 let _kapActiveTab=1; // kept for legacy; use _kapMode for primary routing
@@ -6567,13 +6756,14 @@ async function revokeKapStep(segId,stepNum){
   // Double-check: block revoke if material receipt already done
   if(seg.steps[3]?.done){notify('Cannot revoke — Material Receipt already done',true);return;}
   if(stepNum===1 && seg.steps[2]?.done){notify('Cannot revoke — Gate Entry already recorded',true);return;}
-  // Also re-lock next segment if step 1+2 were done and we're revoking step 2
+  // Re-lock next segment if revoking step 2 or step 5 breaks the gate-done condition
   let _nextSegToSave=null;
-  if(stepNum===2){
+  if(stepNum===2||stepNum===5){
     const nextLabel={A:'B',B:'C'}[seg.label];
     if(nextLabel){
       const next=DB.segments.find(s=>s.tripId===seg.tripId&&s.label===nextLabel);
-      if(next&&next.status==='Active'&&next.currentStep===1&&!next.steps[1]?.done){
+      // Re-lock if next segment is Active but hasn't started any step yet
+      if(next&&next.status==='Active'&&![1,2,3,4,5].some(n=>next.steps[n]?.done)){
         next.status='Locked';
         _nextSegToSave=next;
       }
@@ -9555,6 +9745,452 @@ document.addEventListener('keydown', function(e){
 });
 
 // ===== HELPER PAGE (Super Admin only) =====
+// ── Repair: Comprehensive segment health checker and fixer ────────────────
+// Scans ALL segments for: allocation mismatches, stuck-Locked status,
+// wrong currentStep, missing step objects. Shows detailed diagnostic.
+function _scanRepairableSegs(){
+  const results=[];
+  const segsByTrip=new Map();
+  DB.segments.forEach(s=>{
+    if(!segsByTrip.has(s.tripId)) segsByTrip.set(s.tripId,[]);
+    segsByTrip.get(s.tripId).push(s);
+  });
+
+  DB.segments.forEach(seg=>{
+    if(seg.status==='Cancelled') return;
+    const trip=byId(DB.trips,seg.tripId);
+    if(!trip) return;
+    const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
+    const crit=getCriteria(sType,dType);
+    const cat=CRITERIA_LABEL[crit]||'?';
+    const dl=byId(DB.locations,seg.dLoc);
+    const sl=byId(DB.locations,seg.sLoc);
+    const bookingUser=byId(DB.users,trip.bookedBy)||CU;
+    const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
+    const alloc=_resolveStepAlloc(crit,sl,dl,seg.sLoc,seg.dLoc,bookingLoc);
+    const siblings=segsByTrip.get(seg.tripId)||[];
+
+    const issues=[];
+
+    // ── CHECK 1: Stuck-Locked segment ────────────────────────────────────
+    if(seg.status==='Locked'){
+      let shouldBeActive=false;
+      if(seg.label==='A'){
+        shouldBeActive=true; // Segment A should never be Locked
+      } else {
+        const prevLabel={B:'A',C:'B'}[seg.label];
+        const prevSeg=prevLabel?siblings.find(s=>s.label===prevLabel):null;
+        if(prevSeg&&segGatesDone(prevSeg)) shouldBeActive=true;
+      }
+      if(shouldBeActive){
+        issues.push({type:'status',step:'-',from:'Locked',to:'Active',icon:'🔒'});
+      }
+    }
+
+    // ── CHECK 2: Wrong currentStep ───────────────────────────────────────
+    if(seg.status!=='Locked'&&seg.status!=='Cancelled'){
+      // Ensure all 5 steps exist before checking
+      const hasAllSteps=[1,2,3,4,5].every(n=>!!seg.steps[n]);
+      if(hasAllSteps){
+        const expectedStep=nextStep(seg);
+        if(seg.currentStep!==expectedStep){
+          const stepNames={1:'Step1',2:'Step2',3:'Step3',4:'Step4',5:'Step5',6:'Done'};
+          issues.push({type:'currentStep',step:'-',from:stepNames[seg.currentStep]||seg.currentStep,to:stepNames[expectedStep]||expectedStep,icon:'🔢'});
+        }
+      }
+    }
+
+    // ── CHECK 3: Missing step objects ────────────────────────────────────
+    for(let n=1;n<=5;n++){
+      if(!seg.steps[n]){
+        issues.push({type:'missing',step:'Step'+n,from:'Missing',to:'Create',icon:'⚠'});
+      }
+    }
+
+    // ── CHECK 4: Step allocation, role, users for ALL 5 steps (undone only) ─
+    const EXPECTED_ROLES={1:'KAP Security',2:'KAP Security',3:'Material Receiver',4:'Trip Approver',5:'KAP Security'};
+    // Compute step 5 expected state
+    const hasSegB=siblings.some(s=>s.label==='B');
+    const hasSegC=siblings.some(s=>s.label==='C');
+    const tripHasDest2=!!(trip.dest2&&trip.dest2!=='');
+    const tripHasDest3=!!(trip.dest3&&trip.dest3!=='');
+    const aIsLast=seg.label==='A'&&!hasSegB&&!tripHasDest2;
+    const bIsLast=seg.label==='B'&&!hasSegC&&!tripHasDest3;
+    const isLast=aIsLast||bIsLast||seg.label==='C';
+    const s5ShouldBeActive=isLast&&dType==='KAP';
+    // Expected allocation for all 5 steps
+    const expectedAlloc={
+      1:{ skip:alloc.s1.skip, locId:alloc.s1.locId, loc:alloc.s1.loc },
+      2:{ skip:alloc.s2.skip, locId:alloc.s2.locId, loc:alloc.s2.loc },
+      3:{ skip:alloc.s3.skip, locId:alloc.s3.locId, loc:alloc.s3.loc },
+      4:{ skip:false,         locId:alloc.s4.locId, loc:alloc.s4.loc },
+      5:{ skip:!s5ShouldBeActive, locId:s5ShouldBeActive?seg.dLoc:null, loc:s5ShouldBeActive?dl:null },
+    };
+    for(let n=1;n<=5;n++){
+      const step=seg.steps[n];
+      if(!step||step.done) continue;
+      const exp=expectedAlloc[n];
+      const expRole=EXPECTED_ROLES[n];
+      // Check skip
+      if(!!step.skip!==exp.skip){
+        issues.push({type:'alloc',step:'Step'+n,from:step.skip?'Skip':'Active',to:exp.skip?'Skip':'Active',icon:'📍'});
+      }
+      // Check ownerLoc
+      if(!exp.skip && (step.ownerLoc||null)!==(exp.locId||null)){
+        const fromName=step.ownerLoc?(byId(DB.locations,step.ownerLoc)?.name||step.ownerLoc):'null';
+        const toName=exp.locId?(byId(DB.locations,exp.locId)?.name||exp.locId):'null';
+        issues.push({type:'alloc',step:'Step'+n+' loc',from:fromName,to:toName,icon:'📍'});
+      }
+      // Check role
+      if(step.role!==expRole){
+        issues.push({type:'role',step:'Step'+n,from:step.role||'none',to:expRole,icon:'👤'});
+      }
+      // Check users: if step is active (not skip, not done), users should be populated
+      if(!exp.skip && exp.loc){
+        const expUsers=_locRoleUsers(exp.loc, expRole);
+        const curUsers=JSON.stringify(step.users||[]);
+        const expUsersStr=JSON.stringify(expUsers);
+        if(curUsers!==expUsersStr){
+          const fromNames=(step.users||[]).map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(',')||'none';
+          const toNames=expUsers.map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(',')||'none';
+          issues.push({type:'users',step:'Step'+n,from:fromNames,to:toNames,icon:'👥'});
+        }
+      }
+      // Warning: step is active but no user assigned at location
+      if(!exp.skip && exp.loc){
+        const roleUsers=_locRoleUsers(exp.loc, expRole);
+        if(!roleUsers.length){
+          const locName=exp.loc?.name||'?';
+          issues.push({type:'noUser',step:'Step'+n,from:`No ${expRole} at ${locName}`,to:'Assign in Location Master',icon:'⚠'});
+        }
+      }
+    }
+
+    if(issues.length){
+      results.push({seg,trip,cat,issues});
+    }
+  });
+  return results;
+}
+
+async function repairEKTrips(){
+  const btn=document.getElementById('btnRepairTrips');
+  if(btn){btn.innerHTML='⏳ Repairing…';btn.style.pointerEvents='none';btn.style.opacity='.6';}
+
+  // ── CRITICAL: Group by trip, sort A→B→C within each trip ──────────────
+  // Multi-location trips require A to be fixed BEFORE B (so B's unlock check
+  // sees A's corrected skip/done state), and B before C.
+  const segsByTrip=new Map();
+  DB.segments.forEach(s=>{
+    if(!segsByTrip.has(s.tripId)) segsByTrip.set(s.tripId,[]);
+    segsByTrip.get(s.tripId).push(s);
+  });
+  // Sort siblings A→B→C within each trip group
+  segsByTrip.forEach(arr=>arr.sort((a,b)=>a.label.localeCompare(b.label)));
+
+  // Build ordered list: all A segments first, then all B, then all C
+  // This ensures predecessors are always fixed before successors
+  const ordered=[];
+  segsByTrip.forEach(arr=>arr.forEach(s=>ordered.push(s)));
+  ordered.sort((a,b)=>a.label.localeCompare(b.label));
+
+  // ── Multi-pass: repeat until no more changes (handles cascading) ─────
+  let fixedSegs=0, fixedTrips=new Set(), totalPasses=0;
+  const savedIds=new Set(); // track segments we've already saved
+  let moreChanges=true;
+  while(moreChanges && totalPasses<5){
+    moreChanges=false;
+    totalPasses++;
+    for(const seg of ordered){
+      if(seg.status==='Cancelled') continue;
+      const siblings=segsByTrip.get(seg.tripId)||[];
+      const changed=recalcSegSteps(seg,siblings);
+      if(changed){
+        moreChanges=true;
+        if(!savedIds.has(seg.id)){ fixedSegs++; }
+        savedIds.add(seg.id);
+        fixedTrips.add(seg.tripId);
+      }
+    }
+  }
+
+  // ── Save all changed segments to Supabase ──────────────────────────────
+  for(const segId of savedIds){
+    const seg=byId(DB.segments,segId);
+    if(seg) await _dbSave('segments',seg);
+  }
+
+  if(btn){btn.innerHTML='🔧 Repair Trips';btn.style.pointerEvents='';btn.style.opacity='1';}
+
+  // Refresh all views
+  updBadges();
+  try{renderDash();}catch(e){}
+  try{renderDashTrips();}catch(e){}
+  try{renderTripBooking();}catch(e){}
+  try{renderKap();}catch(e){}
+  try{renderMR();}catch(e){}
+  try{renderApprove();}catch(e){}
+
+  const resEl=document.getElementById('repairResults');
+  if(resEl){
+    if(fixedSegs===0){
+      resEl.innerHTML='<div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:14px">✅ All segments already correct — nothing to repair</div>';
+    } else {
+      resEl.innerHTML=`<div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:14px">✅ Repaired ${fixedSegs} segment${fixedSegs!==1?'s':''} across ${fixedTrips.size} trip${fixedTrips.size!==1?'s':''} (${totalPasses} pass${totalPasses!==1?'es':''})</div>`;
+    }
+  }
+  _renderRepairScan();
+}
+
+function _renderRepairScan(){
+  const el=document.getElementById('repairScanBody');
+  if(!el) return;
+  const results=_scanRepairableSegs();
+
+  // Also count total segments by category for info
+  const catCounts={};
+  DB.segments.forEach(seg=>{
+    if(seg.status==='Cancelled') return;
+    const sType=ltype(seg.sLoc),dType=ltype(seg.dLoc);
+    const c=getCriteria(sType,dType);
+    const cat=CRITERIA_LABEL[c]||'?';
+    catCounts[cat]=(catCounts[cat]||0)+1;
+  });
+  const catSummary=Object.entries(catCounts).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>`<span style="background:rgba(42,154,160,.1);padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px">${k}: ${v}</span>`).join(' ');
+
+  if(!results.length){
+    el.innerHTML=`<div style="padding:8px 0;font-size:12px;color:var(--text2)">Segment totals: ${catSummary}</div><div style="padding:12px;text-align:center;color:#16a34a;font-weight:700;font-size:13px">✅ All ${DB.segments.length} segments are healthy — no repairs needed</div>`;
+    const btn=document.getElementById('btnRepairTrips');
+    if(btn){btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='not-allowed';}
+    return;
+  }
+  const btn=document.getElementById('btnRepairTrips');
+  if(btn){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';}
+
+  const uniqueTrips=new Set(results.map(r=>r.trip.id));
+  const issueTypes=new Map();
+  results.forEach(r=>r.issues.forEach(i=>{issueTypes.set(i.type,(issueTypes.get(i.type)||0)+1);}));
+  const issueSummary=[...issueTypes.entries()].map(([t,c])=>{
+    const labels={status:'🔒 Stuck Locked',currentStep:'🔢 Wrong Step',missing:'⚠ Missing Step',alloc:'📍 Wrong Allocation',role:'👤 Wrong Role',users:'👥 Wrong Users',noUser:'⚠ No User Assigned'};
+    return `<span style="font-size:11px">${labels[t]||t}: <strong>${c}</strong></span>`;
+  }).join(' · ');
+
+  el.innerHTML=`
+    <div style="padding:6px 0;font-size:12px;color:var(--text2)">Segment totals: ${catSummary}</div>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--text2)">Found <strong style="color:#dc2626">${results.length} segment${results.length!==1?'s':''}</strong> across <strong>${uniqueTrips.size} trip${uniqueTrips.size!==1?'s':''}</strong> with issues: ${issueSummary}</div>
+    <div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Trip</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Seg</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Cat</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Status</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Issue</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Current →</th>
+        <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;text-align:left;position:sticky;top:0;z-index:1">Correct</th>
+      </tr></thead>
+      <tbody>
+      ${results.map(({seg,trip,cat,issues})=>{
+        const sName=byId(DB.locations,seg.sLoc)?.name||'?';
+        const dName=byId(DB.locations,seg.dLoc)?.name||'?';
+        return issues.map((iss,i)=>`<tr style="border-bottom:1px solid var(--border)${i===0?';border-top:2px solid var(--border2)':''}">
+          ${i===0?`<td rowspan="${issues.length}" style="padding:5px 8px;font-family:var(--mono);font-weight:800;color:var(--accent);vertical-align:top">${_cTid(trip.id)}</td>
+          <td rowspan="${issues.length}" style="padding:5px 8px;font-weight:700;vertical-align:top">${seg.label}<div style="font-size:9px;color:var(--text3)">${sName}→${dName}</div></td>
+          <td rowspan="${issues.length}" style="padding:5px 8px;vertical-align:top"><span style="background:rgba(42,154,160,.12);padding:1px 6px;border-radius:4px;font-weight:700;font-size:11px">${cat}</span></td>
+          <td rowspan="${issues.length}" style="padding:5px 8px;font-size:11px;vertical-align:top;font-weight:600;color:${seg.status==='Locked'?'#dc2626':seg.status==='Active'?'#16a34a':'var(--text3)'}">${seg.status}</td>`:''}
+          <td style="padding:5px 8px;font-weight:600;white-space:nowrap">${iss.icon} ${iss.step}</td>
+          <td style="padding:5px 8px;color:#dc2626;font-weight:700">${iss.from}</td>
+          <td style="padding:5px 8px;color:#16a34a;font-weight:700">${iss.to}</td>
+        </tr>`).join('');
+      }).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div style="margin-top:10px;padding:12px 14px;background:rgba(234,179,8,.08);border:2px solid rgba(234,179,8,.3);border-radius:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:13px;font-weight:800;color:#92400e;margin-bottom:4px">⚠ ${results.length} issue${results.length!==1?'s':''} found across ${uniqueTrips.size} trip${uniqueTrips.size!==1?'s':''}</div>
+        <div style="font-size:11px;color:#92400e">${issueSummary}</div>
+      </div>
+      <button class="btn btn-danger" onclick="repairEKTrips()" style="font-size:13px;padding:10px 20px;font-weight:800;white-space:nowrap;flex-shrink:0">🔧 Repair All — Fix Allocation & Users</button>
+    </div>`;
+}
+
+// ── Trip Diagnostic: trace every filter gate for a specific trip ──────────
+function _diagTrip(){
+  const input=document.getElementById('diagTripInput');
+  const el=document.getElementById('diagResult');
+  if(!input||!el) return;
+  const tid=input.value.trim();
+  if(!tid){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">Enter a Trip ID above</div>';return;}
+
+  const trip=DB.trips.find(t=>t.id.toLowerCase()===tid.toLowerCase());
+  if(!trip){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px">❌ Trip "${tid}" not found in database (${DB.trips.length} trips loaded)</div>`;return;}
+
+  const segs=DB.segments.filter(s=>s.tripId===trip.id).sort((a,b)=>a.label.localeCompare(b.label));
+  if(!segs.length){el.innerHTML=`<div style="color:#dc2626;font-weight:700;padding:8px">❌ Trip "${trip.id}" exists but has 0 segments</div>`;return;}
+
+  const isSA=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+  const stepNames={1:'Step1 Gate Exit',2:'Step2 Gate Entry',3:'Step3 Mat.Receipt',4:'Step4 Approval',5:'Step5 Empty Exit'};
+
+  let html=`<div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:8px">🔍 Diagnostic: ${_cTid(trip.id)}</div>`;
+
+  // Trip-level info
+  const bu=byId(DB.users,trip.bookedBy);
+  const buLoc=bu?(getUserLocation(bu.id)||byId(DB.locations,bu.plant)):null;
+  html+=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;line-height:1.8">
+    <strong>Trip:</strong> ${trip.id} · <strong>Date:</strong> ${fd(trip.date)} · <strong>Booked by:</strong> ${bu?.fullName||bu?.name||trip.bookedBy||'?'} (plant: ${buLoc?.name||bu?.plant||'?'})
+    <br><strong>Route:</strong> ${lnameText(trip.startLoc)} → ${lnameText(trip.dest1)}${trip.dest2?' → '+lnameText(trip.dest2):''}${trip.dest3?' → '+lnameText(trip.dest3):''}
+    <br><strong>Vehicle:</strong> ${vnum(trip.vehicleId)||'None'} · <strong>Segments:</strong> ${segs.length} (${segs.map(s=>s.label).join(', ')})
+  </div>`;
+
+  // Each segment diagnostic
+  segs.forEach(seg=>{
+    const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
+    const crit=getCriteria(sType,dType);
+    const cat=CRITERIA_LABEL[crit]||'?';
+    const sl=byId(DB.locations,seg.sLoc);
+    const dl=byId(DB.locations,seg.dLoc);
+
+    html+=`<div style="border:2px solid ${seg.status==='Completed'?'#16a34a':seg.status==='Locked'?'#dc2626':'var(--border2)'};border-radius:8px;padding:10px;margin-bottom:8px">`;
+    html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;flex-wrap:wrap">
+      <span style="font-weight:900;font-size:14px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:6px">Seg ${seg.label}</span>
+      <span style="background:rgba(42,154,160,.12);padding:2px 8px;border-radius:4px;font-weight:700">${cat}</span>
+      <span>${sl?.name||'?'} (${sType}) → ${dl?.name||'?'} (${dType})</span>
+      <span style="margin-left:auto;font-weight:800;color:${seg.status==='Completed'?'#16a34a':seg.status==='Locked'?'#dc2626':seg.status==='Rejected'?'#dc2626':'var(--accent)'}">Status: ${seg.status}</span>
+      <span style="font-weight:700;background:#fef08a;padding:1px 6px;border-radius:4px">currentStep: ${seg.currentStep}</span>
+    </div>`;
+
+    // KAP Security visibility check
+    html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.5px">🔒 KAP Security Page Visibility</div>`;
+    const kapGates=[];
+    // Gate 1: status
+    if(seg.status==='Completed') kapGates.push({pass:false,reason:'status=Completed → filtered out'});
+    else if(seg.status==='Locked'){
+      const prevLabel={B:'A',C:'B'}[seg.label];
+      const prevSeg=prevLabel?segs.find(ss=>ss.label===prevLabel):null;
+      let lockDetail='no predecessor found';
+      if(prevSeg){
+        const s1=prevSeg.steps[1]?.done?'✓':'✗';const s1sk=prevSeg.steps[1]?.skip?'(skip)':'';
+        const s2=prevSeg.steps[2]?.done?'✓':'✗';const s2sk=prevSeg.steps[2]?.skip?'(skip)':'';
+        const s5=prevSeg.steps[5]?.done?'✓':'✗';const s5sk=prevSeg.steps[5]?.skip?'(skip)':'';
+        lockDetail=`Seg ${prevLabel}: Step1=${s1}${s1sk} Step2=${s2}${s2sk} Step5=${s5}${s5sk} → segGatesDone=${segGatesDone(prevSeg)?'YES':'NO'}`;
+      }
+      kapGates.push({pass:false,reason:`status=Locked → filtered out (${lockDetail})`});
+    }
+    else if(seg.status==='Cancelled') kapGates.push({pass:false,reason:'status=Cancelled → filtered out'});
+    else kapGates.push({pass:true,reason:`status=${seg.status} → ✓ passes`});
+
+    // Gate 2: currentStep
+    const cs=seg.currentStep;
+    const isKapStep=(cs===1||cs===2);
+    const couldBeStep5=!seg.steps[5]?.skip&&!seg.steps[5]?.done&&stepsOneAndTwoDone(seg);
+    if(isKapStep){
+      kapGates.push({pass:true,reason:`currentStep=${cs} (${cs===1?'Exit':'Entry'}) → ✓ KAP Security step`});
+      // Gate 3: skip check
+      if(seg.steps[cs]?.skip){
+        kapGates.push({pass:false,reason:`steps[${cs}].skip=true → filtered out (${cat}: ${cs===1?'sLoc':'dLoc'} is External)`});
+      } else {
+        kapGates.push({pass:true,reason:`steps[${cs}].skip=false → ✓ not skipped`});
+      }
+    } else if(couldBeStep5){
+      kapGates.push({pass:true,reason:`currentStep=${cs} but Step5 available (steps 1&2 done, step5 not skip/done) → ✓ shows on Exit tab`});
+    } else {
+      const stepLabel=cs<=5?(stepNames[cs]||'Step'+cs):'All Done';
+      kapGates.push({pass:false,reason:`currentStep=${cs} (${stepLabel}) → NOT a KAP Security step (only 1, 2, or 5)`});
+    }
+
+    // Gate 4: canDoStep
+    const kapStepToCheck=isKapStep?cs:couldBeStep5?5:null;
+    if(kapStepToCheck!==null){
+      const step=seg.steps[kapStepToCheck];
+      if(!step){
+        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}] is missing/null`});
+      } else if(step.skip){
+        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].skip=true`});
+      } else if(step.done){
+        kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].done=true (already completed)`});
+      } else {
+        const ownerLocId=step.ownerLoc;
+        const ownerLoc=byId(DB.locations,ownerLocId);
+        if(!ownerLocId){
+          kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].ownerLoc is null/empty → canDoStep fails`});
+        } else if(!ownerLoc){
+          kapGates.push({pass:false,reason:`steps[${kapStepToCheck}].ownerLoc="${ownerLocId}" → location not found in DB`});
+        } else {
+          const kapSecUser=ownerLoc.kapSec;
+          const kapSecName=byId(DB.users,kapSecUser);
+          if(isSA){
+            kapGates.push({pass:true,reason:`You are Admin/Super Admin → ✓ canDoStep always true`});
+          } else if(kapSecUser===CU.id){
+            kapGates.push({pass:true,reason:`ownerLoc="${ownerLoc.name}" kapSec="${kapSecName?.fullName||kapSecName?.name||kapSecUser}" === YOU → ✓ canDoStep passes`});
+          } else {
+            kapGates.push({pass:false,reason:`ownerLoc="${ownerLoc.name}" kapSec="${kapSecName?.fullName||kapSecName?.name||kapSecUser||'NONE'}" ≠ you (${CU.fullName||CU.name}, id=${CU.id}) → canDoStep FAILS`});
+          }
+        }
+      }
+    }
+
+    const allPass=kapGates.every(g=>g.pass);
+    html+=`<div style="border:1px solid ${allPass?'#16a34a':'#dc2626'};border-radius:6px;padding:6px 8px;margin-bottom:8px;background:${allPass?'rgba(22,163,74,.05)':'rgba(220,38,38,.05)'}">
+      <div style="font-size:11px;font-weight:800;margin-bottom:4px;color:${allPass?'#16a34a':'#dc2626'}">${allPass?'✅ VISIBLE on KAP Security page':'❌ NOT visible on KAP Security page'}</div>
+      ${kapGates.map(g=>`<div style="font-size:10px;padding:2px 0;color:${g.pass?'#16a34a':'#dc2626'}">${g.pass?'✓':'✗'} ${g.reason}</div>`).join('')}
+    </div>`;
+
+    // Step details table
+    html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:4px 0;text-transform:uppercase;letter-spacing:.5px">Step Details</div>`;
+    html+=`<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:4px">
+      <tr style="background:var(--surface2)">
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Step</th>
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Skip</th>
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Done</th>
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">ownerLoc</th>
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">Users</th>
+        <th style="padding:4px 6px;text-align:left;border:1px solid var(--border)">By / Time</th>
+      </tr>
+      ${[1,2,3,4,5].map(n=>{
+        const st=seg.steps[n];
+        if(!st) return `<tr><td style="padding:3px 6px;border:1px solid var(--border);font-weight:700">${stepNames[n]||n}</td><td colspan="5" style="padding:3px 6px;border:1px solid var(--border);color:#dc2626;font-weight:700">MISSING</td></tr>`;
+        const isCs=seg.currentStep===n;
+        const loc=byId(DB.locations,st.ownerLoc);
+        const userNames=(st.users||[]).map(uid=>{const u=byId(DB.users,uid);return u?(u.fullName||u.name):uid;}).join(', ')||'—';
+        const byU=byId(DB.users,st.by);
+        const rowBg=st.done?'background:rgba(22,163,74,.06)':st.skip?'background:rgba(220,38,38,.04)':isCs?'background:rgba(22,163,74,.12)':'';
+        return `<tr style="${rowBg}">
+          <td style="padding:3px 6px;border:1px solid var(--border);font-weight:700;white-space:nowrap">${isCs?'▶ ':''}${stepNames[n]||n}</td>
+          <td style="padding:3px 6px;border:1px solid var(--border);color:${st.skip?'#dc2626':'#16a34a'};font-weight:700">${st.skip?'YES':'no'}</td>
+          <td style="padding:3px 6px;border:1px solid var(--border);color:${st.done?'#16a34a':'var(--text3)'};font-weight:700">${st.done?'YES':'no'}</td>
+          <td style="padding:3px 6px;border:1px solid var(--border)">${loc?`<span style="font-weight:700">${loc.name}</span> <span style="color:var(--text3)">(${st.ownerLoc})</span>`:st.ownerLoc||'<span style="color:#dc2626">null</span>'}</td>
+          <td style="padding:3px 6px;border:1px solid var(--border);font-size:9px">${userNames}</td>
+          <td style="padding:3px 6px;border:1px solid var(--border);font-size:9px">${st.done?(byU?.fullName||byU?.name||st.by||'?')+' · '+fdt(st.time):'—'}</td>
+        </tr>`;
+      }).join('')}
+    </table>`;
+    html+=`</div>`;
+  });
+
+  // Show expected allocation from table for comparison
+  html+=`<div style="font-size:11px;font-weight:700;color:#000;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px">📋 Expected Allocation (from table)</div>`;
+  segs.forEach(seg=>{
+    const sType=ltype(seg.sLoc), dType=ltype(seg.dLoc);
+    const crit=getCriteria(sType,dType);
+    const cat=CRITERIA_LABEL[crit]||'?';
+    const sl=byId(DB.locations,seg.sLoc);
+    const dl=byId(DB.locations,seg.dLoc);
+    const bookingUser=byId(DB.users,trip.bookedBy)||CU;
+    const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
+    const alloc=_resolveStepAlloc(crit,sl,dl,seg.sLoc,seg.dLoc,bookingLoc);
+    html+=`<div style="font-size:10px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;margin-bottom:3px">
+      <strong>Seg ${seg.label} (${cat}):</strong>
+      S1=${alloc.s1.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s1.locId)?.name||alloc.s1.locId)+'</span>'}
+      · S2=${alloc.s2.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s2.locId)?.name||alloc.s2.locId)+'</span>'}
+      · S3=${alloc.s3.skip?'<span style="color:#dc2626">Skip</span>':'<span style="color:#16a34a">'+(byId(DB.locations,alloc.s3.locId)?.name||alloc.s3.locId)+'</span>'}
+      · S4=<span style="color:#16a34a">${byId(DB.locations,alloc.s4.locId)?.name||alloc.s4.locId||'null'}</span>
+    </div>`;
+  });
+
+  el.innerHTML=html;
+}
+
 function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const s=(title,color,content)=>`<div style="background:${color};border-radius:10px;padding:16px 18px;margin-bottom:14px">
@@ -9564,6 +10200,40 @@ function renderHelper(){
   const th=(cols)=>`<thead><tr>${cols.map(c=>`<th style="padding:5px 10px;border:1px solid var(--border);font-size:11px;background:var(--surface2);font-weight:700;text-transform:uppercase">${c}</th>`).join('')}</tr></thead>`;
 
   el.innerHTML=`
+  <div style="background:rgba(220,38,38,.06);border:2px solid rgba(220,38,38,.2);border-radius:12px;padding:18px 20px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;color:#dc2626">🔧 Repair Trip Allocation</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">Scans all segments for incorrect step ↔ actionLoc allocation and fixes them using the current allocation table</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn btn-secondary" onclick="_renderRepairScan()" style="font-size:12px;padding:8px 14px">🔍 Scan</button>
+        <button class="btn btn-danger" id="btnRepairTrips" onclick="repairEKTrips()" style="font-size:12px;padding:8px 14px" disabled>🔧 Repair Trips</button>
+      </div>
+    </div>
+    <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#92400e">
+      <strong>What this repairs:</strong>
+      <div style="margin-top:4px">📍 <strong>Wrong Step Allocation</strong> — EK trips had Step4 (Approval) assigned to booking user's plant instead of destination KAP location (dLoc)</div>
+      <div style="margin-top:3px">🔒 <strong>Stuck-Locked Segments</strong> — Segments B/C stuck in Locked status even though predecessor completed Steps 1 & 2 (processes A→B→C order with multi-pass to handle cascading unlocks)</div>
+      <div style="margin-top:3px">🔢 <strong>Wrong Current Step</strong> — Segment's currentStep doesn't match actual step completion state</div>
+      <div style="margin-top:3px">⚠ <strong>Missing Steps</strong> — Step objects missing from segment data (creates them with correct allocation)</div>
+      <div style="margin-top:3px">👤 <strong>Wrong Role</strong> — Steps 1, 2, 5 must be 'KAP Security'; Step 3 must be 'Material Receiver'; Step 4 must be 'Trip Approver'</div>
+      <div style="margin-top:3px">👥 <strong>Wrong/Missing Users</strong> — Step's users array doesn't match the current KAP Security / Mat. Receiver / Approver assigned at the actionLoc</div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(234,179,8,.2)"><strong>ℹ EE trips:</strong> Steps 1, 2, 3, 5 are all <em>Skip</em> for External→External per the allocation table. EE trips only have Step 4 (Trip Approval by Booking User). They will <strong>never</strong> appear on the KAP Security page — this is correct behaviour.</div>
+    </div>
+    <div id="repairScanBody" style="font-size:13px;color:var(--text2);padding:4px 0">Click <strong>Scan</strong> to check for affected segments</div>
+    <div id="repairResults"></div>
+    <div style="margin-top:14px;padding-top:14px;border-top:2px solid rgba(220,38,38,.15)">
+      <div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:8px">🔍 Trip Diagnostic</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Enter a Trip ID to see exactly why it is or isn't visible on each page, with full step state and allocation details</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="diagTripInput" placeholder="e.g. 6P2-30" style="font-family:var(--mono);font-size:14px;font-weight:800;padding:8px 12px;border:2px solid var(--accent);border-radius:8px;width:180px;background:#fffbea" onkeydown="if(event.key==='Enter')_diagTrip()">
+        <button class="btn btn-primary" onclick="_diagTrip()" style="font-size:12px;padding:8px 14px">🔍 Diagnose</button>
+      </div>
+      <div id="diagResult" style="margin-top:10px"></div>
+    </div>
+  </div>
+
   ${s('📋 Trip ID Generation','rgba(59,130,246,.06)',`
     <p style="margin:0 0 8px"><strong>Format:</strong> <code style="background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:700">Y + P# + - + Serial</code></p>
     <p style="margin:0 0 6px"><strong>Y</strong> = Last digit of year (2026 → 6)</p>
@@ -9598,20 +10268,31 @@ function renderHelper(){
 
   ${s('🔄 5-Step Workflow Per Segment','rgba(34,197,94,.06)',`
     <table style="width:100%;border-collapse:collapse;margin-top:4px">
-    ${th(['Step','Name','Role','Location','Action'])}
+    ${th(['Step','Name','Role','Sequence','Action'])}
     <tbody>
     ${t([
-      ['1','🚪 Gate Exit','KAP Security','Source (sLoc)','Record vehicle exit from plant gate'],
-      ['2','🏁 Gate Entry','KAP Security','Destination (dLoc)','Record vehicle entry at destination gate'],
-      ['3','📦 Material Receipt','Material Receiver','Destination (dLoc)','Acknowledge material received / discrepancy / not received'],
-      ['4','✅ Trip Approval','Trip Approver','Destination (dLoc)','Approve or reject the trip segment'],
-      ['5','📤 Empty Exit','KAP Security','Destination (dLoc)','Record empty vehicle exit (auto-skipped for last segment if vehicle returns)'],
+      ['1','🚪 Gate Exit','KAP Security','Seq 1','Record vehicle exit from plant gate'],
+      ['2','🏁 Gate Entry','KAP Security','Seq 2','Record vehicle entry at destination gate'],
+      ['3','📦 Material Receipt','Material Receiver','Seq 3','Acknowledge material received / discrepancy / not received'],
+      ['4','✅ Trip Approval','Trip Approver','Seq 4','Approve or reject the trip segment'],
+      ['5','📤 Empty Exit','KAP Security','Seq 1','Record empty vehicle exit (replaced by Step1 of next segment in connecting trips)'],
     ])}
     </tbody></table>
-    <p style="margin:8px 0 4px"><strong>Step 5 skip rules:</strong></p>
-    <p style="margin:0 0 4px">• Single-segment trip (A only): Step 5 is active — vehicle exits empty</p>
-    <p style="margin:0 0 4px">• Multi-segment: Intermediate segments auto-skip step 5 (vehicle continues to next destination)</p>
-    <p style="margin:0">• Last segment: Step 5 is active if vehicle needs empty exit</p>
+    <p style="margin:10px 0 6px"><strong>Step → actionLoc allocation per tripCatId:</strong></p>
+    <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    ${th(['tripCatId','sLoc→dLoc','Step1 Exit','Step2 Entry','Step3 Mat.Rcpt','Step4 Approve','Step5 Empty'])}
+    <tbody>
+    ${t([
+      ['<strong>KK</strong>','KAP → KAP','sLoc','dLoc','dLoc','sLoc','dLoc'],
+      ['<strong>KE</strong>','KAP → External','sLoc','<s>Skip</s>','<s>Skip</s>','sLoc','<s>Skip</s>'],
+      ['<strong>EK</strong>','External → KAP','<s>Skip</s>','dLoc','dLoc','<strong>dLoc</strong>','dLoc'],
+      ['<strong>EE</strong>','External → External','<s>Skip</s>','<s>Skip</s>','<s>Skip</s>','Booking User','<s>Skip</s>'],
+    ])}
+    </tbody></table>
+    <p style="margin:8px 0 4px"><strong>Step 5 rules (connecting trips):</strong></p>
+    <p style="margin:0 0 4px">• Step5 = Sequence1 — same gate-exit level as Step1</p>
+    <p style="margin:0 0 4px">• Multi-segment: Step5 of segment N is <strong>replaced</strong> by Step1 of segment N+1</p>
+    <p style="margin:0">• Last segment: Step5 is active only when dLoc is KAP (gate exit requires a KAP gate)</p>
   `)}
 
   ${s('👥 User Roles & Permissions','rgba(139,92,246,.06)',`
