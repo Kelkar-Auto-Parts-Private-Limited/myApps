@@ -82,6 +82,11 @@
   .topbar-loc{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
   .main-content{position:relative;margin-left:240px;padding:48px 12px 16px 12px;height:100vh;height:-webkit-fill-available;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;vertical-align:top;transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
   @media(max-width:768px){.main-content{scrollbar-width:none;-ms-overflow-style:none}.main-content::-webkit-scrollbar{display:none}}
+  /* Sticky headers: ensure solid background + shadow to hide scrolling content */
+  #tbStickyHeader,#kapStickyHeader{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+  #pageMR>.page-header,#pageApprove>.page-header{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding-left:12px!important;padding-right:12px!important}
+  #kapExitSearchSticky,#kapEntrySearchSticky{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding:6px 12px!important}
+  .page{isolation:isolate}
   .page-header{display:none}
   .page{display:none}.page.active{display:block;padding-bottom:80px}
   .page-header{margin-bottom:4px}
@@ -154,13 +159,8 @@
   /* Segment cards */
   .seg-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s,box-shadow .2s}
   .seg-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-  /* Constrain operation page cards to mobile width on all screens */
+  /* Constrain operation page cards to mobile width on all screens — single column layout */
   #kapExitContent>div,#kapEntryContent>div,#kapSpotSection .seg-card,#kapSpotSection>div:first-child,#mrPendingContent>div,#approveContent>div,#myTripBody>.trip-card,#dashTripsContent>div,#kapSpotSection [onclick*="_kapOpenSpotPopup"]{max-width:480px}
-  /* Wide screen: place trip cards side by side */
-  @media(min-width:1024px){
-    #dashTripsContent,#myTripBody,#mrPendingContent,#approveContent{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,480px));gap:10px}
-    #dashTripsContent>div,#myTripBody>.trip-card,#mrPendingContent>div,#approveContent>div{margin-bottom:0}
-  }
   .seg-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
   .seg-id{font-family:var(--mono);font-size:12px;color:var(--accent)}
   .seg-route{font-size:14px;font-weight:600;margin-top:2px}
@@ -929,7 +929,7 @@
         <div>
         <div style="padding:0;margin:0">
           <div style="padding:0">
-            <div style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchExit" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapExitX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapExitX" onclick="document.getElementById('kapSearchExit').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
+            <div id="kapExitSearchSticky" style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchExit" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapExitX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapExitX" onclick="document.getElementById('kapSearchExit').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
             <div id="kapExitContent"></div>
             <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
               <div class="df-block" id="dfb_kapHistExit"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistExit_today" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','today',renderKap,'kapHistExit')">1D</button><button id="drb_kapHistExit_week" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','week',renderKap,'kapHistExit')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitFromLbl">📅 —</span><input type="date" id="kapHistExitFrom" onchange="updDateBtnLbl('kapHistExitFrom');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitToLbl">📅 —</span><input type="date" id="kapHistExitTo" onchange="updDateBtnLbl('kapHistExitTo');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistExit_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','month',renderKap,'kapHistExit')">1M</button><button id="drb_kapHistExit_year" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','year',renderKap,'kapHistExit')">1Y</button></div>
@@ -945,7 +945,7 @@
         <div>
         <div style="padding:0;margin:0">
           <div style="padding:0">
-            <div style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchEntry" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapEntryX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapEntryX" onclick="document.getElementById('kapSearchEntry').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
+            <div id="kapEntrySearchSticky" style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchEntry" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapEntryX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapEntryX" onclick="document.getElementById('kapSearchEntry').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
             <div id="kapEntryContent"></div>
             <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
               <div class="df-block" id="dfb_kapHistEntry"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistEntry_today" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','today',renderKap,'kapHistEntry')">1D</button><button id="drb_kapHistEntry_week" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','week',renderKap,'kapHistEntry')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryFromLbl">📅 —</span><input type="date" id="kapHistEntryFrom" onchange="updDateBtnLbl('kapHistEntryFrom');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryToLbl">📅 —</span><input type="date" id="kapHistEntryTo" onchange="updDateBtnLbl('kapHistEntryTo');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistEntry_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','month',renderKap,'kapHistEntry')">1M</button><button id="drb_kapHistEntry_year" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','year',renderKap,'kapHistEntry')">1Y</button></div>
@@ -8886,7 +8886,7 @@ async function delRate(rateId){
 
 // ===== CLEAR TRIP BOOKING FORM =====
 function clearTripForm(){
-  _editingTripId=null;
+  // NOTE: _editingTripId is managed by openTripBookingModal (save/restore pattern) — do NOT reset here
   [1,2,3].forEach(n=>clearChallanList(n));
   ['tbP1','tbP2','tbP3'].forEach(id=>{const el=document.getElementById(id);if(el){el.value='';el._compressedData=null;}});
   [1,2,3].forEach(n=>{const t=document.getElementById('tbP'+n+'Thumb');if(t){t.innerHTML='📷';t.style.border='2px dashed var(--border2)';}const c=document.getElementById('tbP'+n+'Clear');if(c)c.style.display='none';});
