@@ -2757,6 +2757,30 @@ function doLogin(){
   document.getElementById('loginPage').style.display='none';
   // Launch VMS app — go to Dashboard
   launchVMS(null, 'vms');
+  // Force refresh views after short delay to ensure data renders
+  // If core tables are empty, trigger a full reload
+  setTimeout(async function(){
+    try{
+      // Check if core tables are loaded - if not, reload them
+      var needsReload=(DB.trips||[]).length===0&&(DB.segments||[]).length===0&&(DB.locations||[]).length===0;
+      if(needsReload){
+        console.log('[doLogin] Core tables empty, triggering data reload...');
+        showSpinner('Loading data…');
+        try{
+          await bootDB();
+          console.log('[doLogin] Reload complete — trips='+((DB.trips||[]).length)+' segments='+((DB.segments||[]).length));
+        }catch(e){console.warn('Reload error:',e);}
+        hideSpinner();
+      }
+      updBadges();
+      var activePage=document.querySelector('.page.active');
+      if(activePage){
+        var pid=activePage.id;
+        var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
+        if(map[pid]) map[pid]();
+      }
+    }catch(e){console.warn('Post-login render error:',e);}
+  }, 300);
   // Check password strength OR if password is the default reset password — force change if needed
   if(!_isStrongPwd(p)||p===_RESET_PWD){
     _openForcePassModal();
@@ -5384,7 +5408,7 @@ function renderMyTrips(){
   const fromVal=document.getElementById('tbHistFrom')?.value||'';
   const toVal=document.getElementById('tbHistTo')?.value||'';
 
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=(CU.roles||[]).includes('Super Admin')||(CU.roles||[]).includes('Admin');
   let trips=_tripsForMyBookingPlant();
   // Trip ID search filter
   const tbSearch=(document.getElementById('tbTripSearch')?.value||'').toLowerCase();
@@ -9628,7 +9652,78 @@ function renderHelper(){
   const t=(rows)=>rows.map(r=>`<tr>${r.map(c=>`<td style="padding:5px 10px;border:1px solid var(--border);font-size:12px">${c}</td>`).join('')}</tr>`).join('');
   const th=(cols)=>`<thead><tr>${cols.map(c=>`<th style="padding:5px 10px;border:1px solid var(--border);font-size:11px;background:var(--surface2);font-weight:700;text-transform:uppercase">${c}</th>`).join('')}</tr></thead>`;
 
+  // Build Trip ID Allocation table
+  const now=new Date();
+  const yLast=String(now.getFullYear()).slice(-1);
+  const prefixMap={};
+  (DB.trips||[]).forEach(trip=>{
+    const m=trip.id.match(/^(\d+P\d+-)/);
+    if(m){
+      const prefix=m[1];
+      const serial=parseInt(trip.id.slice(prefix.length),10)||0;
+      if(!prefixMap[prefix]||serial>prefixMap[prefix].max){
+        prefixMap[prefix]={max:serial,count:(prefixMap[prefix]?.count||0)+1,lastTrip:trip.id};
+      } else {
+        prefixMap[prefix].count++;
+      }
+    }
+  });
+  // Get all KAP locations for reference
+  const kapLocs=(DB.locations||[]).filter(l=>l.type==='KAP').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  let allocRows='';
+  kapLocs.forEach(loc=>{
+    const digits=(loc.name||'').replace(/[^0-9]/g,'');
+    const plantCode=digits?'P'+digits:'P0';
+    const prefix=yLast+plantCode+'-';
+    const data=prefixMap[prefix]||{max:0,count:0,lastTrip:'—'};
+    const nextId=prefix+(data.max+1);
+    const locColor=loc.colour||'#64748b';
+    allocRows+=`<tr>
+      <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${locColor};margin-right:6px;vertical-align:middle"></span>${loc.name}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono);font-weight:700;color:var(--accent)">${prefix}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono);text-align:center">${data.count}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono);text-align:center;font-weight:700">${data.max||'—'}</td>
+      <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono);font-weight:800;color:#16a34a">${nextId}</td>
+    </tr>`;
+  });
+
   el.innerHTML=`
+  <!-- TRIP ID ALLOCATION TOOL -->
+  <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
+    <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">
+      🔢 Trip ID Allocation
+      <button onclick="renderHelper()" style="margin-left:auto;padding:4px 12px;font-size:11px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Current year digit: <strong>${yLast}</strong> (${now.getFullYear()})</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">
+        <thead><tr style="background:var(--surface2)">
+          <th style="padding:8px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Location</th>
+          <th style="padding:8px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Prefix</th>
+          <th style="padding:8px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center">Trip Count</th>
+          <th style="padding:8px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center">Last #</th>
+          <th style="padding:8px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Next ID</th>
+        </tr></thead>
+        <tbody>${allocRows||'<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">No KAP locations found</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TRIP STATUS RETRIEVER TOOL -->
+  <div style="background:linear-gradient(135deg,rgba(139,92,246,.08),rgba(59,130,246,.08));border:2px solid #8b5cf6;border-radius:12px;padding:18px 20px;margin-bottom:18px">
+    <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:#7c3aed;display:flex;align-items:center;gap:8px">
+      🔍 Trip Status Retriever
+    </div>
+    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+      <div style="flex:1;min-width:200px">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;text-transform:uppercase">Enter Trip ID</label>
+        <input type="text" id="helperTripIdInput" placeholder="e.g. 6P2-15" style="width:100%;padding:10px 14px;font-size:15px;font-family:var(--mono);font-weight:700;border:2px solid #a78bfa;border-radius:8px;text-transform:uppercase" onkeydown="if(event.key==='Enter')_helperLookupTrip()">
+      </div>
+      <button onclick="_helperLookupTrip()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap">🔍 Look Up</button>
+    </div>
+    <div id="helperTripResult" style="display:none"></div>
+  </div>
+
   ${s('📋 Trip ID Generation','rgba(59,130,246,.06)',`
     <p style="margin:0 0 8px"><strong>Format:</strong> <code style="background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:700">Y + P# + - + Serial</code></p>
     <p style="margin:0 0 6px"><strong>Y</strong> = Last digit of year (2026 → 6)</p>
@@ -9766,6 +9861,117 @@ function renderHelper(){
     </tbody></table>
   `)}
   `;
+}
+
+// Helper page: Trip Status Retriever function
+function _helperLookupTrip(){
+  const input=document.getElementById('helperTripIdInput');
+  const result=document.getElementById('helperTripResult');
+  if(!input||!result)return;
+  const tripId=(input.value||'').trim().toUpperCase();
+  if(!tripId){result.style.display='none';return;}
+  
+  const trip=DB.trips.find(t=>t.id.toUpperCase()===tripId);
+  if(!trip){
+    result.innerHTML=`<div style="padding:14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;color:#dc2626;font-weight:700">❌ Trip ID "${tripId}" not found</div>`;
+    result.style.display='block';
+    return;
+  }
+  
+  // Get trip details
+  const segs=DB.segments.filter(s=>s.tripId===trip.id).sort((a,b)=>a.label.localeCompare(b.label));
+  const vehicle=byId(DB.vehicles,trip.vehicleId);
+  const driver=byId(DB.drivers,trip.driverId);
+  const vendor=byId(DB.vendors,vehicle?.vendorId);
+  const bookedBy=byId(DB.users,trip.bookedBy);
+  const startLoc=byId(DB.locations,trip.startLoc);
+  const dest1Loc=byId(DB.locations,trip.dest1);
+  const dest2Loc=byId(DB.locations,trip.dest2);
+  const dest3Loc=byId(DB.locations,trip.dest3);
+  
+  // Overall trip status
+  const isCancelled=trip.cancelled;
+  const allComplete=segs.length>0&&segs.every(s=>s.status==='Completed');
+  const anyActive=segs.some(s=>s.status==='Active');
+  let overallStatus='<span style="background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:4px;font-weight:700">In Progress</span>';
+  if(isCancelled) overallStatus='<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-weight:700">Cancelled</span>';
+  else if(allComplete) overallStatus='<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:4px;font-weight:700">Completed</span>';
+  
+  // Format date
+  const tripDate=trip.date?new Date(trip.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+  
+  // Build route display
+  let routeParts=[startLoc?.name||'?'];
+  if(dest1Loc) routeParts.push(dest1Loc.name);
+  if(dest2Loc) routeParts.push(dest2Loc.name);
+  if(dest3Loc) routeParts.push(dest3Loc.name);
+  const routeHtml=routeParts.join(' <span style="color:var(--accent);font-weight:900">→</span> ');
+  
+  // Build segments status
+  let segsHtml='';
+  segs.forEach(seg=>{
+    const sLoc=byId(DB.locations,seg.sLoc);
+    const dLoc=byId(DB.locations,seg.dLoc);
+    let segStatus='<span style="background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Active</span>';
+    if(seg.status==='Completed') segStatus='<span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Completed</span>';
+    else if(seg.status==='Locked') segStatus='<span style="background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Locked</span>';
+    
+    // Steps status
+    let stepsHtml='<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">';
+    const stepNames=['','Gate Exit','Gate Entry','Mat Receipt','Approval','Empty Exit'];
+    for(let i=1;i<=5;i++){
+      const step=seg.steps[i]||{};
+      const isSkip=step.skip;
+      const isDone=step.done;
+      let stepCls='background:#f1f5f9;color:#94a3b8';
+      let stepIcon='○';
+      if(isSkip){stepCls='background:#f1f5f9;color:#cbd5e1;text-decoration:line-through';stepIcon='—';}
+      else if(isDone){stepCls='background:#dcfce7;color:#16a34a';stepIcon='✓';}
+      else if(seg.currentStep===i){stepCls='background:#fef9c3;color:#92400e';stepIcon='●';}
+      const stepBy=isDone&&step.by?byId(DB.users,step.by)?.name||step.by:'';
+      const stepTime=isDone&&step.time?new Date(step.time).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+      stepsHtml+=`<div style="padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;${stepCls};text-align:center;min-width:70px">
+        <div>${stepIcon} ${stepNames[i]}</div>
+        ${stepBy?`<div style="font-size:9px;font-weight:500;margin-top:2px">${stepBy}</div>`:''}
+        ${stepTime?`<div style="font-size:9px;font-weight:400;opacity:.7">${stepTime}</div>`:''}
+      </div>`;
+    }
+    stepsHtml+='</div>';
+    
+    segsHtml+=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-weight:800;color:var(--accent)">Segment ${seg.label}</span>
+        ${segStatus}
+      </div>
+      <div style="font-size:12px;color:var(--text2)">${sLoc?.name||'?'} → ${dLoc?.name||'?'}</div>
+      ${stepsHtml}
+    </div>`;
+  });
+  
+  result.innerHTML=`
+    <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,rgba(42,154,160,.1),rgba(34,197,94,.1));padding:14px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)">${trip.id}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">Booked: ${tripDate} by ${bookedBy?.fullName||bookedBy?.name||'—'}</div>
+          </div>
+          ${overallStatus}
+        </div>
+      </div>
+      <div style="padding:14px 16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px">
+          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Route</div><div style="font-size:13px;font-weight:600">${routeHtml}</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Vehicle</div><div style="font-size:13px;font-family:var(--mono);font-weight:700">${vehicle?.number||'—'}</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Driver</div><div style="font-size:13px">${driver?.name||'—'}</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Vendor</div><div style="font-size:13px">${vendor?.name||trip.vendor||'—'}</div></div>
+        </div>
+        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px;text-transform:uppercase">Segments (${segs.length})</div>
+        ${segsHtml||'<div style="color:var(--text3);font-size:12px">No segments found</div>'}
+      </div>
+    </div>
+  `;
+  result.style.display='block';
 }
 
 // ── Boot trigger ──

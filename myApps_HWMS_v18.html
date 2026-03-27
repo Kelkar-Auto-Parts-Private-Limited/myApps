@@ -461,6 +461,7 @@ tr.hwms-air-row:hover>td{background:rgba(139,92,246,.14)!important}
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
           <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
+            <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">✈️ Receive All Air</button>
             <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
@@ -4025,6 +4026,14 @@ function renderHwmsContainers(){
   var _showVal=_hwmsCan('cont.viewValue');
   document.querySelectorAll('.hwms-cont-invval').forEach(function(el){el.style.display=_showVal?'':'none';});
   _hwmsReapplyResize('tHwmsContainers');
+  // Show/hide "Receive All Air" button
+  var _airOnwater=(DB.hwmsContainers||[]).filter(function(c){return _hwmsContGetType(c)==='air'&&c.status==='Onwater';});
+  var _recvAllBtn=document.getElementById('btnHwmsReceiveAllAir');
+  if(_recvAllBtn){
+    var canRecv=(_hwmsIsSA()||_hwmsIsAdmin())&&_airOnwater.length>0;
+    _recvAllBtn.style.display=canRecv?'inline-flex':'none';
+    _recvAllBtn.textContent='✈️ Receive All Air ('+_airOnwater.length+')';
+  }
 
 }
 function _hwmsContToggleAll(checked){
@@ -4146,7 +4155,7 @@ function openHwmsContModal(id){
       topTypeBadge.style.display='';
     } else { topTypeBadge.style.display='none'; }
   }
-  // Set consignment type
+  // Set consignment type (this also generates the number for new containers)
   _hwmsContSetType(cType);
   // Type toggle: enabled for Planning, disabled after dispatch
   var isDispatched=c&&(c.status==='Onwater'||c.status==='Reached');
@@ -4161,15 +4170,8 @@ function openHwmsContModal(id){
   // Type badge (prominent, in form body)
   var typeBadge=document.getElementById('hwmsContTypeBadge');
   if(typeBadge) typeBadge.style.display='none';
-  // Auto-generate NNN/YY suffix for new containers (separate series for CN and AC)
-  if(!id){
-    var prefix=cType==='air'?'AC-':'CN-';
-    const yr=new Date().getFullYear().toString().slice(-2);
-    const existing=(DB.hwmsContainers||[]).filter(c2=>(c2.containerNumber||'').startsWith(prefix)&&(c2.containerNumber||'').endsWith('/'+yr));
-    let maxNum=0;
-    existing.forEach(c2=>{const m=(c2.containerNumber||'').match(/(?:CN|AC)-(\d+)\//);if(m) maxNum=Math.max(maxNum,parseInt(m[1]));});
-    document.getElementById('hwmsContNum').value=String(maxNum+1).padStart(3,'0')+'/'+yr;
-  } else {
+  // For editing existing container, set the number from saved data
+  if(id){
     document.getElementById('hwmsContNum').value=(c?.containerNumber||'').replace(/^(CN|AC)-/,'');
   }
   document.getElementById('hwmsContExpPickup').value=c?.expectedPickupDate||'';
@@ -4808,6 +4810,7 @@ async function _hwmsContSaveReceive(){
   const contPhoto=contPhotoPrev?.dataset?.base64||'';
   // Collect line item data
   const invs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===contId);
+  const isAirCont=_hwmsContGetType(c)==='air';
   const toSave=[];
   invs.forEach((inv,ii)=>{
     const lis=(inv.lineItems||[]).filter(li=>!li._meta);
@@ -4827,7 +4830,11 @@ async function _hwmsContSaveReceive(){
       li.whCondition=cond;
       li.whPhoto=photo;
       li.whReceivedDate=recvDate;
-      li.status='WH';
+      if(isAirCont){
+        li.status='Sold';li.soldStatus='Sold';li.airSold=true;
+      } else {
+        li.status='WH';
+      }
       changed=true;
     });
     if(changed) toSave.push(inv);
@@ -4913,8 +4920,14 @@ function _hwmsContUpdateReachedUI(c){
     }
   } else if(isOnwater){
     if(cType==='air'){
-      // Air: receive is disabled (air consignments are auto-dispatched+received)
-      if(reachedBtn){reachedBtn.disabled=true;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#7c3aed';reachedBtn.style.borderColor='#6d28d9';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.onclick=null;reachedBtn.style.display='inline-flex';}
+      // Air in transit: enable receive button for SA/Admin
+      if(reachedBtn){
+        if(isAdmin){
+          reachedBtn.disabled=false;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#7c3aed';reachedBtn.style.borderColor='#6d28d9';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};reachedBtn.style.display='inline-flex';
+        } else {
+          reachedBtn.disabled=true;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#7c3aed';reachedBtn.style.borderColor='#6d28d9';reachedBtn.style.opacity='.5';reachedBtn.style.cursor='not-allowed';reachedBtn.onclick=null;reachedBtn.style.display='inline-flex';
+        }
+      }
     } else {
       // Sea: receive enabled normally
       if(reachedBtn){reachedBtn.disabled=false;reachedBtn.textContent=recvLabel;reachedBtn.style.background='#16a34a';reachedBtn.style.borderColor='#15803d';reachedBtn.style.opacity='1';reachedBtn.style.cursor='pointer';reachedBtn.onclick=function(){_hwmsContOpenReceive();};reachedBtn.style.display='inline-flex';}
@@ -4974,7 +4987,9 @@ async function _hwmsAirBulkDispatchReceive(){
         lis.forEach(function(li){
           li.whReceived=true;
           li.whReceivedDate=dt;
-          li.status='WH';
+          li.status='Sold';
+          li.soldStatus='Sold';
+          li.airSold=true;
           changed=true;
         });
         if(changed) await _dbSave('hwmsInvoices',inv);
@@ -4984,6 +4999,47 @@ async function _hwmsAirBulkDispatchReceive(){
     hideSpinner();
     renderHwmsContainers();
     notify('✅ '+done+' air consignment(s) dispatched and received.');
+  });
+}
+
+// ── Receive ALL In-Transit Air Consignments ──
+async function _hwmsReceiveAllAirConsignments(){
+  if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only SA/Admin can receive air consignments',true);return;}
+  var airOnwater=(DB.hwmsContainers||[]).filter(function(c){
+    return _hwmsContGetType(c)==='air'&&c.status==='Onwater';
+  });
+  if(!airOnwater.length){notify('No air consignments in transit to receive.',true);return;}
+  showConfirm('Receive '+airOnwater.length+' air consignment(s)?\n\nAll line items will be marked as <b>Sold</b>.\n\n'+airOnwater.map(function(c){return '✈️ '+c.containerNumber;}).join('\n'), async function(){
+    showSpinner('Receiving air consignments…');
+    var done=0;
+    var recvDate=new Date().toISOString().slice(0,10);
+    for(var i=0;i<airOnwater.length;i++){
+      var c=airOnwater[i];
+      _spinnerMsg('Receiving '+(i+1)+'/'+airOnwater.length+' — '+c.containerNumber+'…');
+      // Update container status
+      c.status='Reached';
+      c.reachedDate=recvDate;
+      if(!await _dbSave('hwmsContainers',c)) continue;
+      // Update linked invoice line items
+      var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;});
+      for(var j=0;j<invs.length;j++){
+        var inv=invs[j];
+        var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+        var changed=false;
+        lis.forEach(function(li){
+          li.soldStatus='Sold';
+          li.airSold=true;
+          li.whReceivedDate=recvDate;
+          li.status='Sold';
+          changed=true;
+        });
+        if(changed) await _dbSave('hwmsInvoices',inv);
+      }
+      done++;
+    }
+    hideSpinner();
+    renderHwmsContainers();renderHwmsInvoices();
+    notify('✅ '+done+' air consignment(s) received! All items marked as Sold.');
   });
 }
 
@@ -5830,7 +5886,8 @@ async function _hwmsMarkSoldPallets(){
     var invChanged=false;
     lis.forEach(function(li){
       // Don't override air consignment sold status
-      if(li.airSold) return;
+      var _cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;
+      if(li.airSold||(_cont&&_hwmsContGetType(_cont)==='air')) return;
       var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
       var newStatus=soldSet[key]?'Sold':'';
       if((li.soldStatus||'')!==newStatus){
@@ -7984,7 +8041,7 @@ function _hwmsHoldRenderPallets(partId){
     (inv.lineItems||[]).forEach(function(li,liIdx){
       if(li.partId!==partId) return;
       if(li._meta) return;
-      if(li.soldStatus==='Sold'||li.airSold) return;
+      if(li.soldStatus==='Sold'||li.airSold||(cont&&_hwmsContGetType(cont)==='air')) return;
       if(li.holdStatus==='hold') return; // already held — show on Release tab
       rows.push({
         invId:inv.id,liIdx:liIdx,
@@ -8350,7 +8407,8 @@ function renderHwmsInventory(){
       if(!li.partId) return;
       if(li._meta) return;
       // Exclude air consignment items (sold directly, not stored in WH)
-      if(li.airSold) return;
+      var isAirItem=li.airSold||(cont&&_hwmsContGetType(cont)==='air');
+      if(isAirItem) return;
       if(!partMap[li.partId]) partMap[li.partId]={totalQty:0,whQty:0,dispatchedQty:0,transitQty:0,whLocations:[],details:[]};
       var qty=li.quantity||0;
       partMap[li.partId].totalQty+=qty;
@@ -8573,6 +8631,8 @@ function _hwmsInventoryExport(){
   invoices.forEach(function(inv){
     var cont=inv.containerId?contMap[inv.containerId]:null;
     if(!cont||cont.status!=='Reached') return;
+    // Exclude air consignments (sold directly, not WH stock)
+    if(_hwmsContGetType(cont)==='air') return;
     (inv.lineItems||[]).filter(function(li){return li.partId&&!li._meta;}).forEach(function(li){
       var totalQty=li.quantity||0;
       var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
@@ -9311,7 +9371,7 @@ function renderHwmsDashboard(){
       var cont=inv.containerId?byId(conts,inv.containerId):null;
       if(!cont) return;
       var cst=cont.status||'';
-      (inv.lineItems||[]).filter(function(li){return !li._meta&&!li.airSold;}).forEach(function(li){
+      (inv.lineItems||[]).filter(function(li){return !li._meta&&!(li.airSold||(cont&&_hwmsContGetType(cont)==='air'));}).forEach(function(li){
         var qty=li.quantity||0;var amt=qty*(li.rate||0);
         if(cst==='Reached'){
           var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
@@ -9370,7 +9430,7 @@ function renderHwmsDashboard(){
     if(isNaN(reachedDt)) return;
     var mKey=reachedDt.getFullYear()+'-'+String(reachedDt.getMonth()+1).padStart(2,'0');
     var mLabel=_mon[reachedDt.getMonth()]+' '+reachedDt.getFullYear();
-    (inv.lineItems||[]).filter(function(li){return !li._meta&&!li.airSold;}).forEach(function(li){
+    (inv.lineItems||[]).filter(function(li){return !li._meta&&!(li.airSold||(cont&&_hwmsContGetType(cont)==='air'));}).forEach(function(li){
       var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
       var soldQty=soldPallets[key]||0;
       var unsoldQty=(li.quantity||0)-soldQty;
