@@ -596,6 +596,8 @@
     <span></span><span></span><span></span>
   </button>
   <span class="topbar-title" id="topbarTitle">Dashboard</span>
+  <div style="flex:1"></div>
+  <div id="vmsLastSync" style="font-size:9px;color:#94a3b8;margin-right:10px;white-space:nowrap;font-family:var(--mono)" title="Last database sync">⟳ --:--</div>
   <div class="topbar-user" id="topbarUserWidget" style="cursor:default" title="VMS">
     <span class="topbar-loc" id="topbarLocName"></span><span id="sbStatusDot" style="width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block;margin-right:4px;flex-shrink:0;transition:background .5s" title="DB: checking..."></span>
     <div class="topbar-avatar" id="topbarAvatar">👤</div>
@@ -1758,6 +1760,23 @@ if(_commonMissing){
     if(err){err.textContent='⚠ App file missing: myApps_Common_v18.js must be in the same folder as this page.';err.style.display='block';}
   });
 }
+
+// Update last sync timestamp display
+function _vmsUpdateSyncTime(){
+  window._vmsLastSyncTs=Date.now();
+  var el=document.getElementById('vmsLastSync');
+  if(!el) return;
+  var d=new Date();
+  var h=d.getHours(),m=d.getMinutes();
+  var ampm=h>=12?'PM':'AM';
+  h=h%12||12;
+  var timeStr=h+':'+String(m).padStart(2,'0')+ampm;
+  var mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dateStr=d.getDate()+'-'+mon[d.getMonth()];
+  el.textContent='⟳ '+dateStr+' '+timeStr;
+  el.title='Last synced: '+d.toLocaleString();
+}
+
 // Helper: location pill style — colored bg if colour set, border-only if not
 function _locPillStyle(colour,fs){
   const sz=fs||13;
@@ -2039,7 +2058,7 @@ function _vmsIncrSyncHot(){
     results.filter(Boolean).forEach(function(r){_vmsIncr.lastTs[r.tbl]=now;if(!r.rows.length)return;tc+=r.rows.length;
       _syncMergeRows(r.tbl,r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean),false);
     });
-    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');if(!_kapPopupOpen)_onRefreshViews();}
+    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');_vmsUpdateSyncTime();if(!_kapPopupOpen)_onRefreshViews();}
   }).catch(function(e){console.warn('VMS hot sync error:',e.message);});
 }
 
@@ -2090,6 +2109,7 @@ function _vmsDoFullSync(){
     });
     (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=now;});
     _bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');
+    _vmsUpdateSyncTime();
     if(!_kapPopupOpen)_onRefreshViews();
     if(tc>0||trueFull)console.log('📡 VMS '+(trueFull?'true full':'incr full')+' sync: '+tc+' rows');
   }).catch(function(e){console.warn('VMS full sync error:',e.message);});
@@ -2098,60 +2118,90 @@ function _vmsDoFullSync(){
 // Override bootDB to use photo-excluded selects on initial load
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
-  if(!_origBootDB) return;
-  // If _SYNC_SELECT not defined yet or Supabase not ready, fall back to original
-  if(!_SYNC_SELECT||!_sb||!_sbReady){ return _origBootDB(); }
+  console.log('bootDB(VMS): starting...');
+  
+  if(!_origBootDB){
+    console.warn('bootDB(VMS): _origBootDB not available');
+    return;
+  }
+  
+  // ── Step 0: Check localStorage cache from Portal ────────────────────────
   try{
-    showSpinner('Loading…');
-    var _sm=document.getElementById('splashMsg');if(_sm)_sm.textContent='Connecting to database…';
-    var activeTables=_getActiveTables();
-    var timeout=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Boot timeout (8s)'));},8000);});
-    var cutoff=_dateCutoff();
-    var fetchAll=Promise.all(activeTables.map(async function(tbl){
-      var sbTbl=SB_TABLES[tbl];if(!sbTbl) return {tbl:tbl,rows:[]};
-      try{
-        var sel=_syncSelect(sbTbl);
-        var q=_sb.from(sbTbl).select(sel);
-        q=_applyDateFilter(q,sbTbl,cutoff);
-        var res=await q;
-        if(res.error){console.warn('bootDB: '+tbl+' error:',res.error.message);return{tbl:tbl,rows:[]};}
-        return{tbl:tbl,rows:res.data||[]};
-      }catch(e){console.warn('bootDB: '+tbl+' exception:',e.message);return{tbl:tbl,rows:[]};}
-    }));
-    var results=await Promise.race([fetchAll,timeout]);
-    results.forEach(function(r){
-      DB[r.tbl]=(r.rows||[]).map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
-      if(_DATE_FILTER_COL[SB_TABLES[r.tbl]]) _dateFilterLoaded[r.tbl]=cutoff;
-    });
-    console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d filter) — users='+((DB.users||[]).length)+' trips='+((DB.trips||[]).length));
-    _bgSyncDone=true;
-    _sbSetStatus('ok');
-    if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
-    _onPostBoot();
-    _sbStartRealtime();
+    var _cached=localStorage.getItem('kap_db_cache');
+    if(_cached){
+      var _cObj=JSON.parse(_cached);
+      var _age=Date.now()-(_cObj.ts||0);
+      if(_age<60000){
+        Object.keys(_cObj).forEach(function(t){if(t!=='ts'&&Array.isArray(_cObj[t]))DB[t]=_cObj[t];});
+        localStorage.removeItem('kap_db_cache');
+        if((DB.users||[]).length>0){
+          console.log('bootDB(VMS): instant from cache — users='+(DB.users||[]).length);
+          if(typeof _vmsUpdateSyncTime==='function')_vmsUpdateSyncTime();
+          if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
+          if(_sbReady&&_sb){
+            if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
+            if(typeof _sbStartRealtime==='function') _sbStartRealtime();
+            // Force first bgSync to do a TRUE FULL fetch (not incremental).
+            // Incremental skips rows with no recent changes → empty result.
+            _vmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
+            _vmsIncr.mode='unknown'; _vmsIncr.probed=false;
+            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},3000);
+          } else {
+            if(typeof _startBgReconnect==='function') _startBgReconnect(true);
+          }
+          if(typeof _onPostBoot==='function') _onPostBoot();
+          return;
+        }
+      } else { localStorage.removeItem('kap_db_cache'); }
+    }
+  }catch(e){console.warn('bootDB(VMS): cache error:',e.message);}
+  
+  // ── Step 1: Use original bootDB (most reliable) ────────────────────────
+  console.log('bootDB(VMS): calling original bootDB...');
+  try{
+    await _origBootDB();
+    console.log('bootDB(VMS): original bootDB completed, users='+(DB.users||[]).length);
+    if(typeof _vmsUpdateSyncTime==='function')_vmsUpdateSyncTime();
   }catch(e){
-    console.warn('Photo-excluded bootDB failed:',e.message,'→ falling back to original');
-    return _origBootDB();
-  }finally{hideSpinner();}
+    console.error('bootDB(VMS): original bootDB failed:',e);
+  }
 };
 
 async function _appBoot(){
+  console.log('VMS: _appBoot starting...');
   var splash=document.getElementById('dbSplash');
-  // dbSplash kept only for error states (Common.js not loaded).
-  // bootDB() already shows its own spinner via showSpinner() — no need for a second overlay.
-  // Load only VMS + Security tables — not HWMS tables
-  // Set all VMS tables (bootDB override only fetches these with photo exclusion)
+  // Set all VMS tables before boot
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
-  try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
-  _getActiveTables().forEach(function(t){_loadedTables[t]=true;});
+  
+  try{ 
+    await bootDB(); 
+  }catch(e){ 
+    console.error('VMS: bootDB error',e); 
+  }
+  
+  console.log('VMS: bootDB completed, users='+(DB.users||[]).length+' trips='+(DB.trips||[]).length);
+  
+  try{
+    _getActiveTables().forEach(function(t){_loadedTables[t]=true;});
+  }catch(e){}
+  
   if(splash) splash.style.display='none';
   try{ _applyPhotoInputMode(); }catch(e){}
+  
   // Check session
   var ss=_sessionGet('kap_session_user'), sp2=_sessionGet('kap_session_pass');
-  if(ss&&sp2){
-    var user=DB.users.find(function(x){return x&&x.name.toLowerCase()===ss&&x.password===sp2;});
-    if(user){ if(_tryAutoLogin(user)) return; }
-    else{ _sessionDel('kap_session_user'); _sessionDel('kap_session_pass'); }
+  console.log('VMS: checking session, user=',ss?'yes':'no');
+  
+  if(ss&&sp2&&(DB.users||[]).length>0){
+    var user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===ss&&x.password===sp2;});
+    if(user){ 
+      console.log('VMS: user found, auto-login');
+      if(_tryAutoLogin(user)) return; 
+    }
+    else{ 
+      console.log('VMS: session user not found in DB');
+      _sessionDel('kap_session_user'); _sessionDel('kap_session_pass'); 
+    }
   }
   // Check remember-me
   var su=null,sp=null;
