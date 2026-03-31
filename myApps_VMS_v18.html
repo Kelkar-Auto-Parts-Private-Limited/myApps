@@ -1873,7 +1873,7 @@ var _loadedTables={};
 var _PAGE_TABLES={
   'pageDashboard':['trips','segments','locations','drivers','vehicles','vehicleTypes','vendors'],
   'pageTripBooking':['trips','segments','locations','drivers','vehicles','vehicleTypes','vendors','tripRates'],
-  'pageKapSecurity':['spotTrips','locations'],
+  'pageKapSecurity':['trips','segments','spotTrips','locations','drivers','vehicles','vehicleTypes','vendors'],
   'pageUsers':[],
   'pageDrivers':['drivers','vendors'],
   'pageVehicles':['vehicles','vehicleTypes','vendors'],
@@ -6054,6 +6054,13 @@ function _closePop(popId){
   try{renderApprove();}catch(e){}
 }
 function renderKap(){
+  try{ _renderKapInner(); }catch(e){
+    console.error('renderKap error:',e);
+    var el=document.getElementById(_kapMode==='entry'?'kapEntryContent':'kapExitContent');
+    if(el) el.innerHTML='<div style="padding:20px;color:#dc2626;font-weight:700;font-size:13px">⚠ Error loading KAP page: '+e.message+'</div>';
+  }
+}
+function _renderKapInner(){
   const _savedPop=_kapGetOpenPopup(); // save before re-render destroys DOM
   // Init date ranges for both exit and entry history (1M default)
   initDfMonth('kapHistExit','kapHistExitFrom','kapHistExitTo');
