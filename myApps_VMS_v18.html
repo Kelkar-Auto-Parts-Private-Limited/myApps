@@ -2172,6 +2172,8 @@ async function _appBoot(){
   var splash=document.getElementById('dbSplash');
   // Set all VMS tables before boot
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
+  // Add essential lookup tables to hot sync so they load immediately
+  if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicleTypes','vehicles','drivers','locations','vendors'];
   
   try{ 
     await bootDB(); 
@@ -2182,7 +2184,9 @@ async function _appBoot(){
   console.log('VMS: bootDB completed, users='+(DB.users||[]).length+' trips='+(DB.trips||[]).length);
   
   try{
-    _getActiveTables().forEach(function(t){_loadedTables[t]=true;});
+    _getActiveTables().forEach(function(t){
+      if(DB[t]&&DB[t].length>0) _loadedTables[t]=true;
+    });
   }catch(e){}
   
   if(splash) splash.style.display='none';
@@ -3469,24 +3473,37 @@ function _showPhotoChoice(fileInputId, thumbId, onDone){
   const inp=document.getElementById(fileInputId);
   if(!inp) return;
   if(_isMobileOrTablet()){
-    // Mobile/Tablet: open native device camera directly
-    inp.setAttribute('capture','environment');
+    // Mobile/Tablet: show Camera vs Gallery choice
+    _showMobilePhotoMenu(fileInputId);
   } else {
     // Desktop: open file picker
     inp.removeAttribute('capture');
+    inp.click();
   }
-  inp.click();
+}
+
+function _showMobilePhotoMenu(fileInputId){
+  // Remove existing menu if any
+  var old=document.getElementById('_mobilePhotoMenu');if(old)old.remove();
+  var menu=document.createElement('div');
+  menu.id='_mobilePhotoMenu';
+  menu.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  menu.onclick=function(e){if(e.target===menu)menu.remove();};
+  menu.innerHTML='<div style="background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:400px;margin-bottom:0">'
+    +'<div style="font-size:15px;font-weight:800;margin-bottom:16px;text-align:center">Attach Photo / Document</div>'
+    +'<button onclick="document.getElementById(\'_mobilePhotoMenu\').remove();_photoChoiceCam()" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer;margin-bottom:8px">📷 Take Photo</button>'
+    +'<button onclick="document.getElementById(\'_mobilePhotoMenu\').remove();_photoChoiceGallery()" style="width:100%;padding:14px;font-size:15px;font-weight:700;background:#f1f5f9;color:var(--text);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:8px">🖼 Gallery / Files</button>'
+    +'<button onclick="document.getElementById(\'_mobilePhotoMenu\').remove()" style="width:100%;padding:12px;font-size:14px;font-weight:600;background:transparent;color:var(--text3);border:none;cursor:pointer">Cancel</button>'
+    +'</div>';
+  document.body.appendChild(menu);
 }
 
 function _photoChoiceCam(){
-  cm('mPhotoChoice');
-  // Fallback: trigger file input with capture
   const inp=document.getElementById(_photoChoiceFileId);
   if(inp){ inp.setAttribute('capture','environment'); inp.click(); }
 }
 
 function _photoChoiceGallery(){
-  cm('mPhotoChoice');
   const inp=document.getElementById(_photoChoiceFileId);
   if(inp){ inp.removeAttribute('capture'); inp.click(); }
 }
@@ -4539,6 +4556,18 @@ function _cTid(tripId){
 let _tbDestCount=1;// how many destinations are visible (1-3)
 
 function openTripBookingModal(editTripId){
+  // If vehicleTypes not loaded yet, demand-load first then open
+  if(!(DB.vehicleTypes||[]).length&&typeof _demandLoad==='function'){
+    showSpinner('Loading vehicle types…');
+    _demandLoad(['vehicleTypes','vehicles','drivers','locations','vendors']).then(function(){
+      hideSpinner();
+      _openTripBookingModalInner(editTripId);
+    }).catch(function(){hideSpinner();_openTripBookingModalInner(editTripId);});
+    return;
+  }
+  _openTripBookingModalInner(editTripId);
+}
+function _openTripBookingModalInner(editTripId){
   _editingTripId=editTripId||null;
   const t=editTripId?byId(DB.trips,editTripId):null;
 
@@ -5051,7 +5080,7 @@ function addChallanRow(destNum, data){
     <input type="text" placeholder="Challan No." value="${no.replace(/"/g,'&quot;')}" oninput="updateTbPrompt&&updateTbPrompt()" style="flex:2">
     <input type="number" placeholder="Wt kg" value="${wt}" oninput="updateTbPrompt&&updateTbPrompt()" style="flex:1">
     <div class="challan-photo-thumb${photo?' has-photo':''}" id="chThumb_${destNum}_${uid2}" onclick="_showPhotoChoice('chPhoto_${destNum}_${uid2}','chThumb_${destNum}_${uid2}')" title="Add challan photo">${photo?'<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover">':'📎'}</div>
-    <input type="file" id="chPhoto_${destNum}_${uid2}" accept="${_photoAccept()}" capture="environment" style="display:none" onchange="onChallanPhoto(this,'chThumb_${destNum}_${uid2}')">
+    <input type="file" id="chPhoto_${destNum}_${uid2}" accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="onChallanPhoto(this,'chThumb_${destNum}_${uid2}')">
     <button class="ch-del" onclick="removeChallanRow(this,${destNum})" title="Remove">×</button>
   `;
   list.appendChild(row);
@@ -5548,11 +5577,29 @@ function renderMyTrips(){
       }
       // Show all challans for this destination (multi-challan support)
       const challansArr=t['challans'+idx]||[];
-      const challanDisplay=challansArr.length
-        ?challansArr.map(ch2=>`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:5px;white-space:nowrap">📄 ${ch2.no}</span>`).join(' ')
-        :ch
-          ?`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:5px">📄 ${ch}</span>`
-          :`<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ No Challan</span>`;
+      const _chComplete=function(arr,leg){
+        if(!arr.length&&!leg) return 'none';
+        // If only legacy challan (no array), still need weight+photo
+        if(!arr.length&&leg){
+          var m2=[];
+          if(!trip?.['weight'+idx]) m2.push('Weight');
+          if(!trip?.['photo'+idx]) m2.push('Photo');
+          return m2.length?m2:null;
+        }
+        var missing=[];
+        if(arr.some(function(c){return !c.no||!c.no.trim();})) missing.push('Challan');
+        if(arr.some(function(c){return !c.weight;})) missing.push('Weight');
+        if(arr.some(function(c){return !c.photo;})) missing.push('Photo');
+        return missing.length?missing:null;
+      };
+      var _chStatus=_chComplete(challansArr,ch);
+      const challanDisplay=_chStatus==='none'
+        ?'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ No Challan / Weight / Photo</span>'
+        :(!_chStatus)
+          ?(challansArr.length
+            ?challansArr.map(ch2=>`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:5px;white-space:nowrap">📄 ${ch2.no}</span>`).join(' ')
+            :`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:5px">📄 ${ch}</span>`)
+          :'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ Missing: '+_chStatus.join(', ')+'</span>';
       const clr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[lbl]||'var(--accent)';
       return `<div style="padding:5px 0;border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${stepProgress||nextStep?'4px':'0'}">
@@ -5605,7 +5652,7 @@ function renderMyTrips(){
       <!-- Row 2: Vendor · Driver · Booked by · Date -->
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:3px 10px 6px;font-size:11px">${(()=>{const vendorName=t.vendor||'';const drv2=byId(DB.drivers,t.driverId);const drvName=drv2?.name||'';const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'';const dot='<span style="color:var(--border2)">·</span>';const parts=[];if(vendorName)parts.push(`<span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:1px 8px;border-radius:4px;border:1px solid rgba(42,154,160,.2)">🏢 ${vendorName}</span>`);if(drvName)parts.push(`<span style="color:var(--text2);font-weight:600">🧑 ${drvName}</span>`);parts.push(`<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span>`);parts.push(`<span style="color:var(--text3)">📅 ${fdt(t.date)}</span>`);return parts.join(dot);})()}</div>
       <!-- Line 2: Coloured route pills + No Challan flash -->
-      <div style="padding:2px 10px 4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${(()=>{const dests=[[t.dest1,1],[t.dest2,2],[t.dest3,3]].filter(([d])=>d);const anyChallanMissing=dests.some(([d,idx])=>{const arr=t['challans'+idx]||[];const leg=t['challan'+idx]||'';return !arr.length&&!leg;});return anyChallanMissing?'<span class="flash-red" style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;margin-right:2px">⚠ No Challan</span>':'';})()}${routeParts}</div>
+      <div style="padding:2px 10px 4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${(()=>{const dests=[[t.dest1,1],[t.dest2,2],[t.dest3,3]].filter(([d])=>d);const anyIncomplete=dests.some(([d,idx])=>{const arr=t['challans'+idx]||[];const leg=t['challan'+idx]||'';if(!arr.length&&!leg)return true;if(!arr.length&&leg)return !t['weight'+idx]||!t['photo'+idx];return arr.some(c=>!c.no||!c.no.trim()||!c.weight||!c.photo);});return anyIncomplete?'<span class="flash-red" style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;margin-right:2px">⚠ No Challan / Weight / Photo</span>':'';})()}${routeParts}</div>
       <!-- Step status summary (collapsed view) -->
       ${(()=>{
         if(isCancelled) return `<div style="padding:2px 10px 6px"><span class="badge" style="font-size:10px;padding:3px 10px;background:rgba(107,114,128,.12);color:#6b7280;border:1px solid rgba(107,114,128,.3)">✕ Cancelled</span></div>`;
@@ -6109,11 +6156,26 @@ function renderKap(){
         // KAP page: challan is always read-only; show all challans for this segment
         const _t2=byId(DB.trips,seg.tripId);
         const challansArrKap=(_t2&&_t2['challans'+idx]&&_t2['challans'+idx].length?_t2['challans'+idx]:[]);
-        const challanDisplay=challansArrKap.length
-          ?challansArrKap.map(c2=>`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 5px;border-radius:5px;white-space:nowrap">📄 ${c2.no}${c2.weight?' · '+c2.weight+'kg':''}</span>`).join(' ')
-          :ch
-            ?`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:5px">📄 ${ch}</span>`
-            :`<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ No Challan</span>`;
+        var _kapChStatus='none';
+        if(challansArrKap.length){
+          var _km=[];
+          if(challansArrKap.some(function(c){return !c.no||!c.no.trim();})) _km.push('Challan');
+          if(challansArrKap.some(function(c){return !c.weight;})) _km.push('Weight');
+          if(challansArrKap.some(function(c){return !c.photo;})) _km.push('Photo');
+          _kapChStatus=_km.length?_km:null;
+        } else if(ch){
+          var _km2=[];
+          if(!wt) _km2.push('Weight');
+          if(!ph) _km2.push('Photo');
+          _kapChStatus=_km2.length?_km2:null;
+        }
+        const challanDisplay=_kapChStatus==='none'
+          ?'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ No Challan / Weight / Photo</span>'
+          :(!_kapChStatus)
+            ?(challansArrKap.length
+              ?challansArrKap.map(c2=>`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 5px;border-radius:5px;white-space:nowrap">📄 ${c2.no}${c2.weight?' · '+c2.weight+'kg':''}</span>`).join(' ')
+              :`<span style="font-size:11px;font-weight:700;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:5px">📄 ${ch}${wt?' · '+wt+'kg':''}</span>`)
+            :'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ Missing: '+_kapChStatus.join(', ')+'</span>';
 
         return `<div class="${_rowClass}" style="padding:5px 10px;border-bottom:1px solid var(--border)">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -6328,6 +6390,7 @@ function renderKap(){
         const ch=trip?.['challan'+idx]||'';
         const wt=trip?.['weight'+idx]||'';
         const ph=trip?.['photo'+idx];
+        const _chArr=trip?.['challans'+idx]||[];
         const _isActive=lbl===seg.label;
         const clr={A:'#35b0b6',B:'#14b8a6',C:'#8b5cf6'}[lbl]||'var(--accent)';
         let segStatus='';
@@ -6341,15 +6404,26 @@ function renderKap(){
             segStatus=`<span class="flash-green" style="font-size:10px">${si[_seg.currentStep]||''} ${sn[_seg.currentStep]||''}</span>`;
           }
         }
+        // Check completeness of challan info
+        var _histMissing=[];
+        if(_chArr.length){
+          if(_chArr.some(c=>!c.no||!c.no.trim())) _histMissing.push('Challan');
+          if(_chArr.some(c=>!c.weight)) _histMissing.push('Weight');
+          if(_chArr.some(c=>!c.photo)) _histMissing.push('Photo');
+        } else if(!ch){_histMissing=['Challan','Weight','Photo'];}
+        else {if(!wt) _histMissing.push('Weight');if(!ph) _histMissing.push('Photo');}
+        var _histChDisplay=_histMissing.length
+          ?'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px">⚠ Missing: '+_histMissing.join(', ')+'</span>'
+          :(_chArr.length
+            ?_chArr.map(c2=>'<span style="font-size:10px;font-weight:700;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 5px;border-radius:3px;color:#1d6f73;margin-left:2px">📄 '+c2.no+(c2.weight?' · '+c2.weight+'kg':'')+'</span>').join(' ')
+            :'<span style="font-size:10px;font-weight:700;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 5px;border-radius:3px;color:#1d6f73;margin-left:4px">📄 '+ch+'</span>');
         const rowBg=_isActive?'background:rgba(42,154,160,.07);':'';
         return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--border);${rowBg}flex-wrap:wrap">
           <span style="width:18px;height:18px;border-radius:50%;background:${clr};color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${lbl}</span>
           <span style="font-size:11px;font-weight:600">${lnameText(from)}</span>
           <span style="color:var(--accent);font-weight:900;font-size:11px">⟶</span>
           <span style="font-size:11px;font-weight:600">${lnameText(to)}</span>
-          ${ch?`<span style="font-size:10px;font-weight:700;background:#f0fafa;border:1px solid #b3dfe0;padding:1px 5px;border-radius:3px;color:#1d6f73;margin-left:4px">📄 ${ch}</span>`:'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px">No Challan</span>'}
-          ${wt?`<span style="font-size:10px;color:var(--text2)">⚖ ${wt}kg</span>`:''}
-          ${ph?`<img src="${ph}" onclick="openPhoto(this.src)" style="width:22px;height:22px;object-fit:cover;border-radius:3px;border:1px solid var(--border2);cursor:pointer">`:''}
+          ${_histChDisplay}
           <span style="margin-left:auto">${segStatus}</span>
         </div>`;
       }).join('');
@@ -6817,24 +6891,54 @@ async function doKapInline(segId,step){
       trip['challan'+idx]=inlineCh.value.trim();
       
     }
-    // Validate: all segments of this trip must have challan
+    // Validate: this segment must have challan + weight + photo
     const allSegDests=[[trip.startLoc,trip.dest1,'A',1]];
     if(trip.dest2)allSegDests.push([trip.dest1,trip.dest2,'B',2]);
     if(trip.dest3)allSegDests.push([trip.dest2,trip.dest3,'C',3]);
-    const missingChallan=allSegDests.filter(([,,,i])=>!trip['challan'+i]);
+    // Check challan number
+    const missingChallan=allSegDests.filter(function(d){
+      var i=d[3];var challans=trip['challans'+i]||[];
+      var hasNew=challans.some(function(ch){return ch.no&&ch.no.trim();});
+      return !hasNew&&!(trip['challan'+i]||'').trim();
+    });
     if(missingChallan.length){
-      const labels=missingChallan.map(([,,,i])=>'ABCDEFGH'[i-1]).join(', ');
-      notify(`Challan number required for segment(s) ${labels} before Gate Exit`,true);
+      const labels=missingChallan.map(function(d){return 'ABCDEFGH'[d[3]-1];}).join(', ');
+      notify('Challan number required for segment(s) '+labels+' before Gate Exit',true);
       return;
+    }
+    // Check weight + photo for this segment
+    var challansThisSeg=trip['challans'+idx]||[];
+    var validChThis=challansThisSeg.filter(function(ch){return ch.no&&ch.no.trim();});
+    if(validChThis.length){
+      var mwt=validChThis.filter(function(ch){return !ch.weight;});
+      if(mwt.length){notify('⚠ Weight is missing for '+mwt.length+' challan(s) in segment '+seg.label+'. Required before Gate Exit.',true);return;}
+      var mph=validChThis.filter(function(ch){return !ch.photo;});
+      if(mph.length){notify('⚠ Challan photo is missing for '+mph.length+' challan(s) in segment '+seg.label+'. Required before Gate Exit.',true);return;}
+    } else if((trip['challan'+idx]||'').trim()){
+      // Legacy single challan — check weight/photo from trip fields
+      if(!trip['weight'+idx]){notify('⚠ Weight is missing for segment '+seg.label+'. Required before Gate Exit.',true);return;}
+      if(!trip['photo'+idx]){notify('⚠ Challan photo is missing for segment '+seg.label+'. Required before Gate Exit.',true);return;}
     }
   }
 
-  // For gate entry: also validate challan exists for this segment
+  // For gate entry: validate challan + weight + photo for this segment
   if(step===2&&trip){
-    const idx=seg.label==='A'?1:seg.label==='B'?2:3;
-    if(!trip['challan'+idx]){
-      notify(`Challan number required for segment ${seg.label} before Gate Entry`,true);
+    const idx2=seg.label==='A'?1:seg.label==='B'?2:3;
+    var challansEntry=trip['challans'+idx2]||[];
+    var validChEntry=challansEntry.filter(function(ch){return ch.no&&ch.no.trim();});
+    var legacyEntry=(trip['challan'+idx2]||'').trim();
+    if(!validChEntry.length&&!legacyEntry){
+      notify('Challan number required for segment '+seg.label+' before Gate Entry',true);
       return;
+    }
+    if(validChEntry.length){
+      var mwt2=validChEntry.filter(function(ch){return !ch.weight;});
+      if(mwt2.length){notify('⚠ Weight missing for '+mwt2.length+' challan(s). Required before Gate Entry.',true);return;}
+      var mph2=validChEntry.filter(function(ch){return !ch.photo;});
+      if(mph2.length){notify('⚠ Challan photo missing for '+mph2.length+' challan(s). Required before Gate Entry.',true);return;}
+    } else if(legacyEntry){
+      if(!trip['weight'+idx2]){notify('⚠ Weight is missing for segment '+seg.label+'. Required before Gate Entry.',true);return;}
+      if(!trip['photo'+idx2]){notify('⚠ Challan photo missing for segment '+seg.label+'. Required before Gate Entry.',true);return;}
     }
   }
 
@@ -6873,18 +6977,49 @@ async function doKapAction(){
     const t=byId(DB.trips,seg.tripId);
     if(t){
       const segIdx={'A':1,'B':2,'C':3}[seg.label]||1;
-      // Determine start location for this segment
       var _segStartLocId=seg.sLoc||(segIdx===1?t.startLoc:segIdx===2?t.dest1:t.dest2);
       var _segStartLoc=byId(DB.locations||[],_segStartLocId);
       var _isExtStart=_segStartLoc&&_segStartLoc.type==='External';
       if(!_isExtStart){
         const challans=t['challans'+segIdx]||[];
-        const hasAny=challans.some(ch=>ch.no&&ch.no.trim());
+        const validChallans=challans.filter(function(ch){return ch.no&&ch.no.trim();});
         const legacyCh=(t['challan'+segIdx]||'').trim();
-        if(!hasAny&&!legacyCh){
-          notify('⚠ Please add at least 1 challan detail for this segment before Gate Exit.',true);
+        if(!validChallans.length&&!legacyCh){
+          notify('⚠ Challan number is required for this segment before Gate Exit. Please ask the trip booker to add challan details.',true);
           return;
         }
+        if(validChallans.length){
+          var missingWt=validChallans.filter(function(ch){return !ch.weight;});
+          if(missingWt.length){notify('⚠ Weight is missing for '+missingWt.length+' challan(s). Please ask the trip booker to add weight before Gate Exit.',true);return;}
+          var missingPhoto=validChallans.filter(function(ch){return !ch.photo;});
+          if(missingPhoto.length){notify('⚠ Challan photo is missing for '+missingPhoto.length+' challan(s). Please ask the trip booker to attach challan photos before Gate Exit.',true);return;}
+        } else if(legacyCh){
+          if(!t['weight'+segIdx]){notify('⚠ Weight is missing. Please ask the trip booker to add weight before Gate Exit.',true);return;}
+          if(!t['photo'+segIdx]){notify('⚠ Challan photo is missing. Please ask the trip booker to attach challan photo before Gate Exit.',true);return;}
+        }
+      }
+    }
+  }
+  // For gate entry (step 2): also validate challan+weight+photo
+  if(step===2){
+    const t=byId(DB.trips,seg.tripId);
+    if(t){
+      const segIdx={'A':1,'B':2,'C':3}[seg.label]||1;
+      const challans=t['challans'+segIdx]||[];
+      const validChallans=challans.filter(function(ch){return ch.no&&ch.no.trim();});
+      const legacyCh=(t['challan'+segIdx]||'').trim();
+      if(!validChallans.length&&!legacyCh){
+        notify('⚠ Challan number required for segment '+seg.label+' before Gate Entry.',true);
+        return;
+      }
+      if(validChallans.length){
+        var missingWt2=validChallans.filter(function(ch){return !ch.weight;});
+        if(missingWt2.length){notify('⚠ Weight is missing for '+missingWt2.length+' challan(s). Required before Gate Entry.',true);return;}
+        var missingPhoto2=validChallans.filter(function(ch){return !ch.photo;});
+        if(missingPhoto2.length){notify('⚠ Challan photo is missing for '+missingPhoto2.length+' challan(s). Required before Gate Entry.',true);return;}
+      } else if(legacyCh){
+        if(!t['weight'+segIdx]){notify('⚠ Weight is missing. Required before Gate Entry.',true);return;}
+        if(!t['photo'+segIdx]){notify('⚠ Challan photo is missing. Required before Gate Entry.',true);return;}
       }
     }
   }
