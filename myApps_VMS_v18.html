@@ -1124,7 +1124,7 @@
     <div class="page" id="pageDrivers"><div class="page-header"><div class="page-title">Driver Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Drivers</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('drivers')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('drivers',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveDrv" onchange="renderDrivers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddDrv">+ Add Driver</button></div></div><div class="table-wrap"><table id="tDrivers"><thead><tr><th>Photo</th><th class="sortable" onclick="sortTable('drvBody',1)">Name</th><th class="sortable" onclick="sortTable('drvBody',2)">Mobile</th><th class="sortable" onclick="sortTable('drvBody',3)">Vendor</th><th class="sortable" onclick="sortTable('drvBody',4)">DL Expiry</th><th>Actions</th></tr></thead><tbody id="drvBody"></tbody></table></div></div></div>
     <div class="page" id="pageVendors"><div class="page-header"><div class="page-title">Vendor Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vendors</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vendors')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vendors',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVnd" onchange="renderVendors()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVnd">+ Add Vendor</button></div></div><div class="table-wrap"><table id="tVendors"><thead><tr><th class="sortable" onclick="sortTable('vndBody',0)">Vendor Name</th><th class="sortable" onclick="sortTable('vndBody',1)">Owner</th><th class="sortable" onclick="sortTable('vndBody',2)">Contact</th><th class="sortable" onclick="sortTable('vndBody',3)">Mapped User</th><th class="sortable" onclick="sortTable('vndBody',4)">Address</th><th>Actions</th></tr></thead><tbody id="vndBody"></tbody></table></div></div></div>
     <div class="page" id="pageVehicles"><div class="page-header"><div class="page-title">Vehicle Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vehicles</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicles')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicles',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVeh" onchange="renderVehicles()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVeh">+ Add Vehicle</button></div></div><div class="table-wrap"><table id="tVehicles"><thead><tr><th class="sortable" onclick="sortTable('vehBody',0)">Vehicle No.</th><th class="sortable" onclick="sortTable('vehBody',1)">Type</th><th class="sortable" onclick="sortTable('vehBody',2)">Vendor</th><th class="sortable" onclick="sortTable('vehBody',3)">PUC Expiry</th><th class="sortable" onclick="sortTable('vehBody',4)">RTO Expiry</th><th class="sortable" onclick="sortTable('vehBody',5)">Insurance Expiry</th><th>Actions</th></tr></thead><tbody id="vehBody"></tbody></table></div></div></div>
-    <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
+    <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center"><input type="text" id="locSearchInput" oninput="renderLocations()" placeholder="🔍 Search location…" style="padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
     <div class="page" id="pageTripRates"><div class="page-header"><div class="page-title">Trip Rate Master</div></div>
       <!-- SUGGESTIONS PANEL -->
       <div id="rateSuggestPanel" style="display:none;padding:16px" class="card">
@@ -3072,11 +3072,11 @@ const NAV=[
   {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin'],badge:'bAP',app:'vms'},
   {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],app:'vms'},
   {sec:'MASTERS',app:'vms'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin'],      count:'locations', cid:'cLocations',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',app:'vms'},
   {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',app:'vms'},
   {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',app:'vms'},
   {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
-  {id:'Drivers',   l:'Drivers',       i:'🧑‍✈️',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
+  {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
   {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',app:'vms'},
   {sec:'SYSTEM',app:'vms'},
   {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
@@ -4548,7 +4548,7 @@ function openTripBookingModal(editTripId){
   _locComboSetValue('tbDest2','');
   _locComboSetValue('tbDest3','');
   // driver autocomplete list is populated dynamically via driverAcInput()
-  const _vtOpts='<option value="">— Select Type —</option>'+sortBy(DB.vehicleTypes.filter(vt=>!vt.inactive),vt=>vt.name).map(vt=>`<option value="${vt.id}">${vt.name}</option>`).join('');
+  const _vtOpts='<option value="">— Select Type —</option>'+sortBy((DB.vehicleTypes||[]).filter(vt=>!vt.inactive),vt=>vt.name).map(vt=>`<option value="${vt.id}">${vt.name}</option>`).join('');
   document.getElementById('tbVehicleType_sel').innerHTML=_vtOpts;
   const _actSel2=document.getElementById('tbActualVType_sel');
   if(_actSel2) _actSel2.innerHTML=_vtOpts;
@@ -6203,6 +6203,7 @@ function renderKap(){
           <div style="display:flex;align-items:center;gap:8px;padding:2px 12px 4px;flex-wrap:wrap">${_bookedLine}</div>
           <!-- Route row -->
           <div style="padding:0 12px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${routePills}</div>
+          ${_isStep5?'<div style="padding:0 12px 8px"><span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;border:2px solid #fb923c;color:#c2410c;font-size:13px;font-weight:900;padding:4px 14px;border-radius:6px;animation:flashOrange 1.2s ease-in-out infinite">📤 EMPTY EXIT</span></div>':''}
         </div>
 
         <!-- POPUP OVERLAY -->
@@ -6239,6 +6240,7 @@ function renderKap(){
               </div>
             </div>
             <!-- Route summary in popup -->
+            ${_isStep5?'<div style="padding:8px 16px 0"><span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;border:2px solid #fb923c;color:#c2410c;font-size:15px;font-weight:900;padding:5px 18px;border-radius:8px;animation:flashOrange 1.2s ease-in-out infinite">📤 EMPTY VEHICLE EXIT</span></div>':''}
             <div style="padding:8px 16px 4px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:16px">${routePills}</div>
             <div style="padding:4px 16px 6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:16px">${_bookedLine}</div>
             ${_challanRows?`<div style="padding:0 16px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:15px">${_challanRows}</div>`:""}
@@ -8028,10 +8030,10 @@ async function saveVT(){
   const id=document.getElementById('eVTid').value;const name=document.getElementById('vtNameI').value.trim();const capacity=parseInt(document.getElementById('vtCap').value);
   if(!name||!capacity){modalErr('mVT','Fill all fields');return;}
   if(!id){
-    const _inactVT=DB.vehicleTypes.find(v=>v&&v.name.toLowerCase()===name.toLowerCase()&&v.id!==id&&v.inactive===true);
+    const _inactVT=(DB.vehicleTypes||[]).find(v=>v&&v.name.toLowerCase()===name.toLowerCase()&&v.id!==id&&v.inactive===true);
     if(_inactVT){modalErr('mVT',`"${name}" already exists in Inactive Records. Activate it to use.`);return;}
   }
-  if(DB.vehicleTypes.find(v=>v&&v.name.toLowerCase()===name.toLowerCase()&&v.id!==id&&!v.inactive)){modalErr('mVT','Type name already exists');return;}
+  if((DB.vehicleTypes||[]).find(v=>v&&v.name.toLowerCase()===name.toLowerCase()&&v.id!==id&&!v.inactive)){modalErr('mVT','Type name already exists');return;}
   const vtInactive=document.getElementById('vtInactive')?.checked===true;
   if(id){
     const _vt=byId(DB.vehicleTypes,id);const _vtBak={..._vt};
@@ -8174,7 +8176,7 @@ function _applyTBVehicle(vehId, typeId){
   const vsSec=document.getElementById('tbVehicleSection');
   if(vsSec) vsSec.classList.remove('challan-section-disabled');
   // Ensure both type selectors have options
-  const _vtOpts='<option value="">— Select Type —</option>'+sortBy(DB.vehicleTypes.filter(vt=>!vt.inactive),vt=>vt.name).map(vt=>`<option value="${vt.id}">${vt.name}</option>`).join('');
+  const _vtOpts='<option value="">— Select Type —</option>'+sortBy((DB.vehicleTypes||[]).filter(vt=>!vt.inactive),vt=>vt.name).map(vt=>`<option value="${vt.id}">${vt.name}</option>`).join('');
   const actSel=document.getElementById('tbActualVType_sel');
   const recSel=document.getElementById('tbVehicleType_sel');
   if(actSel){
@@ -8218,7 +8220,7 @@ function openVehModalFromTB(){
 function openVehModal(id){
   const v=id?byId(DB.vehicles,id):null;
   document.getElementById('eVehId').value=id||'';
-  document.getElementById('vehTypeS').innerHTML='<option value="">-- Select --</option>'+sortBy(DB.vehicleTypes,t=>t.name).map(t=>`<option value="${t.id}"${t.id===v?.typeId?' selected':''}>${t.name}</option>`).join('');
+  document.getElementById('vehTypeS').innerHTML='<option value="">-- Select --</option>'+sortBy(DB.vehicleTypes||[],t=>t.name).map(t=>`<option value="${t.id}"${t.id===v?.typeId?' selected':''}>${t.name}</option>`).join('');
   document.getElementById('vehVendorS').innerHTML='<option value="">-- Select --</option>'+sortBy(DB.vendors.filter(vn=>!vn.inactive||vn.id===v?.vendorId),t=>t.name).map(t=>`<option value="${t.id}"${t.id===v?.vendorId?' selected':''}>${t.name}${t.inactive?' (Inactive)':''}</option>`).join('');
   document.getElementById('vehNumI').value=v?.number||'';document.getElementById('vehPUC').value=v?.pucExpiry||'';document.getElementById('vehRTP').value=v?.rtpExpiry||'';
 document.getElementById('vehIns').value=v?.insExpiry||'';
@@ -8291,8 +8293,16 @@ async function saveVehicle(){
 
 // Locations
 function renderLocations(){
-  document.getElementById('locBody').innerHTML=[...DB.locations].filter(l=>!document.getElementById('showInactiveLoc')?.checked||!l.inactive).sort((a,b)=>{
-    // KAP locations first, then External; alphabetical within each group
+  var _isLocAdmin=CU&&CU.roles&&(CU.roles.includes('Admin')||CU.roles.includes('Super Admin'));
+  // Hide add/export/import buttons for non-admin
+  var _btnAdd=document.getElementById('btnAddLoc');if(_btnAdd)_btnAdd.style.display=_isLocAdmin?'':'none';
+  var _eaWraps=document.querySelectorAll('#pageLocations .ea-wrap');_eaWraps.forEach(function(el){el.style.display=_isLocAdmin?'':'none';});
+  var _locSearch=((document.getElementById('locSearchInput')||{}).value||'').toLowerCase().trim();
+  document.getElementById('locBody').innerHTML=[...DB.locations].filter(l=>{
+    if(document.getElementById('showInactiveLoc')?.checked&&l.inactive) return false;
+    if(_locSearch&&(l.name||'').toLowerCase().indexOf(_locSearch)<0) return false;
+    return true;
+  }).sort((a,b)=>{
     const ta=a.type==='KAP'?0:1, tb=b.type==='KAP'?0:1;
     if(ta!==tb) return ta-tb;
     return a.name.localeCompare(b.name);
@@ -8302,7 +8312,8 @@ function renderLocations(){
       :l.name;
     const inactive=l.inactive===true;
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td></tr>`;
+    var actCol=_isLocAdmin?`<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td>`:'<td></td>';
+    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td>${actCol}</tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No locations found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function setLocColour(colour){
@@ -8715,7 +8726,7 @@ function openRateModal(rateId){
     document.getElementById('rateVE').value=`${yr}-12-31`;
   }
   document.getElementById('mRate').querySelector('.modal-title').textContent=rateId?'Edit Trip Rate':'Add Trip Rate';
-  document.getElementById('rateVT').innerHTML='<option value="">-- Select --</option>'+sortBy(DB.vehicleTypes,v=>v.name).map(v=>`<option value="${v.id}"${v.id===r?.vTypeId?' selected':''}>${v.name}</option>`).join('');
+  document.getElementById('rateVT').innerHTML='<option value="">-- Select --</option>'+sortBy(DB.vehicleTypes||[],v=>v.name).map(v=>`<option value="${v.id}"${v.id===r?.vTypeId?' selected':''}>${v.name}</option>`).join('');
   const lo='<option value="">Start Location</option>'+sortLocsKapFirst(DB.locations).map(l=>`<option value="${l.id}">${locOptText(l)}</option>`).join('');
   const ln='<option value="">-- None --</option>'+sortLocsKapFirst(DB.locations).map(l=>`<option value="${l.id}">${locOptText(l)}</option>`).join('');
   document.getElementById('rateS').innerHTML=lo;document.getElementById('rateD1').innerHTML=lo;document.getElementById('rateD2').innerHTML=ln;document.getElementById('rateD3').innerHTML=ln;
@@ -9260,14 +9271,14 @@ const MASTER_SCHEMA = {
     fromRow: r => {
       const number=(r['Vehicle Number']||'').toString().trim();
       if(!number) return null;
-      const vt=DB.vehicleTypes.find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());
+      const vt=(DB.vehicleTypes||[]).find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());
       const vn=DB.vendors.find(v=>v&&v.name.toLowerCase()===(r['Vendor']||'').toString().trim().toLowerCase());
       return {id:'vh'+uid(),number,typeId:vt?.id||'',vendorId:vn?.id||'',pucExpiry:(r['PUC Expiry']||'').toString(),rtpExpiry:(r['RTO Expiry']||r['RTP Expiry']||'').toString(),insExpiry:(r['Insurance Expiry']||'').toString()};
     },
     matchKey: r=>(r['Vehicle Number']||'').toString().trim().toUpperCase(),
     dbMatchKey: v=>v.number.toUpperCase(),
     merge: (e,r)=>{
-      if(r['Vehicle Type']!==undefined){const vt=DB.vehicleTypes.find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());if(vt)e.typeId=vt.id;}
+      if(r['Vehicle Type']!==undefined){const vt=(DB.vehicleTypes||[]).find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());if(vt)e.typeId=vt.id;}
       if(r['Vendor']!==undefined){const vn=DB.vendors.find(v=>v&&v.name.toLowerCase()===(r['Vendor']||'').toString().trim().toLowerCase());if(vn)e.vendorId=vn.id;}
       if(r['PUC Expiry']!==undefined)e.pucExpiry=(r['PUC Expiry']||'').toString();
       if(r['RTO Expiry']!==undefined||r['RTP Expiry']!==undefined)e.rtpExpiry=(r['RTO Expiry']||r['RTP Expiry']||'').toString();
@@ -9335,7 +9346,7 @@ const MASTER_SCHEMA = {
       const name=(r['Trip Name']||'').toString().trim();
       if(!name) return null;
       const findLoc=n=>DB.locations.find(l=>l&&l.name.toLowerCase()===n.toString().trim().toLowerCase());
-      const vt=DB.vehicleTypes.find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());
+      const vt=(DB.vehicleTypes||[]).find(t=>t&&t.name.toLowerCase()===(r['Vehicle Type']||'').toString().trim().toLowerCase());
       return {id:'rt'+uid(),name,vTypeId:vt?.id||'',
         start:findLoc(r['Start']||'')?.id||'',
         dest1:findLoc(r['Destination 1']||'')?.id||'',
