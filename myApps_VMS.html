@@ -6935,29 +6935,28 @@ async function doKapInline(segId,step){
     return;
   }
 
-  // For gate exit: save inline challan if entered, then validate ALL segments have challan
-  if(step===1&&trip){
+  // Check if trip already has any step done (started before challan rule) — skip challan validation
+  var _tripAlreadyStarted=seg.steps&&Object.keys(seg.steps).some(function(k){return seg.steps[k]&&seg.steps[k].done;});
+
+  // For gate exit: save inline challan if entered, then validate this segment has challan
+  if(step===1&&trip&&!_tripAlreadyStarted){
     const idx=seg.label==='A'?1:seg.label==='B'?2:3;
     // Check if inline challan input exists and save it
     const inlineCh=document.getElementById('kapCh_'+sid);
     if(inlineCh&&inlineCh.value.trim()){
       trip['challan'+idx]=inlineCh.value.trim();
-      
     }
-    // Validate: this segment must have challan + weight + photo
-    const allSegDests=[[trip.startLoc,trip.dest1,'A',1]];
-    if(trip.dest2)allSegDests.push([trip.dest1,trip.dest2,'B',2]);
-    if(trip.dest3)allSegDests.push([trip.dest2,trip.dest3,'C',3]);
-    // Check challan number
-    const missingChallan=allSegDests.filter(function(d){
-      var i=d[3];var challans=trip['challans'+i]||[];
-      var hasNew=challans.some(function(ch){return ch.no&&ch.no.trim();});
-      return !hasNew&&!(trip['challan'+i]||'').trim();
-    });
-    if(missingChallan.length){
-      const labels=missingChallan.map(function(d){return 'ABCDEFGH'[d[3]-1];}).join(', ');
-      notify('Challan number required for segment(s) '+labels+' before Gate Exit',true);
-      return;
+    // Validate: only THIS segment must have challan + weight + photo (segment-wise check)
+    var challansCheck=trip['challans'+idx]||[];
+    var hasNewCh=challansCheck.some(function(ch){return ch.no&&ch.no.trim();});
+    if(!hasNewCh&&!(trip['challan'+idx]||'').trim()){
+      // Skip challan check if segment starts from External location
+      var segSLoc=seg.label==='A'?trip.startLoc:(seg.label==='B'?trip.dest1:trip.dest2);
+      var sLocObj=byId(DB.locations||[],segSLoc);
+      if(!sLocObj||sLocObj.type!=='External'){
+        notify('Challan number required for segment '+seg.label+' before Gate Exit',true);
+        return;
+      }
     }
     // Check weight + photo for this segment
     var challansThisSeg=trip['challans'+idx]||[];
@@ -6968,14 +6967,13 @@ async function doKapInline(segId,step){
       var mph=validChThis.filter(function(ch){return !ch.photo;});
       if(mph.length){notify('⚠ Challan photo is missing for '+mph.length+' challan(s) in segment '+seg.label+'. Required before Gate Exit.',true);return;}
     } else if((trip['challan'+idx]||'').trim()){
-      // Legacy single challan — check weight/photo from trip fields
       if(!trip['weight'+idx]){notify('⚠ Weight is missing for segment '+seg.label+'. Required before Gate Exit.',true);return;}
       if(!trip['photo'+idx]){notify('⚠ Challan photo is missing for segment '+seg.label+'. Required before Gate Exit.',true);return;}
     }
   }
 
-  // For gate entry: validate challan + weight + photo for this segment
-  if(step===2&&trip){
+  // For gate entry: validate challan + weight + photo — skip if trip already started
+  if(step===2&&trip&&!_tripAlreadyStarted){
     const idx2=seg.label==='A'?1:seg.label==='B'?2:3;
     var challansEntry=trip['challans'+idx2]||[];
     var validChEntry=challansEntry.filter(function(ch){return ch.no&&ch.no.trim();});
@@ -7024,9 +7022,10 @@ async function doKapAction(){
   const segId=document.getElementById('kapSegId').value;
   const step=parseInt(document.getElementById('kapStep').value);
   const seg=byId(DB.segments,segId);
+  // Skip challan/weight/photo validation if trip already has any step done (started before challan rule)
+  var _kapAlreadyStarted=seg&&seg.steps&&Object.keys(seg.steps).some(function(k){return seg.steps[k]&&seg.steps[k].done;});
   // For Gate Exit (step 1), require at least 1 challan entry for this segment
-  // Exception: skip challan requirement if segment starts from an External location
-  if(step===1){
+  if(step===1&&!_kapAlreadyStarted){
     const t=byId(DB.trips,seg.tripId);
     if(t){
       const segIdx={'A':1,'B':2,'C':3}[seg.label]||1;
@@ -7053,8 +7052,8 @@ async function doKapAction(){
       }
     }
   }
-  // For gate entry (step 2): also validate challan+weight+photo
-  if(step===2){
+  // For gate entry (step 2): also validate challan+weight+photo — skip if already started
+  if(step===2&&!_kapAlreadyStarted){
     const t=byId(DB.trips,seg.tripId);
     if(t){
       const segIdx={'A':1,'B':2,'C':3}[seg.label]||1;

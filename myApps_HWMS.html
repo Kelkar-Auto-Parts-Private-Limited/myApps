@@ -1094,18 +1094,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <div id="sysGuideInvLife" style="font-size:13px"></div>
         </div>
 
-        <!-- SECTION 7: REPAIR TOOLS -->
-        <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#dc2626;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #fca5a5">🔧 Repair Tools <span style="font-size:11px;font-weight:600;color:#fff;background:#dc2626;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:6px">Admin Only</span></div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
-            <div style="flex:1;min-width:280px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:16px">
-              <div style="font-size:13px;font-weight:800;color:#991b1b;margin-bottom:6px">💰 Close Small Payment Balances</div>
-              <div style="font-size:11px;color:#7f1d1d;margin-bottom:12px">Finds all Sea SLI and Air MI line items where the outstanding balance is less than <strong>$5</strong> (line amount &gt; $5). Creates an adjustment receipt to zero out these balances.</div>
-              <button onclick="_hwmsRepairSmallBalances()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:6px;cursor:pointer">🔧 Fix Small Balances</button>
-              <div id="hwmsRepairSmallBalResult" style="margin-top:10px;font-size:12px;display:none"></div>
-            </div>
-          </div>
-        </div>
+        <!-- SECTION 7: REPAIR TOOLS (removed) -->
 
       </div>
     </div>
@@ -2101,6 +2090,12 @@ async function _hwmsImportInvoices(rows){
     if((g.note3||'').toLowerCase()==='yes') selectedNotes.push(3);
     if(!selectedNotes.length) selectedNotes=[1];
     var metaLi={_meta:true,selectedNotes:selectedNotes};
+    // Resolve container ID from container number
+    var contId='';
+    if(g.containerNum){
+      var cont=(DB.hwmsContainers||[]).find(function(c){return(c.containerNumber||'').trim()===g.containerNum.trim();});
+      if(cont) contId=cont.id;
+    }
     var existing=(DB.hwmsInvoices||[]).find(function(inv){return inv.invoiceNumber===g.invNum;});
     if(existing){
       // Update line items (replace all) + header fields
@@ -2116,13 +2111,15 @@ async function _hwmsImportInvoices(rows){
       if(g.portOfLoading) existing.portOfLoading=g.portOfLoading;
       if(pdPortId) existing.portOfDischargeId=pdPortId;
       if(g.portOfDischarge) existing.portOfDischarge=g.portOfDischarge;
+      if(contId) existing.containerId=contId;
+      if(g.containerNum) existing.containerNumber=g.containerNum;
       if(await _dbSave('hwmsInvoices',existing)) updated++;
       else skipped++;
     } else {
       // New invoice
       var buyerId='';
       if(g.buyerName){var cust=(DB.hwmsCustomers||[]).find(function(c){return(c.customerName||'').toLowerCase()===g.buyerName.toLowerCase();});if(cust)buyerId=cust.id;}
-      var inv={id:'hi'+uid(),invoiceNumber:g.invNum,date:g.date,buyerId:buyerId,buyerName:g.buyerName,consigneeName:g.consigneeName,consigneeIdx:0,confirmed:false,containerId:'',containerNumber:g.containerNum,lineItems:g.lineItems.concat([metaLi]),modeOfTransport:g.modeOfTransport||'',delivery:g.delivery||'',paymentTerms:g.paymentTerms||'',paymentStatus:'Pending',portOfLoading:g.portOfLoading||'',portOfLoadingId:plPortId,portOfDischarge:g.portOfDischarge||'',portOfDischargeId:pdPortId,countryOfDest:''};
+      var inv={id:'hi'+uid(),invoiceNumber:g.invNum,date:g.date,buyerId:buyerId,buyerName:g.buyerName,consigneeName:g.consigneeName,consigneeIdx:0,confirmed:false,containerId:contId,containerNumber:g.containerNum,lineItems:g.lineItems.concat([metaLi]),modeOfTransport:g.modeOfTransport||'',delivery:g.delivery||'',paymentTerms:g.paymentTerms||'',paymentStatus:'Pending',portOfLoading:g.portOfLoading||'',portOfLoadingId:plPortId,portOfDischarge:g.portOfDischarge||'',portOfDischargeId:pdPortId,countryOfDest:''};
       if(await _dbSave('hwmsInvoices',inv)) added++;
       else skipped++;
     }
@@ -3635,11 +3632,14 @@ async function _hwmsSyncPartToInvoices(partId){
   var updated=0;
   for(var i=0;i<(DB.hwmsInvoices||[]).length;i++){
     var inv=DB.hwmsInvoices[i];
+    var isDraft=!inv.confirmed;
     var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
     var changed=false;
     lis.forEach(function(li){
       if(li.partId!==partId) return;
-      // Sync fields from part master (only when part master has data)
+      // Sync fields from part master — only for Draft invoices
+      // Confirmed invoices are locked (no rate/field changes)
+      if(!isDraft) return;
       if(part.hsnCode&&li.hsnCode!==(part.hsnCode||'')){li.hsnCode=part.hsnCode;changed=true;}
       if(part.uom&&li.uom!==(part.uom||'')){li.uom=part.uom;changed=true;}
       if(part.packingType&&li.packageType!==(part.packingType||'')){li.packageType=part.packingType;changed=true;}
@@ -3667,24 +3667,9 @@ async function _hwmsSyncPartToInvoices(partId){
       updated++;
     }
   }
-  if(updated) notify('📦 Synced part data to '+updated+' invoice'+(updated>1?'s':''));
-  // Also sync rate to sub-invoice line items
-  var siUpdated=0;
-  for(var j=0;j<(DB.hwmsSubInvoices||[]).length;j++){
-    var si=DB.hwmsSubInvoices[j];
-    var siLis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
-    var siChanged=false;
-    siLis.forEach(function(l){
-      if(l.partId!==partId) return;
-      var newRate=part.finalRate||0;
-      if(l.rate!==newRate){l.rate=newRate;siChanged=true;}
-    });
-    if(siChanged){
-      await _dbSave('hwmsSubInvoices',si);
-      siUpdated++;
-    }
-  }
-  if(siUpdated) notify('📤 Synced rate to '+siUpdated+' sub-invoice'+(siUpdated>1?'s':''));
+  if(updated) notify('📦 Synced part data to '+updated+' draft invoice'+(updated>1?'s':'')+' (confirmed invoices locked)');
+  // Do NOT sync rate to sub-invoices — SI rates are locked at creation
+  // SI rates come from MI line items and should not change when part rate changes
 }
 
 // ===== HWMS: CONTAINER MASTER =====
@@ -6393,7 +6378,7 @@ function _hwmsSiBuildPrintHtml(id){
   var consAddr=consignee?consignee.address||'':'';
   var consCountry=consignee?consignee.country||(cust?cust.country:''):(cust?cust.country:'');
 
-  var deliveryTerms=(inv?inv.delivery||'DDP':'DDP')+', '+(inv?inv.paymentTerms||'':'');
+  var deliveryTerms='DDP, 7 days';
   var plPortName=plPort?plPort.portName||'':'';
   var pdPortName=pdPort?pdPort.portName||'':'';
 
@@ -6614,7 +6599,7 @@ function _hwmsSiExport(){
     var dateFmt=_exportDate(si.date);
     var pickDtFmt=_exportDate(si.pickupDate);
     var grnDtFmt=_exportDate(si.grnDate);
-    var lis=si.lineItems||[];
+    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
     var siPaySt=_hwmsSiOverallStatus(si);
     if(!lis.length){
       dataRows.push([si.subInvoiceNumber,dateFmt,invNum,si.customerName,'','','',0,0,0,si.tariffPercent||0,si.tariffAmount||0,si.pickupStatus||'',pickDtFmt,si.grnStatus||'',grnDtFmt,siPaySt,0,0,si.remarks||'']);
@@ -10473,6 +10458,7 @@ function renderHwmsPayments(){
     h+='<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
     h+='<label style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#6366f1);border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(124,58,237,0.3)">📥 Import Payment<input type="file" id="hwmsPayImportFileDirect" accept=".xlsx,.xls,.csv" onchange="_hwmsPayImportDirect(this)" style="display:none"></label>';
     h+='<button onclick="_hwmsPayPostAllUnposted()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#16a34a;border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(22,163,74,0.3)">💳 Post All Unposted</button>';
+    h+='<button onclick="_hwmsPayUnpostAll()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,0.3)">↩ Unpost All</button>';
     h+='<button onclick="_hwmsPayImportTemplate()" style="padding:10px 16px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:8px;cursor:pointer">📄 Download Template</button>';
     h+='</div>';
 
@@ -10803,37 +10789,50 @@ function _hwmsOutAirSort(key){
   else{window._hwmsOutAirSortKey=key;window._hwmsOutAirSortAsc=true;}
   renderHwmsPayments();
 }
-function _hwmsPayExportPending(){
-  var sis=DB.hwmsSubInvoices||[];
+function _hwmsPayExportPending(mode){
   var fd2=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
-  var pending=sis.filter(function(si){
-    if(_hwmsGetSiRcvd(si)>=_hwmsGetSiAmt(si)&&_hwmsGetSiRcvd(si)>0) return false;
-    return (_hwmsGetSiAmt(si)-_hwmsGetSiRcvd(si))>0;
-  });
-  if(!pending.length){notify('No pending SIs to export',true);return;}
-  var headers=['SI #','SI Date','Customer','MI #','MI Date','Pallet','Part Number','PO No.','Qty','Rate','Line Amount','Payment Status','SI Amount','SI Received','SI Balance'];
+  var invs=DB.hwmsInvoices||[];
   var rows=[];
-  pending.sort(function(a,b){return(b.date||'').localeCompare(a.date||'');});
-  pending.forEach(function(si){
-    var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
-    var invNum=inv?inv.invoiceNumber||'':'';
-    var miDate=inv?inv.date||'':'';
-    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
-    var siAmt=_hwmsGetSiAmt(si);
-    var rcvd=_hwmsGetSiRcvd(si);
-    var bal=Math.round((siAmt-rcvd)*100)/100;
-    if(!lis.length){
-      rows.push([si.subInvoiceNumber||'',fd2(si.date),si.customerName||'',invNum,fd2(miDate),'','','',0,0,0,_hwmsSiOverallStatus(si),Math.round(siAmt*100)/100,Math.round(rcvd*100)/100,bal]);
-    } else {
-      lis.forEach(function(l){
-        var lAmt=Math.round((l.quantity||0)*(l.rate||0)*100)/100;
-        rows.push([si.subInvoiceNumber||'',fd2(si.date),si.customerName||'',invNum,fd2(miDate),l.palletNumber||'',l.partNumber||'',l.poNumber||'',l.quantity||0,l.rate||0,lAmt,_hwmsSiOverallStatus(si),Math.round(siAmt*100)/100,Math.round(rcvd*100)/100,bal]);
+
+  if(mode==='air'){
+    // Export Air MI outstanding line items
+    var headers=['MI #','MI Date','Part Number','Pallet','PO No.','Qty','Rate','Line Amount','Received','Balance'];
+    invs.forEach(function(inv){
+      if(!inv.confirmed) return;
+      var isAir=/air/i.test(inv.modeOfTransport||'');
+      if(!isAir){var cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;if(cont&&typeof _hwmsContGetType==='function') isAir=_hwmsContGetType(cont)==='air';}
+      if(!isAir) return;
+      (inv.lineItems||[]).filter(function(li){return !li._meta;}).forEach(function(li){
+        var pn='';if(li.partId){var part=byId(DB.hwmsParts||[],li.partId);if(part)pn=part.partNumber||'';}if(!pn)pn=li.partNumber||'';
+        var liAmt=(li.quantity||0)*(li.rate||0);
+        var rcvd=_hwmsGetMiLiRcvd(inv.id,(pn||'').toUpperCase(),li.palletNumber);
+        var bal=Math.round((liAmt-rcvd)*100)/100;
+        if(Math.abs(bal)<0.01) return;
+        rows.push([inv.invoiceNumber||'',fd2(inv.date),pn,li.palletNumber||'',li.poNumber||'',li.quantity||0,li.rate||0,Math.round(liAmt*100)/100,Math.round(rcvd*100)/100,bal]);
       });
-    }
-  });
-  var data=[headers].concat(rows);
-  _downloadAsXlsx(data,'Pending SIs','HWMS_Pending_SIs.xlsx');
-  notify('📤 Exported '+pending.length+' pending sub-invoices ('+rows.length+' rows)');
+    });
+    if(!rows.length){notify('No outstanding Air line items',true);return;}
+    _downloadAsXlsx([headers].concat(rows),'Outstanding Air','HWMS_Outstanding_Air.xlsx');
+    notify('📤 Exported '+rows.length+' outstanding Air line items');
+  } else {
+    // Export Sea SI outstanding line items
+    var headers=['SI #','SI Date','MI #','Part Number','Pallet','PO No.','Qty','Rate','Line Amount','Received','Balance'];
+    (DB.hwmsSubInvoices||[]).forEach(function(si){
+      var inv=byId(invs,si.invoiceId);
+      if(inv&&/air/i.test(inv.modeOfTransport||'')) return;
+      (si.lineItems||[]).forEach(function(li){
+        if(li._mrMeta) return;
+        var liAmt=(parseFloat(li.quantity)||0)*(parseFloat(li.rate)||0);
+        var rcvd=_hwmsGetLiRcvd(si.id,li.partNumber,li.palletNumber);
+        var bal=Math.round((liAmt-rcvd)*100)/100;
+        if(Math.abs(bal)<0.01) return;
+        rows.push([si.subInvoiceNumber||'',fd2(si.date),inv?inv.invoiceNumber:'',li.partNumber||'',li.palletNumber||'',li.poNumber||'',li.quantity||0,li.rate||0,Math.round(liAmt*100)/100,Math.round(rcvd*100)/100,bal]);
+      });
+    });
+    if(!rows.length){notify('No outstanding Sea line items',true);return;}
+    _downloadAsXlsx([headers].concat(rows),'Outstanding Sea','HWMS_Outstanding_Sea.xlsx');
+    notify('📤 Exported '+rows.length+' outstanding Sea line items');
+  }
 }
 
 // ===== PAYMENT IMPORT SYSTEM =====
@@ -11523,9 +11522,11 @@ function _hwmsPayImportRenderMatch(){
     if(curM.length>0||manualAmt>0){
       var selTotal=curM.reduce(function(sum,m){return sum+(m.liBal||0);},0)+manualAmt;
       var sliOrigTotal=curM.reduce(function(sum,m){return sum+(m.liAmt||0);},0);
-      var pliMatchesSli2=Math.abs(row.amount-sliOrigTotal)<=5;
+      var _pr5=row.qty>0?(row.amount/row.qty):0;
+      var _rt5=_pr5<5?0.5:5;
+      var pliMatchesSli2=Math.abs(row.amount-sliOrigTotal)<=_rt5;
       totalMatchedAmt+=selTotal;
-      if(Math.abs(row.amount-selTotal)<=5&&pliMatchesSli2){
+      if(Math.abs(row.amount-selTotal)<=_rt5&&pliMatchesSli2){
         fullyPaidCount++;
         // Rounding = PLI amount - total SLI original amount
         var ro=row.amount-sliOrigTotal;
@@ -11618,8 +11619,10 @@ function _hwmsPayImportRenderMatch(){
     var roundingOff=row._roundingOff||0;
     // Compare PLI amount vs total SLI original amounts (liAmt) to determine if fully or partially paid
     var totalSliOrigAmt=currentMatches.reduce(function(s,m){return s+(m.liAmt||0);},0);
-    var pliMatchesSli=Math.abs(row.amount-totalSliOrigAmt)<=5;
-    var isFullyPaid=hasMatches&&Math.abs(diff)<=5&&pliMatchesSli;
+    var _pliRate3=row.qty>0?(row.amount/row.qty):0;
+    var _roTol3=_pliRate3<5?0.5:5;
+    var pliMatchesSli=Math.abs(row.amount-totalSliOrigAmt)<=_roTol3;
+    var isFullyPaid=hasMatches&&Math.abs(diff)<=_roTol3&&pliMatchesSli;
     var isPartiallyPaid=hasMatches&&!isFullyPaid;
     var isMatched=isFullyPaid||isPartiallyPaid;
     var borderColor=isFullyPaid?'#16a34a':(isPartiallyPaid?'#f59e0b':(hasPartMatch?'#e2e8f0':'#dc2626'));
@@ -11721,8 +11724,10 @@ function _hwmsPayImportRenderMatch(){
       // Total row
       if(currentMatches.length>0){
         var _totalSliOrig=currentMatches.reduce(function(s,m){return s+(m.liAmt||0);},0);
-        var _pliMatchesSli2=Math.abs(row.amount-_totalSliOrig)<=5;
-        var _isFullMatch=Math.abs(diff)<=5&&_pliMatchesSli2;
+        var _pr4=row.qty>0?(row.amount/row.qty):0;
+        var _rt4=_pr4<5?0.5:5;
+        var _pliMatchesSli2=Math.abs(row.amount-_totalSliOrig)<=_rt4;
+        var _isFullMatch=Math.abs(diff)<=_rt4&&_pliMatchesSli2;
         var diffDisplay=_isFullMatch?'Matched & Fully Paid'+(Math.abs(diff)>0.01?' (R/O: '+fAmt2(diff)+')':''):'Partially Paid (Diff: '+fAmt2(diff)+')';
         var diffColor=_isFullMatch?'#16a34a':'#a16207';
         h+='<tr style="background:#f0fdf4;border-top:1.5px solid #16a34a">';
@@ -11851,8 +11856,10 @@ function _hwmsPayImportToggleMatch(rowIdx,slIdx){
     var currSum=arr.reduce(function(s,m){return s+(m.liBal||0);},0)+manualAmt;
     var pliRemaining=row.amount-currSum;
     var sliAmt=sl.liAmt||sl.liBal;
+    var _pliRate2=row.qty>0?(row.amount/row.qty):0;
+    var _roTol2=_pliRate2<5?0.5:5;
     var useAmt;
-    if(Math.abs(sliAmt-pliRemaining)<=5){
+    if(Math.abs(sliAmt-pliRemaining)<=_roTol2){
       useAmt=sliAmt;// Close enough — fully match with rounding
     } else if(sliAmt<=pliRemaining){
       useAmt=sliAmt;// SLI fits entirely
@@ -11961,10 +11968,13 @@ function _hwmsPayImportAutoMatch(){
     });
 
     // Greedily select SLIs — match PLI amount against SLI original amount (liAmt)
+    // Rounding tolerance: $5 for rate >= $5, $0.50 for rate < $5
+    var pliRate=row.qty>0?(row.amount/row.qty):0;
+    var _roTol=pliRate<5?0.5:5;
     availSlis.forEach(function(sl){
       var currSum=_hwmsPayImportData.matches[matchKey].reduce(function(s,m){return s+(m.liBal||0);},0)+manualAmt;
       if(currSum>=row.amount) return;
-      if(Math.abs(currSum-row.amount)<=5&&currSum>0) return;
+      if(Math.abs(currSum-row.amount)<=_roTol&&currSum>0) return;
 
       var slKey=sl.siId+'|'+sl.partNumber+'|'+(sl.palletNumber||'');
       var allocated=allocatedAmts[slKey]||0;
@@ -11973,7 +11983,7 @@ function _hwmsPayImportAutoMatch(){
 
       var pliNeed=row.amount-currSum;
       var useAmt;
-      if(Math.abs(slRemain-pliNeed)<=5){
+      if(Math.abs(slRemain-pliNeed)<=_roTol){
         useAmt=slRemain;
       } else if(slRemain<=pliNeed){
         useAmt=slRemain;
@@ -11988,10 +11998,10 @@ function _hwmsPayImportAutoMatch(){
       allocatedAmts[slKey]=allocated+useAmt;
     });
 
-    // Calculate rounding-off: if matched and difference within +/- $5
+    // Calculate rounding-off: tolerance based on rate ($5 for rate>=5, $0.50 for rate<5)
     var matchedTotal=_hwmsPayImportData.matches[matchKey].reduce(function(s,m){return s+(m.liBal||0);},0)+manualAmt;
     var diff=row.amount-matchedTotal;
-    if(_hwmsPayImportData.matches[matchKey].length>0&&Math.abs(diff)<=5&&Math.abs(diff)>0.005){
+    if(_hwmsPayImportData.matches[matchKey].length>0&&Math.abs(diff)<=_roTol&&Math.abs(diff)>0.005){
       // Store rounding-off amount for display (not as a separate match entry)
       row._roundingOff=Math.round(diff*100)/100;
     } else {
@@ -12098,7 +12108,9 @@ async function _hwmsPayImportDoPost(){
     // Otherwise post proportional PLI amount
     var matchTotal=rowMatches.reduce(function(s,m){return s+(m.liBal||0);},0);
     var sliOrigTotal=rowMatches.reduce(function(s,m){return s+(m.liAmt||0);},0);
-    var isFullMatch=Math.abs(rowAmt-sliOrigTotal)<=5;
+    var _pr6=row.qty>0?(row.amount/row.qty):0;
+    var _rt6=_pr6<5?0.5:5;
+    var isFullMatch=Math.abs(rowAmt-sliOrigTotal)<=_rt6;
     rowMatches.forEach(function(m){
       var payAmt;
       if(isFullMatch&&!m._partial){
@@ -12364,6 +12376,51 @@ async function _hwmsPayViewEditField(prId,liIdx,field){
 // Edit draft payment receipt (reload into import modal)
 function _hwmsPayGroupMatchFromReceipt(prId){
   _hwmsPayReceiptEdit(prId);
+}
+async function _hwmsPayUnpostAll(){
+  // Also clean up any Revoked receipts with stale match data from earlier unpost
+  var staleRevoked=(DB.hwmsPaymentReceipts||[]).filter(function(r){
+    if(r._deleted||r.status==='Posted') return false;
+    var hasStale=(r.lineItems||[]).some(function(li){return (li.matchedSlis||[]).length>0;});
+    return hasStale||(r.siUpdates||[]).length>0||(r.miUpdates||[]).length>0;
+  });
+  if(staleRevoked.length){
+    showSpinner('Clearing stale match data…');
+    for(var s=0;s<staleRevoked.length;s++){
+      var sr=staleRevoked[s];
+      (sr.lineItems||[]).forEach(function(li){li.matchedSlis=[];});
+      sr.siUpdates=[];sr.miUpdates=[];
+      try{await _dbSave('hwmsPaymentReceipts',sr);}catch(e){}
+    }
+    try{localStorage.setItem('hwmsPaymentReceipts',JSON.stringify(DB.hwmsPaymentReceipts));}catch(e){}
+    _hwmsPayCalcReset();
+    hideSpinner();
+    notify('✅ Cleared stale match data from '+staleRevoked.length+' receipt(s)');
+    _renderHwmsPayKeepScroll();
+  }
+  var posted=(DB.hwmsPaymentReceipts||[]).filter(function(r){return !r._deleted&&r.status==='Posted';});
+  if(!posted.length){notify('No posted payment vouchers to unpost',true);return;}
+  showConfirm('Unpost all '+posted.length+' posted payment voucher'+(posted.length>1?'s':'')+'?<br><br>This will revoke all posted payments, clear all matched amounts, rounding-off and difference data.',async function(){
+    showSpinner('Unposting '+posted.length+' voucher'+(posted.length>1?'s':'')+'…');
+    var count=0;
+    for(var i=0;i<posted.length;i++){
+      var pr=posted[i];
+      _spinnerMsg('Unposting '+(i+1)+'/'+posted.length+' ('+pr.paymentNumber+')…');
+      pr.status='Revoked';
+      pr.revokedAt=new Date().toISOString();
+      pr.revokedBy=CU?CU.name||CU.email||'':'';
+      // Clear all match data, SI/MI updates, rounding-off
+      (pr.lineItems||[]).forEach(function(li){li.matchedSlis=[];});
+      pr.siUpdates=[];
+      pr.miUpdates=[];
+      try{await _dbSave('hwmsPaymentReceipts',pr);count++;}catch(e){console.warn('Unpost error:',e);}
+    }
+    try{localStorage.setItem('hwmsPaymentReceipts',JSON.stringify(DB.hwmsPaymentReceipts));}catch(e){}
+    _hwmsPayCalcReset();
+    hideSpinner();
+    notify('✅ Unposted '+count+' payment voucher'+(count>1?'s':'')+' — all matches cleared');
+    _renderHwmsPayKeepScroll();
+  });
 }
 async function _hwmsPayPostAllUnposted(){
   var receipts=(DB.hwmsPaymentReceipts||[]).filter(function(r){return !r._deleted&&r.status!=='Posted';});
@@ -12657,6 +12714,171 @@ function _hwmsPayReceiptDelete(prId){
 }
 
 // ===== HWMS: REPAIR TOOLS =====
+
+// Re-link SIs to MIs by matching invoice number (fixes broken links after MI delete+reimport)
+async function _hwmsRepairRelinkSiToMi(){
+  var resEl=document.getElementById('hwmsRepairRelinkResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Scanning for broken links…</span>';}
+
+  // Build MI lookup by invoice number
+  var miByNum={};
+  (DB.hwmsInvoices||[]).forEach(function(inv){
+    var num=(inv.invoiceNumber||'').trim();
+    if(num) miByNum[num]=inv;
+  });
+
+  var siFixed=0,prFixed=0,miFixed=0,details=[];
+  var _repairedMiIds={};
+
+  // Fix Sub-Invoices: if invoiceId doesn't match any MI, find by invoice number
+  for(var i=0;i<(DB.hwmsSubInvoices||[]).length;i++){
+    var si=DB.hwmsSubInvoices[i];
+    if(!si.invoiceId) continue;
+    var existingMi=byId(DB.hwmsInvoices||[],si.invoiceId);
+    if(existingMi) continue;// Link is fine
+
+    // Broken link — try to find MI by SI number prefix (SI number starts with MI number)
+    var siNum=(si.subInvoiceNumber||'').trim();
+    var foundMi=null;
+    // Try matching: SI number contains MI number (e.g., 252621066WH1 → MI 252621066)
+    Object.keys(miByNum).forEach(function(miNum){
+      if(siNum.indexOf(miNum)===0) foundMi=miByNum[miNum];
+    });
+
+    if(foundMi){
+      var oldId=si.invoiceId;
+      si.invoiceId=foundMi.id;
+      // Also update customerId/customerName from MI
+      si.customerId=foundMi.buyerId||si.customerId;
+      var cust=byId(DB.hwmsCustomers||[],foundMi.buyerId);
+      if(cust) si.customerName=cust.customerName||si.customerName;
+      // Set SI status to Sold (Picked)
+      if(si.pickupStatus!=='Picked') si.pickupStatus='Picked';
+      await _dbSave('hwmsSubInvoices',si);
+      siFixed++;
+      details.push({type:'SI',num:siNum,oldId:oldId,newId:foundMi.id,miNum:foundMi.invoiceNumber});
+      // Set the linked MI status to Warehouse and confirmed
+      if(!foundMi.confirmed) foundMi.confirmed=true;
+      if(foundMi.status!=='Warehouse') foundMi.status='Warehouse';
+      // Track MIs to save (avoid saving same MI multiple times)
+      if(!_repairedMiIds) _repairedMiIds={};
+      _repairedMiIds[foundMi.id]=foundMi;
+    }
+  }
+
+  // Save repaired MIs (status=Warehouse, confirmed=true)
+  var _miIds=Object.keys(_repairedMiIds);
+  for(var mi=0;mi<_miIds.length;mi++){
+    await _dbSave('hwmsInvoices',_repairedMiIds[_miIds[mi]]);
+    miFixed++;
+  }
+
+  // Fix Payment Receipts: re-link siUpdates and miUpdates, and matchedSlis in lineItems
+  for(var j=0;j<(DB.hwmsPaymentReceipts||[]).length;j++){
+    var pr=DB.hwmsPaymentReceipts[j];
+    var prChanged=false;
+
+    // Fix siUpdates — SIs that reference old MI IDs
+    // (siUpdates reference SI IDs which we already fixed above, no change needed)
+
+    // Fix lineItems matchedSlis — re-link mi: references
+    (pr.lineItems||[]).forEach(function(li){
+      (li.matchedSlis||[]).forEach(function(m){
+        if(m.type==='mi'&&m.miId){
+          var existMi=byId(DB.hwmsInvoices||[],m.miId);
+          if(!existMi){
+            // Try find by miNum in matchedSlis
+            var mi2=miByNum[(m.siNum||'').trim()];
+            if(mi2){
+              m.miId=mi2.id;
+              m.siId='mi:'+mi2.id;
+              prChanged=true;
+            }
+          }
+        }
+      });
+    });
+
+    // Fix miUpdates
+    (pr.miUpdates||[]).forEach(function(mu){
+      if(mu.miId){
+        var existMi=byId(DB.hwmsInvoices||[],mu.miId);
+        if(!existMi){
+          var mi3=miByNum[(mu.miNum||'').trim()];
+          if(mi3){mu.miId=mi3.id;prChanged=true;}
+        }
+      }
+    });
+
+    if(prChanged){
+      await _dbSave('hwmsPaymentReceipts',pr);
+      prFixed++;
+    }
+  }
+
+  _hwmsPayCalcReset();
+
+  if(siFixed===0&&prFixed===0&&miFixed===0){
+    if(resEl) resEl.innerHTML='<span style="color:#16a34a;font-weight:700">✅ No broken links found. All SIs are correctly linked to MIs.</span>';
+  } else {
+    var h='<div style="color:#16a34a;font-weight:700;margin-bottom:6px">✅ Fixed '+siFixed+' SI(s) → Sold, '+miFixed+' MI(s) → Warehouse, '+prFixed+' Payment Receipt(s)</div>';
+    if(details.length){
+      h+='<div style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;margin-top:4px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fef2f2;position:sticky;top:0"><th style="padding:3px 8px;text-align:left">SI</th><th style="padding:3px 8px;text-align:left">MI</th><th style="padding:3px 8px;text-align:left">Old ID</th><th style="padding:3px 8px;text-align:left">New ID</th></tr></thead><tbody>';
+      details.forEach(function(d){
+        h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">'+d.num+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.miNum+'</td><td style="padding:2px 8px;font-size:9px;color:#dc2626">'+d.oldId.substring(0,12)+'…</td><td style="padding:2px 8px;font-size:9px;color:#16a34a">'+d.newId.substring(0,12)+'…</td></tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+    if(resEl) resEl.innerHTML=h;
+    renderHwmsSubInvoices();
+    renderHwmsInvoices();
+  }
+}
+
+// Link MIs to Containers by matching container number
+async function _hwmsRepairLinkMiToContainer(){
+  var resEl=document.getElementById('hwmsRepairContLinkResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Scanning MIs…</span>';}
+  // Build container lookup by number
+  var contByNum={};
+  (DB.hwmsContainers||[]).forEach(function(c){
+    var num=(c.containerNumber||'').trim();
+    if(num) contByNum[num]=c;
+  });
+  var fixed=0,details=[];
+  for(var i=0;i<(DB.hwmsInvoices||[]).length;i++){
+    var inv=DB.hwmsInvoices[i];
+    var contNum=(inv.containerNumber||'').trim();
+    if(!contNum) continue;
+    // Check if already linked to a valid container
+    if(inv.containerId){
+      var existCont=byId(DB.hwmsContainers||[],inv.containerId);
+      if(existCont) continue;// Already linked correctly
+    }
+    // Try to find container by number
+    var cont=contByNum[contNum];
+    if(cont){
+      inv.containerId=cont.id;
+      await _dbSave('hwmsInvoices',inv);
+      fixed++;
+      details.push({miNum:inv.invoiceNumber,contNum:contNum,contId:cont.id});
+    }
+  }
+  if(!fixed){
+    if(resEl) resEl.innerHTML='<span style="color:#16a34a;font-weight:700">✅ All MIs with container numbers are already linked correctly.</span>';
+  } else {
+    var h='<div style="color:#16a34a;font-weight:700;margin-bottom:6px">✅ Linked '+fixed+' MI(s) to containers</div>';
+    h+='<div style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;margin-top:4px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fef2f2;position:sticky;top:0"><th style="padding:3px 8px;text-align:left">MI</th><th style="padding:3px 8px;text-align:left">Container</th></tr></thead><tbody>';
+    details.forEach(function(d){
+      h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">'+d.miNum+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.contNum+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    if(resEl) resEl.innerHTML=h;
+    renderHwmsInvoices();
+    renderHwmsContainers();
+  }
+}
+
 // Template: download a sample Excel with MI Number + Container No. columns
 function _hwmsRepairMapCtMiTemplate(){
   var headers=['MI Number','Container No.'];

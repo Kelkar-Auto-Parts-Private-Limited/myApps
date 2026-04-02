@@ -1437,9 +1437,12 @@ function _downloadAsXlsx(data,sheetName,filename){
     rowsXml+=`<row r="${ri+1}">`;
     cells.forEach((cell,ci)=>{
       const ref=_xlCol(ci)+(ri+1);const v=cell===null||cell===undefined?'':cell;
+      const vStr=String(v).trim();
       const num=Number(v);
-      if(typeof v==='number'||(!isNaN(num)&&String(v).trim()!=='')) rowsXml+=`<c r="${ref}" s="${ri===0?1:0}"><v>${typeof v==='number'?v:num}</v></c>`;
-      else{const si=sstIdx(String(v));rowsXml+=`<c r="${ref}" t="s" s="${ri===0?1:0}"><v>${si}</v></c>`;}
+      // Force text for strings starting with 0 that are all digits (preserve leading zeros like part numbers)
+      const forceText=typeof v==='string'&&vStr.length>1&&vStr.charAt(0)==='0'&&/^\d+$/.test(vStr);
+      if(!forceText&&(typeof v==='number'||(!isNaN(num)&&vStr!==''))) rowsXml+=`<c r="${ref}" s="${ri===0?1:0}"><v>${typeof v==='number'?v:num}</v></c>`;
+      else{const si=sstIdx(forceText?vStr:String(v));rowsXml+=`<c r="${ref}" t="s" s="${ri===0?1:0}"><v>${si}</v></c>`;}
     });
     rowsXml+='</row>';
   });
@@ -1522,7 +1525,7 @@ function _parseCSV(text){
     if(!lines[i].trim()) continue;
     const vals=parseRow(lines[i]);
     const obj={};
-    headers.forEach((h,idx)=>{ obj[h.trim()]=vals[idx]!==undefined?vals[idx].trim():''; });
+    headers.forEach((h,idx)=>{ var v=vals[idx]!==undefined?vals[idx].trim():''; if(v.charAt(0)==="'")v=v.substring(1); obj[h.trim()]=v; });
     rows.push(obj);
   }
   return rows;
@@ -1711,6 +1714,8 @@ async function _parseXLSX(arrayBuffer){
           val=rawVal;
         }
       }
+      // Strip leading apostrophe (Excel text prefix) from values
+      if(typeof val==='string'&&val.charAt(0)==="'") val=val.substring(1);
       cells[colIdx(colRef)]=val;
     }
     rawRows.push(cells);
