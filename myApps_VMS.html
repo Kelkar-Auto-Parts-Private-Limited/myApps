@@ -5425,6 +5425,35 @@ async function _doBookTrip(){
       return;
     }
   }
+  // Auto-skip Empty Vehicle Exit on old trip if same vehicle is at same location
+  if(vehId&&s){
+    var _oldSegs=DB.segments.filter(function(seg){
+      if(seg.tripId===id) return false;// skip new trip's own segments
+      var _oldTrip=byId(DB.trips,seg.tripId);
+      if(!_oldTrip||_oldTrip.vehicleId!==vehId) return false;
+      // Check if step 5 (Empty Vehicle Exit) is pending and at same location as new trip start
+      var s5=seg.steps&&seg.steps[5];
+      if(!s5||s5.skip||s5.done) return false;
+      return s5.ownerLoc===s||s5.loc===s;
+    });
+    for(var _oi=0;_oi<_oldSegs.length;_oi++){
+      var _os=_oldSegs[_oi];
+      _os.steps[5].skip=true;
+      _os.steps[5].done=false;
+      _os.steps[5].remarks='Auto-skipped: new trip '+id+' booked for same vehicle at same location';
+      _os.currentStep=nextStep(_os);
+      if(allStepsDone(_os)) _os.status='Completed';
+      await _dbSave('segments',_os);
+      // Check if old trip is now fully complete
+      var _oldTripSegs=DB.segments.filter(function(seg2){return seg2.tripId===_os.tripId;});
+      var _allDone=_oldTripSegs.every(function(seg2){return seg2.status==='Completed'||seg2.status==='Rejected';});
+      if(_allDone){
+        var _oldT=byId(DB.trips,_os.tripId);
+        if(_oldT){_oldT.completedAt=new Date().toISOString();await _dbSave('trips',_oldT);}
+      }
+      console.log('Auto-skipped Empty Exit on seg '+_os.id+' (trip '+_os.tripId+') — new trip '+id+' at same location');
+    }
+  }
   notify(`Trip ${id} booked — ${pairs.length} segment(s) created!`);
   _kapPopupOpen=false;cm('mTripBooking');updBadges();renderDash();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();
 }
