@@ -792,10 +792,6 @@ async function bootDB(){
   _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
-  // _navigateTo() writes kap_db_cache to localStorage before every navigation.
-  // localStorage is shared across ALL pages on the same device — including file://
-  // where every .html file is its own origin and sessionStorage does NOT work.
-  // Cache TTL is 60s and it is deleted after first read (one-time use).
   try{
     var _cached = localStorage.getItem('kap_db_cache');
     if(_cached){
@@ -804,20 +800,14 @@ async function bootDB(){
       if(_age < 60000){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
         localStorage.removeItem('kap_db_cache');
-        console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+DB.users.length);
+        console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
         if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
         if(!_sbReady) _initSupabase();
         if(_sbReady && _sb){
           _sbSetStatus('ok');
-          _sbStartRealtime(); // opens realtime WebSocket (lightweight)
-          // Delay the full background sync — the page has fresh-enough data from the
-          // cache. Firing 25 Supabase queries immediately causes the status widget to
-          // flicker "connecting…" on every app switch. 3s delay is imperceptible.
+          _sbStartRealtime();
           setTimeout(function(){ _bgSyncFromSupabase(); }, 3000);
         } else {
-          // CDN not ready yet — wait for it, then sync (no immediate polling)
-          // CDN not ready yet but we have cache data — don't show 'connecting'.
-          // Quietly wait for CDN then sync in background without any status flicker.
           var _cacheReady=true;
           _startBgReconnect(_cacheReady);
         }
@@ -845,7 +835,12 @@ async function bootDB(){
       var _timedOut = false;
       const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
         try{
-          const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+          var sbTbl=SB_TABLES[tbl];
+          // Use photo-excluded select if available, with date filtering
+          var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
+          var q=_sb.from(sbTbl).select(sel);
+          if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+          const {data,error} = await q;
           if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
           // Apply immediately so partial data is available if timeout fires
           DB[tbl] = (data||[]).map(r=>_fromRow(tbl,r)).filter(Boolean);
@@ -1118,6 +1113,7 @@ const ltype=(id)=>byId(DB.locations,id)?.type||'?';
 // Find the primary location a user is explicitly assigned to (by membership)
 function getUserLocation(userId){
   if(!userId) return null;
+  if(!DB.locations) return null;
   for(const loc of DB.locations){
     if(loc.inactive) continue;
     if(loc.kapSec===userId) return loc;
@@ -1130,7 +1126,7 @@ function getUserLocation(userId){
 // Enrich CU with locId / locType / locName after login
 function _enrichCU(){
   if(!CU) return;
-  const loc=getUserLocation(CU.id)||byId(DB.locations,CU.plant)||null;
+  const loc=getUserLocation(CU.id)||byId(DB.locations||[],CU.plant)||null;
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';
@@ -1139,7 +1135,7 @@ function _enrichCU(){
 // the corresponding Location Master role arrays.
 async function _syncUserToLocation(userId, plantId, roles){
   if(!userId||!plantId) return;
-  const targetLoc=byId(DB.locations,plantId);
+  const targetLoc=byId(DB.locations||[],plantId);
   if(!targetLoc||targetLoc.type!=='KAP') return;
   const roleMap={'KAP Security':'kapSec','Trip Booking User':'tripBook','Material Receiver':'matRecv','Trip Approver':'approvers'};
   const userRoles=new Set(roles||[]);
@@ -1156,7 +1152,7 @@ async function _syncUserToLocation(userId, plantId, roles){
     }
   });
   if(locChanged) await _dbSave('locations',targetLoc);
-  const otherLocs=DB.locations.filter(l=>l.id!==plantId&&l.type==='KAP');
+  const otherLocs=(DB.locations||[]).filter(l=>l.id!==plantId&&l.type==='KAP');
   for(const ol of otherLocs){
     let olChanged=false;
     Object.entries(roleMap).forEach(([roleName,locField])=>{

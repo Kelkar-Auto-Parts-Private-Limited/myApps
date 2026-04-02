@@ -2119,12 +2119,12 @@ function _vmsDoFullSync(){
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
   console.log('bootDB(VMS): starting...');
-  
+
   if(!_origBootDB){
     console.warn('bootDB(VMS): _origBootDB not available');
     return;
   }
-  
+
   // ── Step 0: Check localStorage cache from Portal ────────────────────────
   try{
     var _cached=localStorage.getItem('kap_db_cache');
@@ -2141,9 +2141,7 @@ bootDB=async function(){
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
-            // Force first bgSync to do a TRUE FULL fetch (not incremental).
-            // Incremental skips rows with no recent changes → empty result.
-            _vmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
+            _vmsFullIncr.callCount=4;
             _vmsIncr.mode='unknown'; _vmsIncr.probed=false;
             setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},3000);
           } else {
@@ -2155,7 +2153,7 @@ bootDB=async function(){
       } else { localStorage.removeItem('kap_db_cache'); }
     }
   }catch(e){console.warn('bootDB(VMS): cache error:',e.message);}
-  
+
   // ── Step 1: Use original bootDB (most reliable) ────────────────────────
   console.log('bootDB(VMS): calling original bootDB...');
   try{
@@ -2174,21 +2172,21 @@ async function _appBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
   // Add essential lookup tables to hot sync so they load immediately
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicleTypes','vehicles','drivers','locations','vendors'];
-  
-  try{ 
-    await bootDB(); 
-  }catch(e){ 
-    console.error('VMS: bootDB error',e); 
+
+  try{
+    await bootDB();
+  }catch(e){
+    console.error('VMS: bootDB error',e);
   }
-  
+
   console.log('VMS: bootDB completed, users='+(DB.users||[]).length+' trips='+(DB.trips||[]).length);
-  
+
   try{
     _getActiveTables().forEach(function(t){
       if(DB[t]&&DB[t].length>0) _loadedTables[t]=true;
     });
   }catch(e){}
-  
+
   if(splash) splash.style.display='none';
   try{ _applyPhotoInputMode(); }catch(e){}
   
@@ -2833,6 +2831,8 @@ function doLogin(){
         var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
         if(map[pid]) map[pid]();
       }
+      // Auto-skip stale empty exits after data is loaded
+      if(typeof _autoSkipStaleEmptyExits==='function') _autoSkipStaleEmptyExits();
     }catch(e){console.warn('Post-login render error:',e);}
   }, 300);
   // Check password strength OR if password is the default reset password — force change if needed
@@ -3090,6 +3090,8 @@ function initApp(){
   try{ _runInitApp(); } catch(e){ console.error('initApp error:',e); notify('⚠ App init error: '+e.message,true); }
 }
 function _runInitApp(){
+  // Ensure all DB arrays exist (may not be loaded yet with lazy boot)
+  ['locations','vehicles','vehicleTypes','drivers','vendors','trips','segments','spotTrips','tripRates','users'].forEach(function(t){if(!DB[t])DB[t]=[];});
   // Migrate: tripBook may be old string format → convert to array
   DB.locations.forEach(l=>{
     if(!Array.isArray(l.tripBook)) l.tripBook=l.tripBook?[l.tripBook]:[];
@@ -3657,7 +3659,8 @@ function renderDashTrips(){
       const stClr=s.status==='Completed'?'#16a34a':s.status==='Rejected'?'#dc2626':s.currentStep===5?'#ea580c':s.currentStep===4?'var(--accent)':'var(--text3)';
       const _dDiscrep=s.steps[3]?.discrepancy;const _dNotRcvd=s.steps[3]?.notReceived;
       const _dDiscTag=_dDiscrep?' <span style="font-size:9px;font-weight:700;background:#ea580c;color:#fff;padding:1px 5px;border-radius:4px">⚠</span>':_dNotRcvd?' <span style="font-size:9px;font-weight:700;background:#dc2626;color:#fff;padding:1px 5px;border-radius:4px">✗</span>':'';
-      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.currentStep===5?'📤 Empty Exit Pending':s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
+      const _s5AutoSkipped=s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0;
+      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.currentStep===5?(_s5AutoSkipped?'⏭ Auto Skipped':'📤 Empty Exit Pending'):s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
       const mrByU=byId(DB.users,s.steps[3]?.by);const mrByName=mrByU?.fullName||mrByU?.name||'';
       const apByU=byId(DB.users,s.steps[4]?.by);const apByName=apByU?.fullName||apByU?.name||'';
       const fmtTs=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'';
@@ -3676,7 +3679,7 @@ function renderDashTrips(){
           ${stepBadgeLoc(s.steps[2]?.done,'Gate Entry','#0d9488',s.steps[2])}
           ${stepBadgeLoc(s.steps[3]?.done,'Mat. Receipt','#16a34a',s.steps[3])}
           ${stepBadgeLoc(s.steps[4]?.done&&!s.steps[4]?.rejected,'Trip Approval','#7c3aed',s.steps[4])}
-          ${s.steps[5]&&!s.steps[5].skip?stepBadgeLoc(s.steps[5]?.done,'Empty Vehicle Exit','#ea580c',s.steps[5]):''}
+          ${s.steps[5]&&!s.steps[5].skip?stepBadgeLoc(s.steps[5]?.done,'Empty Vehicle Exit','#ea580c',s.steps[5]):(s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0?'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#a16207;border:1px solid #fde047">⏭ Auto Skipped</span>':'')}
           ${s.steps[3]?.discrepancy?'<span style="font-size:9px;font-weight:700;color:#dc2626;padding:2px 6px;background:#fee2e2;border-radius:4px;border:1px solid #fca5a5">⚠ Discrepancy</span>':''}
         </div>
         <!-- Photos row -->
@@ -3697,7 +3700,7 @@ function renderDashTrips(){
           ${s.steps[3]?.done?`<div style="padding:3px 7px;background:rgba(22,163,74,.08);border-radius:5px;border:1px solid rgba(22,163,74,.2)"><span style="color:#16a34a;font-weight:700">📦 MR</span> ${mrByName?mrByName+' · ':''}${fmtTs(s.steps[3].time)}${s.steps[3]?.remarks?' — '+s.steps[3].remarks.slice(0,40):''}</div>`:''}
           ${s.steps[4]?.done&&!s.steps[4]?.rejected?`<div style="padding:3px 7px;background:rgba(124,58,237,.08);border-radius:5px;border:1px solid rgba(124,58,237,.2)"><span style="color:#7c3aed;font-weight:700">✓ Trip Approval</span> ${apByName?apByName+' · ':''}${fmtTs(s.steps[4].time)}</div>`:''}
           ${s.steps[4]?.rejected?`<div style="padding:3px 7px;background:rgba(220,38,38,.08);border-radius:5px;border:1px solid rgba(220,38,38,.2)"><span style="color:#dc2626;font-weight:700">✗ Rejected</span> ${fmtTs(s.steps[4].time)}${s.steps[4]?.remarks?' — '+s.steps[4].remarks.slice(0,40):''}</div>`:''}\
-          ${s.steps[5]?.done?`<div style="padding:3px 7px;background:rgba(234,88,12,.08);border-radius:5px;border:1px solid rgba(234,88,12,.2)"><span style="color:#ea580c;font-weight:700">📤 Empty Exit</span> ${(()=>{const u=byId(DB.users,s.steps[5].by);return u?((u.fullName||u.name)+' · '):'';})()}${fmtTs(s.steps[5].time)}</div>`:''}
+          ${s.steps[5]?.done?`<div style="padding:3px 7px;background:rgba(234,88,12,.08);border-radius:5px;border:1px solid rgba(234,88,12,.2)"><span style="color:#ea580c;font-weight:700">📤 Empty Exit</span> ${(()=>{const u=byId(DB.users,s.steps[5].by);return u?((u.fullName||u.name)+' · '):'';})()}${fmtTs(s.steps[5].time)}</div>`:(s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0?`<div style="padding:3px 7px;background:#fef3c7;border-radius:5px;border:1px solid #fde047"><span style="color:#a16207;font-weight:700">⏭ Empty Exit — Auto Skipped</span> <span style="font-size:10px;color:#92400e">${s.steps[5].remarks.replace('Auto-skipped: ','')}</span></div>`:'')}
         </div>
       </div>`;
     }).join('');
@@ -4468,14 +4471,92 @@ async function deleteTrip(tripId){
 
 async function confirmDeleteTrip(){
   const tripId = document.getElementById('btnConfirmDelete').dataset.tripId;
+  // Rollback any auto-skipped empty exits linked to this trip
+  await _rollbackAutoSkippedEmptyExit(tripId);
   for(const s of DB.segments.filter(s=>s.tripId===tripId)){if(!await _dbDel('segments',s.id)) return;}
   for(const t of DB.trips.filter(t=>t.id===tripId)){if(!await _dbDel('trips',t.id)) return;}
   cm('mDeleteTrip');
   notify(`Trip ${tripId} and all related segments deleted.`);
-  renderDash();renderMyTrips();
+  renderDash();renderMyTrips();renderKap();
   updBadges();
 }
 
+// Scan all existing trips and auto-skip empty exit where a newer trip exists with same vehicle at same location
+async function _autoSkipStaleEmptyExits(){
+  var skipped=0;
+  // Find all segments waiting for empty exit (step 5 pending)
+  var pendingS5=DB.segments.filter(function(seg){
+    if(seg.status==='Completed'||seg.status==='Locked') return false;
+    var s5=seg.steps&&seg.steps[5];
+    if(!s5||s5.skip||s5.done) return false;
+    var t=byId(DB.trips,seg.tripId);
+    if(!t||t.cancelled||!t.vehicleId) return false;
+    return true;
+  });
+  for(var i=0;i<pendingS5.length;i++){
+    var seg=pendingS5[i];
+    var oldTrip=byId(DB.trips,seg.tripId);
+    if(!oldTrip) continue;
+    var vehId=oldTrip.vehicleId;
+    var destLoc=seg.dLoc;
+    // Find a newer trip with same vehicle starting from same location
+    var newerTrip=DB.trips.find(function(t){
+      if(t.id===oldTrip.id||t.cancelled) return false;
+      if(t.vehicleId!==vehId) return false;
+      if(t.startLoc!==destLoc) return false;
+      // Must be booked after the old trip
+      return (t.date||'')>(oldTrip.date||'');
+    });
+    if(newerTrip){
+      seg.steps[5].skip=true;
+      seg.steps[5].done=false;
+      seg.steps[5].remarks='Auto-skipped: new trip '+newerTrip.id+' booked for same vehicle at same location';
+      seg.currentStep=nextStep(seg);
+      if(allStepsDone(seg)) seg.status='Completed';
+      await _dbSave('segments',seg);
+      // Complete old trip if all segments done
+      var oldTripSegs=DB.segments.filter(function(s){return s.tripId===seg.tripId;});
+      if(oldTripSegs.every(function(s){return s.status==='Completed'||s.status==='Rejected';})){
+        oldTrip.completedAt=new Date().toISOString();
+        await _dbSave('trips',oldTrip);
+      }
+      skipped++;
+      console.log('Auto-skipped stale Empty Exit: seg '+seg.id+' (trip '+seg.tripId+') → newer trip '+newerTrip.id);
+    }
+  }
+  if(skipped){
+    notify('⏭ Auto-skipped empty exit on '+skipped+' old trip'+(skipped>1?'s':''));
+    updBadges();renderKap();
+  }
+}
+
+async function _rollbackAutoSkippedEmptyExit(tripId){
+  // Find segments where step 5 was auto-skipped because of this trip
+  var marker='Auto-skipped: new trip '+tripId+' ';
+  var restored=0;
+  for(var i=0;i<DB.segments.length;i++){
+    var seg=DB.segments[i];
+    if(seg.tripId===tripId) continue;// skip the trip's own segments
+    var s5=seg.steps&&seg.steps[5];
+    if(!s5||!s5.skip) continue;
+    if((s5.remarks||'').indexOf(marker)!==0) continue;
+    // Restore step 5
+    s5.skip=false;
+    s5.done=false;
+    s5.remarks='';
+    seg.currentStep=nextStep(seg);
+    if(seg.status==='Completed') seg.status='Active';
+    await _dbSave('segments',seg);
+    // Undo trip completion if it was marked complete
+    var oldTrip=byId(DB.trips,seg.tripId);
+    if(oldTrip&&oldTrip.completedAt){
+      delete oldTrip.completedAt;
+      await _dbSave('trips',oldTrip);
+    }
+    restored++;
+  }
+  if(restored) console.log('Restored empty exit on '+restored+' segment(s) after trip '+tripId+' cancelled/deleted');
+}
 async function cancelTrip(tripId){
   const trip=byId(DB.trips,tripId);
   if(!trip) return;
@@ -4491,6 +4572,8 @@ async function cancelTrip(tripId){
       seg.status='Locked';
       if(!await _dbSave('segments',seg)){Object.assign(seg,segBak);}
     }
+    // Rollback any auto-skipped empty exits linked to this trip
+    await _rollbackAutoSkippedEmptyExit(tripId);
     notify('Trip '+tripId+' cancelled');
     renderMyTrips();renderDash();renderKap();updBadges();
   });
@@ -5429,12 +5512,15 @@ async function _doBookTrip(){
   if(vehId&&s){
     var _oldSegs=DB.segments.filter(function(seg){
       if(seg.tripId===id) return false;// skip new trip's own segments
+      if(seg.status==='Completed'||seg.status==='Locked') return false;
       var _oldTrip=byId(DB.trips,seg.tripId);
-      if(!_oldTrip||_oldTrip.vehicleId!==vehId) return false;
+      if(!_oldTrip||_oldTrip.vehicleId!==vehId||_oldTrip.cancelled) return false;
       // Check if step 5 (Empty Vehicle Exit) is pending and at same location as new trip start
       var s5=seg.steps&&seg.steps[5];
       if(!s5||s5.skip||s5.done) return false;
-      return s5.ownerLoc===s||s5.loc===s;
+      // Compare destination of old segment with start of new trip
+      var segDest=seg.dLoc;
+      return segDest===s||s5.ownerLoc===s||s5.loc===s;
     });
     for(var _oi=0;_oi<_oldSegs.length;_oi++){
       var _os=_oldSegs[_oi];
@@ -5455,7 +5541,9 @@ async function _doBookTrip(){
     }
   }
   notify(`Trip ${id} booked — ${pairs.length} segment(s) created!`);
-  _kapPopupOpen=false;cm('mTripBooking');updBadges();renderDash();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();
+  _kapPopupOpen=false;cm('mTripBooking');
+  // Force full re-render to reflect auto-skipped empty exits
+  setTimeout(function(){updBadges();renderDash();renderDashTrips();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();},100);
 }
 
 // Helper: get trips for current user's plant location
@@ -5575,7 +5663,11 @@ function renderMyTrips(){
         // Build step-by-step progress row — ALWAYS for all segments
         const _stepBdg=(stepNum,label,clr)=>{
           const st=seg.steps[stepNum];
-          if(!st||st.skip) return '';
+          if(!st) return '';
+          if(st.skip){
+            if((st.remarks||'').indexOf('Auto-skipped:')===0) return '<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:#fef3c7;color:#a16207;border:1px solid #fde047;white-space:nowrap">⏭ Auto Skipped</span>';
+            return '';
+          }
           const done=st.done&&(stepNum!==4||!st.rejected);
           const active=!done&&seg.currentStep===stepNum&&seg.status!=='Completed'&&seg.status!=='Locked';
           const loc=byId(DB.locations,st.ownerLoc||st.loc);
@@ -6117,13 +6209,13 @@ function _renderKapInner(){
   });
   if(srch)allPending=allPending.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
 
-  // Update tab counts (both tabs always)
+  // Update tab counts (both tabs always) — step 5 (Empty Exit) only on exit tab
   const isStep5=(s)=>!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s);
   const exitCount=allPending.filter(s=>s.currentStep===1||isStep5(s)).length;
-  const entryCount=allPending.filter(s=>s.currentStep===2||isStep5(s)).length;
+  const entryCount=allPending.filter(s=>s.currentStep===2).length;
 
-  const step=(_kapMode==='entry')?2:1; // map mode to step: exit=1, entry=2
-  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
+  const step=(_kapMode==='entry')?2:1;
+  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):s.currentStep===2);
 
   // Deduplicate by tripId — show one card per trip (card already shows all segments)
   const _seenTrips=new Set();
@@ -9965,6 +10057,16 @@ function renderHelper(){
   });
 
   el.innerHTML=`
+  <!-- REPAIR TOOLS -->
+  ${s('🔧 Repair Tools','rgba(220,38,38,.06)',`
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1;min-width:250px">
+        <p style="margin:0 0 8px"><strong>Mark Empty Exit for Old Trips:</strong> Finds all trips with vehicles waiting for Empty Vehicle Exit and marks step 5 as completed without requiring a photo.</p>
+        <button onclick="_repairMarkEmptyExitDone()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:6px;cursor:pointer">🔧 Mark All Empty Exits Done</button>
+        <div id="repairEmptyExitResult" style="margin-top:10px;font-size:12px;display:none"></div>
+      </div>
+    </div>
+  `)}
   <!-- TRIP ID ALLOCATION TOOL -->
   <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
     <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">
@@ -10137,7 +10239,71 @@ function renderHelper(){
     ])}
     </tbody></table>
   `)}
+
   `;
+}
+
+async function _repairMarkEmptyExitDone(){
+  var resEl=document.getElementById('repairEmptyExitResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Scanning…</span>';}
+  var fixed=0,details=[];
+  for(var i=0;i<DB.segments.length;i++){
+    var seg=DB.segments[i];
+    if(seg.status==='Locked') continue;
+    var trip=byId(DB.trips,seg.tripId);
+    if(!trip||trip.cancelled) continue;
+    // Create step 5 if missing (old trips before step 5 feature)
+    if(!seg.steps[5]){
+      var isLastSeg=(seg.label==='A'&&!trip.dest2)||(seg.label==='B'&&!trip.dest3)||seg.label==='C';
+      var dLoc=byId(DB.locations||[],seg.dLoc);
+      var isKapDest=dLoc&&dLoc.type==='KAP';
+      if(isLastSeg&&isKapDest){
+        seg.steps[5]={skip:false,label:'Empty Vehicle Exit',role:'KAP Security',done:false,time:null,by:null,loc:seg.dLoc,ownerLoc:seg.dLoc};
+      } else {
+        continue;// Not eligible for step 5
+      }
+    }
+    var s5=seg.steps[5];
+    if(s5.skip||s5.done) continue;
+    // Accept any segment where the vehicle has arrived (step 2 done or skipped, or step 1 done)
+    var vehicleArrived=(seg.steps[2]&&(seg.steps[2].done||seg.steps[2].skip))||(seg.steps[1]&&seg.steps[1].done);
+    if(!vehicleArrived) continue;
+    // Mark step 5 as done without photo
+    s5.done=true;
+    s5.time=new Date().toISOString();
+    s5.by=CU?CU.id:'';
+    s5.remarks='Repair: marked exit without photo';
+    // Also force-complete pending steps 3 & 4 if not done (repair action)
+    if(seg.steps[3]&&!seg.steps[3].skip&&!seg.steps[3].done){
+      seg.steps[3].done=true;seg.steps[3].time=new Date().toISOString();seg.steps[3].by=CU?CU.id:'';seg.steps[3].remarks='Repair: auto-completed';
+    }
+    if(seg.steps[4]&&!seg.steps[4].skip&&!seg.steps[4].done){
+      seg.steps[4].done=true;seg.steps[4].time=new Date().toISOString();seg.steps[4].by=CU?CU.id:'';seg.steps[4].remarks='Repair: auto-completed';
+    }
+    seg.currentStep=nextStep(seg);
+    seg.status='Completed';
+    await _dbSave('segments',seg);
+    // Complete trip if all segments done
+    var tripSegs=DB.segments.filter(function(s){return s.tripId===seg.tripId;});
+    if(tripSegs.every(function(s){return s.status==='Completed'||s.status==='Rejected';})){
+      trip.completedAt=new Date().toISOString();
+      await _dbSave('trips',trip);
+    }
+    fixed++;
+    details.push({tripId:seg.tripId,segId:seg.id,vehicle:vnum(trip.vehicleId)});
+  }
+  if(!fixed){
+    if(resEl) resEl.innerHTML='<span style="color:#16a34a;font-weight:700">✅ No trips waiting for empty exit.</span>';
+  } else {
+    var h='<div style="color:#16a34a;font-weight:700;margin-bottom:6px">✅ Marked empty exit on '+fixed+' segment(s)</div>';
+    h+='<div style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;font-size:11px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fef2f2;position:sticky;top:0"><th style="padding:3px 8px;text-align:left">Trip</th><th style="padding:3px 8px;text-align:left">Segment</th><th style="padding:3px 8px;text-align:left">Vehicle</th></tr></thead><tbody>';
+    details.forEach(function(d){
+      h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">'+d.tripId+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.segId+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.vehicle+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    if(resEl) resEl.innerHTML=h;
+    updBadges();renderKap();renderDash();renderMyTrips();
+  }
 }
 
 // Helper page: Trip Status Retriever function

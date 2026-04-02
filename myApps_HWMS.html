@@ -2333,7 +2333,7 @@ function _getLoadedTables(){
 
 // ═══ PHOTO-EXCLUDED SYNC ═════════════════════════════════════════════════
 var _SYNC_SELECT={
-  'hwms_parts':'id,code,part_number,part_revision,description,status,net_weight_kg,uom,hsn_code,packing_type,packing_dimensions,qty_per_package,packing_weight,ex_works_rate,freight,warehouse_cost,icc_cost,final_rate,rate_valid_from,rate_valid_to,rates,updated_at',
+  'hwms_parts':'id,code,part_number,part_revision,description,status,net_weight_kg,uom,hsn_code,packing_type,packing_dimensions,qty_per_package,packing_weight,ex_works_rate,freight,warehouse_cost,icc_cost,final_rate,rate_valid_from,rate_valid_to,rates,part_photo,packing_photo,updated_at',
   'hwms_containers':'id,code,container_number,container_serial_number,expected_pickup_date,pickup_date,status,reach_date,expected_reach_date,reached_date,carrier_id,carrier_name,carrier_inv_number,carrier_inv_date,carrier_inv_amount,entry_summary_number,es_date,es_amount,tariff_paid,tariff_percent,confirmed,updated_at'
 };
 
@@ -9859,26 +9859,26 @@ function _hwmsPrintPalletLabel(invId, liIdx){
     +'<div id="labelPhotoPlaceholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:60px">📷</div>';
   w.document.write('<!DOCTYPE html><html><head><title>Pallet Label — '+esc(palletNum)+'</title>\
 <style>\
-@page{size:A4 landscape;margin:10mm}\
+@page{size:A4 landscape;margin:8mm}\
 *{margin:0;padding:0;box-sizing:border-box}\
-body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:10mm}\
-.label{width:100%;border:3px solid #000}\
+body{font-family:Arial,Helvetica,sans-serif;background:#fff;padding:8mm;max-height:190mm;overflow:hidden}\
+.label{width:100%;border:3px solid #000;max-height:180mm;overflow:hidden}\
 .row{display:flex;border-bottom:3px solid #000}\
 .row:last-child{border-bottom:none}\
-.cell{padding:8px 12px;border-right:3px solid #000;display:flex;flex-direction:column;justify-content:center}\
+.cell{padding:6px 10px;border-right:3px solid #000;display:flex;flex-direction:column;justify-content:center}\
 .cell:last-child{border-right:none}\
-.cell-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#000;margin-bottom:2px}\
-.cell-value{font-size:14px;font-weight:900;color:#000}\
-.cell-value-big{font-size:36px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:1px}\
-.cell-value-huge{font-size:52px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:2px}\
+.cell-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#000;margin-bottom:2px}\
+.cell-value{font-size:13px;font-weight:900;color:#000}\
+.cell-value-big{font-size:28px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:1px}\
+.cell-value-huge{font-size:36px;font-weight:900;font-family:Arial,sans-serif;color:#000;letter-spacing:1px}\
 table.items{width:100%;border-collapse:collapse}\
-table.items th{padding:8px 12px;font-size:13px;font-weight:800;text-transform:uppercase;text-align:left;border-bottom:2px solid #000;border-right:2px solid #000;background:#fff}\
+table.items th{padding:6px 10px;font-size:11px;font-weight:800;text-transform:uppercase;text-align:left;border-bottom:2px solid #000;border-right:2px solid #000;background:#fff}\
 table.items th:last-child{border-right:none}\
-table.items td{padding:10px 12px;font-size:16px;font-weight:700;border-bottom:1px solid #999;border-right:2px solid #000;vertical-align:top}\
+table.items td{padding:8px 10px;font-size:14px;font-weight:700;border-bottom:1px solid #999;border-right:2px solid #000;vertical-align:top}\
 table.items td:last-child{border-right:none}\
-table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:16px;font-weight:900}\
+table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:14px;font-weight:900}\
 .r{text-align:right}\
-@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0}}\
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;max-height:190mm;overflow:hidden}}\
 @media screen{.no-print{display:block;text-align:center;margin-top:16px}.no-print button{font-size:16px;padding:12px 40px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700}}\
 @media print{.no-print{display:none}}\
 </style></head><body>\
@@ -9886,34 +9886,34 @@ table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:1
   <!-- ROW 1: Exporter + Container Number -->\
   <div class="row">\
     <div class="cell" style="flex:1;padding:14px 18px">\
-      <div style="font-size:33px;font-weight:900;margin-bottom:6px;line-height:1.2">'+esc(exporterName)+'</div>\
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px;color:#333">'+esc(exporterAddr)+'</div>\
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px">END CUSTOMER: <b>'+esc(customerName)+(customerCountry?', '+esc(customerCountry):'')+'</b></div>\
-      <div style="font-size:20px;font-weight:700">COUNTRY OF ORIGIN: <b>'+esc(exporterCountry)+'</b></div>\
+      <div style="font-size:24px;font-weight:900;margin-bottom:4px;line-height:1.2">'+esc(exporterName)+'</div>\
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px;color:#333">'+esc(exporterAddr)+'</div>\
+      <div style="font-size:14px;font-weight:700;margin-bottom:3px">END CUSTOMER: <b>'+esc(customerName)+(customerCountry?', '+esc(customerCountry):'')+'</b></div>\
+      <div style="font-size:14px;font-weight:700">COUNTRY OF ORIGIN: <b>'+esc(exporterCountry)+'</b></div>\
     </div>\
-    <div class="cell" style="flex:0 0 auto;min-width:200px;text-align:center;align-items:center;padding:14px 24px">\
-      <div class="cell-label" style="font-size:18px;font-weight:900;margin-bottom:6px">CONTAINER<br>NUMBER</div>\
-      <div class="cell-value-big" style="font-size:42px">'+esc(contNum)+'</div>\
+    <div class="cell" style="flex:0 0 auto;min-width:160px;text-align:center;align-items:center;padding:10px 18px">\
+      <div class="cell-label" style="font-size:14px;font-weight:900;margin-bottom:4px">CONTAINER<br>NUMBER</div>\
+      <div class="cell-value-big" style="font-size:32px">'+esc(contNum)+'</div>\
     </div>\
   </div>\
   <!-- ROW 2: Photo + Invoice Number + Pallet Number -->\
   <div class="row">\
-    <div class="cell" style="flex:1;align-items:stretch;justify-content:stretch;padding:6px;min-height:180px;position:relative">\
+    <div class="cell" style="flex:1;align-items:stretch;justify-content:stretch;padding:6px;min-height:140px;max-height:200px;position:relative;overflow:hidden">\
       <div style="width:100%;height:100%;border:2px solid #ccc;border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center">\
       '+photoCell+'\
       </div>\
     </div>\
-    <div style="flex:0 0 auto;min-width:300px;display:flex;flex-direction:column;border-left:none">\
-      <div class="cell" style="flex:1;border-bottom:3px solid #000;text-align:center;align-items:center;padding:14px 20px">\
-        <div class="cell-label" style="font-size:18px;font-weight:900;margin-bottom:6px">INVOICE<br>NUMBER</div>\
+    <div style="flex:0 0 auto;min-width:220px;display:flex;flex-direction:column;border-left:none">\
+      <div class="cell" style="flex:1;border-bottom:3px solid #000;text-align:center;align-items:center;padding:10px 16px">\
+        <div class="cell-label" style="font-size:14px;font-weight:900;margin-bottom:4px">INVOICE NUMBER</div>\
         <div class="cell-value-huge">'+esc(invNum)+'</div>\
       </div>\
-      <div class="cell" style="flex:1;text-align:center;align-items:center;padding:14px 20px;justify-content:space-between">\
+      <div class="cell" style="flex:1;text-align:center;align-items:center;padding:10px 16px;justify-content:space-between">\
         <div>\
-          <div class="cell-label" style="font-size:18px;font-weight:900;margin-bottom:6px">PALLET NUMBER</div>\
+          <div class="cell-label" style="font-size:14px;font-weight:900;margin-bottom:4px">PALLET NUMBER</div>\
           <div class="cell-value-huge">'+esc(palletNum)+'</div>\
         </div>\
-        <div style="font-size:20px;font-weight:800;color:#555;margin-top:8px">'+esc(String(palletIdx).padStart(2,'0'))+' Of '+esc(String(totalPallets).padStart(2,'0'))+'</div>\
+        <div style="font-size:16px;font-weight:800;color:#555;margin-top:6px">'+esc(String(palletIdx).padStart(2,'0'))+' Of '+esc(String(totalPallets).padStart(2,'0'))+'</div>\
       </div>\
     </div>\
   </div>\
@@ -9934,11 +9934,11 @@ table.items tr.total td{border-bottom:none;border-top:3px solid #000;font-size:1
       </tr></thead>\
       <tbody>\
         <tr>\
-          <td style="font-size:24px;font-weight:900;padding:14px 12px">'+esc(partNum)+'</td>\
-          <td style="font-size:16px;font-weight:700">'+esc(partDesc)+'</td>\
-          <td class="r" style="font-size:20px;font-weight:900">'+qty+'</td>\
-          <td class="r" style="font-size:20px;font-weight:900">'+netWt+'</td>\
-          <td class="r" style="font-size:20px;font-weight:900">'+grossWt+'</td>\
+          <td style="font-size:18px;font-weight:900;padding:10px">'+esc(partNum)+'</td>\
+          <td style="font-size:13px;font-weight:700">'+esc(partDesc)+'</td>\
+          <td class="r" style="font-size:16px;font-weight:900">'+qty+'</td>\
+          <td class="r" style="font-size:16px;font-weight:900">'+netWt+'</td>\
+          <td class="r" style="font-size:16px;font-weight:900">'+grossWt+'</td>\
         </tr>\
         <tr><td style="border-bottom:none">&nbsp;</td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td></tr>\
         <tr><td style="border-bottom:none">&nbsp;</td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td><td style="border-bottom:none"></td></tr>\
@@ -10087,14 +10087,6 @@ function renderHwmsDashboard(){
     s+='</div>';
     s+='</div>';
 
-    // Status badges — CT
-    s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">CT:</span>'+badge('Draft',cC['Draft'],'badge-yellow')+badge('Transit',cC['In Transit'],'badge-onwater')+badge('WH',cC['Warehouse'],'badge-wh')+'</div>';
-    // Status badges — MI
-    s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">MI:</span>'+badge('Draft',mC['Draft'],'badge-yellow')+badge('RFD',mC['RFD'],'badge-rfd')+badge('Transit',mC['In Transit'],'badge-onwater')+(mode==='sea'?badge('WH',mC['Warehouse'],'badge-wh')+badge('SI(D)',mC['SI (Draft)'],'badge-sidraft'):'')+badge('Sold',mC['Sold'],'badge-sold')+(mode==='sea'?badge('P.Sold',mC['Partially Sold'],'badge-partsold'):'')+badge('Paid',mC['Fully Paid'],'badge-fullpaid')+badge('P.Paid',mC['Partially Paid'],'badge-partpaid')+'</div>';
-    // Status badges — SI (sea only)
-    if(mode==='sea'){
-      s+='<div style="margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-right:4px">SI:</span>'+badge('SI(D)',sC['SI (Draft)'],'badge-sidraft')+badge('Sold',sC['Sold'],'badge-sold')+badge('Paid',sC['Fully Paid'],'badge-fullpaid')+badge('P.Paid',sC['Partially Paid'],'badge-partpaid')+'</div>';
-    }
 
     // ── Inventory: WH + Transit ──
     var soldMap=_buildSoldMap(modeSis);
@@ -14379,23 +14371,25 @@ function openHwmsInvModal(id){
     if(inv&&inv.lineItems&&Array.isArray(inv.lineItems)){
       _hwmsLiItems=inv.lineItems.filter(function(li){return !li._meta;}).map(function(li,i){
         var item={...li,palletNumber:li.palletNumber||'P'+(i+1)};
-        // Refresh part-derived fields from current Part Master (only override if part master has data)
-        var part=byId(DB.hwmsParts||[],item.partId);
-        if(part){
-          if(part.hsnCode) item.hsnCode=part.hsnCode;
-          if(part.uom) item.uom=part.uom;
-          if(part.packingType) item.packageType=part.packingType;
-          if(part.finalRate) item.rate=part.finalRate;
-          var dims=(part.packingDimensions||'').split(/[xX×]/);
-          if(dims.length===3&&dims[0].trim()){
-            item.pkgL=dims[0].trim();
-            item.pkgW=(dims[1]||'').trim();
-            item.pkgH=(dims[2]||'').trim();
-          }
+        // Refresh part-derived fields ONLY for Draft invoices — confirmed invoices keep saved rates
+        if(!inv.confirmed){
+          var part=byId(DB.hwmsParts||[],item.partId);
+          if(part){
+            if(part.hsnCode) item.hsnCode=part.hsnCode;
+            if(part.uom) item.uom=part.uom;
+            if(part.packingType) item.packageType=part.packingType;
+            if(part.finalRate) item.rate=part.finalRate;
+            var dims=(part.packingDimensions||'').split(/[xX×]/);
+            if(dims.length===3&&dims[0].trim()){
+              item.pkgL=dims[0].trim();
+              item.pkgW=(dims[1]||'').trim();
+              item.pkgH=(dims[2]||'').trim();
+            }
           if(part.packingWeight) item.pkgWeight=part.packingWeight;
           if(part.netWeightKg&&item.quantity){
             item.netWeight=Math.round(part.netWeightKg*(item.quantity||0));
             item.grossWeight=(item.netWeight||0)+(item.pkgWeight||0);
+          }
           }
         }
         return item;
