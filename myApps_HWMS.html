@@ -334,6 +334,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($) <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('amount')" title="Sort"><span id="hwmsInvSortI_amount">⇅</span></button></div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div><div id="hwmsInvHeaderSiTotal" style="font-size:12px;font-weight:900;color:#7c3aed;font-family:var(--mono);margin-top:3px"></div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Received ($)</div><div id="hwmsInvHeaderRcvdTotal" style="font-size:12px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div><div id="hwmsInvHeaderBalTotal" style="font-size:12px;font-weight:900;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff %</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff ($)</div><div id="hwmsInvHeaderTariffTotal" style="font-size:12px;font-weight:900;color:#ea580c;font-family:var(--mono);margin-top:3px"></div></th>
@@ -371,7 +372,8 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container & Shipping</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
               <div class="form-group" style="margin:0"><label>Container</label><input type="text" id="hwmsInvContainerDisplay" readonly style="padding:6px 6px;background:var(--surface2);font-family:var(--mono);font-weight:700;color:var(--accent)"><input type="hidden" id="hwmsInvContainer"></div>
-              <div class="form-group" style="margin:0"><label>Mode of Transport</label><select id="hwmsInvTransport" style="padding:6px 6px"><option value="">--</option><option value="By Sea">By Sea</option><option value="By Air">By Air</option></select></div>
+              <div class="form-group" style="margin:0"><label>Mode of Transport</label><select id="hwmsInvTransport" onchange="_hwmsInvTransportChanged()" style="padding:6px 6px;background:var(--surface2)" disabled><option value="">--</option><option value="By Sea">By Sea</option><option value="By Air">By Air</option></select></div>
+              <div class="form-group" id="hwmsInvAirRateWrap" style="margin:0;display:none"><label>Air Freight Cost</label><select id="hwmsInvAirRateType" onchange="_hwmsInvAirRateChanged()" style="padding:6px 6px"><option value="final">At KAP Cost (Final Rate)</option><option value="basic">At Customer Cost (Basic Rate)</option></select></div>
             </div>
           </div>
         </div>
@@ -396,20 +398,21 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
         <div id="hwmsLiAddRow" style="padding:10px 12px;background:rgba(42,154,160,.04);border:1.5px dashed var(--accent);border-radius:8px;margin-bottom:10px">
           <div style="display:flex;gap:6px;align-items:end;flex-wrap:wrap">
             <div class="form-group" style="margin:0;width:52px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Pallet</label><input type="text" id="hwmsLiAddPallet" style="padding:6px 4px;font-size:16px;font-family:var(--mono);font-weight:700;text-align:center;color:var(--accent);width:100%" readonly></div>
-            <div class="form-group hwms-part-search-wrap" style="margin:0;width:220px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Part *</label><input type="hidden" id="hwmsLiAddPart"><input type="text" id="hwmsLiPartSearch" autocomplete="off" placeholder="Type part no..." oninput="_hwmsPartFilter()" onfocus="_hwmsPartFilter()" style="padding:6px 5px;font-size:15px;width:100%"><div class="hwms-part-dd" id="hwmsPartDd"></div></div>
+            <div class="form-group hwms-part-search-wrap" style="margin:0;width:132px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Part *</label><input type="hidden" id="hwmsLiAddPart"><input type="text" id="hwmsLiPartSearch" autocomplete="off" placeholder="Type part no..." oninput="_hwmsPartFilter()" onfocus="_hwmsPartFilter()" style="padding:6px 5px;font-size:15px;width:100%"><div class="hwms-part-dd" id="hwmsPartDd"></div></div>
             <div class="form-group" style="margin:0;width:90px;flex-shrink:0"><label style="font-size:12px;font-weight:600">PO No.</label><input type="text" id="hwmsLiAddPo" style="padding:6px 5px;font-size:16px;width:100%"></div>
             <div class="form-group" style="margin:0;width:58px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Qty</label><input type="number" id="hwmsLiAddQty" min="1" step="1" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:16px;width:100%"></div>
             <div class="form-group" style="margin:0;width:50px;flex-shrink:0"><label style="font-size:12px;font-weight:600">UOM</label><input type="text" id="hwmsLiAddUom" style="padding:6px 4px;font-size:15px;width:100%;background:var(--surface2)" readonly></div>
-            <div class="form-group" style="margin:0;width:72px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Rate $</label><input type="text" id="hwmsLiAddRate" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2)" readonly></div>
-            <div class="form-group" style="margin:0;width:82px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Amount $</label><input type="text" id="hwmsLiAddAmt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;color:#16a34a" readonly></div>
+            <div class="form-group" style="margin:0;width:83px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Rate $</label><input type="text" id="hwmsLiAddRate" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2)" readonly></div>
+            <div class="form-group" style="margin:0;width:94px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Amount $</label><input type="text" id="hwmsLiAddAmt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;color:#16a34a" readonly></div>
             <div class="form-group" style="margin:0;width:54px;flex-shrink:0"><label style="font-size:11px;font-weight:600">L (mm)</label><input type="number" id="hwmsLiAddPkgL" min="0" step="1" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="padding:6px 3px;font-size:15px;font-family:var(--mono);width:100%"></div>
             <div class="form-group" style="margin:0;width:54px;flex-shrink:0"><label style="font-size:11px;font-weight:600">W (mm)</label><input type="number" id="hwmsLiAddPkgW" min="0" step="1" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="padding:6px 3px;font-size:15px;font-family:var(--mono);width:100%"></div>
             <div class="form-group" style="margin:0;width:54px;flex-shrink:0"><label style="font-size:11px;font-weight:600">H (mm)</label><input type="number" id="hwmsLiAddPkgH" min="0" step="1" oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="padding:6px 3px;font-size:15px;font-family:var(--mono);width:100%"></div>
-            <div class="form-group" style="margin:0;width:88px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Package</label><input type="text" id="hwmsLiAddPkg" style="padding:6px 5px;font-size:15px;width:100%;background:var(--surface2)" readonly></div>
-            <div class="form-group" style="margin:0;width:78px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Net Wt (Kg)</label><input type="text" id="hwmsLiAddNetWt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);text-align:right" readonly></div>
-            <div class="form-group" style="margin:0;width:75px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Pkg Wt (Kg)</label><input type="number" id="hwmsLiAddPkgWt" step="1" min="0" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%"></div>
-            <div class="form-group" style="margin:0;width:82px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Gross Wt (Kg)</label><input type="text" id="hwmsLiAddGrossWt" style="padding:6px 4px;font-size:16px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;text-align:right" readonly></div>
+            <div class="form-group" style="margin:0;width:75px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Package</label><input type="text" id="hwmsLiAddPkg" style="padding:6px 5px;font-size:15px;width:100%;background:var(--surface2)" readonly></div>
+            <div class="form-group" style="margin:0;width:55px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Net Wt</label><input type="text" id="hwmsLiAddNetWt" style="padding:6px 4px;font-size:14px;font-family:var(--mono);width:100%;background:var(--surface2);text-align:right" readonly></div>
+            <div class="form-group" style="margin:0;width:53px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Pkg Wt</label><input type="number" id="hwmsLiAddPkgWt" step="1" min="0" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:14px;font-family:var(--mono);width:100%"></div>
+            <div class="form-group" style="margin:0;width:57px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Gross Wt</label><input type="text" id="hwmsLiAddGrossWt" style="padding:6px 4px;font-size:14px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;text-align:right" readonly></div>
             <div class="form-group" style="margin:0;width:72px;flex-shrink:0"><label style="font-size:11px;font-weight:600">HSN</label><input type="text" id="hwmsLiAddHsn" style="padding:6px 4px;font-size:13px;font-family:var(--mono);width:100%;background:var(--surface2)" readonly></div>
+            <div id="hwmsLiPartPhoto" style="width:40px;height:40px;flex-shrink:0;border-radius:6px;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f8fafc"><span style="font-size:16px;color:#ccc">📷</span></div>
             <button class="btn btn-primary" id="hwmsLiAddBtn" onclick="_hwmsLiAdd()" style="padding:0;font-size:20px;font-weight:900;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:flex;align-items:center;justify-content:center" title="Add line item">+</button>
             <button class="btn btn-secondary" id="hwmsLiCancelBtn" onclick="_hwmsLiResetAddRow()" style="padding:0;font-size:14px;font-weight:700;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:none;align-items:center;justify-content:center" title="Cancel edit">✕</button>
           </div>
@@ -1129,6 +1132,10 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
   <div id="hwmsSiPartsSection" style="display:none;margin-bottom:10px">
     <label style="margin-bottom:6px">Select Parts to Dispatch *</label>
     <div id="hwmsSiPartsList" style="border:1px solid var(--border);border-radius:8px;overflow:hidden"></div>
+    <div id="hwmsSiTotalRow" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:8px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:0 0 8px 8px;margin-top:-1px">
+      <span style="font-size:13px;font-weight:800;color:#15803d">Total SI Amount:</span>
+      <span id="hwmsSiTotalAmt" style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">$0.00</span>
+    </div>
   </div>
   <!-- Pickup -->
   <div style="display:flex;gap:10px;margin-bottom:10px">
@@ -5748,6 +5755,18 @@ function renderHwmsSubInvoices(){
     var payB=_hwmsSiBadge(_hwmsSiOverallStatus(si),'payment');
     var siRcvd=_hwmsSiTotalRcvd(si);
     var siBal=totalAmt-siRcvd;
+    // Collect PR-PLI numbers for this SI
+    var _siPrPlis=[];
+    (DB.hwmsPaymentReceipts||[]).forEach(function(pr){
+      if(pr.status!=='Posted'||pr._deleted) return;
+      (pr.lineItems||[]).forEach(function(li,liIdx){
+        (li.matchedSlis||[]).forEach(function(ms){
+          if(ms.type==='suspense'||ms.type==='writeoff') return;
+          if(ms.siId===si.id) _siPrPlis.push(pr.paymentNumber+'-PLI'+(li.pliNumber||liIdx+1));
+        });
+      });
+    });
+    var _siPrPlisUniq=[...(new Set(_siPrPlis))];
     return '<tr style="'+_siCursor+'" onclick="_hwmsSiRowClick(event,\''+si.id+'\')">'
       +(isAdmin?'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>':'')
       +'<td style="text-align:center;padding:2px 4px" onclick="event.stopPropagation()"><button onclick="_hwmsSiPreviewPopup(\''+si.id+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="Print Preview">🖨️</button></td>'
@@ -5757,10 +5776,10 @@ function renderHwmsSubInvoices(){
       +'<td style="white-space:nowrap">'+poHtml+'</td>'
       +'<td style="white-space:nowrap;line-height:1.7">'+partsHtml+'</td>'
       +(_siShowAmts?'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:13px">'+_fCurr(totalAmt)+'</td>':'<td style="display:none"></td>')
-      +'<td style="text-align:center">'+pickupB+'<div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);margin-top:2px">'+fd2(si.pickupDate)+'</div></td>'
+      +'<td style="text-align:center">'+pickupB+(si.editedAfterPickup?'<div style="font-size:8px;font-weight:700;color:#dc2626;margin-top:1px">✎ Edited</div>':'')+'<div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);margin-top:2px">'+fd2(si.pickupDate)+'</div></td>'
       +'<td style="text-align:center">'+grnB+'<div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);margin-top:2px">'+fd2(si.grnDate)+'</div></td>'
       +'<td style="text-align:center">'+payB+'</td>'
-      +(_siShowAmts?'<td style="text-align:right;font-family:var(--mono);font-size:13px;color:'+(siRcvd>0?'#16a34a':'var(--text3)')+';font-weight:800">'+_fCurr(siRcvd)+'</td>':'<td style="display:none"></td>')
+      +(_siShowAmts?'<td style="text-align:right;font-family:var(--mono);font-size:13px;color:'+(siRcvd>0?'#16a34a':'var(--text3)')+';font-weight:800">'+_fCurr(siRcvd)+(_siPrPlisUniq.length?'<div style="font-size:8px;font-weight:600;color:#7c3aed;margin-top:2px;line-height:1.3">'+_siPrPlisUniq.slice(0,3).join('<br>')+((_siPrPlisUniq.length>3)?'<br>+'+(_siPrPlisUniq.length-3)+' more':'')+'</div>':'')+'</td>':'<td style="display:none"></td>')
       +(_siShowAmts?'<td style="text-align:right;font-family:var(--mono);font-size:13px;color:'+(siBal>0?'#dc2626':'var(--text3)')+';font-weight:800">'+_fCurr(siBal)+'</td>':'<td style="display:none"></td>')
       +'</tr>';
   }).join('');
@@ -5850,6 +5869,7 @@ function showHwmsSiDetail(id){
   h+='<tr><td style="'+tl+'">Payment Status</td><td style="'+tv+'">'+_hwmsSiBadge(_hwmsSiOverallStatus(si))+'</td>'
     +'<td style="'+tl+'">Tariff</td><td style="'+tv+'">'+(si.tariffPercent?si.tariffPercent+'%':'—')+' / '+fAmt(si.tariffAmount)+'</td></tr>';
   if(si.remarks) h+='<tr><td style="'+tl+'">Remarks</td><td colspan="3" style="'+tv+';font-family:var(--sans);font-weight:400;font-size:13px;color:var(--text2)">'+si.remarks+'</td></tr>';
+  if(si.editedAfterPickup) h+='<tr><td style="'+tl+'">Edited</td><td colspan="3" style="'+tv+';color:#dc2626;font-size:12px">✎ Edited after pickup by <b>'+(si.editedBy||'—')+'</b> on '+fd2((si.editedAt||'').slice(0,10))+'</td></tr>';
   // Payment receipt references
   var _siPayNums=_hwmsGetSiPayNums(si);
   if(_siPayNums.length) h+='<tr><td style="'+tl+'">Receipt(s)</td><td colspan="3" style="'+tv+';font-size:12px;color:#7c3aed">'+_siPayNums.join(', ')+'</td></tr>';
@@ -6102,6 +6122,10 @@ function _hwmsSiCalcBal(){
     var rate=parseFloat(document.getElementById('hwmsSiRate_'+idx)?.value)||0;
     totalAmt+=qty*rate;
   });
+  totalAmt=Math.round(totalAmt*100)/100;
+  // Update total display
+  var totEl=document.getElementById('hwmsSiTotalAmt');
+  if(totEl) totEl.textContent='$'+totalAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   var rcvd=parseFloat(document.getElementById('hwmsSiPayRcvd').value)||0;
   var bal=totalAmt-rcvd;
   var balEl=document.getElementById('hwmsSiPayBal');
@@ -6153,11 +6177,11 @@ function _hwmsSiOnInvChange(editSi){
     var qty=editLi?editLi.quantity:available;
     var rate=editLi?editLi.rate:(li.rate||0);
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f1f5f9'+(available<=0&&!editLi?';opacity:.4':'')+'">'
-      +'<input type="checkbox" id="hwmsSiCb_'+idx+'" data-part-id="'+li.partId+'" data-part-number="'+pn+'" data-pallet="'+pallet+'" data-po="'+(li.poNumber||'')+'" '+(checked?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"'+(available<=0&&!editLi?' disabled':'')+'>'
+      +'<input type="checkbox" id="hwmsSiCb_'+idx+'" data-part-id="'+li.partId+'" data-part-number="'+pn+'" data-pallet="'+pallet+'" data-po="'+(li.poNumber||'')+'" '+(checked?'checked':'')+' onchange="_hwmsSiCalcBal()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"'+(available<=0&&!editLi?' disabled':'')+'>'
       +'<div style="flex:1;min-width:0"><div style="display:flex;gap:6px;align-items:baseline"><span style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:12px">'+pallet+'</span><span style="font-family:var(--mono);font-weight:700;font-size:13px">'+pn+'</span></div><div style="font-size:10px;color:var(--text3)">Inv Qty: '+invQty+' | Available: <span style="color:'+(available>0?'#16a34a':'#dc2626')+';font-weight:700">'+available+'</span></div></div>'
       +'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
-      +'<div style="text-align:center"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Qty</div><input type="number" id="hwmsSiQty_'+idx+'" value="'+qty+'" min="1" max="'+available+'" style="width:70px;padding:4px 6px;font-size:13px;font-family:var(--mono);font-weight:700;text-align:center;border:1px solid var(--border);border-radius:4px" class="no-spin"></div>'
-      +'<div style="text-align:center"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Rate ($)</div><input type="number" id="hwmsSiRate_'+idx+'" value="'+rate+'" step="0.01" style="width:80px;padding:4px 6px;font-size:13px;font-family:var(--mono);font-weight:700;text-align:center;border:1px solid var(--border);border-radius:4px" class="no-spin"></div>'
+      +'<div style="text-align:center"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Qty</div><input type="number" id="hwmsSiQty_'+idx+'" value="'+qty+'" min="1" max="'+available+'" oninput="_hwmsSiCalcBal()" style="width:70px;padding:4px 6px;font-size:13px;font-family:var(--mono);font-weight:700;text-align:center;border:1px solid var(--border);border-radius:4px" class="no-spin"></div>'
+      +'<div style="text-align:center"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Rate ($)</div><input type="number" id="hwmsSiRate_'+idx+'" value="'+rate+'" step="0.01" oninput="_hwmsSiCalcBal()" style="width:80px;padding:4px 6px;font-size:13px;font-family:var(--mono);font-weight:700;text-align:center;border:1px solid var(--border);border-radius:4px" class="no-spin"></div>'
       +'</div></div>';
   }).join('');
   partsSection.style.display='block';
@@ -6240,6 +6264,12 @@ async function saveHwmsSi(){
   if(id){
     var si=byId(DB.hwmsSubInvoices,id);
     var bak={};if(si)bak=JSON.parse(JSON.stringify(si));
+    // Track edit after pickup
+    if(si&&si.pickupStatus==='Picked'){
+      data.editedAfterPickup=true;
+      data.editedBy=CU?(CU.fullName||CU.name||CU.email):'';
+      data.editedAt=new Date().toISOString();
+    }
     Object.assign(si,data);
     if(!await _dbSave('hwmsSubInvoices',si)){if(bak.id)Object.assign(si,bak);return;}
   } else {
@@ -9486,7 +9516,7 @@ function renderHwmsInvoices(){
     +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:6px 8px;text-align:center;min-width:38px"><div style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+_sc('RFD')+'</div><div style="font-size:7px;font-weight:700;color:#166534;text-transform:uppercase">RFD</div></div>'
     +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:6px 8px;text-align:center;min-width:38px"><div style="font-size:15px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+_sc('Dispatched')+'</div><div style="font-size:7px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Dispatched</div></div>'
     +'<div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:6px 8px;text-align:center;min-width:38px"><div style="font-size:15px;font-weight:900;color:#7c3aed;font-family:var(--mono)">'+_sc('Warehouse')+'</div><div style="font-size:7px;font-weight:700;color:#6d28d9;text-transform:uppercase">WH</div></div>';
-  var grandTotalSiAmt=0,grandTotalBal=0,grandTotalTariff=0;
+  var grandTotalSiAmt=0,grandTotalBal=0,grandTotalTariff=0,grandTotalRcvd=0;
   // Pre-compute total invoice value per container for tariff % calculation
   var _contInvTotalMap={};
   invs.forEach(function(inv){
@@ -9505,8 +9535,27 @@ function renderHwmsInvoices(){
     grandTotalAmt+=totalAmt;
     grandTotalGrossWt+=totalGrossWt;
     const siAmt=siAmtByInv[inv.id]||0;
+    // Received amount: sum payments across all SIs for this MI
+    var _miRcvd=0;var _miPrPlis=[];
+    var _miSis=(DB.hwmsSubInvoices||[]).filter(function(s){return s.invoiceId===inv.id;});
+    _miSis.forEach(function(si){_miRcvd+=_hwmsGetSiRcvd(si);});
+    // Collect PR-PLI numbers
+    (DB.hwmsPaymentReceipts||[]).forEach(function(pr){
+      if(pr.status!=='Posted'||pr._deleted) return;
+      (pr.lineItems||[]).forEach(function(li,liIdx){
+        (li.matchedSlis||[]).forEach(function(ms){
+          if(ms.type==='suspense'||ms.type==='writeoff') return;
+          _miSis.forEach(function(si){
+            if(ms.siId===si.id) _miPrPlis.push(pr.paymentNumber+'-PLI'+(li.pliNumber||liIdx+1));
+          });
+        });
+      });
+    });
+    _miRcvd=Math.round(_miRcvd*100)/100;
+    var _miPrPlisUniq=[...(new Set(_miPrPlis))];
     const balAmt=totalAmt-siAmt;
     grandTotalSiAmt+=siAmt;
+    grandTotalRcvd+=_miRcvd;
     grandTotalBal+=balAmt;
     // Tariff: % = container.tariffPaid / totalContainerValue * 100; Amt = % * thisInvValue / 100
     var tariffPct=0,tariffAmt=0;
@@ -9542,6 +9591,7 @@ function renderHwmsInvoices(){
       <td style="text-align:right;font-family:var(--mono);font-weight:800;color:#16a34a">${_fCurr(totalAmt)}</td>
       <td style="text-align:right;font-family:var(--mono)">${totalGrossWt.toFixed(1)} kg</td>
       <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${siAmt>0?'#7c3aed':'var(--text3)'}">${_fCurr(siAmt)}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${_miRcvd>0?'#16a34a':'var(--text3)'}">${_miRcvd>0?_fCurr(_miRcvd):'—'}${_miPrPlisUniq.length?'<div style="font-size:8px;font-weight:600;color:#7c3aed;margin-top:2px;line-height:1.3">'+_miPrPlisUniq.slice(0,3).join('<br>')+((_miPrPlisUniq.length>3)?'<br>+'+(_miPrPlisUniq.length-3)+' more':'')+'</div>':''}</td>
       <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${balAmt>0?'#dc2626':'#16a34a'}">${balAmt>0?_fCurr(balAmt):'✓'}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${tariffPct>0?'#ea580c':'var(--text3)'}">${tariffPct>0?tariffPct.toFixed(2)+'%':'—'}</td>
       <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${tariffAmt>0?'#ea580c':'var(--text3)'}">${_fCurr(tariffAmt)}</td>
@@ -9563,6 +9613,8 @@ function renderHwmsInvoices(){
     else if(invs.length){balTotEl.textContent='✓';balTotEl.style.color='#16a34a';}
     else{balTotEl.textContent='';}
   }
+  var rcvdTotEl=document.getElementById('hwmsInvHeaderRcvdTotal');
+  if(rcvdTotEl) rcvdTotEl.textContent=invs.length&&grandTotalRcvd>0?_fCurr(grandTotalRcvd):'';
   var tariffTotEl=document.getElementById('hwmsInvHeaderTariffTotal');
   if(tariffTotEl) tariffTotEl.textContent=invs.length&&grandTotalTariff>0?_fCurr(grandTotalTariff):'';
   const cEl=document.getElementById('cHwmsInvoices');if(cEl)cEl.textContent=(DB.hwmsInvoices||[]).length;
@@ -9806,7 +9858,7 @@ function showHwmsInvDetail(id){
         '<td style="padding:5px 8px;font-family:var(--mono);text-align:right;'+(noPkgWt?m:'')+'">'+(noPkgWt?'Missing':Math.round(li.pkgWeight))+'</td>'+
         '<td style="padding:5px 8px;font-family:var(--mono);font-weight:700;text-align:right;'+(noGrossWt?m:'')+'">'+(noGrossWt?'Missing':Math.round(li.grossWeight))+'</td>'+
         '<td style="padding:5px 8px;font-family:var(--mono);font-size:11px">'+(li.hsnCode||'—')+'</td>'+
-        '<td style="padding:5px 8px;text-align:center"><span class="badge '+_hwmsPartPalletStatus(inv,li,cont).cls+'" style="font-size:10px">'+_hwmsPartPalletStatus(inv,li,cont).label+'</span></td>'+
+        '<td style="padding:5px 8px;text-align:center">'+(part&&part.partPhoto?'<img src="'+part.partPhoto+'" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border)">':'<span style="font-size:18px;color:#ccc">📷</span>')+'</td>'+
         '<td style="padding:5px 8px;text-align:center"><button onclick="event.stopPropagation();_hwmsPrintPalletLabel(\''+inv.id+'\','+i+')" style="font-size:10px;padding:3px 8px;background:#f0fdf4;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap">🏷 Print</button></td>'+
         (_showSiStock?(function(){
           var key=(li.partId||'')+'|'+(li.palletNumber||'');
@@ -9925,7 +9977,7 @@ function showHwmsInvDetail(id){
           '<th style="'+thr+'">Pkg Wt (Kg)</th>'+
           '<th style="'+thr+'">Gross Wt (Kg)</th>'+
           '<th style="'+th+'">HSN</th>'+
-          '<th style="'+th+';text-align:center">Status</th>'+
+          '<th style="'+th+';text-align:center">Photo</th>'+
           '<th style="'+th+';text-align:center">Label</th>'+
           (_showSiStock?'<th style="'+thr+'">Sold</th><th style="'+thr+'">Stock</th><th style="'+th+'">SI(s)</th>':'')+
         '</tr></thead>'+
@@ -10581,7 +10633,7 @@ function renderHwmsPayments(){
     // Action buttons
     h+='<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
     h+='<label style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#6366f1);border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(124,58,237,0.3)">📥 Import Payment<input type="file" id="hwmsPayImportFileDirect" accept=".xlsx,.xls,.csv" onchange="_hwmsPayImportDirect(this)" style="display:none"></label>';
-    h+='<button onclick="_hwmsRepairMinorBalances()" style="padding:10px 16px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fde047;color:#92400e;border-radius:8px;cursor:pointer">🔧 Knockoff ±$1 Balances</button>';
+    h+='<button id="hwmsPayExportSelBtn" onclick="_hwmsPayExportSelected()" style="display:none;padding:10px 16px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:8px;cursor:pointer">📤 Export Selected (<span id="hwmsPayExportSelCount">0</span>)</button>';
     h+='<button onclick="_hwmsPayImportTemplate()" style="padding:10px 16px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:8px;cursor:pointer">📄 Download Template</button>';
     h+='</div>';
 
@@ -12963,6 +13015,32 @@ function _hwmsPaySelChange(){
   var cnt=document.getElementById('hwmsPayDelSelCount');
   if(btn){btn.style.display=checked.length>0?'inline-block':'none';}
   if(cnt){cnt.textContent=checked.length;}
+  var expBtn=document.getElementById('hwmsPayExportSelBtn');
+  var expCnt=document.getElementById('hwmsPayExportSelCount');
+  if(expBtn) expBtn.style.display=checked.length>0?'inline-block':'none';
+  if(expCnt) expCnt.textContent=checked.length;
+}
+function _hwmsPayExportSelected(){
+  var checked=document.querySelectorAll('.hwmsPayCb:checked');
+  if(!checked.length){notify('No receipts selected',true);return;}
+  var ids=[];
+  checked.forEach(function(cb){ids.push(cb.getAttribute('data-prid'));});
+  var headers=['Payment #','Payment Date','Status','PLI #','Mode','Part Number','Invoice No','PO','Qty','PLI Amount','Matched SLIs','Matched Amount'];
+  var rows=[];
+  var fd2=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();};
+  ids.forEach(function(prId){
+    var pr=byId(DB.hwmsPaymentReceipts||[],prId);
+    if(!pr) return;
+    (pr.lineItems||[]).forEach(function(li,idx){
+      var matchedSlis=(li.matchedSlis||[]).filter(function(m){return m.type!=='suspense'&&m.type!=='writeoff';});
+      var matchedAmt=matchedSlis.reduce(function(s,m){return s+(m.amount||0);},0);
+      var matchedNums=matchedSlis.map(function(m){return m.siNum||'';}).filter(Boolean).join(', ');
+      rows.push([pr.paymentNumber,fd2(pr.paymentDate),pr.status,li.pliNumber||idx+1,li.mode||'',li.partNumber||'',li.siNumber||'',li.poNumber||'',li.qty||0,Math.round((li.amount||0)*100)/100,matchedNums,Math.round(matchedAmt*100)/100]);
+    });
+  });
+  if(!rows.length){notify('No PLI data found',true);return;}
+  _downloadAsXlsx([headers].concat(rows),'Payment Vouchers','HWMS_Payment_Vouchers.xlsx');
+  notify('📤 Exported '+ids.length+' voucher(s) — '+rows.length+' PLIs');
 }
 function _hwmsPayDeleteSelected(){
   var checked=document.querySelectorAll('.hwmsPayCb:checked');
@@ -14368,6 +14446,8 @@ function _hwmsLiResetAddRow(){
   if(addBtn){addBtn.innerHTML='+';addBtn.title='Add line item';}
   const cancelBtn=document.getElementById('hwmsLiCancelBtn');
   if(cancelBtn) cancelBtn.style.display='none';
+  var photoEl=document.getElementById('hwmsLiPartPhoto');
+  if(photoEl) photoEl.innerHTML='<span style="font-size:16px;color:#ccc">📷</span>';
 }
 
 function _hwmsLiPopulatePartDropdown(){
@@ -14428,7 +14508,9 @@ function _hwmsLiOnPartChange(){
   const part=byId(DB.hwmsParts||[],partId);
   document.getElementById('hwmsLiAddPkg').value=part?.packingType||'';
   document.getElementById('hwmsLiAddUom').value=part?.uom||'';
-  document.getElementById('hwmsLiAddRate').value=part?.finalRate?Number(part.finalRate).toFixed(2):'';
+  var _airRateType=(document.getElementById('hwmsInvTransport').value==='By Air')?(document.getElementById('hwmsInvAirRateType').value||'final'):'final';
+  var _partRate=(_airRateType==='basic')?(part?.exWorksRate||0):(part?.finalRate||0);
+  document.getElementById('hwmsLiAddRate').value=_partRate?Number(_partRate).toFixed(2):'';
   document.getElementById('hwmsLiAddPkgWt').value=part?.packingWeight?Math.round(part.packingWeight):'';
   document.getElementById('hwmsLiAddHsn').value=part?.hsnCode||'';
   const dims=(part?.packingDimensions||'').split(/[xX×]/);
@@ -14436,6 +14518,16 @@ function _hwmsLiOnPartChange(){
   document.getElementById('hwmsLiAddPkgW').value=(dims[1]||'').trim()||'';
   document.getElementById('hwmsLiAddPkgH').value=(dims[2]||'').trim()||'';
   _hwmsLiCalcWeights();
+  // Update part photo thumbnail
+  var photoEl=document.getElementById('hwmsLiPartPhoto');
+  if(photoEl){
+    var photo=part?.partPhoto||'';
+    if(photo){
+      photoEl.innerHTML='<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover">';
+    } else {
+      photoEl.innerHTML='<span style="font-size:16px;color:#ccc">📷</span>';
+    }
+  }
 }
 
 function _hwmsLiCalcWeights(){
@@ -14542,7 +14634,7 @@ function _hwmsLiAdd(){
   const item={partId:partId,palletNumber:document.getElementById('hwmsLiAddPallet').value||'',
     packageType:document.getElementById('hwmsLiAddPkg').value||part?.packingType||'',
     poNumber:document.getElementById('hwmsLiAddPo').value||'',quantity:qty,uom:part?.uom||'',
-    rate:part?.finalRate||0,
+    rate:parseFloat(document.getElementById('hwmsLiAddRate').value)||0,
     pkgL:document.getElementById('hwmsLiAddPkgL').value||'',pkgW:document.getElementById('hwmsLiAddPkgW').value||'',pkgH:document.getElementById('hwmsLiAddPkgH').value||'',
     netWeight:netWt,pkgWeight:pkgWt,grossWeight:grossWt,hsnCode:document.getElementById('hwmsLiAddHsn')?.value||part?.hsnCode||''};
   if(_hwmsLiEditIdx>=0){ _hwmsLiItems[_hwmsLiEditIdx]=item; }
@@ -14666,6 +14758,33 @@ function _hwmsInvOnBuyerChange(){
   }
 }
 
+function _hwmsInvTransportChanged(){
+  var mode=document.getElementById('hwmsInvTransport').value;
+  var wrap=document.getElementById('hwmsInvAirRateWrap');
+  if(wrap) wrap.style.display=mode==='By Air'?'block':'none';
+  if(mode!=='By Air'){
+    // Reset to default final rate
+    var sel=document.getElementById('hwmsInvAirRateType');
+    if(sel) sel.value='final';
+  }
+}
+function _hwmsInvAirRateChanged(){
+  var rateType=document.getElementById('hwmsInvAirRateType').value;
+  // Recalculate all line item rates based on selected rate type
+  if(!_hwmsLiItems||!_hwmsLiItems.length) return;
+  _hwmsLiItems.forEach(function(item){
+    var part=byId(DB.hwmsParts||[],item.partId);
+    if(!part) return;
+    if(rateType==='basic'){
+      // Customer cost = ex-works rate only (basic rate)
+      item.rate=Math.round((part.exWorksRate||0)*100)/100;
+    } else {
+      // KAP cost = final rate (ex-works + freight + warehouse + icc)
+      item.rate=Math.round((part.finalRate||0)*100)/100;
+    }
+  });
+  if(typeof _hwmsLiRenderTable==='function') _hwmsLiRenderTable();
+}
 function openHwmsInvModal(id){
   try{
     const inv=id?byId(DB.hwmsInvoices||[],id):null;
@@ -14706,8 +14825,14 @@ function openHwmsInvModal(id){
     // Populate consignee, ports, payment, delivery from customer defaults
     _hwmsInvOnBuyerChange();
     // Override with saved invoice values when editing
+    // Auto-set transport mode from current tab
+    var _currentTab=window._hwmsInvTab||'sea';
+    document.getElementById('hwmsInvTransport').value=_currentTab==='air'?'By Air':'By Sea';
+    _hwmsInvTransportChanged();
     if(inv){
       if(inv.modeOfTransport) document.getElementById('hwmsInvTransport').value=inv.modeOfTransport;
+      if(inv.airRateType) document.getElementById('hwmsInvAirRateType').value=inv.airRateType;
+      _hwmsInvTransportChanged();
       if(inv.delivery) document.getElementById('hwmsInvDelivery').value=inv.delivery;
       if(inv.consigneeIdx>=0){var csSel=document.getElementById('hwmsInvConsignee');if(csSel)csSel.value=String(inv.consigneeIdx);}
       if(inv.portOfLoadingId){var plS=document.getElementById('hwmsInvPortLoad');if(plS)plS.value=inv.portOfLoadingId;}
@@ -14850,6 +14975,7 @@ async function saveHwmsInv(){
     buyerId,buyerName:cust?.customerName||'',
     consigneeIdx,consigneeName:consignee?.name||'',
     modeOfTransport:document.getElementById('hwmsInvTransport').value,
+    airRateType:document.getElementById('hwmsInvTransport').value==='By Air'?(document.getElementById('hwmsInvAirRateType').value||'final'):'',
     portOfLoadingId:plId,portOfLoading:plPort?.name||'',
     portOfDischargeId:pdId,portOfDischarge:pdPort?.name||'',
     countryOfDest:consignee?.country||cust?.country||'',
