@@ -103,7 +103,7 @@ Branch naming convention:
 
 # SECTION P5 — Environment variables and secrets
 # ================================================
-# The Supabase anon key in myApps_Common.js is intentionally public-facing.
+# The Supabase anon key in Common.js is intentionally public-facing.
 # Supabase anon keys are designed to be embedded in client-side code — they are
 # not secrets. Security is enforced by Row Level Security (RLS) policies on
 # the database side, not by hiding the key.
@@ -111,7 +111,7 @@ Branch naming convention:
 # HOWEVER: if a Supabase service_role key is ever added, it MUST be treated as
 # a secret and never committed to the repository.
 
-Currently no .env file is needed — all config is in myApps_Common.js:
+Currently no .env file is needed — all config is in Common.js:
   SUPABASE_URL  = https://ehzfknwkerafblnibhps.supabase.co  (public, safe to commit)
   SUPABASE_KEY  = anon/public key (public, safe to commit — see note above)
 
@@ -148,20 +148,20 @@ To open documentation locally: open docs/index.html in any browser.
 Single-page static apps — no server runtime. All logic runs in the browser.
 
   Browser → HTML file (loads Supabase JS from CDN)
-          → myApps_Common.js (shared data layer, Supabase client, utilities)
+          → Common.js (shared data layer, Supabase client, utilities)
           → Supabase REST API → hosted PostgreSQL database
 
 File structure:
   index.html          Portal login + app launcher (navigates to individual apps)
-  myApps_Common.js    Shared foundation: Supabase config, DB helpers, spinner,
+  Common.js    Shared foundation: Supabase config, DB helpers, spinner,
                       user session, Excel/export utilities. Loaded by all modules.
-  myApps_VMS.html     Vehicle Management System — trips, drivers, vehicles, vendors,
+  VMS.html     Vehicle Management System — trips, drivers, vehicles, vendors,
                       locations, trip rates, segments, spot trips
-  myApps_HWMS.html    Hardware/Warehouse Management System — parts, invoices,
+  HWMS.html    Hardware/Warehouse Management System — parts, invoices,
                       containers, HSN codes, UOM, packing, customers, ports,
                       carriers, companies, steel rates, sub-invoices, material
                       requests, payment receipts
-  myApps_Security.html  Security Surveillance — checkpoints, guards, round schedules
+  Security.html  Security Surveillance — checkpoints, guards, round schedules
 
 Supabase tables (prefixed by module):
   vms_*     Vehicle Management tables
@@ -193,12 +193,12 @@ Authentication:
 - GITHUB ISSUES DISABLED: The repo has GitHub Issues turned off. Track work items
   in Section P9 of this file until Issues are enabled.
 
-- SUPABASE ANON KEY IS PUBLIC BY DESIGN: The key in myApps_Common.js is the
+- SUPABASE ANON KEY IS PUBLIC BY DESIGN: The key in Common.js is the
   Supabase anon/public key. This is correct — it is not a secret. Security is
   enforced by Supabase Row Level Security (RLS) rules on the database.
   Never add the service_role key to any client-side file.
 
-- LARGE FILES: myApps_HWMS.html (~1 MB) and myApps_VMS.html (~700 KB) are very
+- LARGE FILES: HWMS.html (~1 MB) and VMS.html (~700 KB) are very
   large single-file apps. Editing them requires care — always read the relevant
   section before making changes.
 

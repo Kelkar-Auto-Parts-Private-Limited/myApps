@@ -32,11 +32,11 @@
   │                      User's Browser                      │
   │                                                           │
   │  index.html          Login portal + app launcher          │
-  │  myApps_VMS.html     Vehicle Management System            │
-  │  myApps_HWMS.html    Hardware/Warehouse Mgmt System       │
-  │  myApps_Security.html  Security Surveillance              │
+  │  VMS.html     Vehicle Management System            │
+  │  HWMS.html    Hardware/Warehouse Mgmt System       │
+  │  Security.html  Security Surveillance              │
   │                                                           │
-  │  myApps_Common.js    Shared: Supabase client, DB helpers, │
+  │  Common.js    Shared: Supabase client, DB helpers, │
   │                       session, spinner, export utilities   │
   └──────────────────────────────┬──────────────────────────┘
                                   │ HTTPS (Supabase REST API)
@@ -53,10 +53,10 @@
     <thead><tr><th>File</th><th>Size</th><th>Purpose</th></tr></thead>
     <tbody>
       <tr><td><code>index.html</code></td><td>~120 KB</td><td>Portal login page and app launcher. Handles authentication, user management, and navigation to the three app modules.</td></tr>
-      <tr><td><code>myApps_Common.js</code></td><td>~118 KB</td><td>Shared JavaScript foundation. Loaded by all modules. Contains: Supabase config and client initialisation, all DB read/write helpers, global spinner, session management, Excel export core.</td></tr>
-      <tr><td><code>myApps_VMS.html</code></td><td>~714 KB</td><td>Vehicle Management System. Self-contained single-page app. Loads <code>myApps_Common.js</code> for the data layer.</td></tr>
-      <tr><td><code>myApps_HWMS.html</code></td><td>~1 MB</td><td>Hardware/Warehouse Management System. Self-contained single-page app. The largest module.</td></tr>
-      <tr><td><code>myApps_Security.html</code></td><td>~88 KB</td><td>Security Surveillance. Self-contained single-page app.</td></tr>
+      <tr><td><code>Common.js</code></td><td>~118 KB</td><td>Shared JavaScript foundation. Loaded by all modules. Contains: Supabase config and client initialisation, all DB read/write helpers, global spinner, session management, Excel export core.</td></tr>
+      <tr><td><code>VMS.html</code></td><td>~714 KB</td><td>Vehicle Management System. Self-contained single-page app. Loads <code>Common.js</code> for the data layer.</td></tr>
+      <tr><td><code>HWMS.html</code></td><td>~1 MB</td><td>Hardware/Warehouse Management System. Self-contained single-page app. The largest module.</td></tr>
+      <tr><td><code>Security.html</code></td><td>~88 KB</td><td>Security Surveillance. Self-contained single-page app.</td></tr>
       <tr><td><code>docs/</code></td><td>—</td><td>Project documentation (this folder).</td></tr>
     </tbody>
   </table>
@@ -124,8 +124,8 @@
   </pre>
   <p><strong>Note:</strong> Supabase Auth is not used. Authentication is custom, using the <code>vms_users</code> table directly. The Supabase anon key is public by design — Row Level Security (RLS) on Supabase enforces data access rules.</p>
 
-  <h2>5. Shared module system (myApps_Common.js)</h2>
-  <p>All HTML modules load <code>myApps_Common.js</code> via a <code>&lt;script&gt;</code> tag. The common file exposes:</p>
+  <h2>5. Shared module system (Common.js)</h2>
+  <p>All HTML modules load <code>Common.js</code> via a <code>&lt;script&gt;</code> tag. The common file exposes:</p>
   <ul>
     <li>Supabase client (<code>_sb</code>) and initialisation logic with CDN retry</li>
     <li>Database helper functions for all CRUD operations</li>

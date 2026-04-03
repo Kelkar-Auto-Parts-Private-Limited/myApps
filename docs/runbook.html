@@ -33,7 +33,7 @@
     <li>Log in with your username and password.</li>
     <li>Click the app tile you want to use (VMS, HWMS, or Security).</li>
   </ol>
-  <p>Each module (<code>myApps_VMS.html</code>, <code>myApps_HWMS.html</code>, <code>myApps_Security.html</code>) can also be opened directly in a browser if you already know the URL.</p>
+  <p>Each module (<code>VMS.html</code>, <code>HWMS.html</code>, <code>Security.html</code>) can also be opened directly in a browser if you already know the URL.</p>
   <p>The app requires an internet connection to reach Supabase. It will not work offline.</p>
 
   <h2>2. Development workflow</h2>
@@ -44,10 +44,10 @@
     <li>Make your change and save — the browser refreshes automatically.</li>
     <li>Test in the browser before committing.</li>
   </ol>
-  <div class="warn"><strong>Note:</strong> <code>myApps_HWMS.html</code> (~1 MB) and <code>myApps_VMS.html</code> (~714 KB) are very large. Opening them in an editor may be slow. Search for the section you need before scrolling.</div>
+  <div class="warn"><strong>Note:</strong> <code>HWMS.html</code> (~1 MB) and <code>VMS.html</code> (~714 KB) are very large. Opening them in an editor may be slow. Search for the section you need before scrolling.</div>
 
   <h3>2.2 Shared code</h3>
-  <p>Changes to <code>myApps_Common.js</code> affect all four apps. Test all apps after changing it.</p>
+  <p>Changes to <code>Common.js</code> affect all four apps. Test all apps after changing it.</p>
 
   <h2>3. Deployment</h2>
   <h3>3.1 GitHub Pages (current method)</h3>
@@ -82,7 +82,7 @@
   <ul>
     <li>All schema changes (adding columns, tables, indexes) are made via the Supabase Dashboard or SQL Editor.</li>
     <li>There is no migration framework — document any schema changes in the changelog.</li>
-    <li>After a schema change, update <code>myApps_Common.js</code> (SB_TABLES mapping) and any affected HTML files.</li>
+    <li>After a schema change, update <code>Common.js</code> (SB_TABLES mapping) and any affected HTML files.</li>
   </ul>
 
   <h2>5. User management</h2>

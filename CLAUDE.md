@@ -1,7 +1,7 @@
 # Claude Code — Universal Engineering Guidelines
 # ================================================
-# VERSION: 3.0
-# Last updated: [UPDATE WITH DATE]
+# VERSION: 4.0
+# Last updated: 2026-04-03
 #
 # PURPOSE OF THIS FILE:
 # This file is automatically read by Claude Code at the start of every session.
@@ -28,6 +28,7 @@
 #   Section 7  — Testing standards
 #   Section 8  — Git and branch workflow
 #   Section 9  — Things to never do
+#   Section 10 — Code organisation standards
 # ================================================
 
 
@@ -586,6 +587,67 @@ Always create a tag before making large or risky changes.
 ---
 
 
+# SECTION 10 — Code organisation standards
+# ==========================================
+# These standards apply when starting a new project or when reviewing an
+# existing codebase for the first time. Proactively identify and fix
+# organisation problems — do not wait to be asked.
+
+## 10.1 — Separate HTML, CSS, and JavaScript into distinct files
+# Why: Mixing all three in a single HTML file makes it impossible to navigate,
+# diff, or reason about. A 10,000-line HTML file that is 85% JavaScript
+# is not maintainable by any person or tool.
+#
+# Rule: No HTML file should contain a <script> block with more than ~20 lines
+# of logic. All application JavaScript belongs in .js files.
+# No HTML file should contain a <style> block with more than ~30 lines.
+# Shared styles belong in a .css file.
+#
+# How to fix an existing codebase (do these in order, one phase per session):
+#
+#   Phase 1 — Extract inline JS
+#   Each HTML file's <script> block(s) become a dedicated .js file.
+#   The HTML keeps only: CDN <script> tags + <script src="app.js">.
+#   No logic changes — pure extract. Risk: low.
+#
+#   Phase 2 — Extract shared CSS
+#   Identify CSS classes that appear identically in 2+ HTML files.
+#   Move them to a shared .css file loaded via <link rel="stylesheet">.
+#   Each HTML file keeps only its own :root variables and unique classes.
+#   Risk: medium — test all pages visually after this step.
+#
+#   Phase 3 — Split large JS files into focused modules
+#   A JS file over ~500 lines likely has multiple logical concerns.
+#   Split by responsibility (constants, data layer, auth, UI helpers, export, etc.).
+#   All files share the same global scope — load order must match dependencies.
+#   Risk: high — verify load order carefully, test all pages after.
+
+## 10.2 — File naming: no redundant prefixes
+# Why: Prefixes like "myApp_VMS.html" are redundant when the folder already
+# provides context. They make file names harder to read and type.
+#
+# Rule: Name files by what they ARE, not by what project they belong to.
+# Good: VMS.html, Common.js, Shared.css
+# Bad:  myApp_VMS.html, myApp_Common.js, myApp_Shared.css
+
+## 10.3 — When to proactively suggest a code organisation review
+# At the start of a new session, if you observe any of these in the codebase:
+#   - An HTML file over 500 lines
+#   - A JS file over 800 lines
+#   - CSS classes duplicated across 2+ files
+#   - File names with redundant prefixes
+#
+# Say: "I notice [specific problem]. This will make future changes harder.
+#       Would you like me to refactor this before we start the new feature?
+#       It will take one session and make everything easier after."
+#
+# Always get explicit approval before starting a refactor — even a low-risk one.
+# Never refactor and add a feature in the same commit.
+
+
+---
+
+
 # END OF CLAUDE.md
 # =================
 # This file defines universal engineering standards.
@@ -599,5 +661,7 @@ Always create a tag before making large or risky changes.
 #   v2.0 — added GitHub Issues workflow, section numbers, verbose comments
 #   v3.0 — made fully generic (no project-specific language), introduced
 #           PROJECT.md separation, switched documentation format to HTML
+#   v4.0 — added Section 10: code organisation standards (separate HTML/CSS/JS,
+#           no redundant file name prefixes, when to suggest a refactor)
 #
-# Last reviewed: [UPDATE WITH DATE]
+# Last reviewed: 2026-04-03

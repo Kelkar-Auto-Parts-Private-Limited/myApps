@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// myApps_Common.js — Shared foundation for all KAP myApps modules
+// Common.js — Shared foundation for all KAP myApps modules
 // Contains: Supabase config, data layer, constants, utilities, Excel core
-// Loaded by: myApps_Portal.html, myApps_VMS.html (myApps_V17), myApps_HWMS.html
+// Loaded by: Portal.html, VMS.html (V17), HWMS.html
 // ═══════════════════════════════════════════════════════════════════════════════
 const _COMMON_LOADED = true;
 
