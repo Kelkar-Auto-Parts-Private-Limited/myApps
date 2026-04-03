@@ -1907,6 +1907,8 @@ async function _demandLoad(tables){
     _loadedTables[r.tbl]=true;
   });
   console.log('📦 Demand loaded: '+needed.join(', '));
+  // Update badges immediately after demand load
+  try{if(typeof updBadges==='function') updBadges();}catch(e){}
 }
 
 function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t){return _loadedTables[t];});}
@@ -2058,7 +2060,7 @@ function _vmsIncrSyncHot(){
     results.filter(Boolean).forEach(function(r){_vmsIncr.lastTs[r.tbl]=now;if(!r.rows.length)return;tc+=r.rows.length;
       _syncMergeRows(r.tbl,r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean),false);
     });
-    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');_vmsUpdateSyncTime();if(!_kapPopupOpen)_onRefreshViews();}
+    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');_vmsUpdateSyncTime();try{updBadges();}catch(e){}if(!_kapPopupOpen)_onRefreshViews();}
   }).catch(function(e){console.warn('VMS hot sync error:',e.message);});
 }
 
@@ -2110,6 +2112,8 @@ function _vmsDoFullSync(){
     (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=now;});
     _bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');
     _vmsUpdateSyncTime();
+    // Update badges immediately when data arrives
+    try{updBadges();}catch(e){}
     if(!_kapPopupOpen)_onRefreshViews();
     if(tc>0||trueFull)console.log('📡 VMS '+(trueFull?'true full':'incr full')+' sync: '+tc+' rows');
   }).catch(function(e){console.warn('VMS full sync error:',e.message);});
@@ -2141,9 +2145,10 @@ bootDB=async function(){
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
+            // Immediate full sync — no delay, skip probe for faster data load
             _vmsFullIncr.callCount=4;
-            _vmsIncr.mode='unknown'; _vmsIncr.probed=false;
-            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},3000);
+            _vmsFullIncr.mode='full'; _vmsFullIncr.probed=true;
+            setTimeout(function(){_vmsDoFullSync();},100);
           } else {
             if(typeof _startBgReconnect==='function') _startBgReconnect(true);
           }
@@ -3158,6 +3163,7 @@ function _runInitApp(){
     if(item.sec){const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);}
     else if(hasRole(item.r)||CU.roles.includes('Super Admin')){
       const d=document.createElement('div');d.className='nav-item';d.id='n'+item.id;
+      if(item.id==='MyApps') d.style.cssText='background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border-radius:8px;margin:8px 10px;padding:10px 14px;font-weight:900;font-size:14px;border:none;';
       d.innerHTML=`<span class="nav-icon">${item.i}</span><span class="nav-label">${item.l}</span>`
         +(item.badge?`<span class="nav-badge" id="${item.badge}"></span>`:'')
         +(item.cid?`<span class="nav-count" id="${item.cid}">0</span>`:'');

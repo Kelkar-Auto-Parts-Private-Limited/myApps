@@ -847,7 +847,7 @@ async function bootDB(){
           return {tbl, rows: data||[]};
         }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
-      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },15000));
+      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },8000));
       const raceResult = await Promise.race([_sbFetch, _sbTimeout]);
       if(raceResult==='timeout'){
         // Some tables may have loaded — proceed with what we have, sync rest in background
