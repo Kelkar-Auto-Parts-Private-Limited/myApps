@@ -312,6 +312,8 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
           <div id="hwmsInvStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div id="hwmsInvButtons" style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
             <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8">📥 Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700">✕ Cancel</button>
             <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsInvImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add MI</button>
@@ -1014,7 +1016,7 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
             <div id="hwmsPayImportPreview"></div>
           </div>
           <!-- Step 2: Match -->
-          <div id="hwmsPayImportStep2" style="display:none;overflow:visible">
+          <div id="hwmsPayImportStep2" style="display:none;overflow:auto;max-height:calc(100vh - 60px)">
             <div id="hwmsPayImportErr" style="font-size:12px;font-weight:600;color:var(--red);display:none;margin-bottom:8px"></div>
             <div id="hwmsPayImportMatchBody" style="overflow:visible"></div>
           </div>
@@ -2069,7 +2071,7 @@ async function _hwmsImportInvoices(rows){
     grouped[invNum].lineItems.push({
       partId:part?.id||'',palletNumber:(r['Pallet']||'').toString().trim(),
       poNumber:(r['PO No.']||'').toString().trim(),quantity:parseInt(r['Qty'])||0,
-      uom:(r['UOM']||'').toString().trim()||(part?.uom||''),rate:parseFloat(r['Rate'])||0,
+      uom:(r['UOM']||'').toString().trim()||(part?.uom||''),rate:Math.round((parseFloat(r['Rate'])||0)*100)/100,
       netWeight:parseFloat(r['Net Wt'])||0,pkgWeight:parseFloat(r['Pkg Wt'])||0,grossWeight:parseFloat(r['Gross Wt'])||0,
       packageType:(r['Package']||'').toString().trim(),hsnCode:(r['HSN']||'').toString().trim(),
       pkgL:(r['L']||'').toString().trim(),pkgW:(r['W']||'').toString().trim(),pkgH:(r['H']||'').toString().trim()
@@ -2662,6 +2664,10 @@ async function _hwmsBoot(){
             if(!document.querySelector('.modal-overlay.open')){
               if(pid==='pageHwmsPayments'){
                 // Skip auto-refresh for payments — preserves scroll, checkboxes, expanded state
+              } else if(pid==='pageHwmsInvoices'&&document.querySelectorAll('.hwmsInvChk:checked').length>0){
+                // Skip — checkboxes selected on MI page
+              } else if(pid==='pageHwmsSubInvoices'&&document.querySelectorAll('.hwmsSiCb:checked').length>0){
+                // Skip — checkboxes selected on SI page
               } else if(pid==='pageHwmsInvoices'||pid==='pageHwmsContainers'||pid==='pageHwmsSubInvoices'||pid==='pageHwmsMR'||pid==='pageHwmsInventory'||pid==='pageHwmsParts'||pid==='pageHwmsDashboard'){
                 hwmsGo(pid);
               }
@@ -3644,7 +3650,7 @@ async function _hwmsSyncPartToInvoices(partId){
       if(part.uom&&li.uom!==(part.uom||'')){li.uom=part.uom;changed=true;}
       if(part.packingType&&li.packageType!==(part.packingType||'')){li.packageType=part.packingType;changed=true;}
       // Rate
-      if(part.finalRate){var newRate=part.finalRate;if(li.rate!==newRate){li.rate=newRate;changed=true;}}
+      if(part.finalRate){var newRate=Math.round(part.finalRate*100)/100;if(li.rate!==newRate){li.rate=newRate;changed=true;}}
       // Dimensions
       if(pkgL){
         if((li.pkgL||'')!==pkgL){li.pkgL=pkgL;changed=true;}
@@ -5711,6 +5717,7 @@ function renderHwmsSubInvoices(){
     +(_siShowAmts?'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>':'')
     +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +'<button id="hwmsSiDelBtn" onclick="_hwmsSiBulkDel()" style="display:none;padding:5px 14px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer">🗑 Delete <span id="hwmsSiDelCount2"></span></button>'
+    +'<button id="hwmsSiDlBtn" onclick="_hwmsSiDownloadSelected()" style="display:none;padding:5px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📥 Download SI Data (<span id="hwmsSiDlCount">0</span>)</button>'
     +'<button id="hwmsSiCancelSelBtn" onclick="_hwmsSiClearSel()" style="display:none;padding:5px 12px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">✕ Cancel</button>'
     +(_hwmsCan('si.export')?'<button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>':'')
     +(_hwmsCan('si.import')?'<label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>':'')
@@ -5718,8 +5725,9 @@ function renderHwmsSubInvoices(){
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
   var isSA=_hwmsIsSA();
+  var isAdmin=isSA||(CU&&CU.hwmsRoles&&CU.hwmsRoles.includes('HWMS Admin'));
   var selAllTh=document.getElementById('hwmsSiSelectAllTh');
-  if(selAllTh) selAllTh.style.display=isSA?'table-cell':'none';
+  if(selAllTh) selAllTh.style.display=isAdmin?'table-cell':'none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
   if(!rows.length){body.innerHTML='<tr><td colspan="'+(isSA?13:12)+'" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   var _siCursor=_siShowAmts?'cursor:pointer':'cursor:default';
@@ -5741,7 +5749,7 @@ function renderHwmsSubInvoices(){
     var siRcvd=_hwmsSiTotalRcvd(si);
     var siBal=totalAmt-siRcvd;
     return '<tr style="'+_siCursor+'" onclick="_hwmsSiRowClick(event,\''+si.id+'\')">'
-      +(isSA?'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>':'')
+      +(isAdmin?'<td style="text-align:center" onclick="event.stopPropagation()"><input type="checkbox" class="hwmsSiCb" data-id="'+si.id+'" onchange="_hwmsSiSelChange()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></td>':'')
       +'<td style="text-align:center;padding:2px 4px" onclick="event.stopPropagation()"><button onclick="_hwmsSiPreviewPopup(\''+si.id+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="Print Preview">🖨️</button></td>'
       +'<td style="font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap">'+fd2(si.date)+'</td>'
       +'<td><div style="font-family:var(--inv-mono);font-size:14px"><span style="font-weight:400">'+(si.subInvoiceNumber||'').substring(0,4)+'</span><span style="font-weight:700">'+(si.subInvoiceNumber||'').substring(4,9)+'</span><span style="font-weight:700;color:#2563eb">'+(si.subInvoiceNumber||'').substring(9)+'</span></div></td>'
@@ -5884,11 +5892,20 @@ function showHwmsSiDetail(id){
     var _vouchersForLi=[];
     (DB.hwmsPaymentReceipts||[]).forEach(function(pr){
       if(pr.status!=='Posted'||pr._deleted) return;
+      // Find PLI number for this SLI line
+      var pliNum='';
+      (pr.lineItems||[]).forEach(function(li,liIdx){
+        (li.matchedSlis||[]).forEach(function(ms){
+          if(ms.siId===si.id&&(ms.partNumber||'').toUpperCase()===(l.partNumber||'').toUpperCase()&&(ms.palletNumber||'')===(l.palletNumber||'')){
+            pliNum=li.pliNumber||String(liIdx+1);
+          }
+        });
+      });
       (pr.siUpdates||[]).forEach(function(su){
         if(su.siId!==si.id) return;
         (su.lines||[]).forEach(function(pl){
           if((pl.partNumber||'').toUpperCase()===(l.partNumber||'').toUpperCase()&&(pl.palletNumber||'')===(l.palletNumber||'')){
-            _vouchersForLi.push({payNum:pr.paymentNumber,payDate:pr.paymentDate,amt:pl.payAmt||0});
+            _vouchersForLi.push({prId:pr.id,payNum:pr.paymentNumber,payDate:pr.paymentDate,amt:pl.payAmt||0,pliNum:pliNum});
           }
         });
       });
@@ -5898,10 +5915,11 @@ function showHwmsSiDetail(id){
       h+='<span onclick="event.stopPropagation();var el=document.getElementById(\''+_liVId+'\');el.style.display=el.style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted">'+fAmt(liRcvd)+'</span>';
       h+='<div id="'+_liVId+'" style="display:none;margin-top:4px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:6px 8px;text-align:left">';
       _vouchersForLi.forEach(function(v){
-        h+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;border-bottom:1px solid #dcfce7">'
-          +'<span style="font-weight:700;color:#7c3aed">'+v.payNum+'</span>'
-          +'<span style="color:var(--text3)">'+fd2(v.payDate)+'</span>'
-          +'<span style="font-weight:800;color:#16a34a">'+fAmt(v.amt)+'</span>'
+        h+='<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;border-bottom:1px solid #dcfce7">'
+          +'<span style="font-weight:800;color:#7c3aed">'+v.payNum+'</span>'
+          +'<span style="font-size:9px;font-weight:700;color:#fff;background:#7c3aed;padding:1px 5px;border-radius:3px">PLI-'+v.pliNum+'</span>'
+          +'<span style="color:var(--text3);flex:1;text-align:right">'+fd2(v.payDate)+'</span>'
+          +'<span style="font-weight:800;color:#16a34a;min-width:60px;text-align:right">'+fAmt(v.amt)+'</span>'
           +'</div>';
       });
       h+='</div>';
@@ -6258,13 +6276,23 @@ function _hwmsSiSelChange(){
   var delBtn=document.getElementById('hwmsSiDelBtn');
   var delCount2=document.getElementById('hwmsSiDelCount2');
   var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');
+  var dlBtn=document.getElementById('hwmsSiDlBtn');
+  var dlCount=document.getElementById('hwmsSiDlCount');
   var isSA=_hwmsIsSA();
   if(cbs.length>0&&isSA){
     if(delBtn){delBtn.style.display='';if(delCount2)delCount2.textContent='('+cbs.length+')';}
     if(cancelBtn) cancelBtn.style.display='';
   } else {
     if(delBtn) delBtn.style.display='none';
-    if(cancelBtn) cancelBtn.style.display='none';
+    if(cbs.length===0&&cancelBtn) cancelBtn.style.display='none';
+  }
+  // Download button — show for any user with selections
+  if(cbs.length>0){
+    if(dlBtn) dlBtn.style.display='';
+    if(dlCount) dlCount.textContent=cbs.length;
+    if(cancelBtn) cancelBtn.style.display='';
+  } else {
+    if(dlBtn) dlBtn.style.display='none';
   }
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsSiCb');
@@ -6275,7 +6303,35 @@ function _hwmsSiClearSel(){
   document.querySelectorAll('.hwmsSiCb').forEach(function(cb){cb.checked=false;});
   var selAll=document.getElementById('hwmsSiSelectAll');if(selAll)selAll.checked=false;
   var delBtn=document.getElementById('hwmsSiDelBtn');if(delBtn)delBtn.style.display='none';
+  var dlBtn=document.getElementById('hwmsSiDlBtn');if(dlBtn)dlBtn.style.display='none';
   var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');if(cancelBtn)cancelBtn.style.display='none';
+}
+function _hwmsSiDownloadSelected(){
+  var checked=document.querySelectorAll('.hwmsSiCb:checked');
+  if(!checked.length){notify('No sub-invoices selected',true);return;}
+  var ids=[];
+  checked.forEach(function(cb){ids.push(cb.getAttribute('data-id'));});
+  var headers=['MI Number','Part Number','SI Number','SI Date','Pallet','PO Number','Final Rate','Qty','Line Amount'];
+  var rows=[];
+  var fd2=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();};
+  ids.forEach(function(id){
+    var si=byId(DB.hwmsSubInvoices||[],id);
+    if(!si) return;
+    var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
+    var miNum=inv?inv.invoiceNumber||'':'';
+    var siNum=si.subInvoiceNumber||'';
+    var siDate=fd2(si.date);
+    var lis=(si.lineItems||[]).filter(function(l){return !l._mrMeta;});
+    lis.forEach(function(li){
+      var rate=Math.round((li.rate||0)*100)/100;
+      var qty=li.quantity||0;
+      var amt=Math.round(qty*rate*100)/100;
+      rows.push([miNum,li.partNumber||'',siNum,siDate,li.palletNumber||'',li.poNumber||'',rate,qty,amt]);
+    });
+  });
+  if(!rows.length){notify('No line items found',true);return;}
+  _downloadAsXlsx([headers].concat(rows),'SI Data','HWMS_SI_Data.xlsx');
+  notify('📥 Downloaded '+ids.length+' SI(s) — '+rows.length+' line items');
 }
 async function _hwmsSiBulkDel(){
   if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete',true);return;}
@@ -9411,7 +9467,7 @@ function renderHwmsInvoices(){
   _hwmsInvNavList=invs.map(function(inv){return inv.id;});
   // Calculate totals for filtered invoices
   var grandTotalAmt=0,grandTotalGrossWt=0;
-  var _invSA=_hwmsIsSA();
+  var _invSA=_hwmsIsSA()||(CU&&CU.hwmsRoles&&CU.hwmsRoles.includes('HWMS Admin'));
   // Pre-compute sub-invoice amounts per invoiceId
   var siAmtByInv={};
   (DB.hwmsSubInvoices||[]).forEach(function(si){
@@ -9529,10 +9585,57 @@ function _hwmsInvUpdateDelBtn(){
   var cntEl=document.getElementById('hwmsInvDelCount');
   if(btn) btn.style.display=(count>0&&_hwmsIsSA())?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
+  // Download + Cancel buttons
+  var dlBtn=document.getElementById('btnHwmsInvDownloadSel');
+  var dlCnt=document.getElementById('hwmsInvDlCount');
+  var cancelBtn=document.getElementById('btnHwmsInvCancelSel');
+  if(dlBtn) dlBtn.style.display=count>0?'inline-flex':'none';
+  if(dlCnt) dlCnt.textContent=count;
+  if(cancelBtn) cancelBtn.style.display=count>0?'inline-flex':'none';
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsInvChk');
   var selAll=document.getElementById('hwmsInvSelectAll');
   if(selAll) selAll.checked=all.length>0&&count===all.length;
+}
+function _hwmsInvClearSel(){
+  document.querySelectorAll('.hwmsInvChk').forEach(function(cb){cb.checked=false;});
+  var selAll=document.getElementById('hwmsInvSelectAll');if(selAll)selAll.checked=false;
+  _hwmsInvUpdateDelBtn();
+}
+function _hwmsInvDownloadSelected(){
+  var checked=document.querySelectorAll('.hwmsInvChk:checked');
+  if(!checked.length){notify('No invoices selected',true);return;}
+  var ids=[];
+  checked.forEach(function(cb){ids.push(cb.value||cb.getAttribute('data-id'));});
+  var headers=['Container No.','MI No.','MI Date','Pallet No.','Part Number','Part Description','Qty','Ex-Works Rate','Ex-Works Amount','Freight','Warehouse','ICC','Final Rate','Line Amount'];
+  var rows=[];
+  var fd2=function(d){if(!d)return'';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear();};
+  ids.forEach(function(id){
+    var inv=byId(DB.hwmsInvoices||[],id);
+    if(!inv) return;
+    var cont=byId(DB.hwmsContainers||[],inv.containerId);
+    var contNum=cont?cont.containerNumber||'':'';
+    var miNum=inv.invoiceNumber||'';
+    var miDate=fd2(inv.date);
+    var lis=(inv.lineItems||[]).filter(function(li){return !li._meta;});
+    lis.forEach(function(li,idx){
+      var part=byId(DB.hwmsParts||[],li.partId);
+      var pn=part?part.partNumber||'':'';
+      var desc=part?part.description||'':'';
+      var qty=li.quantity||0;
+      var exWorks=part?part.exWorksRate||0:0;
+      var freight=part?part.freight||0:0;
+      var warehouse=part?part.warehouseCost||0:0;
+      var icc=part?part.iccCost||0:0;
+      var finalRate=li.rate||0;
+      var exWorksAmt=Math.round(qty*exWorks*100)/100;
+      var lineAmt=Math.round(qty*finalRate*100)/100;
+      rows.push([contNum,miNum,miDate,li.palletNumber||'P'+(idx+1),pn,desc,qty,Math.round(exWorks*100)/100,exWorksAmt,Math.round(freight*100)/100,Math.round(warehouse*100)/100,Math.round(icc*100)/100,Math.round(finalRate*100)/100,lineAmt]);
+    });
+  });
+  if(!rows.length){notify('No line items found',true);return;}
+  _downloadAsXlsx([headers].concat(rows),'MI Data','HWMS_MI_Data.xlsx');
+  notify('📥 Downloaded '+ids.length+' MI(s) — '+rows.length+' line items');
 }
 async function _hwmsInvDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsInvChk:checked')];
@@ -10478,65 +10581,83 @@ function renderHwmsPayments(){
     // Action buttons
     h+='<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
     h+='<label style="display:inline-block;padding:10px 20px;font-size:13px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#6366f1);border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(124,58,237,0.3)">📥 Import Payment<input type="file" id="hwmsPayImportFileDirect" accept=".xlsx,.xls,.csv" onchange="_hwmsPayImportDirect(this)" style="display:none"></label>';
-    h+='<button onclick="_hwmsPayPostAllUnposted()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#16a34a;border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(22,163,74,0.3)">💳 Post All Unposted</button>';
-    h+='<button onclick="_hwmsPayUnpostAll()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,0.3)">↩ Unpost All</button>';
+    h+='<button onclick="_hwmsRepairMinorBalances()" style="padding:10px 16px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fde047;color:#92400e;border-radius:8px;cursor:pointer">🔧 Knockoff ±$1 Balances</button>';
     h+='<button onclick="_hwmsPayImportTemplate()" style="padding:10px 16px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:8px;cursor:pointer">📄 Download Template</button>';
     h+='</div>';
 
     // Payment Receipts Table
     var receipts=(DB.hwmsPaymentReceipts||[]).filter(function(r){return !r._deleted;});
+    // Compute sort fields for each receipt
+    receipts.forEach(function(pr){
+      var ma=0,ua=0;
+      (pr.lineItems||[]).forEach(function(li){
+        var ms=li.matchedSlis||[];var mAmt=ms.reduce(function(s,m){return s+(m.amount||0);},0);
+        if(ms.length>0){ma+=mAmt;}else{ua+=(li.amount||0);}
+      });
+      pr._matchedAmt=Math.round(ma*100)/100;
+      pr._unmatchedAmt=Math.round(ua*100)/100;
+      pr._diff=Math.round(((pr.totalAmount||0)-ma)*100)/100;
+      pr._suspense=0;
+      (pr.lineItems||[]).forEach(function(li){var ms=li.matchedSlis||[];if(ms.length>0){var d=li.amount-ms.reduce(function(s,m){return s+(m.amount||0);},0);if(Math.abs(d)>0.01)pr._suspense+=d;}});
+      pr._suspense=Math.round(pr._suspense*100)/100;
+    });
     var _sk=_hwmsPaySortKey,_sa=_hwmsPaySortAsc;
+    var _numKeys={totalAmount:1,_matchedAmt:1,_unmatchedAmt:1,_diff:1,_suspense:1};
     receipts.sort(function(a,b){
       var av=a[_sk]||'',bv=b[_sk]||'';
-      if(typeof av==='number'||_sk==='totalAmount'){av=parseFloat(av)||0;bv=parseFloat(bv)||0;return _sa?av-bv:bv-av;}
+      if(_numKeys[_sk]){av=parseFloat(av)||0;bv=parseFloat(bv)||0;return _sa?av-bv:bv-av;}
       av=String(av).toLowerCase();bv=String(bv).toLowerCase();
       return _sa?av.localeCompare(bv):bv.localeCompare(av);
     });
     // Search filter
     var _paySearch=(document.getElementById('hwmsPaySearch')?.value||'').trim().toLowerCase();
     window._hwmsPaySearchVal=_paySearch;
+    var _totalBeforeSearch=receipts.length;
     if(_paySearch) receipts=receipts.filter(function(pr){return(pr.paymentNumber||'').toLowerCase().indexOf(_paySearch)>=0;});
-    if(!receipts.length){
+    if(!_totalBeforeSearch){
       h+='<div style="padding:30px;text-align:center;color:var(--text3);background:var(--surface2);border-radius:8px"><div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:13px">No payment receipts yet</div><div style="font-size:11px;margin-top:4px">Click "Import Payment" to upload a payment file</div></div>';
     } else {
       h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #7c3aed">';
       h+='<div style="font-size:14px;font-weight:900;color:var(--text)">📄 Payment Receipts ('+receipts.length+')</div>';
       h+='<div style="display:flex;gap:6px;align-items:center">';
-      h+='<input type="text" id="hwmsPaySearch" placeholder="🔍 Search Payment #..." oninput="renderHwmsPayments()" style="font-size:12px;padding:6px 12px;border:1.5px solid #7c3aed;border-radius:6px;font-family:var(--mono);font-weight:700;width:200px"'+(window._hwmsPaySearchVal?' value="'+window._hwmsPaySearchVal+'"':'')+'>';
       h+='<button id="hwmsPayDelSelBtn" onclick="_hwmsPayDeleteSelected()" style="display:none;padding:6px 14px;font-size:11px;font-weight:800;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🗑 Delete Selected (<span id="hwmsPayDelSelCount">0</span>)</button>';
       h+='</div></div>';
       h+='<div class="table-wrap" style="max-height:calc(100vh - 280px)"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#faf5ff;position:sticky;top:0;z-index:1">'
         +'<th style="padding:8px 6px;text-align:center;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;width:30px"><input type="checkbox" onchange="_hwmsPayToggleAll(this)" style="width:14px;height:14px;cursor:pointer;accent-color:#7c3aed"></th>'
-        +'<th style="padding:8px 10px;text-align:left;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'paymentNumber\')">Payment # '+_hwmsPaySortIcon('paymentNumber')+'</th>'
+        +'<th style="padding:4px 10px;text-align:left;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;vertical-align:top"><div style="cursor:pointer;margin-bottom:3px" onclick="_hwmsPaySort(\'paymentNumber\')">Payment # '+_hwmsPaySortIcon('paymentNumber')+'</div><div style="position:relative"><input type="text" id="hwmsPaySearch" placeholder="🔍 Search..." onfocus="window._hwmsPaySearchFocused=true" onblur="window._hwmsPaySearchFocused=false" oninput="window._hwmsPaySearchFocused=true;renderHwmsPayments()" style="font-size:11px;padding:4px 22px 4px 6px;border:1.5px solid #7c3aed;border-radius:4px;font-family:var(--mono);font-weight:700;width:100%;box-sizing:border-box"'+(window._hwmsPaySearchVal?' value="'+window._hwmsPaySearchVal+'"':'')+'><button type="button" onclick="document.getElementById(\'hwmsPaySearch\').value=\'\';window._hwmsPaySearchVal=\'\';window._hwmsPaySearchFocused=true;renderHwmsPayments()" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:12px;color:#7c3aed;padding:0 4px;display:'+(window._hwmsPaySearchVal?'block':'none')+'">✕</button></div></th>'
         +'<th style="padding:8px 8px;text-align:left;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'paymentDate\')">Date '+_hwmsPaySortIcon('paymentDate')+'</th>'
         +'<th style="padding:8px 8px;text-align:center;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'status\')">Status '+_hwmsPaySortIcon('status')+'</th>'
         +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'totalAmount\')">PLI Amt (Count) '+_hwmsPaySortIcon('totalAmount')+'</th>'
-        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800">Matched (Count)</th>'
-        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800">Unmatched (Count)</th>'
-        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800">Difference</th>'
-        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800">R/O</th>'
+        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'_matchedAmt\')">Matched (Count) '+_hwmsPaySortIcon('_matchedAmt')+'</th>'
+        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'_unmatchedAmt\')">Unmatched (Count) '+_hwmsPaySortIcon('_unmatchedAmt')+'</th>'
+        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'_diff\')">Difference '+_hwmsPaySortIcon('_diff')+'</th>'
+        +'<th style="padding:8px 8px;text-align:right;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800;cursor:pointer" onclick="_hwmsPaySort(\'_suspense\')">Suspense '+_hwmsPaySortIcon('_suspense')+'</th>'
         +'<th style="padding:8px 8px;text-align:center;font-size:10px;border-bottom:2px solid #7c3aed;font-weight:800">Actions</th>'
         +'</tr></thead><tbody>';
       if(!window._hwmsPayExpanded) window._hwmsPayExpanded={};
+      if(!receipts.length){
+        h+='<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3);font-size:13px">No matching payment vouchers found</td></tr>';
+        h+='</tbody></table></div>';
+      } else {
       var _gtPliAmt=0,_gtPliCount=0,_gtMatchedAmt=0,_gtMatchedCount=0,_gtUnmatchedAmt=0,_gtUnmatchedCount=0,_gtRoundingOff=0,_gtDiff=0;
       receipts.forEach(function(pr){
         var pliCount=(pr.lineItems||[]).length;
         var isExp=window._hwmsPayExpanded[pr.id]===true;
         // Compute matching summary from line items
-        var _prMatchedAmt=0,_prMatchedCount=0,_prUnmatchedAmt=0,_prUnmatchedCount=0,_prRoundingOff=0;
+        var _prMatchedAmt=0,_prMatchedCount=0,_prUnmatchedAmt=0,_prUnmatchedCount=0,_prSuspense=0;
         (pr.lineItems||[]).forEach(function(li){
           var mSlis=li.matchedSlis||[];
           var mAmt=mSlis.reduce(function(s,m){return s+(m.amount||0);},0);
           if(mSlis.length>0){
             _prMatchedAmt+=mAmt;_prMatchedCount++;
-            var ro=li.amount-mAmt;
-            if(Math.abs(ro)>0.01&&Math.abs(ro)<=5) _prRoundingOff+=ro;
+            var suspAmt=li.amount-mAmt;
+            if(Math.abs(suspAmt)>0.01) _prSuspense+=suspAmt;
           } else {
             _prUnmatchedAmt+=li.amount||0;_prUnmatchedCount++;
           }
         });
-        _prRoundingOff=Math.round(_prRoundingOff*100)/100;
-        _gtPliAmt+=(pr.totalAmount||0);_gtPliCount+=pliCount;_gtMatchedAmt+=_prMatchedAmt;_gtMatchedCount+=_prMatchedCount;_gtUnmatchedAmt+=_prUnmatchedAmt;_gtUnmatchedCount+=_prUnmatchedCount;_gtRoundingOff+=_prRoundingOff;_gtDiff+=((pr.totalAmount||0)-_prMatchedAmt);
+        _prSuspense=Math.round(_prSuspense*100)/100;
+        _gtPliAmt+=(pr.totalAmount||0);_gtPliCount+=pliCount;_gtMatchedAmt+=_prMatchedAmt;_gtMatchedCount+=_prMatchedCount;_gtUnmatchedAmt+=_prUnmatchedAmt;_gtUnmatchedCount+=_prUnmatchedCount;_gtRoundingOff+=_prSuspense;_gtDiff+=((pr.totalAmount||0)-_prMatchedAmt);
         // Determine display status: Unposted / Partially Posted / Posted
         var displayStatus;
         if(pr.status==='Posted'&&_prUnmatchedCount===0) displayStatus='Posted';
@@ -10556,7 +10677,7 @@ function renderHwmsPayments(){
           +'<td style="padding:8px 8px;text-align:right"><span style="font-family:var(--mono);font-weight:800;color:'+(_prUnmatchedCount>0?'#dc2626':'var(--text3)')+';font-size:13px">'+fAmt2(_prUnmatchedAmt)+'</span><span style="font-size:10px;color:var(--text3);margin-left:4px">('+_prUnmatchedCount+')</span></td>';
         var _prDiff=(pr.totalAmount||0)-_prMatchedAmt;
         h+='<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:13px;font-weight:800;color:'+(Math.abs(_prDiff)>0.01?'#dc2626':'#16a34a')+'">'+fAmt2(_prDiff)+'</td>'
-          +'<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:700;color:'+(Math.abs(_prRoundingOff)>0.01?'#a16207':'var(--text3)')+'">'+(_prRoundingOff?fAmt2(_prRoundingOff):'—')+'</td>'
+          +'<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:700;color:'+(Math.abs(_prSuspense)>0.01?'#1d4ed8':'var(--text3)')+'">'+(_prSuspense?fAmt2(_prSuspense):'—')+'</td>'
           +'<td style="padding:8px 8px;text-align:center;white-space:nowrap" onclick="event.stopPropagation()">'
           +'<button onclick="_hwmsPayReceiptEdit(\''+pr.id+'\')" style="padding:4px 10px;font-size:11px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:4px;cursor:pointer;margin-right:3px">✏️ Edit</button>'
           +(displayStatus!=='Posted'?'<button onclick="_hwmsPayDirectPost(\''+pr.id+'\')" style="padding:4px 10px;font-size:11px;font-weight:700;background:#16a34a;border:none;color:#fff;border-radius:4px;cursor:pointer">Post</button>':'')
@@ -10613,10 +10734,11 @@ function renderHwmsPayments(){
         +'<td style="padding:8px 8px;text-align:right"><span style="font-family:var(--mono);font-weight:900;color:#16a34a;font-size:13px">'+fAmt2(_gtMatchedAmt)+'</span><span style="font-size:10px;color:var(--text3);margin-left:4px">('+_gtMatchedCount+')</span></td>'
         +'<td style="padding:8px 8px;text-align:right"><span style="font-family:var(--mono);font-weight:900;color:'+(_gtUnmatchedCount>0?'#dc2626':'var(--text3)')+';font-size:13px">'+fAmt2(_gtUnmatchedAmt)+'</span><span style="font-size:10px;color:var(--text3);margin-left:4px">('+_gtUnmatchedCount+')</span></td>'
         +'<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:13px;font-weight:900;color:'+(Math.abs(_gtDiff)>0.01?'#dc2626':'#16a34a')+'">'+fAmt2(_gtDiff)+'</td>'
-        +'<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:900;color:'+(Math.abs(_gtRoundingOff)>0.01?'#a16207':'var(--text3)')+'">'+(_gtRoundingOff?fAmt2(_gtRoundingOff):'—')+'</td>'
+        +'<td style="padding:8px 8px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:900;color:'+(Math.abs(_gtRoundingOff)>0.01?'#1d4ed8':'var(--text3)')+'">'+(_gtRoundingOff?fAmt2(_gtRoundingOff):'—')+'</td>'
         +'<td></td>'
         +'</tr>';
       h+='</tbody></table></div>';
+      }// end if receipts.length after search
     }
   }
 
@@ -10798,6 +10920,11 @@ function renderHwmsPayments(){
   }
 
   el.innerHTML=h;
+  // Restore focus to search box if it was recently active
+  if(window._hwmsPaySearchFocused){
+    var _si=document.getElementById('hwmsPaySearch');
+    if(_si){_si.focus();_si.setSelectionRange(_si.value.length,_si.value.length);}
+  }
   }catch(e){console.error('renderHwmsPayments error:',e);var el2=document.getElementById('hwmsPayContent');if(el2)el2.innerHTML='<div style="padding:20px;color:#dc2626;font-weight:700">⚠ Error: '+e.message+'</div>';}
 }
 
@@ -11408,11 +11535,11 @@ function _hwmsPayImportGoMatch(){
     _hwmsPayImportData._consolidated=true;
   }
   rows=_hwmsPayImportData.rows;
-  // Expand all cards on first entry to Step 2
+  // Collapse all cards on first entry to Step 2
   if(!_hwmsPayImportData.expanded) _hwmsPayImportData.expanded={};
   rows.forEach(function(row,rIdx){
     if(_hwmsPayImportData.expanded['r'+rIdx]===undefined){
-      _hwmsPayImportData.expanded['r'+rIdx]=true;// Expand on first entry
+      _hwmsPayImportData.expanded['r'+rIdx]=false;// Collapsed by default
     }
   });
   
@@ -11536,7 +11663,7 @@ function _hwmsPayImportRenderMatch(){
   });
   
   // Calculate totals first for top summary
-  var totalPayAmt=0,totalMatchedAmt=0,totalRoundingOff=0,fullyPaidCount=0,partiallyPaidCount=0,unmatchedCount=0;
+  var totalPayAmt=0,totalMatchedAmt=0,totalSuspense=0,fullyPaidCount=0,partiallyPaidCount=0,unmatchedCount=0;
   rows.forEach(function(row,rIdx){
     totalPayAmt+=row.amount;
     var matchKey='r'+rIdx;
@@ -11544,22 +11671,16 @@ function _hwmsPayImportRenderMatch(){
     var manualAmt=parseFloat(manualAmts[matchKey])||0;
     if(curM.length>0||manualAmt>0){
       var selTotal=curM.reduce(function(sum,m){return sum+(m.liBal||0);},0)+manualAmt;
-      var sliOrigTotal=curM.reduce(function(sum,m){return sum+(m.liAmt||0);},0);
-      var _pr5=row.qty>0?(row.amount/row.qty):0;
-      var _rt5=_pr5<5?0.5:5;
-      var pliMatchesSli2=Math.abs(row.amount-sliOrigTotal)<=_rt5;
       totalMatchedAmt+=selTotal;
-      if(Math.abs(row.amount-selTotal)<=_rt5&&pliMatchesSli2){
-        fullyPaidCount++;
-        // Rounding = PLI amount - total SLI original amount
-        var ro=row.amount-sliOrigTotal;
-        if(Math.abs(ro)>0.01) totalRoundingOff+=ro;
-      } else partiallyPaidCount++;
+      var suspAmt=row.amount-selTotal;
+      if(Math.abs(suspAmt)>0.01) totalSuspense+=suspAmt;
+      if(Math.abs(suspAmt)<0.01) fullyPaidCount++;
+      else partiallyPaidCount++;
     } else {
       unmatchedCount++;
     }
   });
-  totalRoundingOff=Math.round(totalRoundingOff*100)/100;
+  totalSuspense=Math.round(totalSuspense*100)/100;
   var balanceAmt=totalPayAmt-totalMatchedAmt;
   
   // Build HTML - Sticky top: page title + payment info + summary + buttons
@@ -11588,7 +11709,7 @@ function _hwmsPayImportRenderMatch(){
   h+='<div style="text-align:center;flex:1;min-width:80px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Total PLI</div><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+fAmt2(totalPayAmt)+'</div></div>';
   h+='<div style="text-align:center;flex:1;min-width:80px"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase">Matched Amt</div><div style="font-size:18px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+fAmt2(totalMatchedAmt)+'</div></div>';
   h+='<div style="text-align:center;flex:1;min-width:80px"><div style="font-size:10px;font-weight:700;color:'+(Math.abs(balanceAmt)>=1?'#dc2626':'var(--text3)')+';text-transform:uppercase">Difference</div><div style="font-size:18px;font-weight:900;color:'+(Math.abs(balanceAmt)>=1?'#dc2626':'#16a34a')+';font-family:var(--mono)">'+fAmt2(balanceAmt)+'</div></div>';
-  h+='<div style="text-align:center;flex:1;min-width:80px"><div style="font-size:10px;font-weight:700;color:#a16207;text-transform:uppercase">Rounding Off</div><div style="font-size:18px;font-weight:900;color:#a16207;font-family:var(--mono)">'+fAmt2(totalRoundingOff)+'</div></div>';
+  h+='<div style="text-align:center;flex:1;min-width:80px"><div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Suspense</div><div style="font-size:18px;font-weight:900;color:#1d4ed8;font-family:var(--mono)">'+fAmt2(totalSuspense)+'</div></div>';
   h+='<div style="text-align:center;flex:0 0 auto;min-width:60px"><div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase">Fully Paid</div><div style="font-size:18px;font-weight:900;color:#16a34a">'+fullyPaidCount+'</div></div>';
   h+='<div style="text-align:center;flex:0 0 auto;min-width:60px"><div style="font-size:10px;font-weight:700;color:#a16207;text-transform:uppercase">Partial</div><div style="font-size:18px;font-weight:900;color:#a16207">'+partiallyPaidCount+'</div></div>';
   h+='<div style="text-align:center;flex:0 0 auto;min-width:60px"><div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase">Unmatched</div><div style="font-size:18px;font-weight:900;color:#dc2626">'+unmatchedCount+'</div></div>';
@@ -11639,13 +11760,9 @@ function _hwmsPayImportRenderMatch(){
     var hasPartMatch=row.hasPartMatch!==undefined?row.hasPartMatch:(availSlis.length>0);
     
     // Card styling
-    var roundingOff=row._roundingOff||0;
-    // Compare PLI amount vs total SLI original amounts (liAmt) to determine if fully or partially paid
+    // Status: Matched if SLIs selected (balance goes to suspense), Unmatched if none
     var totalSliOrigAmt=currentMatches.reduce(function(s,m){return s+(m.liAmt||0);},0);
-    var _pliRate3=row.qty>0?(row.amount/row.qty):0;
-    var _roTol3=_pliRate3<5?0.5:5;
-    var pliMatchesSli=Math.abs(row.amount-totalSliOrigAmt)<=_roTol3;
-    var isFullyPaid=hasMatches&&Math.abs(diff)<=_roTol3&&pliMatchesSli;
+    var isFullyPaid=hasMatches&&Math.abs(diff)<0.01;// Exact match
     var isPartiallyPaid=hasMatches&&!isFullyPaid;
     var isMatched=isFullyPaid||isPartiallyPaid;
     var borderColor=isFullyPaid?'#16a34a':(isPartiallyPaid?'#f59e0b':(hasPartMatch?'#e2e8f0':'#dc2626'));
@@ -11676,7 +11793,6 @@ function _hwmsPayImportRenderMatch(){
     h+='<div style="padding:6px 8px;font-weight:900;font-size:14px;text-align:right;min-width:45px">'+row.qty+'</div>';
     // Amount
     h+='<div style="padding:6px 10px;font-weight:900;font-size:15px;font-family:var(--mono);text-align:right;min-width:90px">'+fAmt2(row.amount);
-    if(roundingOff) h+='<div style="font-size:9px;font-weight:700;opacity:0.8">R/O: '+fAmt2(roundingOff)+'</div>';
     h+='</div>';
     // Status
     h+='<div style="padding:6px 10px;text-align:center;min-width:90px"><span style="font-size:11px;font-weight:800;padding:2px 8px;border-radius:4px;background:'+statusBg2+';color:'+statusClr+'">'+statusText+'</span></div>';
@@ -11748,18 +11864,24 @@ function _hwmsPayImportRenderMatch(){
         h+='</tr>';
       }
 
-      // Total row
+      // Total row + auto suspense
       if(currentMatches.length>0){
-        var _totalSliOrig=currentMatches.reduce(function(s,m){return s+(m.liAmt||0);},0);
-        var _pr4=row.qty>0?(row.amount/row.qty):0;
-        var _rt4=_pr4<5?0.5:5;
-        var _pliMatchesSli2=Math.abs(row.amount-_totalSliOrig)<=_rt4;
-        var _isFullMatch=Math.abs(diff)<=_rt4&&_pliMatchesSli2;
-        var diffDisplay=_isFullMatch?'Matched & Fully Paid'+(Math.abs(diff)>0.01?' (R/O: '+fAmt2(diff)+')':''):'Partially Paid (Diff: '+fAmt2(diff)+')';
+        var _isFullMatch=Math.abs(diff)<0.01;
+        var diffDisplay=_isFullMatch?'Matched & Fully Paid':'Matched (Bal → Suspense: '+fAmt2(diff)+')';
         var diffColor=_isFullMatch?'#16a34a':'#a16207';
         h+='<tr style="background:#f0fdf4;border-top:1.5px solid #16a34a">';
         h+='<td colspan="6" style="padding:4px 8px;text-align:right;font-weight:800;font-size:11px;color:'+diffColor+'">'+diffDisplay+'</td>';
         h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#16a34a">'+fAmt2(selectedTotal)+'</td>';
+        h+='</tr>';
+        // Auto suspense row — show balance going to suspense account
+        var _suspMode3=(row.mode||'').toLowerCase().indexOf('air')>=0?'air':'sea';
+        var _suspClr3=_suspMode3==='air'?'#6d28d9':'#1d4ed8';
+        var _suspBg3=_suspMode3==='air'?'#ede9fe':'#dbeafe';
+        var _suspLabel3=_suspMode3==='air'?'✈ Suspense — Air':'🚢 Suspense — Sea';
+        var _showSusp3=Math.abs(diff)>0.01&&!_isFullMatch;
+        h+='<tr id="pliSusp_'+rIdx+'" style="background:'+_suspBg3+';border-top:1px solid '+_suspClr3+';'+(_showSusp3?'':'display:none')+'">';
+        h+='<td colspan="6" style="padding:4px 8px;text-align:right;font-weight:800;font-size:11px;color:'+_suspClr3+'">'+_suspLabel3+'</td>';
+        h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+_suspClr3+'">'+fAmt2(diff)+'</td>';
         h+='</tr>';
       }
 
@@ -11910,7 +12032,55 @@ function _hwmsPayEditMatchAmt(rowIdx,siId,partNum,palletNum,newVal){
     m.liBal=Math.round(newAmt*100)/100;
     m._partial=Math.round(newAmt*100)<Math.round((m.liAmt||0)*100);
   }
-  _hwmsPayImportRenderMatch();
+  // Live update totals without full re-render (preserves input focus)
+  var row=_hwmsPayImportData.rows[rowIdx];
+  var manualAmt=parseFloat((_hwmsPayImportData.manualAmts||{})[matchKey])||0;
+  var selectedTotal=arr.reduce(function(s,m2){return s+(m2.liBal||0);},0)+manualAmt;
+  var diff=row.amount-selectedTotal;
+  var sliOrigTotal=arr.reduce(function(s,m2){return s+(m2.liAmt||0);},0);
+  var _pr=row.qty>0?(row.amount/row.qty):0;
+  var _rt=_pr<5?0.5:5;
+  var pliMatchesSli=Math.abs(row.amount-sliOrigTotal)<=_rt;
+  var isFullMatch=Math.abs(diff)<=_rt&&pliMatchesSli;
+  var fAmt2=function(v){var n=parseFloat(v);if(!n||isNaN(n))return'$0.00';return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  // Update PLI total row
+  var totalEl=document.querySelector('#pliBody_'+rowIdx+' tr[style*="border-top:1.5px solid #16a34a"] td:nth-child(2)');
+  if(totalEl) totalEl.innerHTML='<span style="font-family:var(--mono);font-weight:900;font-size:13px;color:#16a34a">'+fAmt2(selectedTotal)+'</span>';
+  var diffEl=document.querySelector('#pliBody_'+rowIdx+' tr[style*="border-top:1.5px solid #16a34a"] td:first-child');
+  if(diffEl){
+    var diffDisplay=isFullMatch?'Matched & Fully Paid':'Matched (Bal → Suspense: '+fAmt2(diff)+')';
+    var diffColor=isFullMatch?'#16a34a':'#1d4ed8';
+    diffEl.innerHTML='<span style="font-weight:800;font-size:11px;color:'+diffColor+'">'+diffDisplay+'</span>';
+  }
+  // Update header status
+  var _actualDiff=row.amount-sliOrigTotal;
+  var _diffLabel=(Math.abs(_actualDiff)>0.01)?' <span style="color:#dc2626;font-size:10px;font-weight:900">'+fAmt2(_actualDiff)+'</span>':'';
+  var statusText=isFullMatch?'Matched & Fully Paid'+_diffLabel:'Partially Paid'+_diffLabel;
+  var statusClr=isFullMatch?'#16a34a':'#a16207';
+  var statusBg=isFullMatch?'#dcfce7':'#fef3c7';
+  // Find the status span in the header row for this PLI
+  var cards=document.querySelectorAll('#hwmsPayImportMatchBody > div');
+  if(cards[rowIdx]){
+    var statusSpan=cards[rowIdx].querySelector('div[style*="min-width:90px"] span');
+    if(statusSpan){statusSpan.innerHTML=statusText;statusSpan.style.color=statusClr;statusSpan.style.background=statusBg;}
+  }
+  // Update/add suspense row
+  var _suspRowId='pliSusp_'+rowIdx;
+  var _existSuspRow=document.getElementById(_suspRowId);
+  if(Math.abs(diff)>0.01&&!isFullMatch){
+    var _sm3=(row.mode||'').toLowerCase().indexOf('air')>=0?'air':'sea';
+    var _sc3=_sm3==='air'?'#6d28d9':'#1d4ed8';
+    var _sb3=_sm3==='air'?'#ede9fe':'#dbeafe';
+    var _sl3=_sm3==='air'?'✈ Suspense — Air':'🚢 Suspense — Sea';
+    var suspHtml='<td colspan="6" style="padding:4px 8px;text-align:right;font-weight:800;font-size:11px;color:'+_sc3+'">'+_sl3+'</td>'
+      +'<td style="padding:4px 8px;text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+_sc3+'">'+fAmt2(diff)+'</td>';
+    if(_existSuspRow){
+      _existSuspRow.innerHTML=suspHtml;
+      _existSuspRow.style.display='';
+    }
+  } else if(_existSuspRow){
+    _existSuspRow.style.display='none';
+  }
 }
 function _hwmsPayImportRemoveWriteoff(rowIdx){
   var matchKey='r'+rowIdx;
@@ -12036,15 +12206,7 @@ function _hwmsPayImportAutoMatch(){
       allocatedAmts[slKey]=allocated+useAmt;
     });
 
-    // Calculate rounding-off: tolerance based on rate ($5 for rate>=5, $0.50 for rate<5)
-    var matchedTotal=_hwmsPayImportData.matches[matchKey].reduce(function(s,m){return s+(m.liBal||0);},0)+manualAmt;
-    var diff=row.amount-matchedTotal;
-    if(_hwmsPayImportData.matches[matchKey].length>0&&Math.abs(diff)<=_roTol&&Math.abs(diff)>0.005){
-      // Store rounding-off amount for display (not as a separate match entry)
-      row._roundingOff=Math.round(diff*100)/100;
-    } else {
-      row._roundingOff=0;
-    }
+    // Balance after matching goes to suspense — no separate rounding-off
   });
 
   // Collapse all cards after auto-match
@@ -12460,6 +12622,153 @@ async function _hwmsPayUnpostAll(){
     _renderHwmsPayKeepScroll();
   });
 }
+// Repair: round all MI/SI rates to 2 decimal places
+async function _hwmsRepairRoundRates(){
+  showSpinner('Rounding rates to 2 decimals…');
+  var miFixed=0,siFixed=0;
+  // Fix MI line items
+  for(var i=0;i<(DB.hwmsInvoices||[]).length;i++){
+    var inv=DB.hwmsInvoices[i];
+    var changed=false;
+    (inv.lineItems||[]).forEach(function(li){
+      if(li._meta) return;
+      var r2=Math.round((li.rate||0)*100)/100;
+      if(li.rate!==r2){li.rate=r2;changed=true;}
+      if(li.netWeight){var nw=Math.round(li.netWeight*100)/100;if(li.netWeight!==nw){li.netWeight=nw;changed=true;}}
+      if(li.grossWeight){var gw=Math.round(li.grossWeight*100)/100;if(li.grossWeight!==gw){li.grossWeight=gw;changed=true;}}
+      if(li.pkgWeight){var pw=Math.round(li.pkgWeight*100)/100;if(li.pkgWeight!==pw){li.pkgWeight=pw;changed=true;}}
+    });
+    if(changed){await _dbSave('hwmsInvoices',inv);miFixed++;}
+  }
+  // Fix SI line items
+  for(var j=0;j<(DB.hwmsSubInvoices||[]).length;j++){
+    var si=DB.hwmsSubInvoices[j];
+    var siChanged=false;
+    (si.lineItems||[]).forEach(function(li){
+      if(li._mrMeta) return;
+      var r2=Math.round((li.rate||0)*100)/100;
+      if(li.rate!==r2){li.rate=r2;siChanged=true;}
+    });
+    if(siChanged){await _dbSave('hwmsSubInvoices',si);siFixed++;}
+  }
+  hideSpinner();
+  notify('✅ Rounded rates: '+miFixed+' MI(s), '+siFixed+' SI(s) fixed');
+  if(miFixed) renderHwmsInvoices();
+  if(siFixed) renderHwmsSubInvoices();
+}
+
+// Repair: knockoff minor balances (±$1)
+// Creates a SUSPENSE payment receipt that posts the exact balance amount for each SLI
+// so that received = SLI amount and balance becomes zero
+async function _hwmsRepairMinorBalances(){
+  _hwmsPayCalcReset();
+  showSpinner('Scanning for minor balances (±$1)…');
+  var fixes=[];
+  // Sea SLIs
+  (DB.hwmsSubInvoices||[]).forEach(function(si){
+    var inv=byId(DB.hwmsInvoices||[],si.invoiceId);
+    if(inv&&/air/i.test(inv.modeOfTransport||'')) return;
+    (si.lineItems||[]).forEach(function(li){
+      if(li._mrMeta) return;
+      var liAmt=Math.round((li.quantity||0)*(li.rate||0)*100)/100;
+      if(liAmt<0.01) return;
+      var rcvd=_hwmsGetLiRcvd(si.id,li.partNumber,li.palletNumber);
+      var bal=Math.round((liAmt-rcvd)*100)/100;
+      if(bal!==0&&Math.abs(bal)<=1){
+        fixes.push({mode:'sea',siId:si.id,siNum:si.subInvoiceNumber||'',miId:'',miNum:inv?(inv.invoiceNumber||''):'',partNumber:li.partNumber||'',palletNumber:li.palletNumber||'',liAmt:liAmt,rcvd:rcvd,bal:bal});
+      }
+    });
+  });
+  // Air MI line items
+  (DB.hwmsInvoices||[]).forEach(function(inv){
+    if(!inv.confirmed) return;
+    var isAir=/air/i.test(inv.modeOfTransport||'');
+    if(!isAir){var cont=inv.containerId?byId(DB.hwmsContainers||[],inv.containerId):null;if(cont&&typeof _hwmsContGetType==='function') isAir=_hwmsContGetType(cont)==='air';}
+    if(!isAir) return;
+    (inv.lineItems||[]).filter(function(li){return !li._meta;}).forEach(function(li){
+      var pn='';if(li.partId){var part=byId(DB.hwmsParts||[],li.partId);if(part)pn=(part.partNumber||'').toUpperCase();}if(!pn)pn=(li.partNumber||'').toUpperCase();
+      var liAmt=Math.round((li.quantity||0)*(li.rate||0)*100)/100;
+      if(liAmt<0.01) return;
+      var rcvd=_hwmsGetMiLiRcvd(inv.id,pn,li.palletNumber);
+      var bal=Math.round((liAmt-rcvd)*100)/100;
+      if(bal!==0&&Math.abs(bal)<=1){
+        fixes.push({mode:'air',siId:'',siNum:'',miId:inv.id,miNum:inv.invoiceNumber||'',partNumber:pn,palletNumber:li.palletNumber||'',liAmt:liAmt,rcvd:rcvd,bal:bal});
+      }
+    });
+  });
+  if(!fixes.length){
+    hideSpinner();
+    notify('✅ No minor balances (±$1) found');
+    return;
+  }
+  // Group by SI/MI for siUpdates and miUpdates
+  var siAdj={},miAdj={};
+  fixes.forEach(function(f){
+    // payAmt = exact balance to zero it out
+    var payAmt=Math.round(f.bal*100)/100;
+    if(f.mode==='sea'){
+      if(!siAdj[f.siId]) siAdj[f.siId]={siId:f.siId,siNum:f.siNum,lines:[]};
+      siAdj[f.siId].lines.push({partNumber:f.partNumber,palletNumber:f.palletNumber,payAmt:payAmt});
+    } else {
+      if(!miAdj[f.miId]) miAdj[f.miId]={miId:f.miId,miNum:f.miNum,lines:[]};
+      miAdj[f.miId].lines.push({partNumber:f.partNumber,palletNumber:f.palletNumber,payAmt:payAmt});
+    }
+  });
+  var totalAmt=Math.round(fixes.reduce(function(s,f){return s+f.bal;},0)*100)/100;
+  // Create suspense payment receipt
+  var receiptId='pr'+uid();
+  var payNum='SUSPENSE-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+String(Math.floor(Math.random()*1000)).padStart(3,'0');
+  var receipt={
+    id:receiptId,
+    paymentNumber:payNum,
+    paymentDate:new Date().toISOString().slice(0,10),
+    createdAt:new Date().toISOString(),
+    createdBy:(CU?CU.name||CU.email:'System'),
+    updatedAt:new Date().toISOString(),
+    updatedBy:(CU?CU.name||CU.email:'System'),
+    status:'Posted',
+    totalAmount:totalAmt,
+    lineItems:fixes.map(function(f,i){
+      var amt=Math.round(f.bal*100)/100;
+      return{
+        pliNumber:i+1,
+        siNumber:f.siNum||f.miNum||'',
+        partNumber:f.partNumber,
+        poNumber:'',
+        qty:0,
+        amount:amt,
+        mode:f.mode==='air'?'By Air':'By Sea',
+        matchedSlis:[{
+          siId:f.siId||('mi:'+f.miId),
+          siNum:f.siNum||f.miNum||'',
+          palletNumber:f.palletNumber,
+          partNumber:f.partNumber,
+          qty:0,rate:0,
+          amount:amt,
+          type:f.mode==='air'?'mi':'si',
+          miId:f.miId||'',
+          suspenseMode:f.mode==='air'?'air':'sea'
+        }],
+        manualAmount:0,manualType:''
+      };
+    }),
+    siUpdates:Object.keys(siAdj).map(function(k){return siAdj[k];}),
+    miUpdates:Object.keys(miAdj).map(function(k){return miAdj[k];}),
+    manualPayments:[]
+  };
+  // Save
+  if(!DB.hwmsPaymentReceipts) DB.hwmsPaymentReceipts=[];
+  var saved=false;
+  try{if(typeof _dbSave==='function') saved=await _dbSave('hwmsPaymentReceipts',receipt);}catch(e){}
+  if(!saved) DB.hwmsPaymentReceipts.push(receipt);
+  try{localStorage.setItem('hwmsPaymentReceipts',JSON.stringify(DB.hwmsPaymentReceipts));}catch(e){}
+  // Reset cache so outstanding recalculates
+  _hwmsPayCalcReset();
+  hideSpinner();
+  notify('✅ Knocked off '+fixes.length+' minor balance(s) via '+payNum+' (Suspense: $'+totalAmt.toFixed(2)+')');
+  _renderHwmsPayKeepScroll();
+}
+
 async function _hwmsPayPostAllUnposted(){
   var receipts=(DB.hwmsPaymentReceipts||[]).filter(function(r){return !r._deleted&&r.status!=='Posted';});
   if(!receipts.length){notify('No unposted payment vouchers',true);return;}
@@ -12516,7 +12825,9 @@ function _hwmsPayReceiptEdit(prId){
   if(!pr){notify('Receipt not found',true);return;}
   // Store original status — revoke will happen only on Save & Post, not on edit entry
   _hwmsPayImportData._editOrigStatus=pr.status;
-  
+  _hwmsPayImportData.expanded={};// Collapse all PLIs on edit
+  _hwmsPayImportData._consolidated=false;// Allow re-consolidation
+
   // Restore matches and manualAmts from saved lineItems
   var restoredMatches={};
   var restoredManualAmts={};
@@ -12591,21 +12902,14 @@ function _hwmsPayReceiptEdit(prId){
   document.getElementById('hwmsPayImportPayNum').value=_hwmsPayImportData.payNum;
   _hwmsPayUpdateHeader();
   
-  if(hasRestoredMatches){
-    // Has match data — show Step 2 directly
-    document.getElementById('hwmsPayImportStep1').style.display='none';
-    document.getElementById('hwmsPayImportStep2').style.display='block';
-    document.getElementById('hwmsPayImportFooter').style.display='flex';
-    // Expand all cards
-    _hwmsPayImportData.rows.forEach(function(r,i){_hwmsPayImportData.expanded['r'+i]=true;});
-    _hwmsPayImportRenderMatch();
-  } else {
-    // No match data — go to match page
-    document.getElementById('hwmsPayImportStep1').style.display='none';
-    document.getElementById('hwmsPayImportStep2').style.display='block';
-    document.getElementById('hwmsPayImportFooter').style.display='flex';
-    _hwmsPayImportData.rows.forEach(function(r,i){_hwmsPayImportData.expanded['r'+i]=true;});
-    _hwmsPayImportRenderMatch();
+  // Show Step 2 directly — all PLIs collapsed by default
+  document.getElementById('hwmsPayImportStep1').style.display='none';
+  document.getElementById('hwmsPayImportStep2').style.display='block';
+  document.getElementById('hwmsPayImportFooter').style.display='flex';
+  _hwmsPayImportRenderMatch();
+  if(!hasRestoredMatches){
+    // No match data — auto-match
+    setTimeout(function(){_hwmsPayImportAutoMatch();},100);
   }
   notify('📝 Editing receipt '+pr.paymentNumber);
 }
@@ -14424,7 +14728,7 @@ function openHwmsInvModal(id){
             if(part.hsnCode) item.hsnCode=part.hsnCode;
             if(part.uom) item.uom=part.uom;
             if(part.packingType) item.packageType=part.packingType;
-            if(part.finalRate) item.rate=part.finalRate;
+            if(part.finalRate) item.rate=Math.round(part.finalRate*100)/100;
             var dims=(part.packingDimensions||'').split(/[xX×]/);
             if(dims.length===3&&dims[0].trim()){
               item.pkgL=dims[0].trim();
