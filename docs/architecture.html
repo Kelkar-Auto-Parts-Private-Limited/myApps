@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture — KAP myApps Portal</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 2em; }
+    h3 { margin-top: 1.5em; color: #444; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    pre { background: #f0f0f0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+    .meta { color: #666; font-size: 0.9em; margin-bottom: 2em; }
+    nav a { margin-right: 16px; color: #2a9aa0; }
+    ul { margin: 0.5em 0 0.5em 1.5em; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">All docs</a></nav>
+  <h1>Architecture</h1>
+  <p class="meta">Project: KAP myApps Portal &nbsp;|&nbsp; Last updated: 2026-04-03 &nbsp;|&nbsp; Version: 1.0</p>
+
+  <h2>1. Overview</h2>
+  <p>KAP myApps is a set of pure client-side web applications. There is no application server — all logic runs in the browser. The only backend is Supabase, a hosted PostgreSQL service accessed directly from the browser via HTTPS REST API calls.</p>
+
+  <pre>
+  ┌─────────────────────────────────────────────────────────┐
+  │                      User's Browser                      │
+  │                                                           │
+  │  index.html          Login portal + app launcher          │
+  │  myApps_VMS.html     Vehicle Management System            │
+  │  myApps_HWMS.html    Hardware/Warehouse Mgmt System       │
+  │  myApps_Security.html  Security Surveillance              │
+  │                                                           │
+  │  myApps_Common.js    Shared: Supabase client, DB helpers, │
+  │                       session, spinner, export utilities   │
+  └──────────────────────────────┬──────────────────────────┘
+                                  │ HTTPS (Supabase REST API)
+                                  ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │                    Supabase (hosted)                      │
+  │   PostgreSQL database   │   Realtime subscriptions        │
+  │   Row Level Security    │   Auth (not used — custom auth) │
+  └─────────────────────────────────────────────────────────┘
+  </pre>
+
+  <h2>2. File structure</h2>
+  <table>
+    <thead><tr><th>File</th><th>Size</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>index.html</code></td><td>~120 KB</td><td>Portal login page and app launcher. Handles authentication, user management, and navigation to the three app modules.</td></tr>
+      <tr><td><code>myApps_Common.js</code></td><td>~118 KB</td><td>Shared JavaScript foundation. Loaded by all modules. Contains: Supabase config and client initialisation, all DB read/write helpers, global spinner, session management, Excel export core.</td></tr>
+      <tr><td><code>myApps_VMS.html</code></td><td>~714 KB</td><td>Vehicle Management System. Self-contained single-page app. Loads <code>myApps_Common.js</code> for the data layer.</td></tr>
+      <tr><td><code>myApps_HWMS.html</code></td><td>~1 MB</td><td>Hardware/Warehouse Management System. Self-contained single-page app. The largest module.</td></tr>
+      <tr><td><code>myApps_Security.html</code></td><td>~88 KB</td><td>Security Surveillance. Self-contained single-page app.</td></tr>
+      <tr><td><code>docs/</code></td><td>—</td><td>Project documentation (this folder).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Supabase database tables</h2>
+
+  <h3>3.1 VMS tables (<code>vms_*</code>)</h3>
+  <table>
+    <thead><tr><th>Table</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>vms_users</code></td><td>All app users — username, password hash, role, app access</td></tr>
+      <tr><td><code>vms_vehicle_types</code></td><td>Vehicle categories (e.g. truck, tempo)</td></tr>
+      <tr><td><code>vms_vendors</code></td><td>Transport vendor companies</td></tr>
+      <tr><td><code>vms_drivers</code></td><td>Driver profiles linked to vendors</td></tr>
+      <tr><td><code>vms_vehicles</code></td><td>Registered vehicles with type and vendor</td></tr>
+      <tr><td><code>vms_locations</code></td><td>Trip origin/destination points</td></tr>
+      <tr><td><code>vms_trip_rates</code></td><td>Rate cards per route and vehicle type</td></tr>
+      <tr><td><code>vms_trips</code></td><td>Logged trips with vehicle, driver, route, and billing info</td></tr>
+      <tr><td><code>vms_segments</code></td><td>Individual legs of multi-segment trips</td></tr>
+      <tr><td><code>vms_spot_trips</code></td><td>Ad-hoc / unscheduled trips</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 HWMS tables (<code>hwms_*</code>)</h3>
+  <table>
+    <thead><tr><th>Table</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>hwms_parts</code></td><td>Parts catalogue with HSN, UOM, packing</td></tr>
+      <tr><td><code>hwms_invoices</code></td><td>Sales invoices raised against customers</td></tr>
+      <tr><td><code>hwms_sub_invoices</code></td><td>Sub-invoices attached to main invoices</td></tr>
+      <tr><td><code>hwms_containers</code></td><td>Import shipment containers</td></tr>
+      <tr><td><code>hwms_hsn</code></td><td>HSN code reference table</td></tr>
+      <tr><td><code>hwms_uom</code></td><td>Units of measure reference table</td></tr>
+      <tr><td><code>hwms_packing</code></td><td>Packing types reference table</td></tr>
+      <tr><td><code>hwms_customers</code></td><td>Customer master data</td></tr>
+      <tr><td><code>hwms_port_discharge</code></td><td>Ports of discharge reference</td></tr>
+      <tr><td><code>hwms_port_loading</code></td><td>Ports of loading reference</td></tr>
+      <tr><td><code>hwms_carriers</code></td><td>Shipping line / carrier reference</td></tr>
+      <tr><td><code>hwms_company</code></td><td>KAP company details used in documents</td></tr>
+      <tr><td><code>hwms_steel_rates</code></td><td>Steel rate table for pricing calculations</td></tr>
+      <tr><td><code>hwms_material_requests</code></td><td>Internal material requests</td></tr>
+      <tr><td><code>hwms_payment_receipts</code></td><td>Payment receipts matched to invoices</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.3 Security Surveillance tables (<code>ss_*</code>)</h3>
+  <table>
+    <thead><tr><th>Table</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>ss_checkpoints</code></td><td>Physical checkpoint locations on premises</td></tr>
+      <tr><td><code>ss_guards</code></td><td>Security guard profiles</td></tr>
+      <tr><td><code>ss_round_schedules</code></td><td>Planned patrol routes and timing</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Authentication flow</h2>
+  <pre>
+  User opens index.html
+    → Login form shown (username + password + math CAPTCHA)
+    → On submit: query vms_users table in Supabase
+    → If credentials match: store session in memory (+ localStorage if "remember me")
+    → Portal page shown with available app tiles
+    → Clicking a tile opens the relevant HTML file
+    → Each module re-authenticates from localStorage session on load
+  </pre>
+  <p><strong>Note:</strong> Supabase Auth is not used. Authentication is custom, using the <code>vms_users</code> table directly. The Supabase anon key is public by design — Row Level Security (RLS) on Supabase enforces data access rules.</p>
+
+  <h2>5. Shared module system (myApps_Common.js)</h2>
+  <p>All HTML modules load <code>myApps_Common.js</code> via a <code>&lt;script&gt;</code> tag. The common file exposes:</p>
+  <ul>
+    <li>Supabase client (<code>_sb</code>) and initialisation logic with CDN retry</li>
+    <li>Database helper functions for all CRUD operations</li>
+    <li>Global loading spinner (<code>showSpinner()</code> / <code>hideSpinner()</code>)</li>
+    <li>Session management and current user object</li>
+    <li>Excel/CSV export utilities</li>
+    <li>Module hook points (<code>_onPostBoot</code>, <code>_onRefreshViews</code>, etc.) that each module overrides</li>
+  </ul>
+
+  <h2>6. Design system</h2>
+  <p>All apps share a consistent visual language defined via CSS custom properties:</p>
+  <ul>
+    <li>Accent colour: <code>#2a9aa0</code> (teal)</li>
+    <li>Background: <code>#f0f2f5</code></li>
+    <li>Surface: <code>#ffffff</code></li>
+    <li>Text: <code>#1e2329</code></li>
+    <li>Danger: <code>#dc2626</code> (red)</li>
+    <li>Success: <code>#16a34a</code> (green)</li>
+    <li>Border radius: <code>12px</code></li>
+  </ul>
+</body>
+</html>

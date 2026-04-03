@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requirements — KAP myApps Portal</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 2em; }
+    h3 { margin-top: 1.5em; color: #444; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    .meta { color: #666; font-size: 0.9em; margin-bottom: 2em; }
+    nav a { margin-right: 16px; color: #2a9aa0; }
+    ul { margin: 0.5em 0 0.5em 1.5em; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">All docs</a></nav>
+  <h1>Requirements</h1>
+  <p class="meta">Project: KAP myApps Portal &nbsp;|&nbsp; Last updated: 2026-04-03 &nbsp;|&nbsp; Version: 1.0</p>
+
+  <h2>1. Portal (index.html)</h2>
+  <p>The portal is the single entry point for all KAP staff. It handles authentication and provides navigation to each app module.</p>
+  <h3>1.1 Authentication</h3>
+  <ul>
+    <li>Users log in with a username and password stored in the <code>vms_users</code> Supabase table.</li>
+    <li>A math CAPTCHA must be solved on every login to prevent scripted access.</li>
+    <li>"Remember me" persists the session in <code>localStorage</code> so users do not need to log in again on the same device.</li>
+    <li>Failed login attempts show an error message; the CAPTCHA refreshes.</li>
+  </ul>
+  <h3>1.2 App launcher</h3>
+  <ul>
+    <li>After login, the portal displays tiles for each available app.</li>
+    <li>Apps the user does not have access to are shown as disabled (greyed out).</li>
+    <li>Clicking an app tile opens that app's HTML file.</li>
+  </ul>
+  <h3>1.3 User management</h3>
+  <ul>
+    <li>Admin users can create, edit, and deactivate user accounts from within the portal.</li>
+    <li>Each user has a role that determines which apps and features they can access.</li>
+  </ul>
+
+  <h2>2. VMS — Vehicle Management System (myApps_VMS.html)</h2>
+  <p>Manages all vehicle movements, driver assignments, and trip billing for KAP's transport operations.</p>
+  <h3>2.1 Core entities</h3>
+  <ul>
+    <li><strong>Vehicles</strong> — registered vehicles with type, number plate, and vendor assignment.</li>
+    <li><strong>Drivers</strong> — driver profiles linked to vehicles and vendors.</li>
+    <li><strong>Vendors</strong> — transport companies that supply vehicles and drivers.</li>
+    <li><strong>Vehicle types</strong> — categories of vehicles (e.g. truck, tempo, car).</li>
+    <li><strong>Locations</strong> — pickup and drop-off points used in trip planning.</li>
+  </ul>
+  <h3>2.2 Trip management</h3>
+  <ul>
+    <li>Regular trips are logged with origin, destination, vehicle, driver, date, and distance/rate.</li>
+    <li>Spot trips (ad-hoc, unscheduled) can be logged separately.</li>
+    <li>Trip rates are configurable per route and vehicle type.</li>
+    <li>Trips have segments (multi-leg journeys can be broken into segments).</li>
+  </ul>
+
+  <h2>3. HWMS — Hardware/Warehouse Management System (myApps_HWMS.html)</h2>
+  <p>Manages import shipments, warehouse stock, invoicing, and payments for hardware parts.</p>
+  <h3>3.1 Parts and stock</h3>
+  <ul>
+    <li>Parts catalogue with HSN codes, units of measure (UOM), and packing details.</li>
+    <li>Steel rates maintained separately for rate calculations.</li>
+    <li>Parts are tracked through warehouse statuses: on-water, in-warehouse, sold.</li>
+  </ul>
+  <h3>3.2 Import shipments</h3>
+  <ul>
+    <li>Containers are tracked from port of loading through to warehouse receipt.</li>
+    <li>Ports of loading and discharge are configurable.</li>
+    <li>Carriers (shipping lines) are maintained in a reference table.</li>
+  </ul>
+  <h3>3.3 Invoicing and payments</h3>
+  <ul>
+    <li>Sales invoices are raised against customers.</li>
+    <li>Sub-invoices can be attached to a main invoice.</li>
+    <li>Payment receipts are recorded and matched against invoices.</li>
+    <li>Invoice statuses: draft, GRN pending, payment pending, partially paid, fully paid.</li>
+  </ul>
+  <h3>3.4 Material requests</h3>
+  <ul>
+    <li>Internal material requests (MR) can be raised and tracked through fulfilment.</li>
+  </ul>
+  <h3>3.5 Reference data</h3>
+  <ul>
+    <li>Customers, company details, HSN codes, UOM, packing types are all maintained as configurable reference tables.</li>
+  </ul>
+
+  <h2>4. Security Surveillance (myApps_Security.html)</h2>
+  <p>Manages security guard rounds, checkpoints, and schedules at KAP premises.</p>
+  <ul>
+    <li><strong>Checkpoints</strong> — physical locations on the premises that guards must visit during a round.</li>
+    <li><strong>Guards</strong> — security staff profiles and shift assignments.</li>
+    <li><strong>Round schedules</strong> — planned patrol routes and timing for guards to follow.</li>
+    <li>Guards log when each checkpoint is visited; supervisors can review compliance.</li>
+  </ul>
+
+  <h2>5. Cross-cutting requirements</h2>
+  <ul>
+    <li>All apps must work on desktop and mobile browsers (responsive design).</li>
+    <li>All apps share a single Supabase backend — data is live and multi-user.</li>
+    <li>Realtime updates are supported via Supabase realtime subscriptions.</li>
+    <li>Export to Excel is available in list views (via the shared export utility in <code>myApps_Common.js</code>).</li>
+    <li>All apps use the same visual design language (teal accent colour, shared CSS variables).</li>
+  </ul>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Runbook — KAP myApps Portal</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 2em; }
+    h3 { margin-top: 1.5em; color: #444; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; }
+    code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    pre { background: #f0f0f0; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 0.88em; line-height: 1.5; }
+    .meta { color: #666; font-size: 0.9em; margin-bottom: 2em; }
+    nav a { margin-right: 16px; color: #2a9aa0; }
+    ul, ol { margin: 0.5em 0 0.5em 1.5em; }
+    li { margin-bottom: 4px; }
+    .warn { background: #fff7ed; border-left: 4px solid #f97316; padding: 10px 14px; margin: 1em 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">All docs</a></nav>
+  <h1>Runbook</h1>
+  <p class="meta">Project: KAP myApps Portal &nbsp;|&nbsp; Last updated: 2026-04-03 &nbsp;|&nbsp; Version: 1.0</p>
+
+  <h2>1. Opening the app</h2>
+  <p>The app requires no installation. There is no server to start.</p>
+  <ol>
+    <li>Open <code>index.html</code> in any modern web browser (Chrome, Edge, Firefox, Safari).</li>
+    <li>Log in with your username and password.</li>
+    <li>Click the app tile you want to use (VMS, HWMS, or Security).</li>
+  </ol>
+  <p>Each module (<code>myApps_VMS.html</code>, <code>myApps_HWMS.html</code>, <code>myApps_Security.html</code>) can also be opened directly in a browser if you already know the URL.</p>
+  <p>The app requires an internet connection to reach Supabase. It will not work offline.</p>
+
+  <h2>2. Development workflow</h2>
+  <h3>2.1 Making changes</h3>
+  <ol>
+    <li>Open the relevant file in a code editor (VS Code recommended).</li>
+    <li>Install the "Live Server" VS Code extension for auto-reload on save.</li>
+    <li>Make your change and save — the browser refreshes automatically.</li>
+    <li>Test in the browser before committing.</li>
+  </ol>
+  <div class="warn"><strong>Note:</strong> <code>myApps_HWMS.html</code> (~1 MB) and <code>myApps_VMS.html</code> (~714 KB) are very large. Opening them in an editor may be slow. Search for the section you need before scrolling.</div>
+
+  <h3>2.2 Shared code</h3>
+  <p>Changes to <code>myApps_Common.js</code> affect all four apps. Test all apps after changing it.</p>
+
+  <h2>3. Deployment</h2>
+  <h3>3.1 GitHub Pages (current method)</h3>
+  <ol>
+    <li>Commit and push your changes to the <code>main</code> branch.</li>
+    <li>GitHub Pages automatically serves the updated files.</li>
+    <li>Wait 1–2 minutes for the deployment to propagate.</li>
+    <li>Open the GitHub Pages URL to verify the change is live.</li>
+  </ol>
+  <h3>3.2 Manual deployment to internal server</h3>
+  <ol>
+    <li>Copy all <code>.html</code> and <code>.js</code> files to the server's web root.</li>
+    <li>The files can be served by IIS, nginx, Apache, or any static file server.</li>
+    <li>No build step or dependency installation is required.</li>
+  </ol>
+
+  <h2>4. Database (Supabase)</h2>
+  <h3>4.1 Accessing the database</h3>
+  <ul>
+    <li>Log in at <a href="https://supabase.com/dashboard" target="_blank">supabase.com/dashboard</a>.</li>
+    <li>Select the KAP project (<code>ehzfknwkerafblnibhps</code>).</li>
+    <li>Use the Table Editor to view and edit data directly.</li>
+    <li>Use the SQL Editor for complex queries or migrations.</li>
+  </ul>
+  <h3>4.2 Backups</h3>
+  <ul>
+    <li>Supabase takes automatic daily backups (available in Dashboard → Settings → Database → Backups).</li>
+    <li>For manual backups: Dashboard → Settings → Database → Download backup.</li>
+    <li>Always take a manual backup before running any schema migration.</li>
+  </ul>
+  <h3>4.3 Schema changes</h3>
+  <ul>
+    <li>All schema changes (adding columns, tables, indexes) are made via the Supabase Dashboard or SQL Editor.</li>
+    <li>There is no migration framework — document any schema changes in the changelog.</li>
+    <li>After a schema change, update <code>myApps_Common.js</code> (SB_TABLES mapping) and any affected HTML files.</li>
+  </ul>
+
+  <h2>5. User management</h2>
+  <ul>
+    <li>Users are managed from within the portal (<code>index.html</code>) by an admin user.</li>
+    <li>To create a new user: log in as admin → go to Users tab → Add User.</li>
+    <li>To reset a password: edit the user record in the Users tab or directly in Supabase Dashboard → <code>vms_users</code> table.</li>
+    <li>To disable a user: deactivate the account in the Users tab.</li>
+  </ul>
+
+  <h2>6. Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>App shows blank screen or spinner forever</td><td>Supabase CDN script failed to load</td><td>Check internet connection. Open browser DevTools → Console for errors.</td></tr>
+      <tr><td>"Invalid username or password" on correct credentials</td><td>Supabase connection issue, or user deactivated</td><td>Check Supabase dashboard for the user record. Check console for network errors.</td></tr>
+      <tr><td>Data not saving / changes lost</td><td>Supabase write failed (RLS policy or network)</td><td>Check console for errors. Verify Supabase RLS policies allow the operation.</td></tr>
+      <tr><td>App works locally but not on GitHub Pages</td><td>Mixed content or CORS issue</td><td>Check browser console. Ensure all resources load over HTTPS.</td></tr>
+      <tr><td>Changes to a file not appearing after deploy</td><td>Browser cache</td><td>Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac).</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>
