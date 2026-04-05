@@ -127,16 +127,26 @@ If secrets are added in future:
 # SECTION P6 — Documentation
 # ============================
 # All project documentation lives in the /docs folder as HTML files.
+# These docs are MAINTAINED and up to date — they are the authoritative source.
+# For architecture questions, READ docs/architecture.html rather than re-deriving
+# from the code. For requirements questions, READ docs/requirements.html.
 
-| File                      | Status  | Last updated  |
-|---------------------------|---------|---------------|
-| docs/index.html           | NEEDED  | n/a           |
-| docs/requirements.html    | NEEDED  | n/a           |
-| docs/architecture.html    | NEEDED  | n/a           |
-| docs/changelog.html       | NEEDED  | n/a           |
-| docs/runbook.html         | NEEDED  | n/a           |
+| File                      | Status   | Last updated        |
+|---------------------------|----------|---------------------|
+| docs/index.html           | EXISTS   | 2026-04-03 16:57    |
+| docs/requirements.html    | EXISTS   | 2026-04-03 16:57    |
+| docs/architecture.html    | EXISTS   | 2026-04-05 18:00    |
+| docs/changelog.html       | EXISTS   | 2026-04-03 16:57    |
+| docs/runbook.html         | EXISTS   | 2026-04-03 16:57    |
 
 To open documentation locally: open docs/index.html in any browser.
+
+IMPORTANT: Per CLAUDE.md Section 5.0, any code commit that changes the file
+structure, system capabilities, or deployment process must include an update to
+the relevant doc(s) in the same commit. When updating a doc:
+  1. Update its "Last updated" timestamp in the doc's <p class="meta"> line.
+  2. Update its timestamp in this table (format: YYYY-MM-DD HH:MM, 24-hour local time).
+Documentation may change multiple times a day — always record the time, not just the date.
 
 
 ---
@@ -151,17 +161,20 @@ Single-page static apps — no server runtime. All logic runs in the browser.
           → Common.js (shared data layer, Supabase client, utilities)
           → Supabase REST API → hosted PostgreSQL database
 
-File structure:
-  index.html          Portal login + app launcher (navigates to individual apps)
-  Common.js    Shared foundation: Supabase config, DB helpers, spinner,
-                      user session, Excel/export utilities. Loaded by all modules.
-  VMS.html     Vehicle Management System — trips, drivers, vehicles, vendors,
-                      locations, trip rates, segments, spot trips
-  HWMS.html    Hardware/Warehouse Management System — parts, invoices,
-                      containers, HSN codes, UOM, packing, customers, ports,
-                      carriers, companies, steel rates, sub-invoices, material
-                      requests, payment receipts
-  Security.html  Security Surveillance — checkpoints, guards, round schedules
+File structure (HTML files contain structure only — JS was extracted in refactor #1):
+  index.html          Portal login page + app launcher (logic in js/Portal.js)
+  VMS.html            Vehicle Management System (logic in js/VMS.js)
+  HWMS.html           Hardware/Warehouse Management System (logic in js/HWMS.js)
+  Security.html       Security Surveillance (logic in js/Security.js)
+  js/Common.js        Shared foundation: Supabase config, DB helpers, spinner,
+                        user session, Excel/export utilities. Loaded by all modules.
+  js/Portal.js        Login flow, session management, user management UI
+  js/VMS.js           VMS application logic
+  js/HWMS.js          HWMS application logic
+  js/Security.js      Security application logic
+  css/Shared.css      Shared stylesheet for all modules
+
+Full architecture detail: see docs/architecture.html
 
 Supabase tables (prefixed by module):
   vms_*     Vehicle Management tables
@@ -198,12 +211,11 @@ Authentication:
   enforced by Supabase Row Level Security (RLS) rules on the database.
   Never add the service_role key to any client-side file.
 
-- LARGE FILES: HWMS.html (~1 MB) and VMS.html (~700 KB) are very
-  large single-file apps. Editing them requires care — always read the relevant
-  section before making changes.
+- LARGE JS FILES: js/HWMS.js (~815 KB) and js/VMS.js (~510 KB) are very large.
+  Editing them requires care — always read the relevant section before making changes.
 
-- DOCS FOLDER MISSING: The /docs folder and all HTML documentation files do not
-  exist yet. They should be created before this project grows further.
+- DOCS ARE MAINTAINED: The /docs folder exists and all HTML documentation files
+  are kept up to date. Read them rather than re-deriving from code.
 
 
 ---
@@ -212,16 +224,17 @@ Authentication:
 # SECTION P9 — Recent context
 # =============================
 
-Last session date:   2026-04-03
-Last session work:   Initial project setup — cloned repo, read CLAUDE.md,
-                     filled in PROJECT.md from codebase inspection.
+Last session date:   2026-04-05
+Last session work:   Updated docs/architecture.html to match post-refactor file
+                     structure (js/ and css/ folders). Updated PROJECT.md to reflect
+                     current state. Added CLAUDE.md Section 5.0 (update docs before
+                     committing). Updated PROJECT.md P6 to point Claude to maintained
+                     docs as the authoritative architecture source.
 Issues closed:       None (Issues disabled on repo)
 Current open issues: None tracked
 Suggested next step: 1. Add a .gitignore file
-                     2. Create the /docs folder with docs/index.html,
-                        docs/requirements.html, docs/architecture.html,
-                        docs/changelog.html, docs/runbook.html
-                     3. Commit CLAUDE.md, PROJECT.md, and .gitignore to the repo
+                     2. Commit all pending changes (CLAUDE.md, PROJECT.md,
+                        docs/architecture.html)
 
 
 ---
@@ -234,4 +247,4 @@ Suggested next step: 1. Add a .gitignore file
 # is worse than no PROJECT.md because it causes Claude to
 # make decisions based on wrong assumptions.
 #
-# Last reviewed: 2026-04-03
+# Last reviewed: 2026-04-05

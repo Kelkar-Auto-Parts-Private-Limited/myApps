@@ -1,7 +1,7 @@
 # Claude Code — Universal Engineering Guidelines
 # ================================================
-# VERSION: 4.0
-# Last updated: 2026-04-03
+# VERSION: 4.1
+# Last updated: 2026-04-05
 #
 # PURPOSE OF THIS FILE:
 # This file is automatically read by Claude Code at the start of every session.
@@ -311,6 +311,28 @@ One sentence per decision is enough — informative, not overwhelming.
 # Do not allow the session to end with uncommitted work, failing tests,
 # or an out-of-date changelog. These steps take about 5 minutes and prevent
 # the most common causes of lost work and broken deployments.
+
+## 5.0 — Update documentation before committing
+# Why: Documentation committed together with the code that drove the change is
+# the only way to keep docs accurate over time. A separate "docs commit later"
+# almost never happens.
+#
+# Before running git commit, ask:
+#   1. Did the file structure change (new files, moved files, renamed files)?
+#      → Update docs/architecture.html — the file structure table and any
+#        affected diagrams or section descriptions.
+#   2. Did the system gain, lose, or change a capability visible to users?
+#      → Update docs/requirements.html to reflect what the system now does.
+#   3. Did the deployment or startup process change?
+#      → Update docs/runbook.html.
+#
+# If any of the above are true, update the relevant HTML doc(s) first, then
+# include the doc file(s) in the same commit as the code change.
+# Do not make a separate docs-only commit for changes that were caused by code.
+#
+# Update the "Last updated" timestamp (YYYY-MM-DD HH:MM, 24-hour local time) and
+# version in the <p class="meta"> line of any doc you change. Also update the
+# timestamp in PROJECT.md Section P6's documentation table.
 
 ## 5.1 — Commit all work with a meaningful message
 # Why: Uncommitted work is invisible to git and unrecoverable if something
@@ -663,5 +685,7 @@ Always create a tag before making large or risky changes.
 #           PROJECT.md separation, switched documentation format to HTML
 #   v4.0 — added Section 10: code organisation standards (separate HTML/CSS/JS,
 #           no redundant file name prefixes, when to suggest a refactor)
+#   v4.1 — added Section 5.0: update docs before committing (architecture,
+#           requirements, runbook must be committed together with the code change)
 #
-# Last reviewed: 2026-04-03
+# Last reviewed: 2026-04-05

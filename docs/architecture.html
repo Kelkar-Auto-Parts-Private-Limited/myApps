@@ -22,7 +22,7 @@
 <body>
   <nav><a href="index.html">All docs</a></nav>
   <h1>Architecture</h1>
-  <p class="meta">Project: KAP myApps Portal &nbsp;|&nbsp; Last updated: 2026-04-03 &nbsp;|&nbsp; Version: 1.0</p>
+  <p class="meta">Project: KAP myApps Portal &nbsp;|&nbsp; Last updated: 2026-04-05 &nbsp;|&nbsp; Version: 1.1</p>
 
   <h2>1. Overview</h2>
   <p>KAP myApps is a set of pure client-side web applications. There is no application server — all logic runs in the browser. The only backend is Supabase, a hosted PostgreSQL service accessed directly from the browser via HTTPS REST API calls.</p>
@@ -31,13 +31,19 @@
   ┌─────────────────────────────────────────────────────────┐
   │                      User's Browser                      │
   │                                                           │
-  │  index.html          Login portal + app launcher          │
-  │  VMS.html     Vehicle Management System            │
-  │  HWMS.html    Hardware/Warehouse Mgmt System       │
-  │  Security.html  Security Surveillance              │
+  │  index.html      Login portal + app launcher              │
+  │  VMS.html        Vehicle Management System                │
+  │  HWMS.html       Hardware/Warehouse Mgmt System           │
+  │  Security.html   Security Surveillance                    │
   │                                                           │
-  │  Common.js    Shared: Supabase client, DB helpers, │
-  │                       session, spinner, export utilities   │
+  │  js/Portal.js    Login, session, user management          │
+  │  js/VMS.js       VMS application logic                    │
+  │  js/HWMS.js      HWMS application logic                   │
+  │  js/Security.js  Security application logic               │
+  │                                                           │
+  │  js/Common.js    Shared: Supabase client, DB helpers,     │
+  │                          session, spinner, export utils    │
+  │  css/Shared.css  Shared styles for all modules            │
   └──────────────────────────────┬──────────────────────────┘
                                   │ HTTPS (Supabase REST API)
                                   ▼
@@ -49,14 +55,20 @@
   </pre>
 
   <h2>2. File structure</h2>
+  <p>HTML files contain only structure and CDN/script tags. All application logic lives in the <code>js/</code> folder. Shared styles live in <code>css/</code>. This separation was introduced in refactor #1 (2026-04-03).</p>
   <table>
     <thead><tr><th>File</th><th>Size</th><th>Purpose</th></tr></thead>
     <tbody>
-      <tr><td><code>index.html</code></td><td>~120 KB</td><td>Portal login page and app launcher. Handles authentication, user management, and navigation to the three app modules.</td></tr>
-      <tr><td><code>Common.js</code></td><td>~118 KB</td><td>Shared JavaScript foundation. Loaded by all modules. Contains: Supabase config and client initialisation, all DB read/write helpers, global spinner, session management, Excel export core.</td></tr>
-      <tr><td><code>VMS.html</code></td><td>~714 KB</td><td>Vehicle Management System. Self-contained single-page app. Loads <code>Common.js</code> for the data layer.</td></tr>
-      <tr><td><code>HWMS.html</code></td><td>~1 MB</td><td>Hardware/Warehouse Management System. Self-contained single-page app. The largest module.</td></tr>
-      <tr><td><code>Security.html</code></td><td>~88 KB</td><td>Security Surveillance. Self-contained single-page app.</td></tr>
+      <tr><td><code>index.html</code></td><td>~40 KB</td><td>Portal login page and app launcher. HTML structure only — logic is in <code>js/Portal.js</code>.</td></tr>
+      <tr><td><code>VMS.html</code></td><td>~147 KB</td><td>Vehicle Management System. HTML structure only — logic is in <code>js/VMS.js</code>.</td></tr>
+      <tr><td><code>HWMS.html</code></td><td>~166 KB</td><td>Hardware/Warehouse Management System. HTML structure only — logic is in <code>js/HWMS.js</code>.</td></tr>
+      <tr><td><code>Security.html</code></td><td>~18 KB</td><td>Security Surveillance. HTML structure only — logic is in <code>js/Security.js</code>.</td></tr>
+      <tr><td><code>js/Common.js</code></td><td>~115 KB</td><td>Shared JavaScript foundation. Loaded by all modules. Contains: Supabase config and client initialisation, all DB read/write helpers, global spinner, session management, Excel export core.</td></tr>
+      <tr><td><code>js/Portal.js</code></td><td>~78 KB</td><td>Login flow, math CAPTCHA, lockout, session restore, user management UI, force-password change, portal tiles.</td></tr>
+      <tr><td><code>js/VMS.js</code></td><td>~510 KB</td><td>All VMS application logic — trips, drivers, vehicles, vendors, locations, trip rates, segments, spot trips.</td></tr>
+      <tr><td><code>js/HWMS.js</code></td><td>~815 KB</td><td>All HWMS application logic — parts, invoices, containers, HSN, UOM, packing, customers, ports, carriers, steel rates, material requests, payment receipts. Largest file.</td></tr>
+      <tr><td><code>js/Security.js</code></td><td>~24 KB</td><td>Security Surveillance logic — checkpoints, guards, round schedules.</td></tr>
+      <tr><td><code>css/Shared.css</code></td><td>~42 KB</td><td>Shared stylesheet loaded by all HTML modules. Contains design tokens, layout primitives, modal styles, and component classes common across all apps.</td></tr>
       <tr><td><code>docs/</code></td><td>—</td><td>Project documentation (this folder).</td></tr>
     </tbody>
   </table>
@@ -125,7 +137,7 @@
   <p><strong>Note:</strong> Supabase Auth is not used. Authentication is custom, using the <code>vms_users</code> table directly. The Supabase anon key is public by design — Row Level Security (RLS) on Supabase enforces data access rules.</p>
 
   <h2>5. Shared module system (Common.js)</h2>
-  <p>All HTML modules load <code>Common.js</code> via a <code>&lt;script&gt;</code> tag. The common file exposes:</p>
+  <p>All HTML modules load <code>js/Common.js</code> via a <code>&lt;script src="js/Common.js"&gt;</code> tag, followed by their own module script (e.g. <code>js/VMS.js</code>). The common file exposes:</p>
   <ul>
     <li>Supabase client (<code>_sb</code>) and initialisation logic with CDN retry</li>
     <li>Database helper functions for all CRUD operations</li>
