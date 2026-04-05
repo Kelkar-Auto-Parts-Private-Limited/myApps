@@ -135,7 +135,7 @@ If secrets are added in future:
 |---------------------------|----------|---------------------|
 | docs/index.html           | EXISTS   | 2026-04-03 16:57    |
 | docs/requirements.html    | EXISTS   | 2026-04-03 16:57    |
-| docs/architecture.html    | EXISTS   | 2026-04-05 18:00    |
+| docs/architecture.html    | EXISTS   | 2026-04-05 18:04    |
 | docs/changelog.html       | EXISTS   | 2026-04-03 16:57    |
 | docs/runbook.html         | EXISTS   | 2026-04-03 16:57    |
 
@@ -225,16 +225,25 @@ Authentication:
 # =============================
 
 Last session date:   2026-04-05
-Last session work:   Updated docs/architecture.html to match post-refactor file
-                     structure (js/ and css/ folders). Updated PROJECT.md to reflect
-                     current state. Added CLAUDE.md Section 5.0 (update docs before
-                     committing). Updated PROJECT.md P6 to point Claude to maintained
-                     docs as the authoritative architecture source.
+
+Work log (GitHub Issues disabled — tracked here per CLAUDE.md Section 3.3):
+
+  [2026-04-05 15:30] Sync architecture doc and enforce doc-before-commit rule
+    — docs/architecture.html was outdated after the JS extraction refactor.
+      Updated to show js/ and css/ folders with correct file sizes. Added
+      CLAUDE.md Section 5.0 requiring docs to be updated before committing when
+      file structure or capabilities change. Updated PROJECT.md P6/P7/P8/P9.
+      Committed as 707a878.
+
+  [2026-04-05 18:04] Add fallback work-tracking rule for when Issues are disabled
+    — CLAUDE.md had a hard rule to always create a GitHub Issue but no fallback
+      for when Issues are disabled. Added Section 3.3 requiring a PROJECT.md P9
+      log entry instead. Updated Section 9.5. CLAUDE.md bumped to v4.2.
+
 Issues closed:       None (Issues disabled on repo)
 Current open issues: None tracked
 Suggested next step: 1. Add a .gitignore file
-                     2. Commit all pending changes (CLAUDE.md, PROJECT.md,
-                        docs/architecture.html)
+                     2. Commit pending changes (CLAUDE.md, PROJECT.md)
 
 
 ---

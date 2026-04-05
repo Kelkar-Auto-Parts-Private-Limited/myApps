@@ -1,6 +1,6 @@
 # Claude Code — Universal Engineering Guidelines
 # ================================================
-# VERSION: 4.1
+# VERSION: 4.2
 # Last updated: 2026-04-05
 #
 # PURPOSE OF THIS FILE:
@@ -191,7 +191,24 @@ If the user describes a task and no issue number exists:
 If the user already has an issue number:
   Say: "Working against Issue #[number]. Creating the branch now."
 
-## 3.3 — Branch naming convention
+## 3.3 — Fallback when GitHub Issues are disabled
+# If PROJECT.md states that GitHub Issues are disabled, do NOT silently skip
+# tracking. Work without a record is still invisible — the record just lives
+# in PROJECT.md instead of GitHub.
+#
+# When Issues are disabled:
+#   1. Say: "GitHub Issues are disabled on this project. I will log this work
+#            item in PROJECT.md Section P9 as a record before we start."
+#   2. Add an entry to PROJECT.md Section P9 in this format:
+#        [YYYY-MM-DD HH:MM] <short title> — <what needs to be done and why>
+#   3. Reference the P9 entry description in the commit message in place of
+#      an issue number, e.g.:
+#        docs: update architecture doc and add pre-commit doc rule
+#
+# Never proceed without either a GitHub Issue or a P9 log entry.
+# Silently skipping tracking because Issues are disabled is not acceptable.
+
+## 3.4 — Branch naming convention
 # Branch names must include the issue number so the connection is visible
 # in the git log without needing to open any other files.
 #
@@ -209,7 +226,7 @@ Prefixes:
   docs/     — documentation only, no code change
   refactor/ — code restructure with no behaviour change
 
-## 3.4 — Commit message format with issue references
+## 3.5 — Commit message format with issue references
 # Every commit must reference the issue number in its message.
 # This makes every line of git log traceable to a business decision.
 #
@@ -223,7 +240,7 @@ Prefixes:
 Never commit with a vague message like "updates", "fix", or "wip".
 The message must explain what changed and why, in plain English.
 
-## 3.5 — Closing issues via Pull Request
+## 3.6 — Closing issues via Pull Request
 # Including "Closes #<number>" in a PR description causes GitHub to
 # automatically close the issue when the PR merges — no manual housekeeping needed.
 
@@ -595,10 +612,11 @@ Always create a tag before making large or risky changes.
 # Uncommitted work is invisible to git and at risk of being lost entirely.
 # Alternative: commit and push at the end of every session (Sections 5.1, 5.2)
 
-## 9.5 — Never start work without a GitHub Issue
-# Work without an issue has no traceable reason. Future developers and future
+## 9.5 — Never start work without a tracked work item
+# Work without a record has no traceable reason. Future developers and future
 # Claude sessions will have no context for why the change was made.
-# Alternative: create the issue first (Section 3.2)
+# Alternative: create a GitHub Issue (Section 3.2), or if Issues are disabled,
+# log it in PROJECT.md Section P9 first (Section 3.3).
 
 ## 9.6 — Never skip the session start or end checklists
 # The checklists exist because these steps are easy to forget under pressure.
@@ -687,5 +705,7 @@ Always create a tag before making large or risky changes.
 #           no redundant file name prefixes, when to suggest a refactor)
 #   v4.1 — added Section 5.0: update docs before committing (architecture,
 #           requirements, runbook must be committed together with the code change)
+#   v4.2 — added Section 3.3: fallback tracking via PROJECT.md P9 when GitHub
+#           Issues are disabled; updated Section 9.5 to reference the fallback
 #
 # Last reviewed: 2026-04-05
