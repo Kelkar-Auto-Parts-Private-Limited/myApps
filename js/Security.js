@@ -26,8 +26,8 @@ function secGo(pageId){
 function toggleSecNav(){ document.getElementById('secSidebar').classList.toggle('open'); document.getElementById('secOverlay').classList.toggle('show'); }
 function closeSecNav(){ document.getElementById('secSidebar').classList.remove('open'); document.getElementById('secOverlay').classList.remove('show'); }
 function secLogout(){
-  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
+  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_token');
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_current_user');}catch(e){}
   _navigateTo('index.html');
 }
 
@@ -359,10 +359,20 @@ async function _secBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
-  var su=_sessionGet('kap_session_user'), sp=_sessionGet('kap_session_pass');
-  if(su&&sp){
-    var user=(DB.users||[]).find(function(u){return u&&u.name.toLowerCase()===su&&u.password===sp;});
-    if(user&&!user.inactive){
+  var su=_sessionGet('kap_session_user'), _st=_sessionGet('kap_session_token');
+  var user=null;
+  if(su&&_st){
+    try{
+      var _sr=await _sb.rpc('verify_session',{p_username:su,p_token:_st});
+      if(_sr&&_sr.data){
+        var _d=_sr.data;
+        user={id:_d.code,_dbId:_d.id,name:_d.name,fullName:_d.full_name,mobile:_d.mobile||'',
+          email:_d.email||'',roles:_d.roles||[],hwmsRoles:_d.hwms_roles||[],plant:_d.plant||'',
+          apps:_d.apps||[],photo:_d.photo||'',inactive:_d.inactive||false,forcePasswordChange:_d.force_password_change||false};
+      }
+    }catch(e){ console.warn('Security: session verify error:',e.message); }
+  }
+  if(user&&!user.inactive){
       CU=user;
       _enrichCU();
       var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'\u{1F464}';

@@ -52,6 +52,18 @@ let _kapPopupOpen = false; // set true when KAP popup is open — pauses bg refr
 const SUPABASE_URL = 'https://ehzfknwkerafblnibhps.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoemZrbndrZXJhZmJsbmliaHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMzc5NDEsImV4cCI6MjA4ODYxMzk0MX0.fNj15dY0fc4N1KCdRll_dTAmN295WZKB6sUYCPxjN_8';
 
+// Columns to fetch for vms_users — password, session_token, session_expires_at are
+// never sent to the browser. All credential operations go through server-side RPCs.
+const _USERS_SELECT = 'id,code,name,full_name,mobile,email,roles,hwms_roles,plant,apps,photo,inactive,force_password_change';
+
+// Default syncSelect — returns the correct SELECT string for each table.
+// Module scripts (Portal.js etc.) may override this function for their own overrides,
+// but they must preserve the vms_users restriction.
+function _syncSelect(sbTbl){
+  if(sbTbl==='vms_users') return _USERS_SELECT;
+  return '*';
+}
+
 // Supabase table name mapping (JS tbl name → Supabase table name)
 const SB_TABLES = {
   users:'vms_users', vehicleTypes:'vms_vehicle_types', vendors:'vms_vendors',
@@ -147,7 +159,7 @@ function _hwmsNormContStatus(s){
 // ═══ SUPABASE ROW MAPPING ══════════════════════════════════════════════════
 function _toRow(tbl, rec) {
   const r = rec;
-  if(tbl==='users')        return {code:r.id,name:r.name||'',password:r.password||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
+  if(tbl==='users')        return {code:r.id,name:r.name||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false,force_password_change:r.forcePasswordChange||false};
   if(tbl==='vehicleTypes') return {code:r.id,name:r.name||'',capacity:r.capacity||0,inactive:r.inactive||false};
   if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',user_id:r.userId||'',inactive:r.inactive||false};
   if(tbl==='drivers')      return {code:r.id,name:r.name||'',mobile:r.mobile||'',vendor_id:r.vendorId||'',dl_expiry:r.dlExpiry||'',photo:r.photo||'',inactive:r.inactive||false};
@@ -189,7 +201,7 @@ function _toRow(tbl, rec) {
 // Convert Supabase row → JS record
 function _fromRow(tbl, row) {
   if(!row) return null;
-  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,password:row.password,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false,forcePasswordChange:row.force_password_change||false};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
   if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
@@ -500,7 +512,7 @@ window._diagSB = async function(){
     }catch(e){ console.error('❌ Test query exception:', e.message); }
     // Test write
     try{
-      const testRow={code:'__diag_test__',name:'_diag',password:'x',full_name:'Diag Test',mobile:'',roles:[],hwms_roles:[],plant:'',apps:[],photo:'',inactive:true};
+      const testRow={code:'__diag_test__',name:'_diag',full_name:'Diag Test',mobile:'',roles:[],hwms_roles:[],plant:'',apps:[],photo:'',inactive:true,force_password_change:false};
       const {error:we} = await _sb.from('vms_users').upsert(testRow,{onConflict:'code'}).select();
       if(we) console.error('❌ Test write error:', we.message);
       else{
@@ -897,7 +909,8 @@ function _bgSyncFromSupabase(){
   _dbConnectCount++;
   console.log('📡 bgSync #'+_dbConnectCount+' start — caller: '+(new Error().stack.split('\n')[2]||'?').trim());
   Promise.all(_getActiveTables().map(async tbl=>{
-    const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+    const sel=(typeof _syncSelect==='function')?_syncSelect(SB_TABLES[tbl]):'*';
+    const {data,error} = await _sb.from(SB_TABLES[tbl]).select(sel);
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{

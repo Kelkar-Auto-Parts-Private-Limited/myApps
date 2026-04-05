@@ -250,8 +250,8 @@ function _hwmsContApplyRoleVisibility(){
   document.querySelectorAll('.hwms-cont-invval').forEach(function(el){el.style.display=showVal?'':'none';});
 }
 function hwmsLogout(){
-  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
+  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_token');
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_current_user');}catch(e){}
   _navigateTo('index.html');
 }
 
@@ -1185,19 +1185,27 @@ async function _hwmsBoot(){
   // Start realtime
   try{if(typeof _hwmsStartRealtime==='function')_hwmsStartRealtime();}catch(e){}
   
-  // Check session
+  // Check session — verify token server-side (no password stored)
   var su=_sessionGet('kap_session_user');
-  var sp=_sessionGet('kap_session_pass');
-  
-  console.log('HWMS: session check, user='+(su||'none')+', DB.users='+(DB.users||[]).length);
-  
-  if(su && sp && (DB.users||[]).length > 0){
-    var user=(DB.users||[]).find(function(u){
-      return u && u.name && u.name.toLowerCase()===su && u.password===sp;
-    });
-    
-    if(user && !user.inactive){
-      console.log('HWMS: user found, showing app');
+  var _st=_sessionGet('kap_session_token');
+
+  console.log('HWMS: session check, user='+(su||'none'));
+
+  var user=null;
+  if(su && _st){
+    try{
+      var _sr=await _sb.rpc('verify_session',{p_username:su,p_token:_st});
+      if(_sr&&_sr.data){
+        var _d=_sr.data;
+        user={id:_d.code,_dbId:_d.id,name:_d.name,fullName:_d.full_name,mobile:_d.mobile||'',
+          email:_d.email||'',roles:_d.roles||[],hwmsRoles:_d.hwms_roles||[],plant:_d.plant||'',
+          apps:_d.apps||[],photo:_d.photo||'',inactive:_d.inactive||false,forcePasswordChange:_d.force_password_change||false};
+      }
+    }catch(e){ console.warn('HWMS: session verify error:',e.message); }
+  }
+
+  if(user && !user.inactive){
+      console.log('HWMS: session valid, showing app');
       CU=user;
       if(typeof _enrichCU==='function') _enrichCU();
       
@@ -1251,9 +1259,8 @@ async function _hwmsBoot(){
       _hwmsBootDone=true;
       console.log('HWMS: boot SUCCESS');
       return;
-    }
   }
-  
+
   // No session - redirect
   console.log('HWMS: no session, redirecting');
   if(splash) splash.style.display='none';
