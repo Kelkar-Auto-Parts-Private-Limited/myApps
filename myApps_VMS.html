@@ -2245,7 +2245,7 @@ async function _appBoot(){
       try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
     }
   }
-  _showLogin(su||'');
+  _showLogin(_su||ss||'');
 }
 
 function launchVMS(targetPage, appId){
@@ -2772,7 +2772,7 @@ function _isLockedOut(){ return Date.now()<_lockoutUntil; }
 // Init captcha on page load
 document.addEventListener('DOMContentLoaded',()=>_refreshCaptcha());
 
-function doLogin(){
+async function doLogin(){
   // Check database connection
   if(_sbStatus!=='ok'){
     document.getElementById('loginError').style.display='block';
