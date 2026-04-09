@@ -157,7 +157,7 @@ function _hwmsNormContStatus(s){
 // ═══ SUPABASE ROW MAPPING ══════════════════════════════════════════════════
 function _toRow(tbl, rec) {
   const r = rec;
-  if(tbl==='users')        return {code:r.id,name:r.name||'',password:r.password||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],hrms_roles:r.hrmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
+  if(tbl==='users')        return {code:r.id,name:r.name||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],hrms_roles:r.hrmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicleTypes') return {code:r.id,name:r.name||'',capacity:r.capacity||0,inactive:r.inactive||false};
   if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',user_id:r.userId||'',inactive:r.inactive||false};
   if(tbl==='drivers')      return {code:r.id,name:r.name||'',mobile:r.mobile||'',vendor_id:r.vendorId||'',dl_expiry:r.dlExpiry||'',photo:r.photo||'',inactive:r.inactive||false};
@@ -209,7 +209,7 @@ function _toRow(tbl, rec) {
 // Convert Supabase row → JS record
 function _fromRow(tbl, row) {
   if(!row) return null;
-  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,password:row.password,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
   if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
@@ -564,7 +564,7 @@ function _rtApply(tbl, action, row){
     if(idx>=0){ DB[tbl][idx]=rec; } else { DB[tbl].push(rec); }
     // ── Sync CU when current user's record is updated via Realtime ──
     if(tbl==='users' && CU && rec.id===CU.id){
-      Object.assign(CU,{fullName:rec.fullName,name:rec.name,mobile:rec.mobile,email:rec.email,password:rec.password,photo:rec.photo,roles:rec.roles,plant:rec.plant,apps:rec.apps,inactive:rec.inactive});
+      Object.assign(CU,{fullName:rec.fullName,name:rec.name,mobile:rec.mobile,email:rec.email,photo:rec.photo,roles:rec.roles,plant:rec.plant,apps:rec.apps,inactive:rec.inactive});
       _enrichCU();
       _refreshCurrentUserUI();
     }
@@ -781,6 +781,54 @@ async function _dbSave(tbl, record){
   _sbSetStatus('ok');
   return true;
   }finally{ hideSpinner(); }
+}
+
+// ═══ AUTH HELPERS — server-side password hashing via Supabase RPC ═══
+async function _authLogin(username,password){
+  if(!_sb) return null;
+  try{
+    var {data,error}=await _sb.rpc('create_session',{p_username:username,p_password:password});
+    if(error||!data) return null;
+    var token=data;// returns the session token string
+    // Now fetch user data via verify_session
+    var {data:rows,error:e2}=await _sb.rpc('verify_session',{p_username:username,p_token:token});
+    if(e2||!rows||!rows.length) return null;
+    var user=_fromRow('users',rows[0]);
+    return {user:user,token:token};
+  }catch(e){console.error('_authLogin error:',e.message);return null;}
+}
+
+async function _authVerifySession(username,token){
+  if(!_sb||!token) return null;
+  try{
+    var {data:rows,error}=await _sb.rpc('verify_session',{p_username:username,p_token:token});
+    if(error||!rows||!rows.length) return null;
+    return _fromRow('users',rows[0]);
+  }catch(e){console.error('_authVerifySession error:',e.message);return null;}
+}
+
+async function _authChangePassword(username,oldPwd,newPwd){
+  if(!_sb) return false;
+  try{
+    var {data,error}=await _sb.rpc('change_password',{p_username:username,p_old_password:oldPwd,p_new_password:newPwd});
+    return !error&&data===true;
+  }catch(e){return false;}
+}
+
+async function _authResetPassword(adminCode,targetCode){
+  if(!_sb) return false;
+  try{
+    var {data,error}=await _sb.rpc('admin_reset_password',{p_admin_code:adminCode,p_target_code:targetCode});
+    return !error&&data===true;
+  }catch(e){return false;}
+}
+
+async function _authSetPassword(userCode,plainPassword){
+  if(!_sb) return false;
+  try{
+    var {data,error}=await _sb.rpc('set_hashed_password',{p_user_code:userCode,p_plain_password:plainPassword});
+    return !error&&data===true;
+  }catch(e){return false;}
 }
 
 // Bulk upsert — saves array of records in batches of 50

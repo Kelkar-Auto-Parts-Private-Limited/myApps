@@ -1699,8 +1699,8 @@ function _hwmsContApplyRoleVisibility(){
   document.querySelectorAll('.hwms-cont-invval').forEach(function(el){el.style.display=showVal?'':'none';});
 }
 function hwmsLogout(){
-  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
+  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_token');
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
   _navigateTo('index.html');
 }
 
@@ -2677,14 +2677,13 @@ async function _hwmsBoot(){
   
   // Check session
   var su=_sessionGet('kap_session_user');
-  var sp=_sessionGet('kap_session_pass');
+  var sp=_sessionGet('kap_session_token');
   
   console.log('HWMS: session check, user='+(su||'none')+', DB.users='+(DB.users||[]).length);
   
-  if(su && sp && (DB.users||[]).length > 0){
-    var user=(DB.users||[]).find(function(u){
-      return u && u.name && u.name.toLowerCase()===su && u.password===sp;
-    });
+  if(su && sp){
+    var user=await _authVerifySession(su,sp);
+    if(!user){try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}}
     
     if(user && !user.inactive){
       console.log('HWMS: user found, showing app');

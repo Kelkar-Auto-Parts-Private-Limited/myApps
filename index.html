@@ -465,7 +465,7 @@ function resetToSeed(){
   showConfirm('This will erase ALL data (localStorage + Supabase) and restore factory defaults. Continue?', ()=>{
     try{
       DB_TABLES.forEach(tbl=>localStorage.removeItem(LS_PREFIX+tbl));
-      ['kap_db_local','kap_rm_user','kap_rm_pass'].forEach(k=>localStorage.removeItem(k));
+      ['kap_db_local','kap_rm_user','kap_rm_token'].forEach(k=>localStorage.removeItem(k));
       sessionStorage.clear();
     }catch(e){}
     if(_sbReady && _sb){
@@ -544,17 +544,14 @@ document.addEventListener('DOMContentLoaded', function(){
   _refreshCaptcha();
   try{
     var su=localStorage.getItem('kap_rm_user');
-    var sp=localStorage.getItem('kap_rm_pass');
-    if(su && sp){
+    var st=localStorage.getItem('kap_rm_token');
+    if(su && st){
       var uEl=document.getElementById('loginUser');
-      var pEl=document.getElementById('loginPass');
       var rmEl=document.getElementById('rememberMe');
       if(uEl) uEl.value=su;
-      if(pEl) pEl.value=sp;
       if(rmEl) rmEl.checked=true;
       _rememberedLogin=true;
-      var cw=document.getElementById('captchaWrap');
-      if(cw) cw.style.display='none';
+      // Token-based session will auto-restore in _portalBoot — no password pre-fill needed
     }
   }catch(e){}
 });
@@ -594,17 +591,15 @@ function _portalUpdateLoginBtn(){
   if(label) label.style.color=loading?'#475569':'#15803d';
   if(status){ status.style.background=loading?'#f8fafc':'rgba(34,197,94,.06)'; status.style.borderColor=loading?'#e2e8f0':'rgba(34,197,94,.25)'; }
 }
-function doLogin(){
+async function doLogin(){
   try{
   console.log('[doLogin] START');
-  // Always require DB.users to be populated before allowing login.
-  if(!DB.users||!DB.users.length){
+  if(!_sbReady||!_sb){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='Database not ready yet. Please wait a moment…';
     return;
   }
   if(_portalRetryTimer){clearInterval(_portalRetryTimer);_portalRetryTimer=null;}
-  // Check lockout
   if(_isLockedOut()){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='Account locked. Please wait for the timer to expire.';
@@ -612,7 +607,6 @@ function doLogin(){
   }
   const u=document.getElementById('loginUser').value.toLowerCase().trim();
   const p=document.getElementById('loginPass').value;
-  // Skip CAPTCHA for remembered devices — they pre-filled from localStorage.
   if(!_rememberedLogin){
     const userAns=parseInt(document.getElementById('captchaAns').value,10);
     if(isNaN(userAns)||userAns!==_captchaAnswer){
@@ -624,9 +618,12 @@ function doLogin(){
     document.getElementById('captchaErr').style.display='none';
     document.getElementById('captchaAns').classList.remove('input-error');
   }
-  const user=DB.users.find(x=>x&&x.name.toLowerCase()===u&&x.password===p);
-  if(!user){
-    console.warn('[doLogin] no match — DB has',DB.users?.length,'users');
+  // Server-side login via RPC (bcrypt verification in PostgreSQL)
+  showSpinner('Logging in…');
+  var result=await _authLogin(u,p);
+  hideSpinner();
+  if(!result||!result.user){
+    console.warn('[doLogin] auth failed');
     _loginFailCount++;
     if(_loginFailCount>=_LOCKOUT_MAX){
       _startLockout();
@@ -639,39 +636,36 @@ function doLogin(){
     _refreshCaptcha();
     return;
   }
+  var user=result.user;
+  var token=result.token;
   if(user.inactive===true){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='This account has been deactivated. Contact your Admin.';
     _refreshCaptcha();
     return;
   }
-  // Success — reset fail count
   _loginFailCount=0;
   CU=user; _enrichCU();
-  // Mark as logged in — stops _portalUpdateLoginBtn from updating login UI
   _portalLoggedIn=true;
-  // Always store in sessionStorage so refresh within this tab keeps user logged in
+  // Store session token (NOT password)
   _sessionSet('kap_session_user',u);
-  _sessionSet('kap_session_pass',p);
-  // Cache the full user object — Portal uses this to restore session even when
-  // Supabase is slow/unavailable and DB.users hasn't loaded yet after navigation.
+  _sessionSet('kap_session_token',token);
   try{ localStorage.setItem('kap_current_user', JSON.stringify(user)); }catch(e){}
-  // Persist to localStorage ONLY if "Remember me" is checked
   var rememberChecked=document.getElementById('rememberMe')?.checked;
   try{
     if(rememberChecked){
       localStorage.setItem('kap_rm_user', u);
-      localStorage.setItem('kap_rm_pass', p);
+      localStorage.setItem('kap_rm_token', token);
     } else {
-      // Clear any previously saved credentials when user logs in without remembering
       localStorage.removeItem('kap_rm_user');
-      localStorage.removeItem('kap_rm_pass');
+      localStorage.removeItem('kap_rm_token');
     }
   }catch(e){}
+  // Clean up old password keys if present
+  try{localStorage.removeItem('kap_rm_token');_sessionDel('kap_session_token');}catch(e){}
   document.getElementById('loginError').style.display='none';
-  // Check password strength — force change before showing portal
-  // NOTE: Do NOT hide loginPage here — showPortal() does it.
-  // If force password modal opens, it overlays the login page (z-index 100010).
+  // Check if password is weak — force change
+  // We check client-side since the password is in the form field (not stored)
   var _RESET_PWD_PORTAL='Kappl@123';
   if(!_isStrongPwd(p)||p===_RESET_PWD_PORTAL){
     _openForcePassModal();
@@ -1271,11 +1265,15 @@ async function puSaveUser(){
   if(DB.users.find(u=>u&&u.name===name&&u.id!==id&&!u.inactive)){modalErr('mUser','Username already exists');return}
   if(DB.users.find(u=>(u.fullName||'').trim().toLowerCase()===fullName.toLowerCase()&&u.id!==id&&!u.inactive)){modalErr('mUser','Full name already exists');return}
   if(id){
-    const bak={...eu};Object.assign(eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive});
+    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
+    // If password field was changed, hash it server-side
+    if(pass) await _authSetPassword(eu.id,pass);
   } else {
-    const nu={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive,photo:'',email:''};
+    const nu={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive,photo:'',email:''};
     if(!await _dbSave('users',nu)) return;
+    // Hash password server-side for new user
+    await _authSetPassword(nu.id,pass||'Kappl@123');
   }
   cm('mUser');
   // Auto-sync user's roles into their plant location's role arrays
@@ -1309,17 +1307,10 @@ async function puResetPwd(id){
   var u=byId(DB.users,id);if(!u){notify('User not found',true);return;}
   var userName=u.fullName||u.name||'this user';
   if(!confirm('Reset password for "'+userName+'" to "Kappl@123"?\n\nThe user will be forced to change password on next login.')) return;
-  var bak=u.password;
-  u.password='Kappl@123';
-  try{
-    var ok=await _dbSave('users',u);
-    if(!ok){u.password=bak;notify('Failed to reset password',true);return;}
-    notify('🔑 Password for "'+userName+'" reset to "Kappl@123".');
-    renderPortalUsers();
-  }catch(err){
-    u.password=bak;
-    notify('Failed: '+err.message,true);
-  }
+  var ok=await _authResetPassword(CU.id,u.id);
+  if(!ok){notify('Failed to reset password',true);return;}
+  notify('🔑 Password for "'+userName+'" reset to "Kappl@123".');
+  renderPortalUsers();
 }
 
 // ── Profile ─────────────────────────────────────────────────────────────────
@@ -1387,15 +1378,20 @@ async function ppSavePass(){
   const newPass=document.getElementById('ppNewPass').value||'';
   const confPass=document.getElementById('ppConfPass').value||'';
   if(!oldPass||!newPass||!confPass){_ppMsg('ppPassMsg','Fill all password fields',false);return;}
-  if(oldPass!==CU.password){_ppMsg('ppPassMsg','Current password is incorrect',false);return;}
   const pwdErrs=_pwdErrors(newPass);
   if(pwdErrs.length){_ppMsg('ppPassMsg','Password requires: '+pwdErrs.join(', '),false);return;}
   if(newPass!==confPass){_ppMsg('ppPassMsg','New passwords do not match',false);return;}
-  const dbUser=byId(DB.users,CU.id);
-  if(dbUser){const bak={...dbUser};dbUser.password=newPass;if(!await _dbSave('users',dbUser)){dbUser.password=bak.password;return;}}
-  CU.password=newPass;
-  try{if(localStorage.getItem('kap_rm_pass'))localStorage.setItem('kap_rm_pass',newPass);}catch(e){}
-  try{if(sessionStorage.getItem('kap_session_pass'))sessionStorage.setItem('kap_session_pass',newPass);}catch(e){}
+  // Server-side old password verification + hashed new password
+  showSpinner('Changing password…');
+  var ok=await _authChangePassword(CU.name,oldPass,newPass);
+  hideSpinner();
+  if(!ok){_ppMsg('ppPassMsg','Current password is incorrect',false);return;}
+  // Re-login to get a new session token
+  var result=await _authLogin(CU.name,newPass);
+  if(result&&result.token){
+    _sessionSet('kap_session_token',result.token);
+    try{if(localStorage.getItem('kap_rm_token'))localStorage.setItem('kap_rm_token',result.token);}catch(e){}
+  }
   document.getElementById('ppOldPass').value='';document.getElementById('ppNewPass').value='';document.getElementById('ppConfPass').value='';
   _ppMsg('ppPassMsg','Password updated!',true);
 }
@@ -1493,17 +1489,20 @@ async function _doForceChangePass(){
   var errs=_pwdErrors(newPwd);
   if(errs.length){showErr('Password requires: '+errs.join(', '));return;}
   if(newPwd!==confPwd){showErr('Passwords do not match');return;}
-  if(newPwd===CU.password){showErr('New password must be different from current password');return;}
   if(newPwd===_PORTAL_RESET_PWD){showErr('Cannot use the default password. Please choose a different one.');return;}
-  var dbUser=byId(DB.users,CU.id);
-  if(dbUser){
-    var bak=dbUser.password;
-    dbUser.password=newPwd;
-    if(!await _dbSave('users',dbUser)){dbUser.password=bak;showErr('Failed to save. Try again.');return;}
+  // Use the password from the login form (still available) as old password
+  var oldPwd=document.getElementById('loginPass')?.value||_PORTAL_RESET_PWD;
+  showSpinner('Updating password…');
+  var ok=await _authChangePassword(CU.name,oldPwd,newPwd);
+  hideSpinner();
+  if(!ok){showErr('Failed to change password. Try again.');return;}
+  // Re-login with new password to get fresh token
+  var result=await _authLogin(CU.name,newPwd);
+  if(result&&result.token){
+    _sessionSet('kap_session_token',result.token);
+    try{if(localStorage.getItem('kap_rm_token'))localStorage.setItem('kap_rm_token',result.token);}catch(e){}
+    try{localStorage.setItem('kap_current_user',JSON.stringify(result.user));}catch(e){}
   }
-  CU.password=newPwd;
-  try{if(localStorage.getItem('kap_rm_pass'))localStorage.setItem('kap_rm_pass',newPwd);}catch(e){}
-  try{if(sessionStorage.getItem('kap_session_pass'))sessionStorage.setItem('kap_session_pass',newPwd);}catch(e){}
   cm('mForcePass');
   notify('🔐 Password updated successfully!');
   showPortal();
@@ -1514,8 +1513,8 @@ function _forcePassSignOut(){
 }
 
 function doLogout(){
-  CU=null;_sessionDel('kap_session_user');_sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');localStorage.removeItem('kap_current_user');}catch(e){console.warn('[doLogout] ls err:',e);}
+  CU=null;_sessionDel('kap_session_user');_sessionDel('kap_session_token');
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');localStorage.removeItem('kap_current_user');}catch(e){console.warn('[doLogout] ls err:',e);}
   // Allow login UI updates again
   _portalLoggedIn=false;
   // Reset login form state
@@ -1569,10 +1568,10 @@ async function _portalBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations'];
   // Check session
   var su,sp2;
-  try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_pass'); }catch(e){}
+  try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_token'); }catch(e){}
   if(!su||!sp2){
-    try{ su=localStorage.getItem('kap_rm_user'); sp2=localStorage.getItem('kap_rm_pass'); }catch(e){}
-    if(su&&sp2){ _sessionSet('kap_session_user',su); _sessionSet('kap_session_pass',sp2); }
+    try{ su=localStorage.getItem('kap_rm_user'); sp2=localStorage.getItem('kap_rm_token'); }catch(e){}
+    if(su&&sp2){ _sessionSet('kap_session_user',su); _sessionSet('kap_session_token',sp2); }
   }
 
   var hasSession=!!(su&&sp2);
@@ -1586,28 +1585,20 @@ async function _portalBoot(){
     if(splash) splash.style.display='none';
     try{ await bootDB(); _bootDone=true; }catch(e){ _bootDone=true; }
     if(splash) splash.style.display='none';
-    var user=(DB.users||[]).find(function(u){return u&&u.name.toLowerCase()===su&&u.password===sp2;});
+    // Verify session token server-side
+    var user=await _authVerifySession(su,sp2);
     if(!user){
-      // DB.users might be empty if Supabase failed/timed out.
-      // Try to restore from the cached user object we save on every login.
+      // Fallback: restore from cached user object if Supabase unavailable
       try{
         var _cu=localStorage.getItem('kap_current_user');
         if(_cu) user=JSON.parse(_cu);
-        if(user&&user.name.toLowerCase()===su) { /* restored from cache */ }
-        else user=null;
+        if(!user||user.name.toLowerCase()!==su) user=null;
       }catch(e){ user=null; }
     }
     if(user&&!user.inactive){
       CU=user; _enrichCU();
       _portalLoggedIn=true;
-      // Check password strength on session restore too
-      if(!_isStrongPwd(user.password)||user.password==='Kappl@123'){
-        // Show login page behind the modal so there's no blank screen
-        document.getElementById('loginPage').style.display='flex';
-        _openForcePassModal();
-      } else {
-        showPortal();
-      }
+      showPortal();
       return;
     }
     // Session failed — show login page

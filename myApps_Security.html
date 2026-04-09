@@ -843,8 +843,8 @@ function secGo(pageId){
 function toggleSecNav(){ document.getElementById('secSidebar').classList.toggle('open'); document.getElementById('secOverlay').classList.toggle('show'); }
 function closeSecNav(){ document.getElementById('secSidebar').classList.remove('open'); document.getElementById('secOverlay').classList.remove('show'); }
 function secLogout(){
-  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_pass');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_pass');}catch(e){}
+  CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_token');
+  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
   _navigateTo('index.html');
 }
 
@@ -1176,9 +1176,10 @@ async function _secBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
-  var su=_sessionGet('kap_session_user'), sp=_sessionGet('kap_session_pass');
+  var su=_sessionGet('kap_session_user'), sp=_sessionGet('kap_session_token');
   if(su&&sp){
-    var user=(DB.users||[]).find(function(u){return u&&u.name.toLowerCase()===su&&u.password===sp;});
+    var user=await _authVerifySession(su,sp);
+    if(!user){try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}}
     if(user&&!user.inactive){
       CU=user;
       _enrichCU();

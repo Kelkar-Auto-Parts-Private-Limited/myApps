@@ -1845,10 +1845,7 @@ function _tryAutoLogin(user){
       }
       return true;
     }
-    // Check password strength or default reset password — force change if needed
-    if(!_isStrongPwd(user.password)||user.password===_RESET_PWD){
-      _openForcePassModal();
-    }
+    // Password strength check handled at login time (not session restore)
     return true;
   }catch(e){
     console.error('Auto-login error:',e);
@@ -2225,30 +2222,27 @@ async function _appBoot(){
   try{ _applyPhotoInputMode(); }catch(e){}
   
   // Check session
-  var ss=_sessionGet('kap_session_user'), sp2=_sessionGet('kap_session_pass');
+  var ss=_sessionGet('kap_session_user'), sp2=_sessionGet('kap_session_token');
   console.log('VMS: checking session, user=',ss?'yes':'no');
   
-  if(ss&&sp2&&(DB.users||[]).length>0){
-    var user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===ss&&x.password===sp2;});
-    if(user){ 
-      console.log('VMS: user found, auto-login');
-      if(_tryAutoLogin(user)) return; 
-    }
-    else{ 
-      console.log('VMS: session user not found in DB');
-      _sessionDel('kap_session_user'); _sessionDel('kap_session_pass'); 
-    }
+  // Try session token or remember-me token
+  var _tk=sp2;
+  var _su=ss;
+  if(!_su||!_tk){
+    try{_su=localStorage.getItem('kap_rm_user');_tk=localStorage.getItem('kap_rm_token');}catch(e){}
   }
-  // Check remember-me
-  var su=null,sp=null;
-  try{ su=localStorage.getItem('kap_rm_user'); sp=localStorage.getItem('kap_rm_pass'); }catch(e){}
-  if(su&&sp){
-    var user2=DB.users.find(function(x){return x&&x.name.toLowerCase()===su&&x.password===sp;});
-    if(user2){
-      var rm=document.getElementById('rememberMe');if(rm)rm.checked=true;
-      if(_tryAutoLogin(user2)) return;
+  if(_su&&_tk){
+    var user=await _authVerifySession(_su,_tk);
+    if(!user){
+      // Fallback to cached user if Supabase slow
+      try{var _cu=localStorage.getItem('kap_current_user');if(_cu){user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==_su)user=null;}}catch(e){user=null;}
+    }
+    if(user){
+      console.log('VMS: session verified, auto-login');
+      if(_tryAutoLogin(user)) return;
     } else {
-      try{ localStorage.removeItem('kap_rm_user'); localStorage.removeItem('kap_rm_pass'); }catch(e){}
+      _sessionDel('kap_session_user');_sessionDel('kap_session_token');
+      try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
     }
   }
   _showLogin(su||'');
@@ -2805,10 +2799,11 @@ function doLogin(){
   }
   document.getElementById('captchaErr').style.display='none';
   document.getElementById('captchaAns').classList.remove('input-error');
-  console.log('[doLogin] u='+JSON.stringify(u)+' DB.users count='+(DB.users||[]).length);
-  const user=DB.users.find(x=>x&&x.name.toLowerCase()===u&&x.password===p);
-  if(!user){
-    console.warn('[doLogin] no match — DB has',DB.users?.length,'users');
+  // Server-side login via RPC
+  showSpinner('Logging in…');
+  var result=await _authLogin(u,p);
+  hideSpinner();
+  if(!result||!result.user){
     _loginFailCount++;
     if(_loginFailCount>=_LOCKOUT_MAX){
       _startLockout();
@@ -2821,22 +2816,20 @@ function doLogin(){
     _refreshCaptcha();
     return;
   }
+  var user=result.user;var token=result.token;
   if(user.inactive===true){
     document.getElementById('loginError').style.display='block';
     document.getElementById('loginError').textContent='This account has been deactivated. Contact your Admin.';
     _refreshCaptcha();
     return;
   }
-  // Success — reset fail count
   _loginFailCount=0;
   CU=user; _enrichCU();
-  // Always store in sessionStorage so refresh keeps user logged in
   _sessionSet('kap_session_user',u);
-  _sessionSet('kap_session_pass',p);
-  // Persist credentials and full user object so Portal can restore session without DB
+  _sessionSet('kap_session_token',token);
   try{
     localStorage.setItem('kap_rm_user', u);
-    localStorage.setItem('kap_rm_pass', p);
+    localStorage.setItem('kap_rm_token', token);
     localStorage.setItem('kap_current_user', JSON.stringify(user));
   }catch(e){}
   document.getElementById('loginError').style.display='none';
@@ -2946,18 +2939,18 @@ async function _doForceChangePass(){
   const errs=_pwdErrors(newPwd);
   if(errs.length){showErr('Password requires: '+errs.join(', '));return;}
   if(newPwd!==confPwd){showErr('Passwords do not match');return;}
-  if(newPwd===CU.password){showErr('New password must be different from current password');return;}
   if(newPwd===_RESET_PWD){showErr('Cannot use the default password. Please choose a different one.');return;}
-  // Save
-  const dbUser=byId(DB.users,CU.id);
-  if(dbUser){
-    const _bak=dbUser.password;
-    dbUser.password=newPwd;
-    if(!await _dbSave('users',dbUser)){dbUser.password=_bak;showErr('Failed to save. Try again.');return;}
+  // Server-side password change
+  var oldPwd=document.getElementById('loginPass')?.value||_RESET_PWD;
+  showSpinner('Updating password…');
+  var ok=await _authChangePassword(CU.name,oldPwd,newPwd);
+  hideSpinner();
+  if(!ok){showErr('Failed to change password. Try again.');return;}
+  var result=await _authLogin(CU.name,newPwd);
+  if(result&&result.token){
+    _sessionSet('kap_session_token',result.token);
+    try{localStorage.setItem('kap_rm_token',result.token);localStorage.setItem('kap_current_user',JSON.stringify(result.user));}catch(e){}
   }
-  CU.password=newPwd;
-  try{if(localStorage.getItem('kap_rm_pass'))localStorage.setItem('kap_rm_pass',newPwd);}catch(e){}
-  try{if(sessionStorage.getItem('kap_session_pass'))sessionStorage.setItem('kap_session_pass',newPwd);}catch(e){}
   cm('mForcePass');
   notify('🔐 Password updated successfully!');
 }
@@ -2972,9 +2965,8 @@ async function _resetUserPwd(userId){
   const u=byId(DB.users,userId);if(!u)return;
   if((u.roles||[]).includes('Super Admin')){notify('Cannot reset Super Admin password',true);return;}
   showConfirm(`Reset password for "${u.fullName||u.name}" to "Kappl@123"?\n\nThe user will be forced to change password on next login.`, async ()=>{
-    const _bak=u.password;
-    u.password=_RESET_PWD;
-    if(!await _dbSave('users',u)){u.password=_bak;notify('Failed to reset password',true);return;}
+    var ok=await _authResetPassword(CU.id,u.id);
+    if(!ok){notify('Failed to reset password',true);return;}
     notify(`🔑 Password for "${u.fullName||u.name}" reset to "Kappl@123". They must change it on next login.`);
     cm('mRecordDetail');
     if(typeof renderUsers==='function') try{renderUsers();}catch(e){}
@@ -2989,8 +2981,8 @@ function doLogout(){
   _sbStopPing();
   _sbStopRealtime();
   _sessionDel('kap_session_user');
-  _sessionDel('kap_session_pass');
-  try{ localStorage.removeItem('kap_rm_user'); localStorage.removeItem('kap_rm_pass'); }catch(e){}
+  _sessionDel('kap_session_token');
+  try{ localStorage.removeItem('kap_rm_user'); localStorage.removeItem('kap_rm_token'); }catch(e){}
   // On file:// show login form directly; otherwise redirect to portal
   if(location.protocol==='file:'){
     const lp=document.getElementById('loginPage');if(lp)lp.style.display='flex';
@@ -4428,23 +4420,24 @@ async function saveProfile(){
   if(!fullName){notify('Full name required',true);return;}
   if(mobile&&mobile.length!==10){notify('Mobile must be 10 digits',true);return;}
   if(newPass||oldPass||confPass){
-    if(oldPass!==CU.password){notify('Current password is incorrect',true);return;}
     const _pwdE=_pwdErrors(newPass);
     if(_pwdE.length){notify('Password requires: '+_pwdE.join(', '),true);return;}
     if(newPass!==confPass){notify('New passwords do not match',true);return;}
-    CU.password=newPass;
-    // Update saved remember-me if active
-    if(null===CU.name){
-      /* localStorage disabled */
-    }
+    // Server-side password change
+    showSpinner('Changing password…');
+    var pwdOk=await _authChangePassword(CU.name,oldPass,newPass);
+    hideSpinner();
+    if(!pwdOk){notify('Current password is incorrect',true);return;}
+    // Get new session token
+    var r2=await _authLogin(CU.name,newPass);
+    if(r2&&r2.token){_sessionSet('kap_session_token',r2.token);try{localStorage.setItem('kap_rm_token',r2.token);}catch(e){}}
   }
   CU.fullName=fullName;CU.mobile=mobile;CU.email=email;
-  // Sync back to DB and save to Supabase
   const dbUser=byId(DB.users,CU.id);
   if(dbUser){
     const _bak={...dbUser};
-    Object.assign(dbUser,{fullName,mobile,email,password:CU.password,photo:CU.photo||''});
-    if(!await _dbSave('users',dbUser)){ Object.assign(dbUser,_bak); CU.fullName=_bak.fullName;CU.mobile=_bak.mobile;CU.email=_bak.email;CU.password=_bak.password; return; }
+    Object.assign(dbUser,{fullName,mobile,email,photo:CU.photo||''});
+    if(!await _dbSave('users',dbUser)){ Object.assign(dbUser,_bak); CU.fullName=_bak.fullName;CU.mobile=_bak.mobile;CU.email=_bak.email; return; }
   }
   
   // Update sidebar
@@ -8397,10 +8390,11 @@ async function saveUser(){
   if(id){
     const _eu=byId(DB.users,id);
     const _backup={..._eu};
-    Object.assign(_eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive});
+    Object.assign(_eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive});
     if(!await _dbSave('users',_eu)){ Object.assign(_eu,_backup); return; }
+    if(pass) await _authSetPassword(_eu.id,pass);
   }
-  else{const _u={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive};if(!await _dbSave('users',_u)) return;}
+  else{const _u={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive};if(!await _dbSave('users',_u)) return;await _authSetPassword(_u.id,pass||'Kappl@123');}
   cm('mUser');
   // Auto-sync user's roles into their plant location's role arrays
   const _savedId=id||(DB.users[DB.users.length-1]?.id);
@@ -8409,7 +8403,7 @@ async function saveUser(){
   const _editedId=id||(DB.users[DB.users.length-1]?.id);
   if(CU && _editedId===CU.id){
     const _fresh=byId(DB.users,CU.id);
-    if(_fresh) Object.assign(CU,{name:_fresh.name,fullName:_fresh.fullName,password:_fresh.password,mobile:_fresh.mobile,email:_fresh.email,photo:_fresh.photo,roles:_fresh.roles,plant:_fresh.plant,apps:_fresh.apps,inactive:_fresh.inactive});
+    if(_fresh) Object.assign(CU,{name:_fresh.name,fullName:_fresh.fullName,mobile:_fresh.mobile,email:_fresh.email,photo:_fresh.photo,roles:_fresh.roles,plant:_fresh.plant,apps:_fresh.apps,inactive:_fresh.inactive});
     _enrichCU();
     _refreshCurrentUserUI();
   }
@@ -9591,8 +9585,7 @@ const MASTER_SCHEMA = {
     toRow: u => ({
       'Username': u.name,
       'Full Name': u.fullName||'',
-      'Password': u.password||'',
-      'Mobile': u.mobile||'',
+        'Mobile': u.mobile||'',
       'Roles': (u.roles||[]).join('; '),
       'HWMS Roles': (u.hwmsRoles||[]).join('; '),
       'Location': u.plant?(byId(DB.locations,u.plant)?.name||u.plant):'',
@@ -9605,13 +9598,13 @@ const MASTER_SCHEMA = {
       const locName=(r['Location']||'').toString().trim();
       const loc=locName?DB.locations.find(l=>l&&l.name.toLowerCase()===locName.toLowerCase()):null;
       if(!name) return null;
-      return {id:'u'+uid(),name,fullName,password:(r['Password']||'a').toString(),mobile:(r['Mobile']||'').toString(),roles,hwmsRoles,plant:loc?.id||''};
+      return {id:'u'+uid(),name,fullName,_plainPass:(r['Password']||'Kappl@123').toString(),mobile:(r['Mobile']||'').toString(),roles,hwmsRoles,plant:loc?.id||''};
     },
     matchKey: r=>(r['Username']||'').toString().trim().toLowerCase(),
     dbMatchKey: u=>u.name,
     merge: (existing,r)=>{
       if(r['Full Name']!==undefined) existing.fullName=(r['Full Name']||'').toString().trim();
-      if(r['Password']!==undefined) existing.password=(r['Password']||existing.password).toString();
+      if(r['Password']!==undefined) existing._plainPass=(r['Password']||'').toString();
       if(r['Mobile']!==undefined) existing.mobile=(r['Mobile']||'').toString();
       if(r['Roles']!==undefined) existing.roles=(r['Roles']||'').toString().split(';').map(s=>s.trim()).filter(Boolean);
       if(r['HWMS Roles']!==undefined) existing.hwmsRoles=(r['HWMS Roles']||'').toString().split(';').map(s=>s.trim()).filter(Boolean);
@@ -9774,7 +9767,6 @@ function exportUsersExcel(){
   const rows=DB.users.map(u=>({
     'Username': u.name||'',
     'Full Name': u.fullName||'',
-    'Password': u.password||'',
     'Mobile': u.mobile||'',
     'Email': u.email||'',
     'Roles': (u.roles||[]).join('; '),
@@ -9838,22 +9830,23 @@ async function _applyUsersImportRows(rows){
       if(existing){
         // Update existing user — save to Supabase
         existing.fullName=fullName||existing.fullName;
-        if(r['Password']) existing.password=r['Password'].toString();
+        if(r['Password']) existing._plainPass=r['Password'].toString();
         if(r['Mobile']) existing.mobile=r['Mobile'].toString();
         if(r['Email']) existing.email=r['Email'].toString();
         if(roles.length) existing.roles=roles;
         if(hwmsRoles.length) existing.hwmsRoles=hwmsRoles;
         if(loc) existing.plant=loc.id;
         existing.inactive=isInactive||false;
+        var _ep=existing._plainPass;delete existing._plainPass;
         const _uUpdOk = await _dbSave('users', existing);
-        if(_uUpdOk) updated++; else skipped++;
+        if(_uUpdOk){updated++;if(_ep)await _authSetPassword(existing.id,_ep);}else skipped++;
       } else {
         // Add new user
         const newUser={
           id:'u'+uid(),
           name,
           fullName,
-          password:(r['Password']||'a').toString(),
+          _plainPass:(r['Password']||'Kappl@123').toString(),
           mobile:(r['Mobile']||'').toString(),
           email:(r['Email']||'').toString(),
           roles:roles.length?roles:['Viewer'],
@@ -9861,8 +9854,9 @@ async function _applyUsersImportRows(rows){
           plant:loc?.id||'',
           inactive:isInactive||false,
         };
+        var _plainPw=newUser._plainPass||'Kappl@123';delete newUser._plainPass;
         const _uOk = await _dbSave('users', newUser);
-        if(_uOk) added++; else skipped++;
+        if(_uOk){added++;await _authSetPassword(newUser.id,_plainPw);}else skipped++;
       }
     }catch(e){errors.push('Row '+(idx+2)+': '+e.message);skipped++;}
   }
