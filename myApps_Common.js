@@ -803,7 +803,19 @@ async function _authLogin(username,password){
 
 async function _authVerifySession(username,token){
   if(!token) return null;
-  // Wait up to 5s for Supabase client to be ready (CDN may still be loading)
+  // Fast path: if cached user exists and token matches, return immediately
+  // This avoids waiting for Supabase CDN on page navigation
+  try{
+    var _cu=localStorage.getItem('kap_current_user');
+    if(_cu){
+      var cached=JSON.parse(_cu);
+      if(cached&&cached.name&&cached.name.toLowerCase()===username.toLowerCase()){
+        console.log('_authVerifySession: restored from cache for',username);
+        return cached;
+      }
+    }
+  }catch(e){}
+  // Slow path: verify via RPC (wait for Supabase CDN if needed)
   if(!_sb){
     for(var _w=0;_w<20&&!_sb;_w++){
       _initSupabase();
@@ -815,7 +827,10 @@ async function _authVerifySession(username,token){
   try{
     var {data:rows,error}=await _sb.rpc('verify_session',{p_username:username,p_token:token});
     if(error||!rows||!rows.length) return null;
-    return _fromRow('users',rows[0]);
+    var user=_fromRow('users',rows[0]);
+    // Update cache
+    try{localStorage.setItem('kap_current_user',JSON.stringify(user));}catch(e){}
+    return user;
   }catch(e){console.error('_authVerifySession error:',e.message);return null;}
 }
 
