@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — Vendor Training Guide</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#1e293b;line-height:1.7;max-width:860px;margin:0 auto;padding:32px 24px 60px}
+  h1{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+  h2{font-size:20px;font-weight:800;color:#0f172a;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:16px;font-weight:700;color:#2a9aa0;margin:20px 0 8px}
+  p,li{font-size:14px}
+  .badge{display:inline-block;background:#2a9aa0;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:16px}
+  .toc{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0}
+  .toc-title{font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .toc a{display:block;font-size:13px;font-weight:600;color:#2a9aa0;text-decoration:none;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .step{background:#f0fdfa;border-left:4px solid #2a9aa0;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0}
+  .step b{color:#0f172a}
+  .tip{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .tip::before{content:'Tip: ';font-weight:800;color:#92400e}
+  .note{background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .note::before{content:'Note: ';font-weight:800;color:#1d4ed8}
+  .screen{background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#475569;font-style:italic}
+  ol,ul{padding-left:22px;margin:6px 0}
+  table{border-collapse:collapse;font-size:13px;margin:8px 0;width:100%}
+  th,td{border:1px solid #e2e8f0;padding:8px 12px;text-align:left}
+  th{background:#f1f5f9;font-weight:700}
+  @media print{body{padding:20px}}.footer{margin-top:40px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>Vendor Training Guide</h1>
+<div class="badge">Role: Vendor</div>
+<p>This guide is for transport vendors who use the KAP VMS to view and track trips assigned to their vehicles. As a vendor, you have read-only access to your trip data.</p>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <a href="#login">1. Logging In</a>
+  <a href="#mytrips">2. Viewing Your Trips</a>
+  <a href="#status">3. Understanding Trip Status</a>
+  <a href="#vehicles">4. Vehicle &amp; Driver Information</a>
+  <a href="#filtering">5. Filtering &amp; Searching</a>
+  <a href="#faq">6. Frequently Asked Questions</a>
+</div>
+
+<h2 id="login">1. Logging In</h2>
+<div class="screen">You see the KAP VMS login page with the company logo, username/password fields, a math CAPTCHA, and a database connection indicator.</div>
+<div class="step"><b>Step 1:</b> Enter the username and password provided by your KAP administrator.</div>
+<div class="step"><b>Step 2:</b> Solve the math CAPTCHA and click <b>Sign In</b>.</div>
+<div class="step"><b>Step 3:</b> You are taken directly to the <b>My Trips (Vendor)</b> page.</div>
+<div class="note">Your account is linked to your vendor record in the system. You can only see trips assigned to your vendor company. If you have multiple vehicles, all their trips appear together.</div>
+<div class="tip">Check the "Remember me" box to stay logged in on the same device. If your account is locked after failed attempts, wait 60 seconds and try again.</div>
+
+<h2 id="mytrips">2. Viewing Your Trips</h2>
+<div class="screen">The "My Trips (Vendor)" page shows your vendor name below the title. At the top is a search bar, followed by date range filters (1D, 1W, 1M, 1Y with From/To date pickers). Below the filters are vendor, vehicle, and status dropdowns. Summary statistics cards show trip counts and totals. The trip list appears as a scrollable table or card layout.</div>
+<div class="step"><b>Step 1:</b> The page loads with the current month's trips by default (1M filter active).</div>
+<div class="step"><b>Step 2:</b> Each trip entry shows: Trip ID, date, route (from/to locations), vehicle number, vehicle type, trip status, and amount.</div>
+<div class="step"><b>Step 3:</b> Click on a trip to view its full details including all segments, timestamps, and photos.</div>
+
+<h2 id="status">3. Understanding Trip Status</h2>
+<p>Trips move through the following stages:</p>
+<table>
+  <tr><th>Status</th><th>Meaning</th></tr>
+  <tr><td><b>Booked</b></td><td>Trip has been created by KAP. Your vehicle is expected at the pickup location.</td></tr>
+  <tr><td><b>In Progress</b></td><td>Vehicle has exited the KAP gate. The trip is underway.</td></tr>
+  <tr><td><b>Complete</b></td><td>All segments are done: gate exit, delivery, gate entry, material receipt, and approval are finished.</td></tr>
+</table>
+<div class="note">You cannot modify trip data. If you notice an error (wrong vehicle, wrong date, etc.), contact the KAP Trip Booking user or your administrator.</div>
+
+<h2 id="vehicles">4. Vehicle &amp; Driver Information</h2>
+<p>Each trip displays the assigned vehicle and driver details:</p>
+<ul>
+  <li><b>Vehicle Number</b> &mdash; the registration plate of the assigned vehicle</li>
+  <li><b>Vehicle Type</b> &mdash; category (e.g., 9MT, 16MT, 32MT Trailer)</li>
+  <li><b>Driver Name</b> &mdash; the driver on record for the trip</li>
+  <li><b>Route</b> &mdash; origin and destination locations for each segment</li>
+</ul>
+<div class="tip">If a driver or vehicle needs to be changed for an upcoming trip, inform the KAP office before the trip starts so they can update the booking.</div>
+
+<h2 id="filtering">5. Filtering &amp; Searching</h2>
+<div class="step"><b>Search:</b> Type a Trip ID or vehicle number in the search bar at the top to instantly filter the list.</div>
+<div class="step"><b>Date range:</b> Click 1D (today), 1W (this week), 1M (this month), or 1Y (this year). Or pick custom dates using the From/To date pickers.</div>
+<div class="step"><b>Vehicle filter:</b> If you have multiple vehicles, use the vehicle dropdown to see trips for a specific vehicle only.</div>
+<div class="step"><b>Status filter:</b> Select Booked, In Progress, or Complete to see only trips in that stage.</div>
+<div class="screen">Summary statistics update in real-time as you apply filters, showing the count and total amount of visible trips.</div>
+
+<h2 id="faq">6. Frequently Asked Questions</h2>
+<h3>Q: I cannot see a trip that was booked today.</h3>
+<p>Make sure your date filter includes today. Click the "1D" button to show today's trips only. If it still does not appear, the trip may be assigned to a different vendor or not yet created.</p>
+
+<h3>Q: The trip amount seems incorrect.</h3>
+<p>Trip rates are set by KAP administrators in the Trip Rate Master. Contact your KAP coordinator to discuss rate discrepancies.</p>
+
+<h3>Q: I forgot my password.</h3>
+<p>Contact your KAP administrator to reset your password. They can do this from the User Management section in the portal.</p>
+
+<h3>Q: Can I update driver or vehicle details?</h3>
+<p>No. Vendor accounts have view-only access. Request changes through your KAP contact who manages trip bookings.</p>
+
+<div class="footer">KAP myApps &mdash; Vendor Training Guide &mdash; Kelkar Auto Parts Private Limited</div>
+</body>
+</html>

@@ -1,1769 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="format-detection" content="telephone=no">
-<title>KAP — VMS</title>
+/** @file vms-ui.js — UI layer for the Vehicle Management System @depends common.js, app-logic.js */
 
-<!-- xlsx removed for Claude app compatibility -->
-<!-- Local mode: no external dependencies -->
-<style>
-  :root {
-    --bg:#ffffff; --surface:#ffffff; --surface2:#f8fafc; --border:#dde3ed; --border2:#c8d1e0;
-    --accent:#2a9aa0; --accent2:#1d6f73; --text:#1a2033; --text2:#4a5578; --text3:#8a93a8;
-    --green:#22c55e; --red:#ef4444; --blue:#35b0b6; --purple:#8b5cf6; --teal:#14b8a6;
-    --mono:monospace; --sans:sans-serif; --radius:10px; --shadow:0 4px 24px rgba(0,0,0,.10);
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth;min-height:-webkit-fill-available}
-  body{font-family:var(--sans);background:var(--bg);color:var(--text);height:100vh;height:-webkit-fill-available;overflow:hidden;-webkit-text-size-adjust:100%;touch-action:manipulation}
-  #loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0}
-  .login-card{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:48px 40px;width:360px;box-shadow:var(--shadow);animation:loginFadeIn .4s ease-out}
-  @keyframes loginFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-  .login-logo{margin-bottom:8px;text-align:center}
-  .login-title{font-size:26px;font-weight:700;margin-bottom:6px}
-  .login-sub{font-size:14px;color:var(--text2);margin-bottom:36px}
-  .form-group{margin-bottom:20px}
-  label{display:block;font-size:12px;font-weight:600;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
-  #mTripBooking label{font-weight:800;color:#000}
-  input,select,textarea{width:100%;background:#fffbea;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .2s}
-  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
-  select option{background:var(--surface);color:var(--text)}
-  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radius);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s ease}
-  .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
-  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2)}.btn-secondary:hover{border-color:var(--accent)}
-  .btn-danger{background:var(--red);color:#fff}
-  .btn-green{background:var(--green);color:#000}
-  .btn-full{width:100%;justify-content:center;padding:12px}
-  .error-msg{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#dc2626;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:16px;display:none}
-  .input-error{border:2px solid #dc2626!important;background:rgba(239,68,68,.05)!important}
-  #app{display:none;height:100vh;overflow:hidden}
-  .sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:var(--surface);border-right:1px solid var(--border);box-shadow:2px 0 12px rgba(0,0,0,.06);display:flex;flex-direction:column;z-index:160;transform:translateX(0);transition:transform .25s cubic-bezier(.4,0,.2,1)}
-  .sidebar.nav-hidden{transform:translateX(-260px)}
-  .sidebar.nav-open{transform:translateX(0);box-shadow:8px 0 40px rgba(0,0,0,.15)}
-  .sidebar-logo{padding:8px 14px 6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-  .sidebar-logo img{width:38px;height:38px;object-fit:contain;border-radius:4px;flex-shrink:0}
-  .sidebar-logo .logo-text{flex:1;min-width:0}
-  .sidebar-logo h2{font-size:11px;font-weight:700;margin:0;color:var(--text);line-height:1.3}
-  .sidebar-nav{flex:1;padding:4px 10px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .nav-section{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:2px;text-transform:uppercase;padding:4px 8px 2px;margin-top:6px}
-  .nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .2s ease;margin-bottom:1px}
-  .nav-item:hover{background:var(--surface2);color:var(--text)}
-  .nav-item.active{background:rgba(42,154,160,.12);color:var(--accent)}
-  .nav-label{flex:1}
-  .nav-count{margin-left:auto;background:rgba(22,163,74,.12);color:#16a34a;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;font-family:var(--mono)}
-  .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:700;display:none}
-  .nav-icon{font-size:15px;width:18px;text-align:center}
-  .sidebar-user{padding:6px 12px;padding-bottom:max(6px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
-  .user-info{display:flex;align-items:center;gap:8px}
-  .user-avatar{width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden}
-  .user-avatar img{width:100%;height:100%;object-fit:cover;border-radius:10px}
-  .user-name{font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .user-role{font-size:9px;color:var(--text3);margin-top:1px}
-
-  .logout-btn{margin-left:auto;cursor:pointer;color:var(--text3);font-size:18px}.logout-btn:hover{color:var(--red)}
-  .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  .no-spin{-moz-appearance:textfield}
-  .ea-wrap{display:none!important}
-  body.is-admin .ea-wrap{display:flex!important}
-  .topbar{position:fixed;top:0;left:240px;right:0;height:40px;z-index:150;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 12px;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:left .25s cubic-bezier(.4,0,.2,1)}
-  .topbar-hb{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:6px 7px;border-radius:6px;transition:background .15s;flex-shrink:0}
-  .topbar-hb:hover{background:var(--surface2)}
-  .topbar-hb span{width:20px;height:2px;background:var(--text);border-radius:2px;display:block}
-  .topbar-title{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .topbar-user{display:none;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
-  @media(max-width:900px){.topbar-user{display:flex}}
-  .topbar-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;cursor:pointer}
-  .topbar-avatar img{width:100%;height:100%;object-fit:cover}
-  .topbar-loc{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-  .main-content{position:relative;margin-left:240px;padding:48px 12px 16px 12px;height:100vh;height:-webkit-fill-available;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;vertical-align:top;transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
-  @media(max-width:768px){.main-content{scrollbar-width:none;-ms-overflow-style:none}.main-content::-webkit-scrollbar{display:none}}
-  /* Sticky headers: ensure solid background + shadow to hide scrolling content */
-  #tbStickyHeader,#kapStickyHeader{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
-  #pageMR>.page-header,#pageApprove>.page-header{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding-left:12px!important;padding-right:12px!important}
-  #kapExitSearchSticky,#kapEntrySearchSticky{background:#fff!important;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-left:-12px;margin-right:-12px;padding:6px 12px!important}
-  .page{isolation:isolate}
-  .page-header{display:none}
-  .page{display:none}.page.active{display:block;padding-bottom:80px}
-  .page-header{margin-bottom:4px}
-  .page-title{font-size:18px;font-weight:800}.page-sub{font-size:12px;color:var(--text2);margin-top:2px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-  .card-title{font-size:15px;font-weight:700}
-  .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;padding:10px 14px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
-  td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text)}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:rgba(42,154,160,.04)}
-  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
-  .badge-green{background:rgba(34,197,94,.15);color:var(--green)}
-  .badge-amber{background:rgba(42,154,160,.15);color:var(--accent)}
-  .badge-red{background:rgba(239,68,68,.15);color:var(--red)}
-  .badge-blue{background:rgba(59,130,246,.15);color:var(--blue)}
-  .badge-purple{background:rgba(139,92,246,.15);color:var(--purple)}
-  .badge-yellow{background:rgba(234,179,8,.18);color:#a16207;font-weight:800}
-  .badge-onwater{background:#dbeafe;color:#1d4ed8;font-weight:800;border:1px solid #93c5fd}
-  .badge-reached{background:#16a34a;color:#fff;font-weight:800}
-  .badge-gray{background:rgba(0,0,0,.06);color:var(--text2)}
-  .modal-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(30,40,70,.45);z-index:100000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-  .modal-overlay.open{opacity:1;pointer-events:all}
-  .modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;transform:translateY(20px);transition:transform .2s}
-  .modal-overlay.open .modal{transform:translateY(0)}
-  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-  .modal-title{font-size:18px;font-weight:700}
-  .modal-close{cursor:pointer;font-size:22px;color:var(--text3)}.modal-close:hover{color:var(--text)}
-  .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;border-top:1px solid var(--border);padding-top:20px}
-  .modal-err{color:#dc2626;font-size:12px;font-weight:600;padding:6px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;display:none;width:100%;text-align:left}
-  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .form-hint{font-size:12px;color:var(--text3);margin-top:5px}
-  textarea{resize:vertical;min-height:70px}
-  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
-  .tb-compact-grid{display:flex;flex-wrap:wrap;gap:8px}
-  .tb-section{border-radius:8px;border:1px solid transparent;padding:8px;transition:background .25s,border-color .25s}
-  .tb-section.tb-active{background:rgba(42,154,160,.09);border-color:var(--accent)}
-  .tb-section.tb-filled{background:rgba(34,197,94,.05);border-color:rgba(34,197,94,.2)}
-  @keyframes tbPromptGlow{0%,100%{box-shadow:0 0 0 0 rgba(42,154,160,.0);border-color:var(--border2)}50%{box-shadow:0 0 0 4px rgba(42,154,160,.22),0 0 12px rgba(42,154,160,.12);border-color:var(--accent)}}
-  .tb-prompt{animation:tbPromptGlow 1.6s ease-in-out infinite!important;border-color:var(--accent)!important;outline:none!important}
-  button.tb-prompt{border-radius:6px!important;border:1.5px solid var(--accent)!important;color:#000!important;background:rgba(42,154,160,.15)!important}
-  div.tb-prompt{border-radius:6px!important;border:1.5px solid var(--accent)!important}
-  .tb-compact-grid .tb-fg{flex:1;min-width:140px;margin-bottom:0}
-  .tb-seg-row{display:flex;gap:8px;flex-wrap:nowrap}
-  .tb-seg-row .tb-fg{flex:1;min-width:110px;margin-bottom:0}
-  .form-group.tb-fg label{font-size:10px;margin-bottom:4px;display:none}
-  .form-group.tb-fg input,.form-group.tb-fg select{padding:10px 12px;font-size:14px;border-radius:8px}
-  .dash-count-item{flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-right:1px solid var(--border)}
-  .dash-count-item:last-child{border-right:none}
-  .dash-count-label{font-size:13px;color:#000;font-weight:500}
-  .dash-count-num{font-size:22px;font-weight:800;font-family:var(--mono);color:#16a34a}
-  /* Process flow */
-  .pflow{display:flex;align-items:flex-start;flex-wrap:wrap;gap:0;margin:10px 0 6px}
-  .pf-step-wrap{display:flex;flex-direction:column;align-items:center;gap:3px}
-  .pf-step{display:flex;align-items:center;gap:4px;font-size:11px;padding:5px 11px;background:var(--surface2);border:1px solid var(--border);white-space:nowrap}
-  .pf-step-wrap:first-child .pf-step{border-radius:20px 0 0 20px}.pf-step-wrap:last-child .pf-step{border-radius:0 20px 20px 0}
-  .pf-step.done{background:rgba(34,197,94,.1);border-color:var(--green);color:var(--green)}
-  .pf-step.active{background:rgba(42,154,160,.15);border-color:var(--accent);color:var(--accent);font-weight:600}
-  .pf-step.skip{opacity:.4;text-decoration:line-through;color:var(--text3)}
-  .pf-step.wait{color:var(--text3)}
-  .pf-user{font-size:10px;text-align:center;line-height:1.4;max-width:130px;word-break:break-word}
-  .pf-user-done{color:#16a34a;font-weight:600}
-  .pf-user-pending{color:var(--text3)}
-  .pf-user-skip{color:var(--text3);opacity:.4}
-  .pf-time{display:block;font-size:9px;color:var(--text3);font-weight:400}
-  .pf-arrow{color:var(--text3);font-size:16px;font-weight:900;padding:0 2px;margin-top:4px;line-height:1}
-  .c-badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(139,92,246,.15);color:var(--purple);margin-left:6px}
-  /* Segment cards */
-  .seg-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s,box-shadow .2s}
-  .seg-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-  /* Constrain operation page cards to mobile width on all screens — single column layout */
-  #kapExitContent>div,#kapEntryContent>div,#kapSpotSection .seg-card,#kapSpotSection>div:first-child,#mrPendingContent>div,#approveContent>div,#myTripBody>.trip-card,#dashTripsContent>div,#kapSpotSection [onclick*="_kapOpenSpotPopup"]{max-width:480px}
-  .seg-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
-  .seg-id{font-family:var(--mono);font-size:12px;color:var(--accent)}
-  .seg-route{font-size:14px;font-weight:600;margin-top:2px}
-  .seg-meta{font-size:12px;color:var(--text2);margin-top:4px}
-  .info-box{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--blue);margin-bottom:16px}
-  .divider{height:1px;background:var(--border);margin:20px 0}
-  .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
-  /* Filter row — always single line, horizontally scrollable on narrow screens */
-  .filter-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding-bottom:2px}
-  .filter-row::-webkit-scrollbar{height:3px}
-  .filter-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
-  .filter-row>*{flex-shrink:0}
-  .filter-row input[type=text]{min-width:100px;width:auto}
-  .action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:14px;transition:background .15s}.action-btn:hover{background:var(--surface2)}
-  tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.06)!important}tr.clickable-row:active{background:rgba(42,154,160,.12)!important}
-  .notification{position:fixed;top:12px;left:50%;transform:translate(-50%,-120px);background:var(--green);color:#000;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:700;z-index:200000;opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;max-width:80%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.25);white-space:pre-line}
-  .notification.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}.notification.error{background:var(--red);color:#fff;font-size:14px}
-  .trip-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;transition:border-color .2s,box-shadow .2s}
-  .trip-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-  .trip-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px}
-  .kap-tabs{display:flex;flex-direction:row;border-bottom:2px solid var(--border);overflow-x:auto}
-  .kap-tab-history{color:var(--text2)}
-  .kap-tab.active.kap-tab-history{background:rgba(100,100,100,.1)}
-  .kap-revoke-btn{font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-weight:600}
-  .kap-revoke-btn:hover{background:#dc2626;color:#fff}
-  .kap-inline-photo{width:130px;flex-shrink:0}
-  .kap-inline-rem{flex:1;display:flex;flex-direction:column}
-  @media(max-width:600px){.kap-inline-action{flex-direction:column}.kap-inline-photo{width:100%}}
-  .kap-tab{flex:1;padding:6px 10px;border:none;background:transparent;cursor:pointer;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;white-space:nowrap}
-  .kap-tab-exit{color:#dc2626}
-  .kap-tab-entry{color:#16a34a}
-  .kap-tab.active.kap-tab-exit{background:rgba(220,38,38,.1)}
-  .kap-tab.active.kap-tab-entry{background:rgba(22,163,74,.1)}
-  .kap-tab:not(.active){opacity:.5}
-  .kap-tab-count{background:#dc2626;color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;padding:0 5px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
-  .trip-amt-badge{background:#dcfce7;color:#16a34a;font-weight:800;font-size:12px;font-family:var(--mono);padding:2px 8px;border-radius:6px;white-space:nowrap}
-  .trip-amt-none{background:var(--surface2);color:var(--text3);font-weight:500}
-  .trip-id{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:800;letter-spacing:1px}
-  .seg-photo-thumb{width:48px;height:46px;object-fit:cover;border-radius:6px;border:2px solid var(--border2);cursor:pointer;transition:transform .15s;flex-shrink:0}
-  .seg-photo-thumb:hover{transform:scale(1.08);border-color:var(--accent)}
-  .seg-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-  /* Lightbox */
-  #photoLightbox{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:200000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
-  .trip-desc{font-size:12px;font-weight:600;margin-top:1px}
-  .trip-meta{font-size:11px;color:var(--text2);margin-top:2px}
-  /* ── Rich Segment Progress Card ─────────────────────── */
-  .locked-overlay{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px;padding:6px 0}
-  .trip-seg-label{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:11px}
-  .trip-overall-badge-done{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
-  .trip-overall-badge-active{background:rgba(42,154,160,.12);color:var(--accent);border:1px solid rgba(42,154,160,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
-  .trip-overall-badge-rejected{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
-  .trip-overall-badge-cancelled{background:rgba(107,114,128,.12);color:#6b7280;border:1px solid rgba(107,114,128,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
-  select:disabled{opacity:.45;cursor:not-allowed;border-style:dashed}
-  th.sortable{cursor:pointer;user-select:none}
-  th.sortable:hover{color:var(--text);background:var(--border)}
-  th.sort-asc::after{content:' ↑';color:var(--accent)}
-  th.sort-desc::after{content:' ↓';color:var(--accent)}
-  .dest-section{border-radius:10px;padding:16px;margin-bottom:4px}
-  .dest-section-a{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2)}
-  .dest-section-b{background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.2)}
-  .dest-section-c{background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.2)}
-  .dest-label{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-  .dest-label-a{color:var(--blue)}
-  .dest-label-b{color:var(--teal)}
-  .dest-label-c{color:var(--purple)}
-  .dest-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-  .dest-dot-a{background:var(--blue)}
-  .dest-dot-b{background:var(--teal)}
-  .dest-dot-c{background:var(--purple)}
-
-  /* ===== MOBILE / TABLET RESPONSIVE ===== */
-  /* ── Hamburger button (always visible, top-left) ── */
-  .mob-topbar{display:none}
-  .mob-hamburger{display:none}
-  .sidebar-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(30,40,70,.35);z-index:149}
-  .sidebar-overlay.open{display:block}
-
-  /* Quick Vehicle modal always centered on all screen sizes */
-  #mQuickVeh{align-items:center!important}
-  #mQuickVeh .modal{position:relative!important;bottom:auto!important;top:auto!important;border-radius:16px!important;transform:translateY(20px);max-height:80vh!important;width:min(400px,92vw)!important}
-  #mQuickVeh.open .modal{transform:translateY(0)!important}
-
-  @media(max-width:900px){
-    /* Narrow — sidebar hidden, topbar full width */
-    .sidebar{transform:translateX(-260px)!important}
-    .sidebar.nav-open{transform:translateX(0)!important}
-    .topbar{left:0!important}
-    .main-content{margin-left:0!important;padding-left:12px!important}
-  }
-
-  @media(max-width:768px){
-    /* Mobile — fix content padding */
-    .main-content{padding:48px 8px 12px 8px}
-
-    /* Login */
-    .login-card{width:calc(100vw - 32px);padding:32px 24px;margin:16px}
-
-    /* Stats grid */
-    .dash-count-item{min-width:120px;padding:12px 14px}
-
-    /* Form rows stack vertically */
-    .form-row{grid-template-columns:1fr}
-
-    /* Page header */
-    .page-title{font-size:16px}
-    .page-header{margin-bottom:4px}
-
-    /* Cards */
-    .card{padding:16px;margin-bottom:14px;overflow:visible}
-    .card-header{flex-direction:column;align-items:flex-start;gap:10px}
-    .card-header>div:last-child{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
-
-    /* Tables — horizontal scroll with min-width hint */
-    .table-wrap{overflow:auto;max-height:calc(100vh - 180px);-webkit-overflow-scrolling:touch}
-    table{min-width:480px}
-
-    /* Modal — centered on mobile, scrollable */
-    .modal{width:min(560px,95vw);max-width:95vw;max-height:88vh;border-radius:16px;padding:24px 20px;position:relative;transform:translateY(20px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-    .modal-overlay{align-items:center;justify-content:center}
-    .modal-overlay.open .modal{transform:translateY(0)}
-    #mConfirm .modal{width:min(380px,92vw);max-height:none}
-    #mRevokeMR .modal,#mRevokeConfirm .modal{width:min(380px,92vw);max-height:none}
-    #mCamCapture .modal{width:min(440px,96vw);max-height:85vh}
-    #mCamCapture{align-items:center!important;justify-content:center!important}
-    #mRecordDetail .modal{bottom:auto;top:auto;left:auto;right:auto;position:relative;width:min(480px,96vw);max-height:88vh;border-radius:16px;transform:none;overflow-y:scroll;-webkit-overflow-scrolling:touch}
-    #mRecordDetail{align-items:center!important;justify-content:center!important}
-    /* Trip Booking modal — centered, full height */
-    #mTripBooking .modal{max-height:calc(100vh - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-
-    /* Segment cards */
-    .seg-card{padding:12px}
-    /* Process flow — wrap better */
-    .pflow{flex-wrap:wrap;gap:4px}
-    .pf-step-wrap{min-width:60px}
-    .pf-step{font-size:10px;padding:4px 8px;white-space:normal}
-    .pf-step-wrap:first-child .pf-step,.pf-step-wrap:last-child .pf-step{border-radius:20px}
-    .pf-arrow{display:none}
-
-    /* Toolbar */
-    .toolbar{flex-direction:column;align-items:stretch}
-    .toolbar input,.toolbar select{width:100%}
-    /* Filter row stays horizontal even on mobile — scrollable */
-    .filter-row{flex-wrap:nowrap!important;flex-direction:row!important;overflow-x:auto;gap:6px}
-    .filter-row input,.filter-row select{width:auto!important;min-width:0}
-
-    /* Trip cards */
-    .trip-card{padding:14px}
-    .trip-card-header{flex-direction:column;align-items:flex-start}
-    .trip-segs{gap:6px}
-
-    /* Buttons in action rows */
-    .btn{font-size:13px;padding:9px 16px}
-    .modal-footer{flex-wrap:wrap}
-    .modal-footer .btn{flex:1;justify-content:center}
-
-    /* Dashboard card-header wraps title above filter row on mobile */
-    #pageDashboard .card-header{align-items:stretch;flex-direction:column}
-    #pageDashboard .card-header .filter-row{width:100%}
-
-    /* Notification */
-    .notification{top:8px;bottom:auto;left:50%;right:auto;text-align:center;transform:translate(-50%,-120px);z-index:200000;max-width:92%}
-  }
-
-  @media(min-width:769px) and (max-width:1024px){
-    /* Tablet — sidebar is overlay, just adjust grid */
-    .form-row{grid-template-columns:1fr 1fr}
-    .card{padding:20px}
-    .modal{width:520px}
-  }
-
-  /* Custom driver autocomplete dropdown */
-  .driver-ac-wrap{position:relative}
-  .driver-ac-list{position:absolute;bottom:calc(100% + 4px);top:auto;left:0;right:auto;z-index:10000;background:var(--surface);border:2px solid var(--accent);border-radius:8px;box-shadow:0 -4px 24px rgba(0,0,0,.18);max-height:240px;overflow-y:auto;overflow-x:hidden;min-width:100%;display:none}
-  .driver-ac-list.open{display:block}
-  .driver-ac-item{padding:7px 12px;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .driver-ac-item:hover{background:rgba(42,154,160,.08)}
-  .driver-ac-item .dac-vendor{font-size:10px;color:var(--text3);font-weight:600;white-space:nowrap}
-  .tb-newtrip-only{display:none}
-  .tb-amend-only{display:none}
-  /* Multi-challan list per destination */
-  .challan-section-disabled{opacity:.4;pointer-events:none}
-
-  .challan-list{display:flex;flex-direction:column;gap:2px;margin-top:3px}
-  .challan-row{display:flex;gap:4px;align-items:center;background:rgba(0,0,0,.03);border-radius:5px;padding:2px 5px}
-  .challan-row input{flex:1;min-width:0;padding:5px 7px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:#fffbea;color:var(--text)}
-  .challan-row .ch-del{background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:0 3px;flex-shrink:0}
-  .challan-photo-thumb{width:30px;height:30px;border:1.5px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0}
-  .challan-photo-thumb.has-photo{border-color:var(--green);border-style:solid}
-  .add-challan-btn{background:none;border:1px dashed var(--border2);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--accent);cursor:pointer;font-weight:700;margin-top:3px;transition:border-color .15s}
-  .add-challan-btn:hover{border-color:var(--accent)}
-  /* Searchable location combo */
-  .loc-combo{position:relative}
-  .loc-combo input{width:100%;box-sizing:border-box}
-  .loc-combo-list{position:absolute;top:100%;left:0;right:0;z-index:10001;background:var(--surface);border:2px solid var(--accent);border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.18);max-height:220px;overflow-y:auto;display:none}
-  .loc-combo-list.open{display:block}
-  .loc-combo-item{padding:7px 12px;font-size:13px;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:6px}
-  .loc-combo-item:hover{background:rgba(42,154,160,.08)}
-  .loc-combo-item .loc-type{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0}
-  .loc-combo-item .loc-type.kap{background:#fef3c7;color:#92400e}
-  .loc-combo-item .loc-type.ext{background:#dbeafe;color:#1d4ed8}
-  /* Vehicle type mismatch warning */
-  @keyframes vtMismatchFlash{0%,100%{opacity:1;background:rgba(239,68,68,.12)}50%{opacity:.5;background:rgba(239,68,68,.04)}}
-  .vt-mismatch-warn{display:none;padding:6px 10px;border-radius:7px;font-size:11px;font-weight:700;color:#dc2626;border:1.5px solid #fca5a5;animation:vtMismatchFlash 1.2s ease-in-out infinite;margin-top:4px}
-  .vt-mismatch-warn.show{display:block}
-
-  /* Trip Booking modal: align to top, no scroll cap */
-  #mTripBooking{align-items:flex-start!important;padding-top:8px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #mTripBooking>.modal{max-height:calc(100vh - 16px);overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-
-  /* ── Trip Booking form — styling ─────────────────────────────────────────── */
-  /* Modal body: light grey background */
-  #mTripBooking > .modal {
-    background: #ffffff !important;
-  }
-  /* Sticky header stays white */
-  #mTripBooking .modal-header {
-    background: #ffffff !important;
-  }
-  /* Footer stays white */
-  #mTripBooking .modal-footer {
-    background: #ffffff !important;
-  }
-  /* All labels — larger, bold, dark */
-  #mTripBooking label,
-  #mTripBooking .form-group label {
-    font-size: 13px !important;
-    font-weight: 800 !important;
-    color: #1a2033 !important;
-    letter-spacing: 0 !important;
-    text-transform: none !important;
-    margin-bottom: 5px !important;
-    display: block;
-  }
-  /* Challan column headers */
-  #mTripBooking span[style*="font-size:9px"][style*="text-transform:uppercase"] {
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    color: #1a2033 !important;
-  }
-  /* Inputs and selects: white bg, bold border, bold text */
-  #mTripBooking input:not([type="hidden"]):not([type="file"]):not([type="date"]),
-  #mTripBooking select,
-  #mTripBooking .challan-row input {
-    background: #ffffff !important;
-    border: 2px solid #94a3b8 !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    color: #1a2033 !important;
-  }
-  #mTripBooking input:not([type="hidden"]):not([type="file"]):not([type="date"]):focus,
-  #mTripBooking select:focus {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(42,154,160,.15);
-    outline: none;
-  }
-  #mTripBooking select option {
-    font-weight: 600;
-    color: #1a2033;
-    background: #ffffff;
-  }
-  /* Driver autocomplete dropdown — name only, larger text */
-  .driver-ac-item { font-size: 14px !important; font-weight: 700 !important; padding: 9px 14px !important; }
-
-  /* DB boot splash */
-  .db-splash-logo{font-family:var(--mono);font-size:13px;letter-spacing:4px;color:var(--accent);text-transform:uppercase}
-  @keyframes dbspin{to{transform:rotate(360deg)}}
-  /* Flashing highlight for current segment challan row */
-  @keyframes kapFlash{0%,100%{background:#adff2f}50%{background:#f0fff0}}
-  .kap-row-active{animation:kapFlash 1.2s ease-in-out infinite}
-  .kap-row-done{background:#dcfce7}
-  /* Flashing red for missing data */
-  @keyframes flashRed{0%,100%{background:#fecaca;color:#dc2626}50%{background:#fff;color:#dc2626}}
-  .flash-red{animation:flashRed 1s ease-in-out infinite;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
-  /* Flashing green for next step */
-  @keyframes flashGreen{0%,100%{background:#bbf7d0;color:#15803d}50%{background:#f0fdf4;color:#15803d}}
-  /* Flashing orange for approaching expiry */
-  @keyframes flashOrange{0%,100%{background:#fed7aa;color:#c2410c}50%{background:#fff7ed;color:#c2410c}}
-  .flash-green{animation:flashGreen 1.2s ease-in-out infinite;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}
-
-  /* Compact date picker — shows dd-MMM-yy text, native picker opens on click */
-  .date-btn{position:relative;display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap;min-width:80px}
-  .date-btn input[type=date]{position:absolute;top:0;right:0;bottom:0;left:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;background:none}
-  .date-btn-label{pointer-events:none}
-  /* Empty state placeholder */
-  .empty-state{text-align:center;padding:32px 20px;color:var(--text3);font-size:14px;font-weight:500}
-  /* Better focus outlines for accessibility */
-  input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  /* Smoother button transitions */
-  .btn:active{transform:scale(.97)}
-
-  /* ── Optimized utility classes (auto-generated) ── */
-  .u-photo-input-overlay{opacity:0;position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;cursor:pointer;border:none}
-  .u-label-sm{font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap}
-  .u-mini-btn{font-size:12px;padding:7px 12px;cursor:pointer;margin:0}
-  .u-thumb{width:28px;height:28px;object-fit:cover;border-radius:4px;border:2px solid var(--border)}
-  .u-thumb-lg{width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center}
-  .u-meta-label{font-size:10px;color:#000;font-weight:600;margin:0}
-  .u-tag-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-  .u-flex-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}
-    .sb-setup-card{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:40px 36px;width:100%;max-width:480px;box-shadow:0 8px 48px rgba(0,0,0,.12)}
-  .sb-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  .sb-logo-icon{font-size:28px}
-  .sb-setup-title{font-size:22px;font-weight:800;color:var(--text)}
-  .sb-setup-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.5}
-  .sb-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.5}
-  .sb-step-num{background:var(--accent);color:#fff;font-weight:800;font-size:11px;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-  .sb-link{color:var(--accent);font-weight:700;text-decoration:none}
-  .sb-link:hover{text-decoration:underline}
-  .sb-input-label{font-size:11px;font-weight:700;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;margin-top:16px;display:block}
-  .sb-input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;transition:border-color .2s}
-  .sb-input:focus{border-color:var(--accent)}
-  .sb-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;padding:8px 12px;border-radius:8px;margin-top:12px;display:none}
-  .sb-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px;transition:background .2s}
-  .sb-btn:hover{background:var(--accent2)}
-  .sb-note{font-size:11px;color:var(--text3);text-align:center;margin-top:12px;line-height:1.5}
-  .sb-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
-  .sb-status.connected{background:rgba(34,197,94,.15);color:#16a34a}
-  .sb-status.disconnected{background:rgba(239,68,68,.1);color:#dc2626}
-
-  /* ── Actions column always visible ─────────────────────────────────── */
-  #tUsers thead th:last-child,#tUsers tbody td:last-child,
-  #tVendors thead th:last-child,#tVendors tbody td:last-child,
-  #tLocations thead th:last-child,#tLocations tbody td:last-child,
-  #tVTypes thead th:last-child,#tVTypes tbody td:last-child{display:table-cell!important}
-  /* ── Location Master: Name col minimum width ─ */
-  #tLocations thead th:first-child,#tLocations tbody td:first-child{min-width:180px}
-  /* Narrow mode: Locations — show only Name, Trip Booking, Mat. Receiver, Approver */
-  @media (max-width:768px){
-    #tLocations thead th:nth-child(2),#tLocations tbody td:nth-child(2),
-    #tLocations thead th:nth-child(3),#tLocations tbody td:nth-child(3),
-    #tLocations thead th:last-child,#tLocations tbody td:last-child{display:none!important}
-    /* Drivers — show only Photo, Name, Vendor */
-    #tDrivers thead th:nth-child(3),#tDrivers tbody td:nth-child(3),
-    #tDrivers thead th:nth-child(5),#tDrivers tbody td:nth-child(5),
-    #tDrivers thead th:last-child,#tDrivers tbody td:last-child{display:none!important}
-    /* Vehicles — show only Vehicle No, Type, Vendor */
-    #tVehicles thead th:nth-child(4),#tVehicles tbody td:nth-child(4),
-    #tVehicles thead th:nth-child(5),#tVehicles tbody td:nth-child(5),
-    #tVehicles thead th:nth-child(6),#tVehicles tbody td:nth-child(6),
-    #tVehicles thead th:last-child,#tVehicles tbody td:last-child{display:none!important}
-  }
-
-  /* ── Responsive master table column hiding ─────────────────────────── */
-  /* Columns hidden at ≤600px (last meaningful col before Actions) */
-  @media (max-width:600px){
-    /* Users: hide Role(s) col 4 */
-    #tUsers thead th:nth-child(4),#tUsers tbody td:nth-child(4){display:none}
-    /* Vendors: hide Address col 5 */
-    #tVendors thead th:nth-child(5),#tVendors tbody td:nth-child(5){display:none}
-  }
-  /* Columns also hidden at ≤440px (one more column) */
-  @media (max-width:440px){
-    /* Users: also hide Location col 3 */
-    #tUsers thead th:nth-child(3),#tUsers tbody td:nth-child(3){display:none}
-    /* Vendors: also hide Mapped User col 4 and Contact col 3 */
-    #tVendors thead th:nth-child(4),#tVendors tbody td:nth-child(4){display:none}
-    #tVendors thead th:nth-child(3),#tVendors tbody td:nth-child(3){display:none}
-  }
-  
-  /* ── Date-filter block: compact 2×2 preset buttons ─────────────── */
-  .df-block{display:inline-grid;width:fit-content;grid-template-columns:1fr 1fr auto auto;grid-template-rows:auto auto;gap:3px 4px;align-items:end;padding:6px 8px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);}.df-block .date-btn{width:100%;box-sizing:border-box}.df-block .dr-btn{width:100%;box-sizing:border-box}
-  .dr-btn{font-size:11px;padding:4px 6px;border:1px solid var(--border2);border-radius:5px;background:var(--surface2);cursor:pointer;font-weight:800;color:var(--text2);transition:background .15s,color .15s,border-color .15s;white-space:nowrap;text-align:center;min-width:0;letter-spacing:.3px}
-  .dr-btn:hover{background:var(--border2);color:var(--text)}
-  .dr-btn.dr-btn-active{background:var(--accent);color:#fff;border-color:var(--accent)}
-  
-  /* iOS Safari input zoom fix — inputs must be ≥16px font to prevent auto-zoom */
-  @supports (-webkit-touch-callout: none) {
-    input[type="text"], input[type="password"], input[type="tel"],
-    input[type="email"], input[type="number"], input[type="date"],
-    select, textarea {
-      font-size: max(16px, 1em) !important;
-    }
-  }
-
-    width:260px;flex-shrink:0;
-    background:#ffffff;
-    border-right:1px solid #e2e8f0;
-    box-shadow:2px 0 12px rgba(0,0,0,.06);
-    display:none;flex-direction:column;height:100vh;overflow-y:auto;
-    transition:transform .28s cubic-bezier(.4,0,.2,1);
-    z-index:200;
-  }
-
-    display:none;position:fixed;top:0;left:0;right:0;height:52px;
-    background:#fff;border-bottom:1px solid #e2e8f0;
-    align-items:center;gap:10px;padding:0 14px;
-    z-index:101;box-shadow:0 1px 4px rgba(0,0,0,.07);
-  }
-  .pt-hb{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:6px 5px;border-radius:6px;}
-  .pt-hb:hover{background:#f0f4f8;}
-  .pt-hb span{width:20px;height:2px;background:#1a2033;border-radius:2px;display:block;}
-  .pt-title{font-size:15px;font-weight:800;color:#1a2033;}
-
-  /* ── Portal sidebar overlay (mobile) ── */
-    display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.35);z-index:199;
-  }
-
-  @media(max-width:700px){
-      width:260px;position:fixed;top:0;bottom:0;left:0;
-      transform:translateX(-280px);
-      display:flex !important;flex-direction:column !important;
-      overflow-y:auto !important;-webkit-overflow-scrolling:touch;
-      z-index:300 !important;
-    }
-    /* Apps view: compact header row, cards flush below */
-    #portalViewApps{align-items:stretch !important;}
-    /* Compact card padding on mobile */
-  }
-  @media(min-width:701px){
-  }
-@keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes sbPulse{0%,100%{opacity:1}50%{opacity:.4}}
-@keyframes kapLocFlash{from{outline:3px solid rgba(255,255,255,0.4);outline-offset:1px}to{outline:3px solid #fff;outline-offset:3px}}</style>
-
-</head>
-<body>
-
-<!-- PHOTO LIGHTBOX -->
-<div id="photoLightbox" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:200000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:default">
-  <div style="display:flex;gap:10px;z-index:1">
-    <button onclick="savePhoto()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
-    <button onclick="sharePhoto()" id="sharePhotoBtn" style="background:#35b0b6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">📤 Share</button>
-    <button onclick="document.getElementById('photoLightbox').style.display='none'" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer">✕ Close</button>
-  </div>
-  <img id="photoLightboxImg" src="" alt="Photo" style="max-width:92vw;max-height:82vh;border-radius:10px;box-shadow:0 8px 48px rgba(0,0,0,.6);cursor:zoom-in" onclick="this.style.maxHeight=this.style.maxHeight==='none'?'82vh':'none'">
-</div>
-
-<div class="notification" id="notification"></div>
-
-<!-- TOP BAR — hamburger + page title -->
-<div class="topbar" id="topbar" style="display:none">
-  <button class="topbar-hb" id="hamburgerBtn" onclick="toggleNav()" title="Toggle menu" aria-label="Toggle navigation">
-    <span></span><span></span><span></span>
-  </button>
-  <span class="topbar-title" id="topbarTitle">Dashboard</span>
-  <div style="flex:1"></div>
-  <div id="vmsLastSync" style="font-size:9px;color:#94a3b8;margin-right:10px;white-space:nowrap;font-family:var(--mono)" title="Last database sync">⟳ --:--</div>
-  <div class="topbar-user" id="topbarUserWidget" style="cursor:default" title="VMS">
-    <span class="topbar-loc" id="topbarLocName"></span><span id="sbStatusDot" style="width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block;margin-right:4px;flex-shrink:0;transition:background .5s" title="DB: checking..."></span>
-    <div class="topbar-avatar" id="topbarAvatar">👤</div>
-  </div>
-</div>
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobNav()"></div>
-
-<!-- LOGIN -->
-<div id="loginPage" style="display:none">
-  <div class="login-card">
-
-    <div style="text-align:center;margin-bottom:12px">
-      <img src="data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADrbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAAAAAAAOcGl0bQAAAAAAAQAAAB5pbG9jAAAAAEQAAAEAAQAAAAEAAAETAAAJeQAAAChpaW5mAAAAAAABAAAAGmluZmUCAAAAAAEAAGF2MDFDb2xvcgAAAABqaXBycAAAAEtpcGNvAAAAFGlzcGUAAAAAAAAC0AAAAtAAAAAQcGl4aQAAAAADCAgIAAAADGF2MUOBBAwAAAAAE2NvbHJuY2x4AAEADQAGgAAAABdpcG1hAAAAAAAAAAEAAQQBAoMEAAAJgW1kYXQSAAoHGSZs+z+BCDLrEhGwAccccUD0us3JcmBXosxZZwKgbt7d9H44EPshS07FbCd1NDs3ANUUkPB4eKMDFoaCL9WjdIfJY79MYM7fRKzC4UNS7vO/JIVT4J2Ng76EAIh94SVYFHDqAP0wEVT0cN6UsxUcC3h58Qr/bGIbOu/s5WlgCbJRRbdGb8Xmm/8kMN81S/YCcgMxFIZX9qJ7BVCnBrMKstEteE1/6SVM+IOp3egqDzapBTmbHvglFRbYvgQ1G7LqDBdMMT3xOmfMl3f9HsMqSkOWRRmNDZY9wATQmFarrUZmA3sDKZXiHP36Z/2wsaUCzh32DsLdma34iMQjHHpuPLCtCzKp1FRT2JRhQzx9Y22OTBkIDmktn394bRNRSH0ChQMo52pAdwai9b5t/3vzR3i2WwQVWeBoCYcSP1evUsu1ybzerYL2b5UQvsfmPmRPeI0gOTY9hFrg3tt1Bw9P24uuNyTlAHH2yZ7MJ2jk9xYDtz84P6shXBeessz9TaXaOIQunszwZoUsdEz7O9ce00M/EJH4otfoAhGg9q/dkAXwhi9NlK/R96AagZ6B6/+JWYc0u2xn6n+W3LgILW/3CkzFW3lJrvu+2JayPm7O19h/H6uUgXiP1X+EkjeoxQUyvKYWLURDdg/+U7h8lBDLKwliTDlAvZu8yLAx2ZmFq3obfTvqY/D6KKzUPKcvkeMXk++QXOhXsS1806axXLobs5LLpDj2caaKY6HQvdfhWv8MJQV4iEywWhRwPgHPJ8w5RWYDa1f2RR9xbyWTtRS8B5hpVYOq1scUgY17k9vmZ7bHcqxdScaR6nE02pm5Sk2okUD+jJY2Hjw55w2xUHiOEEYLBQ2R/Xs05OGlLjbbzeJSvvIrbGOuUlZQw99SfVepqdfzFdo3d8XUZSHbBsOYildETZ0lGVQsXYX0OuHcWn2ROwVcTUAIHOe2eO+PzZz/BvAXCbM0KwbOcwM0O1L2XxgX2Q8FykNtx8tVCARJSOfPMwhU7+KIjv5NjYdgRjbyW50oYA1hzWEuP/a9pY8kdrbY5ckJSQ/Yc8r8Q+QG9M31QsvCBOts47kF35cU6m/d4VmiFReIB+6xP0nJbYoIlbTqCnjWaYcbZDVsMJAxaWBPjN8BQjs1oYht5pCD4Xht3IYUZX5bm0Y1P6vc5bQBLzhUJrd/nBB+uhmg0mlCJwEnzMFqBizx+2utX6Rr8vop/ksOge//00lAPdM58x95XFPKne7hxY7GoPprSmoMrimdEbRuZbk09r1+iptcQJ0FWsT8H8VUmvuqJO0zK21BGZd4eXRRb1PnZ4rjmDY5AmGw34H5QCO+M16iZzgWaz6HCs+7yMtjBRY8S1HDoQk4MFqFx2J1WwWss2bc9ejebrgybgAsudsX1g2UCzIsimu1aVweKKfr+gXoG8YDAN2s3QbIeZ+FfMBkNl+lDweCCQA+QGVrLDSMn+oSukKS2cmTqVRFbansMV3v6a7qbOFtFJenPqmkYVxDjuk3m/jO0Zgl9T2kLhsnhVZOoPODImIvXRy0z+moRo0faWoohk/B1LR4/ls1wGcRYkuwZJ3izU5WROrACFn4XynRGorZXGtkNWaudo1Bkxg4NiSR65LvuCvWTZFYsxGPxbZz41u+iRmkmfziE68ygwyZHpeyioAGdQhk11SI0VF+c8sPhBk+lxPtNyILFd85clhm1Q1yLfHCu6h+qWNVZ47HzJgInFE401C8EF8bu/3rvd9t8W3NOUuqatUS0VOe+lF2iuf+l+Xs0Yod3nt+NSAewOfZtJFW1h2C+SdK9A0TBszowbvxv0pbu+7b/UK0+O1WzYjUrIx6xkjOWCep6YMR28SedNi2dG6T8Dn5653Uigy9NWlVSGfoKSV5qBnP+EZI7ZZJVkDfgfisqYEXztN0oWn7+Xd/IYhIEmWQMP3sT5ChVUeCrccp4vhFiCNxYudFmxlrMq7urU+oYJGnAqQb24FsY/cv9AhS3pP1a/Hbkl0knYzY5gVwKGrmy/+uJfAUy0OcVRHjLda6wh3Yi1tY7oWEHDW1W/bz0JbJVepcYIseOS398c48co8dou3W+YBZ5r8q+h1XiUVeFaTcYHgg/mdNEIIfT3e/Ap4UWUmkvt+ZzewUDJq2zfVBQkEmuWg3/Wwx8zfv1XGVYsiWFlQyygAyYCRQYBOHGwmj5ffXGMCwHczzgTqUTWX+W1CtOb2kS2hhF7WapJrMnq3AywF8qV81+S8Or8BRF6s5+afli0wGWSy3LF+LXsa+YZvV4WjzmAd0fy3KgGLSAcB/BYRmiY6Ivq8nrzdMPQDOEueh0EAKd9PoWN1GfBYq+DEMjglGSkyC1Xzxpx9ElarwGqn/7fZTTCBJfH6sMfQ5u835r8n5o16gDlLTn5qrd9x6RpXptytMsJI+QMWH8xlJqoUsGJh/9BzODBil7k2uG/s501YNBdpYL43zdYBFLuDHxKhoDOsbG6qSmOtY7XDiAlOw8/EcuZYmXiGoQXQmOhITeBhSuH1LQxdIt6a22zbCgUBaWGfCrzDUM6MPzhSPaf1ybYTs/E194ICBYK1crns/sX6KLAwLF1NGisAdTQSCh43RW2LDF9T/u0/SGXvuV7Vf3kw97Wb2KxtwywQVnIk9OSRJVfjBapY55XLd6zOAdGnFJPvmoJyHprNt3/o8uUGwNmF2I7M1XW+UMJXZ4cnp9Q9SH/tZDj5Q79d34Ag+/setkwKQ0Kbm4h3dvmRk1hwsRLdhEP+OyCClOUon7d/mMZAL7k6Bo+0i8FfZL8GkznD2UFT5HtRQSUkw7KJp16DVOzqzjnFVTNHYfx8l56oJ9i9Ne5Bi3UsdDKzUGLKFSVW9DQ3lBL/F4m7+AhyHaI6pUhAWI0RToRv6TY0878lP0ixlUiNKAfRPxua7t3YFFahrU8/v8BBu8pt1NJHZSgO09+eprJO8vWO71Rqe/MLX9EOL7EUuTjilN64/X/aMeonidCqF7F2238iF6k77RUcS4tNx8IRuCcN+cbHYW+n8hMjbG9wVYYufn1E19UZnZjwXGsSOiudBqz7KfM/G+M66wG91Fr74q6OGMW0BEKJzL/nBCL5T9qnqaVdMvybEfJmza0v1buFhIzsU2cGmr9PHHBpbBeQ6ttXXF61Lb67yKR/A7EDDnxKjiLrC2WOwx/Kualv+2C+M7TyKmSWv41IPUTW0t1ifuROoZ0uZ9S7yMG2FxZTw96ORt5wQ" alt="KAP Logo" style="width:144px;height:144px;border-radius:24px;display:block;margin:0 auto 10px auto">
-      <div style="font-size:28px;font-weight:900;color:#111;letter-spacing:0.5px;line-height:1.3">KELKAR AUTO PARTS PRIVATE LIMITED</div>
-    </div>
-    <div class="error-msg" id="loginError">Invalid username or password</div>
-    <div class="form-group"><label>Username</label><input type="text" id="loginUser" placeholder="Enter username" autocomplete="off"></div>
-    <div class="form-group"><label>Password</label><div style="position:relative"><input type="password" id="loginPass" placeholder="Enter password" style="padding-right:40px"><button type="button" onclick="togglePassVis()" id="passToggle" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:4px" title="Show password">👁</button></div></div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#000;cursor:pointer;margin-bottom:16px;user-select:none">
-      <input type="checkbox" id="rememberMe" style="width:auto;accent-color:var(--accent)"> Remember me on this device
-    </label>
-    <!-- Math CAPTCHA -->
-    <div id="captchaWrap" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div id="captchaQ" style="font-size:18px;font-weight:900;color:var(--text);background:var(--surface2);border:1.5px solid var(--border);padding:6px 14px;border-radius:8px;letter-spacing:2px;user-select:none;flex-shrink:0"></div>
-        <span style="font-size:14px;color:var(--text2);font-weight:700">=</span>
-        <input type="number" id="captchaAns" placeholder="?" style="width:70px;text-align:center;font-size:16px;font-weight:800;padding:6px 8px;border-radius:8px" autocomplete="off">
-        <button type="button" onclick="_refreshCaptcha()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:4px" title="New question">🔄</button>
-      </div>
-      <div id="captchaErr" style="display:none;font-size:11px;color:#dc2626;font-weight:600;margin-top:2px">Incorrect answer, please try again</div>
-    </div>
-    <!-- Lockout banner -->
-    <div id="lockoutBanner" style="display:none;background:#fee2e2;border:2px solid #fca5a5;border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:center">
-      <div style="font-size:14px;font-weight:800;color:#dc2626;margin-bottom:4px">🔒 Account Locked</div>
-      <div style="font-size:12px;color:#b91c1c">Too many failed attempts. Try again in <span id="lockoutTimer" style="font-weight:900">60</span>s</div>
-    </div>
-    <button class="btn btn-primary btn-full" id="loginBtn" onclick="doLogin()">Sign In</button>
-    <!-- Supabase status on login page -->
-    <div id="loginConnWidget" onclick="_testDbConn&&_testDbConn()" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all .2s" title="Click to retry database connection" onmouseenter="this.style.opacity='.8'" onmouseleave="this.style.opacity='1'">
-      <span id="loginConnDot" style="width:9px;height:9px;border-radius:50%;background:#d1d5db;flex-shrink:0;transition:background .4s;box-shadow:0 0 0 2px rgba(0,0,0,.04)"></span>
-      <div style="flex:1;min-width:0">
-        <div id="loginConnLabel" style="font-size:11px;font-weight:700;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Connecting to database…</div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- APP -->
-<div id="dbSplash" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:9999;background:rgba(15,23,42,.95);align-items:center;justify-content:center;flex-direction:column;gap:12px">
-  <div style="width:48px;height:48px;border:4px solid rgba(42,154,160,.3);border-top-color:#2a9aa0;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-  <div style="color:#fff;font-size:14px;font-weight:600" id="splashMsg">Connecting to database…</div>
-  <div style="color:#94a3b8;font-size:11px">KAP VMS</div>
-</div>
-<div id="app">
-  <!-- Offline warning banner -->
-  <div id="offlineBanner" style="display:none;position:fixed;top:46px;left:0;right:0;z-index:9000;background:#fef3c7;border-bottom:2px solid #f59e0b;padding:8px 16px;text-align:center;font-size:13px;font-weight:700;color:#92400e">
-    ⚠ Database not connected — showing empty data. Check your internet connection.
-  </div>
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-logo"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='6' fill='%232a9aa0'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-size='16' font-weight='800' fill='white'%3EKAP%3C/text%3E%3C/svg%3E" alt="KAP"><div class="logo-text"><h2>Vehicle Management System</h2></div></div>
-    <!-- USER INFO AT TOP -->
-    <div class="sidebar-user" style="border-bottom:1px solid var(--border);border-top:none;margin-bottom:2px;padding:8px 12px 0 12px">
-      <!-- Photo + Name row -->
-      <div style="display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:5px" title="Logged in user">
-        <div class="user-avatar" id="uAvatar">A</div>
-        <div style="flex:1;min-width:0">
-          <div class="user-name" id="uName2">User</div>
-          <div class="user-role" id="uRole2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:155px"></div>
-        </div>
-      </div>
-      <!-- Location -->
-      <div id="uLoc2" style="font-size:9px;color:var(--accent);font-weight:700;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px"></div>
-    </div>
-    <div class="sidebar-nav" id="sidebarNav"></div>
-    <!-- Bottom: Supabase status + Sign Out -->
-    <div style="margin-top:auto;padding:6px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
-      <div id="vmsConnWidget" onclick="_forceSyncAll()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all .2s" title="Click to force sync all data to Supabase" onmouseenter="this.style.opacity='.8'" onmouseleave="this.style.opacity='1'">
-        <span id="vmsConnDot" style="width:8px;height:8px;border-radius:50%;background:#d1d5db;flex-shrink:0;transition:background .4s;box-shadow:0 0 0 2px rgba(0,0,0,.04)"></span>
-        <div style="flex:1;min-width:0">
-          <div id="vmsConnLabel" style="font-size:10px;font-weight:700;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Connecting…</div>
-          <div style="font-size:8px;color:#94a3b8;margin-top:1px;font-weight:500">Tap to sync ↑</div>
-        </div>
-      </div>
-      <div onclick="doLogout()" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600;color:#94a3b8;cursor:pointer;transition:all .18s" onmouseenter="this.style.background='rgba(239,68,68,.07)';this.style.color='#dc2626'" onmouseleave="this.style.background='transparent';this.style.color='#94a3b8'">
-        <span style="font-size:15px">🚪</span><span>Sign Out</span>
-      </div>
-    </div>
-  </div>
-  <div class="main-content">
-
-    <!-- MY APPS PAGE -->
-    <div class="page" id="pageMyApps">
-      <div class="page-header"><div class="page-title">My Apps</div></div>
-      <div id="welcomeBanner" style="margin-bottom:20px;font-size:20px;font-weight:800;color:var(--text)"></div>
-      <div id="vmsAppGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;max-width:900px"></div>
-    </div>
-
-    <!-- DASHBOARD -->
-    <div class="page" id="pageDashboard">
-      <div class="page-header"><div class="page-title">Dashboard</div><div class="page-sub">Vehicle operations overview</div></div>
-      <!-- Dashboard Tabs -->
-      <div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:12px">
-        <button id="dashTabOverview" onclick="setDashTab('overview')" style="padding:8px 18px;border:none;background:transparent;cursor:pointer;font-size:14px;font-weight:700;color:var(--accent);border-bottom:3px solid var(--accent);margin-bottom:-2px">📍 Overview</button>
-        <button id="dashTabTrips" onclick="setDashTab('trips')" style="padding:8px 18px;border:none;background:transparent;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-2px">🗂 Trip Details</button>
-        <button id="dashTabReports" onclick="setDashTab('reports')" style="padding:8px 18px;border:none;background:transparent;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-2px">📊 Reports</button>
-      </div>
-
-      <!-- OVERVIEW TAB -->
-      <div id="dashOverviewPanel">
-        <div style="margin-bottom:8px">
-          <div class="df-block" id="dfb_ov" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_ov_today" class="dr-btn" onclick="setDateRange('ovFrom','ovTo','today',renderDashOverview,'ov')">1D</button><button id="drb_ov_week" class="dr-btn" onclick="setDateRange('ovFrom','ovTo','week',renderDashOverview,'ov')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="ovFromLbl">📅 —</span><input type="date" id="ovFrom" onchange="updDateBtnLbl('ovFrom');updDrBtns('ov','ovFrom','ovTo');renderDashOverview()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="ovToLbl">📅 —</span><input type="date" id="ovTo" onchange="updDateBtnLbl('ovTo');updDrBtns('ov','ovFrom','ovTo');renderDashOverview()" class="u-photo-input-overlay"></div><button id="drb_ov_month" class="dr-btn dr-btn-active" onclick="setDateRange('ovFrom','ovTo','month',renderDashOverview,'ov')">1M</button><button id="drb_ov_year" class="dr-btn" onclick="setDateRange('ovFrom','ovTo','year',renderDashOverview,'ov')">1Y</button></div>
-        </div>
-        <div id="dashOverviewContent"></div>
-      </div>
-
-      <!-- TRIP DETAILS TAB -->
-      <div id="dashTripsPanel" style="display:none">
-        <input type="text" id="dashTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderDashTrips()" style="font-size:15px;padding:10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;margin-bottom:10px;font-weight:700">
-        <div style="margin-bottom:8px">
-          <div class="df-block" id="dfb_td" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_td_today" class="dr-btn" onclick="setDateRange('tdFrom','tdTo','today',renderDashTrips,'td')">1D</button><button id="drb_td_week" class="dr-btn" onclick="setDateRange('tdFrom','tdTo','week',renderDashTrips,'td')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="tdFromLbl">📅 —</span><input type="date" id="tdFrom" onchange="updDateBtnLbl('tdFrom');updDrBtns('td','tdFrom','tdTo');renderDashTrips()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="tdToLbl">📅 —</span><input type="date" id="tdTo" onchange="updDateBtnLbl('tdTo');updDrBtns('td','tdFrom','tdTo');renderDashTrips()" class="u-photo-input-overlay"></div><button id="drb_td_month" class="dr-btn dr-btn-active" onclick="setDateRange('tdFrom','tdTo','month',renderDashTrips,'td')">1M</button><button id="drb_td_year" class="dr-btn" onclick="setDateRange('tdFrom','tdTo','year',renderDashTrips,'td')">1Y</button></div>
-        </div>
-        <div id="dashTripsContent"></div>
-      </div>
-
-      <!-- REPORTS TAB -->
-      <div id="dashReportsPanel" style="display:none">
-      <div class="card">
-        <div class="card-header" style="flex-wrap:wrap;gap:4px">
-          <div class="card-title" style="font-size:14px">Trip Report</div>
-          <!-- Row 1: Dates + This Month -->
-          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;width:100%">
-            <div class="df-block" id="dfb_rpt" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_rpt_today" class="dr-btn" onclick="setDateRange('rptFrom','rptTo','today',renderReports,'rpt')">1D</button><button id="drb_rpt_week" class="dr-btn" onclick="setDateRange('rptFrom','rptTo','week',renderReports,'rpt')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="rptFromLbl">📅 —</span><input type="date" id="rptFrom" onchange="updDateBtnLbl('rptFrom');updDrBtns('rpt','rptFrom','rptTo');renderReports()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="rptToLbl">📅 —</span><input type="date" id="rptTo" onchange="updDateBtnLbl('rptTo');updDrBtns('rpt','rptFrom','rptTo');renderReports()" class="u-photo-input-overlay"></div><button id="drb_rpt_month" class="dr-btn dr-btn-active" onclick="setDateRange('rptFrom','rptTo','month',renderReports,'rpt')">1M</button><button id="drb_rpt_year" class="dr-btn" onclick="setDateRange('rptFrom','rptTo','year',renderReports,'rpt')">1Y</button></div>
-          </div>
-          <!-- Row 2: Filters + Export -->
-          <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;width:100%">
-            <select id="rptVendor" onchange="renderReports()" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);max-width:100px"><option value="">Vendor ▾</option></select>
-            <select id="rptVehicle" onchange="renderReports()" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-family:var(--mono);max-width:100px"><option value="">Vehicle ▾</option></select><select id="rptLocation" onchange="renderReports()" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);max-width:110px"><option value="">Location ▾</option></select>
-            
-            <button onclick="downloadReportExcel()" class="btn btn-secondary" style="font-size:10px;padding:4px 8px">Excel</button>
-            <button onclick="downloadReportPDF()" class="btn btn-secondary" style="font-size:10px;padding:4px 8px">PDF</button>
-          </div>
-        </div>
-        <div id="rptContent"></div>
-        <div id="rptTotal" style="display:none;margin-top:12px;padding:12px 16px;background:linear-gradient(135deg,#16a34a,#15803d);border-radius:10px;color:#fff;justify-content:space-between;align-items:center">
-          <span style="font-size:13px;font-weight:600;opacity:.9" id="rptTotalCount"></span>
-          <span style="font-size:18px;font-weight:800;font-family:var(--mono)" id="rptTotalAmt"></span>
-        </div>
-      </div>
-      </div>
-    </div>
-
-    <!-- TRIP BOOKING -->
-    <div class="page" id="pageTripBooking">
-      <div class="page-title" style="display:none">Trip Booking</div>
-      <!-- Sticky top: date range + book button + search -->
-      <div id="tbStickyHeader" style="position:sticky;top:0;z-index:40;background:#fff;padding-bottom:6px">
-        <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin-bottom:6px">
-          <div class="filter-row">
-            <div class="df-block" id="dfb_tbHist" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_tbHist_today" class="dr-btn" onclick="setDateRange('tbHistFrom','tbHistTo','today',renderMyTrips,'tbHist')">1D</button><button id="drb_tbHist_week" class="dr-btn" onclick="setDateRange('tbHistFrom','tbHistTo','week',renderMyTrips,'tbHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="tbHistFromLbl">📅 —</span><input type="date" id="tbHistFrom" onchange="updDateBtnLbl('tbHistFrom');updDrBtns('tbHist','tbHistFrom','tbHistTo');renderMyTrips()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="tbHistToLbl">📅 —</span><input type="date" id="tbHistTo" onchange="updDateBtnLbl('tbHistTo');updDrBtns('tbHist','tbHistFrom','tbHistTo');renderMyTrips()" class="u-photo-input-overlay"></div><button id="drb_tbHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('tbHistFrom','tbHistTo','month',renderMyTrips,'tbHist')">1M</button><button id="drb_tbHist_year" class="dr-btn" onclick="setDateRange('tbHistFrom','tbHistTo','year',renderMyTrips,'tbHist')">1Y</button></div>
-          </div>
-          <button class="btn btn-primary" style="font-size:14px;padding:0 24px;font-weight:800;white-space:nowrap;align-self:stretch" onclick="openTripBookingModal()">+ Book New Trip</button>
-        </div>
-        <div style="position:relative;max-width:480px"><input type="text" id="tbTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderMyTrips();document.getElementById('tbSearchX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="tbSearchX" onclick="document.getElementById('tbTripSearch').value='';this.style.display='none';renderMyTrips()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
-      </div>
-      <!-- My Trips list -->
-      <div style="margin:0;padding:0">
-        <div id="myTripBody"></div>
-      </div>
-    </div>
-
-    <!-- MY PROFILE -->
-    <div class="page" id="pageProfile" style="padding:0;background:#f1f5f9">
-      <input type="file" id="profilePhotoInput" accept="image/*" capture="environment" style="display:none" onchange="onProfilePhoto(this)">
-
-      <div style="max-width:520px;margin:0 auto">
-
-      <!-- Hero banner -->
-      <div style="position:relative;background:linear-gradient(135deg,#175c60 0%,#35b0b6 60%,#5cc4c8 100%);padding:32px 20px 28px;text-align:center;overflow:hidden;border-radius:0 0 24px 24px;margin-bottom:0">
-        <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;border:1.5px solid rgba(255,255,255,.15);pointer-events:none"></div>
-        <div style="position:absolute;bottom:-30px;left:-30px;width:120px;height:120px;border-radius:50%;border:1px solid rgba(255,255,255,.1);pointer-events:none"></div>
-
-        <div style="position:relative;display:inline-block;margin-bottom:12px">
-          <div id="profileAvatar" onclick="document.getElementById('profilePhotoInput').click()"
-            style="width:96px;height:96px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;font-size:38px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;border:3px solid rgba(255,255,255,.5);background-size:cover;background-position:center;box-shadow:0 8px 32px rgba(0,0,0,.2);position:relative;z-index:1" title="Tap to change photo">A</div>
-          <div onclick="document.getElementById('profilePhotoInput').click()" style="position:absolute;bottom:0;right:0;width:28px;height:28px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #fff;cursor:pointer;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.2)">📷</div>
-          <button id="profilePhotoClearBtn" onclick="clearProfilePhoto()" style="display:none;position:absolute;top:-2px;left:-2px;background:#dc2626;color:#fff;border:2px solid #fff;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:11px;line-height:18px;text-align:center;padding:0;z-index:3" title="Remove photo">×</button>
-        </div>
-
-        <div id="profileDisplayName" style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px;text-shadow:0 1px 4px rgba(0,0,0,.2)"></div>
-        <div id="profileDisplayRole" style="font-size:12px;color:rgba(255,255,255,.85);margin-top:4px;font-weight:500"></div>
-        <div id="profileDisplayUsername" style="font-size:11px;color:rgba(255,255,255,.7);margin-top:3px;font-family:var(--mono);font-weight:700;letter-spacing:.5px"></div>
-      </div>
-
-      <!-- Content cards -->
-      <div style="padding:16px 16px 24px">
-
-        <!-- Personal Info card -->
-        <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:20px;margin-bottom:12px;border:1px solid #e2e8f0">
-          <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:6px">
-            <span style="width:18px;height:18px;background:#f0fafa;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:10px">👤</span> Personal Info
-          </div>
-
-          <div style="margin-bottom:12px">
-            <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Full Name</label>
-            <div style="position:relative">
-              <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none">✏️</span>
-              <input type="text" id="profileFullName" placeholder="Your full name"
-                style="padding-left:34px;width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 12px 9px 34px;font-size:14px;color:#1e293b;font-weight:600;outline:none;box-sizing:border-box"
-                onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-            </div>
-          </div>
-
-          <div style="margin-bottom:12px">
-            <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Username <span style="color:#94a3b8;font-size:9px;text-transform:none;letter-spacing:0">(cannot change)</span></label>
-            <div style="position:relative">
-              <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#94a3b8;font-family:var(--mono);font-weight:700">@</span>
-              <input type="text" id="profileUsername" readonly
-                style="padding-left:26px;width:100%;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 12px 9px 26px;font-size:13px;color:#94a3b8;font-family:var(--mono);outline:none;box-sizing:border-box;cursor:default">
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px">
-            <div>
-              <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Mobile</label>
-              <div style="position:relative">
-                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none">📱</span>
-                <input type="tel" id="profileMobile" maxlength="10" placeholder="10-digit"
-                  style="padding-left:30px;width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 8px 9px 30px;font-size:13px;color:#1e293b;font-family:var(--mono);outline:none;box-sizing:border-box"
-                  onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-              </div>
-            </div>
-            <div>
-              <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Email</label>
-              <div style="position:relative">
-                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none">✉️</span>
-                <input type="email" id="profileEmail" placeholder="email@example.com"
-                  style="padding-left:30px;width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 8px 9px 30px;font-size:13px;color:#1e293b;outline:none;box-sizing:border-box"
-                  onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-              </div>
-            </div>
-          </div>
-
-          <div id="profileInfoMsg" style="display:none;font-size:12px;margin-top:8px;padding:7px 10px;border-radius:7px"></div>
-
-          <div style="display:flex;gap:8px;margin-top:16px">
-            <button class="btn btn-secondary" onclick="showPage('pageDashboard','Dashboard')" style="flex:1;justify-content:center;font-size:13px;border-radius:10px">✕ Cancel</button>
-            <button class="btn btn-primary" onclick="saveProfile()" style="flex:2;justify-content:center;font-size:13px;border-radius:10px;font-weight:700">💾 Save Changes</button>
-          </div>
-        </div>
-
-        <!-- Change Password card -->
-        <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);border:1px solid #e2e8f0;overflow:hidden;margin-bottom:12px">
-          <button onclick="togglePassSection()" id="passSectionToggle"
-            style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:none;border:none;cursor:pointer;font-size:14px;font-weight:700;color:#1e293b"
-            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='none'">
-            <span style="display:flex;align-items:center;gap:10px">
-              <span style="width:30px;height:30px;background:#fee2e2;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:15px">🔒</span>
-              Change Password
-            </span>
-            <span id="passToggleIcon" style="font-size:12px;color:#94a3b8;transition:transform .2s">▼</span>
-          </button>
-          <div id="passSection" style="display:none;padding:0 20px 20px;border-top:1px solid #e2e8f0">
-            <div style="margin-top:14px;margin-bottom:10px">
-              <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Current Password</label>
-              <input type="password" id="profileOldPass" placeholder="Enter current password"
-                style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 12px;font-size:13px;color:#1e293b;outline:none;box-sizing:border-box"
-                onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-              <div>
-                <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">New Password</label>
-                <input type="password" id="profileNewPass" placeholder="6-12 chars, A-z, 0-9, special" maxlength="12"
-                  style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 10px;font-size:13px;color:#1e293b;outline:none;box-sizing:border-box"
-                  onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-              </div>
-              <div>
-                <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Confirm Password</label>
-                <input type="password" id="profileConfPass" placeholder="Repeat new password" maxlength="12"
-                  style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:9px 10px;font-size:13px;color:#1e293b;outline:none;box-sizing:border-box"
-                  onfocus="this.style.borderColor='#35b0b6'" onblur="this.style.borderColor='#e2e8f0'">
-              </div>
-            </div>
-            <button class="btn btn-primary" onclick="saveProfile()" style="width:100%;justify-content:center;font-size:13px;border-radius:10px;font-weight:700">🔒 Update Password</button>
-          </div>
-        </div>
-
-      </div><!-- /content -->
-      </div><!-- /centered-wrapper -->
-    </div><!-- /pageProfile -->
-
-    <!-- KAP SECURITY -->
-    <div class="page" id="pageKapSecurity">
-      <div id="kapStickyHeader" style="position:sticky;top:0;z-index:50;background:#fff;padding-bottom:4px">
-      <div class="page-header"><div class="page-title">KAP Security</div></div>
-
-      <!-- ── 3 Tab Buttons ── -->
-      <div style="display:flex;gap:0;margin-bottom:8px;border-radius:16px;overflow:hidden;border:2px solid var(--border);background:var(--surface2);max-width:600px">
-        <!-- Exit tab -->
-        <button id="kapTabBtnExit" onclick="setKapMode('exit')"
-          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-right:1px solid var(--border);border-radius:0">
-          <div style="font-size:22px;margin-bottom:4px">🚪</div>
-          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">EXIT</div>
-          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
-            <span id="kapCountTabExit" class="kap-tab-count" style="font-size:12px;display:none"></span>
-          </div>
-        </button>
-        <!-- Entry tab -->
-        <button id="kapTabBtnEntry" onclick="setKapMode('entry')"
-          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-right:1px solid var(--border);border-radius:0">
-          <div style="font-size:22px;margin-bottom:4px">🏁</div>
-          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">ENTRY</div>
-          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
-            <span id="kapCountTabEntry" class="kap-tab-count" style="font-size:12px;display:none"></span>
-          </div>
-        </button>
-        <!-- Spot Entry tab -->
-        <button id="kapTabBtnSpot" onclick="setKapMode('spot')"
-          style="flex:1;padding:14px 8px 12px;border:none;cursor:pointer;background:transparent;transition:all .18s;border-radius:0">
-          <div style="font-size:22px;margin-bottom:4px">📋</div>
-          <div style="font-size:12px;font-weight:800;letter-spacing:.3px">SPOT ENTRY</div>
-          <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
-            <span id="kapCountTabSpot" class="kap-tab-count" style="font-size:12px;background:#16a34a;display:none"></span>
-          </div>
-        </button>
-      </div>
-      </div><!-- end kapStickyHeader -->
-
-      <!-- ── EXIT CONTENT (pre-booked gate exit — step 1) ── -->
-      <div id="kapExitSection" style="display:none">
-        <div>
-        <div style="padding:0;margin:0">
-          <div style="padding:0">
-            <div id="kapExitSearchSticky" style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchExit" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapExitX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapExitX" onclick="document.getElementById('kapSearchExit').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
-            <div id="kapExitContent"></div>
-            <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
-              <div class="df-block" id="dfb_kapHistExit"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistExit_today" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','today',renderKap,'kapHistExit')">1D</button><button id="drb_kapHistExit_week" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','week',renderKap,'kapHistExit')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitFromLbl">📅 —</span><input type="date" id="kapHistExitFrom" onchange="updDateBtnLbl('kapHistExitFrom');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistExitToLbl">📅 —</span><input type="date" id="kapHistExitTo" onchange="updDateBtnLbl('kapHistExitTo');updDrBtns('kapHistExit','kapHistExitFrom','kapHistExitTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistExit_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','month',renderKap,'kapHistExit')">1M</button><button id="drb_kapHistExit_year" class="dr-btn" onclick="setDateRange('kapHistExitFrom','kapHistExitTo','year',renderKap,'kapHistExit')">1Y</button></div>
-            </div>
-            <div id="kapExitHistoryContent"></div>
-          </div>
-        </div>
-        </div>
-      </div>
-
-      <!-- ── ENTRY CONTENT (pre-booked gate entry — step 2) ── -->
-      <div id="kapEntrySection" style="display:none">
-        <div>
-        <div style="padding:0;margin:0">
-          <div style="padding:0">
-            <div id="kapEntrySearchSticky" style="position:relative;position:sticky;top:120px;z-index:40;margin-bottom:10px"><input type="text" id="kapSearchEntry" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderKap();document.getElementById('kapEntryX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="kapEntryX" onclick="document.getElementById('kapSearchEntry').value='';this.style.display='none';renderKap()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
-            <div id="kapEntryContent"></div>
-            <div class="filter-row" style="margin:12px 0 8px;padding-top:10px;border-top:3px solid var(--accent)">
-              <div class="df-block" id="dfb_kapHistEntry"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_kapHistEntry_today" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','today',renderKap,'kapHistEntry')">1D</button><button id="drb_kapHistEntry_week" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','week',renderKap,'kapHistEntry')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryFromLbl">📅 —</span><input type="date" id="kapHistEntryFrom" onchange="updDateBtnLbl('kapHistEntryFrom');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="kapHistEntryToLbl">📅 —</span><input type="date" id="kapHistEntryTo" onchange="updDateBtnLbl('kapHistEntryTo');updDrBtns('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');renderKap()" class="u-photo-input-overlay"></div><button id="drb_kapHistEntry_month" class="dr-btn dr-btn-active" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','month',renderKap,'kapHistEntry')">1M</button><button id="drb_kapHistEntry_year" class="dr-btn" onclick="setDateRange('kapHistEntryFrom','kapHistEntryTo','year',renderKap,'kapHistEntry')">1Y</button></div>
-            </div>
-            <div id="kapEntryHistoryContent"></div>
-          </div>
-        </div>
-        </div>
-      </div>
-
-      <!-- SPOT VEHICLE ENTRY CONTENT (preserved from original) -->
-      <div id="kapSpotSection" style="display:none">
-        <!-- Record button + location badge -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="_kapOpenSpotPopup(null)" style="font-size:14px;padding:10px 20px;font-weight:800;border-radius:12px">
-            🏁 Record Spot Vehicle Entry
-          </button>
-          <span id="spotLocBadge" style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:6px"></span>
-        </div>
-
-        <!-- History -->
-        <div>
-          <div style="padding:0;margin:0">
-            <div class="filter-row" style="margin-bottom:8px">
-              <div class="df-block" id="dfb_spotHist"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_spotHist_today" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','today',renderSpotHistory,'spotHist')">1D</button><button id="drb_spotHist_week" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','week',renderSpotHistory,'spotHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistFromLbl">📅 —</span><input type="date" id="spotHistFrom" onchange="updDateBtnLbl('spotHistFrom');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="spotHistToLbl">📅 —</span><input type="date" id="spotHistTo" onchange="updDateBtnLbl('spotHistTo');updDrBtns('spotHist','spotHistFrom','spotHistTo');renderSpotHistory()" class="u-photo-input-overlay"></div><button id="drb_spotHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('spotHistFrom','spotHistTo','month',renderSpotHistory,'spotHist')">1M</button><button id="drb_spotHist_year" class="dr-btn" onclick="setDateRange('spotHistFrom','spotHistTo','year',renderSpotHistory,'spotHist')">1Y</button></div>
-            </div>
-            <div id="spotHistoryList"></div>
-          </div>
-        </div>
-
-        <!-- SPOT ENTRY / EXIT POPUP (single popup for both) -->
-        <div id="mSpotEntry" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:8px" onclick="if(event.target===this)_kapCloseSpotPopup()">
-          <div style="background:#fff;border:2px solid #000;border-radius:16px;max-width:520px;width:100%;max-height:calc(100vh - 16px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:20px">🏁</span>
-                <div>
-                  <div style="font-size:15px;font-weight:900;color:var(--accent)" id="spotPopupTitle">Spot Vehicle Entry</div>
-                  <div id="spotPopupId" style="font-family:var(--mono);font-size:22px;color:#fff;font-weight:900;background:var(--accent);padding:2px 12px;border-radius:8px;display:inline-block;margin-top:4px"></div>
-                </div>
-                <span id="spotLocBadgePopup" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px"></span>
-              </div>
-              <button onclick="_kapCloseSpotPopup()" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;font-size:18px;font-weight:900;cursor:pointer;padding:5px 12px;line-height:1;border-radius:8px">✕ Close</button>
-            </div>
-            <div id="spotEntrySection">
-              <div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px">
-                <!-- Vehicle No (full width) -->
-                <div style="display:flex;flex-direction:column;gap:1px">
-                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Vehicle No. *</label>
-                  <input type="text" id="spotVehNum" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900">
-                </div>
-                <!-- Driver Name + Mobile stacked, driver photo to the right -->
-                <div style="display:flex;align-items:stretch;gap:8px">
-                  <div style="flex:1;display:flex;flex-direction:column;gap:5px">
-                    <div style="display:flex;flex-direction:column;gap:1px">
-                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Driver Name</label>
-                      <input type="text" id="spotDriverName" placeholder="Full name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:1px">
-                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Mobile</label>
-                      <input type="tel" id="spotDriverMob" maxlength="10" placeholder="10 digits" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
-                    </div>
-                  </div>
-                  <!-- Driver photo — full height of both fields -->
-                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0;position:relative">
-                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase">Driver</span>
-                    <div id="spotDriverThumb" onclick="_showPhotoChoice('spotDriverFile','spotDriverThumb')" style="width:80px;flex:1;min-height:80px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🧑</div>
-                    <input type="file" id="spotDriverFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotDriverThumb')">
-                  </div>
-                </div>
-                <!-- Supplier -->
-                <div style="display:flex;flex-direction:column;gap:1px">
-                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Supplier</label>
-                  <input type="text" id="spotSupplier" placeholder="Supplier / Party name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
-                </div>
-                <!-- Challans: 3 per row, each = [text above photo] -->
-                <div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers</label>
-                    <button onclick="_spotAddChallanRow()" style="font-size:10px;padding:2px 8px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:5px;color:#1d6f73;font-weight:700;cursor:pointer">+ Add</button>
-                  </div>
-                  <div id="spotChallanRows" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
-                </div>
-                <!-- Remarks -->
-
-              </div>
-              <!-- ═══ Bottom bar: Entry (left) + Exit (right) ═══ -->
-              <div style="display:flex;border-top:1px solid var(--border)">
-                <!-- Left: Entry remarks + vehicle photo + Record Entry -->
-                <div style="flex:1;padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">
-                  <div style="display:flex;flex-direction:column;gap:1px">
-                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Entry Remarks</label>
-                    <input type="text" id="spotEntryRemarks" placeholder="Optional notes" style="padding:5px 8px;font-size:13px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
-                  </div>
-                  <div style="position:relative;align-self:flex-start">
-                    <div id="spotVehThumb" onclick="_showPhotoChoice('spotVehFile','spotVehThumb')" style="width:80px;height:80px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🚗</div>
-                    <input type="file" id="spotVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotVehThumb')">
-                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Vehicle *</span>
-                  </div>
-                  <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🏁 Record Entry</button>
-                  <input type="hidden" id="spotEditId">
-                </div>
-                <!-- Right: Exit (hidden until vehicle is inside) -->
-                <div id="spotExitSection" style="display:none;flex:1;padding:10px 14px 14px;border-left:2px solid #dc2626;background:rgba(220,38,38,.02);flex-direction:column;gap:6px;min-width:0">
-                  <div style="display:flex;flex-direction:column;gap:1px">
-                    <label style="font-size:9px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.4px">Exit Remarks</label>
-                    <input type="text" id="spotExitRemarks" placeholder="Optional" style="padding:5px 8px;font-size:13px;border:1.5px solid #fca5a5;border-radius:7px;width:100%;box-sizing:border-box">
-                  </div>
-                  <div style="position:relative;align-self:flex-start">
-                    <div id="spotExitVehThumb" onclick="_showPhotoChoice('spotExitVehFile','spotExitVehThumb')" style="width:80px;height:80px;border:2px dashed #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;background:#fff5f5;cursor:pointer">🚗</div>
-                    <input type="file" id="spotExitVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotExitVehThumb')">
-                    <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Exit Photo</span>
-                  </div>
-                  <button id="spotExitBtn" class="btn btn-danger" onclick="doSpotExit()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🚪 Record Exit</button>
-                  <input type="hidden" id="spotExitId">
-                </div>
-              </div>
-          </div>
-        </div>
-      </div><!-- end mSpotEntry -->
-      </div><!-- end kapSpotSection -->
-    </div><!-- end pageKapSecurity -->
-
-    <!-- TRIP BOOKING MODAL -->
-    
-    <!-- QUICK VEHICLE SELECT MODAL -->
-    
-
-    <!-- QUICK CHALLAN FILL MODAL -->
-    
-
-    <!-- Spot Exit Modal -->
-    
-
-    <!-- MATERIAL RECEIPT -->
-    <div class="page" id="pageMR">
-      <span class="page-title" style="display:none">Material Receipt</span>
-      <div class="page-header" style="padding:8px 0 4px;display:flex!important;align-items:center;justify-content:flex-end;position:sticky;top:0;z-index:40;background:#fff"><div style="position:relative;width:100%"><input type="text" id="mrTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderMR();document.getElementById('mrSearchX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="mrSearchX" onclick="document.getElementById('mrTripSearch').value='';this.style.display='none';renderMR()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div></div>
-      <!-- Pending section -->
-      <div id="mrPendingContent"></div>
-      <!-- History section -->
-      <div class="card" style="margin-top:8px">
-        <div class="card-header">
-          <div class="card-title" style="font-size:13px">My Material Receipts</div>
-          <div class="filter-row">
-            <div class="df-block" id="dfb_mrHist" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_mrHist_today" class="dr-btn" onclick="setDateRange('mrHistFrom','mrHistTo','today',renderMR,'mrHist')">1D</button><button id="drb_mrHist_week" class="dr-btn" onclick="setDateRange('mrHistFrom','mrHistTo','week',renderMR,'mrHist')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="mrHistFromLbl">📅 —</span><input type="date" id="mrHistFrom" onchange="updDateBtnLbl('mrHistFrom');updDrBtns('mrHist','mrHistFrom','mrHistTo');renderMR()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="mrHistToLbl">📅 —</span><input type="date" id="mrHistTo" onchange="updDateBtnLbl('mrHistTo');updDrBtns('mrHist','mrHistFrom','mrHistTo');renderMR()" class="u-photo-input-overlay"></div><button id="drb_mrHist_month" class="dr-btn dr-btn-active" onclick="setDateRange('mrHistFrom','mrHistTo','month',renderMR,'mrHist')">1M</button><button id="drb_mrHist_year" class="dr-btn" onclick="setDateRange('mrHistFrom','mrHistTo','year',renderMR,'mrHist')">1Y</button></div>
-          </div>
-        </div>
-        <div id="mrHistBody"></div>
-      </div>
-    </div>
-
-    <!-- TRIP APPROVALS -->
-    <div class="page" id="pageApprove">
-      <span class="page-title" style="display:none">Trip Approvals</span>
-      <div class="page-header" style="padding:8px 0 4px;display:flex!important;align-items:center;justify-content:flex-end;position:sticky;top:0;z-index:40;background:#fff"><div style="position:relative;width:100%"><input type="text" id="approveTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderApprove();document.getElementById('apSearchX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="apSearchX" onclick="document.getElementById('approveTripSearch').value='';this.style.display='none';renderApprove()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div></div>
-      <!-- Pending section -->
-      <div id="approveContent"></div>
-      <!-- My Approvals history -->
-      <div class="card" style="margin-top:8px">
-        <div class="card-header">
-          <div class="card-title" style="font-size:13px">My Approvals</div>
-          <div class="filter-row">
-            <div class="df-block" id="dfb_approve" ><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_approve_today" class="dr-btn" onclick="setDateRange('approveFrom','approveTo','today',renderApprove,'approve')">1D</button><button id="drb_approve_week" class="dr-btn" onclick="setDateRange('approveFrom','approveTo','week',renderApprove,'approve')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="approveFromLbl">📅 —</span><input type="date" id="approveFrom" onchange="updDateBtnLbl('approveFrom');updDrBtns('approve','approveFrom','approveTo');renderApprove()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="approveToLbl">📅 —</span><input type="date" id="approveTo" onchange="updDateBtnLbl('approveTo');updDrBtns('approve','approveFrom','approveTo');renderApprove()" class="u-photo-input-overlay"></div><button id="drb_approve_month" class="dr-btn dr-btn-active" onclick="setDateRange('approveFrom','approveTo','month',renderApprove,'approve')">1M</button><button id="drb_approve_year" class="dr-btn" onclick="setDateRange('approveFrom','approveTo','year',renderApprove,'approve')">1Y</button></div>
-          </div>
-        </div>
-        <div id="completedBody"></div><div id="completedTotal" style="display:none;text-align:right;font-size:12px;font-weight:700;padding:6px 4px">Total: <span id="completedTotalAmt" style="font-family:var(--mono);color:#16a34a;font-size:14px;font-weight:800"></span></div>
-      </div>
-    </div>
-
-    <!-- MASTERS -->
-    <div class="page" id="pageUsers"><div class="page-header"><div class="page-title">User Master</div></div><div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><input type="search" id="userSearch" placeholder="🔍 Search by name…" oninput="renderUsers()" onsearch="renderUsers()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);flex:1;min-width:0"><div style="display:flex;gap:6px;flex-shrink:0"><span class="ea-wrap" style="gap:6px"><button class="btn btn-secondary" onclick="exportUsersExcel()" style="font-size:12px;padding:7px 12px;background:#16a34a;color:#fff;border-color:#16a34a">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#2a9aa0;color:#fff;border-color:#2a9aa0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importUsersExcel(this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveUsers" onchange="renderUsers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddUser">+ Add User</button></div></div><div class="table-wrap"><table id="tUsers"><thead><tr><th style="width:40px"></th><th class="sortable" onclick="sortTable('userBody',1)">Full Name</th><th class="sortable" onclick="sortTable('userBody',2)">Username</th><th class="sortable" onclick="sortTable('userBody',3)">Location</th><th class="sortable" onclick="sortTable('userBody',4)">Apps</th><th class="sortable" onclick="sortTable('userBody',5)">Roles</th><th>Actions</th></tr></thead><tbody id="userBody"></tbody></table></div></div></div>
-    <div class="page" id="pageVTypes"><div class="page-header"><div class="page-title">Vehicle Type Master</div></div><div class="card"><div class="card-header"><div class="card-title">Vehicle Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicleTypes')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicleTypes',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVT" onchange="renderVTypes()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVT">+ Add Type</button></div></div><div class="table-wrap"><table id="tVTypes"><thead><tr><th class="sortable" onclick="sortTable('vtBody',0)">Type Name</th><th class="sortable" onclick="sortTable('vtBody',1)">Capacity (kg)</th><th>Actions</th></tr></thead><tbody id="vtBody"></tbody></table></div></div></div>
-    <div class="page" id="pageDrivers"><div class="page-header"><div class="page-title">Driver Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Drivers</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('drivers')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('drivers',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveDrv" onchange="renderDrivers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddDrv">+ Add Driver</button></div></div><div class="table-wrap"><table id="tDrivers"><thead><tr><th>Photo</th><th class="sortable" onclick="sortTable('drvBody',1)">Name</th><th class="sortable" onclick="sortTable('drvBody',2)">Mobile</th><th class="sortable" onclick="sortTable('drvBody',3)">Vendor</th><th class="sortable" onclick="sortTable('drvBody',4)">DL Expiry</th><th>Actions</th></tr></thead><tbody id="drvBody"></tbody></table></div></div></div>
-    <div class="page" id="pageVendors"><div class="page-header"><div class="page-title">Vendor Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vendors</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vendors')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vendors',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVnd" onchange="renderVendors()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVnd">+ Add Vendor</button></div></div><div class="table-wrap"><table id="tVendors"><thead><tr><th class="sortable" onclick="sortTable('vndBody',0)">Vendor Name</th><th class="sortable" onclick="sortTable('vndBody',1)">Owner</th><th class="sortable" onclick="sortTable('vndBody',2)">Contact</th><th class="sortable" onclick="sortTable('vndBody',3)">Mapped User</th><th class="sortable" onclick="sortTable('vndBody',4)">Address</th><th>Actions</th></tr></thead><tbody id="vndBody"></tbody></table></div></div></div>
-    <div class="page" id="pageVehicles"><div class="page-header"><div class="page-title">Vehicle Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vehicles</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicles')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicles',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVeh" onchange="renderVehicles()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVeh">+ Add Vehicle</button></div></div><div class="table-wrap"><table id="tVehicles"><thead><tr><th class="sortable" onclick="sortTable('vehBody',0)">Vehicle No.</th><th class="sortable" onclick="sortTable('vehBody',1)">Type</th><th class="sortable" onclick="sortTable('vehBody',2)">Vendor</th><th class="sortable" onclick="sortTable('vehBody',3)">PUC Expiry</th><th class="sortable" onclick="sortTable('vehBody',4)">RTO Expiry</th><th class="sortable" onclick="sortTable('vehBody',5)">Insurance Expiry</th><th>Actions</th></tr></thead><tbody id="vehBody"></tbody></table></div></div></div>
-    <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center"><input type="text" id="locSearchInput" oninput="renderLocations()" placeholder="🔍 Search location…" style="padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Plant Head</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
-    <div class="page" id="pageTripRates"><div class="page-header"><div class="page-title">Trip Rate Master</div></div>
-      <!-- SUGGESTIONS PANEL -->
-      <div id="rateSuggestPanel" style="display:none;padding:16px" class="card">
-        <div class="card-header" style="margin-bottom:10px">
-          <div class="card-title">💡 Suggested Trip Routes</div>
-          <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px" onclick="document.getElementById('rateSuggestPanel').style.display='none'">✕ Close</button>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">These unique vehicle type + route combinations are derived from booked trips but have no matching rate yet. Click <strong>Add Rate</strong> to pre-fill the modal.</div>
-        <div id="rateSuggestList"></div>
-      </div>
-      <div class="card"><div class="card-header"><div class="card-title">All Rates</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><button class="btn btn-secondary" onclick="showRateSuggestions()" style="font-size:12px;padding:7px 12px">💡 Suggest Trips</button><span class="ea-wrap" style="gap:8px"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('tripRates')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('tripRates',this)"></label></span></span><button class="btn btn-primary" id="btnAddRate">+ Add Rate</button></div></div>
-      <!-- Pending approvals (SA only) -->
-      <div id="ratePendingSection" style="display:none;margin:10px 0 6px">
-        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px">⏳ Pending Approval <span id="ratePendingCount" class="kap-tab-count" style="display:inline-flex"></span></div>
-        <div id="ratePendingList"></div>
-      </div>
-      <!-- Sortable frozen-header rate table -->
-      <div style="overflow:auto;max-height:calc(100vh - 280px);-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:10px">
-        <table id="tRates" style="width:100%;border-collapse:collapse;font-size:14px">
-          <thead id="rateHead">
-            <tr>
-              <th data-col="num"   style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:default;user-select:none;min-width:36px">#</th>
-              <th data-col="vtype" onclick="rateSort('vtype')"  style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:130px">Vehicle Type <span id="rsIco_vtype"></span></th>
-              <th data-col="route" onclick="rateSort('route')"  style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:220px">Route <span id="rsIco_route"></span></th>
-              <th data-col="rate"  onclick="rateSort('rate')"   style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:right;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:100px">Current Rate <span id="rsIco_rate"></span></th>
-              <th data-col="valid" onclick="rateSort('valid')"  style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:160px">Effective Dates <span id="rsIco_valid"></span></th>
-              <th data-col="hist"  onclick="rateSort('hist')"   style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:center;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:70px">Periods <span id="rsIco_hist"></span></th>
-              <th data-col="status" onclick="rateSort('status')" style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:center;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;min-width:90px">Status <span id="rsIco_status"></span></th>
-              <th style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;border-bottom:2px solid var(--border2);min-width:36px"></th>
-            </tr>
-          </thead>
-          <tbody id="rateBody"></tbody>
-        </table>
-      </div>
-    </div></div>
-
-    <!-- VENDOR TRIPS -->
-    <div class="page" id="pageVendorTrips">
-      <div class="page-header"><div class="page-title">My Trips (Vendor)</div><div class="page-sub" id="vtVendorName"></div></div>
-      <div class="card">
-        <div class="card-header" style="flex-wrap:wrap;gap:8px">
-          <div style="position:relative;width:100%;margin-bottom:4px"><input type="text" id="vtTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderVendorTrips();document.getElementById('vtSearchX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="vtSearchX" onclick="document.getElementById('vtTripSearch').value='';this.style.display='none';renderVendorTrips()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <div class="df-block" id="dfb_vt"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_vt_today" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','today',renderVendorTrips,'vt')">1D</button><button id="drb_vt_week" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','week',renderVendorTrips,'vt')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtFromLbl">📅 —</span><input type="date" id="vtFrom" onchange="updDateBtnLbl('vtFrom');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtToLbl">📅 —</span><input type="date" id="vtTo" onchange="updDateBtnLbl('vtTo');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><button id="drb_vt_month" class="dr-btn dr-btn-active" onclick="setDateRange('vtFrom','vtTo','month',renderVendorTrips,'vt')">1M</button><button id="drb_vt_year" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','year',renderVendorTrips,'vt')">1Y</button></div>
-          </div>
-        </div>
-        <!-- Row 2: Vendor + Vehicle + Status filters -->
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <select id="vtVendorFilter" onchange="_onVtVendorChange();renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All Vendors ▾</option></select>
-          <select id="vtVehicleFilter" onchange="renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-family:var(--mono);min-width:130px"><option value="">All Vehicles ▾</option></select>
-          <select id="vtStatusFilter" onchange="renderVendorTrips()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)"><option value="">All Status</option><option value="Booked">Booked</option><option value="In Progress">In Progress</option><option value="Complete">Complete</option></select>
-        </div>
-        <!-- Summary stats -->
-        <div id="vtStats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
-        <!-- Trip table -->
-        <div class="table-wrap"><div id="vtTripList"></div></div>
-      </div>
-    </div>
-
-    <!-- HELPER (Super Admin only) -->
-    <div class="page" id="pageHelper">
-      <div class="page-header"><div class="page-title">System Helper</div></div>
-      <div id="helperContent" style="max-width:800px"></div>
-    </div>
-
-<!-- MODALS -->
-<div class="modal-overlay" id="mTripBooking"><div class="modal" style="max-width:640px;overflow-y:auto;overflow-x:hidden;margin:0 auto">
-      <div class="modal-header" style="border-bottom:1px solid var(--border);padding-bottom:12px">
-        <div>
-          <div id="tbModalTitle" style="font-size:15px;font-weight:900;color:var(--text);text-transform:uppercase;letter-spacing:.5px">BOOK NEW TRIP</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">
-            <div id="tbTripIdDisplay" style="font-family:var(--mono);font-size:20px;font-weight:900;color:#fff;background:var(--accent);display:inline-block;padding:4px 14px;border-radius:8px;letter-spacing:1.5px"></div>
-            <div id="tbDescRow" style="display:none;gap:4px;flex-wrap:wrap;align-items:center">
-              <span id="tbTripTypeBadge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px"></span>
-              <span id="tbDescDisplay" style="font-size:11px;font-weight:600;display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px"></span>
-            </div>
-          </div>
-        </div>
-        <div class="modal-close" onclick="_kapPopupOpen=false;cm('mTripBooking')">×</div>
-      </div>
-      <input type="hidden" id="tbTripId">
-      <input type="hidden" id="tbDesc">
-      <input type="hidden" id="tbVendor">
-      <!-- Start Location with S badge -->
-      <div style="display:flex;align-items:center;gap:8px;margin:8px 0 4px">
-        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</div>
-        <div class="form-group" style="flex:1;margin-bottom:0"><div class="loc-combo"><input type="text" id="tbStartTxt" placeholder="Type to search location…" autocomplete="off" oninput="_locComboFilter('tbStart')" onfocus="_locComboFilter('tbStart')" onblur="setTimeout(function(){_locComboClose('tbStart')},200)" style="padding:10px 12px;font-size:14px;width:100%"><input type="hidden" id="tbStart"><div class="loc-combo-list" id="tbStartList"></div></div></div>
-      </div>
-      <div style="padding-left:13px;margin:1px 0"><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      <!-- Destination 1 with badge -->
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:2px">
-        <div style="width:28px;height:28px;border-radius:50%;background:#35b0b6;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px">A</div>
-        <div style="flex:1;border:1px solid rgba(59,130,246,.5);border-radius:8px;padding:6px 8px;background:rgba(59,130,246,.15)">
-          <div class="form-group" style="margin-bottom:4px"><div class="loc-combo"><input type="text" id="tbDest1Txt" placeholder="Type to search…" autocomplete="off" oninput="_locComboFilter('tbDest1')" onfocus="_locComboFilter('tbDest1')" onblur="setTimeout(function(){_locComboClose('tbDest1')},200)" style="padding:8px 10px;font-size:13px;width:100%"><input type="hidden" id="tbDest1"><div class="loc-combo-list" id="tbDest1List"></div></div></div>
-          <div class="form-group challan-section-disabled" id="tbChallanSection1" style="margin-bottom:0">
-            <div style="display:flex;gap:5px;align-items:center;padding:0 2px;margin-bottom:2px"><span style="flex:2;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Challan Number</span><span style="flex:1;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Weight</span><span style="width:30px;flex-shrink:0;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px;text-align:center">Photo</span><span style="width:18px;flex-shrink:0"></span></div><div class="challan-list" id="tbChallanList1"></div>
-            <button class="add-challan-btn" id="tbAddChallan1" onclick="addChallanRow(1)">+ Add Challan</button>
-          </div>
-
-        </div>
-      </div>
-      <div style="padding-left:13px;margin:1px 0"><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      <!-- Destination 2 with badge -->
-      <div id="tbDest2Wrap" style="display:none">
-        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:2px">
-          <div style="width:28px;height:28px;border-radius:50%;background:#14b8a6;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px">B</div>
-          <div style="flex:1;border:1px solid rgba(20,184,166,.5);border-radius:8px;padding:6px 8px;background:rgba(20,184,166,.15)">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:1px"><button onclick="removeDest(2)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px;font-weight:700">✕ Remove</button></div>
-            <div class="form-group" style="margin-bottom:4px"><div class="loc-combo"><input type="text" id="tbDest2Txt" placeholder="Type to search…" autocomplete="off" oninput="_locComboFilter('tbDest2')" onfocus="_locComboFilter('tbDest2')" onblur="setTimeout(function(){_locComboClose('tbDest2')},200)" style="padding:8px 10px;font-size:13px;width:100%"><input type="hidden" id="tbDest2"><div class="loc-combo-list" id="tbDest2List"></div></div></div>
-            <div class="form-group challan-section-disabled" id="tbChallanSection2" style="margin-bottom:0">
-              <div style="display:flex;gap:5px;align-items:center;padding:0 2px;margin-bottom:2px"><span style="flex:2;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Challan Number</span><span style="flex:1;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Weight</span><span style="width:30px;flex-shrink:0;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px;text-align:center">Photo</span><span style="width:18px;flex-shrink:0"></span></div><div class="challan-list" id="tbChallanList2"></div>
-              <button class="add-challan-btn" id="tbAddChallan2" onclick="addChallanRow(2)">+ Add Challan</button>
-            </div>
-
-          </div>
-        </div>
-        <div style="padding-left:13px;margin:1px 0"><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      </div>
-      <!-- Destination 3 with badge -->
-      <div id="tbDest3Wrap" style="display:none">
-        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:2px">
-          <div style="width:28px;height:28px;border-radius:50%;background:#8b5cf6;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px">C</div>
-          <div style="flex:1;border:1px solid rgba(139,92,246,.5);border-radius:8px;padding:6px 8px;background:rgba(139,92,246,.15)">
-            <div style="display:flex;justify-content:flex-end;margin-bottom:1px"><button onclick="removeDest(3)" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:11px;font-weight:700">✕ Remove</button></div>
-            <div class="form-group" style="margin-bottom:4px"><div class="loc-combo"><input type="text" id="tbDest3Txt" placeholder="Type to search…" autocomplete="off" oninput="_locComboFilter('tbDest3')" onfocus="_locComboFilter('tbDest3')" onblur="setTimeout(function(){_locComboClose('tbDest3')},200)" style="padding:8px 10px;font-size:13px;width:100%"><input type="hidden" id="tbDest3"><div class="loc-combo-list" id="tbDest3List"></div></div></div>
-            <div class="form-group challan-section-disabled" id="tbChallanSection3" style="margin-bottom:0">
-              <div style="display:flex;gap:5px;align-items:center;padding:0 2px;margin-bottom:2px"><span style="flex:2;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Challan Number</span><span style="flex:1;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">Weight</span><span style="width:30px;flex-shrink:0;font-size:9px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px;text-align:center">Photo</span><span style="width:18px;flex-shrink:0"></span></div><div class="challan-list" id="tbChallanList3"></div>
-              <button class="add-challan-btn" id="tbAddChallan3" onclick="addChallanRow(3)">+ Add Challan</button>
-            </div>
-
-          </div>
-        </div>
-      </div>
-      <!-- + Add Destination -->
-      <div id="tbAddDestBtn" style="margin:3px 0 6px 36px">
-        <button onclick="addDest()" style="background:var(--accent);border:none;border-radius:6px;padding:6px 16px;cursor:pointer;font-size:12px;font-weight:700;color:#fff;display:inline-flex;align-items:center;gap:4px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">+ Add Destination</button>
-      </div>
-      <!-- Vehicle + Driver -->
-      <div id="tbVehicleSection" style="border:1px solid #c9a96e;border-radius:10px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;background:rgba(205,157,90,.13)">
-        <!-- Row 1: Recommended Vehicle Type (full width) -->
-        <div class="form-group" style="margin-bottom:0;padding-bottom:0">
-          <label style="font-size:13px;font-weight:700;color:#000">Select Recommended Vehicle Type *</label>
-          <select id="tbVehicleType_sel" onchange="filterTbVehicles();checkVtMismatch();updateTbPrompt&&updateTbPrompt()" style="padding:6px 8px;font-size:13px;width:100%"></select>
-        </div>
-        <!-- Row 2: Actual Used Vehicle Type (full width) -->
-        <div class="form-group" style="margin-bottom:0">
-          <label style="font-size:13px;font-weight:700;color:#000">Actual Used Vehicle Type</label>
-          <select id="tbActualVType_sel" onchange="filterActualVehicles();checkVtMismatch();updateTbPrompt&&updateTbPrompt()" style="padding:6px 8px;font-size:13px;width:100%"></select>
-        </div>
-        <!-- Mismatch warning (between type and vehicle) -->
-        <div id="tbVtMismatchWarn" class="vt-mismatch-warn">⚠ Mismatch in Actual vs Recommended Vehicle Type</div>
-        <!-- Row 3+4: Vehicle Number + Driver side by side -->
-        <div style="display:flex;gap:6px">
-          <div class="form-group" style="flex:1;margin-bottom:0">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-              <label style="font-size:13px;font-weight:700;color:#000;margin:0">Vehicle Number</label>
-              <button onclick="openVehModalFromTB()" type="button" title="Add a new vehicle" style="background:var(--accent);border:none;border-radius:5px;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;cursor:pointer;white-space:nowrap;line-height:1.4">+ Add</button>
-            </div>
-            <select id="tbVehicle" onchange="autoVendor();updateTbPrompt&&updateTbPrompt()" disabled style="padding:6px 8px;font-size:13px;width:100%"></select>
-            <span id="tbVehicleVendor" style="font-size:10px;color:var(--text3);display:block;margin-top:1px"></span>
-          </div>
-          <div class="form-group driver-ac-wrap" style="flex:1;margin-bottom:0">
-            <label style="font-size:13px;font-weight:700;color:#000">Driver</label>
-            <div style="position:relative">
-              <!-- list is DOM-before input so it renders above; CSS bottom:100% positions it -->
-              <div id="tbDriverAcList" class="driver-ac-list"></div>
-              <input type="text" id="tbDriver" placeholder="Type to search or click ▼" autocomplete="off"
-                oninput="driverAcInput(this)" onchange="showDriverVendor();updateTbPrompt&&updateTbPrompt()"
-                onfocus="driverAcInput(this)" onblur="setTimeout(()=>driverAcClose(),180)"
-                style="padding:6px 28px 6px 8px;font-size:13px;width:100%;box-sizing:border-box">
-              <span onclick="var i=document.getElementById('tbDriver');i.focus();driverAcInput(i);" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:10px;color:var(--text3);pointer-events:auto;user-select:none">▼</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="segPreview" style="display:none;margin-bottom:6px"></div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);padding-top:12px;margin-top:0">
-        <button class="btn btn-secondary" onclick="_kapPopupOpen=false;cm('mTripBooking')" style="font-size:14px;padding:10px 28px;font-weight:800;margin-bottom:38px">Cancel</button>
-        <button class="btn btn-primary" id="tbBookBtn" style="font-size:14px;padding:10px 28px;font-weight:800;margin-bottom:38px" onclick="bookTrip()">Book Trip</button>
-      </div>
-    </div></div>
-<div class="modal-overlay" id="mQuickVeh" style="align-items:center!important"><div class="modal" style="width:400px;position:relative;bottom:auto;top:auto;border-radius:16px;transform:none;max-height:80vh">
-      <div class="modal-header"><div class="modal-title">Select Vehicle</div><div class="modal-close" onclick="cm('mQuickVeh')">×</div></div>
-      <input type="hidden" id="qvTripId">
-      <div class="form-group"><label>Vehicle Type *</label><select id="qvType" onchange="filterQuickVeh()" style="padding:10px 12px;font-size:14px"></select></div>
-      <div class="form-group"><label>Vehicle Number</label><select id="qvVehicle" disabled style="padding:10px 12px;font-size:14px"><option value="">— Select type first —</option></select></div>
-      <div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mQuickVeh')">Cancel</button><button class="btn btn-primary" onclick="saveQuickVeh()">Save</button></div>
-    </div></div>
-<div class="modal-overlay" id="mQuickChallan"><div class="modal" style="width:520px">
-      <div class="modal-header"><div class="modal-title">Challan Details</div><div class="modal-close" onclick="cm('mQuickChallan')">×</div></div>
-      <input type="hidden" id="qcTripId">
-      <div id="qcRows"></div>
-      <div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mQuickChallan')">Cancel</button><button class="btn btn-primary" onclick="saveQuickChallan()">Save</button></div>
-    </div></div>
-<div class="modal-overlay" id="mSpotExit" style="align-items:center!important"><div class="modal" style="width:min(360px,94vw);border-radius:14px;padding:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:14px;font-weight:900;color:#dc2626">🚪 Record Vehicle Exit</span>
-        <span onclick="cm('mSpotExit')" style="cursor:pointer;font-size:20px;color:var(--text3);line-height:1;padding:0 4px">×</span>
-      </div>
-      <input type="hidden" id="spotExitId">
-      <!-- Trip info card -->
-      <div id="spotExitInfo" style="margin-bottom:10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:8px 10px;font-size:11px"></div>
-      <!-- Photo + Remarks in one row -->
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-        <div>
-          <div style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;margin-bottom:3px">Exit Photo *</div>
-          <div id="spotExitPhotoThumb" onclick="_showPhotoChoice('spotExitPhotoFile','spotExitPhotoThumb')" style="width:52px;height:52px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0">🚗</div>
-          <input type="file" id="spotExitPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotExitPhotoThumb')">
-        </div>
-        <div style="flex:1">
-          <div style="font-size:9px;font-weight:700;color:#000;text-transform:uppercase;margin-bottom:3px">Remarks</div>
-          <input type="text" id="spotExitRemarks" placeholder="Optional..." style="width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--border2);border-radius:6px;box-sizing:border-box">
-        </div>
-      </div>
-      <div class="modal-err" id="merr_mSpotExit" style="margin-bottom:6px"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="cm('mSpotExit')">Cancel</button>
-        <button class="btn btn-danger" style="font-size:12px;padding:6px 14px;font-weight:800" onclick="doSpotExitModal()">🚪 Confirm Exit</button>
-      </div>
-    </div></div>
-<div class="modal-overlay" id="mUser"><div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto"><div class="modal-header" style="position:sticky;top:0;background:var(--surface);z-index:1;padding-bottom:12px"><div class="modal-title" id="mUserTitle">Add User</div><div class="modal-close" onclick="cm('mUser')">×</div></div><input type="hidden" id="eUid">
-<div class="form-row"><div class="form-group"><label>Username *</label><input type="text" id="uNameI" placeholder="No spaces/special chars"></div><div class="form-group"><label>Password *</label><input type="password" id="uPass"></div></div>
-<div class="form-row"><div class="form-group"><label>Full Name *</label><input type="text" id="uFullName" placeholder="Display name"></div><div class="form-group"><label>Location *</label><select id="uPlant"><option value="">-- Select --</option></select></div></div>
-<div class="form-group" style="margin-bottom:12px"><label>Mobile (Optional)</label><input type="tel" id="uMobile" maxlength="10" placeholder="10 digits"></div>
-
-<!-- Apps Section -->
-<div class="form-group" style="margin-bottom:4px">
-  <label style="margin-bottom:8px">Apps Access</label>
-  <div id="appBoxes" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
-</div>
-
-<!-- VMS Roles — shown inside VMS context -->
-<div id="vmsRolesSection" style="background:rgba(42,154,160,.04);border:1px solid rgba(42,154,160,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px">
-  <div style="font-size:10px;font-weight:700;color:#2a9aa0;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🚚 VMS — Role(s) *</div>
-  <div id="roleBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-</div>
-
-<!-- HWMS Roles — shown when HWMS app is checked -->
-<div id="hwmsRolesSection" style="background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-  <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📦 HWMS — Role(s) *</div>
-  <div id="hwmsRoleBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-</div>
-<!-- HRMS Roles — shown when HRMS app is checked -->
-<div id="hrmsRolesSection" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-  <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">👥 HRMS — Role(s) *</div>
-  <div id="hrmsRoleBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-</div>
-
-<div class="form-row" style="margin-top:4px"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="uInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div>
-<div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mUser"></div><button class="btn btn-secondary" onclick="cm('mUser')">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mVT"><div class="modal" style="width:400px"><div class="modal-header"><div class="modal-title">Vehicle Type</div><div class="modal-close" onclick="cm('mVT')">×</div></div><input type="hidden" id="eVTid"><div class="form-group"><label>Type Name *</label><input type="text" id="vtNameI"></div><div class="form-group"><label>Weight Capacity (kg) *</label><input type="number" id="vtCap"></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vtInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVT"></div><button class="btn btn-secondary" onclick="cm('mVT')">Cancel</button><button class="btn btn-primary" onclick="saveVT()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mDriver"><div class="modal"><div class="modal-header"><div class="modal-title" id="mDrvTitle">Add Driver</div><div class="modal-close" onclick="cm('mDriver')">×</div></div><input type="hidden" id="eDrvId"><div class="form-row"><div class="form-group"><label>Driver Name *</label><input type="text" id="drvName"></div><div class="form-group"><label>Mobile (Optional)</label><input type="tel" id="drvMob" maxlength="10"></div></div><div class="form-row"><div class="form-group"><label>Vendor</label><select id="drvVendorS"><option value="">-- None --</option></select></div><div class="form-group"><label>DL Expiry (Optional)</label><input type="date" id="drvDL"></div></div><div class="form-row"><div class="form-group"><label>Driver Photo</label><div style="display:flex;align-items:center;gap:8px"><div id="drvPhotoThumb" onclick="_showPhotoChoice('drvPhotoFile','drvPhotoThumb')" style="width:52px;height:52px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🧑</div><input type="file" id="drvPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="onDrvPhoto(this)"><button id="drvPhotoClear" onclick="clearDrvPhoto()" style="display:none;background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px">×</button></div></div></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="drvInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mDriver"></div><button class="btn btn-secondary" onclick="cm('mDriver')">Cancel</button><button class="btn btn-primary" onclick="saveDriver()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mVendor"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVndTitle">Add Vendor</div><div class="modal-close" onclick="cm('mVendor')">×</div></div><input type="hidden" id="eVndId"><div class="form-row"><div class="form-group"><label>Vendor Name *</label><input type="text" id="vndName"></div><div class="form-group"><label>Owner Name *</label><input type="text" id="vndOwner"></div></div><div class="form-row"><div class="form-group"><label>Contact (Optional)</label><input type="tel" id="vndContact" maxlength="10"></div><div class="form-group"><label>Mapped User (Vendor Role)</label><select id="vndUserS"><option value="">-- None --</option></select></div></div><div class="form-group"><label>Address (Optional)</label><textarea id="vndAddr" rows="2"></textarea></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vndInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVendor"></div><button class="btn btn-secondary" onclick="cm('mVendor')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mVehicle"><div class="modal"><div class="modal-header"><div class="modal-title" id="mVehTitle">Add Vehicle</div><div class="modal-close" onclick="cm('mVehicle')">×</div></div><input type="hidden" id="eVehId"><div class="form-row"><div class="form-group"><label>Vehicle Number *</label><input type="text" id="vehNumI" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:1px;text-transform:uppercase"><div class="form-hint">Format: MH12-AB-0047 (2 letters, 2 digits, 1-2 letters, 4 digits)</div></div><div class="form-group"><label>Vehicle Type *</label><select id="vehTypeS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>Vendor *</label><select id="vehVendorS"><option value="">-- Select --</option></select></div></div><div class="form-row"><div class="form-group"><label>PUC Expiry (Optional)</label><input type="date" id="vehPUC"></div><div class="form-group"><label>RTO Expiry (Optional)</label><input type="date" id="vehRTP"></div><div class="form-group"><label>Insurance Expiry (Optional)</label><input type="date" id="vehIns"></div></div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="vehInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mVehicle"></div><button class="btn btn-secondary" onclick="cm('mVehicle')">Cancel</button><button class="btn btn-primary" onclick="saveVehicle()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mLoc"><div class="modal"><div class="modal-header"><div class="modal-title" id="mLocTitle">Add Location</div><div class="modal-close" onclick="cm('mLoc')">×</div></div><input type="hidden" id="eLocId"><div class="form-row"><div class="form-group"><label>Location Name *</label><input type="text" id="locNameI"></div><div class="form-group"><label>Location Type *</label><select id="locTypeS" onchange="toggleKapFields()"><option value="">-- Select --</option><option value="KAP">KAP</option><option value="External">External</option></select></div></div><div class="form-group"><label>Address (Optional)</label><textarea id="locAddr" rows="2"></textarea></div><div class="form-group"><label>Geo Coordinates (Optional)</label><input type="text" id="locGeo" placeholder="lat,lng"></div>
-  <!-- Colour tag -->
-  <div class="form-group">
-    <label>Colour Tag <span style="font-size:11px;font-weight:400;color:var(--text3)">(highlights location name across all pages)</span></label>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,24px);gap:4px;margin-top:6px;max-width:400px" id="locColourPicker">
-      <button type="button" onclick="setLocColour('')" id="lc_none" style="width:24px;height:24px;border-radius:5px;border:2px solid var(--border2);background:var(--surface2);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center" title="No colour">✕</button>
-      <button type="button" onclick="setLocColour('#fda4af')" id="lc_rose_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fda4af" title="Rose Light"></button>
-      <button type="button" onclick="setLocColour('#f43f5e')" id="lc_rose" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f43f5e" title="Rose"></button>
-      <button type="button" onclick="setLocColour('#dc2626')" id="lc_red" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#dc2626" title="Red"></button>
-      <button type="button" onclick="setLocColour('#991b1b')" id="lc_red_dk" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#991b1b" title="Maroon"></button>
-      <button type="button" onclick="setLocColour('#9f1239')" id="lc_crimson" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#9f1239" title="Crimson"></button>
-      <button type="button" onclick="setLocColour('#fdba74')" id="lc_orange_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fdba74" title="Orange Light"></button>
-      <button type="button" onclick="setLocColour('#ea580c')" id="lc_orange" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#ea580c" title="Orange"></button>
-      <button type="button" onclick="setLocColour('#d97706')" id="lc_amber" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d97706" title="Amber"></button>
-      <button type="button" onclick="setLocColour('#92400e')" id="lc_brown" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#92400e" title="Brown"></button>
-      <button type="button" onclick="setLocColour('#fde047')" id="lc_yellow_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#fde047" title="Yellow Light"></button>
-      <button type="button" onclick="setLocColour('#eab308')" id="lc_yellow" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#eab308" title="Yellow"></button>
-      <button type="button" onclick="setLocColour('#b45309')" id="lc_gold" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#b45309" title="Gold"></button>
-      <button type="button" onclick="setLocColour('#bef264')" id="lc_lime_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#bef264" title="Lime Light"></button>
-      <button type="button" onclick="setLocColour('#65a30d')" id="lc_lime" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#65a30d" title="Lime"></button>
-      <button type="button" onclick="setLocColour('#86efac')" id="lc_green_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#86efac" title="Green Light"></button>
-      <button type="button" onclick="setLocColour('#16a34a')" id="lc_green" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#16a34a" title="Green"></button>
-      <button type="button" onclick="setLocColour('#166534')" id="lc_green_dk" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#166534" title="Forest"></button>
-      <button type="button" onclick="setLocColour('#059669')" id="lc_emerald" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#059669" title="Emerald"></button>
-      <button type="button" onclick="setLocColour('#5eead4')" id="lc_teal_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#5eead4" title="Teal Light"></button>
-      <button type="button" onclick="setLocColour('#0d9488')" id="lc_teal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0d9488" title="Teal"></button>
-      <button type="button" onclick="setLocColour('#67e8f9')" id="lc_cyan_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#67e8f9" title="Cyan Light"></button>
-      <button type="button" onclick="setLocColour('#0891b2')" id="lc_cyan" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0891b2" title="Cyan"></button>
-      <button type="button" onclick="setLocColour('#0284c7')" id="lc_sky" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0284c7" title="Sky"></button>
-      <button type="button" onclick="setLocColour('#93c5fd')" id="lc_blue_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#93c5fd" title="Blue Light"></button>
-      <button type="button" onclick="setLocColour('#0369a1')" id="lc_blue" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#0369a1" title="Blue"></button>
-      <button type="button" onclick="setLocColour('#175c60')" id="lc_royal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#175c60" title="Royal"></button>
-      <button type="button" onclick="setLocColour('#1e3a8a')" id="lc_navy" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#1e3a8a" title="Navy"></button>
-      <button type="button" onclick="setLocColour('#334155')" id="lc_slate" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#334155" title="Slate"></button>
-      <button type="button" onclick="setLocColour('#a5b4fc')" id="lc_indigo_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a5b4fc" title="Indigo Light"></button>
-      <button type="button" onclick="setLocColour('#4338ca')" id="lc_indigo" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#4338ca" title="Indigo"></button>
-      <button type="button" onclick="setLocColour('#c4b5fd')" id="lc_violet_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#c4b5fd" title="Violet Light"></button>
-      <button type="button" onclick="setLocColour('#7c3aed')" id="lc_violet" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#7c3aed" title="Violet"></button>
-      <button type="button" onclick="setLocColour('#d8b4fe')" id="lc_purple_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d8b4fe" title="Purple Light"></button>
-      <button type="button" onclick="setLocColour('#9333ea')" id="lc_purple" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#9333ea" title="Purple"></button>
-      <button type="button" onclick="setLocColour('#f0abfc')" id="lc_fuchsia_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f0abfc" title="Fuchsia Light"></button>
-      <button type="button" onclick="setLocColour('#a21caf')" id="lc_fuchsia" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a21caf" title="Fuchsia"></button>
-      <button type="button" onclick="setLocColour('#f9a8d4')" id="lc_pink_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f9a8d4" title="Pink Light"></button>
-      <button type="button" onclick="setLocColour('#be185d')" id="lc_pink" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#be185d" title="Pink"></button>
-      <button type="button" onclick="setLocColour('#db2777')" id="lc_hotpink" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#db2777" title="Hot Pink"></button>
-      <button type="button" onclick="setLocColour('#d1d5db')" id="lc_gray_lt" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#d1d5db" title="Silver"></button>
-      <button type="button" onclick="setLocColour('#6b7280')" id="lc_gray" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#6b7280" title="Gray"></button>
-      <button type="button" onclick="setLocColour('#374151')" id="lc_charcoal" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#374151" title="Charcoal"></button>
-      <button type="button" onclick="setLocColour('#52525b')" id="lc_zinc" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#52525b" title="Zinc"></button>
-      <button type="button" onclick="setLocColour('#78716c')" id="lc_stone" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#78716c" title="Stone"></button>
-      <button type="button" onclick="setLocColour('#a8a29e')" id="lc_warm" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a8a29e" title="Warm Gray"></button>
-      <button type="button" onclick="setLocColour('#ef6c56')" id="lc_coral" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#ef6c56" title="Coral"></button>
-      <button type="button" onclick="setLocColour('#e8795a')" id="lc_salmon" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#e8795a" title="Salmon"></button>
-      <button type="button" onclick="setLocColour('#f4a261')" id="lc_peach" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#f4a261" title="Peach"></button>
-      <button type="button" onclick="setLocColour('#34d399')" id="lc_mint" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#34d399" title="Mint"></button>
-      <button type="button" onclick="setLocColour('#22d3ee')" id="lc_aqua" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#22d3ee" title="Aqua"></button>
-      <button type="button" onclick="setLocColour('#a78bfa')" id="lc_lavender" style="width:24px;height:24px;border-radius:5px;border:2px solid transparent;cursor:pointer;background:#a78bfa" title="Lavender"></button>
-    </div>
-    <div style="margin-top:8px">
-      <span id="locColourPreview" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:6px;display:none"></span>
-    </div>
-    <input type="hidden" id="locColour">
-  </div>
-<div id="kapLocFields"><div class="divider"></div><div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px">👤 KAP User Assignments</div><div class="form-group"><label>KAP Security User</label><select id="locKapSec"><option value="">-- None --</option></select></div>
-<div style="border:1.5px solid #b3dfe0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(59,130,246,.03)"><div style="font-size:11px;font-weight:700;color:#2a9aa0;margin-bottom:6px;display:flex;align-items:center;gap:4px">📋 Trip Booking User(s)</div><div id="locTripBook" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-<div style="border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(34,197,94,.03)"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;display:flex;align-items:center;gap:4px">📦 Material Receiver(s)</div><div id="locMatRecv" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-<div style="border:1.5px solid #e9d5ff;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(139,92,246,.03)"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px;display:flex;align-items:center;gap:4px">✅ Trip Approver(s)</div><div id="locApprover" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
-<div style="border:1.5px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(245,158,11,.03)"><div style="font-size:11px;font-weight:700;color:#b45309;margin-bottom:6px;display:flex;align-items:center;gap:4px">🏭 Plant Head</div><select id="locPlantHead" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:5px"><option value="">-- None --</option></select></div>
-</div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="locInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mLoc"></div><button class="btn btn-secondary" onclick="cm('mLoc')">Cancel</button><button class="btn btn-primary" onclick="saveLoc()">Save</button></div></div></div>
-
-<div class="modal-overlay" id="mRate"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title">Add Trip Rate</div><div class="modal-close" onclick="cm('mRate')">×</div></div>
-  <input type="hidden" id="eRateId">
-
-  <!-- Vehicle Type -->
-  <div class="form-group" style="margin-bottom:16px">
-    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#000">Vehicle Type *</label>
-    <select id="rateVT" onchange="autoRateName();showExistingRanges()" style="font-size:13px"><option value="">-- Select vehicle type --</option></select>
-  </div>
-
-  <!-- Route visual -->
-  <div style="margin-bottom:14px">
-    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#000;display:block;margin-bottom:8px">Route *</label>
-    <!-- Start -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">S</div>
-      <select id="rateS" onchange="autoRateName();showExistingRanges();rateDestCascade()" style="flex:1;font-size:13px"><option value="">-- Select start point --</option></select>
-    </div>
-    <!-- Arrow D1 -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div style="width:28px;display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0"><div style="width:2px;height:8px;background:var(--border2)"></div><div style="font-size:10px;color:var(--text3)">↓</div><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      <div style="flex:1;display:flex;align-items:center;gap:6px">
-        <div id="rateCircle1" style="width:22px;height:22px;border-radius:50%;background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--border2);transition:all .2s">1</div>
-        <select id="rateD1" onchange="autoRateName();showExistingRanges();rateDestCascade()" style="flex:1;font-size:13px"><option value="">-- Destination 1 (required) --</option></select>
-      </div>
-    </div>
-    <!-- Arrow D2 -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div style="width:28px;display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0"><div style="width:2px;height:8px;background:var(--border2)"></div><div style="font-size:10px;color:var(--text3)">↓</div><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      <div style="flex:1;display:flex;align-items:center;gap:6px">
-        <div id="rateCircle2" style="width:22px;height:22px;border-radius:50%;background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--border2);transition:all .2s;opacity:.5">2</div>
-        <select id="rateD2" onchange="autoRateName();showExistingRanges();rateDestCascade()" style="flex:1;font-size:13px" disabled><option value="">Destination 1</option></select>
-      </div>
-    </div>
-    <!-- Arrow D3 -->
-    <div style="display:flex;align-items:center;gap:8px">
-      <div style="width:28px;display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0"><div style="width:2px;height:8px;background:var(--border2)"></div><div style="font-size:10px;color:var(--text3)">↓</div><div style="width:2px;height:8px;background:var(--border2)"></div></div>
-      <div style="flex:1;display:flex;align-items:center;gap:6px">
-        <div id="rateCircle3" style="width:22px;height:22px;border-radius:50%;background:var(--surface2);color:var(--text3);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--border2);transition:all .2s;opacity:.5">3</div>
-        <select id="rateD3" onchange="autoRateName();showExistingRanges();rateDestCascade()" style="flex:1;font-size:13px" disabled><option value="">Destination 2 (optional)</option></select>
-      </div>
-    </div>
-  </div>
-
-  <!-- Existing ranges hint -->
-  <div id="existingRangesHint" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(42,154,160,.1);border:1px solid rgba(42,154,160,.3);border-radius:8px;font-size:11px;color:var(--text2)">
-    <strong style="color:var(--accent)">⚠ Existing rates for this route:</strong>
-    <div id="existingRangesList" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
-  </div>
-
-  <!-- Rate + validity -->
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-    <div class="form-group" style="flex:1;min-width:100px">
-      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#000">Rate ₹/trip *</label>
-      <input type="number" id="rateAmt" placeholder="e.g. 100" style="font-size:14px;font-weight:700">
-    </div>
-    <div class="form-group" style="flex:1;min-width:110px">
-      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#000">Valid From *</label>
-      <input type="date" id="rateVS" onchange="autoRateEnd()">
-    </div>
-    <div class="form-group" style="flex:1;min-width:110px">
-      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#000">Valid To *</label>
-      <input type="date" id="rateVE">
-    </div>
-  </div>
-
-  <!-- Rich rate name display — shown just above Save Rate -->
-  <div id="rateNameDisplay" style="display:none;margin:10px 0 4px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-height:36px"></div>
-  <input type="hidden" id="rateNameI">
-
-  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mRate"></div>
-    <button class="btn btn-secondary" onclick="cm('mRate')">Cancel</button>
-    <button class="btn btn-primary" onclick="saveRate()">Save Rate</button>
-  </div>
-</div></div>
-
-<!-- RATE HISTORY MODAL -->
-<div class="modal-overlay" id="mRateHistory"><div class="modal" style="max-width:520px">
-  <div class="modal-header">
-    <div>
-      <div class="modal-title" id="rhTitle">Rate History</div>
-      <div id="rhRoute" style="font-size:12px;color:var(--text2);margin-top:2px"></div>
-    </div>
-    <div class="modal-close" onclick="cm('mRateHistory')">×</div>
-  </div>
-  <!-- Current rate banner -->
-  <div id="rhCurrentBanner" style="margin-bottom:14px;padding:12px 16px;background:rgba(22,163,74,.08);border:1.5px solid rgba(22,163,74,.3);border-radius:10px;display:none">
-    <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">✓ Current Active Rate</div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span id="rhCurrentRate" style="font-size:24px;font-weight:900;font-family:var(--mono);color:#16a34a"></span>
-      <span id="rhCurrentDates" style="font-size:12px;font-weight:600;color:var(--text2)"></span>
-    </div>
-  </div>
-  <!-- History list -->
-  <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Rate History</div>
-  <div id="rhList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;max-height:260px;overflow-y:auto"></div>
-  <!-- Add new period form (collapsible) -->
-  <div id="rhAddWrap" style="display:none">
-    <div style="height:1px;background:var(--border);margin-bottom:14px"></div>
-    <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px" id="rhFormTitle">Add New Rate Period</div>
-    <input type="hidden" id="rhEditId">
-    <input type="hidden" id="rhRouteKey">
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <div class="form-group" style="flex:1;min-width:90px;margin-bottom:10px">
-        <label style="font-size:11px;font-weight:700;color:#000;display:block;margin-bottom:4px">Rate ₹/trip *</label>
-        <input type="number" id="rhAmt" placeholder="e.g. 1200" style="font-size:15px;font-weight:800;border:2px solid #94a3b8;background:#fff;width:100%">
-      </div>
-      <div class="form-group" style="flex:1;min-width:100px;margin-bottom:10px">
-        <label style="font-size:11px;font-weight:700;color:#000;display:block;margin-bottom:4px">Valid From *</label>
-        <input type="date" id="rhVS" style="border:2px solid #94a3b8;background:#fff;font-weight:700;width:100%">
-      </div>
-      <div class="form-group" style="flex:1;min-width:100px;margin-bottom:10px">
-        <label style="font-size:11px;font-weight:700;color:#000;display:block;margin-bottom:4px">Valid To *</label>
-        <input type="date" id="rhVE" style="border:2px solid #94a3b8;background:#fff;font-weight:700;width:100%">
-      </div>
-    </div>
-    <div class="modal-err" id="merr_mRateHistory" style="display:none;margin-bottom:8px"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="rhCancelEdit()">Cancel</button>
-      <button class="btn btn-primary" style="font-size:13px;padding:8px 20px;font-weight:800" onclick="rhSaveRate()">Save Rate</button>
-    </div>
-  </div>
-  <div class="modal-footer" style="padding-top:12px;margin-top:0;justify-content:space-between">
-    <button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" id="rhAddBtn" onclick="rhStartAdd()">+ Add Period</button>
-    <button class="btn btn-secondary" onclick="cm('mRateHistory')">Close</button>
-  </div>
-</div></div>
-
-<!-- KAP ACTION MODAL -->
-<div class="modal-overlay" id="mKap"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mKapTitle">Gate Exit</div><div class="modal-close" onclick="closeKapModal()">×</div></div><input type="hidden" id="kapSegId"><input type="hidden" id="kapStep"><div class="seg-card" id="kapDetail"></div>
-
-<div class="form-group" style="margin-top:16px">
-  <label>Capture Photo (Optional)</label>
-  <!-- Camera UI -->
-  <div id="kapCamBox" style="display:none;flex-direction:column;gap:8px;margin-top:8px">
-    <video id="kapVideo" autoplay playsinline style="width:100%;border-radius:8px;border:1px solid var(--border2);background:#000;max-height:220px;object-fit:cover"></video>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary" onclick="snapPhoto()" style="flex:1">📸 Take Photo</button>
-      <button class="btn btn-secondary" onclick="stopCamera()" style="flex:1">✕ Close Camera</button>
-    </div>
-  </div>
-  <!-- Preview of captured / selected photo -->
-  <div id="kapPhotoPreview" style="display:none;margin-top:8px;position:relative">
-    <img id="kapPreviewImg" style="width:100%;border-radius:8px;border:1px solid var(--border2);max-height:180px;object-fit:cover">
-    <button onclick="clearPhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">×</button>
-  </div>
-  <!-- Buttons row -->
-  <div id="kapPhotoButtons" style="display:flex;gap:8px;margin-top:8px">
-    <button class="btn btn-secondary" onclick="openCamera()" style="width:48px;height:48px;padding:0;font-size:22px;flex-shrink:0;border-radius:8px" title="Open Camera">📷</button>
-    <label class="btn btn-secondary" style="flex:1;text-align:center;cursor:pointer;margin:0">🖼 Choose File<input type="file" id="kapFileInput" accept="image/*" capture="environment" style="display:none" onchange="onFileChosen(this)"></label>
-  </div>
-  <canvas id="kapCanvas" style="display:none"></canvas>
-</div>
-
-<div class="form-group"><label>Remarks (Optional)</label><textarea id="kapRem" rows="2"></textarea></div>
-<div class="modal-footer"><button class="btn btn-secondary" onclick="closeKapModal()">Cancel</button><button class="btn btn-primary" id="kapBtn" onclick="doKapAction()" style="padding:8px 20px;min-width:0">Submit</button></div></div></div>
-
-<!-- MR ACTION MODAL -->
-<div class="modal-overlay" id="mMR"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title">Material Receipt Acknowledgement</div><div class="modal-close" onclick="cm('mMR')">×</div></div><input type="hidden" id="mrSegId"><div class="seg-card" id="mrDetail"></div><div class="form-group" style="margin-top:16px"><label>Received By</label><input type="text" id="mrBy" readonly></div><div class="form-group"><label>Remarks (Optional)</label><textarea id="mrRem" rows="2"></textarea></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mMR"></div><button class="btn btn-secondary" onclick="cm('mMR')">Cancel</button><button class="btn btn-green" onclick="doMR()">✓ Acknowledge Receipt</button></div></div></div>
-
-<!-- REUSABLE CAMERA CAPTURE MODAL -->
-<div class="modal-overlay" id="mCamCapture" style="z-index:100003">
-  <div class="modal" style="width:min(440px,96vw);padding:0;overflow:hidden">
-    <div class="modal-header" style="padding:12px 16px"><div class="modal-title" style="font-size:15px">📷 Take Photo</div><div class="modal-close" onclick="_closeCamCapture()">×</div></div>
-    <div style="padding:0 12px 12px">
-      <video id="_camVid" autoplay playsinline style="width:100%;border-radius:8px;background:#000;max-height:260px;object-fit:cover;display:block"></video>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-primary" onclick="_snapCamCapture()" style="flex:1;padding:10px;font-size:14px">📸 Capture</button>
-        <button class="btn btn-secondary" onclick="_closeCamCapture()" style="flex:1;padding:10px;font-size:14px">✕ Cancel</button>
-      </div>
-    </div>
-    <canvas id="_camCanvas" style="display:none"></canvas>
-  </div>
-</div>
-
-<!-- PHOTO CHOICE SHEET (camera or gallery) -->
-<div class="modal-overlay" id="mPhotoChoice" style="z-index:100002;align-items:flex-end;justify-content:center">
-  <div class="modal" style="width:min(340px,92vw);border-radius:16px 16px 0 0;padding:0;margin-bottom:0;bottom:0;position:absolute">
-    <div style="padding:18px 20px 14px;text-align:center">
-      <div style="width:36px;height:4px;background:#cbd5e1;border-radius:99px;margin:0 auto 14px"></div>
-      <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:14px">Add Photo</div>
-      <button class="btn btn-primary" onclick="_photoChoiceCam()" style="width:100%;padding:12px;font-size:14px;margin-bottom:8px;border-radius:10px">📷 Open Camera</button>
-      <button class="btn btn-secondary" onclick="_photoChoiceGallery()" style="width:100%;padding:12px;font-size:14px;margin-bottom:8px;border-radius:10px">🖼 Choose from Gallery</button>
-      <button class="btn btn-secondary" onclick="cm('mPhotoChoice')" style="width:100%;padding:10px;font-size:13px;color:var(--text3);border-radius:10px">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- RECORD DETAIL POPUP -->
-<div class="modal-overlay" id="mRecordDetail" style="z-index:100001">
-  <div class="modal" style="width:min(480px,96vw);max-height:88vh;overflow-y:auto">
-    <div class="modal-header" style="position:sticky;top:0;z-index:1;background:var(--surface)">
-      <div class="modal-title" id="rdTitle" style="font-size:16px">Record Detail</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn" id="rdEditBtn" style="font-size:12px;padding:5px 12px;display:none;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700" onclick="cm('mRecordDetail')">✏️ Edit</button>
-        <div class="modal-close" onclick="cm('mRecordDetail')">×</div>
-      </div>
-    </div>
-    <div id="rdBody" style="padding:0 20px 20px"></div>
-  </div>
-</div>
-
-<!-- GENERAL CONFIRM MODAL (master record delete) -->
-<div class="modal-overlay" id="mConfirm">
-  <div class="modal" style="width:380px;text-align:center">
-    <div style="font-size:40px;margin-bottom:8px">🗑️</div>
-    <div class="modal-title" style="justify-content:center;font-size:17px;margin-bottom:6px">Delete this item?</div>
-    <div id="confirmMsg" style="font-size:13px;color:var(--text2);margin-bottom:20px">This action cannot be undone.</div>
-    <div class="modal-footer" style="justify-content:center;gap:12px">
-      <button class="btn btn-secondary" onclick="cm('mConfirm')" style="min-width:100px">Cancel</button>
-      <button class="btn btn-danger" id="btnConfirmOk" style="min-width:100px">🗑 Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- ERROR MODAL (cannot delete — record in use) -->
-<div class="modal-overlay" id="mError">
-  <div class="modal" style="width:420px;text-align:center">
-    <div style="font-size:40px;margin-bottom:8px">⚠️</div>
-    <div class="modal-title" style="justify-content:center;font-size:17px;margin-bottom:6px;color:#dc2626">Cannot Delete</div>
-    <div id="errorMsg" style="font-size:13px;color:var(--text2);margin-bottom:20px;text-align:left;background:var(--surface2);border-radius:8px;padding:12px 16px;line-height:1.7"></div>
-    <div class="modal-footer" style="justify-content:center">
-      <button class="btn btn-primary" onclick="cm('mError')" style="min-width:120px">OK</button>
-    </div>
-  </div>
-</div>
-
-<!-- APPROVE ACTION MODAL -->
-<div class="modal-overlay" id="mDeleteTrip">
-  <div class="modal" style="width:420px;text-align:center">
-    <div style="font-size:44px;margin-bottom:8px">🗑️</div>
-    <div class="modal-title" style="justify-content:center;font-size:18px;margin-bottom:8px">Delete Trip?</div>
-    <div id="delTripInfo" style="font-size:13px;color:var(--text2);margin-bottom:6px;line-height:1.6"></div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:24px">This will permanently delete the trip and all its segments.<br>This action <strong style="color:#f87171">cannot be undone</strong>.</div>
-    <div class="modal-footer" style="justify-content:center;gap:12px">
-      <button class="btn btn-secondary" onclick="cm('mDeleteTrip')" style="min-width:110px">Cancel</button>
-      <button class="btn btn-danger" id="btnConfirmDelete" onclick="confirmDeleteTrip()" style="min-width:110px">🗑 Yes, Delete</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="mRevokeMR"><div class="modal" style="width:380px"><div class="modal-header"><div class="modal-title" style="color:#ef4444">&#8617; Revoke Material Receipt</div><div class="modal-close" onclick="cm('mRevokeMR')">&#215;</div></div><div style="padding:14px 16px 0"><div style="font-size:12px;color:var(--text2)">This will reset the material receipt for this segment back to <strong>pending</strong> status.</div></div><input type="hidden" id="revokeMRSegId"><div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mRevokeMR')">Cancel</button><button class="btn btn-danger" style="font-weight:800" onclick="_doRevokeMR()">&#8617; Yes, Revoke</button></div></div></div>
-<div class="modal-overlay" id="mRevokeConfirm"><div class="modal" style="width:380px"><div class="modal-header"><div class="modal-title" style="color:#ef4444">&#8617; Revoke Approval</div><div class="modal-close" onclick="cm('mRevokeConfirm')">&#215;</div></div><div style="padding:14px 16px 0"><div style="font-size:13px;color:var(--text);margin-bottom:4px">Trip: <span id="revokeBaseIdDisplay" style="font-family:var(--mono);font-weight:800;background:var(--accent);color:#fff;padding:2px 8px;border-radius:5px"></span></div><div style="font-size:12px;color:var(--text2);margin-top:8px">This will reset all segments back to <strong>Approval Pending</strong> status.</div></div><input type="hidden" id="revokeBaseId"><div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mRevokeConfirm')">Cancel</button><button class="btn btn-danger" style="font-weight:800" onclick="_doRevoke()">&#8617; Yes, Revoke</button></div></div></div>
-<div class="modal-overlay" id="mApprove"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title">Trip Approval</div><div class="modal-close" onclick="cm('mApprove')">×</div></div><input type="hidden" id="appSegId"><div class="seg-card" id="appDetail"></div><div class="form-group" style="margin-top:16px"><label>Remarks</label><textarea id="appRem" rows="2"></textarea></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mApprove"></div><button class="btn btn-secondary" onclick="cm('mApprove')">Cancel</button><button class="btn btn-danger" onclick="doApproval('reject')">✗ Reject</button><button class="btn btn-green" onclick="doApproval('approve')">✓ Approve</button></div></div></div>
-
-<!-- Forced Change Password Modal -->
-<div class="modal-overlay" id="mForcePass" style="z-index:100010" onclick="event.stopPropagation()">
-<div class="modal" style="width:min(440px,94vw);border-radius:16px">
-  <div class="modal-header" style="background:linear-gradient(135deg,#175c60 0%,#2a9aa0 100%);border-radius:16px 16px 0 0">
-    <div class="modal-title" style="color:#fff">🔐 Password Update Required</div>
-  </div>
-  <div style="padding:18px 20px 0">
-    <!-- User info -->
-    <div id="fpUserInfo" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:10px">
-      <div style="width:38px;height:38px;border-radius:50%;background:#2a9aa0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0" id="fpUserAvatar">👤</div>
-      <div>
-        <div id="fpFullName" style="font-size:14px;font-weight:800;color:#1e293b;line-height:1.3"></div>
-        <div id="fpUserName" style="font-size:11px;font-weight:600;color:#64748b;font-family:var(--mono)"></div>
-      </div>
-    </div>
-    <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e;font-weight:600">
-      ⚠️ Your current password does not meet security requirements. Please set a new password to continue.
-    </div>
-    <div style="font-size:11px;color:#64748b;margin-bottom:14px;line-height:1.6">
-      Password must have: <strong>6–12 characters</strong>, at least one <strong>UPPERCASE</strong>, one <strong>lowercase</strong>, one <strong>number</strong>, and one <strong>special character</strong>
-    </div>
-    <div style="margin-bottom:10px">
-      <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">New Password</label>
-      <div style="position:relative">
-        <input type="password" id="forceNewPass" placeholder="Enter new password" maxlength="12" oninput="_liveValidatePwd(this.value)"
-          style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 38px 10px 12px;font-size:14px;color:#1e293b;outline:none;box-sizing:border-box"
-          onfocus="this.style.borderColor='#2a9aa0'" onblur="this.style.borderColor='#e2e8f0'">
-        <button type="button" onclick="_toggleFpVis('forceNewPass',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:4px" title="Show password">👁</button>
-      </div>
-    </div>
-    <div id="fpRules" style="margin-bottom:10px;font-size:11px;line-height:2">
-      <div id="fpR1">❌ 6–12 characters</div>
-      <div id="fpR2">❌ One uppercase letter (A-Z)</div>
-      <div id="fpR3">❌ One lowercase letter (a-z)</div>
-      <div id="fpR4">❌ One number (0-9)</div>
-      <div id="fpR5">❌ One special character</div>
-    </div>
-    <div style="margin-bottom:14px">
-      <label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:5px">Confirm New Password</label>
-      <div style="position:relative">
-        <input type="password" id="forceConfPass" placeholder="Repeat new password" maxlength="12"
-          style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 38px 10px 12px;font-size:14px;color:#1e293b;outline:none;box-sizing:border-box"
-          onfocus="this.style.borderColor='#2a9aa0'" onblur="this.style.borderColor='#e2e8f0'">
-        <button type="button" onclick="_toggleFpVis('forceConfPass',this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:4px" title="Show password">👁</button>
-      </div>
-    </div>
-    <div id="forcePassMsg" style="display:none;font-size:12px;margin-bottom:8px;padding:7px 10px;border-radius:7px"></div>
-  </div>
-  <div class="modal-footer" style="flex-direction:column;gap:8px">
-    <button class="btn btn-primary" onclick="_doForceChangePass()" style="width:100%;justify-content:center;font-size:14px;font-weight:800;padding:12px;border-radius:10px">🔐 Set New Password & Continue</button>
-    <button onclick="_forcePassSignOut()" style="width:100%;padding:8px;border-radius:8px;border:none;background:none;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s" onmouseover="this.style.color='#dc2626';this.style.background='#fef2f2'" onmouseout="this.style.color='#64748b';this.style.background='none'">🚪 Sign Out & Use Different Account</button>
-  </div>
-</div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="myApps_Common.js"></script>
-<script>
+// ═══ GUARD / DEPENDENCY CHECK ═════════════════════════════════════════════
 var _commonMissing=(typeof _COMMON_LOADED==='undefined');
 if(_commonMissing){
-  console.error('myApps_Common.js not loaded');
+  console.error('js/common.js not loaded');
   document.addEventListener('DOMContentLoaded',function(){
     var lp=document.getElementById('loginPage');if(lp)lp.style.display='flex';
     var err=document.getElementById('loginError');
-    if(err){err.textContent='⚠ App file missing: myApps_Common.js must be in the same folder as this page.';err.style.display='block';}
+    if(err){err.textContent='⚠ App file missing: js/common.js not found.';err.style.display='block';}
   });
 }
 
@@ -1870,7 +114,7 @@ function _applyPhotoInputMode(){
 }
 function _photoAccept(){ return 'image/*'; }
 
-// ═══ DEMAND-DRIVEN SYNC ══════════════════════════════════════════════════
+// ═══ DATA SYNC (demand-driven, photo-excluded, incremental) ═════════════
 var _loadedTables={};
 
 var _PAGE_TABLES={
@@ -1914,18 +158,14 @@ async function _demandLoad(tables){
   try{if(typeof updBadges==='function') updBadges();}catch(e){}
 }
 
-function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t){return _loadedTables[t];});}
+// _getLoadedTables → moved to vms-logic.js
 
 // ═══ PHOTO-EXCLUDED SYNC ═════════════════════════════════════════════════
 // Exclude large photo columns from sync queries to reduce egress ~80%.
 // Photos loaded on-demand when user opens a record.
 // Low-volume tables (users, drivers) keep photos in sync for instant display.
 // Only exclude photo columns from tables that have them. Other tables use select('*').
-var _SYNC_SELECT={
-  'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
-  'vms_segments':'id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at',
-  'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
-};
+// _SYNC_SELECT → moved to vms-logic.js
 
 // Load full segment steps (with photos) on demand
 async function _loadSegmentSteps(segCode){
@@ -1938,19 +178,10 @@ async function _loadSegmentSteps(segCode){
     return data.steps||{};
   }catch(e){return null;}
 }
-// Strip base64 photos from segment steps JSON to reduce memory after fetch
-function _stripStepPhotos(segments){
-  (segments||[]).forEach(function(seg){
-    if(seg.steps&&typeof seg.steps==='object'){
-      Object.keys(seg.steps).forEach(function(k){
-        if(seg.steps[k]&&seg.steps[k].photo) seg.steps[k].photo='__deferred__';
-      });
-    }
-  });
-}
+// _stripStepPhotos → moved to vms-logic.js
 
 // ── Date filtering: only fetch recent data, load history on-demand ──
-var _DATE_FILTER_DAYS=31; // last 1 calendar month
+// _DATE_FILTER_DAYS → moved to vms-logic.js
 
 // Auto-load older data if user selects a date beyond loaded range
 function _vmsEnsureDataForDate(fromDate,cb){
@@ -1961,25 +192,12 @@ function _vmsEnsureDataForDate(fromDate,cb){
   Promise.all(['trips','segments','spotTrips'].map(function(t){return _loadOlderData(t,daysNeeded);})).then(function(){if(cb)cb();});
 }
 // Supabase table name → date column name
-var _DATE_FILTER_COL={
-  'vms_trips':'date',
-  'vms_segments':'date',
-  'vms_spot_trips':'date'
-};
+// _DATE_FILTER_COL → moved to vms-logic.js
 var _dateFilterLoaded={}; // tbl → earliest date loaded (ISO string)
 
-function _dateCutoff(days){
-  var d=new Date();d.setDate(d.getDate()-(days||_DATE_FILTER_DAYS));
-  return d.toISOString().slice(0,10);
-}
+// _dateCutoff → moved to vms-logic.js
 
-// Apply date filter to a Supabase query builder
-function _applyDateFilter(q,sbTbl,cutoff){
-  var col=_DATE_FILTER_COL[sbTbl];
-  if(!col) return q;
-  var c=cutoff||_dateCutoff();
-  return q.gte(col,c);
-}
+// _applyDateFilter is in common.js
 
 // Load older data beyond the current cutoff
 async function _loadOlderData(localTbl,extraDays){
@@ -2020,27 +238,9 @@ var _PHOTO_PRESERVE={
 var _PHOTO_DB_COLS={
   'vms_spot_trips':['challan_photo','driver_photo','entry_vehicle_photo','exit_vehicle_photo']
 };
-function _syncSelect(sbTbl){return _SYNC_SELECT[sbTbl]||'*';}
+// _syncSelect → moved to vms-logic.js
 
-function _syncMergeRows(localTbl,newParsed,replace){
-  var pf=_PHOTO_PRESERVE[localTbl]||[];
-  var existing=DB[localTbl]||[];
-  if(replace){
-    if(pf.length>0){
-      var oldMap={};existing.forEach(function(r){oldMap[r.id]=r;});
-      newParsed.forEach(function(rec){var old=oldMap[rec.id];if(old)pf.forEach(function(f){if(old[f]&&!rec[f])rec[f]=old[f];});});
-    }
-    DB[localTbl]=newParsed;
-  } else {
-    var idMap={};for(var i=0;i<existing.length;i++)idMap[existing[i].id]=i;
-    newParsed.forEach(function(rec){
-      var idx=idMap[rec.id];
-      if(idx!==undefined){pf.forEach(function(f){if(existing[idx][f]&&!rec[f])rec[f]=existing[idx][f];});existing[idx]=rec;}
-      else existing.push(rec);
-    });
-    DB[localTbl]=existing;
-  }
-}
+// _syncMergeRows → moved to vms-logic.js
 
 async function _loadPhotos(localTbl,recordId){
   var sbTbl=SB_TABLES[localTbl];var photoCols=_PHOTO_DB_COLS[sbTbl];
@@ -2269,7 +469,7 @@ function launchVMS(targetPage, appId){
   if(targetPage) showPage(targetPage, targetPage.replace('page',''));
 }
 
-// ── Portal navigation functions ──────────────────────────────────────
+// ═══ NAVIGATION / PORTAL ═════════════════════════════════════════════════
 function renderMyApps(){
   var wb=document.getElementById('welcomeBanner');
   if(wb) wb.textContent='Welcome, '+(CU.fullName||CU.name);
@@ -2277,7 +477,7 @@ function renderMyApps(){
   if(!grid) return;
   var userApps=CU.apps||[];
   var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
-  var APP_FILES_MAP={vms:null,hwms:'myApps_HWMS.html',security:'myApps_Security.html',maintenance:null,review:null,hrms:'myApps_HRMS.html'};
+  var APP_FILES_MAP={vms:null,hwms:'hwms.html',security:'security.html',maintenance:null,review:null,hrms:'hrms.html'};
   var APP_ACTIVE_MAP={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:true};
   grid.innerHTML=PORTAL_APPS.map(function(app){
     var file=APP_FILES_MAP[app.id]||null;
@@ -2483,7 +683,7 @@ async function correctData(){
   }
   if(total>0){updBadges();renderDash();renderDashTrips();renderKap();renderMR();renderApprove();renderMyTrips();}
 }
-// ===== PROCESS FLOW ENGINE =====
+// ═══ PROCESS FLOW ENGINE ═════════════════════════════════════════════════
 /*
   Step Ownership Logic (per segment, based on sLoc/dLoc types):
   ┌──────────┬──────────┬───────────────┬────────────────┬─────────────────┬────────────────┐
@@ -2497,167 +697,9 @@ async function correctData(){
   "Location" means: use that location's assigned role users (kapSec, matRecv, approvers)
   "Booking User Loc" = the trip booker's plant/location from user master
 */
-function getCriteria(st,dt){
-  if(st==='KAP'&&dt==='KAP') return 1;
-  if(st==='KAP'&&dt==='External') return 2;
-  if(st==='External'&&dt==='KAP') return 3;
-  return 4;
-}
-function getTripCatId(label,st,dt){
-  return label+(st==='KAP'?'K':'E')+(dt==='KAP'?'K':'E');
-}
+// getCriteria, getTripCatId, buildSegment, nextStep, allStepsDone, stepsOneAndTwoDone, stepsUpTo3Done → moved to vms-logic.js
 
-function buildSegment(tripId,label,sLoc,dLoc){
-  const st=ltype(sLoc), dt=ltype(dLoc);
-  const c=getCriteria(st,dt);
-  const catId=getTripCatId(label,st,dt);
-  const sl=byId(DB.locations,sLoc);
-  const dl=byId(DB.locations,dLoc);
-
-  // Get booking user's location for Ext→Ext fallback
-  const trip=byId(DB.trips,tripId);
-  const bookingUser=trip?byId(DB.users,trip.bookedBy):CU;
-  const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
-
-  // Helper: get location's role users
-  const locUsers=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
-  };
-
-  // Determine owner location for each step
-  let s1Loc, s2Loc, s3Loc, s4Loc;
-  let s1Skip=false, s2Skip=false;
-
-  if(c===1){ // KAP→KAP
-    s1Loc=sl; s2Loc=dl; s3Loc=dl; s4Loc=sl;
-  } else if(c===2){ // KAP→External
-    s1Loc=sl; s2Skip=true; s3Loc=sl; s4Loc=sl;
-  } else if(c===3){ // External→KAP
-    s1Skip=true; s2Loc=dl; s3Loc=dl; s4Loc=bookingLoc;
-  } else { // External→External
-    s1Skip=true; s2Skip=true; s3Loc=bookingLoc; s4Loc=bookingLoc;
-  }
-
-  // Step 3 (Material Receipt) is skipped when destination is External — no KAP to receive at
-  const s3Skip=(dt==='External');
-
-  // Step 5: Empty Vehicle Exit — only on LAST segment when destination is KAP
-  const isLastSeg=(label==='A'&&!trip?.dest2)||(label==='B'&&!trip?.dest3)||label==='C';
-  const s5Active=isLastSeg&&dt==='KAP';
-
-  const steps={
-    1:{skip:s1Skip, users:s1Skip?[]:locUsers(s1Loc,'KAP Security'), label:'Gate Exit', loc:s1Skip?null:sLoc, ownerLoc:s1Skip?null:sLoc, role:'KAP Security', done:false, time:null, by:null},
-    2:{skip:s2Skip, users:s2Skip?[]:locUsers(s2Loc,'KAP Security'), label:'Gate Entry', loc:s2Skip?null:dLoc, ownerLoc:s2Skip?null:dLoc, role:'KAP Security', done:false, time:null, by:null},
-    3:{skip:s3Skip, users:s3Skip?[]:locUsers(s3Loc,'Material Receiver'), label:'Material Receipt', loc:s3Skip?null:(s3Loc?.id||null), ownerLoc:s3Skip?null:(s3Loc?.id||null), role:'Material Receiver', done:false, time:null, by:null},
-    4:{skip:false, users:locUsers(s4Loc,'Trip Approver'), label:'Approve', loc:s4Loc?.id||null, ownerLoc:s4Loc?.id||null, role:'Trip Approver', done:false, time:null, by:null, rejected:false, remarks:''},
-    5:{skip:!s5Active, users:s5Active?locUsers(dl,'KAP Security'):[], label:'Empty Vehicle Exit', loc:s5Active?dLoc:null, ownerLoc:s5Active?dLoc:null, role:'KAP Security', done:false, time:null, by:null},
-  };
-
-  const seg={id:tripId+label, tripId, label, sLoc, dLoc, criteria:c, tripCatId:catId, steps, status:'Active', date:new Date().toISOString()};
-  seg.currentStep=nextStep(seg);
-  return seg;
-}
-
-function nextStep(seg){
-  // Steps 1 & 2: sequential gate operations
-  if(!seg.steps[1]?.done&&!seg.steps[1]?.skip) return 1;
-  if(!seg.steps[2]?.done&&!seg.steps[2]?.skip) return 2;
-  // Once gate ops done: Step 5 (Empty Vehicle Exit) is next KAP priority — runs in parallel with 3 & 4
-  if(seg.steps[5]&&!seg.steps[5].skip&&!seg.steps[5].done) return 5;
-  // Steps 3 & 4: background MR & Approval (also run in parallel with step 5)
-  if(!seg.steps[3]?.done&&!seg.steps[3]?.skip) return 3;
-  if(!seg.steps[4]?.done&&!seg.steps[4]?.skip) return 4;
-  return 6; // all steps done
-}
-function allStepsDone(seg){
-  // True when ALL non-skipped steps (including step 5) are done
-  for(let s=1;s<=5;s++){const st=seg.steps[s];if(st&&!st.skip&&!st.done)return false;}
-  return true;
-}
-function stepsOneAndTwoDone(seg){
-  // Returns true when Steps 1 & 2 are each either done or skipped
-  return [1,2].every(s=>seg.steps[s]?.done||seg.steps[s]?.skip);
-}
-function stepsUpTo3Done(seg){
-  // Returns true when Steps 1, 2 & 3 are each either done or skipped
-  return [1,2,3].every(s=>seg.steps[s]?.done||seg.steps[s]?.skip);
-}
-
-// Recalculate undone step properties for a segment.
-// Reads the full trip route AND sibling segments to determine isLastSeg correctly.
-// Recomputes skip, loc, ownerLoc, users for every undone step.
-// Also updates criteria, tripCatId, currentStep, status.
-// Returns true if anything changed.
-function recalcSegSteps(seg, siblingSegs){
-  const trip=byId(DB.trips,seg.tripId);
-  if(!trip||seg.status==='Cancelled') return false;
-  const sLoc=seg.sLoc,dLoc=seg.dLoc;
-  const stype=ltype(sLoc),dtype=ltype(dLoc);
-  const crit=getCriteria(stype,dtype);
-  const sl=byId(DB.locations,sLoc);
-  const dl=byId(DB.locations,dLoc);
-  const bookingUser=byId(DB.users,trip.bookedBy)||CU;
-  const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
-  const locUsr=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
-  };
-  let s1Loc,s2Loc,s3Loc,s4Loc,s1Skip=false,s2Skip=false;
-  if(crit===1){s1Loc=sl;s2Loc=dl;s3Loc=dl;s4Loc=sl;}
-  else if(crit===2){s1Loc=sl;s2Skip=true;s3Loc=sl;s4Loc=sl;}
-  else if(crit===3){s1Skip=true;s2Loc=dl;s3Loc=dl;s4Loc=bookingLoc;}
-  else{s1Skip=true;s2Skip=true;s3Loc=bookingLoc;s4Loc=bookingLoc;}
-  const s3Skip=(dtype==='External');
-  // isLastSeg: use BOTH trip.dest fields AND sibling segments to cross-check
-  // A segment is "last" if no later label (B or C) exists among sibling segments of the same trip
-  const allSegsForTrip=siblingSegs||DB.segments.filter(s=>s.tripId===seg.tripId);
-  const hasSegB=allSegsForTrip.some(s=>s.label==='B');
-  const hasSegC=allSegsForTrip.some(s=>s.label==='C');
-  // Also cross-check with trip destinations
-  const tripHasDest2=!!(trip.dest2&&trip.dest2!=='');
-  const tripHasDest3=!!(trip.dest3&&trip.dest3!=='');
-  // A is last only if no B exists AND trip has no dest2
-  const aIsLast=seg.label==='A'&&!hasSegB&&!tripHasDest2;
-  // B is last only if no C exists AND trip has no dest3
-  const bIsLast=seg.label==='B'&&!hasSegC&&!tripHasDest3;
-  const cIsLast=seg.label==='C';
-  const isLastSeg=aIsLast||bIsLast||cIsLast;
-  const s5Active=isLastSeg&&dtype==='KAP';
-  let changed=false;
-  const patch=(n,props)=>{
-    const step=seg.steps[n];
-    if(!step||step.done) return;
-    Object.keys(props).forEach(k=>{
-      if(JSON.stringify(step[k])!==JSON.stringify(props[k])){step[k]=props[k];changed=true;}
-    });
-  };
-  patch(1,{skip:s1Skip,loc:s1Skip?null:sLoc,ownerLoc:s1Skip?null:sLoc,users:s1Skip?[]:locUsr(s1Loc,'KAP Security')});
-  patch(2,{skip:s2Skip,loc:s2Skip?null:dLoc,ownerLoc:s2Skip?null:dLoc,users:s2Skip?[]:locUsr(s2Loc,'KAP Security')});
-  patch(3,{skip:s3Skip,loc:s3Skip?null:(s3Loc?.id||null),ownerLoc:s3Skip?null:(s3Loc?.id||null),users:s3Skip?[]:locUsr(s3Loc,'Material Receiver')});
-  patch(4,{loc:s4Loc?.id||null,ownerLoc:s4Loc?.id||null,users:locUsr(s4Loc,'Trip Approver')});
-  // Step 5: create it if missing (trips booked before step 5 was introduced have no steps[5])
-  if(!seg.steps[5]){
-    seg.steps[5]={skip:!s5Active,label:'Empty Vehicle Exit',role:'KAP Security',done:false,time:null,by:null,
-      loc:s5Active?dLoc:null,ownerLoc:s5Active?dLoc:null,users:s5Active?locUsr(dl,'KAP Security'):[]};
-    changed=true;
-  } else {
-    patch(5,{skip:!s5Active,loc:s5Active?dLoc:null,ownerLoc:s5Active?dLoc:null,users:s5Active?locUsr(dl,'KAP Security'):[]});
-  }
-  const newCatId=getTripCatId(seg.label,stype,dtype);
-  if(seg.criteria!==crit){seg.criteria=crit;changed=true;}
-  if(seg.tripCatId!==newCatId){seg.tripCatId=newCatId;changed=true;}
-  const newStep=nextStep(seg);
-  if(seg.currentStep!==newStep){seg.currentStep=newStep;changed=true;}
-  if(seg.status!=='Completed'&&seg.status!=='Rejected'&&allStepsDone(seg)){seg.status='Completed';changed=true;}
-  return changed;
-}
+// recalcSegSteps → moved to vms-logic.js
 async function advance(seg){
   seg.currentStep=nextStep(seg);
   if(allStepsDone(seg)) seg.status='Completed';
@@ -2723,7 +765,7 @@ function segBadge(seg){
 }
 
 
-// ===== AUTH =====
+// ═══ AUTH / LOGIN / CAPTCHA ══════════════════════════════════════════════
 function togglePassVis(){
   const el=document.getElementById('loginPass');
   const btn=document.getElementById('passToggle');
@@ -2878,14 +920,7 @@ async function doLogin(){
 }
 
 // ── Password Policy ──────────────────────────────────────────────────────────
-function _isStrongPwd(pwd){
-  if(!pwd||pwd.length<6||pwd.length>12) return false;
-  if(!/[A-Z]/.test(pwd)) return false;
-  if(!/[a-z]/.test(pwd)) return false;
-  if(!/[0-9]/.test(pwd)) return false;
-  if(!/[^A-Za-z0-9]/.test(pwd)) return false;
-  return true;
-}
+// _isStrongPwd → moved to vms-logic.js
 function _liveValidatePwd(pwd){
   const rules=[
     {id:'fpR1',ok:pwd.length>=6&&pwd.length<=12},
@@ -3093,7 +1128,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 });
 
-// ===== NAV =====
+// ═══ NAV / SIDEBAR / PAGE ROUTING ════════════════════════════════════════
 
 // Direct portal navigation — bypasses showPage entirely
 function goToPortal(){
@@ -3219,11 +1254,11 @@ function _runInitApp(){
   const _mc=document.querySelector('.main-content');
   if(_currentApp==='security'){
     // Security Surveillance is a separate app — redirect
-    _navigateTo('myApps_Security.html');
+    _navigateTo('security.html');
     return;
   } else if(_currentApp==='hwms'){
     // HWMS is now a separate module — redirect
-    _navigateTo('myApps_HWMS.html');
+    _navigateTo('hwms.html');
     return;
   } else if(isAdminOrSA){
     showPage('pageDashboard','Dashboard');
@@ -3381,15 +1416,8 @@ function showPage(pid,nid){
   }
 }
 
-// ===== DASHBOARD =====
-function tripOverallStatus(trip){
-  if(trip.cancelled) return 'Cancelled';
-  const segs=DB.segments.filter(s=>s.tripId===trip.id);
-  if(!segs.length) return 'Active';
-  if(segs.every(s=>s.status==='Completed')) return 'Completed';
-  if(segs.some(s=>s.status==='Rejected')) return 'Rejected';
-  return 'Active';
-}
+// ═══ DASHBOARD ══════════════════════════════════════════════════════════
+// tripOverallStatus → moved to vms-logic.js
 function tripOverallBadge(trip){
   const st=tripOverallStatus(trip);
   if(st==='Cancelled') return '<span class="trip-overall-badge-cancelled">✕ Cancelled</span>';
@@ -3400,7 +1428,7 @@ function tripOverallBadge(trip){
   return `<span class="trip-overall-badge-active">In Progress (${done}/${segs.length} segs)</span>`;
 }
 
-// ===== CAMERA / PHOTO CAPTURE =====
+// ═══ CAMERA / PHOTO CAPTURE ══════════════════════════════════════════════
 let _kapStream = null;
 let _kapPhotoData = null; // base64 data URL of captured/chosen photo
 
@@ -3600,7 +1628,7 @@ function getVisibleTrips(){
   return tripsForMyPlant();
 }
 
-// ===== DASHBOARD TABS =====
+// ═══ DASHBOARD TABS / RENDERING ══════════════════════════════════════════
 let _dashTab='overview';
 function setDashTab(tab){
   _dashTab=tab;
@@ -4029,7 +2057,7 @@ function renderDashOverview(){
   el.innerHTML = headerRow + cards.join('');
 }
 
-// ===== REPORTS =====
+// ═══ REPORTS ════════════════════════════════════════════════════════════
 function initRptDates(){
   const now=new Date();
   const from=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -4038,68 +2066,7 @@ function initRptDates(){
   if(fe&&!fe.value){fe.value=from;updDateBtnLbl('rptFrom');}
   if(te&&!te.value){te.value=to;updDateBtnLbl('rptTo');}
 }
-function getReportData(){
-  const fromVal=document.getElementById('rptFrom')?.value||'';
-  const toVal=document.getElementById('rptTo')?.value||'';
-  const canSeeAmt=CU.roles.some(r=>['Super Admin','Admin','Trip Approver'].includes(r));
-  // Show segments for trips visible to current user (plant-based)
-  const myTrips=new Set(tripsForMyPlant().map(t=>t.id));
-  let segs=DB.segments.filter(s=>myTrips.has(s.tripId));
-  if(fromVal)segs=segs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
-  if(toVal)segs=segs.filter(s=>(s.date||'').slice(0,10)<=toVal);
-
-  segs.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  return {segs,canSeeAmt};
-}
-
-// Build enriched row data for a segment
-function rptRow(s){
-  const t=byId(DB.trips,s.tripId)||byId(DB.trips,s.tripId.replace(/-R\d+$/,''));
-  const v=byId(DB.vehicles,t?.vehicleId);
-  const vnd=byId(DB.vendors,v?.vendorId);
-  const drv=byId(DB.drivers,t?.driverId);
-  const recVt=byId(DB.vehicleTypes,t?.vehicleTypeId);          // recommended type
-  const actVt=byId(DB.vehicleTypes,byId(DB.vehicleTypes,t?.actualVehicleTypeId)?.id?t?.actualVehicleTypeId:v?.typeId);  // actual used type
-  const fmtTime=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
-  const stepNames={1:'Gate Exit',2:'Gate Entry',3:'Mat. Receipt',4:'Trip Approval',5:'Empty Vehicle Exit'};
-  const status=s.status==='Completed'?'✓ Done':s.status==='Rejected'?'⚠ Rejected':s.status==='Locked'?'🔒 Locked':stepNames[s.currentStep]||'Step '+s.currentStep;
-  const stClr=s.status==='Completed'?'#16a34a':s.status==='Rejected'?'#dc2626':'var(--accent)';
-  const bookedByU=byId(DB.users,t?.bookedBy);
-  const editedByU=byId(DB.users,t?.editedBy);
-  const mrByU=byId(DB.users,s.steps[3]?.by);
-  const apByU=byId(DB.users,s.steps[4]?.by);
-  return {
-    seg:s,trip:t,
-    segId:s.tripId.replace(/-R\d+$/,''),
-    date:s.date||'-',
-    route:lnameText(s.sLoc)+' to '+lnameText(s.dLoc),
-    routeHtml:lname(s.sLoc)+' to '+lname(s.dLoc),
-    vehicleNo:vnum(t?.vehicleId),
-    vehicleType:recVt?.name||vt?.name||'-',
-    recVehicleType:recVt?.name||'-',
-    actVehicleType:(actVt?.name&&actVt?.name!==(recVt?.name||''))?actVt.name:'-',
-    vendor:vnd?.name||t?.vendor||'-',
-    driver:drv?.name||'-',
-    gateExitTime:fmtTime(s.steps[1]?.time),
-    gateEntryTime:fmtTime(s.steps[2]?.time),
-    mrBy:mrByU?.fullName||mrByU?.name||'-',
-    mrTime:fmtTime(s.steps[3]?.time),
-    mrDiscrepancy:s.steps[3]?.discrepancy?'Yes':'',
-    mrRemarks:s.steps[3]?.remarks||'',
-    approvedBy:apByU?.fullName||apByU?.name||'-',
-    approvedTime:fmtTime(s.steps[4]?.time),
-    bookedBy:bookedByU?.fullName||bookedByU?.name||'-',
-    bookedTime:fmtTime(t?.date),
-    editedBy:editedByU?.fullName||editedByU?.name||'-',
-    editedTime:t?.editedAt?fmtTime(t.editedAt):'',
-    startTime:fmtTime(s.steps[1]?.time),
-    endTime:fmtTime(s.steps[4]?.time),
-    status:status,stClr:stClr,
-    vendorId:v?.vendorId||'',
-    typeId:v?.typeId||'',
-    vehicleId:t?.vehicleId||''
-  };
-}
+// getReportData, rptRow → moved to vms-logic.js
 
 function renderReports(){
   initDfMonth('rpt','rptFrom','rptTo');
@@ -4354,7 +2321,7 @@ function downloadReportPDF(){
   w.document.write(html);w.document.close();
 }
 
-// ===== MY PROFILE =====
+// ═══ MY PROFILE ═════════════════════════════════════════════════════════
 function togglePassSection(){
   const s=document.getElementById('passSection');
   const ic=document.getElementById('passToggleIcon');
@@ -4626,8 +2593,7 @@ async function cancelTrip(tripId){
   });
 }
 
-// ===== TRIP BOOKING =====
-// ===== TRIP BOOKING PAGE TABS =====
+// ═══ TRIP BOOKING ═══════════════════════════════════════════════════════
 let _tbPageTab='active';
 
 function initTbHistDates(){
@@ -4640,48 +2606,7 @@ function initTbHistDates(){
   if(te&&!te.value){te.value=to;updDateBtnLbl('tbHistTo');}
 }
 
-// Generate new Trip ID: LastDigitYear + MonthLetter + DD + Plant + Serial
-function genTripId(startLocId, dest1LocId, excludeId){
-  const now=new Date();
-  const yLast=String(now.getFullYear()).slice(-1);
-  // Determine which location supplies the plant code:
-  //   KAP→*        → start location
-  //   External→KAP → dest1 location
-  //   External→External → booking user's plant (CU.plant)
-  const _locPlantCode=id=>{
-    const l=byId(DB.locations,id);
-    const digits=(l?.name||'').replace(/[^0-9]/g,'');
-    return digits?'P'+digits:'P0';
-  };
-  const sType=(byId(DB.locations,startLocId)||{}).type||'External';
-  const dType=(byId(DB.locations,dest1LocId)||{}).type||'External';
-  let plantCode;
-  if(sType==='KAP'){
-    plantCode=_locPlantCode(startLocId);          // KAP→any: use start loc
-  } else if(dType==='KAP'){
-    plantCode=_locPlantCode(dest1LocId);          // External→KAP: use dest loc
-  } else {
-    plantCode=_locPlantCode(CU.plant);            // External→External: user's plant
-  }
-  const prefix=`${yLast}${plantCode}-`;
-  // Serial: find the highest existing number with this prefix and add 1.
-  // Exclude the current trip being edited so its number doesn't bump the counter.
-  const existingNums=DB.trips
-    .filter(t=>t.id.startsWith(prefix)&&t.id!==excludeId)
-    .map(t=>parseInt(t.id.slice(prefix.length),10)||0);
-  const maxNum=existingNums.length?Math.max(...existingNums):0;
-  return `${prefix}${maxNum+1}`;
-}
-// Extract the plant prefix from an existing trip ID (e.g. "5P2-" from "5P2-14")
-function _tripIdPrefix(tripId){
-  if(!tripId) return '';
-  const m=tripId.match(/^(\d+P\d+-)/);
-  return m?m[1]:'';
-}
-// Format trip ID for display (plain text, no colored badge)
-function _cTid(tripId){
-  return tripId||'';
-}
+// genTripId, _tripIdPrefix, _cTid → moved to vms-logic.js
 
 let _tbDestCount=1;// how many destinations are visible (1-3)
 
@@ -6014,7 +3939,7 @@ function _kapUpdateCounts(){
   _setBadge('kapCountTabSpot',spotCount);
 }
 
-// ===== KAP SECURITY =====
+// ═══ KAP SECURITY ═══════════════════════════════════════════════════════
 let _spotChallanCount=0;
 function _spotRestoreThumb(thumbId,photoData){
   const el=document.getElementById(thumbId);if(!el||!photoData)return;
@@ -6727,7 +4652,7 @@ function toggleKapHistCard(hid){
   el.style.display=isOpen?'none':'block';
 }
 
-// ===== SPOT VEHICLE ENTRY =====
+// ═══ SPOT VEHICLE ENTRY ═════════════════════════════════════════════════
 function renderSpotTab(){
   updBadges();
   initDfMonth('spotHist','spotHistFrom','spotHistTo');
@@ -7306,7 +5231,7 @@ function clearTbPhoto(n){
   if(clearBtn)clearBtn.style.display='none';
 }
 
-// ===== MATERIAL RECEIPT =====
+// ═══ MATERIAL RECEIPT ═══════════════════════════════════════════════════
 let _mrActiveTab='pending';
 
 function renderMR(){
@@ -7678,8 +5603,7 @@ async function doMR(){
   await advance(seg);if(!await _dbSave('segments',seg)) return;cm('mMR');renderMR();renderTripBooking();updBadges();notify('Material receipt acknowledged!');
 }
 
-// ===== TRIP APPROVALS =====
-// ===== TRIP APPROVALS PAGE TABS =====
+// ═══ TRIP APPROVALS ═════════════════════════════════════════════════════
 let _apTab='pending';
 function initApproveDates(){
   const now=new Date();
@@ -8223,7 +6147,7 @@ async function doTripApprovalInline(tripId, action, receiptType){
   }catch(e){ console.error('doTripApprovalInline error:',e); notify('⚠ Approval error: '+e.message,true); }
 }
 
-// ===== MASTERS =====
+// ═══ MASTERS (vehicle types, vendors, drivers, vehicles, locations, rates) ═
 // Users
 function renderUsers(){
   const srch=(document.getElementById('userSearch')?.value||'').toLowerCase();
@@ -9585,7 +7509,7 @@ function showRecordDetail(table,id){
   om('mRecordDetail');
 }
 
-// ===== EXCEL IMPORT / EXPORT =====
+// ═══ EXCEL IMPORT / EXPORT ═══════════════════════════════════════════════
 const MASTER_SCHEMA = {
   users: {
     label: 'Users',
@@ -9900,7 +7824,7 @@ function exportMaster(col){
   notify(`✅ ${schema.label} exported to Excel!`);
 }
 
-// ===== VENDOR TRIPS PAGE =====
+// ═══ VENDOR TRIPS PAGE ══════════════════════════════════════════════════
 function _isVtAdmin(){ return CU&&CU.roles.some(r=>['Super Admin','Admin'].includes(r)); }
 function _getMyVendor(){
   if(!CU) return null;
@@ -10113,7 +8037,7 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// ===== HELPER PAGE (Super Admin only) =====
+// ═══ HELPER PAGE (Super Admin only) ══════════════════════════════════════
 function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const s=(title,color,content)=>`<div style="background:${color};border-radius:10px;padding:16px 18px;margin-bottom:14px">
@@ -10577,10 +8501,7 @@ function _helperLookupTrip(){
   result.style.display='block';
 }
 
-// ── Boot trigger ──
+// ═══ BOOT TRIGGER ═══════════════════════════════════════════════════════
 if(!_commonMissing){
   document.addEventListener('DOMContentLoaded', ()=>_appBoot().catch(e=>{console.error('Boot failed:',e);}));
 }
-</script>
-</body>
-</html>

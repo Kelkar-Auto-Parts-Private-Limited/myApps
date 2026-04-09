@@ -1,521 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KAP — HRMS</title>
-<style>
-:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f8f9fb;--border:#e2e5ea;--border2:#c9cdd4;--text:#1e2329;--text2:#4a5568;--text3:#94a3b8;--accent:#2a9aa0;--accent2:#1e7a7f;--accent-light:#e0f5f5;--red:#dc2626;--green:#16a34a;--green-bg:#f0fdf4;--purple:#7c3aed;--mono:'SF Mono','Cascadia Mono','Consolas',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08)}
-*{box-sizing:border-box;margin:0;padding:0}html,body{font-family:var(--sans);background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
-.notification{position:fixed;top:-60px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:600;z-index:10000;transition:top .3s;white-space:nowrap}.notification.show{top:18px}.notification.error{background:var(--red)}
-#dbSplash{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:12px}
-#dbSplash .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-.topbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
-.topbar .ham{background:none;border:2px solid var(--accent);font-size:24px;cursor:pointer;padding:5px 10px;color:var(--accent);border-radius:8px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.topbar .title{font-size:15px;font-weight:800;color:var(--text);flex:1}
-.sidebar{position:fixed;top:0;left:0;width:260px;height:100vh;background:#fff;border-right:1px solid var(--border);z-index:200;overflow-y:auto;padding:16px 0;transition:left .3s}
-.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199;display:none}.sidebar-overlay.show{display:block}
-@media(max-width:700px){.sidebar{left:-280px}.sidebar.open{left:0}#hrmsApp{margin-left:0!important}}
-@media(min-width:701px){.sidebar{left:0}.sidebar-overlay{display:none!important}.topbar{margin-left:260px}#hrmsApp{margin-left:260px}}
-.sidebar-logo{padding:10px 20px;margin-bottom:10px;border-bottom:1px solid var(--border)}.sidebar-logo h2{font-size:16px;color:var(--accent);font-weight:900}
-.nav-item{padding:10px 20px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s}.nav-item:hover{background:var(--accent-light);color:var(--accent)}.nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:800;border-right:3px solid var(--accent)}
-.nav-section{padding:12px 20px 4px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
-.page{display:none;padding:16px;height:calc(100vh - 50px);overflow-y:auto;box-sizing:border-box}.page.active{display:block}#pageHrmsAttSal.active{display:flex!important;overflow:hidden}
-#pageHrmsEmpEdit input,#pageHrmsEmpEdit select,#pageHrmsEmpEdit label,#pageHrmsEmpEdit .form-group{font-size:14px!important}
-#pageHrmsEmpEdit #hrmsEmpPeriodBody input,#pageHrmsEmpEdit #hrmsEmpPeriodBody select{font-size:13px!important}
-@keyframes hrmsFlash{0%,100%{border-color:#f59e0b}50%{border-color:#dc2626}}
-.hrms-changed{border:2px solid #f59e0b!important;animation:hrmsFlash 1s infinite!important;background:#fefce8!important}
-.hrms-att-tab.active{color:var(--accent)!important;border-bottom-color:var(--accent)!important}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
-.btn{padding:8px 16px;border-radius:var(--radius);font-weight:700;cursor:pointer;font-size:13px;border:1.5px solid var(--border);background:var(--surface);transition:all .15s}
-.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:var(--accent2)}
-.btn-secondary{background:var(--surface2);color:var(--text2);border-color:var(--border2)}
-.btn-danger{background:#dc2626;color:#fff;border-color:#dc2626}
-.form-group{margin-bottom:12px}.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans)}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border:1.5px solid #475569;font-size:13px}
-th{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;background:#f8fafc;position:sticky;top:0;z-index:1}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
-.badge-green{background:#dcfce7;color:#16a34a}.badge-red{background:#fee2e2;color:#dc2626}.badge-yellow{background:#fef3c7;color:#92400e}
-.empty-state{text-align:center;padding:40px;color:var(--text3);font-size:13px}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;width:95vw;max-width:600px;padding:20px}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.modal-title{font-size:18px;font-weight:900}
-.modal-close{font-size:28px;cursor:pointer;color:var(--text3);line-height:1}
-.modal-error{color:#dc2626;font-size:12px;font-weight:700;margin-bottom:8px;display:none}
-</style>
-</head>
-<body>
+/** @file hrms-ui.js — UI layer for the HRMS module (employees, attendance, salary, masters) @depends common.js, hrms-logic.js */
 
-<div id="notification" class="notification"></div>
-
-<!-- SPLASH -->
-<div id="dbSplash"><div class="spinner"></div><div id="splashMsg" style="font-size:13px;color:var(--text3)">Connecting…</div></div>
-
-<!-- TOPBAR -->
-<div class="topbar" id="topbar" style="display:none">
-  <button class="ham" onclick="_hrmsToggleSidebar()">☰</button>
-  <div class="title" id="topbarTitle">HRMS</div>
-  <div class="user-info"><span id="hrmsUserName"></span></div>
-</div>
-
-<!-- SIDEBAR -->
-<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('show')"></div>
-<div class="sidebar">
-  <div class="sidebar-logo"><h2>👥 HRMS</h2></div>
-  <!-- My Apps -->
-  <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
-  <div class="nav-section">HRMS</div>
-  <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
-  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span></div>
-  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
-  <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
-  <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
-  <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
-    <div class="nav-item" id="navMCompany" onclick="hrmsGo('pageHrmsMCompany')" style="font-size:12px;padding:7px 16px">🏭 Plant</div>
-    <div class="nav-item" id="navMCategory" onclick="hrmsGo('pageHrmsMCategory')" style="font-size:12px;padding:7px 16px">🏷 Category</div>
-    <div class="nav-item" id="navMEmpType" onclick="hrmsGo('pageHrmsMEmpType')" style="font-size:12px;padding:7px 16px">📋 Employment Type</div>
-    <div class="nav-item" id="navMTeam" onclick="hrmsGo('pageHrmsMTeam')" style="font-size:12px;padding:7px 16px">👥 Team</div>
-    <div class="nav-item" id="navMDept" onclick="hrmsGo('pageHrmsMDept')" style="font-size:12px;padding:7px 16px">🏛 Department</div>
-    <div class="nav-item" id="navMSubDept" onclick="hrmsGo('pageHrmsMSubDept')" style="font-size:12px;padding:7px 16px">📁 Sub Department</div>
-    <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">🎖 Designation</div>
-  </div>
-  <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
-  <div class="nav-section">CONNECTION</div>
-  <div id="hrmsConnWidget" style="margin:8px 16px;padding:8px 12px;border-radius:8px;background:#f1f5f9;border:1.5px solid #475569;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="if(typeof _testDbConn==='function')_testDbConn()">
-    <div id="hrmsConnDot" style="width:10px;height:10px;border-radius:50%;background:#d1d5db;flex-shrink:0"></div>
-    <span id="hrmsConnLabel" style="font-size:12px;font-weight:600;color:#475569">Connecting…</span>
-  </div>
-</div>
-
-
-<!-- APP -->
-<div id="hrmsApp" style="display:none;margin-left:260px;height:100vh;overflow:hidden;transition:margin-left .3s">
-
-  <!-- DASHBOARD -->
-  <div class="page active" id="pageHrmsDashboard">
-    <div class="card"><div style="font-size:18px;font-weight:900;margin-bottom:12px">📊 HRMS Dashboard</div>
-      <div id="hrmsDashContent"><div class="empty-state">Loading…</div></div>
-    </div>
-  </div>
-
-  <!-- EMPLOYEES -->
-  <div class="page" id="pageHrmsEmployees">
-    <!-- Tabs -->
-    <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button id="hrmsEmpTabList" onclick="_hrmsEmpSetTab('list')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">👤 Employees</button>
-      <button id="hrmsEmpTabEcr" onclick="_hrmsEmpSetTab('ecr')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 Change Requests <span id="cChangeReqTab" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;display:none">0</span></button>
-    </div>
-    <!-- Employee List Tab -->
-    <div id="hrmsEmpListSection">
-    <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-        <button onclick="_hrmsEmpTypeFilter('')" id="hrmsEtfAll" style="padding:6px 14px;font-size:12px;font-weight:800;border:2px solid var(--accent);background:var(--accent-light);color:var(--accent);border-radius:20px;cursor:pointer">All</button>
-        <button onclick="_hrmsEmpTypeFilter('On Roll')" id="hrmsEtfOnRoll" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #86efac;background:#fff;color:#15803d;border-radius:20px;cursor:pointer">On Roll</button>
-        <button onclick="_hrmsEmpTypeFilter('Contract')" id="hrmsEtfContract" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:20px;cursor:pointer">Contract</button>
-        <button onclick="_hrmsEmpTypeFilter('Piece Rate')" id="hrmsEtfPieceRate" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #c4b5fd;background:#fff;color:#7c3aed;border-radius:20px;cursor:pointer">Piece Rate</button>
-        <button onclick="_hrmsEmpTypeFilter('Visitor')" id="hrmsEtfVisitor" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">👤 Employees <span id="hrmsEmpCount" style="font-size:13px;font-weight:700;color:var(--text3)"></span></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this)" style="display:none"></label>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#fef3c7;border-color:#fde047;color:#92400e">🔄 Bulk Update<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsBulkUpdate(this)" style="display:none"></label>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#dbeafe;border-color:#93c5fd;color:#1d4ed8">📅 Import DOJ/DOB<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportDojDob(this)" style="display:none"></label>
-          <button class="btn btn-secondary" onclick="_hrmsExportEmployees()" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <button class="btn btn-primary" onclick="_hrmsOpenEmpPage()">+ Add Employee</button>
-        </div>
-      </div>
-      <div class="table-wrap" style="max-height:calc(100vh - 200px)">
-        <table><thead>
-        <tr>
-          <th style="color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 6px;text-align:center;width:40px">#</th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('empCode')">Emp Code <span id="hrmsEmpSortI_empCode" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('name')">Name <span id="hrmsEmpSortI_name" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('dateOfJoining')">DOJ <span id="hrmsEmpSortI_dateOfJoining" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('location')">Plant <span id="hrmsEmpSortI_location" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('employmentType')">Type <span id="hrmsEmpSortI_employmentType" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('teamName')">Team <span id="hrmsEmpSortI_teamName" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:10px">⇅</span></th>
-          <th style="cursor:pointer;color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px" onclick="_hrmsEmpSort('status')">Status <span id="hrmsEmpSortI_status" style="font-size:10px">⇅</span></th>
-          <th style="color:#fff!important;background:#1e293b!important;font-size:12px;padding:10px 10px">Actions</th>
-        </tr>
-        <tr style="background:#f0f9ff">
-          <th style="padding:4px"></th>
-          <th style="padding:4px"><input type="search" id="hrmsEmpCodeSearch" placeholder="🔍 Code" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;width:100%"></th>
-          <th style="padding:4px"><input type="search" id="hrmsEmpNameSearch" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;width:100%"></th>
-          <th style="padding:4px"></th>
-          <th style="padding:4px"><select id="hrmsEmpFPlant" onchange="renderHrmsEmployees()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;width:100%"><option value="">All</option></select></th>
-          <th style="padding:4px"><select id="hrmsEmpFType" onchange="renderHrmsEmployees()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;width:100%"><option value="">All</option></select></th>
-          <th style="padding:4px"><select id="hrmsEmpFTeam" onchange="renderHrmsEmployees()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;width:100%"><option value="">All</option></select></th>
-          <th style="padding:4px"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;width:100%"><option value="">All</option></select></th>
-          <th style="padding:4px"><select id="hrmsEmpFStatus" onchange="renderHrmsEmployees()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px;width:100%"><option value="Active">Active</option><option value="">All</option><option value="Left">Left</option><option value="Inactive">Inactive</option></select></th>
-          <th style="padding:4px"><button onclick="_hrmsEmpClearFilters()" style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button></th>
-        </tr>
-        </thead><tbody id="hrmsEmpBody"></tbody></table>
-      </div>
-    </div>
-    </div>
-    <!-- ECR Tab -->
-    <div id="hrmsEmpEcrSection" style="display:none">
-    <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-      <div style="font-size:18px;font-weight:900;margin-bottom:12px">📋 Employee Change Requests</div>
-      <div id="hrmsChangeReqContent"></div>
-    </div>
-    </div>
-  </div>
-
-  <!-- ATTENDANCE RULES -->
-  <div class="page" id="pageHrmsAttRules">
-    <div class="card">
-      <div style="font-size:18px;font-weight:900;margin-bottom:16px">📏 Attendance Rules</div>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Day Types</div>
-      <table style="width:auto;margin-bottom:20px"><thead><tr><th>Badge</th><th>Type</th><th>Description</th></tr></thead><tbody>
-        <tr><td><span style="padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:#fef3c7;color:#b45309">W</span></td><td style="font-weight:700">Working Day</td><td>Regular working day. Standard shift = 8 hours.</td></tr>
-        <tr><td><span style="padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:#dbeafe;color:#1d4ed8">H</span></td><td style="font-weight:700">Holiday / Weekly Off</td><td>Non-working day (e.g. Sunday). All worked hours count as OT @S.</td></tr>
-        <tr><td><span style="padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:#dcfce7;color:#15803d">P</span></td><td style="font-weight:700">Paid Holiday</td><td>Company holiday with pay. All worked hours count as OT @S.</td></tr>
-      </tbody></table>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Present / Absent Logic (Working Days)</div>
-      <table style="width:auto;margin-bottom:20px"><thead><tr><th>Hours Inside</th><th>Status</th><th>Total P Count</th></tr></thead><tbody>
-        <tr><td><b>≥ 8 hrs 15 min</b> (8.25 hrs)</td><td><span style="color:#16a34a;font-weight:800">P</span> (Present)</td><td>1</td></tr>
-        <tr><td><b>≥ 6 hrs 30 min</b> and < 8 hrs 15 min<br><span style="font-size:11px;color:#2563eb">(Staff category only, max 2/month)</span></td><td><span style="color:#2563eb;font-weight:800">EL</span> (Early Leave)</td><td>1 (counted as present)</td></tr>
-        <tr><td><b>≥ 4 hrs</b> and < 8 hrs 15 min</td><td><span style="color:#f59e0b;font-weight:800">P/2</span> (Half Day)</td><td>0.5</td></tr>
-        <tr><td><b>< 4 hrs</b> or no record</td><td><span style="color:#dc2626;font-weight:800">A</span> (Absent)</td><td>0</td></tr>
-      </tbody></table>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Holiday / Off Days</div>
-      <table style="width:auto;margin-bottom:20px"><thead><tr><th>Condition</th><th>Result</th></tr></thead><tbody>
-        <tr><td>No time recorded on <b>Holiday (H)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">H</span> — not counted in Total P</td></tr>
-        <tr><td>No time recorded on <b>Paid Holiday (P)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">P</span> — not counted in Total P</td></tr>
-        <tr><td>Time recorded on any off day</td><td><span style="color:#16a34a;font-weight:800">P</span> — NOT counted in Total P, hours go to OT @S</td></tr>
-      </tbody></table>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Early Leave (EL) Rules</div>
-      <table style="width:auto;margin-bottom:20px"><thead><tr><th>Rule</th><th>Detail</th></tr></thead><tbody>
-        <tr><td>Eligibility</td><td>Only employees with <b>Category = Staff</b></td></tr>
-        <tr><td>Minimum hours</td><td>Must be inside for at least <b>6 hrs 30 min</b> (6.5 hrs)</td></tr>
-        <tr><td>Maximum hours</td><td>Must be less than <b>8 hrs 15 min</b> (otherwise marked P)</td></tr>
-        <tr><td>Monthly limit</td><td>Maximum <b>2 EL days</b> per month. After 2, marked as P/2</td></tr>
-        <tr><td>Counting</td><td>EL is counted as <b>1 full present day</b> in Total P</td></tr>
-      </tbody></table>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Overtime Calculation</div>
-      <p style="font-size:12px;color:#dc2626;font-weight:700;margin-bottom:8px">Staff category employees do NOT get OT.</p>
-      <table style="width:auto;margin-bottom:10px"><thead><tr><th>Column</th><th>Rule</th></tr></thead><tbody>
-        <tr><td style="font-weight:700;color:#7c3aed">Total OT</td><td>Working days only (non-Staff)</td></tr>
-        <tr><td style="font-weight:700;color:#c2410c">OT @S</td><td>Holiday / Paid Holiday overtime (non-Staff)</td></tr>
-      </tbody></table>
-      <div style="font-size:13px;font-weight:800;margin:10px 0 6px">Working Day OT Formula (non-Staff)</div>
-      <table style="width:auto;margin-bottom:20px"><thead><tr><th>Condition</th><th>OT Hours</th></tr></thead><tbody>
-        <tr><td>Inside <b>< 8.5 hrs</b></td><td>0 (no OT)</td></tr>
-        <tr><td>Inside <b>≥ 8.5 hrs</b> and <b>≤ 14 hrs</b></td><td>Out − In − <b>8.5 hrs</b></td></tr>
-        <tr><td>Inside <b>> 14 hrs</b></td><td>Out − In − <b>9 hrs</b></td></tr>
-        <tr><td>Max per day</td><td><b>7 hrs</b> (capped)</td></tr>
-      </tbody></table>
-      <div style="font-size:13px;font-weight:800;margin:10px 0 6px">Holiday OT @S Formula (non-Staff)</div>
-      <table style="width:auto;margin-bottom:10px"><thead><tr><th>Step</th><th>Rule</th></tr></thead><tbody>
-        <tr><td>1. Start</td><td>OT = total worked hours on H or P day</td></tr>
-        <tr><td>2. Lunch deduction</td><td>If OT > 4 hrs but ≤ 13 hrs → deduct <b>0.5 hr</b><br>If OT > 13 hrs → deduct <b>1 hr</b></td></tr>
-        <tr><td>3. Cap</td><td>Max <b>15 hrs</b> per day</td></tr>
-      </tbody></table>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Time Rounding Rules (Accounted Mode)</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">When <b>Accounted</b> mode is active, times are rounded as follows:</p>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-        <div>
-          <div style="font-size:13px;font-weight:800;margin-bottom:6px;color:#1d4ed8">IN Time Rounding</div>
-          <table style="width:100%"><thead><tr><th>Actual Range</th><th>Rounded To</th></tr></thead><tbody>
-            <tr><td>07:40 — 08:10</td><td style="font-weight:800">08:00</td></tr>
-            <tr><td>08:40 — 09:10</td><td style="font-weight:800">09:00</td></tr>
-            <tr><td>18:40 — 19:10</td><td style="font-weight:800">19:00</td></tr>
-            <tr><td>All other times</td><td style="font-weight:800">Nearest 15 min</td></tr>
-          </tbody></table>
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:800;margin-bottom:6px;color:#dc2626">OUT Time Rounding</div>
-          <table style="width:100%"><thead><tr><th>Actual Range</th><th>Rounded To</th></tr></thead><tbody>
-            <tr><td>06:00 — 06:20</td><td style="font-weight:800">06:00</td></tr>
-            <tr><td>08:00 — 08:20</td><td style="font-weight:800">08:00</td></tr>
-            <tr><td>16:30 — 16:50</td><td style="font-weight:800">16:30</td></tr>
-            <tr><td>18:00 — 18:20</td><td style="font-weight:800">18:00</td></tr>
-            <tr><td>19:00 — 19:20</td><td style="font-weight:800">19:00</td></tr>
-            <tr><td>All other times</td><td style="font-weight:800">Nearest 15 min</td></tr>
-          </tbody></table>
-        </div>
-      </div>
-
-      <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Actual vs Accounted</div>
-      <table style="width:auto"><thead><tr><th>Mode</th><th>Description</th></tr></thead><tbody>
-        <tr><td style="font-weight:700">Actual</td><td>Shows raw times as imported from Excel. OT calculated on actual hours.</td></tr>
-        <tr><td style="font-weight:700">Accounted</td><td>Shows rounded times per rules above. OT calculated on rounded hours.</td></tr>
-      </tbody></table>
-    </div>
-  </div>
-
-  <!-- MASTER PAGES (generated by _hrmsMasterPage) -->
-  <div class="page" id="pageHrmsMCompany"></div>
-  <div class="page" id="pageHrmsMCategory"></div>
-  <div class="page" id="pageHrmsMEmpType"></div>
-  <div class="page" id="pageHrmsMTeam"></div>
-  <div class="page" id="pageHrmsMDept"></div>
-  <div class="page" id="pageHrmsMSubDept"></div>
-  <div class="page" id="pageHrmsMDesig"></div>
-
-  <!-- ATTENDANCE & SALARY (Combined) -->
-  <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
-    <!-- Top header: Select Month + label -->
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <button onclick="_hrmsPickMonth()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">📅 Select Month</button>
-      <span id="hrmsMonthLabel" style="font-size:17px;font-weight:900;color:var(--text)"></span>
-    </div>
-    <!-- 3 Main Tabs: Settings | Attendance | Salary -->
-    <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">⚙️ Settings</button>
-      <button onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📅 Attendance</button>
-      <button onclick="_hrmsMainTab('salworker')" id="hrmsMainTabSalworker" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">💰 Salary - Worker</button>
-      <button onclick="_hrmsMainTab('salstaff')" id="hrmsMainTabSalstaff" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">💰 Salary - Staff</button>
-    </div>
-
-    <!-- === SETTINGS TAB === -->
-    <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto">
-      <div id="hrmsSalSettingsBody"></div>
-      <!-- Statutory Settings -->
-      <div style="margin-top:20px;border-top:1.5px solid var(--border);padding-top:16px">
-        <div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:12px">Statutory Settings</div>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px">
-          <!-- PF -->
-          <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:200px;flex:1;max-width:280px">
-            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">PF (Provident Fund)</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label>
-              <input type="number" id="hrmsPfWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label>
-              <input type="number" id="hrmsPfCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Threshold</label>
-              <input type="number" id="hrmsPfThreshold" step="500" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-              <span style="font-size:10px;color:var(--text3)">Gross &gt; this</span>
-            </div>
-          </div>
-          <!-- ESI -->
-          <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:200px;flex:1;max-width:280px">
-            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">ESI (Employee State Insurance)</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label>
-              <input type="number" id="hrmsEsiWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label>
-              <input type="number" id="hrmsEsiCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Threshold</label>
-              <input type="number" id="hrmsEsiThreshold" step="500" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-              <span style="font-size:10px;color:var(--text3)">Gross &le; this</span>
-            </div>
-          </div>
-          <!-- PT -->
-          <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:300px;flex:2;max-width:500px">
-            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">PT (Professional Tax)</div>
-            <div id="hrmsPtRules"></div>
-            <button onclick="_hrmsAddPtRule()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--accent);cursor:pointer;font-weight:700;margin-top:4px">+ Add Rule</button>
-          </div>
-        </div>
-        <!-- PL Rules -->
-        <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">Paid Leave Allocation Rules</div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Confirmation = 3 months after joining date + 1 day</div>
-          <table style="border-collapse:collapse;font-size:11px;width:100%">
-            <thead><tr style="background:#f8fafc"><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Category</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Condition</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">PL Allocation</th></tr></thead>
-            <tbody>
-              <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&ge; 60 months post confirmation</td>
-                <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffSenior" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/year (April)</td></tr>
-              <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&lt; 60 months post confirmation</td>
-                <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffJunior" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
-              <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Worker</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">After probation (3 months)</td>
-                <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLWorker" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
-              <tr><td style="padding:4px 6px" colspan="2">Confirmation threshold (senior staff)</td>
-                <td style="padding:4px 6px"><input type="number" id="hrmsPLSeniorMonths" step="1" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> months</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <button onclick="_hrmsSaveStatutory()" style="padding:6px 16px;font-size:12px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Save Statutory Settings</button>
-        <span id="hrmsStatSaveStatus" style="font-size:11px;font-weight:700;margin-left:8px"></span>
-      </div>
-
-      <!-- Opening Balances -->
-      <div id="hrmsOBSection" style="margin-top:20px;border-top:1.5px solid var(--border);padding-top:16px">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:900;color:var(--text)">Opening Balances (Jan 2026)</span>
-          <label style="padding:6px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border-radius:6px;cursor:pointer;margin-left:auto">📥 Import Opening Balances<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportOB(this)" style="display:none"></label>
-        </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Excel format: <b>Emp Code</b>, <b>L-OB</b> (Paid Leave Opening Balance), <b>Adv-OB</b> (Advance Opening Balance)</div>
-        <div id="hrmsOBStatus"></div>
-      </div>
-
-      <!-- Manual Present Days -->
-      <div style="margin-top:20px;border-top:1.5px solid var(--border);padding-top:16px">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:900;color:var(--text)">Manual Present Days</span>
-          <span style="font-size:11px;color:var(--text3)">Override present days for specific employees (applies to selected month)</span>
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code</label><input type="text" id="hrmsManualPCode" placeholder="e.g. K001" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:80px"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Present Days</label><input type="number" id="hrmsManualPDays" step="0.5" min="0" placeholder="e.g. 26" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
-          <button onclick="_hrmsAddManualP()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
-          <label style="padding:5px 14px;font-size:12px;font-weight:700;background:#dbeafe;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:4px;cursor:pointer;margin-left:auto">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportManualP(this)" style="display:none"></label>
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Import Excel: <b>Emp Code</b>, <b>Present Days</b></div>
-        <div id="hrmsManualPList" style="max-height:200px;overflow-y:auto"></div>
-      </div>
-    </div>
-
-    <!-- === ATTENDANCE TAB === -->
-    <div id="hrmsMainAttendanceContent" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-      <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-        <!-- Attendance sub-tabs -->
-        <div style="display:flex;gap:0;margin-bottom:8px;border-bottom:2px solid var(--border)">
-          <div class="hrms-att-tab active" id="hrmsTabSummary" onclick="_hrmsAttSetTab('summary')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Summary</div>
-          <div class="hrms-att-tab" id="hrmsTabAttendance" onclick="_hrmsAttSetTab('attendance')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Attendance</div>
-          <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration</div>
-          <div class="hrms-att-tab" id="hrmsTabPot" onclick="_hrmsAttSetTab('pot')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">P & OT</div>
-          <div class="hrms-att-tab" id="hrmsTabEntryexit" onclick="_hrmsAttSetTab('entryexit')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Entry/Exit</div>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-            <button class="btn btn-primary" onclick="_hrmsOpenPrintFormats()" style="font-size:11px;padding:5px 12px">🖨 Print PDF</button>
-          </div>
-        </div>
-        <!-- Tab: Summary -->
-        <div id="hrmsAttTabSummary" class="hrms-att-panel" style="flex:1;overflow:auto"></div>
-        <!-- Tab: Attendance -->
-        <div id="hrmsAttTabAttendance" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-            <div style="position:relative"><input type="text" id="hrmsAttFSearch" placeholder="🔍 Code / Name" oninput="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="font-size:11px;padding:5px 24px 5px 8px;border:1.5px solid var(--accent);border-radius:6px;width:140px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span></div>
-            <select id="hrmsAttFPlant" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
-            <select id="hrmsAttFCategory" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
-            <select id="hrmsAttFType" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Types</option></select>
-            <select id="hrmsAttFTeam" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
-            <button onclick="_hrmsAttClearFilters()" style="font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
-            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-              <span id="hrmsAttCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
-              <button id="hrmsAttToggleBtn" onclick="_hrmsAttToggleMode()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-light);color:var(--accent);font-weight:800;cursor:pointer">Actual</button>
-              <label class="btn btn-secondary" style="font-size:11px;padding:5px 12px;cursor:pointer;margin:0">📥 Import/Update<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAttendance(this)" style="display:none"></label>
-              <button class="btn btn-secondary" onclick="_hrmsAttExportMonth()" style="font-size:11px;padding:5px 12px">📤 Export</button>
-            </div>
-          </div>
-          <div id="hrmsAttGrid" style="overflow:auto;flex:1;position:relative"></div>
-        </div>
-        <!-- Tab: Alteration -->
-        <div id="hrmsAttTabAlteration" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-          <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
-            <input type="search" id="altSrchCode" placeholder="🔍 Code" oninput="_hrmsAltFilterChanged()" onsearch="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;width:80px">
-            <input type="search" id="altSrchName" placeholder="🔍 Name" oninput="_hrmsAltFilterChanged()" onsearch="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;width:100px">
-            <select id="altFType" onchange="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px"><option value="">All Types</option></select>
-            <select id="altFPlant" onchange="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px"><option value="">All Plants</option></select>
-            <select id="altFCat" onchange="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px"><option value="">All Categories</option></select>
-            <select id="altFTeam" onchange="_hrmsAltFilterChanged()" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:4px"><option value="">All Teams</option></select>
-            <button onclick="_hrmsAltClearFilters()" style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
-            <span id="hrmsAltCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
-            <div style="margin-left:auto">
-              <label class="btn btn-secondary" style="font-size:11px;padding:5px 12px;cursor:pointer;margin:0">📋 Import Alteration<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAlteration(this)" style="display:none"></label>
-            </div>
-          </div>
-          <div id="hrmsAltGrid" style="overflow:auto;flex:1;position:relative"></div>
-        </div>
-        <!-- Tab: P & OT -->
-        <div id="hrmsAttTabPot" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-          <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:flex-end">
-            <button class="btn btn-secondary" onclick="_hrmsAttExportSummary()" style="font-size:11px;padding:5px 12px">📊 Export Summary</button>
-          </div>
-          <div id="hrmsAttTabPotContent" style="overflow:auto;flex:1"></div>
-        </div>
-        <!-- Tab: Entry/Exit -->
-        <div id="hrmsAttTabEntryexit" class="hrms-att-panel" style="display:none;flex:1;overflow:auto"></div>
-      </div>
-    </div>
-
-    <!-- === SALARY - WORKER TAB === -->
-    <div id="hrmsMainSalworkerContent" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-      <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-          <button onclick="_hrmsSaveBalances('worker')" id="hrmsWorkerSaveBalBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;margin-left:auto">💾 Save Balances</button>
-          <button onclick="_hrmsOrSalExport('worker')" id="hrmsWorkerSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
-        </div>
-        <div id="hrmsWorkerSalGrid" style="overflow:auto;flex:1"></div>
-      </div>
-    </div>
-
-    <!-- === SALARY - STAFF TAB === -->
-    <div id="hrmsMainSalstaffContent" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-      <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-          <button onclick="_hrmsSaveBalances('staff')" id="hrmsStaffSaveBalBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;margin-left:auto">💾 Save Balances</button>
-          <button onclick="_hrmsOrSalExport('staff')" id="hrmsStaffSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
-        </div>
-        <div id="hrmsStaffSalGrid" style="overflow:auto;flex:1"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- EMPLOYEE ADD/EDIT PAGE (inline) -->
-  <div class="page" id="pageHrmsEmpEdit">
-    <div id="hrmsEmpEditContent"></div>
-  </div>
-
-</div>
-
-<!-- MONTH PICKER MODAL -->
-<div class="modal-overlay" id="mMonthPicker"><div class="modal" style="max-width:450px">
-  <div class="modal-header"><div class="modal-title">📅 Select Month</div><div class="modal-close" onclick="cm('mMonthPicker')">×</div></div>
-  <div id="monthPickerList" style="max-height:400px;overflow-y:auto"></div>
-</div></div>
-
-<!-- PRINT FORMAT MODAL -->
-<div class="modal-overlay" id="mPrintFmt"><div class="modal" style="max-width:650px">
-  <div class="modal-header"><div class="modal-title">🖨 Print Formats</div><div class="modal-close" onclick="cm('mPrintFmt')">×</div></div>
-  <!-- Bulk print section -->
-  <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
-    <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="printFmtSelectAll" onchange="_hrmsPrintFmtToggleAll(this.checked)" checked style="width:auto"> Select All</label>
-    <div style="flex:1"></div>
-    <button class="btn btn-primary" onclick="_hrmsBulkPrint()" style="font-size:12px;padding:6px 14px">📁 Save Selected as PDF</button>
-  </div>
-  <div id="printFmtList"></div>
-  <div style="margin-top:12px;border-top:1.5px solid var(--border);padding-top:12px">
-    <div style="font-size:13px;font-weight:800;margin-bottom:8px" id="printFmtFormTitle">Add New Format</div>
-    <input type="hidden" id="printFmtId">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="form-group"><label>Format Name *</label><input type="text" id="printFmtName" placeholder="e.g. Plant-1 Staff"></div>
-      <div class="form-group"><label>Plant</label><select id="printFmtPlant"><option value="">All</option></select></div>
-      <div class="form-group"><label>Employment Type</label><select id="printFmtType"><option value="">All</option></select></div>
-      <div class="form-group"><label>Category</label><select id="printFmtCat"><option value="">All</option></select></div>
-      <div class="form-group" style="grid-column:span 2"><label>Team</label><select id="printFmtTeam"><option value="">All</option></select></div>
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-      <button class="btn btn-secondary" onclick="_hrmsPrintFmtReset()">Cancel</button>
-      <button class="btn btn-primary" onclick="_hrmsSavePrintFmt()">Save Format</button>
-    </div>
-  </div>
-</div></div>
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="myApps_Common.js"></script>
-<script>
+// ═══ GUARD / DEPENDENCY CHECK ═════════════════════════════════════════════
 if(typeof _sb==='undefined'||typeof DB==='undefined'){
-  document.body.innerHTML='<div style="padding:40px;text-align:center;color:#dc2626"><h2>⚠ myApps_Common.js not loaded</h2></div>';
+  document.body.innerHTML='<div style="padding:40px;text-align:center;color:#dc2626"><h2>⚠ js/common.js not loaded</h2></div>';
 }
 
-// ===== HRMS APP =====
+// ═══ BOOT / SESSION RESTORE ═════════════════════════════════════════════
 if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsCompanies','hrmsCategories','hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments','hrmsDesignations','hrmsDayTypes','hrmsPrintFormats','hrmsSettings'];
 // hrmsAttendance loaded on-demand per month, not on boot
 
@@ -586,7 +76,7 @@ function hrmsGo(pid){
   document.querySelector('.sidebar-overlay').classList.remove('show');
 }
 
-// ===== MASTERS ACCORDION =====
+// ═══ NAVIGATION / SIDEBAR ════════════════════════════════════════════════
 function _hrmsToggleMasters(){
   var g=document.getElementById('hrmsMastersGroup');
   var a=document.getElementById('hrmsMastersArrow');
@@ -610,7 +100,7 @@ function _hrmsToggleSidebar(){
   }
 }
 
-// ===== MASTER CONFIG =====
+// ═══ MASTERS (company, category, empType, team, dept, designation) ═══════
 var HRMS_MASTERS={
   pageHrmsMCompany:{tbl:'hrmsCompanies',label:'Plant',icon:'🏭',empField:'location'},
   pageHrmsMCategory:{tbl:'hrmsCategories',label:'Category',icon:'🏷',empField:'category'},
@@ -865,7 +355,7 @@ function om(id){var el=document.getElementById(id);if(el){el.style.display='flex
 function cm(id){var el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('open');}}
 function modalErr(mid,msg){var el=document.getElementById(mid+'Err');if(el){el.textContent=msg;el.style.display='block';}}
 
-// ===== DASHBOARD =====
+// ═══ DASHBOARD ══════════════════════════════════════════════════════════
 function renderHrmsDashboard(){
   var el=document.getElementById('hrmsDashContent');if(!el)return;
   var emps=(DB.hrmsEmployees||[]).filter(function(e){return(e.status||'Active')==='Active';});
@@ -940,7 +430,7 @@ function renderHrmsDashboard(){
   el.innerHTML=h;
 }
 
-// ===== EMPLOYEES =====
+// ═══ EMPLOYEES (list, edit, modal, period tracking) ═════════════════════
 var _hrmsEmpSortKey='empCode',_hrmsEmpSortAsc=true;
 var _hrmsEmpSortCols=['empCode','name','location','employmentType','teamName','category'];
 function _hrmsEmpSort(key){
@@ -1139,32 +629,19 @@ function _hrmsShowAge(){
   if(now.getMonth()<bd.getMonth()||(now.getMonth()===bd.getMonth()&&now.getDate()<bd.getDate())) age--;
   ageEl.value=age+' yrs';
 }
-// ═══ PERIOD-BASED ORG/SALARY TRACKING ═══
+// ═══ PERIOD-BASED ORG/SALARY TRACKING ═══════════════════════════════════
 var _hrmsEmpPeriods=[];// current employee's periods array
 var _hrmsActivePeriodIdx=0;
 var _PERIOD_FIELDS=['location','department','subDepartment','designation','employmentType','teamName','category','roll','reportingTo','salaryDay','salaryMonth','specialAllowance','status','dateOfLeft'];
 var _PERIOD_FORM_MAP={location:'hrmsEmpLocation',department:'hrmsEmpDept',subDepartment:'hrmsEmpSubDept',designation:'hrmsEmpDesig',employmentType:'hrmsEmpType',teamName:'hrmsEmpTeam',category:'hrmsEmpCategory',roll:'hrmsEmpRoll',reportingTo:'hrmsEmpReporting',salaryDay:'hrmsEmpSalDay',salaryMonth:'hrmsEmpSalMonth',specialAllowance:'hrmsEmpSpAllow',status:'hrmsEmpStatus',dateOfLeft:'hrmsEmpDOL'};
 
-function _hrmsMonthLabel(ym){
-  if(!ym) return 'Till date';
-  var parts=ym.split('-');var mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return mon[parseInt(parts[1])-1]+' '+parts[0].slice(-2);
-}
-function _hrmsCurMonth(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');}
-function _hrmsPrevMonth(ym){var d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+// _hrmsMonthLabel is in hrms-logic.js
+// _hrmsCurMonth is in hrms-logic.js
+// _hrmsPrevMonth is in hrms-logic.js
 
-function _hrmsMigratePeriods(e){
-  // If employee has no periods array, create one from flat fields (migration)
-  if(e.periods&&e.periods.length) return e.periods;
-  var p={from:'2025-01',to:null};
-  _PERIOD_FIELDS.forEach(function(f){p[f]=e[f]||'';});
-  if(typeof p.salaryDay==='string') p.salaryDay=parseFloat(p.salaryDay)||0;
-  if(typeof p.salaryMonth==='string') p.salaryMonth=parseFloat(p.salaryMonth)||0;
-  if(typeof p.specialAllowance==='string') p.specialAllowance=parseFloat(p.specialAllowance)||0;
-  return [p];
-}
+// _hrmsMigratePeriods is in hrms-logic.js
 
-function _hrmsGetActivePeriod(){return _hrmsEmpPeriods[_hrmsActivePeriodIdx]||_hrmsEmpPeriods[0]||null;}
+// _hrmsGetActivePeriod is in hrms-logic.js
 
 function _hrmsBuildPeriodTable(){
   var body=document.getElementById('hrmsEmpPeriodBody');
@@ -1236,7 +713,7 @@ function _hrmsSnapSalary(el,step){
   v=Math.round(v/step)*step;
   el.value=v;
 }
-function _hrmsIsSA(){return CU&&((CU.hrmsRoles||[]).indexOf('Super Admin')>=0||(CU.roles||[]).indexOf('Super Admin')>=0);}
+// _hrmsIsSA is in hrms-logic.js
 function _hrmsDeletePeriodRow(idx){
   if(!confirm('Delete this period record?')) return;
   _hrmsEmpPeriods.splice(idx,1);
@@ -1298,7 +775,7 @@ function _hrmsSavePeriodToMemory(){
   // No-op — period fields are now saved directly via onchange in the table
 }
 
-// ═══ CHANGE REQUEST APPROVAL PAGE ═══
+// ═══ CHANGE REQUEST APPROVAL PAGE ═══════════════════════════════════════
 var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow'};
 function _hrmsUpdateChangeReqBadge(){
   var count=0;
@@ -1649,13 +1126,7 @@ function _hrmsSanitize(obj){
   });
   return obj;
 }
-function _hrmsSanitizePeriods(periods){
-  (periods||[]).forEach(function(p){
-    Object.keys(p).forEach(function(k){
-      if(typeof p[k]==='string'&&k!=='_wfStatus'&&k!=='_ecrResult') p[k]=p[k].replace(/[\r\n]+/g,' ').trim();
-    });
-  });
-}
+// _hrmsSanitizePeriods is in hrms-logic.js
 async function saveHrmsEmp(){
   var id=document.getElementById('hrmsEmpId').value;
   var code=document.getElementById('hrmsEmpCode').value.trim();
@@ -1717,7 +1188,7 @@ async function _hrmsDelEmp(id){
   renderHrmsEmployees();renderHrmsDashboard();notify('Employee deleted');
 }
 
-// ===== IMPORT =====
+// ═══ IMPORT / EXPORT EMPLOYEES ═══════════════════════════════════════════
 async function _hrmsImportEmployees(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
   showSpinner('Importing employees…');
@@ -1996,7 +1467,7 @@ function _hrmsExportEmployees(){
   notify('📤 Exported '+emps.length+' employees');
 }
 
-// ===== MONTHLY ATTENDANCE =====
+// ═══ MONTHLY ATTENDANCE (grid, summary, entry/exit, POT) ════════════════
 var _hrmsAttSelectedMonth=null;
 var _hrmsAttCache={};// monthKey → [{id,empCode,monthKey,days}]
 var _hrmsAltCache={};// monthKey → [{id,empCode,monthKey,days:{day:{in,out,reason}}}]
@@ -2040,12 +1511,7 @@ async function _hrmsAttFetchMonth(monthKey){
 var _hrmsAttCurrentTab='summary';
 var _MONTH_NAMES=['','January','February','March','April','May','June','July','August','September','October','November','December'];
 var _MON3=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function _hrmsFmtDate(s){
-  if(!s) return '—';
-  var d=new Date(s.length===10?s+'T00:00:00':s);
-  if(isNaN(d.getTime())) return s;
-  return String(d.getDate()).padStart(2,'0')+'-'+_MON3[d.getMonth()+1]+'-'+String(d.getFullYear()).slice(-2);
-}
+// _hrmsFmtDate is in hrms-logic.js
 
 
 function _hrmsAttSetTab(tab){
@@ -2444,15 +1910,7 @@ function _hrmsAttRefresh(){
   _hrmsRenderAttGrid(+p[0],+p[1]);
 }
 
-function _hrmsGetDayType(monthKey,day,yr,mo,plant){
-  var key=String(day);
-  if(plant){
-    var rec=(DB.hrmsDayTypes||[]).find(function(r){return r.monthKey===monthKey&&r.plant===plant;});
-    if(rec&&rec.dayTypes&&rec.dayTypes[key]) return rec.dayTypes[key];
-  }
-  var d=new Date(yr,mo-1,day);
-  return d.getDay()===0?'WO':'WD';
-}
+// _hrmsGetDayType is in hrms-logic.js
 
 
 function _hrmsRenderAttGrid(yr,mo){
@@ -2713,55 +2171,10 @@ function _hrmsRenderAttGrid(yr,mo){
   grid.innerHTML=h;
 }
 
-function _hrmsParseTime(t){
-  if(!t)return null;
-  t=t.toString().trim();
-  var m=t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
-  if(!m)return null;
-  var hr=+m[1],min=+m[2];
-  if(m[4]){
-    var ap=m[4].toUpperCase();
-    if(ap==='PM'&&hr<12) hr+=12;
-    if(ap==='AM'&&hr===12) hr=0;
-  }
-  return hr*60+min;
-}
-
-function _hrmsMinToTime(mins){
-  if(mins===null||mins===undefined)return'';
-  var h=Math.floor(mins/60),m=mins%60;
-  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
-}
-
-// Rounding rules for IN time
-function _hrmsRoundIn(mins){
-  if(mins===null)return null;
-  // 7:40-8:10 → 8:00
-  if(mins>=460&&mins<=490) return 480;
-  // 8:40-9:10 → 9:00
-  if(mins>=520&&mins<=550) return 540;
-  // 18:40-19:10 → 19:00
-  if(mins>=1120&&mins<=1150) return 1140;
-  // Default: round to nearest 15 min
-  return Math.round(mins/15)*15;
-}
-
-// Rounding rules for OUT time
-function _hrmsRoundOut(mins){
-  if(mins===null)return null;
-  // 6:00-6:20 → 6:00
-  if(mins>=360&&mins<=380) return 360;
-  // 8:00-8:20 → 8:00
-  if(mins>=480&&mins<=500) return 480;
-  // 16:30-16:50 → 16:30
-  if(mins>=990&&mins<=1010) return 990;
-  // 18:00-18:20 → 18:00
-  if(mins>=1080&&mins<=1100) return 1080;
-  // 19:00-19:20 → 19:00
-  if(mins>=1140&&mins<=1160) return 1140;
-  // Default: round to nearest 15 min
-  return Math.round(mins/15)*15;
-}
+// _hrmsParseTime is in hrms-logic.js
+// _hrmsMinToTime is in hrms-logic.js
+// _hrmsRoundIn is in hrms-logic.js
+// _hrmsRoundOut is in hrms-logic.js
 
 // Toggle state
 var _hrmsAttAccounted=false;
@@ -3009,10 +2422,8 @@ async function _hrmsImportAttendance(inputEl){
   }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
 }
 
-// ===== PRINT FORMATS (stored in Supabase) =====
-function _hrmsGetPrintFormats(){
-  return DB.hrmsPrintFormats||[];
-}
+// ═══ PRINT FORMATS / PDF GENERATION ═════════════════════════════════════
+// _hrmsGetPrintFormats is in hrms-logic.js
 
 function _hrmsOpenPrintFormats(){
   _hrmsPrintFmtReset();
@@ -3258,17 +2669,9 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
   return doc;
 }
 
-function _hrmsColStyles(widths){
-  var s={};
-  for(var i=0;i<widths.length;i++) s[i]={cellWidth:widths[i]};
-  return s;
-}
+// _hrmsColStyles is in hrms-logic.js
 
-function _hexToRgb(hex){
-  hex=(hex||'#e2e8f0').replace('#','');
-  if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-  return[parseInt(hex.substring(0,2),16),parseInt(hex.substring(2,4),16),parseInt(hex.substring(4,6),16)];
-}
+// _hexToRgb is in hrms-logic.js
 
 async function _hrmsBulkPrint(){
   var selected=[...document.querySelectorAll('.printFmtCb:checked')].map(function(cb){return cb.value;});
@@ -3490,7 +2893,7 @@ function _hrmsPrintWithFormat(id){
   notify('✅ PDF saved');
 }
 
-// ═══ COMBINED PAGE — UNIFIED MONTH + 3 MAIN TABS ═══
+// ═══ COMBINED PAGE — UNIFIED MONTH + 3 MAIN TABS ════════════════════════
 var _hrmsMonth=null;
 var _hrmsActiveMainTab='settings';
 
@@ -3551,7 +2954,7 @@ function _hrmsRenderActiveTab(){
   else if(_hrmsActiveMainTab==='salstaff') _hrmsRenderOrSalary(yr,mo,'staff');
 }
 
-// ═══ SALARY SETTINGS — Per-Plant Working Days & Paid Holidays ═══
+// ═══ SALARY SETTINGS — Per-Plant Working Days & Paid Holidays ═══════════
 var _hrmsSettingsApplyAll=false;
 
 function _hrmsSalSettingsRender(){
@@ -3657,7 +3060,7 @@ async function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
   _hrmsSalSettingsRender();
 }
 
-// ═══ STATUTORY SETTINGS ═══
+// ═══ STATUTORY SETTINGS ══════════════════════════════════════════════════
 var _hrmsStatutory={
   pfWorker:12,pfCompany:13,pfThreshold:21000,
   esiWorker:0.75,esiCompany:3.25,esiThreshold:21000,
@@ -3765,140 +3168,21 @@ async function _hrmsSaveStatutory(){
   notify('✅ Statutory settings saved');
 }
 
-// PT calc: rules evaluated top-to-bottom, first match wins
-function _hrmsCalcPT(gross,gender,month){
-  var rules=_hrmsStatutory.ptRules||[];
-  for(var i=0;i<rules.length;i++){
-    var r=rules[i];
-    // Gender filter
-    if(r.gender&&r.gender.toLowerCase()!==(gender||'').toLowerCase()) continue;
-    // Month filter
-    if(r.month&&r.month.toLowerCase()!==String(month||'').toLowerCase()) continue;
-    // Condition check
-    var match=false;
-    if(r.op==='lt') match=gross<r.threshold;
-    else if(r.op==='gte') match=gross>=r.threshold;
-    if(match) return r.amount;
-  }
-  return 0;
-}
+// _hrmsCalcPT is in hrms-logic.js
 
-// ═══ BALANCE HELPERS ═══
-function _hrmsGetBal(emp,monthKey){
-  var ex=emp.extra||{};var bal=ex.bal||{};
-  return bal[monthKey]||{plOB:0,plCB:0,advOB:0,advCB:0};
-}
+// ═══ BALANCE HELPERS ═════════════════════════════════════════════════════
+// _hrmsGetBal is in hrms-logic.js
+// _hrmsGetPrevMonth is in hrms-logic.js
+// _hrmsGetEmpOB is in hrms-logic.js
 
-function _hrmsGetPrevMonth(mk){
-  var p=mk.split('-');var yr=+p[0],mo=+p[1];
-  mo--;if(mo<1){mo=12;yr--;}
-  return yr+'-'+String(mo).padStart(2,'0');
-}
+// ═══ PAID LEAVE ALLOCATION (FY April–March) ═════════════════════════════
+// _hrmsGetConfirmationDate is in hrms-logic.js
+// _hrmsMonthsSinceConfirmation is in hrms-logic.js
+// _hrmsFYStart is in hrms-logic.js
+// _hrmsCalcPLGiven is in hrms-logic.js
+// _hrmsCumPLAvail is in hrms-logic.js
 
-function _hrmsGetEmpOB(emp,mk){
-  // For Jan 2026 use imported OB, else use previous month's CB
-  if(mk==='2026-01'){
-    var ex=emp.extra||{};
-    return {plOB:ex.plOB||0,advOB:ex.advOB||0};
-  }
-  var prev=_hrmsGetPrevMonth(mk);
-  var prevBal=_hrmsGetBal(emp,prev);
-  return {plOB:prevBal.plCB||0,advOB:prevBal.advCB||0};
-}
-
-// ═══ PAID LEAVE ALLOCATION (FY April–March) ═══
-// Confirmation date = 1 day prior to completing 3 calendar months from joining
-// e.g. DOJ 8-Sep-25 → 8-Dec-25 - 1 day = 7-Dec-25
-function _hrmsGetConfirmationDate(emp){
-  var doj=emp.dateOfJoining;
-  if(!doj) return null;
-  var d=new Date(doj.length===10?doj+'T00:00:00':doj);
-  if(isNaN(d.getTime())) return null;
-  d.setMonth(d.getMonth()+3);
-  d.setDate(d.getDate()-1);
-  return d;
-}
-
-// Months since confirmation: fractional based on day, rounded to nearest 0.5 (MROUND 0.5)
-// e.g. conf 9-Dec-25, salary Jan-26: whole=1, frac=23/31=0.74 → total=1.74 → mround=1.5
-function _hrmsMonthsSinceConfirmation(emp,yr,mo){
-  var conf=_hrmsGetConfirmationDate(emp);
-  if(!conf) return -1;
-  var salStart=new Date(yr,mo-1,1);
-  if(salStart<conf) return -1;
-  var wholeMonths=(salStart.getFullYear()-conf.getFullYear())*12+(salStart.getMonth()-conf.getMonth());
-  var dayInMonth=conf.getDate();
-  var frac=0;
-  if(dayInMonth>1){
-    var daysInConfMonth=new Date(conf.getFullYear(),conf.getMonth()+1,0).getDate();
-    frac=(daysInConfMonth-dayInMonth+1)/daysInConfMonth;
-  }
-  var total=wholeMonths+frac;
-  return Math.round(total*2)/2;// MROUND to nearest 0.5
-}
-
-// FY start year for a given month (Apr-Mar FY)
-function _hrmsFYStart(yr,mo){ return mo>=4?yr:yr-1; }
-
-// Calculate monthly PL accrual for this salary month
-function _hrmsCalcPLGiven(emp,yr,mo){
-  var conf=_hrmsGetConfirmationDate(emp);
-  if(!conf) return 0;
-  // PL eligibility starts month AFTER confirmation
-  var eligYr=conf.getFullYear(),eligMo=conf.getMonth()+2;// +1 for 0-based, +1 for month after
-  if(eligMo>12){eligMo-=12;eligYr++;}
-  // Not eligible yet this month
-  if(yr<eligYr||(yr===eligYr&&mo<eligMo)) return 0;
-
-  var s=_hrmsStatutory;
-  var isStaff=(emp.category||'').toLowerCase()==='staff';
-  var monthsSinceConf=_hrmsMonthsSinceConfirmation(emp,yr,mo);
-
-  var seniorThreshold=s.plSeniorMonths||60;
-  if(isStaff&&monthsSinceConf>=seniorThreshold){
-    // Senior staff: 18 PL given in the month they hit 60 months, then 0 monthly
-    // Check if this is the exact month they crossed the threshold
-    var prevMonthsSince=_hrmsMonthsSinceConfirmation(emp,mo===1?yr-1:yr,mo===1?12:mo-1);
-    if(prevMonthsSince<seniorThreshold) return s.plStaffSenior||18;// crossing month
-    return 0;// already crossed in a previous month
-  }
-  return isStaff?(s.plStaffJunior||1.5):(s.plWorker||1.5);
-}
-
-// Cumulative PL earned from FY start (or confirmation) through salary month
-// FY is April–March. PL accrual starts from month AFTER confirmation or FY April, whichever is later.
-// Example: confirmed before Apr 2025, salary Jan 2026 → 10 months × 1.5 = 15
-// Example: confirmed Oct 2025, salary Jan 2026 → 3 months (Nov,Dec,Jan) × 1.5 = 4.5
-function _hrmsCumPLAvail(emp,yr,mo){
-  var conf=_hrmsGetConfirmationDate(emp);
-  if(!conf) return 0;
-  // Month after confirmation (eligibility start)
-  var eligYr=conf.getFullYear(),eligMo=conf.getMonth()+2;
-  if(eligMo>12){eligMo-=12;eligYr++;}
-  // FY start (April)
-  var fyYr=_hrmsFYStart(yr,mo);
-  var fyStart=fyYr*12+4;// April of FY
-  var eligStart=eligYr*12+eligMo;
-  var effectiveStart=Math.max(fyStart,eligStart);
-  var current=yr*12+mo;
-  if(current<effectiveStart) return 0;
-
-  var s=_hrmsStatutory;
-  var isStaff=(emp.category||'').toLowerCase()==='staff';
-  var monthsSinceConf=_hrmsMonthsSinceConfirmation(emp,yr,mo);
-  var seniorThreshold=s.plSeniorMonths||60;
-
-  if(isStaff&&monthsSinceConf>=seniorThreshold){
-    // Senior staff: 18 PL for the year (from the month they crossed 60)
-    return s.plStaffSenior||18;
-  }
-  // Monthly accrual: count eligible months × rate
-  var months=current-effectiveStart+1;// inclusive
-  var rate=isStaff?(s.plStaffJunior||1.5):(s.plWorker||1.5);
-  return months*rate;
-}
-
-// ═══ OPENING BALANCE IMPORT ═══
+// ═══ OPENING BALANCE IMPORT ══════════════════════════════════════════════
 async function _hrmsImportOB(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
   var statusEl=document.getElementById('hrmsOBStatus');
@@ -3935,7 +3219,7 @@ async function _hrmsImportOB(inputEl){
   reader.readAsArrayBuffer(file);
 }
 
-// ═══ MANUAL PRESENT DAYS ═══
+// ═══ MANUAL PRESENT DAYS ════════════════════════════════════════════════
 var _hrmsManualPData={};// monthKey → {empCode: days}
 
 function _hrmsLoadManualP(){
@@ -4037,7 +3321,7 @@ async function _hrmsImportManualP(inputEl){
   reader.readAsArrayBuffer(file);
 }
 
-// ═══ ON ROLL SALARY CALCULATION ═══
+// ═══ ON ROLL SALARY CALCULATION ══════════════════════════════════════════
 function _hrmsRenderOrSalary(yr,mo,catFilter){
   var isWorker=catFilter==='worker';
   var gridId=isWorker?'hrmsWorkerSalGrid':'hrmsStaffSalGrid';
@@ -4614,7 +3898,7 @@ function _hrmsRenderAltGrid(yr,mo){
   grid.innerHTML=h;
 }
 
-// ===== IMPORT ALTERATION SHEET =====
+// ═══ ALTERATION SHEET (import / grid) ═══════════════════════════════════
 // Format: Emp Code, Employee Name (ignored), Date, Time IN, Time Out, Reason
 async function _hrmsImportAlteration(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
@@ -4700,6 +3984,3 @@ async function _hrmsImportAlteration(inputEl){
   }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
 }
 
-</script>
-</body>
-</html>

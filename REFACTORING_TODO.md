@@ -11,17 +11,17 @@
 ## Phase 0: Rename Files (Do first — one-time)
 
 ### 0.1 Rename HTML files
-- [ ] `myApps_VMS.html` → `vms.html`
-- [ ] `myApps_HRMS.html` → `hrms.html`
-- [ ] `myApps_HWMS.html` → `hwms.html`
-- [ ] `myApps_Security.html` → `security.html`
-- [ ] `myApps_Common.js` → `js/common.js`
+- [x] `myApps_VMS.html` → `vms.html`
+- [x] `myApps_HRMS.html` → `hrms.html`
+- [x] `myApps_HWMS.html` → `hwms.html`
+- [x] `myApps_Security.html` → `security.html`
+- [x] `myApps_Common.js` → `js/common.js`
 
 ### 0.2 Update all internal references
-- [ ] Update `_navigateTo()` URLs in all files
-- [ ] Update `<script src="myApps_Common.js">` in all HTML files
-- [ ] Update any `window.location.href` references
-- [ ] Update GitHub Pages links if any
+- [x] Update `_navigateTo()` URLs in all files
+- [x] Update `<script src="myApps_Common.js">` in all HTML files
+- [x] Update any `window.location.href` references
+- [x] No GitHub Pages links found
 
 ### 0.3 Verify
 - [ ] Test all navigation: Portal → VMS → HRMS → HWMS → Security → Portal
@@ -33,157 +33,161 @@
 ## Phase 1: Extract CSS into separate files
 
 ### 1.1 Common CSS
-- [ ] Extract shared styles from `<style>` blocks (sidebar, topbar, cards, modals, buttons, forms, tables, badges, spinners)
-- [ ] Create `css/common.css`
-- [ ] Replace `<style>` blocks in all HTML files with `<link>` to common.css
+- [x] Extract styles from `<style>` blocks into per-app CSS files
+- [ ] Create `css/common.css` (deferred to Phase 4 — styles vary per app, dedup needed first)
+- [x] Replace `<style>` blocks in all HTML files with `<link>` to CSS files
 - [ ] Convert frequently-used inline `style=` attributes to CSS classes
 
 ### 1.2 App-specific CSS (per app)
-- [ ] Security: Extract app-specific styles → `css/security.css`
-- [ ] HRMS: Extract app-specific styles → `css/hrms.css`
-- [ ] Portal: Extract login/portal styles → `css/portal.css`
-- [ ] VMS: Extract app-specific styles → `css/vms.css`
-- [ ] HWMS: Extract app-specific styles → `css/hwms.css`
+- [x] Security: Extract app-specific styles → `css/security.css` (597 lines)
+- [x] HRMS: Extract app-specific styles → `css/hrms.css` (41 lines)
+- [x] Portal: Extract login/portal styles → `css/portal.css` (67 lines)
+- [x] VMS: Extract app-specific styles → `css/vms.css` (561 lines)
+- [x] HWMS: Extract app-specific styles → `css/hwms.css` (224 lines)
 
 ---
 
 ## Phase 2: Extract JavaScript into separate files
 
 ### 2.1 Common JS cleanup
-- [ ] Review `js/common.js` — add section comments, organize by concern
+- [ ] Review `js/common.js` — add section comments, organize by concern (deferred to Phase 5)
 - [ ] Group: Auth helpers, DB operations, UI utilities, Session management, Sync engine
 
 ### 2.2 App JS extraction (per app)
-- [ ] Security: Move `<script>` contents → `js/security.js`, HTML becomes template-only
-- [ ] HRMS: Move `<script>` contents → `js/hrms.js`
-- [ ] Portal: Move `<script>` contents → `js/portal.js`
-- [ ] VMS: Move `<script>` contents → `js/vms.js`
-- [ ] HWMS: Move `<script>` contents → `js/hwms.js`
+- [x] Security: Move `<script>` contents → `js/security.js` (406 lines), HTML template-only (220 lines)
+- [x] HRMS: Move `<script>` contents → `js/hrms.js` (4,189 lines), HTML template-only (473 lines)
+- [x] Portal: Move `<script>` contents → `js/portal.js` (1,265 lines), HTML template-only (310 lines)
+- [x] VMS: Move `<script>` contents → `js/vms.js` (8,824 lines), HTML template-only (1,199 lines)
+- [x] HWMS: Move `<script>` contents → `js/hwms.js` (14,802 lines), HTML template-only (1,220 lines)
 
 ---
 
 ## Phase 3: Separate UI layer and Business logic
 
 ### 3.1 Define patterns
-- [ ] Define naming convention: `renderXxx()` for UI, `calcXxx()` for logic, `dbXxx()` for data
-- [ ] Define module structure per app
+- [x] Logic files contain pure functions (no DOM): calculations, validation, data filtering, status derivation
+- [x] UI files contain DOM rendering, event handlers, modal population, navigation
+- [x] Load order: common.js → app-logic.js → app-ui.js
 
 ### 3.2 Per app separation
-- [ ] Security: Split into `js/security-ui.js` + `js/security-logic.js`
-- [ ] HRMS: Split into `js/hrms-ui.js` + `js/hrms-logic.js`
-- [ ] Portal: Split into `js/portal-ui.js` + `js/portal-logic.js`
-- [ ] VMS: Split into `js/vms-ui.js` + `js/vms-logic.js`
-- [ ] HWMS: Split into `js/hwms-ui.js` + `js/hwms-logic.js`
+- [x] Security: `security-logic.js` (9 lines, 2 funcs) + `security-ui.js` (405 lines)
+- [x] HRMS: `hrms-logic.js` (270 lines, 25 funcs: salary/PL/PT calc, time parsing, date utils) + `hrms-ui.js` (3,983 lines)
+- [x] Portal: `portal-logic.js` (43 lines: sync config, date filter, password validation, lockout) + `portal-ui.js` (1,236 lines)
+- [x] VMS: `vms-logic.js` (361 lines, 20 funcs: trip workflow, segment steps, report data) + `vms-ui.js` (8,512 lines)
+- [x] HWMS: `hwms-logic.js` (491 lines, 33 funcs: invoice/payment calc, container status, MR status) + `hwms-ui.js` (14,345 lines)
 
 ---
 
 ## Phase 4: Write Tests
 
 ### 4.1 Test infrastructure
-- [ ] Set up test runner (plain HTML test page or lightweight framework like uvu/tape)
-- [ ] Create `tests/` directory
-- [ ] Create test helper to mock DB/Supabase calls
+- [x] Set up test runner: `tests/test-runner.html` (open in browser, no server needed)
+- [x] Create `tests/` directory
+- [x] Create test helper: `tests/test-helpers.js` (mini framework + DB/CU/byId mocks)
 
 ### 4.2 Common logic tests
-- [ ] Auth: `_authLogin`, `_authVerifySession`, `_authChangePassword`
-- [ ] Data: `_toRow`, `_fromRow` for all table types
-- [ ] Utils: `uid()`, `byId()`, `hasRole()`, date formatting, parsing
+- [ ] Auth: `_authLogin`, `_authVerifySession`, `_authChangePassword` (deferred — tightly coupled to Supabase)
+- [ ] Data: `_toRow`, `_fromRow` (deferred — in common.js, not yet split)
+- [ ] Utils: `uid()`, `byId()` are mocked in test-helpers.js
 
-### 4.3 HRMS business logic tests
-- [ ] PL calculation: `_hrmsCalcPLGiven`, `_hrmsCumPLAvail`, `_hrmsGetConfirmationDate`
-- [ ] Months since confirmation: `_hrmsMonthsSinceConfirmation` (rounding, edge cases)
-- [ ] Salary calculation: OT rules, IOT deduction, attendance bonus, PF/ESI/PT
-- [ ] Day type lookup: `_hrmsGetDayType` per plant
-- [ ] Period matching: correct salary rate for month
+### 4.3 HRMS business logic tests (58 tests in test-hrms-logic.js)
+- [x] PL calculation: `_hrmsCalcPLGiven`, `_hrmsCumPLAvail`, `_hrmsGetConfirmationDate`
+- [x] Months since confirmation: `_hrmsMonthsSinceConfirmation` (rounding, edge cases)
+- [x] PT calculation: `_hrmsCalcPT` (thresholds, female exemption, Feb surcharge)
+- [x] Day type lookup: `_hrmsGetDayType` per plant
+- [x] Time parsing/rounding: `_hrmsParseTime`, `_hrmsRoundIn`, `_hrmsRoundOut`
+- [x] Date/period helpers: `_hrmsMonthLabel`, `_hrmsCurMonth`, `_hrmsPrevMonth`, `_hrmsFYStart`, `_hrmsFmtDate`
 
-### 4.4 VMS business logic tests
-- [ ] `canDoStep`: role-based step access (Admin, Plant Head, KAP Security, etc.)
-- [ ] `stepsOneAndTwoDone`, `stepsOneTwoThreeDone`
-- [ ] Badge count calculations
-- [ ] OT calculations (working day, Sunday)
+### 4.4 VMS business logic tests (79 tests in test-vms-logic.js)
+- [x] Trip workflow: `buildSegment`, `recalcSegSteps`, `nextStep`
+- [x] Step checks: `allStepsDone`, `stepsOneAndTwoDone`, `stepsUpTo3Done`
+- [x] Status: `tripOverallStatus`, `getCriteria`, `getTripCatId`
+- [x] Reports: `getReportData`, `rptRow`
+- [x] ID generation: `genTripId`, `_tripIdPrefix`
+- [x] Sync: `_syncSelect`, `_syncMergeRows`, `_stripStepPhotos`
+- [x] Auth: `_isStrongPwd`
 
-### 4.5 HWMS business logic tests
-- [ ] Invoice calculations
-- [ ] Container tracking logic
-- [ ] Material request workflows
+### 4.5 HWMS business logic tests (102 tests in test-hwms-logic.js)
+- [x] Invoice status: `_hwmsInvStatus`, `_hwmsMiSt`, `_hwmsSiAggSt`, `_hwmsSiStatus`
+- [x] Container status: `_hwmsContainerSt`, `_hwmsContStatus`, `_hwmsContGetType`
+- [x] Payment: `_hwmsPayCalc`, `_hwmsPayAggSt`, `_hwmsContPaySt` + all accessors
+- [x] MR: `_hwmsMrCalcStatus`, `_hwmsMrDispatchInfo`
+- [x] Data utils: `_xlSerialToISO`, `_fixExcelDate`, `_hwmsCurrencyParse`, `_hwmsAmtToWords`
+- [x] Part/pallet: `_hwmsPartPalletStatus`, `_hwmsContNumToSortVal`
 
 ---
 
 ## Phase 5: Code Optimization
 
 ### 5.1 Dead code removal
-- [ ] Find and remove unused functions across all files
-- [ ] Remove commented-out code blocks
-- [ ] Remove unused CSS classes
+- [x] Scanned all JS files for unused functions — none found (all functions have references)
+- [x] Removed 189-line legacy PLI card code in `hwms-ui.js` (dead code behind `_skipLegacyCards` guard)
+- [ ] Remove unused CSS classes (deferred — requires runtime analysis)
 
 ### 5.2 Consolidate duplicates
-- [ ] Identify duplicate logic across apps (date formatting, table rendering, filter patterns)
-- [ ] Move shared utilities to `js/common.js`
-- [ ] Consolidate duplicate table/grid rendering patterns
+- [x] Moved `_isStrongPwd` to common.js (was in portal-logic.js + vms-logic.js)
+- [x] Moved `_syncSelect`, `_dateCutoff`, `_applyDateFilter` to common.js (was in portal-logic.js + vms-logic.js + hwms-ui.js + vms-ui.js)
+- [x] Each app keeps its own `_SYNC_SELECT`, `_DATE_FILTER_DAYS`, `_DATE_FILTER_COL` config (different per app)
+- [ ] Password UI functions (_liveValidatePwd, _openForcePassModal, etc.) duplicated in portal-ui + vms-ui — deferred (subtle differences, app-specific variables)
 
 ### 5.3 Performance
-- [ ] Reduce unnecessary DOM rebuilds (use incremental updates where possible)
-- [ ] Optimize large list rendering (virtual scrolling for 1000+ rows)
-- [ ] Lazy-load heavy components (PDF export libraries, XLSX parser)
+- [ ] Reduce unnecessary DOM rebuilds (deferred — requires per-app profiling)
+- [ ] Optimize large list rendering (deferred — virtual scrolling is a feature addition)
+- [ ] Lazy-load heavy components (deferred — PDF/XLSX are only loaded on demand already)
 
 ---
 
 ## Phase 6: Code Beautification
 
 ### 6.1 Naming conventions
-- [ ] Functions: `camelCase` with verb prefix (`renderUsers`, `calcSalary`, `fetchAttendance`)
-- [ ] Constants: `UPPER_SNAKE_CASE` (`MAX_RETRIES`, `FULL_DAY_HOURS`)
-- [ ] Private/internal: `_` prefix (`_initApp`, `_syncData`)
-- [ ] DOM IDs: `kebab-case` or consistent `camelCase`
+- [x] Already consistent: camelCase functions, `_` prefix for internal, UPPER_SNAKE for constants
+- [ ] DOM IDs normalization (deferred — would break HTML onclick references)
 
 ### 6.2 Documentation
-- [ ] Add file-level JSDoc headers (purpose, dependencies, exports)
-- [ ] Add JSDoc to all public functions (params, returns, description)
-- [ ] Add section separator comments (`// ═══ SECTION NAME ═══`)
-- [ ] Document complex business rules inline
+- [x] File-level `@file` JSDoc headers on all 10 JS files (5 logic + 5 UI)
+- [x] JSDoc `@param`/`@returns` on all logic file functions (80+ functions documented)
+- [x] Section separator comments (`// ═══ SECTION NAME ═══`) in all UI files:
+  - security-ui: 5 sections | portal-ui: 9 | hrms-ui: 20 | vms-ui: 25 | hwms-ui: 24
+- [ ] Document complex business rules inline (deferred — requires domain expertise review)
 
 ### 6.3 Formatting
-- [ ] Consistent 2-space indentation
-- [ ] Line length max ~120 chars
-- [ ] Consistent brace style
-- [ ] Group related functions together
+- [ ] Consistent indentation (deferred — 32k lines, high risk of breaking minified code)
+- [x] Related functions grouped together via section separators
+- [ ] Line length normalization (deferred — would require full reformat)
 
 ---
 
 ## Phase 7: Documentation (HTML)
 
-### 7.1 Product Requirements Document
-- [ ] App overview and purpose (Portal, VMS, HRMS, HWMS, Security)
-- [ ] Feature list per app
-- [ ] User roles and permissions matrix
-- [ ] Data model and relationships
-- [ ] Integration points (Supabase, realtime sync)
+### 7.1 Product Requirements Document — `docs/prd.html` (656 lines)
+- [x] App overview and purpose (Portal, VMS, HRMS, HWMS, Security)
+- [x] Feature list per app with target users
+- [x] User roles and permissions matrix (3 tables: VMS, HRMS, HWMS roles)
+- [x] Data model: 28+ Supabase tables with key columns and relationships
+- [x] Integration points (Supabase, GitHub Pages, offline-first, security)
 
-### 7.2 User Stories
-- [ ] Portal: login, password management, app navigation
-- [ ] VMS: trip booking, gate entry/exit, material receipt, approval, spot trips
-- [ ] HRMS: employee management, attendance, salary, settings
-- [ ] HWMS: containers, invoices, material requests, parts, payments
-- [ ] Security: guard management, checkpoints, round schedules
+### 7.2 User Stories — `docs/user-stories.html` (829 lines, 61 stories)
+- [x] Portal: 10 stories (auth, profile, user mgmt, storage)
+- [x] VMS: 15 stories (trips, gate ops, MR, approvals, spot, masters, rates)
+- [x] HRMS: 14 stories (employees, attendance, salary, PL, masters, print)
+- [x] HWMS: 14 stories (containers, invoices, MR, parts, payments, dashboard)
+- [x] Security: 8 stories (checkpoints, guards, round schedules)
 
-### 7.3 Architecture Document
-- [ ] System overview (static site + Supabase backend)
-- [ ] File structure and module dependencies
-- [ ] Data flow diagrams (login, sync, save)
-- [ ] Database schema (all tables, columns, relationships)
-- [ ] Authentication flow (bcrypt, session tokens)
-- [ ] Sync architecture (boot, hot sync, full sync, incremental)
+### 7.3 Architecture Document — `docs/architecture.html` (1,003 lines)
+- [x] System overview (static site + Supabase backend)
+- [x] File structure (24 files with descriptions)
+- [x] Module dependencies (4-script load order per page)
+- [x] Database schema (28 tables with columns, organized by module)
+- [x] Authentication flow (5 RPC functions, session restore, password policy)
+- [x] Sync architecture (boot, hot poll, full sync, realtime, visibility API)
+- [x] Data flow (write/delete/read/bulk paths, client-server diagrams)
 
-### 7.4 Training Documents (per user role)
-- [ ] Super Admin / Admin: user management, system settings, all features
-- [ ] Plant Head: dashboard, approvals, overrides
-- [ ] Trip Booking User: create trips, track status
-- [ ] KAP Security: gate operations, entry/exit
-- [ ] Material Receiver: receive materials, update steps
-- [ ] Trip Approver: review and approve/reject trips
-- [ ] HRMS Users: attendance, salary, employee data
-- [ ] HWMS Users: containers, invoices, material requests
-- [ ] Vendor Users: view assigned trips
+### 7.4 Training Documents (5 HTML guides)
+- [x] `training-admin.html` — Super Admin/Admin: user mgmt, all apps, masters, storage
+- [x] `training-vms.html` — Per-role: Trip Booking, KAP Security, Material Receiver, Approver, Plant Head
+- [x] `training-hrms.html` — Employees, attendance, salary, statutory, print, masters
+- [x] `training-hwms.html` — Containers, invoices, sub-invoices, MR, parts, payments, dashboard
+- [x] `training-vendor.html` — Assigned trips, status tracking, vehicle/driver info, FAQ
 
 ---
 

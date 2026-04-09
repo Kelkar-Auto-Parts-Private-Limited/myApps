@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// myApps_Common.js — Shared foundation for all KAP myApps modules
+// common.js — Shared foundation for all KAP myApps modules
 // Contains: Supabase config, data layer, constants, utilities, Excel core
-// Loaded by: myApps_Portal.html, myApps_VMS.html (myApps_V17), myApps_HWMS.html
+// Loaded by: index.html, vms.html, hrms.html, hwms.html, security.html
 // ═══════════════════════════════════════════════════════════════════════════════
 const _COMMON_LOADED = true;
 
@@ -2160,4 +2160,32 @@ async function del(col,id,fn){
     fn();updBadges();cm('mConfirm');notify('Deleted');
   };
   om('mConfirm');
+}
+
+// ═══ SHARED UTILITIES (consolidated from app files) ═══════════════════════
+
+// Password strength validation — shared by portal + VMS
+function _isStrongPwd(pwd){
+  if(!pwd||pwd.length<6||pwd.length>12) return false;
+  if(!/[A-Z]/.test(pwd)) return false;
+  if(!/[a-z]/.test(pwd)) return false;
+  if(!/[0-9]/.test(pwd)) return false;
+  if(!/[^A-Za-z0-9]/.test(pwd)) return false;
+  return true;
+}
+
+// Sync column selection — each app sets _SYNC_SELECT before this is called
+function _syncSelect(sbTbl){return (typeof _SYNC_SELECT!=='undefined'&&_SYNC_SELECT[sbTbl])||'*';}
+
+// Date cutoff — each app sets _DATE_FILTER_DAYS
+function _dateCutoff(days){
+  var d=new Date();d.setDate(d.getDate()-(days||(typeof _DATE_FILTER_DAYS!=='undefined'?_DATE_FILTER_DAYS:60)));
+  return d.toISOString().slice(0,10);
+}
+
+// Date filter for Supabase queries — each app sets _DATE_FILTER_COL
+function _applyDateFilter(q,sbTbl,cutoff){
+  var col=(typeof _DATE_FILTER_COL!=='undefined')&&_DATE_FILTER_COL[sbTbl];
+  if(!col) return q;
+  return q.gte(col,cutoff||_dateCutoff());
 }

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — VMS Training Guide</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#1e293b;line-height:1.7;max-width:860px;margin:0 auto;padding:32px 24px 60px}
+  h1{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+  h2{font-size:20px;font-weight:800;color:#0f172a;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:16px;font-weight:700;color:#2a9aa0;margin:20px 0 8px}
+  p,li{font-size:14px}
+  .badge{display:inline-block;background:#2a9aa0;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:4px;margin-right:4px}
+  .toc{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0}
+  .toc-title{font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .toc a{display:block;font-size:13px;font-weight:600;color:#2a9aa0;text-decoration:none;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .step{background:#f0fdfa;border-left:4px solid #2a9aa0;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0}
+  .step b{color:#0f172a}
+  .tip{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .tip::before{content:'Tip: ';font-weight:800;color:#92400e}
+  .note{background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .note::before{content:'Note: ';font-weight:800;color:#1d4ed8}
+  .screen{background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#475569;font-style:italic}
+  ol,ul{padding-left:22px;margin:6px 0}
+  .role-section{border:2px solid #e2e8f0;border-radius:12px;padding:16px 18px;margin:16px 0;background:#fafbfc}
+  .role-section h3{margin-top:0}
+  @media print{body{padding:20px}}.footer{margin-top:40px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>VMS Training Guide</h1>
+<p style="margin-bottom:8px">Vehicle Management System &mdash; Role-based guide for all VMS users.</p>
+<div>
+  <span class="badge">Trip Booking</span>
+  <span class="badge">KAP Security</span>
+  <span class="badge">Material Receiver</span>
+  <span class="badge">Trip Approver</span>
+  <span class="badge">Plant Head</span>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <a href="#overview">1. VMS Overview</a>
+  <a href="#tripbooking">2. Trip Booking Role</a>
+  <a href="#kapsecurity">3. KAP Security Role</a>
+  <a href="#materialreceiver">4. Material Receiver Role</a>
+  <a href="#tripapprover">5. Trip Approver Role</a>
+  <a href="#planthead">6. Plant Head Role</a>
+  <a href="#spot">7. Spot Vehicle Entry</a>
+</div>
+
+<h2 id="overview">1. VMS Overview</h2>
+<div class="screen">After login, the VMS sidebar shows navigation items based on your assigned role(s). The top bar displays the current page title, your location, and a database connection indicator. A sync timestamp shows the last data refresh.</div>
+<p>The VMS tracks vehicle trips end-to-end: booking, gate entry/exit, material receipt, and approval. Each step is handled by a specific role. The Dashboard provides an operations overview with date filters (1D, 1W, 1M, 1Y) and tabs for Overview, Trip Details, and Reports.</p>
+
+<div class="role-section">
+<h2 id="tripbooking">2. Trip Booking Role</h2>
+<h3>Viewing Your Trips</h3>
+<div class="screen">The Trip Booking page shows a sticky header with date-range buttons (1D, 1W, 1M, 1Y), a "Book New Trip" button, and a search bar. Below is a list of your booked trips with status indicators.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Trip Booking</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Use date range filters or search by Trip ID / Vehicle number to find trips.</div>
+
+<h3>Creating a New Trip</h3>
+<div class="step"><b>Step 1:</b> Click <b>+ Book New Trip</b>. A modal opens displaying the auto-generated Trip ID.</div>
+<div class="step"><b>Step 2:</b> Select the trip type. A trip type badge appears showing your selection.</div>
+<div class="step"><b>Step 3:</b> Choose the origin and destination locations from the dropdowns. Select the vehicle type and specific vehicle.</div>
+<div class="step"><b>Step 4:</b> For multi-segment trips, add additional segments specifying each leg's from/to locations.</div>
+<div class="step"><b>Step 5:</b> Review the trip details and click <b>Save</b>. The trip status becomes "Booked".</div>
+<div class="tip">The trip rate is auto-calculated from the Trip Rate Master based on vehicle type and route. If no rate exists, the admin will need to add one.</div>
+</div>
+
+<div class="role-section">
+<h2 id="kapsecurity">3. KAP Security Role</h2>
+<div class="screen">The KAP Security page has three tab buttons at the top: EXIT, ENTRY, and SPOT. Each tab shows a count badge of pending items. Below the tabs are trip segment cards showing vehicle details.</div>
+
+<h3>Gate Exit (Outgoing Vehicles)</h3>
+<div class="step"><b>Step 1:</b> Click the <b>EXIT</b> tab. You see booked trips awaiting gate exit.</div>
+<div class="step"><b>Step 2:</b> Tap a trip card to open the Gate Exit modal. Review vehicle number, driver, and trip details.</div>
+<div class="step"><b>Step 3:</b> Capture the <b>challan photo</b> using the camera button. Verify the vehicle condition.</div>
+<div class="step"><b>Step 4:</b> Click <b>Confirm Exit</b> to record the gate-out timestamp.</div>
+
+<h3>Gate Entry (Returning Vehicles)</h3>
+<div class="step"><b>Step 1:</b> Click the <b>ENTRY</b> tab. You see trips where vehicles are returning.</div>
+<div class="step"><b>Step 2:</b> Tap a trip card, capture the entry challan photo, and perform a vehicle check.</div>
+<div class="step"><b>Step 3:</b> Click <b>Confirm Entry</b> to record the gate-in timestamp.</div>
+<div class="note">Photos are saved and viewable later via the photo lightbox (click any photo thumbnail to enlarge, save, or share).</div>
+</div>
+
+<div class="role-section">
+<h2 id="materialreceiver">4. Material Receiver Role</h2>
+<div class="screen">The Material Receipt page shows a search bar at the top and a list of pending deliveries below, followed by a "My Material Receipts" history section with date filters.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Material Receipt</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Review the pending deliveries. Each card shows Trip ID, vehicle, and material details.</div>
+<div class="step"><b>Step 3:</b> Tap a pending delivery to confirm receipt. Verify the material matches the trip details.</div>
+<div class="step"><b>Step 4:</b> Confirm to record the material as received. The trip advances to the next stage.</div>
+<div class="tip">Use the search bar to quickly find a trip by ID or vehicle number among pending items.</div>
+</div>
+
+<div class="role-section">
+<h2 id="tripapprover">5. Trip Approver Role</h2>
+<div class="screen">The Trip Approvals page shows a search bar, pending approval cards, and a "My Approvals" history table with date filters and a running total amount.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Trip Approvals</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Review pending trips. Each card shows the trip route, vehicle, cost, and all prior completion steps.</div>
+<div class="step"><b>Step 3:</b> Click <b>Approve</b> to confirm the trip, or <b>Reject</b> with a reason if there is an issue.</div>
+<div class="step"><b>Step 4:</b> Approved trips appear in the "My Approvals" history with the total approved amount displayed.</div>
+<div class="note">Date filters let you review historical approvals by day, week, month, or year.</div>
+</div>
+
+<div class="role-section">
+<h2 id="planthead">6. Plant Head Role</h2>
+<p>The Plant Head has visibility over the Dashboard and can perform approvals for their location.</p>
+<div class="step"><b>Step 1:</b> Open the <b>Dashboard</b>. The Overview tab shows statistics cards for trips, vehicles, and costs at your location.</div>
+<div class="step"><b>Step 2:</b> Use the <b>Trip Details</b> tab for a granular trip-by-trip breakdown.</div>
+<div class="step"><b>Step 3:</b> Use the <b>Reports</b> tab for summarized data and export options.</div>
+<div class="tip">The Plant Head is assigned per location in the Location Master. Contact your Admin to update this assignment.</div>
+</div>
+
+<h2 id="spot">7. Spot Vehicle Entry</h2>
+<div class="screen">On the KAP Security page, the SPOT tab allows recording ad-hoc vehicles that arrive without a pre-booked trip.</div>
+<div class="step"><b>Step 1:</b> Click the <b>SPOT</b> tab on the KAP Security page.</div>
+<div class="step"><b>Step 2:</b> Click <b>Record Spot Vehicle Entry</b>. A popup titled "Spot Vehicle Entry" appears.</div>
+<div class="step"><b>Step 3:</b> Enter the vehicle number, driver details, and purpose of visit.</div>
+<div class="step"><b>Step 4:</b> Save to create an ad-hoc entry record. This can later be converted to a formal trip if needed.</div>
+
+<div class="footer">KAP myApps &mdash; VMS Training Guide &mdash; Kelkar Auto Parts Private Limited</div>
+</body>
+</html>
