@@ -65,7 +65,17 @@ const SB_TABLES = {
   hwmsCarriers:'hwms_carriers', hwmsCompany:'hwms_company', hwmsSteelRates:'hwms_steel_rates',
   hwmsSubInvoices:'hwms_sub_invoices',
   hwmsMaterialRequests:'hwms_material_requests',
-  hwmsPaymentReceipts:'hwms_payment_receipts'
+  hwmsPaymentReceipts:'hwms_payment_receipts',
+  hrmsEmployees:'hrms_employees',
+  hrmsCompanies:'hrms_companies', hrmsCategories:'hrms_categories',
+  hrmsEmpTypes:'hrms_emp_types', hrmsTeams:'hrms_teams',
+  hrmsDepartments:'hrms_departments', hrmsSubDepartments:'hrms_sub_departments',
+  hrmsDesignations:'hrms_designations',
+  hrmsAttendance:'hrms_attendance',
+  hrmsDayTypes:'hrms_day_types',
+  hrmsAlterations:'hrms_alterations',
+  hrmsPrintFormats:'hrms_print_formats',
+  hrmsSettings:'hrms_settings'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -147,12 +157,12 @@ function _hwmsNormContStatus(s){
 // ═══ SUPABASE ROW MAPPING ══════════════════════════════════════════════════
 function _toRow(tbl, rec) {
   const r = rec;
-  if(tbl==='users')        return {code:r.id,name:r.name||'',password:r.password||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
+  if(tbl==='users')        return {code:r.id,name:r.name||'',password:r.password||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],hrms_roles:r.hrmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicleTypes') return {code:r.id,name:r.name||'',capacity:r.capacity||0,inactive:r.inactive||false};
   if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',user_id:r.userId||'',inactive:r.inactive||false};
   if(tbl==='drivers')      return {code:r.id,name:r.name||'',mobile:r.mobile||'',vendor_id:r.vendorId||'',dl_expiry:r.dlExpiry||'',photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicles')     return {code:r.id,number:r.number||'',type_id:r.typeId||'',vendor_id:r.vendorId||'',puc_expiry:r.pucExpiry||'',rtp_expiry:r.rtpExpiry||'',ins_expiry:r.insExpiry||'',inactive:r.inactive||false};
-  if(tbl==='locations')    return {code:r.id,name:r.name||'',type:r.type||'KAP',address:r.address||'',geo:r.geo||'',colour:r.colour||'',kap_sec:r.kapSec||'',trip_book:r.tripBook||[],mat_recv:r.matRecv||[],approvers:r.approvers||[],inactive:r.inactive||false};
+  if(tbl==='locations')    return {code:r.id,name:r.name||'',type:r.type||'KAP',address:r.address||'',geo:r.geo||'',colour:r.colour||'',kap_sec:r.kapSec||'',trip_book:r.tripBook||[],mat_recv:r.matRecv||[],approvers:r.approvers||[],plant_head:r.plantHead||'',inactive:r.inactive||false};
   if(tbl==='tripRates')    return {code:r.id,name:r.name||'',v_type_id:r.vTypeId||'',start_loc:r.start||'',dest1:r.dest1||'',dest2:r.dest2||'',dest3:r.dest3||'',rate:r.rate||0,valid_start:r.validStart||'',valid_end:r.validEnd||'',status:r.status||'',added_by:r.addedBy||'',approved_by:r.approvedBy||'',approved_at:r.approvedAt||''};
   if(tbl==='trips')        return {code:r.id,booked_by:r.bookedBy||'',plant:r.plant||'',date:r.date||'',start_loc:r.startLoc||'',dest1:r.dest1||'',dest2:r.dest2||'',dest3:r.dest3||'',driver_id:r.driverId||'',vehicle_id:r.vehicleId||'',vehicle_type_id:r.vehicleTypeId||'',actual_vehicle_type_id:r.actualVehicleTypeId||'',vendor:r.vendor||'',description:r.desc||'',trip_cat_id:r.tripCatId||'',challans1:r.challans1||[],challan1:r.challan1||'',weight1:r.weight1||'',photo1:r.photo1||'',challans2:r.challans2||[],challan2:r.challan2||'',weight2:r.weight2||'',photo2:r.photo2||'',challans3:r.challans3||[],challan3:r.challan3||'',weight3:r.weight3||'',photo3:r.photo3||'',edited_by:r.editedBy||'',edited_at:r.editedAt||'',cancelled:r.cancelled||false};
   if(tbl==='segments')     return {code:r.id,trip_id:r.tripId||'',label:r.label||'',s_loc:r.sLoc||'',d_loc:r.dLoc||'',criteria:r.criteria||1,trip_cat_id:r.tripCatId||'',steps:r.steps||{},status:r.status||'Active',date:r.date||'',current_step:r.currentStep||1};
@@ -183,18 +193,28 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',pickup_date:r.pickupDate||'',grn_status:r.grnStatus||'',grn_date:r.grnDate||'',payment_status:r.paymentStatus||'',payment_received:r.paymentReceived||0,payment_balance:r.paymentBalance||0,payment_number:r.paymentNumber||'',payment_date:r.paymentDate||'',tariff_percent:r.tariffPercent||0,tariff_amount:r.tariffAmount||0,remarks:r.remarks||''};
   if(tbl==='hwmsMaterialRequests') return {code:r.id,mr_number:r.mrNumber||'',mr_date:r.mrDate||'',need_by_date:r.needByDate||'',status:r.status||'',line_items:r.lineItems||[],remarks:r.remarks||'',created_by:r.createdBy||''};
   if(tbl==='hwmsPaymentReceipts') return {code:r.id,payment_number:r.paymentNumber||'',payment_date:r.paymentDate||'',status:r.status||'',total_amount:r.totalAmount||0,line_items:r.lineItems||[],si_updates:r.siUpdates||[],mi_updates:r.miUpdates||[],manual_payments:r.manualPayments||[],created_at:r.createdAt||'',created_by:r.createdBy||'',updated_at:r.updatedAt||'',updated_by:r.updatedBy||''};
+  if(tbl==='hrmsEmployees') return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:r.salaryDay||0,salary_month:r.salaryMonth||0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:r.periods||[],extra:r.extra||{}};
+  if(tbl==='hrmsCompanies') return {code:r.id,name:r.name||'',color:r.color||''};
+  if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {code:r.id,name:r.name||''};
+  if(tbl==='hrmsTeams') return {code:r.id,name:r.name||'',emp_type:r.empType||''};
+  if(tbl==='hrmsSubDepartments') return {code:r.id,name:r.name||'',department:r.department||''};
+  if(tbl==='hrmsAttendance') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',days:r.days||{}};
+  if(tbl==='hrmsDayTypes') return {code:r.id,month_key:r.monthKey||'',plant:r.plant||'',day_types:r.dayTypes||{}};
+  if(tbl==='hrmsSettings') return {code:r.id,key:r.key||'',data:r.data||{}};
+  if(tbl==='hrmsAlterations') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',days:r.days||{}};
+  if(tbl==='hrmsPrintFormats') return {code:r.id,name:r.name||'',plant:r.plant||'',emp_type:r.empType||'',category:r.category||'',team:r.team||'',created_by:r.createdBy||''};
   return null;
 }
 
 // Convert Supabase row → JS record
 function _fromRow(tbl, row) {
   if(!row) return null;
-  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,password:row.password,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,password:row.password,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
   if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicles')     return {id:row.code,_dbId:row.id,number:row.number,typeId:row.type_id||'',vendorId:row.vendor_id||'',pucExpiry:row.puc_expiry||'',rtpExpiry:row.rtp_expiry||'',insExpiry:row.ins_expiry||'',inactive:row.inactive||false};
-  if(tbl==='locations')    return {id:row.code,_dbId:row.id,name:row.name,type:row.type,address:row.address||'',geo:row.geo||'',colour:row.colour||'',kapSec:row.kap_sec||'',tripBook:row.trip_book||[],matRecv:row.mat_recv||[],approvers:row.approvers||[],inactive:row.inactive||false};
+  if(tbl==='locations')    return {id:row.code,_dbId:row.id,name:row.name,type:row.type,address:row.address||'',geo:row.geo||'',colour:row.colour||'',kapSec:row.kap_sec||'',tripBook:row.trip_book||[],matRecv:row.mat_recv||[],approvers:row.approvers||[],plantHead:row.plant_head||'',inactive:row.inactive||false};
   if(tbl==='tripRates')    return {id:row.code,_dbId:row.id,name:row.name||'',vTypeId:row.v_type_id||'',start:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',rate:row.rate||0,validStart:row.valid_start||'',validEnd:row.valid_end||'',status:row.status||'',addedBy:row.added_by||'',approvedBy:row.approved_by||'',approvedAt:row.approved_at||''};
   if(tbl==='trips')        return {id:row.code,_dbId:row.id,bookedBy:row.booked_by||'',plant:row.plant||'',date:row.date||'',startLoc:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',driverId:row.driver_id||'',vehicleId:row.vehicle_id||'',vehicleTypeId:row.vehicle_type_id||'',actualVehicleTypeId:row.actual_vehicle_type_id||'',vendor:row.vendor||'',desc:row.description||'',tripCatId:row.trip_cat_id||'',challans1:row.challans1||[],challan1:row.challan1||'',weight1:row.weight1||'',photo1:row.photo1||'',challans2:row.challans2||[],challan2:row.challan2||'',weight2:row.weight2||'',photo2:row.photo2||'',challans3:row.challans3||[],challan3:row.challan3||'',weight3:row.weight3||'',photo3:row.photo3||'',editedBy:row.edited_by||'',editedAt:row.edited_at||'',cancelled:row.cancelled||false};
   if(tbl==='segments')     return {id:row.code,_dbId:row.id,tripId:row.trip_id||'',label:row.label||'',sLoc:row.s_loc||'',dLoc:row.d_loc||'',criteria:row.criteria||1,tripCatId:row.trip_cat_id||'',steps:row.steps||{},status:row.status||'Active',date:row.date||'',currentStep:row.current_step||1};
@@ -225,6 +245,16 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',pickupDate:row.pickup_date||'',grnStatus:row.grn_status||'',grnDate:row.grn_date||'',paymentStatus:row.payment_status||'',paymentReceived:row.payment_received||0,paymentBalance:row.payment_balance||0,paymentNumber:row.payment_number||'',paymentDate:row.payment_date||'',tariffPercent:row.tariff_percent||0,tariffAmount:row.tariff_amount||0,remarks:row.remarks||''};
   if(tbl==='hwmsMaterialRequests') return {id:row.code,_dbId:row.id,mrNumber:row.mr_number||'',mrDate:row.mr_date||'',needByDate:row.need_by_date||'',status:row.status||'',lineItems:row.line_items||[],remarks:row.remarks||'',createdBy:row.created_by||''};
   if(tbl==='hwmsPaymentReceipts') return {id:row.code,_dbId:row.id,paymentNumber:row.payment_number||'',paymentDate:row.payment_date||'',status:row.status||'',totalAmount:row.total_amount||0,lineItems:row.line_items||[],siUpdates:row.si_updates||[],miUpdates:row.mi_updates||[],manualPayments:row.manual_payments||[],createdAt:row.created_at||'',createdBy:row.created_by||'',updatedAt:row.updated_at||'',updatedBy:row.updated_by||''};
+  if(tbl==='hrmsEmployees') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',name:row.name||'',lastName:row.last_name||'',firstName:row.first_name||'',middleName:row.middle_name||'',department:row.department||'',subDepartment:row.sub_department||'',designation:row.designation||'',email:row.email||'',mobile:row.mobile||'',dateOfJoining:row.date_of_joining||'',dateOfBirth:row.date_of_birth||'',gender:row.gender||'',status:row.status||'Active',reportingTo:row.reporting_to||'',location:row.location||'',photo:row.photo||'',panNo:row.pan_no||'',aadhaarNo:row.aadhaar_no||'',employmentType:row.employment_type||'',teamName:row.team_name||'',category:row.category||'',esiNo:row.esi_no||'',pfNo:row.pf_no||'',uan:row.uan||'',dateOfLeft:row.date_of_left||'',roll:row.roll||'',salaryDay:row.salary_day||0,salaryMonth:row.salary_month||0,bankName:row.bank_name||'',branchName:row.branch_name||'',acctNo:row.acct_no||'',ifsc:row.ifsc||'',periods:row.periods||[],extra:row.extra||{}};
+  if(tbl==='hrmsCompanies') return {id:row.code,_dbId:row.id,name:row.name||'',color:row.color||''};
+  if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {id:row.code,_dbId:row.id,name:row.name||''};
+  if(tbl==='hrmsTeams') return {id:row.code,_dbId:row.id,name:row.name||'',empType:row.emp_type||''};
+  if(tbl==='hrmsSubDepartments') return {id:row.code,_dbId:row.id,name:row.name||'',department:row.department||''};
+  if(tbl==='hrmsAttendance') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',days:row.days||{}};
+  if(tbl==='hrmsDayTypes') return {id:row.code,_dbId:row.id,monthKey:row.month_key||'',plant:row.plant||'',dayTypes:row.day_types||{}};
+  if(tbl==='hrmsSettings') return {id:row.code,_dbId:row.id,key:row.key||'',data:row.data||{}};
+  if(tbl==='hrmsAlterations') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',days:row.days||{}};
+  if(tbl==='hrmsPrintFormats') return {id:row.code,_dbId:row.id,name:row.name||'',empType:row.emp_type||'',plant:row.plant||'',category:row.category||'',team:row.team||'',createdBy:row.created_by||''};
   return null;
 }
 
@@ -327,6 +357,11 @@ function _sbSetStatus(state, msg) {
   // Update login button state if function exists
   if(typeof _updateLoginBtnState==='function') _updateLoginBtnState();
   if(typeof _portalUpdateLoginBtn==='function') _portalUpdateLoginBtn();
+  // HRMS sidebar connection widget
+  const dhr=document.getElementById('hrmsConnDot'), lhr=document.getElementById('hrmsConnLabel'), whr=document.getElementById('hrmsConnWidget');
+  if(dhr){ dhr.style.background=c.dot; dhr.style.animation=pulse; }
+  if(lhr){ lhr.textContent=lbl; lhr.style.color=state==='ok'?'#15803d':state==='error'?'#dc2626':state==='offline'?'#92400e':'#475569'; }
+  if(whr){ whr.style.background=c.bg; whr.style.borderColor=c.border; }
   // Portal sidebar connection widget
   const dp=document.getElementById('portalConnDot'), lp2=document.getElementById('portalConnLabel'), wp=document.getElementById('portalConnWidget');
   if(dp){ dp.style.background=c.dot; dp.style.animation=pulse; }
@@ -415,7 +450,8 @@ function _sbStartRealtime(){
     // Supabase to throttle/drop events and introduces 10-15s delays.
     // Masters (users, vehicles, locations…) change rarely and don't need a live channel;
     // they are refreshed by the 60s full sync or on page navigation.
-    const _RT_TABLES = ['trips','segments','spotTrips'];
+    const _RT_TABLES = _getHotTables();
+    if(!_RT_TABLES.length){console.log('Realtime: no hot tables for this app — skipping');return;}
     const ch = _sb.channel('vms-hot-sync');
     _RT_TABLES.forEach(tbl=>{
       const sbTbl = SB_TABLES[tbl];
@@ -747,6 +783,31 @@ async function _dbSave(tbl, record){
   }finally{ hideSpinner(); }
 }
 
+// Bulk upsert — saves array of records in batches of 50
+async function _dbSaveBulk(tbl, records){
+  if(!_sbReady||!_sb){notify('⚠ No database connection.',true);return 0;}
+  var sbTbl=SB_TABLES[tbl];if(!sbTbl)return 0;
+  var rows=records.map(function(r){return _toRow(tbl,r);}).filter(Boolean);
+  if(!rows.length)return 0;
+  var saved=0,batchSize=50;
+  for(var i=0;i<rows.length;i+=batchSize){
+    var batch=rows.slice(i,i+batchSize);
+    try{
+      var {error}=await _sb.from(sbTbl).upsert(batch,{onConflict:'code'});
+      if(error){console.error('Bulk save error ['+tbl+']:',error.message);continue;}
+      saved+=batch.length;
+    }catch(e){console.error('Bulk save exception ['+tbl+']:',e.message);}
+  }
+  // Update in-memory DB
+  if(!DB[tbl])DB[tbl]=[];
+  records.forEach(function(r){
+    var idx=DB[tbl].findIndex(function(x){return x.id===r.id;});
+    if(idx>=0)DB[tbl][idx]=r;else DB[tbl].push(r);
+  });
+  if(saved)_sbSetStatus('ok');
+  return saved;
+}
+
 async function _dbDel(tbl, id){
   showSpinner('Deleting…');
   try{
@@ -792,10 +853,6 @@ async function bootDB(){
   _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
-  // _navigateTo() writes kap_db_cache to localStorage before every navigation.
-  // localStorage is shared across ALL pages on the same device — including file://
-  // where every .html file is its own origin and sessionStorage does NOT work.
-  // Cache TTL is 60s and it is deleted after first read (one-time use).
   try{
     var _cached = localStorage.getItem('kap_db_cache');
     if(_cached){
@@ -804,20 +861,14 @@ async function bootDB(){
       if(_age < 60000){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
         localStorage.removeItem('kap_db_cache');
-        console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+DB.users.length);
+        console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
         if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
         if(!_sbReady) _initSupabase();
         if(_sbReady && _sb){
           _sbSetStatus('ok');
-          _sbStartRealtime(); // opens realtime WebSocket (lightweight)
-          // Delay the full background sync — the page has fresh-enough data from the
-          // cache. Firing 25 Supabase queries immediately causes the status widget to
-          // flicker "connecting…" on every app switch. 3s delay is imperceptible.
+          _sbStartRealtime();
           setTimeout(function(){ _bgSyncFromSupabase(); }, 3000);
         } else {
-          // CDN not ready yet — wait for it, then sync (no immediate polling)
-          // CDN not ready yet but we have cache data — don't show 'connecting'.
-          // Quietly wait for CDN then sync in background without any status flicker.
           var _cacheReady=true;
           _startBgReconnect(_cacheReady);
         }
@@ -845,14 +896,19 @@ async function bootDB(){
       var _timedOut = false;
       const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
         try{
-          const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+          var sbTbl=SB_TABLES[tbl];
+          // Use photo-excluded select if available, with date filtering
+          var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
+          var q=_sb.from(sbTbl).select(sel).limit(10000);
+          if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+          const {data,error} = await q;
           if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
           // Apply immediately so partial data is available if timeout fires
           DB[tbl] = (data||[]).map(r=>_fromRow(tbl,r)).filter(Boolean);
           return {tbl, rows: data||[]};
         }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
-      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },15000));
+      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },8000));
       const raceResult = await Promise.race([_sbFetch, _sbTimeout]);
       if(raceResult==='timeout'){
         // Some tables may have loaded — proceed with what we have, sync rest in background
@@ -894,6 +950,10 @@ async function bootDB(){
 // Background sync: fetch hot tables FIRST (fast), then cold tables
 var _bgSyncDone=false;
 var _HOT_TABLES=['trips','segments','spotTrips'];
+function _getHotTables(){
+  var active=_getActiveTables();
+  return _HOT_TABLES.filter(function(t){return active.indexOf(t)>=0;});
+}
 
 var _dbConnectCount=0;
 function _bgSyncFromSupabase(){
@@ -902,7 +962,8 @@ function _bgSyncFromSupabase(){
   _dbConnectCount++;
   console.log('📡 bgSync #'+_dbConnectCount+' start — caller: '+(new Error().stack.split('\n')[2]||'?').trim());
   Promise.all(_getActiveTables().map(async tbl=>{
-    const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+    const sel=typeof _syncSelect==='function'?_syncSelect(SB_TABLES[tbl]):'*';
+    const {data,error} = await _sb.from(SB_TABLES[tbl]).select(sel).limit(10000);
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{
@@ -910,7 +971,7 @@ function _bgSyncFromSupabase(){
     results.filter(Boolean).forEach(({tbl,rows})=>{
       DB[tbl] = rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
     });
-    console.log('bgSync: full — users='+DB.users.length+' trips='+DB.trips.length+' segs='+DB.segments.length);
+    console.log('bgSync: full — '+_getActiveTables().length+' tables, users='+(DB.users||[]).length);
     _bgSyncDone=true;
     // Always set status to 'ok' after a successful sync — especially important when
     // boot timed out or cache was empty and status was still 'connecting'.
@@ -925,8 +986,14 @@ function _bgSyncFromSupabase(){
 // Hot sync: only trips/segments/spotTrips — ALWAYS refresh views (no flawed change detection)
 function _bgSyncHot(){
   if(!_sbReady||!_sb) return;
-  Promise.all(_HOT_TABLES.map(async tbl=>{
-    const {data,error} = await _sb.from(SB_TABLES[tbl]).select('*');
+  var hotTbls=_getHotTables();
+  if(!hotTbls.length) return;
+  Promise.all(hotTbls.map(async tbl=>{
+    const sbTbl=SB_TABLES[tbl];
+    const sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
+    var q=_sb.from(sbTbl).select(sel).limit(10000);
+    if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+    const {data,error} = await q;
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{
@@ -941,45 +1008,48 @@ function _bgSyncHot(){
 }
 
 // Two-tier polling:
-//   • Every 10s: hot tables only (trips, segments, spotTrips) — catches any
-//     realtime events that were missed due to network glitches.
-//   • Every 60s (6th tick): full sync of all tables — keeps masters fresh.
+//   • Every 60s: hot tables only (trips, segments, spotTrips) — catches missed realtime events
+//   • Every 10 min (10th tick): full sync of all tables — keeps masters fresh
 var _bgPollTimer=null;
 var _bgPollCount=0;
 function _startBgPoll(){
   if(_bgPollTimer) return;
   _bgPollTimer=setInterval(function(){
-    if(_sbReady&&_sb&&_sbStatus==='ok'){
+    if(!document.hidden&&_sbReady&&_sb&&_sbStatus==='ok'){
       _bgPollCount++;
-      if(_bgPollCount%6===0){
-        _bgSyncFromSupabase(); // full sync every ~60s
+      if(_bgPollCount%10===0){
+        _bgSyncFromSupabase(); // full sync every ~10 min (10 × 60s)
       } else {
-        _bgSyncHot();          // hot tables every 10s
+        _bgSyncHot();          // hot tables every 60s
       }
     }
-  }, 10000);
+  }, 60000);
 }
 
 // ── Visibility-aware polling ─────────────────────────────────────────────
-// Pauses all background Supabase queries when the browser tab is hidden
-// (minimized, screen off, switched tab/app). Resumes + immediate sync when
-// the user returns. Saves network traffic and battery on mobile devices.
+// Pauses all background Supabase queries when the browser tab is hidden.
+// Only does a full sync on resume if tab was hidden for >30 seconds.
 (function(){
   var _visPaused=false;
+  var _visHiddenAt=0;
   document.addEventListener('visibilitychange',function(){
     if(document.hidden){
-      // Tab hidden → stop all polling
       if(_bgPollTimer){clearInterval(_bgPollTimer);_bgPollTimer=null;}
       if(_sbPingTimer){clearInterval(_sbPingTimer);_sbPingTimer=null;}
       _visPaused=true;
+      _visHiddenAt=Date.now();
       console.log('⏸ Polling paused (tab hidden)');
     } else if(_visPaused){
-      // Tab visible again → restart polling + immediate catch-up sync
       _visPaused=false;
-      console.log('▶ Polling resumed (tab visible)');
+      var hiddenFor=Date.now()-_visHiddenAt;
+      console.log('▶ Polling resumed (tab visible, hidden for '+Math.round(hiddenFor/1000)+'s)');
       _startBgPoll();
       _sbStartPing();
-      if(_sbReady&&_sb&&_sbStatus==='ok') _bgSyncFromSupabase();
+      // Only full sync if hidden for >30s, otherwise just hot sync
+      if(_sbReady&&_sb&&_sbStatus==='ok'){
+        if(hiddenFor>30000) _bgSyncFromSupabase();
+        else _bgSyncHot();
+      }
     }
   });
 })();
@@ -1030,8 +1100,9 @@ function _startBgReconnect(silentMode){
 let CU=null; // current user — declared here so boot sequence can access it
 
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════
-const ROLES=['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
+const ROLES=['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
 const HWMS_ROLES=['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
+const HRMS_ROLES=['Super Admin','HR Admin','Employee'];
 const PORTAL_APPS=[
   {id:'vms',    label:'VMS',        icon:'🚚', full:'Vehicle Management System'},
   {id:'hwms',   label:'HWMS',       icon:'📦', full:'HGAP Warehouse Management System'},
@@ -1118,6 +1189,7 @@ const ltype=(id)=>byId(DB.locations,id)?.type||'?';
 // Find the primary location a user is explicitly assigned to (by membership)
 function getUserLocation(userId){
   if(!userId) return null;
+  if(!DB.locations) return null;
   for(const loc of DB.locations){
     if(loc.inactive) continue;
     if(loc.kapSec===userId) return loc;
@@ -1130,7 +1202,7 @@ function getUserLocation(userId){
 // Enrich CU with locId / locType / locName after login
 function _enrichCU(){
   if(!CU) return;
-  const loc=getUserLocation(CU.id)||byId(DB.locations,CU.plant)||null;
+  const loc=getUserLocation(CU.id)||byId(DB.locations||[],CU.plant)||null;
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';
@@ -1139,7 +1211,7 @@ function _enrichCU(){
 // the corresponding Location Master role arrays.
 async function _syncUserToLocation(userId, plantId, roles){
   if(!userId||!plantId) return;
-  const targetLoc=byId(DB.locations,plantId);
+  const targetLoc=byId(DB.locations||[],plantId);
   if(!targetLoc||targetLoc.type!=='KAP') return;
   const roleMap={'KAP Security':'kapSec','Trip Booking User':'tripBook','Material Receiver':'matRecv','Trip Approver':'approvers'};
   const userRoles=new Set(roles||[]);
@@ -1156,7 +1228,7 @@ async function _syncUserToLocation(userId, plantId, roles){
     }
   });
   if(locChanged) await _dbSave('locations',targetLoc);
-  const otherLocs=DB.locations.filter(l=>l.id!==plantId&&l.type==='KAP');
+  const otherLocs=(DB.locations||[]).filter(l=>l.id!==plantId&&l.type==='KAP');
   for(const ol of otherLocs){
     let olChanged=false;
     Object.entries(roleMap).forEach(([roleName,locField])=>{
@@ -1177,6 +1249,8 @@ function canDoStep(seg, stepNum){
   if(!ownerLocId) return false;
   const loc=byId(DB.locations,ownerLocId);
   if(!loc) return false;
+  // Plant Head can do all steps at their plant
+  if(loc.plantHead===CU.id) return true;
   if(stepNum===1||stepNum===2||stepNum===5) return loc.kapSec===CU.id;
   if(stepNum===3) return (loc.matRecv||[]).includes(CU.id);
   if(stepNum===4) return (loc.approvers||[]).includes(CU.id);

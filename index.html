@@ -196,7 +196,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
     <!-- USERS -->
     <div class="users-section" id="usersSection">
       <div class="toolbar">
-        <input type="text" id="puSearch" placeholder="🔍 Search users…" oninput="renderPortalUsers()">
+        <input type="search" id="puSearch" placeholder="🔍 Search users…" oninput="renderPortalUsers()" onsearch="renderPortalUsers()">
         <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text3)"><input type="checkbox" id="puShowInactive" onchange="renderPortalUsers()"> Show Inactive</label>
         <div style="flex:1"></div>
         <button class="btn btn-primary" onclick="puOpenModal()">+ Add User</button>
@@ -282,6 +282,10 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <div id="muHwmsRoles" style="background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
         <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📦 HWMS — Role(s) *</div>
         <div id="muHwmsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+      <div id="muHrmsRoles" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
+        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">👥 HRMS — Role(s) *</div>
+        <div id="muHrmsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
       <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600"><input type="checkbox" id="muInactive" style="width:16px;height:16px;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div>
     </div>
@@ -682,8 +686,8 @@ function doLogin(){
 }
 
 const _LOGO="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iIzJhOWFhMCIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTAuNSI+S0FQPC90ZXh0Pjwvc3ZnPg==";
-const APP_FILES={vms:'myApps_VMS.html',hwms:'myApps_HWMS.html',security:'myApps_Security.html',maintenance:null,review:null,hrms:null};
-const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:false};
+const APP_FILES={vms:'myApps_VMS.html',hwms:'myApps_HWMS.html',security:'myApps_Security.html',maintenance:null,review:null,hrms:'myApps_HRMS.html'};
+const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:true};
 
 // ── Portal ──────────────────────────────────────────────────────────────────
 function showPortal(){
@@ -1220,8 +1224,10 @@ function puOpenModal(id){
   document.getElementById('muVmsBoxes').innerHTML=vr.map(r=>{const c=(u?.roles||[]).includes(r);const sa=r==='Super Admin';return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:${sa?'rgba(139,92,246,.08)':'var(--surface2)'};padding:4px 10px;border-radius:5px;border:1px solid ${c?(sa?'var(--purple)':'var(--accent)'):(sa?'rgba(139,92,246,.3)':'var(--border)')}"><input type="checkbox" class="muVmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${sa?'⭐ ':''}${r}</label>`}).join('');
   // HWMS roles
   document.getElementById('muHwmsBoxes').innerHTML=HWMS_ROLES.map(r=>{const c=(u?.hwmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(139,92,246,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--purple)':'rgba(139,92,246,.25)'}"><input type="checkbox" class="muHwmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
+  document.getElementById('muHrmsBoxes').innerHTML=(typeof HRMS_ROLES!=='undefined'?HRMS_ROLES:[]).map(r=>{const c=(u?.hrmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(34,197,94,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#16a34a':'rgba(34,197,94,.25)'}"><input type="checkbox" class="muHrmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   document.getElementById('muVmsRoles').style.display=ua.includes('vms')?'block':'none';
   document.getElementById('muHwmsRoles').style.display=ua.includes('hwms')?'block':'none';
+  document.getElementById('muHrmsRoles').style.display=ua.includes('hrms')?'block':'none';
   document.getElementById('muInactive').checked=u?.inactive===true;
   om('mUser');
 }
@@ -1231,6 +1237,7 @@ function puAppChange(cb){
   const sel=[...document.querySelectorAll('.muAppCb:checked')].map(i=>i.value);
   document.getElementById('muVmsRoles').style.display=sel.includes('vms')?'block':'none';
   document.getElementById('muHwmsRoles').style.display=sel.includes('hwms')?'block':'none';
+  document.getElementById('muHrmsRoles').style.display=sel.includes('hrms')?'block':'none';
 }
 
 // ── Save user ───────────────────────────────────────────────────────────────
@@ -1244,6 +1251,7 @@ async function puSaveUser(){
   const apps=[...document.querySelectorAll('.muAppCb:checked')].map(i=>i.value);
   const roles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
   const hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
+  const hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
   const inactive=document.getElementById('muInactive')?.checked===true;
   if(!name||!pass){modalErr('mUser','Username and password required');return}
   if(!plant){modalErr('mUser','Location required');return}
@@ -1251,6 +1259,7 @@ async function puSaveUser(){
   if(!apps.length){modalErr('mUser','Select at least one app');return}
   if(apps.includes('vms')&&!roles.length){modalErr('mUser','Select at least one VMS role');return}
   if(apps.includes('hwms')&&!hwmsRoles.length){modalErr('mUser','Select at least one HWMS role');return}
+  if(apps.includes('hrms')&&!hrmsRoles.length){modalErr('mUser','Select at least one HRMS role');return}
   if(roles.includes('KAP Security')&&roles.length>1){modalErr('mUser','KAP Security cannot combine with other roles');return}
   if(mobile&&mobile.length!==10){modalErr('mUser','Mobile must be 10 digits');return}
   // Guard last Super Admin
@@ -1262,10 +1271,10 @@ async function puSaveUser(){
   if(DB.users.find(u=>u&&u.name===name&&u.id!==id&&!u.inactive)){modalErr('mUser','Username already exists');return}
   if(DB.users.find(u=>(u.fullName||'').trim().toLowerCase()===fullName.toLowerCase()&&u.id!==id&&!u.inactive)){modalErr('mUser','Full name already exists');return}
   if(id){
-    const bak={...eu};Object.assign(eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,apps,inactive});
+    const bak={...eu};Object.assign(eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
   } else {
-    const nu={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,apps,inactive,photo:'',email:''};
+    const nu={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive,photo:'',email:''};
     if(!await _dbSave('users',nu)) return;
   }
   cm('mUser');

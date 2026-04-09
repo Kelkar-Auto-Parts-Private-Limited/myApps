@@ -1119,12 +1119,12 @@
     </div>
 
     <!-- MASTERS -->
-    <div class="page" id="pageUsers"><div class="page-header"><div class="page-title">User Master</div></div><div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><input type="text" id="userSearch" placeholder="🔍 Search by name…" oninput="renderUsers()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);flex:1;min-width:0"><div style="display:flex;gap:6px;flex-shrink:0"><span class="ea-wrap" style="gap:6px"><button class="btn btn-secondary" onclick="exportUsersExcel()" style="font-size:12px;padding:7px 12px;background:#16a34a;color:#fff;border-color:#16a34a">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#2a9aa0;color:#fff;border-color:#2a9aa0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importUsersExcel(this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveUsers" onchange="renderUsers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddUser">+ Add User</button></div></div><div class="table-wrap"><table id="tUsers"><thead><tr><th style="width:40px"></th><th class="sortable" onclick="sortTable('userBody',1)">Full Name</th><th class="sortable" onclick="sortTable('userBody',2)">Username</th><th class="sortable" onclick="sortTable('userBody',3)">Location</th><th class="sortable" onclick="sortTable('userBody',4)">Apps</th><th class="sortable" onclick="sortTable('userBody',5)">Roles</th><th>Actions</th></tr></thead><tbody id="userBody"></tbody></table></div></div></div>
+    <div class="page" id="pageUsers"><div class="page-header"><div class="page-title">User Master</div></div><div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><input type="search" id="userSearch" placeholder="🔍 Search by name…" oninput="renderUsers()" onsearch="renderUsers()" style="font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);flex:1;min-width:0"><div style="display:flex;gap:6px;flex-shrink:0"><span class="ea-wrap" style="gap:6px"><button class="btn btn-secondary" onclick="exportUsersExcel()" style="font-size:12px;padding:7px 12px;background:#16a34a;color:#fff;border-color:#16a34a">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0;background:#2a9aa0;color:#fff;border-color:#2a9aa0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importUsersExcel(this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveUsers" onchange="renderUsers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddUser">+ Add User</button></div></div><div class="table-wrap"><table id="tUsers"><thead><tr><th style="width:40px"></th><th class="sortable" onclick="sortTable('userBody',1)">Full Name</th><th class="sortable" onclick="sortTable('userBody',2)">Username</th><th class="sortable" onclick="sortTable('userBody',3)">Location</th><th class="sortable" onclick="sortTable('userBody',4)">Apps</th><th class="sortable" onclick="sortTable('userBody',5)">Roles</th><th>Actions</th></tr></thead><tbody id="userBody"></tbody></table></div></div></div>
     <div class="page" id="pageVTypes"><div class="page-header"><div class="page-title">Vehicle Type Master</div></div><div class="card"><div class="card-header"><div class="card-title">Vehicle Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicleTypes')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicleTypes',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVT" onchange="renderVTypes()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVT">+ Add Type</button></div></div><div class="table-wrap"><table id="tVTypes"><thead><tr><th class="sortable" onclick="sortTable('vtBody',0)">Type Name</th><th class="sortable" onclick="sortTable('vtBody',1)">Capacity (kg)</th><th>Actions</th></tr></thead><tbody id="vtBody"></tbody></table></div></div></div>
     <div class="page" id="pageDrivers"><div class="page-header"><div class="page-title">Driver Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Drivers</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('drivers')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('drivers',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveDrv" onchange="renderDrivers()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddDrv">+ Add Driver</button></div></div><div class="table-wrap"><table id="tDrivers"><thead><tr><th>Photo</th><th class="sortable" onclick="sortTable('drvBody',1)">Name</th><th class="sortable" onclick="sortTable('drvBody',2)">Mobile</th><th class="sortable" onclick="sortTable('drvBody',3)">Vendor</th><th class="sortable" onclick="sortTable('drvBody',4)">DL Expiry</th><th>Actions</th></tr></thead><tbody id="drvBody"></tbody></table></div></div></div>
     <div class="page" id="pageVendors"><div class="page-header"><div class="page-title">Vendor Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vendors</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vendors')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vendors',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVnd" onchange="renderVendors()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVnd">+ Add Vendor</button></div></div><div class="table-wrap"><table id="tVendors"><thead><tr><th class="sortable" onclick="sortTable('vndBody',0)">Vendor Name</th><th class="sortable" onclick="sortTable('vndBody',1)">Owner</th><th class="sortable" onclick="sortTable('vndBody',2)">Contact</th><th class="sortable" onclick="sortTable('vndBody',3)">Mapped User</th><th class="sortable" onclick="sortTable('vndBody',4)">Address</th><th>Actions</th></tr></thead><tbody id="vndBody"></tbody></table></div></div></div>
     <div class="page" id="pageVehicles"><div class="page-header"><div class="page-title">Vehicle Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Vehicles</div><div style="display:flex;gap:8px;flex-wrap:nowrap"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('vehicles')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('vehicles',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveVeh" onchange="renderVehicles()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddVeh">+ Add Vehicle</button></div></div><div class="table-wrap"><table id="tVehicles"><thead><tr><th class="sortable" onclick="sortTable('vehBody',0)">Vehicle No.</th><th class="sortable" onclick="sortTable('vehBody',1)">Type</th><th class="sortable" onclick="sortTable('vehBody',2)">Vendor</th><th class="sortable" onclick="sortTable('vehBody',3)">PUC Expiry</th><th class="sortable" onclick="sortTable('vehBody',4)">RTO Expiry</th><th class="sortable" onclick="sortTable('vehBody',5)">Insurance Expiry</th><th>Actions</th></tr></thead><tbody id="vehBody"></tbody></table></div></div></div>
-    <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center"><input type="text" id="locSearchInput" oninput="renderLocations()" placeholder="🔍 Search location…" style="padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
+    <div class="page" id="pageLocations"><div class="page-header"><div class="page-title">Location Master</div></div><div class="card"><div class="card-header"><div class="card-title">All Locations</div><div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center"><input type="text" id="locSearchInput" oninput="renderLocations()" placeholder="🔍 Search location…" style="padding:7px 12px;font-size:12px;border:1px solid var(--border);border-radius:6px;width:180px"><span class="ea-wrap" style="gap:8px"><button class="btn btn-secondary" onclick="exportMaster('locations')" style="font-size:12px;padding:7px 12px">📤 Export</button><label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('locations',this)"></label></span><label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveLoc" onchange="renderLocations()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label><button class="btn btn-primary" id="btnAddLoc">+ Add Location</button></div></div><div class="table-wrap"><table id="tLocations"><thead><tr><th class="sortable" onclick="sortTable('locBody',0)">Name</th><th class="sortable" onclick="sortTable('locBody',1)">Type</th><th class="sortable" onclick="sortTable('locBody',2)">KAP Security</th><th class="sortable" onclick="sortTable('locBody',3)">Trip Booking</th><th class="sortable" onclick="sortTable('locBody',4)">Mat. Receiver(s)</th><th class="sortable" onclick="sortTable('locBody',5)">Approver(s)</th><th>Plant Head</th><th>Actions</th></tr></thead><tbody id="locBody"></tbody></table></div></div></div>
     <div class="page" id="pageTripRates"><div class="page-header"><div class="page-title">Trip Rate Master</div></div>
       <!-- SUGGESTIONS PANEL -->
       <div id="rateSuggestPanel" style="display:none;padding:16px" class="card">
@@ -1367,6 +1367,11 @@
   <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📦 HWMS — Role(s) *</div>
   <div id="hwmsRoleBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
 </div>
+<!-- HRMS Roles — shown when HRMS app is checked -->
+<div id="hrmsRolesSection" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
+  <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">👥 HRMS — Role(s) *</div>
+  <div id="hrmsRoleBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+</div>
 
 <div class="form-row" style="margin-top:4px"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="uInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div>
 <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mUser"></div><button class="btn btn-secondary" onclick="cm('mUser')">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save</button></div></div></div>
@@ -1446,6 +1451,7 @@
 <div style="border:1.5px solid #b3dfe0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(59,130,246,.03)"><div style="font-size:11px;font-weight:700;color:#2a9aa0;margin-bottom:6px;display:flex;align-items:center;gap:4px">📋 Trip Booking User(s)</div><div id="locTripBook" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
 <div style="border:1.5px solid #bbf7d0;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(34,197,94,.03)"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;display:flex;align-items:center;gap:4px">📦 Material Receiver(s)</div><div id="locMatRecv" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
 <div style="border:1.5px solid #e9d5ff;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(139,92,246,.03)"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px;display:flex;align-items:center;gap:4px">✅ Trip Approver(s)</div><div id="locApprover" style="display:flex;flex-wrap:wrap;gap:4px"></div></div>
+<div style="border:1.5px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:10px;background:rgba(245,158,11,.03)"><div style="font-size:11px;font-weight:700;color:#b45309;margin-bottom:6px;display:flex;align-items:center;gap:4px">🏭 Plant Head</div><select id="locPlantHead" style="width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:5px"><option value="">-- None --</option></select></div>
 </div><div class="form-row"><div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="locInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div></div><div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mLoc"></div><button class="btn btn-secondary" onclick="cm('mLoc')">Cancel</button><button class="btn btn-primary" onclick="saveLoc()">Save</button></div></div></div>
 
 <div class="modal-overlay" id="mRate"><div class="modal" style="max-width:480px">
@@ -1907,6 +1913,8 @@ async function _demandLoad(tables){
     _loadedTables[r.tbl]=true;
   });
   console.log('📦 Demand loaded: '+needed.join(', '));
+  // Update badges immediately after demand load
+  try{if(typeof updBadges==='function') updBadges();}catch(e){}
 }
 
 function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t){return _loadedTables[t];});}
@@ -1915,13 +1923,33 @@ function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t)
 // Exclude large photo columns from sync queries to reduce egress ~80%.
 // Photos loaded on-demand when user opens a record.
 // Low-volume tables (users, drivers) keep photos in sync for instant display.
+// Only exclude photo columns from tables that have them. Other tables use select('*').
 var _SYNC_SELECT={
   'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
   'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
 };
+// Strip base64 photos from segment steps JSON to reduce memory after fetch
+function _stripStepPhotos(segments){
+  (segments||[]).forEach(function(seg){
+    if(seg.steps&&typeof seg.steps==='object'){
+      Object.keys(seg.steps).forEach(function(k){
+        if(seg.steps[k]&&seg.steps[k].photo) seg.steps[k].photo='__deferred__';
+      });
+    }
+  });
+}
 
 // ── Date filtering: only fetch recent data, load history on-demand ──
-var _DATE_FILTER_DAYS=60; // default cutoff
+var _DATE_FILTER_DAYS=31; // last 1 calendar month
+
+// Auto-load older data if user selects a date beyond loaded range
+function _vmsEnsureDataForDate(fromDate,cb){
+  if(!fromDate){if(cb)cb();return;}
+  var cutoff=_dateCutoff();
+  if(fromDate>=cutoff){if(cb)cb();return;}
+  var daysNeeded=Math.ceil((new Date(cutoff+'T00:00:00')-new Date(fromDate+'T00:00:00'))/(86400000))+7;
+  Promise.all(['trips','segments','spotTrips'].map(function(t){return _loadOlderData(t,daysNeeded);})).then(function(){if(cb)cb();});
+}
 // Supabase table name → date column name
 var _DATE_FILTER_COL={
   'vms_trips':'date',
@@ -2056,9 +2084,11 @@ function _vmsIncrSyncHot(){
   })).then(function(results){
     if(!results)return;var tc=0;
     results.filter(Boolean).forEach(function(r){_vmsIncr.lastTs[r.tbl]=now;if(!r.rows.length)return;tc+=r.rows.length;
-      _syncMergeRows(r.tbl,r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean),false);
+      var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      if(r.tbl==='segments') _stripStepPhotos(parsed);
+      _syncMergeRows(r.tbl,parsed,false);
     });
-    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');_vmsUpdateSyncTime();if(!_kapPopupOpen)_onRefreshViews();}
+    if(tc>0){_bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');_vmsUpdateSyncTime();try{updBadges();}catch(e){}if(!_kapPopupOpen)_onRefreshViews();}
   }).catch(function(e){console.warn('VMS hot sync error:',e.message);});
 }
 
@@ -2105,11 +2135,14 @@ function _vmsDoFullSync(){
       if(!r.rows.length&&isIncr)return;
       tc+=r.rows.length;
       var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
+      if(r.tbl==='segments') _stripStepPhotos(parsed);
       _syncMergeRows(r.tbl,parsed,trueFull);
     });
     (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=now;});
     _bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');
     _vmsUpdateSyncTime();
+    // Update badges immediately when data arrives
+    try{updBadges();}catch(e){}
     if(!_kapPopupOpen)_onRefreshViews();
     if(tc>0||trueFull)console.log('📡 VMS '+(trueFull?'true full':'incr full')+' sync: '+tc+' rows');
   }).catch(function(e){console.warn('VMS full sync error:',e.message);});
@@ -2119,12 +2152,12 @@ function _vmsDoFullSync(){
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
   console.log('bootDB(VMS): starting...');
-  
+
   if(!_origBootDB){
     console.warn('bootDB(VMS): _origBootDB not available');
     return;
   }
-  
+
   // ── Step 0: Check localStorage cache from Portal ────────────────────────
   try{
     var _cached=localStorage.getItem('kap_db_cache');
@@ -2141,11 +2174,10 @@ bootDB=async function(){
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
-            // Force first bgSync to do a TRUE FULL fetch (not incremental).
-            // Incremental skips rows with no recent changes → empty result.
-            _vmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
-            _vmsIncr.mode='unknown'; _vmsIncr.probed=false;
-            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},3000);
+            // Immediate full sync — no delay, skip probe for faster data load
+            _vmsFullIncr.callCount=4;
+            _vmsFullIncr.mode='full'; _vmsFullIncr.probed=true;
+            setTimeout(function(){_vmsDoFullSync();},100);
           } else {
             if(typeof _startBgReconnect==='function') _startBgReconnect(true);
           }
@@ -2155,7 +2187,7 @@ bootDB=async function(){
       } else { localStorage.removeItem('kap_db_cache'); }
     }
   }catch(e){console.warn('bootDB(VMS): cache error:',e.message);}
-  
+
   // ── Step 1: Use original bootDB (most reliable) ────────────────────────
   console.log('bootDB(VMS): calling original bootDB...');
   try{
@@ -2173,22 +2205,22 @@ async function _appBoot(){
   // Set all VMS tables before boot
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
   // Add essential lookup tables to hot sync so they load immediately
-  if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicleTypes','vehicles','drivers','locations','vendors'];
-  
-  try{ 
-    await bootDB(); 
-  }catch(e){ 
-    console.error('VMS: bootDB error',e); 
+  if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicles','drivers','locations','vendors'];
+
+  try{
+    await bootDB();
+  }catch(e){
+    console.error('VMS: bootDB error',e);
   }
-  
+
   console.log('VMS: bootDB completed, users='+(DB.users||[]).length+' trips='+(DB.trips||[]).length);
-  
+
   try{
     _getActiveTables().forEach(function(t){
       if(DB[t]&&DB[t].length>0) _loadedTables[t]=true;
     });
   }catch(e){}
-  
+
   if(splash) splash.style.display='none';
   try{ _applyPhotoInputMode(); }catch(e){}
   
@@ -2243,8 +2275,8 @@ function renderMyApps(){
   if(!grid) return;
   var userApps=CU.apps||[];
   var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
-  var APP_FILES_MAP={vms:null,hwms:'myApps_HWMS.html',security:'myApps_Security.html',maintenance:null,review:null,hrms:null};
-  var APP_ACTIVE_MAP={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:false};
+  var APP_FILES_MAP={vms:null,hwms:'myApps_HWMS.html',security:'myApps_Security.html',maintenance:null,review:null,hrms:'myApps_HRMS.html'};
+  var APP_ACTIVE_MAP={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:true};
   grid.innerHTML=PORTAL_APPS.map(function(app){
     var file=APP_FILES_MAP[app.id]||null;
     var active=APP_ACTIVE_MAP[app.id]||false;
@@ -2833,6 +2865,8 @@ function doLogin(){
         var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
         if(map[pid]) map[pid]();
       }
+      // Auto-skip stale empty exits after data is loaded
+      if(typeof _autoSkipStaleEmptyExits==='function') _autoSkipStaleEmptyExits();
     }catch(e){console.warn('Post-login render error:',e);}
   }, 300);
   // Check password strength OR if password is the default reset password — force change if needed
@@ -3067,16 +3101,16 @@ function goToPortal(){
 }
 
 const NAV=[
-  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',action:'goToPortal',r:['Super Admin','Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
-  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin'],app:'vms'},
+  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',action:'goToPortal',r:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
+  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin','Plant Head'],app:'vms'},
   {sec:'OPERATIONS',app:'vms'},
-  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin'],badge:'bTB',app:'vms'},
-  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin'],badge:'bKS',app:'vms'},
-  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin'],badge:'bMR',app:'vms'},
-  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin'],badge:'bAP',app:'vms'},
+  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin','Plant Head'],badge:'bTB',app:'vms'},
+  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin','Plant Head'],badge:'bKS',app:'vms'},
+  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin','Plant Head'],badge:'bMR',app:'vms'},
+  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin','Plant Head'],badge:'bAP',app:'vms'},
   {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],app:'vms'},
   {sec:'MASTERS',app:'vms'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Plant Head','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',app:'vms'},
   {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',app:'vms'},
   {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',app:'vms'},
   {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
@@ -3090,6 +3124,8 @@ function initApp(){
   try{ _runInitApp(); } catch(e){ console.error('initApp error:',e); notify('⚠ App init error: '+e.message,true); }
 }
 function _runInitApp(){
+  // Ensure all DB arrays exist (may not be loaded yet with lazy boot)
+  ['locations','vehicles','vehicleTypes','drivers','vendors','trips','segments','spotTrips','tripRates','users'].forEach(function(t){if(!DB[t])DB[t]=[];});
   // Migrate: tripBook may be old string format → convert to array
   DB.locations.forEach(l=>{
     if(!Array.isArray(l.tripBook)) l.tripBook=l.tripBook?[l.tripBook]:[];
@@ -3156,6 +3192,7 @@ function _runInitApp(){
     if(item.sec){const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);}
     else if(hasRole(item.r)||CU.roles.includes('Super Admin')){
       const d=document.createElement('div');d.className='nav-item';d.id='n'+item.id;
+      if(item.id==='MyApps') d.style.cssText='background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border-radius:8px;margin:8px 10px;padding:10px 14px;font-weight:900;font-size:14px;border:none;';
       d.innerHTML=`<span class="nav-icon">${item.i}</span><span class="nav-label">${item.l}</span>`
         +(item.badge?`<span class="nav-badge" id="${item.badge}"></span>`:'')
         +(item.cid?`<span class="nav-count" id="${item.cid}">0</span>`:'');
@@ -3657,7 +3694,8 @@ function renderDashTrips(){
       const stClr=s.status==='Completed'?'#16a34a':s.status==='Rejected'?'#dc2626':s.currentStep===5?'#ea580c':s.currentStep===4?'var(--accent)':'var(--text3)';
       const _dDiscrep=s.steps[3]?.discrepancy;const _dNotRcvd=s.steps[3]?.notReceived;
       const _dDiscTag=_dDiscrep?' <span style="font-size:9px;font-weight:700;background:#ea580c;color:#fff;padding:1px 5px;border-radius:4px">⚠</span>':_dNotRcvd?' <span style="font-size:9px;font-weight:700;background:#dc2626;color:#fff;padding:1px 5px;border-radius:4px">✗</span>':'';
-      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.currentStep===5?'📤 Empty Exit Pending':s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
+      const _s5AutoSkipped=s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0;
+      const stLabel=(s.status==='Completed'?'✓ Done':s.status==='Rejected'?'✗ Rejected':s.currentStep===5?(_s5AutoSkipped?'⏭ Auto Skipped':'📤 Empty Exit Pending'):s.currentStep===4?'⏳ Approval Pending':s.currentStep===3?'📦 MR Pending':s.currentStep===2?'🏁 Entry Pending':s.currentStep===1?'🚪 Exit Pending':'—')+((s.status==='Completed'||s.steps[3]?.done)?_dDiscTag:'');
       const mrByU=byId(DB.users,s.steps[3]?.by);const mrByName=mrByU?.fullName||mrByU?.name||'';
       const apByU=byId(DB.users,s.steps[4]?.by);const apByName=apByU?.fullName||apByU?.name||'';
       const fmtTs=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'';
@@ -3676,7 +3714,7 @@ function renderDashTrips(){
           ${stepBadgeLoc(s.steps[2]?.done,'Gate Entry','#0d9488',s.steps[2])}
           ${stepBadgeLoc(s.steps[3]?.done,'Mat. Receipt','#16a34a',s.steps[3])}
           ${stepBadgeLoc(s.steps[4]?.done&&!s.steps[4]?.rejected,'Trip Approval','#7c3aed',s.steps[4])}
-          ${s.steps[5]&&!s.steps[5].skip?stepBadgeLoc(s.steps[5]?.done,'Empty Vehicle Exit','#ea580c',s.steps[5]):''}
+          ${s.steps[5]&&!s.steps[5].skip?stepBadgeLoc(s.steps[5]?.done,'Empty Vehicle Exit','#ea580c',s.steps[5]):(s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0?'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#a16207;border:1px solid #fde047">⏭ Auto Skipped</span>':'')}
           ${s.steps[3]?.discrepancy?'<span style="font-size:9px;font-weight:700;color:#dc2626;padding:2px 6px;background:#fee2e2;border-radius:4px;border:1px solid #fca5a5">⚠ Discrepancy</span>':''}
         </div>
         <!-- Photos row -->
@@ -3697,7 +3735,7 @@ function renderDashTrips(){
           ${s.steps[3]?.done?`<div style="padding:3px 7px;background:rgba(22,163,74,.08);border-radius:5px;border:1px solid rgba(22,163,74,.2)"><span style="color:#16a34a;font-weight:700">📦 MR</span> ${mrByName?mrByName+' · ':''}${fmtTs(s.steps[3].time)}${s.steps[3]?.remarks?' — '+s.steps[3].remarks.slice(0,40):''}</div>`:''}
           ${s.steps[4]?.done&&!s.steps[4]?.rejected?`<div style="padding:3px 7px;background:rgba(124,58,237,.08);border-radius:5px;border:1px solid rgba(124,58,237,.2)"><span style="color:#7c3aed;font-weight:700">✓ Trip Approval</span> ${apByName?apByName+' · ':''}${fmtTs(s.steps[4].time)}</div>`:''}
           ${s.steps[4]?.rejected?`<div style="padding:3px 7px;background:rgba(220,38,38,.08);border-radius:5px;border:1px solid rgba(220,38,38,.2)"><span style="color:#dc2626;font-weight:700">✗ Rejected</span> ${fmtTs(s.steps[4].time)}${s.steps[4]?.remarks?' — '+s.steps[4].remarks.slice(0,40):''}</div>`:''}\
-          ${s.steps[5]?.done?`<div style="padding:3px 7px;background:rgba(234,88,12,.08);border-radius:5px;border:1px solid rgba(234,88,12,.2)"><span style="color:#ea580c;font-weight:700">📤 Empty Exit</span> ${(()=>{const u=byId(DB.users,s.steps[5].by);return u?((u.fullName||u.name)+' · '):'';})()}${fmtTs(s.steps[5].time)}</div>`:''}
+          ${s.steps[5]?.done?`<div style="padding:3px 7px;background:rgba(234,88,12,.08);border-radius:5px;border:1px solid rgba(234,88,12,.2)"><span style="color:#ea580c;font-weight:700">📤 Empty Exit</span> ${(()=>{const u=byId(DB.users,s.steps[5].by);return u?((u.fullName||u.name)+' · '):'';})()}${fmtTs(s.steps[5].time)}</div>`:(s.steps[5]?.skip&&(s.steps[5]?.remarks||'').indexOf('Auto-skipped:')===0?`<div style="padding:3px 7px;background:#fef3c7;border-radius:5px;border:1px solid #fde047"><span style="color:#a16207;font-weight:700">⏭ Empty Exit — Auto Skipped</span> <span style="font-size:10px;color:#92400e">${s.steps[5].remarks.replace('Auto-skipped: ','')}</span></div>`:'')}
         </div>
       </div>`;
     }).join('');
@@ -3760,6 +3798,17 @@ function setDateRange(fromId,toId,preset,renderFn,grpId){
   if(fe){fe.value=from;updDateBtnLbl(fromId);}
   if(te){te.value=to;updDateBtnLbl(toId);}
   if(grpId)updDrBtns(grpId,fromId,toId);
+  // Auto-load older data if selected range goes beyond loaded cutoff
+  if(from){
+    var cutoff=_dateCutoff();
+    if(from<cutoff){
+      var daysNeeded=Math.ceil((new Date(cutoff+'T00:00:00')-new Date(from+'T00:00:00'))/(86400000))+7;
+      Promise.all(['trips','segments','spotTrips'].map(function(t){return _loadOlderData(t,daysNeeded);})).then(function(){
+        if(typeof renderFn==='function')renderFn();
+      });
+      return;// renderFn called after load completes
+    }
+  }
   if(typeof renderFn==='function')renderFn();
 }
 function updDrBtns(grpId,fromId,toId){
@@ -4468,14 +4517,92 @@ async function deleteTrip(tripId){
 
 async function confirmDeleteTrip(){
   const tripId = document.getElementById('btnConfirmDelete').dataset.tripId;
+  // Rollback any auto-skipped empty exits linked to this trip
+  await _rollbackAutoSkippedEmptyExit(tripId);
   for(const s of DB.segments.filter(s=>s.tripId===tripId)){if(!await _dbDel('segments',s.id)) return;}
   for(const t of DB.trips.filter(t=>t.id===tripId)){if(!await _dbDel('trips',t.id)) return;}
   cm('mDeleteTrip');
   notify(`Trip ${tripId} and all related segments deleted.`);
-  renderDash();renderMyTrips();
+  renderDash();renderMyTrips();renderKap();
   updBadges();
 }
 
+// Scan all existing trips and auto-skip empty exit where a newer trip exists with same vehicle at same location
+async function _autoSkipStaleEmptyExits(){
+  var skipped=0;
+  // Find all segments waiting for empty exit (step 5 pending)
+  var pendingS5=DB.segments.filter(function(seg){
+    if(seg.status==='Completed'||seg.status==='Locked') return false;
+    var s5=seg.steps&&seg.steps[5];
+    if(!s5||s5.skip||s5.done) return false;
+    var t=byId(DB.trips,seg.tripId);
+    if(!t||t.cancelled||!t.vehicleId) return false;
+    return true;
+  });
+  for(var i=0;i<pendingS5.length;i++){
+    var seg=pendingS5[i];
+    var oldTrip=byId(DB.trips,seg.tripId);
+    if(!oldTrip) continue;
+    var vehId=oldTrip.vehicleId;
+    var destLoc=seg.dLoc;
+    // Find a newer trip with same vehicle starting from same location
+    var newerTrip=DB.trips.find(function(t){
+      if(t.id===oldTrip.id||t.cancelled) return false;
+      if(t.vehicleId!==vehId) return false;
+      if(t.startLoc!==destLoc) return false;
+      // Must be booked after the old trip
+      return (t.date||'')>(oldTrip.date||'');
+    });
+    if(newerTrip){
+      seg.steps[5].skip=true;
+      seg.steps[5].done=false;
+      seg.steps[5].remarks='Auto-skipped: new trip '+newerTrip.id+' booked for same vehicle at same location';
+      seg.currentStep=nextStep(seg);
+      if(allStepsDone(seg)) seg.status='Completed';
+      await _dbSave('segments',seg);
+      // Complete old trip if all segments done
+      var oldTripSegs=DB.segments.filter(function(s){return s.tripId===seg.tripId;});
+      if(oldTripSegs.every(function(s){return s.status==='Completed'||s.status==='Rejected';})){
+        oldTrip.completedAt=new Date().toISOString();
+        await _dbSave('trips',oldTrip);
+      }
+      skipped++;
+      console.log('Auto-skipped stale Empty Exit: seg '+seg.id+' (trip '+seg.tripId+') → newer trip '+newerTrip.id);
+    }
+  }
+  if(skipped){
+    notify('⏭ Auto-skipped empty exit on '+skipped+' old trip'+(skipped>1?'s':''));
+    updBadges();renderKap();
+  }
+}
+
+async function _rollbackAutoSkippedEmptyExit(tripId){
+  // Find segments where step 5 was auto-skipped because of this trip
+  var marker='Auto-skipped: new trip '+tripId+' ';
+  var restored=0;
+  for(var i=0;i<DB.segments.length;i++){
+    var seg=DB.segments[i];
+    if(seg.tripId===tripId) continue;// skip the trip's own segments
+    var s5=seg.steps&&seg.steps[5];
+    if(!s5||!s5.skip) continue;
+    if((s5.remarks||'').indexOf(marker)!==0) continue;
+    // Restore step 5
+    s5.skip=false;
+    s5.done=false;
+    s5.remarks='';
+    seg.currentStep=nextStep(seg);
+    if(seg.status==='Completed') seg.status='Active';
+    await _dbSave('segments',seg);
+    // Undo trip completion if it was marked complete
+    var oldTrip=byId(DB.trips,seg.tripId);
+    if(oldTrip&&oldTrip.completedAt){
+      delete oldTrip.completedAt;
+      await _dbSave('trips',oldTrip);
+    }
+    restored++;
+  }
+  if(restored) console.log('Restored empty exit on '+restored+' segment(s) after trip '+tripId+' cancelled/deleted');
+}
 async function cancelTrip(tripId){
   const trip=byId(DB.trips,tripId);
   if(!trip) return;
@@ -4491,6 +4618,8 @@ async function cancelTrip(tripId){
       seg.status='Locked';
       if(!await _dbSave('segments',seg)){Object.assign(seg,segBak);}
     }
+    // Rollback any auto-skipped empty exits linked to this trip
+    await _rollbackAutoSkippedEmptyExit(tripId);
     notify('Trip '+tripId+' cancelled');
     renderMyTrips();renderDash();renderKap();updBadges();
   });
@@ -5425,11 +5554,53 @@ async function _doBookTrip(){
       return;
     }
   }
+  // Auto-skip Empty Vehicle Exit on old trip if same vehicle is at same location
+  if(vehId&&s){
+    var _oldSegs=DB.segments.filter(function(seg){
+      if(seg.tripId===id) return false;// skip new trip's own segments
+      if(seg.status==='Completed'||seg.status==='Locked') return false;
+      var _oldTrip=byId(DB.trips,seg.tripId);
+      if(!_oldTrip||_oldTrip.vehicleId!==vehId||_oldTrip.cancelled) return false;
+      // Check if step 5 (Empty Vehicle Exit) is pending and at same location as new trip start
+      var s5=seg.steps&&seg.steps[5];
+      if(!s5||s5.skip||s5.done) return false;
+      // Compare destination of old segment with start of new trip
+      var segDest=seg.dLoc;
+      return segDest===s||s5.ownerLoc===s||s5.loc===s;
+    });
+    for(var _oi=0;_oi<_oldSegs.length;_oi++){
+      var _os=_oldSegs[_oi];
+      _os.steps[5].skip=true;
+      _os.steps[5].done=false;
+      _os.steps[5].remarks='Auto-skipped: new trip '+id+' booked for same vehicle at same location';
+      _os.currentStep=nextStep(_os);
+      if(allStepsDone(_os)) _os.status='Completed';
+      await _dbSave('segments',_os);
+      // Check if old trip is now fully complete
+      var _oldTripSegs=DB.segments.filter(function(seg2){return seg2.tripId===_os.tripId;});
+      var _allDone=_oldTripSegs.every(function(seg2){return seg2.status==='Completed'||seg2.status==='Rejected';});
+      if(_allDone){
+        var _oldT=byId(DB.trips,_os.tripId);
+        if(_oldT){_oldT.completedAt=new Date().toISOString();await _dbSave('trips',_oldT);}
+      }
+      console.log('Auto-skipped Empty Exit on seg '+_os.id+' (trip '+_os.tripId+') — new trip '+id+' at same location');
+    }
+  }
   notify(`Trip ${id} booked — ${pairs.length} segment(s) created!`);
-  _kapPopupOpen=false;cm('mTripBooking');updBadges();renderDash();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();
+  _kapPopupOpen=false;cm('mTripBooking');
+  // Force full re-render to reflect auto-skipped empty exits
+  setTimeout(function(){updBadges();renderDash();renderDashTrips();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();},100);
 }
 
 // Helper: get trips for current user's plant location
+// Check if a location belongs to the current user (via plant, kapSec, tripBook, matRecv, approvers, or plantHead)
+function _isMyLocation(locId){
+  if(!CU||!locId) return false;
+  if(CU.plant===locId) return true;
+  var loc=byId(DB.locations,locId);
+  if(!loc) return false;
+  return loc.kapSec===CU.id||loc.plantHead===CU.id||(loc.tripBook||[]).includes(CU.id)||(loc.matRecv||[]).includes(CU.id)||(loc.approvers||[]).includes(CU.id);
+}
 function tripsForMyPlant(){
   if(!CU) return [];
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
@@ -5442,6 +5613,7 @@ function tripsForMyPlant(){
   // Find all locations where this user is assigned (as any role)
   const myAssignedLocs=new Set(DB.locations.filter(l=>
     l.kapSec===CU.id ||
+    l.plantHead===CU.id ||
     (l.tripBook||[]).includes(CU.id) ||
     (l.matRecv||[]).includes(CU.id) ||
     (l.approvers||[]).includes(CU.id)
@@ -5469,7 +5641,7 @@ function _tripsForMyBookingPlant(){
   }
   const myPlantLocs=new Set();
   if(CU.plant) myPlantLocs.add(CU.plant);
-  DB.locations.filter(l=>(l.tripBook||[]).includes(CU.id)).forEach(l=>myPlantLocs.add(l.id));
+  DB.locations.filter(l=>(l.tripBook||[]).includes(CU.id)||l.plantHead===CU.id).forEach(l=>myPlantLocs.add(l.id));
   return DB.trips.filter(trip=>{
     if(myPlantLocs.has(trip.startLoc)) return true;
     if(trip.dest1 && myPlantLocs.has(trip.dest1)) return true;
@@ -5546,7 +5718,11 @@ function renderMyTrips(){
         // Build step-by-step progress row — ALWAYS for all segments
         const _stepBdg=(stepNum,label,clr)=>{
           const st=seg.steps[stepNum];
-          if(!st||st.skip) return '';
+          if(!st) return '';
+          if(st.skip){
+            if((st.remarks||'').indexOf('Auto-skipped:')===0) return '<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:#fef3c7;color:#a16207;border:1px solid #fde047;white-space:nowrap">⏭ Auto Skipped</span>';
+            return '';
+          }
           const done=st.done&&(stepNum!==4||!st.rejected);
           const active=!done&&seg.currentStep===stepNum&&seg.status!=='Completed'&&seg.status!=='Locked';
           const loc=byId(DB.locations,st.ownerLoc||st.loc);
@@ -5824,7 +6000,7 @@ function _kapUpdateCounts(){
   const spotCount=(DB.spotTrips||[]).filter(s=>{
     if(s.exitTime) return false;
     if(isSA) return true;
-    return CU.plant&&s.location===CU.plant;
+    return _isMyLocation(s.location);
   }).length;
   const _setBadge=(id,n)=>{
     const el=document.getElementById(id);
@@ -5939,23 +6115,31 @@ function _kapOpenSpotPopup(spotId){
     document.getElementById('spotEntryRemarks').value=s.entryRemarks||'';
     if(popupId) popupId.textContent=spotId;
     const hasExited=!!s.exitTime;
-    const canExit=!hasExited&&!!s.entryTime;
-    // If exited: disable all entry form fields (read-only view)
+    const isAutoExited=hasExited&&(s.exitRemarks||'').indexOf('Auto-exit')>=0;
+    // Stale = entry older than 48hrs (locked to view-only regardless of exit status)
+    const entryTs=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
+    const isStale=entryTs>0&&(Date.now()-entryTs)>48*3600000;
+    const isLocked=hasExited||isStale;
+    var _spotTitle=document.getElementById('spotPopupTitle');
+    var _titleExtra=isAutoExited?'<span style="background:#fef3c7;color:#92400e;border:1px solid #fde047;padding:2px 8px;border-radius:5px;font-size:11px;margin-left:6px">Auto Exited</span>':(isStale&&!hasExited?'<span style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:2px 8px;border-radius:5px;font-size:11px;margin-left:6px">Locked (48hrs)</span>':'');
+    if(_spotTitle) _spotTitle.innerHTML='Spot Vehicle Entry'+_titleExtra;
+    const canExit=!hasExited&&!!s.entryTime&&!isStale;
+    // If exited or stale: disable all entry form fields (read-only view)
     const entryFormFields=['spotVehNum','spotDriverName','spotDriverMob','spotSupplier','spotEntryRemarks'];
     entryFormFields.forEach(id=>{
-      const el=document.getElementById(id);if(el){el.disabled=hasExited;el.style.opacity=hasExited?'0.6':'';}
+      const el=document.getElementById(id);if(el){el.disabled=isLocked;el.style.opacity=isLocked?'0.6':'';}
     });
-    // Disable challan inputs and photo buttons if exited
-    document.querySelectorAll('[id^="spotChallanNo_"]').forEach(el=>{el.disabled=hasExited;el.style.opacity=hasExited?'0.6':'';});
-    document.querySelectorAll('[id^="spotChallanThumb_"]').forEach(el=>{if(hasExited){el.onclick=null;}});
-    // Remove all photo × remove buttons if exited (entry photos are locked)
-    if(hasExited){
+    // Disable challan inputs and photo buttons if locked
+    document.querySelectorAll('[id^="spotChallanNo_"]').forEach(el=>{el.disabled=isLocked;el.style.opacity=isLocked?'0.6':'';});
+    document.querySelectorAll('[id^="spotChallanThumb_"]').forEach(el=>{if(isLocked){el.onclick=null;}});
+    // Remove all photo × remove buttons if locked (entry photos are locked)
+    if(isLocked){
       document.querySelectorAll('.spot-photo-clear').forEach(btn=>btn.remove());
     }
     const vehThumb=document.getElementById('spotVehThumb');
-    if(vehThumb) vehThumb.onclick=hasExited?()=>openPhoto(s.entryVehiclePhoto||''):()=>_showPhotoChoice('spotVehFile','spotVehThumb');
+    if(vehThumb) vehThumb.onclick=isLocked?()=>openPhoto(s.entryVehiclePhoto||''):()=>_showPhotoChoice('spotVehFile','spotVehThumb');
     const drvThumb=document.getElementById('spotDriverThumb');
-    if(drvThumb) drvThumb.onclick=hasExited?()=>openPhoto(s.driverPhoto||''):()=>_showPhotoChoice('spotDriverFile','spotDriverThumb');
+    if(drvThumb) drvThumb.onclick=isLocked?()=>openPhoto(s.driverPhoto||''):()=>_showPhotoChoice('spotDriverFile','spotDriverThumb');
     // Exit section: show always for exited records (read-only), show editable for inside vehicles
     if(exitSec){exitSec.style.display='flex';}
     document.getElementById('spotExitId').value=spotId;
@@ -5972,7 +6156,10 @@ function _kapOpenSpotPopup(spotId){
       const exitAge=(Date.now()-new Date(s.exitTime))/1000/3600;
       const exitBtn=document.getElementById('spotExitBtn');
       if(exitBtn){
-        if(can&&exitAge<=2){
+        if(isAutoExited){
+          exitBtn.textContent='🟡 Auto Exited';exitBtn.disabled=true;
+          exitBtn.style.cssText='background:#fef3c7;border:2px solid #fde047;color:#92400e;border-radius:9px;font-size:13px;padding:9px 16px;cursor:not-allowed;font-weight:800';
+        } else if(can&&exitAge<=2){
           exitBtn.textContent='↩ Revoke Exit';exitBtn.className='btn';
           exitBtn.style.cssText='background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;font-weight:800;border-radius:9px;font-size:13px;padding:9px 16px;cursor:pointer';
           exitBtn.onclick=()=>_spotRevokeExit(spotId);
@@ -5981,6 +6168,14 @@ function _kapOpenSpotPopup(spotId){
           exitBtn.style.cssText='background:#f1f5f9;border:1px solid #cbd5e1;color:#94a3b8;border-radius:9px;font-size:13px;padding:9px 16px;cursor:not-allowed;opacity:.6';
         }
       }
+    } else if(isStale&&!hasExited){
+      // Stale (>48hrs) but not exited — locked, show disabled exit
+      document.getElementById('spotExitRemarks').disabled=true;
+      document.getElementById('spotExitRemarks').style.opacity='0.6';
+      document.getElementById('spotExitRemarks').value='Locked — entry older than 48 hours';
+      const et=document.getElementById('spotExitVehThumb');if(et){et.innerHTML='🔒';et.style.border='2px dashed #cbd5e1';et.onclick=null;}
+      const exitBtn=document.getElementById('spotExitBtn');
+      if(exitBtn){exitBtn.textContent='🔒 Locked (48hrs)';exitBtn.disabled=true;exitBtn.style.cssText='background:#f1f5f9;border:2px solid #cbd5e1;color:#94a3b8;border-radius:9px;font-size:13px;padding:9px 16px;cursor:not-allowed;font-weight:800';}
     } else if(canExit){
       document.getElementById('spotExitRemarks').disabled=false;
       document.getElementById('spotExitRemarks').style.opacity='';
@@ -5990,10 +6185,10 @@ function _kapOpenSpotPopup(spotId){
       const exitBtn=document.getElementById('spotExitBtn');
       if(exitBtn){exitBtn.textContent='🚪 Record Exit';exitBtn.className='btn btn-danger';exitBtn.disabled=false;exitBtn.style.cssText='font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px';exitBtn.onclick=doSpotExit;}
     }
-    // Submit button: hide if exited, show edit if inside
+    // Submit button: hide if locked, show edit if inside and not stale
     const sb=document.getElementById('spotSubmitBtn');
     if(sb){
-      if(hasExited){sb.style.display='none';}
+      if(isLocked){sb.style.display='none';}
       else{sb.style.display='';sb.textContent='✏ Save Entry';sb.className='btn btn-primary';}
     }
     const cb=document.getElementById('spotCancelEditBtn');
@@ -6088,13 +6283,13 @@ function _renderKapInner(){
   });
   if(srch)allPending=allPending.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
 
-  // Update tab counts (both tabs always)
+  // Update tab counts (both tabs always) — step 5 (Empty Exit) only on exit tab
   const isStep5=(s)=>!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s);
   const exitCount=allPending.filter(s=>s.currentStep===1||isStep5(s)).length;
-  const entryCount=allPending.filter(s=>s.currentStep===2||isStep5(s)).length;
+  const entryCount=allPending.filter(s=>s.currentStep===2).length;
 
-  const step=(_kapMode==='entry')?2:1; // map mode to step: exit=1, entry=2
-  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):(s.currentStep===2||isStep5(s)));
+  const step=(_kapMode==='entry')?2:1;
+  let pendingSegs=allPending.filter(s=>step===1?(s.currentStep===1||isStep5(s)):s.currentStep===2);
 
   // Deduplicate by tripId — show one card per trip (card already shows all segments)
   const _seenTrips=new Set();
@@ -6740,7 +6935,7 @@ function renderSpotHistory(){
   const d30=new Date();d30.setDate(d30.getDate()-30);
   const filtered=spots.filter(s=>{
     if(!isSuperAdmin&&new Date(s.date)<d30) return false;
-    if(!isSA&&s.location!==myLocId) return false;
+    if(!isSA&&!_isMyLocation(s.location)) return false;
     const sDate=(s.entryTime||s.date||'').slice(0,10);
     if(_fromV&&sDate<_fromV) return false;
     if(_toV&&sDate>_toV) return false;
@@ -6756,9 +6951,12 @@ function renderSpotHistory(){
   const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
   list.innerHTML=filtered.map(s=>{
     const isInside=!s.exitTime;
+    const isAutoExited=!isInside&&(s.exitRemarks||'').indexOf('Auto-exit')>=0;
+    const _entryTs2=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
+    const isStaleCard=isInside&&_entryTs2>0&&(now.getTime()-_entryTs2)>48*3600000;
     const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
-    const borderClr=isInside?'#dc2626':'#16a34a';
-    const statusDot=isInside?'🔴':'🟢';
+    const borderClr=isStaleCard?'#94a3b8':(isInside?'#dc2626':(isAutoExited?'#f59e0b':'#16a34a'));
+    const statusDot=isStaleCard?'🔒':(isInside?'🔴':(isAutoExited?'🟡':'🟢'));
     return `<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff" onclick="_kapOpenSpotPopup('${s.id}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;min-width:0;flex-wrap:nowrap">
         <span style="font-size:16px;flex-shrink:0">${statusDot}</span>
@@ -6771,6 +6969,7 @@ function renderSpotHistory(){
         ${s.challan?`<span style="background:#f0fafa;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;color:#1d6f73;font-weight:700">📄 ${s.challan}</span>`:''}
         ${s.driverName?`<span style="color:var(--text2);font-weight:600">🧑 ${s.driverName}</span>`:''}
         ${s.supplier?`<span style="color:var(--text3)">· ${s.supplier}</span>`:''}
+        ${isAutoExited?'<span style="background:#fef3c7;color:#92400e;border:1px solid #fde047;padding:1px 6px;border-radius:4px;font-weight:800;font-size:10px">Auto Exited</span>':(isStaleCard?'<span style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;padding:1px 6px;border-radius:4px;font-weight:800;font-size:10px">Locked</span>':'')}
         <span style="color:var(--text3);margin-left:auto;white-space:nowrap">${fmt(s.entryTime)}</span>
         ${isSuperAdmin?`<button onclick="event.stopPropagation();deleteSpotEntry('${s.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:2px 7px;cursor:pointer;font-weight:700;flex-shrink:0">🗑</button>`:''}
       </div>
@@ -8072,8 +8271,10 @@ function openUserModal(id){
   _renderAppBoxes(userApps);
   rboxes(u?.roles||[]);
   _hwmsRboxes(u?.hwmsRoles||[]);
+  _hrmsRboxes(u?.hrmsRoles||[]);
   _toggleVmsRolesSection(userApps.includes('vms'));
   _toggleHwmsRolesSection(userApps.includes('hwms'));
+  _toggleHrmsRolesSection(userApps.includes('hrms'));
   const uICb=document.getElementById('uInactive');if(uICb)uICb.checked=u?.inactive===true;
   om('mUser');
 }
@@ -8094,6 +8295,7 @@ function _onAppBoxChange(cb){
   cb.closest('label').style.borderColor=cb.checked?'var(--accent)':'var(--border)';
   _toggleVmsRolesSection(sel.includes('vms'));
   _toggleHwmsRolesSection(sel.includes('hwms'));
+  _toggleHrmsRolesSection(sel.includes('hrms'));
 }
 function _toggleVmsRolesSection(show){
   const sec=document.getElementById('vmsRolesSection');
@@ -8102,6 +8304,19 @@ function _toggleVmsRolesSection(show){
 function _toggleHwmsRolesSection(show){
   const sec=document.getElementById('hwmsRolesSection');
   if(sec) sec.style.display=show?'block':'none';
+}
+function _toggleHrmsRolesSection(show){
+  const sec=document.getElementById('hrmsRolesSection');
+  if(sec) sec.style.display=show?'block':'none';
+}
+function _hrmsRboxes(sel){
+  var el=document.getElementById('hrmsRoleBoxes');if(!el)return;
+  el.innerHTML=(typeof HRMS_ROLES!=='undefined'?HRMS_ROLES:[]).map(function(r){
+    var checked=(sel||[]).includes(r);
+    var bg='rgba(34,197,94,.06)';
+    var bc=checked?'#16a34a':'rgba(34,197,94,.25)';
+    return '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:'+bg+';padding:4px 10px;border-radius:5px;border:1px solid '+bc+'"><input type="checkbox" value="'+r+'" '+(checked?'checked':'')+' style="width:auto"> '+r+'</label>';
+  }).join('');
 }
 function _hwmsRboxes(sel){
   document.getElementById('hwmsRoleBoxes').innerHTML=HWMS_ROLES.map(r=>{
@@ -8144,12 +8359,14 @@ async function saveUser(){
   const apps=[...document.querySelectorAll('#appBoxes input:checked')].map(i=>i.value);
   const roles=[...document.querySelectorAll('#roleBoxes input:checked')].map(i=>i.value);
   const hwmsRoles=[...document.querySelectorAll('#hwmsRoleBoxes input:checked')].map(i=>i.value);
+  const hrmsRoles=[...document.querySelectorAll('#hrmsRoleBoxes input:checked')].map(i=>i.value);
   if(!name||!pass){modalErr('mUser','Username and password required');return;}
   if(!plant){modalErr('mUser','Location name is required');return;}
   if(!fullName){modalErr('mUser','Full name required');return;}
   if(!apps.length){modalErr('mUser','Select at least one app');return;}
   if(apps.includes('vms')&&!roles.length){modalErr('mUser','Select at least one VMS role');return;}
   if(apps.includes('hwms')&&!hwmsRoles.length){modalErr('mUser','Select at least one HWMS role');return;}
+  if(apps.includes('hrms')&&!hrmsRoles.length){modalErr('mUser','Select at least one HRMS role');return;}
   // KAP Security is exclusive — cannot be combined with other roles
   if(roles.includes('KAP Security')&&roles.length>1){
     modalErr('mUser','KAP Security role cannot be combined with other roles');return;
@@ -8180,10 +8397,10 @@ async function saveUser(){
   if(id){
     const _eu=byId(DB.users,id);
     const _backup={..._eu};
-    Object.assign(_eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,apps,inactive:uInactive});
+    Object.assign(_eu,{name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive});
     if(!await _dbSave('users',_eu)){ Object.assign(_eu,_backup); return; }
   }
-  else{const _u={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,apps,inactive:uInactive};if(!await _dbSave('users',_u)) return;}
+  else{const _u={id:'u'+uid(),name,password:pass,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive};if(!await _dbSave('users',_u)) return;}
   cm('mUser');
   // Auto-sync user's roles into their plant location's role arrays
   const _savedId=id||(DB.users[DB.users.length-1]?.id);
@@ -8500,7 +8717,7 @@ function renderLocations(){
     const inactive=l.inactive===true;
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
     var actCol=_isLocAdmin?`<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td>`:'<td></td>';
-    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td>${actCol}</tr>`;
+    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td><td>${l.plantHead?uname(l.plantHead):'-'}</td>${actCol}</tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No locations found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function setLocColour(colour){
@@ -8548,6 +8765,8 @@ function openLocModal(id){
   document.getElementById('locTripBook').innerHTML=tU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.tripBook||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.tripBook||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Trip Booking Users in User Master</span>';
   document.getElementById('locMatRecv').innerHTML=mU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.matRecv||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.matRecv||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Material Receivers in User Master</span>';
   document.getElementById('locApprover').innerHTML=aU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.approvers||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.approvers||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Approvers in User Master</span>';
+  const phU=sortBy(DB.users.filter(u=>(u.roles||[]).includes('Plant Head')),u=>(u.fullName||u.name));
+  document.getElementById('locPlantHead').innerHTML='<option value="">-- None --</option>'+phU.map(u=>`<option value="${u.id}"${u.id===l?.plantHead?' selected':''}>${_uLabelPlain(u)}</option>`).join('');
   toggleKapFields();document.getElementById('mLocTitle').textContent=id?'Edit Location':'Add Location';
   // Load colour
   setLocColour(l?.colour||'');
@@ -8560,6 +8779,7 @@ async function saveLoc(){
   const kapSec=document.getElementById('locKapSec').value;const tripBook=[...document.querySelectorAll('#locTripBook input:checked')].map(o=>o.value);
   const matRecv=[...document.querySelectorAll('#locMatRecv input:checked')].map(o=>o.value);
   const approvers=[...document.querySelectorAll('#locApprover input:checked')].map(o=>o.value);
+  const plantHead=document.getElementById('locPlantHead').value;
   if(!name||!type){modalErr('mLoc','Fill required fields');return;}
   if(!id){
     const _inactLoc=DB.locations.find(l=>l&&l.name.trim().toLowerCase()===name.toLowerCase()&&l.id!==id&&l.inactive===true);
@@ -8570,10 +8790,10 @@ async function saveLoc(){
   if(id){
     const _loc=byId(DB.locations,id);
     const _locBak={..._loc};
-    Object.assign(_loc,{name,type,address,geo,colour,kapSec,tripBook,matRecv,approvers,inactive:locInactive});
+    Object.assign(_loc,{name,type,address,geo,colour,kapSec,tripBook,matRecv,approvers,plantHead,inactive:locInactive});
     if(!await _dbSave('locations',_loc)){ Object.assign(_loc,_locBak); return; }
   }
-  else{const _loc={id:'l'+uid(),name,type,address,geo,colour,kapSec,tripBook,matRecv,approvers,inactive:locInactive};if(!await _dbSave('locations',_loc)) return;}
+  else{const _loc={id:'l'+uid(),name,type,address,geo,colour,kapSec,tripBook,matRecv,approvers,plantHead,inactive:locInactive};if(!await _dbSave('locations',_loc)) return;}
     cm('mLoc');renderLocations();notify('Saved!');
 }
 
@@ -9935,7 +10155,26 @@ function renderHelper(){
     </tr>`;
   });
 
+  // Count spot vehicles pending exit > 48hrs
+  var _spotStale=(DB.spotTrips||[]).filter(function(s){return !s.exitTime&&s.entryTime&&(Date.now()-new Date(s.entryTime).getTime())>48*3600000;});
+
   el.innerHTML=`
+  <!-- REPAIR TOOLS -->
+  ${s('🔧 Repair Tools','rgba(220,38,38,.06)',`
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:1;min-width:250px">
+        <p style="margin:0 0 8px"><strong>Mark Empty Exit for Old Trips:</strong> Finds all trips with vehicles waiting for Empty Vehicle Exit and marks step 5 as completed without requiring a photo.</p>
+        <button onclick="_repairMarkEmptyExitDone()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:6px;cursor:pointer">🔧 Mark All Empty Exits Done</button>
+        <div id="repairEmptyExitResult" style="margin-top:10px;font-size:12px;display:none"></div>
+      </div>
+      <div style="flex:1;min-width:250px">
+        <p style="margin:0 0 8px"><strong>Auto-Exit Stale Spot Vehicles:</strong> Spot vehicles inside for more than 48 hours with no exit recorded. Marks them as auto-exited without photo.</p>
+        <div style="font-size:12px;margin-bottom:8px;font-weight:700;color:${_spotStale.length?'#dc2626':'#16a34a'}">${_spotStale.length} spot vehicle(s) pending exit &gt; 48 hrs</div>
+        <button onclick="_repairAutoExitSpotVehicles()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#f59e0b;border:none;color:#fff;border-radius:6px;cursor:pointer" ${_spotStale.length?'':'disabled style="opacity:.5;cursor:not-allowed"'}>🏁 Auto-Exit Stale Spot Vehicles</button>
+        <div id="repairSpotExitResult" style="margin-top:10px;font-size:12px;display:none"></div>
+      </div>
+    </div>
+  `)}
   <!-- TRIP ID ALLOCATION TOOL -->
   <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
     <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">
@@ -10108,7 +10347,121 @@ function renderHelper(){
     ])}
     </tbody></table>
   `)}
+
   `;
+}
+
+async function _repairMarkEmptyExitDone(){
+  var resEl=document.getElementById('repairEmptyExitResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Scanning…</span>';}
+  var fixed=0,details=[];
+  for(var i=0;i<DB.segments.length;i++){
+    var seg=DB.segments[i];
+    if(seg.status==='Locked') continue;
+    var trip=byId(DB.trips,seg.tripId);
+    if(!trip||trip.cancelled) continue;
+    // Create step 5 if missing (old trips before step 5 feature)
+    if(!seg.steps[5]){
+      var isLastSeg=(seg.label==='A'&&!trip.dest2)||(seg.label==='B'&&!trip.dest3)||seg.label==='C';
+      var dLoc=byId(DB.locations||[],seg.dLoc);
+      var isKapDest=dLoc&&dLoc.type==='KAP';
+      if(isLastSeg&&isKapDest){
+        seg.steps[5]={skip:false,label:'Empty Vehicle Exit',role:'KAP Security',done:false,time:null,by:null,loc:seg.dLoc,ownerLoc:seg.dLoc};
+      } else {
+        continue;// Not eligible for step 5
+      }
+    }
+    var s5=seg.steps[5];
+    if(s5.skip||s5.done) continue;
+    // Accept any segment where the vehicle has arrived (step 2 done or skipped, or step 1 done)
+    var vehicleArrived=(seg.steps[2]&&(seg.steps[2].done||seg.steps[2].skip))||(seg.steps[1]&&seg.steps[1].done);
+    if(!vehicleArrived) continue;
+    // Mark step 5 as done without photo
+    s5.done=true;
+    s5.time=new Date().toISOString();
+    s5.by=CU?CU.id:'';
+    s5.remarks='Repair: marked exit without photo';
+    // Also force-complete pending steps 3 & 4 if not done (repair action)
+    if(seg.steps[3]&&!seg.steps[3].skip&&!seg.steps[3].done){
+      seg.steps[3].done=true;seg.steps[3].time=new Date().toISOString();seg.steps[3].by=CU?CU.id:'';seg.steps[3].remarks='Repair: auto-completed';
+    }
+    if(seg.steps[4]&&!seg.steps[4].skip&&!seg.steps[4].done){
+      seg.steps[4].done=true;seg.steps[4].time=new Date().toISOString();seg.steps[4].by=CU?CU.id:'';seg.steps[4].remarks='Repair: auto-completed';
+    }
+    seg.currentStep=nextStep(seg);
+    seg.status='Completed';
+    await _dbSave('segments',seg);
+    // Complete trip if all segments done
+    var tripSegs=DB.segments.filter(function(s){return s.tripId===seg.tripId;});
+    if(tripSegs.every(function(s){return s.status==='Completed'||s.status==='Rejected';})){
+      trip.completedAt=new Date().toISOString();
+      await _dbSave('trips',trip);
+    }
+    fixed++;
+    details.push({tripId:seg.tripId,segId:seg.id,vehicle:vnum(trip.vehicleId)});
+  }
+  if(!fixed){
+    if(resEl) resEl.innerHTML='<span style="color:#16a34a;font-weight:700">✅ No trips waiting for empty exit.</span>';
+  } else {
+    var h='<div style="color:#16a34a;font-weight:700;margin-bottom:6px">✅ Marked empty exit on '+fixed+' segment(s)</div>';
+    h+='<div style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;font-size:11px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fef2f2;position:sticky;top:0"><th style="padding:3px 8px;text-align:left">Trip</th><th style="padding:3px 8px;text-align:left">Segment</th><th style="padding:3px 8px;text-align:left">Vehicle</th></tr></thead><tbody>';
+    details.forEach(function(d){
+      h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">'+d.tripId+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.segId+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.vehicle+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    if(resEl) resEl.innerHTML=h;
+    updBadges();renderKap();renderDash();renderMyTrips();
+  }
+}
+
+async function _repairAutoExitSpotVehicles(){
+  var resEl=document.getElementById('repairSpotExitResult');
+  if(resEl){resEl.style.display='block';resEl.innerHTML='<span style="color:var(--accent)">Scanning…</span>';}
+  var now=Date.now();
+  var cutoff=48*3600*1000;// 48 hours
+  var stale=(DB.spotTrips||[]).filter(function(s){
+    if(s.exitTime) return false;
+    var entryTs=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
+    return entryTs>0&&(now-entryTs)>cutoff;
+  });
+  if(!stale.length){
+    if(resEl) resEl.innerHTML='<span style="color:#16a34a;font-weight:700">✅ No stale spot vehicles found.</span>';
+    return;
+  }
+  if(!confirm('Auto-exit '+stale.length+' spot vehicle(s) that have been inside for more than 48 hours?')) {
+    if(resEl) resEl.innerHTML='<span style="color:var(--text3)">Cancelled.</span>';
+    return;
+  }
+  var fixed=0,details=[];
+  for(var i=0;i<stale.length;i++){
+    var s=stale[i];
+    var bak={exitTime:s.exitTime,exitBy:s.exitBy,exitRemarks:s.exitRemarks};
+    s.exitTime=new Date().toISOString();
+    s.exitBy=CU?CU.id:'';
+    s.exitRemarks='Auto-exit: exceeded 48hrs without exit';
+    if(await _dbSave('spotTrips',s)){
+      fixed++;
+      var hrs=Math.round((now-new Date(s.entryTime||s.date+'T00:00:00').getTime())/3600000);
+      details.push({id:s.id||s.code,vehicle:s.vehicleNum,supplier:s.supplier||'—',hours:hrs});
+    } else {
+      Object.assign(s,bak);
+    }
+  }
+  if(!fixed){
+    if(resEl) resEl.innerHTML='<span style="color:#dc2626;font-weight:700">⚠ Failed to update any records.</span>';
+  } else {
+    var h='<div style="color:#16a34a;font-weight:700;margin-bottom:6px">✅ Auto-exited '+fixed+' spot vehicle(s)</div>';
+    h+='<div style="max-height:150px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;font-size:11px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fef3c7;position:sticky;top:0"><th style="padding:3px 8px;text-align:left">ID</th><th style="padding:3px 8px;text-align:left">Vehicle</th><th style="padding:3px 8px;text-align:left">Supplier</th><th style="padding:3px 8px;text-align:right">Hours Inside</th></tr></thead><tbody>';
+    details.forEach(function(d){
+      h+='<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:2px 8px;font-family:var(--mono);font-weight:700;color:var(--accent)">'+d.id+'</td><td style="padding:2px 8px;font-family:var(--mono)">'+d.vehicle+'</td><td style="padding:2px 8px">'+d.supplier+'</td><td style="padding:2px 8px;font-family:var(--mono);text-align:right;font-weight:700;color:#dc2626">'+d.hours+'h</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    if(resEl) resEl.innerHTML=h;
+    if(typeof renderSpotTab==='function') renderSpotTab();
+    if(typeof renderSpotHistory==='function') renderSpotHistory();
+    updBadges();renderDash();
+  }
+  renderHelper();// Refresh count
 }
 
 // Helper page: Trip Status Retriever function
