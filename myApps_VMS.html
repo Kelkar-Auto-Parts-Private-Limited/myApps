@@ -1923,8 +1923,21 @@ function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t)
 // Only exclude photo columns from tables that have them. Other tables use select('*').
 var _SYNC_SELECT={
   'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
+  'vms_segments':'id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at',
   'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
 };
+
+// Load full segment steps (with photos) on demand
+async function _loadSegmentSteps(segCode){
+  if(!_sb||!_sbReady) return null;
+  try{
+    var {data,error}=await _sb.from('vms_segments').select('steps').eq('code',segCode).single();
+    if(error||!data) return null;
+    var seg=(DB.segments||[]).find(function(s){return s.id===segCode;});
+    if(seg) seg.steps=data.steps||{};
+    return data.steps||{};
+  }catch(e){return null;}
+}
 // Strip base64 photos from segment steps JSON to reduce memory after fetch
 function _stripStepPhotos(segments){
   (segments||[]).forEach(function(seg){
