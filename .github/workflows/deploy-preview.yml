@@ -1,0 +1,58 @@
+name: Deploy site with refactor preview
+
+on:
+  push:
+    branches: [main, refactor]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+
+      - name: Checkout refactor
+        uses: actions/checkout@v4
+        with:
+          ref: refactor
+          path: refactor
+
+      - name: Build combined site
+        run: |
+          mkdir -p _site
+          # Main branch as root site
+          cp -r main/* _site/ 2>/dev/null || true
+          # Refactor branch into /preview/
+          mkdir -p _site/preview
+          cp -r refactor/* _site/preview/ 2>/dev/null || true
+          # Cleanup
+          rm -rf _site/.git _site/preview/.git
+          rm -rf _site/.github _site/preview/.github
+          rm -rf _site/.claude _site/preview/.claude
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
