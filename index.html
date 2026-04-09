@@ -662,8 +662,8 @@ async function doLogin(){
       localStorage.removeItem('kap_rm_token');
     }
   }catch(e){}
-  // Clean up old password keys if present
-  try{localStorage.removeItem('kap_rm_token');_sessionDel('kap_session_token');}catch(e){}
+  // Clean up old plaintext password keys (pre-migration)
+  try{localStorage.removeItem('kap_rm_pass');_sessionDel('kap_session_pass');}catch(e){}
   document.getElementById('loginError').style.display='none';
   // Check if password is weak — force change
   // We check client-side since the password is in the form field (not stored)
@@ -1433,7 +1433,7 @@ function openProfile(){document.getElementById('userDropdown').classList.remove(
 // ── Logout ──────────────────────────────────────────────────────────────────
 // ── Force Password Change ───────────────────────────────────────────────────
 var _PORTAL_RESET_PWD='Kappl@123';
-var _BUILD_VERSION='09-Apr-2026 20:20';
+var _BUILD_VERSION='09-Apr-2026 20:23';
 try{var _bv=document.getElementById('buildVersion');if(_bv)_bv.textContent='Build: '+_BUILD_VERSION;}catch(e){}
 function _isStrongPwd(pwd){
   if(!pwd||pwd.length<6||pwd.length>12) return false;
