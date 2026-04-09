@@ -785,7 +785,10 @@ async function _dbSave(tbl, record){
 
 // ═══ AUTH HELPERS — server-side password hashing via Supabase RPC ═══
 async function _authLogin(username,password){
-  if(!_sb) return null;
+  if(!_sb){
+    for(var _w=0;_w<20&&!_sb;_w++){_initSupabase();if(_sb)break;await new Promise(function(r){setTimeout(r,250);});}
+    if(!_sb) return null;
+  }
   try{
     var {data,error}=await _sb.rpc('create_session',{p_username:username,p_password:password});
     if(error||!data) return null;
@@ -799,7 +802,16 @@ async function _authLogin(username,password){
 }
 
 async function _authVerifySession(username,token){
-  if(!_sb||!token) return null;
+  if(!token) return null;
+  // Wait up to 5s for Supabase client to be ready (CDN may still be loading)
+  if(!_sb){
+    for(var _w=0;_w<20&&!_sb;_w++){
+      _initSupabase();
+      if(_sb) break;
+      await new Promise(function(r){setTimeout(r,250);});
+    }
+    if(!_sb) return null;
+  }
   try{
     var {data:rows,error}=await _sb.rpc('verify_session',{p_username:username,p_token:token});
     if(error||!rows||!rows.length) return null;
