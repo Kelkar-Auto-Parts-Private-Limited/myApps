@@ -2234,31 +2234,26 @@ async function _appBoot(){
   if(splash) splash.style.display='none';
   try{ _applyPhotoInputMode(); }catch(e){}
   
-  // Check session
-  var ss=_sessionGet('kap_session_user'), sp2=_sessionGet('kap_session_token');
-  console.log('VMS: checking session, user=',ss?'yes':'no');
-  
-  // Try session token or remember-me token
-  var _tk=sp2;
-  var _su=ss;
-  if(!_su||!_tk){
-    try{_su=localStorage.getItem('kap_rm_user');_tk=localStorage.getItem('kap_rm_token');}catch(e){}
-  }
-  if(_su&&_tk){
-    var user=await _authVerifySession(_su,_tk);
-    if(!user){
-      // Fallback to cached user if Supabase slow
-      try{var _cu=localStorage.getItem('kap_current_user');if(_cu){user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==_su)user=null;}}catch(e){user=null;}
-    }
+  // Check session — use cached user (synchronous, no RPC needed)
+  var ss=_sessionGet('kap_session_user')||localStorage.getItem('kap_rm_user');
+  var st=_sessionGet('kap_session_token')||localStorage.getItem('kap_rm_token');
+  console.log('VMS: checking session, user=',ss||'none','token=',st?'yes':'no');
+  if(ss&&st){
+    var user=null;
+    // Restore from cached user object (set during portal login)
+    try{var _cu=localStorage.getItem('kap_current_user');if(_cu){user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==ss.toLowerCase())user=null;}}catch(e){user=null;}
+    // Fallback: find in DB.users loaded from cache
+    if(!user) user=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===ss.toLowerCase();});
     if(user){
-      console.log('VMS: session verified, auto-login');
+      console.log('VMS: session restored, auto-login');
       if(_tryAutoLogin(user)) return;
     } else {
+      console.log('VMS: session user not found, clearing');
       _sessionDel('kap_session_user');_sessionDel('kap_session_token');
       try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
     }
   }
-  _showLogin(_su||ss||'');
+  _showLogin(ss||'');
 }
 
 function launchVMS(targetPage, appId){

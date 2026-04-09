@@ -1176,10 +1176,12 @@ async function _secBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
-  var su=_sessionGet('kap_session_user'), sp=_sessionGet('kap_session_token');
+  var su=_sessionGet('kap_session_user')||localStorage.getItem('kap_rm_user');
+  var sp=_sessionGet('kap_session_token')||localStorage.getItem('kap_rm_token');
   if(su&&sp){
-    var user=await _authVerifySession(su,sp);
-    if(!user){try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}}
+    var user=null;
+    try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}
+    if(!user) user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
     if(user&&!user.inactive){
       CU=user;
       _enrichCU();

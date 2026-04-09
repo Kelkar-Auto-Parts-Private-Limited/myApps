@@ -524,12 +524,13 @@ if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsC
   try{await bootDB();}catch(e){console.error('HRMS boot error:',e);}
   var splash=document.getElementById('dbSplash');
   if(splash) splash.style.display='none';
-  // Restore session from portal (token-based)
+  // Restore session from portal (cache-based, no RPC needed)
   var su=_sessionGet('kap_session_user')||localStorage.getItem('kap_rm_user');
   var st=_sessionGet('kap_session_token')||localStorage.getItem('kap_rm_token');
   if(su&&st){
-    var u=await _authVerifySession(su,st);
-    if(!u){try{var _cu=localStorage.getItem('kap_current_user');if(_cu)u=JSON.parse(_cu);if(!u||u.name.toLowerCase()!==su.toLowerCase())u=null;}catch(e){u=null;}}
+    var u=null;
+    try{var _cu=localStorage.getItem('kap_current_user');if(_cu)u=JSON.parse(_cu);if(!u||u.name.toLowerCase()!==su.toLowerCase())u=null;}catch(e){u=null;}
+    if(!u) u=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
     if(u){CU=u;_enrichCU();_hrmsLaunch();return;}
   }
   // No valid session — redirect to portal login

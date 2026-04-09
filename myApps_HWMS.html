@@ -2681,9 +2681,11 @@ async function _hwmsBoot(){
   
   console.log('HWMS: session check, user='+(su||'none')+', DB.users='+(DB.users||[]).length);
   
+  if(!sp) try{sp=localStorage.getItem('kap_rm_token');}catch(e){}
   if(su && sp){
-    var user=await _authVerifySession(su,sp);
-    if(!user){try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}}
+    var user=null;
+    try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}
+    if(!user) user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
     
     if(user && !user.inactive){
       console.log('HWMS: user found, showing app');

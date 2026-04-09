@@ -1585,16 +1585,14 @@ async function _portalBoot(){
     if(splash) splash.style.display='none';
     try{ await bootDB(); _bootDone=true; }catch(e){ _bootDone=true; }
     if(splash) splash.style.display='none';
-    // Verify session token server-side
-    var user=await _authVerifySession(su,sp2);
-    if(!user){
-      // Fallback: restore from cached user object if Supabase unavailable
-      try{
-        var _cu=localStorage.getItem('kap_current_user');
-        if(_cu) user=JSON.parse(_cu);
-        if(!user||user.name.toLowerCase()!==su) user=null;
-      }catch(e){ user=null; }
-    }
+    // Restore session from cache (synchronous — no RPC wait)
+    var user=null;
+    try{
+      var _cu=localStorage.getItem('kap_current_user');
+      if(_cu) user=JSON.parse(_cu);
+      if(!user||user.name.toLowerCase()!==su) user=null;
+    }catch(e){ user=null; }
+    if(!user) user=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===su;});
     if(user&&!user.inactive){
       CU=user; _enrichCU();
       _portalLoggedIn=true;
