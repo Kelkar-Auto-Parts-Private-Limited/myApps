@@ -113,6 +113,7 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
       <span id="loginConnDot" style="display:none;width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
       <div id="loginConnLabel" style="font-size:12px;font-weight:700;color:#475569">Connecting to database…</div>
     </div>
+    <div style="text-align:center;margin-top:12px;font-size:10px;color:#94a3b8" id="buildVersion"></div>
     </div><!-- /loginForm -->
 
   </div>
@@ -1432,6 +1433,8 @@ function openProfile(){document.getElementById('userDropdown').classList.remove(
 // ── Logout ──────────────────────────────────────────────────────────────────
 // ── Force Password Change ───────────────────────────────────────────────────
 var _PORTAL_RESET_PWD='Kappl@123';
+var _BUILD_VERSION='09-Apr-2026 20:20';
+try{var _bv=document.getElementById('buildVersion');if(_bv)_bv.textContent='Build: '+_BUILD_VERSION;}catch(e){}
 function _isStrongPwd(pwd){
   if(!pwd||pwd.length<6||pwd.length>12) return false;
   if(!/[A-Z]/.test(pwd)) return false;
