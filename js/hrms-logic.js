@@ -162,8 +162,6 @@ function _hrmsRoundIn(mins){
 // Rounding rules for OUT time
 function _hrmsRoundOut(mins){
   if(mins===null)return null;
-  // 6:00-6:20 → 6:00
-  if(mins>=360&&mins<=380) return 360;
   // 8:00-8:20 → 8:00
   if(mins>=480&&mins<=500) return 480;
   // 16:30-16:50 → 16:30
@@ -174,6 +172,22 @@ function _hrmsRoundOut(mins){
   if(mins>=1140&&mins<=1160) return 1140;
   // Default: round to nearest 15 min
   return Math.round(mins/15)*15;
+}
+
+// ═══ OT FORMATTING ═══
+
+/**
+ * Format OT hours preserving 0.25 hr precision.
+ * 3.75 → "3.75", 3.5 → "3.5", 3 → "3", 8.25 → "8.25".
+ * @param {number} v - OT hours value
+ * @returns {string} Formatted string without trailing zeros
+ */
+function _hrmsFmtOT(v){
+  if(!v) return '0';
+  // Round to nearest 0.25 first to clean up floating-point noise (e.g. 3.7499999)
+  var r=Math.round(v*4)/4;
+  // Then format with up to 2 decimals, drop trailing zeros
+  return r.toFixed(2).replace(/\.?0+$/,'');
 }
 
 // ═══ PRINT / PDF HELPERS ═══
@@ -208,6 +222,21 @@ function _hexToRgb(hex){
   return[parseInt(hex.substring(0,2),16),parseInt(hex.substring(2,4),16),parseInt(hex.substring(4,6),16)];
 }
 
+// ═══ TRANSPORT ALLOWANCE ═══
+
+/**
+ * Calculate pro-rated Transport Allowance for the month.
+ * Formula: (TA rate / Working Days) × Present Days
+ * @param {number} taRate - Monthly transport allowance rate
+ * @param {number} wd - Total working days in the month
+ * @param {number} pDays - Number of days the employee was present
+ * @returns {number} Pro-rated transport allowance (rounded to nearest rupee)
+ */
+function _hrmsCalcTA(taRate, wd, pDays) {
+  if (!taRate || !wd || wd <= 0) return 0;
+  return Math.round((taRate / wd) * (pDays || 0));
+}
+
 // ═══ STATUTORY — PT CALCULATION ═══
 
 /**
@@ -220,13 +249,34 @@ function _hexToRgb(hex){
 // PT calc: rules evaluated top-to-bottom, first match wins
 function _hrmsCalcPT(gross,gender,month){
   var rules=_hrmsStatutory.ptRules||[];
+  var mo=(month||'').toLowerCase();
+  var gen=(gender||'').toLowerCase();
+  // Pass 1: gender-specific rules (highest priority — e.g. women exemption)
   for(var i=0;i<rules.length;i++){
     var r=rules[i];
-    // Gender filter
-    if(r.gender&&r.gender.toLowerCase()!==(gender||'').toLowerCase()) continue;
-    // Month filter
-    if(r.month&&r.month.toLowerCase()!==String(month||'').toLowerCase()) continue;
-    // Condition check
+    if(!r.gender) continue;
+    if(r.gender.toLowerCase()!==gen) continue;
+    if(r.month&&r.month.toLowerCase()!==mo) continue;
+    var match=false;
+    if(r.op==='lt') match=gross<r.threshold;
+    else if(r.op==='gte') match=gross>=r.threshold;
+    if(match) return r.amount;
+  }
+  // Pass 2: month-specific rules (e.g. Feb surcharge)
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];
+    if(r.gender) continue;
+    if(!r.month) continue;
+    if(r.month.toLowerCase()!==mo) continue;
+    var match=false;
+    if(r.op==='lt') match=gross<r.threshold;
+    else if(r.op==='gte') match=gross>=r.threshold;
+    if(match) return r.amount;
+  }
+  // Pass 3: generic rules
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];
+    if(r.gender||r.month) continue;
     var match=false;
     if(r.op==='lt') match=gross<r.threshold;
     else if(r.op==='gte') match=gross>=r.threshold;
@@ -269,11 +319,11 @@ function _hrmsGetEmpOB(emp,mk){
   // For Jan 2026 use imported OB, else use previous month's CB
   if(mk==='2026-01'){
     var ex=emp.extra||{};
-    return {plOB:ex.plOB||0,advOB:ex.advOB||0};
+    return {plOB:+(ex.plOB||0).toFixed(2),advOB:Math.round(ex.advOB||0)};
   }
   var prev=_hrmsGetPrevMonth(mk);
   var prevBal=_hrmsGetBal(emp,prev);
-  return {plOB:prevBal.plCB||0,advOB:prevBal.advCB||0};
+  return {plOB:+(prevBal.plCB||0).toFixed(2),advOB:Math.round(prevBal.advCB||0)};
 }
 
 // ═══ PAID LEAVE ALLOCATION (FY April–March) ═══
@@ -307,15 +357,20 @@ function _hrmsGetConfirmationDate(emp){
 function _hrmsMonthsSinceConfirmation(emp,yr,mo){
   var conf=_hrmsGetConfirmationDate(emp);
   if(!conf) return -1;
-  var salStart=new Date(yr,mo-1,1);
-  if(salStart<conf) return -1;
-  var wholeMonths=(salStart.getFullYear()-conf.getFullYear())*12+(salStart.getMonth()-conf.getMonth());
-  var dayInMonth=conf.getDate();
-  var frac=0;
-  if(dayInMonth>1){
-    var daysInConfMonth=new Date(conf.getFullYear(),conf.getMonth()+1,0).getDate();
-    frac=(daysInConfMonth-dayInMonth+1)/daysInConfMonth;
-  }
+  // Last day of salary month
+  var salEnd=new Date(yr,mo,0);// e.g. Jan-26 → 31-Jan-2026
+  if(salEnd<conf) return -1;
+  // Count whole calendar months: conf date to same date of next month = 1 month
+  // e.g. 24-Sep to 24-Oct = 1 month, 24-Oct to 24-Nov = 2 months
+  var wholeMonths=(salEnd.getFullYear()-conf.getFullYear())*12+(salEnd.getMonth()-conf.getMonth());
+  // If salEnd day < conf day, we haven't completed the current month
+  if(salEnd.getDate()<conf.getDate()) wholeMonths--;
+  // Fraction: remaining days after last whole month boundary
+  var lastBoundary=new Date(conf.getFullYear(),conf.getMonth()+wholeMonths,conf.getDate());
+  var nextBoundary=new Date(conf.getFullYear(),conf.getMonth()+wholeMonths+1,conf.getDate());
+  var daysInPeriod=(nextBoundary.getTime()-lastBoundary.getTime())/(1000*60*60*24);
+  var daysElapsed=(salEnd.getTime()-lastBoundary.getTime())/(1000*60*60*24);
+  var frac=daysInPeriod>0?daysElapsed/daysInPeriod:0;
   var total=wholeMonths+frac;
   return Math.round(total*2)/2;// MROUND to nearest 0.5
 }

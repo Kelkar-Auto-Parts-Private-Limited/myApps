@@ -75,7 +75,9 @@ const SB_TABLES = {
   hrmsDayTypes:'hrms_day_types',
   hrmsAlterations:'hrms_alterations',
   hrmsPrintFormats:'hrms_print_formats',
-  hrmsSettings:'hrms_settings'
+  hrmsSettings:'hrms_settings',
+  hrmsAdvances:'hrms_advances',
+  hrmsMonthData:'hrms_month_data'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -193,7 +195,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hwmsSubInvoices') return {code:r.id,sub_invoice_number:r.subInvoiceNumber||'',date:r.date||'',invoice_id:r.invoiceId||'',customer_id:r.customerId||'',customer_name:r.customerName||'',line_items:r.lineItems||[],pickup_status:r.pickupStatus||'',pickup_date:r.pickupDate||'',grn_status:r.grnStatus||'',grn_date:r.grnDate||'',payment_status:r.paymentStatus||'',payment_received:r.paymentReceived||0,payment_balance:r.paymentBalance||0,payment_number:r.paymentNumber||'',payment_date:r.paymentDate||'',tariff_percent:r.tariffPercent||0,tariff_amount:r.tariffAmount||0,remarks:r.remarks||''};
   if(tbl==='hwmsMaterialRequests') return {code:r.id,mr_number:r.mrNumber||'',mr_date:r.mrDate||'',need_by_date:r.needByDate||'',status:r.status||'',line_items:r.lineItems||[],remarks:r.remarks||'',created_by:r.createdBy||''};
   if(tbl==='hwmsPaymentReceipts') return {code:r.id,payment_number:r.paymentNumber||'',payment_date:r.paymentDate||'',status:r.status||'',total_amount:r.totalAmount||0,line_items:r.lineItems||[],si_updates:r.siUpdates||[],mi_updates:r.miUpdates||[],manual_payments:r.manualPayments||[],created_at:r.createdAt||'',created_by:r.createdBy||'',updated_at:r.updatedAt||'',updated_by:r.updatedBy||''};
-  if(tbl==='hrmsEmployees') return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:r.salaryDay||0,salary_month:r.salaryMonth||0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:r.periods||[],extra:r.extra||{}};
+  if(tbl==='hrmsEmployees') return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:r.salaryDay||0,salary_month:r.salaryMonth||0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:r.periods||[],no_pl:r.noPL||false,extra:r.extra||{}};
   if(tbl==='hrmsCompanies') return {code:r.id,name:r.name||'',color:r.color||''};
   if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {code:r.id,name:r.name||''};
   if(tbl==='hrmsTeams') return {code:r.id,name:r.name||'',emp_type:r.empType||''};
@@ -203,6 +205,30 @@ function _toRow(tbl, rec) {
   if(tbl==='hrmsSettings') return {code:r.id,key:r.key||'',data:r.data||{}};
   if(tbl==='hrmsAlterations') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',days:r.days||{}};
   if(tbl==='hrmsPrintFormats') return {code:r.id,name:r.name||'',plant:r.plant||'',emp_type:r.empType||'',category:r.category||'',team:r.team||'',created_by:r.createdBy||''};
+  if(tbl==='hrmsAdvances') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',advance:r.advance||0,emi:r.emi||0,deduction:r.deduction||0};
+  if(tbl==='hrmsMonthData') return {code:r.id,month_key:r.monthKey||'',emp_code:r.empCode||'',
+    name:r.name||'',first_name:r.firstName||'',last_name:r.lastName||'',middle_name:r.middleName||'',
+    location:r.location||'',category:r.category||'',department:r.department||'',sub_department:r.subDepartment||'',
+    designation:r.designation||'',employment_type:r.employmentType||'',date_of_joining:r.dateOfJoining||'',
+    date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',
+    team_name:r.teamName||'',roll:r.roll||'',no_pl:r.noPL||false,
+    esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',
+    bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',
+    rate_d:r.rateD||0,rate_m:r.rateM||0,sp_allow:r.spAllow||0,
+    attendance:r.attendance||{},alterations:r.alterations||{},day_types:r.dayTypes||{},
+    wd_count:r.wdCount||0,ph_count:r.phCount||0,total_p:r.totalP||0,total_a:r.totalA||0,
+    total_ot:r.totalOT||0,total_ots:r.totalOTS||0,total_pl:r.totalPL||0,paid_absent:r.paidAbsent||0,
+    manual_p:r.manualP,manual_pl:r.manualPL,manual_ot:r.manualOT,manual_ots:r.manualOTS,tds:r.tds||0,
+    pl_ob:r.plOB||0,pl_given:r.plGiven||0,pl_cb:r.plCB||0,pl_avail:r.plAvail||0,
+    conf_months:r.confMonths||0,fy_month_no:r.fyMonthNo||0,
+    ot_at1:r.otAt1||0,ot_at15:r.otAt15||0,ot_at2:r.otAt2||0,
+    sal_for_p:r.salForP||0,sal_ab:r.salAb||0,sal_for_pl:r.salForPL||0,
+    sal_ot1:r.salOT1||0,sal_ot15:r.salOT15||0,sal_ot2:r.salOT2||0,
+    allowance:r.allowance||0,gross:r.gross||0,
+    adv_ob:r.advOB||0,adv_month:r.advMonth||0,adv_ded:r.advDed||0,adv_cb:r.advCB||0,
+    ded_pt:r.dedPT||0,ded_pf:r.dedPF||0,ded_esi:r.dedESI||0,ded_adv:r.dedAdv||0,
+    ded_tds:r.dedTDS||0,ded_other:r.dedOther||0,ded_total:r.dedTotal||0,
+    net:r.net||0,meta:r.meta||{}};
   return null;
 }
 
@@ -245,7 +271,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hwmsSubInvoices') return {id:row.code,_dbId:row.id,subInvoiceNumber:row.sub_invoice_number||'',date:row.date||'',invoiceId:row.invoice_id||'',customerId:row.customer_id||'',customerName:row.customer_name||'',lineItems:row.line_items||[],pickupStatus:row.pickup_status||'',pickupDate:row.pickup_date||'',grnStatus:row.grn_status||'',grnDate:row.grn_date||'',paymentStatus:row.payment_status||'',paymentReceived:row.payment_received||0,paymentBalance:row.payment_balance||0,paymentNumber:row.payment_number||'',paymentDate:row.payment_date||'',tariffPercent:row.tariff_percent||0,tariffAmount:row.tariff_amount||0,remarks:row.remarks||''};
   if(tbl==='hwmsMaterialRequests') return {id:row.code,_dbId:row.id,mrNumber:row.mr_number||'',mrDate:row.mr_date||'',needByDate:row.need_by_date||'',status:row.status||'',lineItems:row.line_items||[],remarks:row.remarks||'',createdBy:row.created_by||''};
   if(tbl==='hwmsPaymentReceipts') return {id:row.code,_dbId:row.id,paymentNumber:row.payment_number||'',paymentDate:row.payment_date||'',status:row.status||'',totalAmount:row.total_amount||0,lineItems:row.line_items||[],siUpdates:row.si_updates||[],miUpdates:row.mi_updates||[],manualPayments:row.manual_payments||[],createdAt:row.created_at||'',createdBy:row.created_by||'',updatedAt:row.updated_at||'',updatedBy:row.updated_by||''};
-  if(tbl==='hrmsEmployees') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',name:row.name||'',lastName:row.last_name||'',firstName:row.first_name||'',middleName:row.middle_name||'',department:row.department||'',subDepartment:row.sub_department||'',designation:row.designation||'',email:row.email||'',mobile:row.mobile||'',dateOfJoining:row.date_of_joining||'',dateOfBirth:row.date_of_birth||'',gender:row.gender||'',status:row.status||'Active',reportingTo:row.reporting_to||'',location:row.location||'',photo:row.photo||'',panNo:row.pan_no||'',aadhaarNo:row.aadhaar_no||'',employmentType:row.employment_type||'',teamName:row.team_name||'',category:row.category||'',esiNo:row.esi_no||'',pfNo:row.pf_no||'',uan:row.uan||'',dateOfLeft:row.date_of_left||'',roll:row.roll||'',salaryDay:row.salary_day||0,salaryMonth:row.salary_month||0,bankName:row.bank_name||'',branchName:row.branch_name||'',acctNo:row.acct_no||'',ifsc:row.ifsc||'',periods:row.periods||[],extra:row.extra||{}};
+  if(tbl==='hrmsEmployees') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',name:row.name||'',lastName:row.last_name||'',firstName:row.first_name||'',middleName:row.middle_name||'',department:row.department||'',subDepartment:row.sub_department||'',designation:row.designation||'',email:row.email||'',mobile:row.mobile||'',dateOfJoining:row.date_of_joining||'',dateOfBirth:row.date_of_birth||'',gender:row.gender||'',status:row.status||'Active',reportingTo:row.reporting_to||'',location:row.location||'',photo:row.photo||'',panNo:row.pan_no||'',aadhaarNo:row.aadhaar_no||'',employmentType:row.employment_type||'',teamName:row.team_name||'',category:row.category||'',esiNo:row.esi_no||'',pfNo:row.pf_no||'',uan:row.uan||'',dateOfLeft:row.date_of_left||'',roll:row.roll||'',salaryDay:row.salary_day||0,salaryMonth:row.salary_month||0,bankName:row.bank_name||'',branchName:row.branch_name||'',acctNo:row.acct_no||'',ifsc:row.ifsc||'',periods:row.periods||[],noPL:row.no_pl||false,extra:row.extra||{}};
   if(tbl==='hrmsCompanies') return {id:row.code,_dbId:row.id,name:row.name||'',color:row.color||''};
   if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {id:row.code,_dbId:row.id,name:row.name||''};
   if(tbl==='hrmsTeams') return {id:row.code,_dbId:row.id,name:row.name||'',empType:row.emp_type||''};
@@ -255,6 +281,30 @@ function _fromRow(tbl, row) {
   if(tbl==='hrmsSettings') return {id:row.code,_dbId:row.id,key:row.key||'',data:row.data||{}};
   if(tbl==='hrmsAlterations') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',days:row.days||{}};
   if(tbl==='hrmsPrintFormats') return {id:row.code,_dbId:row.id,name:row.name||'',empType:row.emp_type||'',plant:row.plant||'',category:row.category||'',team:row.team||'',createdBy:row.created_by||''};
+  if(tbl==='hrmsAdvances') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',advance:row.advance||0,emi:row.emi||0,deduction:row.deduction||0};
+  if(tbl==='hrmsMonthData') return {id:row.code,_dbId:row.id,monthKey:row.month_key||'',empCode:row.emp_code||'',
+    name:row.name||'',firstName:row.first_name||'',lastName:row.last_name||'',middleName:row.middle_name||'',
+    location:row.location||'',category:row.category||'',department:row.department||'',subDepartment:row.sub_department||'',
+    designation:row.designation||'',employmentType:row.employment_type||'',dateOfJoining:row.date_of_joining||'',
+    dateOfBirth:row.date_of_birth||'',gender:row.gender||'',status:row.status||'Active',
+    teamName:row.team_name||'',roll:row.roll||'',noPL:row.no_pl||false,
+    esiNo:row.esi_no||'',pfNo:row.pf_no||'',uan:row.uan||'',panNo:row.pan_no||'',aadhaarNo:row.aadhaar_no||'',
+    bankName:row.bank_name||'',branchName:row.branch_name||'',acctNo:row.acct_no||'',ifsc:row.ifsc||'',
+    rateD:row.rate_d||0,rateM:row.rate_m||0,spAllow:row.sp_allow||0,
+    attendance:row.attendance||{},alterations:row.alterations||{},dayTypes:row.day_types||{},
+    wdCount:row.wd_count||0,phCount:row.ph_count||0,totalP:row.total_p||0,totalA:row.total_a||0,
+    totalOT:row.total_ot||0,totalOTS:row.total_ots||0,totalPL:row.total_pl||0,paidAbsent:row.paid_absent||0,
+    manualP:row.manual_p,manualPL:row.manual_pl,manualOT:row.manual_ot,manualOTS:row.manual_ots,tds:row.tds||0,
+    plOB:row.pl_ob||0,plGiven:row.pl_given||0,plCB:row.pl_cb||0,plAvail:row.pl_avail||0,
+    confMonths:row.conf_months||0,fyMonthNo:row.fy_month_no||0,
+    otAt1:row.ot_at1||0,otAt15:row.ot_at15||0,otAt2:row.ot_at2||0,
+    salForP:row.sal_for_p||0,salAb:row.sal_ab||0,salForPL:row.sal_for_pl||0,
+    salOT1:row.sal_ot1||0,salOT15:row.sal_ot15||0,salOT2:row.sal_ot2||0,
+    allowance:row.allowance||0,gross:row.gross||0,
+    advOB:row.adv_ob||0,advMonth:row.adv_month||0,advDed:row.adv_ded||0,advCB:row.adv_cb||0,
+    dedPT:row.ded_pt||0,dedPF:row.ded_pf||0,dedESI:row.ded_esi||0,dedAdv:row.ded_adv||0,
+    dedTDS:row.ded_tds||0,dedOther:row.ded_other||0,dedTotal:row.ded_total||0,
+    net:row.net||0,meta:row.meta||{}};
   return null;
 }
 

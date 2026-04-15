@@ -451,3 +451,33 @@ describe('_hexToRgb', function () {
     assertDeepEqual(_hexToRgb(''), [226, 232, 240]);
   });
 });
+
+// ═══ TRANSPORT / SPECIAL ALLOWANCE PRO-RATA ═══
+describe('_hrmsCalcTA (pro-rate special allowance by attendance)', function () {
+  it('returns 0 when rate is 0 or missing', function () {
+    assertEqual(_hrmsCalcTA(0, 26, 24), 0);
+    assertEqual(_hrmsCalcTA(null, 26, 24), 0);
+    assertEqual(_hrmsCalcTA(undefined, 26, 24), 0);
+  });
+
+  it('returns 0 when working days is 0 or missing', function () {
+    assertEqual(_hrmsCalcTA(3000, 0, 24), 0);
+    assertEqual(_hrmsCalcTA(3000, null, 24), 0);
+  });
+
+  it('pro-rates correctly: 3000/26 WD × 24 P = 2769', function () {
+    assertEqual(_hrmsCalcTA(3000, 26, 24), 2769);
+  });
+
+  it('returns full amount when all days present', function () {
+    assertEqual(_hrmsCalcTA(3000, 26, 26), 3000);
+  });
+
+  it('returns 0 when 0 present days', function () {
+    assertEqual(_hrmsCalcTA(3000, 26, 0), 0);
+  });
+
+  it('handles single working day', function () {
+    assertEqual(_hrmsCalcTA(3000, 1, 1), 3000);
+  });
+});

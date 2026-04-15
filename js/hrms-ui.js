@@ -41,8 +41,8 @@ function _hrmsLaunch(){
   _hrmsUpdateChangeReqBadge();
   _hrmsLoadStatutory();
   hrmsGo('pageHrmsAttSal');
-  _hrmsMainTab('salworker');
-  _hrmsSelectMonth('2026-01');
+  _hrmsActiveMainTab='attendance';
+  _hrmsSelectMonth('2026-04').then(function(){_hrmsMainTab('attendance');});
 }
 
 async function _hrmsManualRefresh(){
@@ -64,13 +64,45 @@ async function _hrmsManualRefresh(){
     notify('✅ Data refreshed — '+((DB.hrmsEmployees||[]).length)+' employees loaded');
   }catch(e){hideSpinner();notify('⚠ Refresh failed: '+e.message,true);}
 }
+var _hrmsPageTitles={
+  pageHrmsDashboard:'Dashboard',
+  pageHrmsEmployees:'Employees',
+  pageHrmsEmpEdit:'Employees',
+  pageHrmsAttSal:'Attendance & Salary',
+  pageHrmsAttRules:'Attendance Rules',
+  pageHrmsMCompany:'Masters — Plant',
+  pageHrmsMCategory:'Masters — Category',
+  pageHrmsMEmpType:'Masters — Employment Type',
+  pageHrmsMTeam:'Masters — Team',
+  pageHrmsMDept:'Masters — Department',
+  pageHrmsMSubDept:'Masters — Sub Department',
+  pageHrmsMDesig:'Masters — Designation'
+};
+
+function _hrmsUpdateTopTitle(){
+  var el=document.getElementById('topbarTitle');if(!el) return;
+  var pid=(document.querySelector('.page.active')||{}).id||'';
+  var base=_hrmsPageTitles[pid]||'';
+  var suffix='';
+  // Append month for Attendance & Salary page
+  if(pid==='pageHrmsAttSal'&&_hrmsMonth){
+    var p=_hrmsMonth.split('-');
+    suffix=' — '+_MONTH_NAMES[+p[1]]+' '+p[0];
+  }
+  el.textContent=base?('HRMS : '+base+suffix):'HRMS';
+}
+
 function hrmsGo(pid){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   var pg=document.getElementById(pid);if(pg)pg.classList.add('active');
   var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig'};
   var nid=navMap[pid];if(nid){var ne=document.getElementById(nid);if(ne)ne.classList.add('active');}
-  if(pid==='pageHrmsAttSal'&&!_hrmsMonth) _hrmsPickMonth();
+  _hrmsUpdateTopTitle();
+  if(pid==='pageHrmsAttSal'){
+    _hrmsActiveMainTab='attendance';
+    _hrmsSelectMonth(_hrmsCurMonth()).then(function(){_hrmsMainTab('attendance');_hrmsUpdateTopTitle();});
+  }
   if(pid.indexOf('pageHrmsM')===0){renderHrmsMaster(pid);document.getElementById('hrmsMastersGroup').style.display='block';document.getElementById('hrmsMastersArrow').textContent='▼';}
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelector('.sidebar-overlay').classList.remove('show');
@@ -111,6 +143,8 @@ var HRMS_MASTERS={
   pageHrmsMDesig:{tbl:'hrmsDesignations',label:'Designation',icon:'🎖',empField:'designation'}
 };
 
+var _hrmsTeamEtFilter='';// current employment-type filter on team master page
+
 function renderHrmsMaster(pid){
   var c=HRMS_MASTERS[pid];if(!c)return;
   var pg=document.getElementById(pid);if(!pg)return;
@@ -118,9 +152,36 @@ function renderHrmsMaster(pid){
   var emps=DB.hrmsEmployees||[];
   var counts={};emps.forEach(function(e){var v=(e[c.empField]||'').trim();if(v)counts[v]=(counts[v]||0)+1;});
   var hasExtra=!!c.extra;
+  var isTeam=c.tbl==='hrmsTeams';
+
+  // Team master: filter teams by employment type
+  if(isTeam&&_hrmsTeamEtFilter){
+    var bucket=_hrmsEtBucket(_hrmsTeamEtFilter);
+    items=items.filter(function(t){return _hrmsEtBucket(t.empType)===bucket;});
+  }
+
   var h='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
   h+='<div style="font-size:18px;font-weight:900">'+c.icon+' '+c.label+' Master</div>';
   h+='<div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="_hrmsAddMaster(\''+pid+'\')">+ Add</button></div></div>';
+
+  // Team master: filter buttons (counts of teams per emp type)
+  if(isTeam){
+    var allTeams=(DB[c.tbl]||[]);
+    var tCounts={All:allTeams.length,OnRoll:0,Contract:0,PieceRate:0,Visitor:0};
+    allTeams.forEach(function(t){var b=_hrmsEtBucket(t.empType);if(b) tCounts[b]++;});
+    var btnDefs=[['','All','var(--accent)','var(--accent)','var(--accent-light)',tCounts.All],
+      ['On Roll','On Roll','#15803d','#86efac','#dcfce7',tCounts.OnRoll],
+      ['Contract','Contract','#1d4ed8','#93c5fd','#dbeafe',tCounts.Contract],
+      ['Piece Rate','Piece Rate','#7c3aed','#c4b5fd','#f3e8ff',tCounts.PieceRate],
+      ['Visitor','Visitor','#a16207','#fde047','#fef9c3',tCounts.Visitor]];
+    h+='<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">';
+    btnDefs.forEach(function(b){
+      var active=(b[0]===_hrmsTeamEtFilter);
+      h+='<button onclick="_hrmsTeamEtFilterSet(\''+b[0]+'\')" style="padding:6px 14px;font-size:12px;font-weight:'+(active?'800':'700')+';border:2px solid '+b[3]+';background:'+(active?b[4]:'#fff')+';color:'+b[2]+';border-radius:20px;cursor:pointer">'+b[1]+' <span style="font-weight:800">'+b[5]+'</span></button>';
+    });
+    h+='</div>';
+  }
+
   var isPlant=c.tbl==='hrmsCompanies';
   h+='<div class="table-wrap" style="max-height:calc(100vh - 200px)"><table><thead><tr><th>#</th>';
   if(isPlant) h+='<th>Color</th>';
@@ -452,7 +513,41 @@ function _hrmsEmpClearFilters(){
   renderHrmsEmployees();
 }
 
+function _hrmsTeamEtFilterSet(val){
+  _hrmsTeamEtFilter=val;
+  renderHrmsMaster('pageHrmsMTeam');
+}
+
 var _hrmsEmpTypeFilterVal='';
+
+// Normalize an employment-type label to a bucket key: 'OnRoll' | 'Contract' | 'PieceRate' | 'Visitor' | ''
+function _hrmsEtBucket(et){
+  var s=(et||'').toLowerCase().replace(/\s/g,'');
+  if(s==='onroll') return 'OnRoll';
+  if(s==='contract') return 'Contract';
+  if(s==='piecerate') return 'PieceRate';
+  if(s==='visitor') return 'Visitor';
+  return '';
+}
+
+// Count active employees per employment-type bucket
+function _hrmsCountByEmpType(emps){
+  var c={All:0,OnRoll:0,Contract:0,PieceRate:0,Visitor:0};
+  (emps||[]).forEach(function(e){
+    if((e.status||'Active')!=='Active') return;
+    c.All++;
+    var b=_hrmsEtBucket(e.employmentType);if(b) c[b]++;
+  });
+  return c;
+}
+
+function _hrmsUpdateEtfCounts(){
+  var c=_hrmsCountByEmpType(DB.hrmsEmployees||[]);
+  ['All','OnRoll','Contract','PieceRate','Visitor'].forEach(function(k){
+    var el=document.getElementById('hrmsEtfCount_'+k);if(el) el.textContent=c[k];
+  });
+}
+
 function _hrmsEmpTypeFilter(val){
   _hrmsEmpTypeFilterVal=val;
   // Update button styles
@@ -525,6 +620,8 @@ async function _hrmsMarkAbsentInactive(){
 function renderHrmsEmployees(){
   var body=document.getElementById('hrmsEmpBody');if(!body)return;
   var allEmps=DB.hrmsEmployees||[];
+  // Update employment-type filter button counts (active employees only)
+  _hrmsUpdateEtfCounts();
   // Populate filter dropdowns (preserve current selection)
   var _fillF=function(id,field){
     var el=document.getElementById(id);if(!el)return;
@@ -546,7 +643,7 @@ function renderHrmsEmployees(){
   var fType=(document.getElementById('hrmsEmpFType')?.value||'')||_hrmsEmpTypeFilterVal;
   var fTeam=(document.getElementById('hrmsEmpFTeam')?.value||'');
   var fCat=(document.getElementById('hrmsEmpFCat')?.value||'');
-  var fStatus=(document.getElementById('hrmsEmpFStatus')?.value||'');
+  var onlyActive=document.getElementById('hrmsEmpOnlyActive')?document.getElementById('hrmsEmpOnlyActive').checked:true;
   emps=emps.filter(function(e){
     if(codeSearch&&(e.empCode||'').toLowerCase().indexOf(codeSearch)<0) return false;
     if(nameSearch&&(e.name||'').toLowerCase().indexOf(nameSearch)<0) return false;
@@ -554,7 +651,7 @@ function renderHrmsEmployees(){
     if(fType&&e.employmentType!==fType) return false;
     if(fTeam&&e.teamName!==fTeam) return false;
     if(fCat&&e.category!==fCat) return false;
-    if(fStatus&&(e.status||'Active')!==fStatus) return false;
+    if(onlyActive&&(e.status||'Active')!=='Active') return false;
     return true;
   });
   var sk=_hrmsEmpSortKey,sa=_hrmsEmpSortAsc;
@@ -565,20 +662,21 @@ function renderHrmsEmployees(){
     _sn++;
     var pClr=_hrmsGetPlantColor(e.location);
     var etStyle=_etBg(e.employmentType);
-    return '<tr style="font-size:12px;cursor:pointer" onclick="_hrmsOpenEmpPage(\''+e.id+'\')" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'">'
-      +'<td style="text-align:center;padding:5px 6px;font-weight:700;color:var(--text3);font-size:11px">'+_sn+'</td>'
-      +'<td style="font-family:var(--mono);font-weight:800;color:var(--accent);padding:5px 8px">'+e.empCode+'</td>'
-      +'<td style="font-weight:700;padding:5px 8px">'+e.name+'</td>'
-      +'<td style="padding:5px 8px;font-size:11px;white-space:nowrap">'+_hrmsFmtDate(e.dateOfJoining)+'</td>'
-      +'<td style="padding:5px 4px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:'+pClr+';color:#1e293b">'+(e.location||'—')+'</span></td>'
-      +'<td style="padding:5px 4px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:'+etStyle+'">'+(e.employmentType||'—')+'</span></td>'
-      +'<td style="padding:5px 8px">'+(e.teamName||'—')+'</td>'
-      +'<td style="padding:5px 8px">'+(e.category||'—')+'</td>'
-      +'<td style="padding:5px 4px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:'+((e.status||'Active')==='Active'?'#dcfce7;color:#15803d':((e.status)==='Left'?'#fee2e2;color:#dc2626':'#f1f5f9;color:#64748b'))+'">'+(e.status||'Active')+'</span></td>'
-      +'<td style="padding:5px 4px;white-space:nowrap" onclick="event.stopPropagation()"><button onclick="_hrmsOpenEmpPage(\''+e.id+'\')" style="padding:2px 8px;font-size:10px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:3px;cursor:pointer">✏️</button>'
-      +' <button onclick="_hrmsDelEmp(\''+e.id+'\')" style="padding:2px 8px;font-size:10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button></td>'
+    var _ov='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    return '<tr style="font-size:11px;cursor:pointer" onclick="_hrmsOpenEmpPage(\''+e.id+'\')" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'">'
+      +'<td style="text-align:center;padding:4px 2px;font-weight:700;color:var(--text3);font-size:10px">'+_sn+'</td>'
+      +'<td style="font-family:var(--mono);font-weight:800;color:var(--accent);padding:4px 6px;'+_ov+'">'+e.empCode+'</td>'
+      +'<td style="font-weight:700;padding:4px 6px;'+_ov+'" title="'+e.name+'">'+e.name+'</td>'
+      +'<td style="padding:4px 4px;font-size:11px;'+_ov+'">'+(e.gender||'—')+'</td>'
+      +'<td style="padding:4px 4px;font-size:11px;'+_ov+'">'+_hrmsFmtDate(e.dateOfJoining)+'</td>'
+      +'<td style="padding:4px 3px;'+_ov+'"><span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;background:'+pClr+';color:#1e293b;max-width:100%;'+_ov+'" title="'+(e.location||'')+'">'+(e.location||'—')+'</span></td>'
+      +'<td style="padding:4px 3px;'+_ov+'"><span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;background:'+etStyle+';max-width:100%;'+_ov+'" title="'+(e.employmentType||'')+'">'+(e.employmentType||'—')+'</span></td>'
+      +'<td style="padding:4px 6px;'+_ov+'" title="'+(e.teamName||'')+'">'+(e.teamName||'—')+'</td>'
+      +'<td style="padding:4px 4px;'+_ov+'">'+(e.category||'—')+'</td>'
+      +'<td style="padding:4px 3px;white-space:nowrap;text-align:center" onclick="event.stopPropagation()"><button onclick="_hrmsOpenEmpPage(\''+e.id+'\')" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:3px;cursor:pointer">✏️</button>'
+      +' <button onclick="_hrmsDelEmp(\''+e.id+'\')" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button></td>'
       +'</tr>';
-  }).join(''):'<tr><td colspan="7" class="empty-state">No employees match filters.</td></tr>';
+  }).join(''):'<tr><td colspan="10" class="empty-state">No employees match filters.</td></tr>';
   var cEl=document.getElementById('cEmployees');if(cEl)cEl.textContent=allEmps.length;
   var cntEl=document.getElementById('hrmsEmpCount');if(cntEl)cntEl.textContent='(showing '+emps.length+' of '+allEmps.length+')';
 }
@@ -632,7 +730,7 @@ function _hrmsShowAge(){
 // ═══ PERIOD-BASED ORG/SALARY TRACKING ═══════════════════════════════════
 var _hrmsEmpPeriods=[];// current employee's periods array
 var _hrmsActivePeriodIdx=0;
-var _PERIOD_FIELDS=['location','department','subDepartment','designation','employmentType','teamName','category','roll','reportingTo','salaryDay','salaryMonth','specialAllowance','status','dateOfLeft'];
+var _PERIOD_FIELDS=['location','department','subDepartment','designation','employmentType','teamName','category','roll','reportingTo','salaryDay','salaryMonth','specialAllowance','esiApplicable','status','dateOfLeft'];
 var _PERIOD_FORM_MAP={location:'hrmsEmpLocation',department:'hrmsEmpDept',subDepartment:'hrmsEmpSubDept',designation:'hrmsEmpDesig',employmentType:'hrmsEmpType',teamName:'hrmsEmpTeam',category:'hrmsEmpCategory',roll:'hrmsEmpRoll',reportingTo:'hrmsEmpReporting',salaryDay:'hrmsEmpSalDay',salaryMonth:'hrmsEmpSalMonth',specialAllowance:'hrmsEmpSpAllow',status:'hrmsEmpStatus',dateOfLeft:'hrmsEmpDOL'};
 
 // _hrmsMonthLabel is in hrms-logic.js
@@ -642,6 +740,46 @@ var _PERIOD_FORM_MAP={location:'hrmsEmpLocation',department:'hrmsEmpDept',subDep
 // _hrmsMigratePeriods is in hrms-logic.js
 
 // _hrmsGetActivePeriod is in hrms-logic.js
+
+// Format "2026-01" → "Jan-26". Returns empty string for falsy input.
+function _hrmsShortMonth(ym){
+  if(!ym) return '';
+  var p=ym.split('-');
+  if(p.length<2) return ym;
+  var mon=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return mon[+p[1]]+'-'+p[0].slice(-2);
+}
+
+// Parse short month text like "Jan-26" / "Jan 26" / "01-26" / "1/26" / "2026-01" → "YYYY-MM" (or empty)
+function _hrmsParseShortMonth(txt){
+  var s=(txt||'').toString().trim();if(!s) return '';
+  // Already YYYY-MM
+  var m=s.match(/^(\d{4})-(\d{1,2})$/);if(m) return m[1]+'-'+m[2].padStart(2,'0');
+  // MonthName-YY or MonthName YY (e.g. Jan-26, Feb 26)
+  var mon=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  m=s.match(/^([a-zA-Z]{3,})[\s\-\/]+(\d{2,4})$/);
+  if(m){
+    var idx=mon.indexOf(m[1].slice(0,3).toLowerCase());
+    if(idx>=0){
+      var yr=+m[2];if(yr<100) yr+=2000;
+      return yr+'-'+String(idx+1).padStart(2,'0');
+    }
+  }
+  // MM-YY or M/YY
+  m=s.match(/^(\d{1,2})[\-\/\s]+(\d{2,4})$/);
+  if(m){
+    var mo=+m[1];var yr2=+m[2];if(yr2<100) yr2+=2000;
+    if(mo>=1&&mo<=12) return yr2+'-'+String(mo).padStart(2,'0');
+  }
+  return '';
+}
+
+function _hrmsPeriodFromTextChange(idx,inp){
+  var parsed=_hrmsParseShortMonth(inp.value);
+  if(!parsed){notify('Invalid month — use format like Jan-26',true);if(_hrmsEmpPeriods[idx])inp.value=_hrmsShortMonth(_hrmsEmpPeriods[idx].from);return;}
+  _hrmsPeriodFieldChange(idx,'from',parsed);
+  inp.value=_hrmsShortMonth(parsed);
+}
 
 function _hrmsBuildPeriodTable(){
   var body=document.getElementById('hrmsEmpPeriodBody');
@@ -671,7 +809,8 @@ function _hrmsBuildPeriodTable(){
     var isDraft=p._wfStatus==='draft';
     var isRejected=p._wfStatus==='rejected';
     var _isNewEmp=!document.getElementById('hrmsEmpId')?.value;
-    var isEditable=isDraft||isProposed||(_isNewEmp&&isActive);
+    // View mode (not editing): nothing is editable
+    var isEditable=_hrmsEmpEditMode&&(isDraft||isProposed||(_isNewEmp&&isActive));
     var dis=isEditable?'':'disabled style="opacity:'+(isActive?'0.8':(isProposed?'0.8':'0.5'))+'"';
     var bg=isDraft?'background:#dbeafe;border-left:5px solid #2563eb':(isProposed?'background:#fefce8;border-left:5px solid #f59e0b':(isRejected?'background:#fee2e2;border-left:5px solid #dc2626':(isActive?'background:#dcfce7;border-left:5px solid #16a34a':'background:#f8fafc;border-left:5px solid #e2e8f0')));
     var statusLabel=isDraft?'✎ DRAFT':(isProposed?'⏳ PROPOSED':(isRejected?'✕ REJECTED':(isActive?'★ CURRENT':'')));
@@ -688,8 +827,8 @@ function _hrmsBuildPeriodTable(){
     var disSalMon=isEditable?(isWorker?'disabled style="opacity:0.3;background:#f1f5f9"':''):'disabled style="opacity:'+(isActive||isProposed?'0.8':'0.5')+'"';
     return '<tr style="border-bottom:2px solid #cbd5e1;'+bg+'">'
       +'<td style="padding:4px 3px;text-align:center;font-weight:800;color:'+statusClr+';font-size:13px">R'+revNum+badge+'</td>'
-      +'<td style="padding:4px 3px"><input type="month" value="'+p.from+'" onchange="_hrmsPeriodFieldChange('+i+',\'from\',this.value)" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'></td>'
-      +'<td style="padding:4px 3px">'+(isDraft?'<span style="font-size:11px;font-weight:800;color:#2563eb;padding:3px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;display:inline-block">Draft</span>':(isProposed?'<span style="font-size:11px;font-weight:800;color:#f59e0b;padding:3px 6px;background:#fefce8;border:1px solid #fde047;border-radius:4px;display:inline-block">Pending</span>':(isActive?'<span style="font-size:12px;font-weight:800;color:#16a34a;padding:3px 6px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;display:inline-block">Till date</span>':'<input type="month" value="'+(p.to||'')+'" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" disabled>')))+'</td>'
+      +'<td style="padding:4px 3px;text-align:center">'+(isEditable?'<input type="text" value="'+_hrmsShortMonth(p.from)+'" placeholder="Jan-26" onchange="_hrmsPeriodFromTextChange('+i+',this)" style="font-size:12px;font-weight:700;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box;text-align:center;text-transform:none" '+dis+'>':'<span style="font-size:12px;font-weight:700;color:var(--text)">'+_hrmsShortMonth(p.from)+'</span>')+'</td>'
+      +'<td style="padding:4px 3px;text-align:center">'+(isDraft?'<span style="font-size:11px;font-weight:800;color:#2563eb;padding:3px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;display:inline-block">Draft</span>':(isProposed?'<span style="font-size:11px;font-weight:800;color:#f59e0b;padding:3px 6px;background:#fefce8;border:1px solid #fde047;border-radius:4px;display:inline-block">Pending</span>':(isActive?'<span style="font-size:12px;font-weight:800;color:#16a34a;padding:3px 6px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;display:inline-block">Till date</span>':'<span style="font-size:12px;font-weight:700;color:var(--text)">'+_hrmsShortMonth(p.to)+'</span>')))+'</td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('location')+'" onchange="_hrmsPeriodFieldChange('+i+',\'location\',this.value);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsCompanies',p.location)+'</select></td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('employmentType')+'" onchange="_hrmsPeriodFieldChange('+i+',\'employmentType\',this.value);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsEmpTypes',p.employmentType)+'</select></td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('category')+'" onchange="_hrmsPeriodFieldChange('+i+',\'category\',this.value);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsCategories',p.category)+'</select></td>'
@@ -701,6 +840,7 @@ function _hrmsBuildPeriodTable(){
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('salaryDay')+'" value="'+(p.salaryDay||'')+'" step="5" min="0" onchange="_hrmsSnapSalary(this,5);_hrmsPeriodFieldChange('+i+',\'salaryDay\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disSalDay+'></td>'
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('salaryMonth')+'" value="'+(p.salaryMonth||'')+'" step="50" min="0" onchange="_hrmsSnapSalary(this,50);_hrmsPeriodFieldChange('+i+',\'salaryMonth\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disSalMon+'></td>'
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('specialAllowance')+'" value="'+(p.specialAllowance||'')+'" step="50" min="0" onchange="_hrmsPeriodFieldChange('+i+',\'specialAllowance\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+(isEditable?'':'disabled style="opacity:0.6"')+'></td>'
+      +'<td style="padding:4px 3px;text-align:center"><select class="'+_chk('esiApplicable')+'" onchange="_hrmsPeriodFieldChange('+i+',\'esiApplicable\',this.value)" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;font-weight:700" '+dis+'><option value="Yes"'+((p.esiApplicable||'Yes')==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(p.esiApplicable==='No'?' selected':'')+'>No</option></select></td>'
       +'<td style="padding:4px 3px"><input type="text" value="'+(p.remarks||'')+'" onchange="_hrmsPeriodFieldChange('+i+',\'remarks\',this.value)" placeholder="'+(isEditable?'Add remarks…':'')+'" style="font-size:11px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+(isEditable?'':'disabled style="opacity:0.6"')+'></td>'
       +'<td style="padding:4px 3px;white-space:nowrap">'+(isDraft?'<button onclick="_hrmsSavePeriodRow()" style="font-size:10px;padding:3px 10px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px" title="Submit for approval">📤 Submit</button><button onclick="_hrmsDeleteNewPeriod()" style="font-size:10px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Delete</button>':(isProposed?'<span style="font-size:9px;font-weight:800;color:#f59e0b;background:#fefce8;border:1px solid #fde047;padding:2px 6px;border-radius:3px">Awaiting</span>':'')+((!isDraft&&!isActive&&_hrmsIsSA())?'<button onclick="_hrmsDeletePeriodRow('+i+')" style="font-size:9px;padding:2px 6px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer;margin-left:3px" title="Delete period">🗑</button>':''))+'</td>'
       +'</tr>';
@@ -722,7 +862,14 @@ function _hrmsDeletePeriodRow(idx){
 }
 function _hrmsPeriodFieldChange(idx,field,value){
   if(typeof value==='string') value=value.replace(/[\r\n]+/g,' ').trim();
-  if(_hrmsEmpPeriods[idx]) _hrmsEmpPeriods[idx][field]=value;
+  if(!_hrmsEmpPeriods[idx]) return;
+  _hrmsEmpPeriods[idx][field]=value;
+  // Auto-default ESI Applicable when category changes: Worker=Yes, Staff=No
+  if(field==='category'){
+    var cat=(value||'').toLowerCase();
+    if(cat.indexOf('worker')>=0) _hrmsEmpPeriods[idx].esiApplicable='Yes';
+    else if(cat.indexOf('staff')>=0) _hrmsEmpPeriods[idx].esiApplicable='No';
+  }
 }
 async function _hrmsSavePeriodRow(){
   if(!_hrmsEmpPeriods[0]||_hrmsEmpPeriods[0]._wfStatus!=='draft') return;
@@ -752,21 +899,9 @@ async function _hrmsSavePeriodRow(){
 }
 function _hrmsDeleteNewPeriod(){
   if(!_hrmsEmpPeriods.length||_hrmsEmpPeriods[0]._wfStatus!=='draft') return;
-  // Check if attendance data exists for this period
-  var p=_hrmsEmpPeriods[0];
-  var empCode=document.getElementById('hrmsEmpCode').value.trim();
-  if(empCode&&p.from){
-    var hasAtt=false;
-    // Check attendance cache for months in this period range
-    for(var mk in _hrmsAttCache){
-      if(mk>=p.from&&(!p.to||mk<=p.to)){
-        if((_hrmsAttCache[mk]||[]).some(function(a){return a.empCode===empCode;})){hasAtt=true;break;}
-      }
-    }
-    if(hasAtt){notify('Cannot delete — attendance data exists for this period',true);return;}
-  }
+  // Drafts haven't been approved yet, so no attendance can be tied to them — allow delete freely.
   if(!confirm('Delete this draft revision?')) return;
-  _hrmsEmpPeriods.shift();// Remove proposed period; old period is still active
+  _hrmsEmpPeriods.shift();
   _hrmsBuildPeriodTable();
   notify('Draft revision deleted');
 }
@@ -776,7 +911,7 @@ function _hrmsSavePeriodToMemory(){
 }
 
 // ═══ CHANGE REQUEST APPROVAL PAGE ═══════════════════════════════════════
-var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow'};
+var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
 function _hrmsUpdateChangeReqBadge(){
   var count=0;
   (DB.hrmsEmployees||[]).forEach(function(e){(e.periods||[]).forEach(function(p){if(p._wfStatus==='proposed')count++;});});
@@ -826,8 +961,8 @@ function _hrmsRenderChangeReq(){
     h+='<div><span style="font-family:var(--mono);font-weight:900;font-size:16px;color:var(--accent)">'+e.empCode+'</span> <span style="font-weight:700;font-size:15px">'+e.name+'</span> <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">⏳ Pending</span>'+(_isNewEcr?' <span style="background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">NEW EMPLOYEE</span>':'')+'</div>';
     h+='<div style="font-size:11px;color:var(--text3)">Proposed from <b>'+_hrmsMonthLabel(p.from)+'</b>'+(p.submittedBy?' by '+p.submittedBy:'')+'</div></div>';
     // Unified timeline table: all periods + proposed row with changes highlighted
-    var _ecrCols=['location','employmentType','category','teamName','department','subDepartment','designation','roll','salaryDay','salaryMonth','specialAllowance'];
-    var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow'};
+    var _ecrCols=['location','employmentType','category','teamName','department','subDepartment','designation','roll','salaryDay','salaryMonth','specialAllowance','esiApplicable'];
+    var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
     var _th2='padding:5px 6px;font-size:10px;font-weight:700;white-space:nowrap';
     h+='<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:6px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff"><th style="'+_th2+'">Period</th><th style="'+_th2+'">Status</th>';
     _ecrCols.forEach(function(c){h+='<th style="'+_th2+(c==='salaryDay'||c==='salaryMonth'||c==='specialAllowance'?';text-align:right':'')+'">'+_ecrColH[c]+'</th>';});
@@ -987,6 +1122,7 @@ function _hrmsShowRejoinBtn(){
   btn.style.display=(st!=='Active'&&!hasPending)?'':'none';
 }
 function _hrmsNewPeriod(){
+  if(!_hrmsEmpEditMode){notify('Click Edit to make changes',true);return;}
   if(!_hrmsEmpPeriods.length){notify('No periods exist — save the employee first',true);return;}
   // Check if there's already an unsaved or proposed period
   if(_hrmsEmpPeriods[0]._wfStatus==='draft'){notify('A draft revision already exists — submit or delete it first',true);return;}
@@ -1006,7 +1142,261 @@ function _hrmsOpenEmpPage(id){
   _hrmsEmpNavList=_hrmsGetFilteredEmployees().map(function(e){return e.id;});
   openHrmsEmpModal(id);
 }
-function _hrmsBackToList(){hrmsGo('pageHrmsEmployees');}
+
+// Open employee details popup by empCode (used by clickable links everywhere)
+function _hrmsOpenEmpByCode(code){
+  code=(code||'').toString().trim();if(!code) return;
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'')===code;});
+  if(!emp){notify('Employee '+code+' not found',true);return;}
+  _hrmsEmpNavList=[];
+  openHrmsEmpModal(emp.id);
+}
+
+// ESC key closes the employee popup (cancels edits with confirm when in edit mode)
+if(!window._hrmsEmpEscInstalled){
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Escape') return;
+    var modal=document.getElementById('mHrmsEmpEdit');
+    if(!modal||modal.style.display==='none') return;
+    // If in edit mode with changes, route through cancel flow (which asks before discarding)
+    if(_hrmsEmpEditMode){
+      _hrmsEmpEditCancel();
+    } else {
+      cm('mHrmsEmpEdit');
+    }
+  });
+  window._hrmsEmpEscInstalled=true;
+}
+
+// Install a document-level delegated click handler: any element with data-emp-code opens the popup.
+// Attribute can be added in-line: <span data-emp-code="EMP001">...</span>
+if(!window._hrmsEmpDelegatedInstalled){
+  document.addEventListener('click',function(ev){
+    var el=ev.target;
+    while(el&&el!==document){
+      if(el.dataset&&el.dataset.empCode){
+        ev.preventDefault();ev.stopPropagation();
+        _hrmsOpenEmpByCode(el.dataset.empCode);
+        return;
+      }
+      el=el.parentNode;
+    }
+  },true);
+  window._hrmsEmpDelegatedInstalled=true;
+}
+function _hrmsBackToList(){cm('mHrmsEmpEdit');}
+
+// View/edit mode state for the employee modal
+var _hrmsEmpEditMode=false;
+// Snapshot of the employee (pre-edit) for cancel-revert
+var _hrmsEmpEditSnap=null;
+
+function _hrmsSetEmpEditMode(on){
+  _hrmsEmpEditMode=!!on;
+  _hrmsApplyEmpEditModeToForm();
+}
+
+function _hrmsApplyEmpEditModeToForm(){
+  var editing=_hrmsEmpEditMode;
+  // Disable/enable all inputs in the emp modal except quick-search and buttons
+  var inputs=document.querySelectorAll('#hrmsEmpModalContent input, #hrmsEmpModalContent select, #hrmsEmpModalContent textarea');
+  inputs.forEach(function(el){
+    if(el.id==='hrmsEmpQuickSearch') return;// always searchable
+    if(el.id==='hrmsEmpStatusHeader') return;// keep header status toggle always active? lock to edit mode too
+    if(editing){
+      // Respect existing disabled logic (readOnly on empCode etc.)
+      if(el.id==='hrmsEmpCode') el.readOnly=!!document.getElementById('hrmsEmpId').value;
+      else el.disabled=false;
+    } else {
+      el.disabled=true;
+    }
+  });
+  // Keep header status toggle in sync with edit mode
+  var sh=document.getElementById('hrmsEmpStatusHeader');if(sh) sh.disabled=!editing;
+  // Toggle buttons
+  var viewBtns=document.getElementById('hrmsEmpViewBtns');
+  var editBtns=document.getElementById('hrmsEmpEditBtns');
+  if(viewBtns) viewBtns.style.display=editing?'none':'flex';
+  if(editBtns) editBtns.style.display=editing?'flex':'none';
+  // New Revision / Rejoin buttons only enabled in edit mode
+  var nrBtn=document.querySelector('#hrmsEmpModalContent button[onclick="_hrmsNewPeriod()"]');
+  if(nrBtn){nrBtn.disabled=!editing;nrBtn.style.opacity=editing?'1':'0.4';nrBtn.style.cursor=editing?'pointer':'not-allowed';}
+  var rjBtn=document.getElementById('hrmsRejoinBtn');
+  if(rjBtn&&rjBtn.style.display!=='none'){rjBtn.disabled=!editing;rjBtn.style.opacity=editing?'1':'0.4';rjBtn.style.cursor=editing?'pointer':'not-allowed';}
+  // Rebuild periods table so period inputs also disable
+  _hrmsBuildPeriodTable();
+}
+
+function _hrmsEmpEditStart(){
+  // Snapshot current form for cancel-revert
+  var id=document.getElementById('hrmsEmpId').value;
+  var e=id?byId(DB.hrmsEmployees||[],id):null;
+  _hrmsEmpEditSnap=e?JSON.parse(JSON.stringify(e)):null;
+  _hrmsSetEmpEditMode(true);
+}
+
+function _hrmsEmpEditCancel(){
+  if(!_hrmsEmpEditMode) return;
+  // If this was a new (never-saved) employee, just close
+  var id=document.getElementById('hrmsEmpId').value;
+  if(!id){cm('mHrmsEmpEdit');return;}
+  if(!confirm('Discard changes and return to view mode?')) return;
+  // Reload from snapshot (restore employee state in memory)
+  if(_hrmsEmpEditSnap){
+    var orig=byId(DB.hrmsEmployees||[],id);
+    if(orig) Object.keys(_hrmsEmpEditSnap).forEach(function(k){orig[k]=_hrmsEmpEditSnap[k];});
+  }
+  _hrmsEmpEditSnap=null;
+  openHrmsEmpModal(id);// re-populate from memory
+}
+
+// ═══ EMPLOYEE HISTORY (Attendance & Salary, FY-wise since beginning) ══════
+async function _hrmsShowEmpHistory(){
+  var id=document.getElementById('hrmsEmpId').value;
+  if(!id){notify('Save the employee first',true);return;}
+  var emp=byId(DB.hrmsEmployees||[],id);
+  if(!emp){notify('Employee not found',true);return;}
+  var code=emp.empCode;
+
+  showSpinner('Loading history…');
+  // Fetch all saved month data for this employee
+  var rows=[];
+  if(_sb&&_sbReady){
+    try{
+      var {data,error}=await _sb.from('hrms_month_data').select('*').eq('emp_code',code);
+      if(!error&&data) rows=data.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean);
+    }catch(e){console.warn('Load history error:',e);}
+  }
+  hideSpinner();
+
+  if(!rows.length){notify('No saved history for '+code+'. History shows data only from months that have been "Saved & Locked".');return;}
+
+  // Sort by monthKey ascending
+  rows.sort(function(a,b){return(a.monthKey||'').localeCompare(b.monthKey||'');});
+
+  // Group by Financial Year (April→March)
+  var fyGroups={};
+  rows.forEach(function(r){
+    var p=(r.monthKey||'').split('-');var yr=+p[0],mo=+p[1];
+    var fyStart=mo>=4?yr:yr-1;
+    var fyKey=fyStart+'-'+(fyStart+1);
+    if(!fyGroups[fyKey]) fyGroups[fyKey]={fyKey:fyKey,fyStart:fyStart,months:[]};
+    fyGroups[fyKey].months.push(r);
+  });
+  var fys=Object.keys(fyGroups).sort().reverse().map(function(k){return fyGroups[k];});
+
+  // Build popup HTML
+  var h='<div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--accent);gap:12px">';
+  h+='<div><div style="font-size:20px;font-weight:900;color:var(--accent)">'+code+' — '+_hrmsDispName(emp)+'</div>';
+  h+='<div style="font-size:12px;color:var(--text3);margin-top:2px">Attendance &amp; Salary History · FY-wise</div></div>';
+  h+='<button onclick="cm(\'mEmpHistory\')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f1f5f9;border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">✕ Close</button>';
+  h+='</div>';
+
+  var _r=function(v){return Math.round(v||0).toLocaleString();};
+  var _f=function(v){if(!v&&v!==0)return'0';if(v%1===0)return String(v);return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
+
+  fys.forEach(function(fy){
+    // Compute FY totals
+    var tot={totalP:0,totalA:0,totalOT:0,totalOTS:0,totalPL:0,gross:0,dedTotal:0,net:0,advOB:0,advCB:0,advDed:0};
+    fy.months.forEach(function(m){
+      tot.totalP+=m.totalP||0;tot.totalA+=m.totalA||0;
+      tot.totalOT+=m.totalOT||0;tot.totalOTS+=m.totalOTS||0;tot.totalPL+=m.totalPL||0;
+      tot.gross+=m.gross||0;tot.dedTotal+=m.dedTotal||0;tot.net+=m.net||0;
+      tot.advDed+=m.advDed||0;
+    });
+    // First and last for OB/CB
+    var first=fy.months[0],last=fy.months[fy.months.length-1];
+    tot.advOB=first?(first.advOB||0):0;
+    tot.advCB=last?(last.advCB||0):0;
+
+    h+='<div style="margin-bottom:16px;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">';
+    h+='<div style="background:#7c3aed;color:#fff;padding:8px 14px;font-size:14px;font-weight:900;display:flex;justify-content:space-between;align-items:center">';
+    h+='<span>FY '+fy.fyKey+' (Apr '+fy.fyStart+' — Mar '+(fy.fyStart+1)+')</span>';
+    h+='<span style="font-size:12px;font-weight:700;opacity:0.95">Net: ₹'+_r(tot.net)+' · Gross: ₹'+_r(tot.gross)+' · '+fy.months.length+' month'+(fy.months.length>1?'s':'')+'</span>';
+    h+='</div>';
+    h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h+='<thead><tr style="background:#f1f5f9;color:var(--text)">';
+    var _th='padding:5px 6px;font-size:10px;font-weight:800;border-bottom:1px solid var(--border);white-space:nowrap';
+    h+='<th style="'+_th+';text-align:left">Month</th>';
+    h+='<th style="'+_th+';text-align:right">Sal/Day</th>';
+    h+='<th style="'+_th+';text-align:right">Sal/Mon</th>';
+    h+='<th style="'+_th+';text-align:right;background:#dbeafe">WD</th>';
+    h+='<th style="'+_th+';text-align:right;background:#dcfce7">P</th>';
+    h+='<th style="'+_th+';text-align:right;background:#fee2e2">A</th>';
+    h+='<th style="'+_th+';text-align:right;background:#fff7ed">OT</th>';
+    h+='<th style="'+_th+';text-align:right;background:#fff7ed">OT@S</th>';
+    h+='<th style="'+_th+';text-align:right;background:#f3e8ff">PL</th>';
+    h+='<th style="'+_th+';text-align:right;background:#f0fdf4">Gross</th>';
+    h+='<th style="'+_th+';text-align:right;background:#fef2f2">Adv Ded</th>';
+    h+='<th style="'+_th+';text-align:right;background:#f1f5f9">Total Ded</th>';
+    h+='<th style="'+_th+';text-align:right;background:#dcfce7">Net</th>';
+    h+='</tr></thead><tbody>';
+    fy.months.forEach(function(m){
+      h+='<tr style="border-bottom:1px solid #f1f5f9">';
+      h+='<td style="padding:4px 6px;font-weight:700">'+_hrmsShortMonth(m.monthKey)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.rateD?_r(m.rateD):'—')+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.rateM?_r(m.rateM):'—')+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.wdCount||0)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#16a34a;font-weight:700">'+_f(m.totalP)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#dc2626">'+_f(m.totalA)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#c2410c">'+_f(m.totalOT)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#c2410c">'+_f(m.totalOTS)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#7c3aed">'+_f(m.totalPL)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:700">'+_r(m.gross)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:#dc2626">'+_r(m.advDed)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+_r(m.dedTotal)+'</td>';
+      h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:900;color:#15803d">'+_r(m.net)+'</td>';
+      h+='</tr>';
+    });
+    // FY totals row
+    h+='<tr style="background:#f1f5f9;font-weight:900;border-top:2px solid var(--border)">';
+    h+='<td style="padding:6px 6px;font-weight:900">FY Total</td>';
+    h+='<td colspan="2"></td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono)"></td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#16a34a">'+_f(tot.totalP)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#dc2626">'+_f(tot.totalA)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#c2410c">'+_f(tot.totalOT)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#c2410c">'+_f(tot.totalOTS)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#7c3aed">'+_f(tot.totalPL)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#15803d">'+_r(tot.gross)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#dc2626">'+_r(tot.advDed)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono)">'+_r(tot.dedTotal)+'</td>';
+    h+='<td style="padding:6px 6px;text-align:right;font-family:var(--mono);color:#15803d;font-size:13px">'+_r(tot.net)+'</td>';
+    h+='</tr>';
+    h+='</tbody></table></div></div>';
+  });
+
+  h+='<div style="font-size:11px;color:var(--text3);margin-top:8px;padding:8px;background:#f1f5f9;border-radius:6px">ℹ History only includes months that have been <b>Saved &amp; Locked</b>. Unlocked months (in progress) are not shown.</div>';
+
+  h+='</div>';
+
+  // Show in modal
+  var modal=document.getElementById('mEmpHistory');
+  if(!modal){
+    modal=document.createElement('div');modal.id='mEmpHistory';
+    modal.className='modal-overlay';
+    modal.style.cssText='display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:600;justify-content:center;align-items:center';
+    modal.onclick=function(e){if(e.target===modal){cm('mEmpHistory');}};
+    var inner=document.createElement('div');inner.id='mEmpHistoryInner';
+    inner.style.cssText='background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:18px 22px;max-width:1400px;width:96vw;max-height:94vh;overflow:auto';
+    modal.appendChild(inner);
+    document.body.appendChild(modal);
+  }
+  document.getElementById('mEmpHistoryInner').innerHTML=h;
+  om('mEmpHistory');
+}
+
+// ESC closes the employee history popup
+if(!window._hrmsEmpHistEscInstalled){
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Escape') return;
+    var m=document.getElementById('mEmpHistory');
+    if(m&&m.style.display!=='none') cm('mEmpHistory');
+  });
+  window._hrmsEmpHistEscInstalled=true;
+}
+
 function _hrmsQuickOpenEmp(code){
   code=(code||'').trim();if(!code){notify('Enter an employee code',true);return;}
   var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
@@ -1038,26 +1428,42 @@ function _hrmsUpdateNavBtns(){
 }
 function openHrmsEmpModal(id){
   var e=id?byId(DB.hrmsEmployees||[],id):null;
-  // Render form into page
-  var el=document.getElementById('hrmsEmpEditContent');
-  if(el) el.innerHTML='<div class="card" style="padding:16px 20px">'
+  // Render form into the modal body
+  var el=document.getElementById('hrmsEmpModalContent')||document.getElementById('hrmsEmpEditContent');
+  if(el) el.innerHTML='<div>'
     +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="text" id="hrmsEmpQuickSearch" placeholder="Enter Emp Code and press Enter" onkeydown="if(event.key===\'Enter\')_hrmsQuickOpenEmp(this.value)" style="font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;width:250px"><button onclick="_hrmsQuickOpenEmp(document.getElementById(\'hrmsEmpQuickSearch\').value)" style="padding:6px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Go</button></div>'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid var(--accent);padding-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div><div style="display:flex;align-items:center;gap:10px"><div style="font-size:18px;font-weight:900;color:var(--accent)" id="mHrmsEmpTitle">Add Employee</div><select id="hrmsEmpStatusHeader" onchange="document.getElementById(\'hrmsEmpStatus\')&&(document.getElementById(\'hrmsEmpStatus\').value=this.value)" style="padding:4px 8px;font-size:12px;font-weight:800;border:2px solid #16a34a;border-radius:6px;color:#15803d;background:#dcfce7;cursor:pointer"><option value="Active" style="color:#15803d">Active</option><option value="Left" style="color:#dc2626">Left</option><option value="Inactive" style="color:#64748b">Inactive</option></select></div><div id="hrmsEmpSubHeader" style="display:none;margin-top:4px;font-size:11px;color:var(--text2);display:flex;gap:6px;flex-wrap:wrap"></div></div></div><div style="display:flex;gap:6px;align-items:center"><button id="hrmsEmpPrevBtn" onclick="_hrmsEmpNav(-1)" style="padding:6px 12px;font-size:16px;font-weight:900;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">‹</button><span id="hrmsEmpNavPos" style="font-size:11px;font-weight:700;color:var(--text3);min-width:50px;text-align:center"></span><button id="hrmsEmpNextBtn" onclick="_hrmsEmpNav(1)" style="padding:6px 12px;font-size:16px;font-weight:900;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">›</button><button class="btn btn-secondary" onclick="_hrmsBackToList()" style="font-size:12px;padding:7px 16px">← Back</button><button class="btn btn-primary" onclick="saveHrmsEmp()" style="font-size:12px;padding:7px 20px">Save</button></div></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid var(--accent);padding-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div><div style="font-size:18px;font-weight:900;color:var(--accent)" id="mHrmsEmpTitle">Add Employee</div><div id="hrmsEmpSubHeader" style="display:none;margin-top:4px;font-size:11px;color:var(--text2);display:flex;gap:6px;flex-wrap:wrap"></div></div></div><div style="display:flex;gap:6px;align-items:center">'
+    +'<button id="hrmsEmpPrevBtn" onclick="_hrmsEmpNav(-1)" style="padding:6px 12px;font-size:16px;font-weight:900;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">‹</button>'
+    +'<span id="hrmsEmpNavPos" style="font-size:11px;font-weight:700;color:var(--text3);min-width:50px;text-align:center"></span>'
+    +'<button id="hrmsEmpNextBtn" onclick="_hrmsEmpNav(1)" style="padding:6px 12px;font-size:16px;font-weight:900;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">›</button>'
+    // View-mode buttons
+    +'<div id="hrmsEmpViewBtns" style="display:flex;gap:6px">'
+    +'<button onclick="_hrmsShowEmpHistory()" style="font-size:12px;padding:7px 16px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer">📊 Show History</button>'
+    +'<button onclick="_hrmsEmpEditStart()" style="font-size:12px;padding:7px 20px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer">✏️ Edit</button>'
+    +'<button class="btn btn-secondary" onclick="_hrmsBackToList()" style="font-size:12px;padding:7px 16px">✕ Close</button>'
+    +'</div>'
+    // Edit-mode buttons
+    +'<div id="hrmsEmpEditBtns" style="display:none;gap:6px">'
+    +'<button class="btn btn-secondary" onclick="_hrmsEmpEditCancel()" style="font-size:12px;padding:7px 16px">✕ Cancel</button>'
+    +'<button class="btn btn-primary" onclick="saveHrmsEmp()" style="font-size:12px;padding:7px 20px">💾 Save</button>'
+    +'</div>'
+    +'</div></div>'
     +'<div class="modal-error" id="mHrmsEmpErr" style="display:none"></div>'
     +'<input type="hidden" id="hrmsEmpId"><input type="hidden" id="hrmsEmpName">'
+    // Status row above Personal Information
+    +'<div style="display:flex;align-items:center;gap:10px;margin:8px 0 4px;padding:8px 12px;background:var(--surface2);border-radius:6px"><label style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:0">Status:</label><select id="hrmsEmpStatusHeader" style="padding:5px 10px;font-size:12px;font-weight:800;border:2px solid #16a34a;border-radius:6px;color:#15803d;background:#dcfce7;cursor:pointer"><option value="Active" style="color:#15803d">Active</option><option value="Left" style="color:#dc2626">Left</option><option value="Inactive" style="color:#64748b">Inactive</option></select></div>'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:10px 0 4px;padding-bottom:3px;border-bottom:2px solid var(--accent-light)">Personal Information</div>'
-    +'<div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 0.5fr 0.8fr 0.4fr;gap:6px"><div class="form-group"><label>Employee Code *</label><input type="text" id="hrmsEmpCode"></div><div class="form-group"><label>Last Name *</label><input type="text" id="hrmsEmpLastName" oninput="_hrmsUpdateTitle()"></div><div class="form-group"><label>First Name *</label><input type="text" id="hrmsEmpFirstName" oninput="_hrmsUpdateTitle()"></div><div class="form-group"><label>Middle Name</label><input type="text" id="hrmsEmpMiddleName"></div><div class="form-group"><label>Gender</label><select id="hrmsEmpGender" style="padding:8px 4px"><option value="">--</option><option value="M">M</option><option value="F">F</option><option value="O">O</option></select></div><div class="form-group"><label>Date of Birth</label><input type="date" id="hrmsEmpDOB" onchange="_hrmsShowAge()"></div><div class="form-group"><label>Age</label><input type="text" id="hrmsEmpAge" readonly style="background:var(--surface2);font-weight:700;color:var(--accent);width:50px"></div></div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px"><div class="form-group"><label>Email</label><input type="email" id="hrmsEmpEmail"></div><div class="form-group"><label>Mobile</label><input type="text" id="hrmsEmpMobile"></div><div class="form-group"><label>Date of Joining</label><input type="date" id="hrmsEmpDOJ"></div></div>'
+    +'<div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 0.5fr 0.8fr 0.4fr;gap:6px"><div class="form-group"><label>Employee Code *</label><input type="text" id="hrmsEmpCode"></div><div class="form-group"><label>Last Name *</label><input type="text" id="hrmsEmpLastName" oninput="_hrmsUpdateTitle()"></div><div class="form-group"><label>First Name *</label><input type="text" id="hrmsEmpFirstName" oninput="_hrmsUpdateTitle()"></div><div class="form-group"><label>Middle Name</label><input type="text" id="hrmsEmpMiddleName"></div><div class="form-group"><label>Gender</label><select id="hrmsEmpGender" style="padding:8px 4px"><option value="">--</option><option value="Male">Male</option><option value="Female">Female</option></select></div><div class="form-group"><label>Date of Birth</label><input type="date" id="hrmsEmpDOB" onchange="_hrmsShowAge()"></div><div class="form-group"><label>Age</label><input type="text" id="hrmsEmpAge" readonly style="background:var(--surface2);font-weight:700;color:var(--accent);width:50px"></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px"><div class="form-group"><label>Email</label><input type="email" id="hrmsEmpEmail"></div><div class="form-group"><label>Mobile</label><input type="text" id="hrmsEmpMobile"></div><div class="form-group"><label>Date of Joining</label><input type="date" id="hrmsEmpDOJ"></div><div class="form-group" style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="hrmsEmpNoPL" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer"><label for="hrmsEmpNoPL" style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;text-transform:none;letter-spacing:0">Paid Leaves not applicable</label></div></div>'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:10px 0 4px;padding-bottom:3px;border-bottom:2px solid var(--accent-light)">Statutory Details</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px"><div class="form-group"><label>PAN No.</label><input type="text" id="hrmsEmpPan"></div><div class="form-group"><label>AADHAAR No.</label><input type="text" id="hrmsEmpAadhaar"></div><div class="form-group"><label>ESI No.</label><input type="text" id="hrmsEmpEsi"></div><div class="form-group"><label>PF No.</label><input type="text" id="hrmsEmpPf"></div><div class="form-group"><label>UAN</label><input type="text" id="hrmsEmpUan"></div></div>'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:10px 0 4px;padding-bottom:3px;border-bottom:2px solid var(--accent-light)">Banking Details</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px"><div class="form-group"><label>Bank Name</label><input type="text" id="hrmsEmpBankName"></div><div class="form-group"><label>Branch Name</label><input type="text" id="hrmsEmpBranchName"></div><div class="form-group"><label>Account Number</label><input type="text" id="hrmsEmpAcctNo"></div><div class="form-group"><label>IFSC Code</label><input type="text" id="hrmsEmpIfsc"></div></div>'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:10px 0 4px;padding-bottom:3px;border-bottom:2px solid var(--accent-light);display:flex;align-items:center;justify-content:space-between"><span>Organization & Salary (Revisions)</span><div style="display:flex;gap:6px;text-transform:none;letter-spacing:0"><button type="button" id="hrmsRejoinBtn" onclick="_hrmsRejoinEmployee()" style="display:none;font-size:10px;padding:3px 12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">🔄 Rejoin</button><button type="button" onclick="_hrmsNewPeriod()" style="font-size:10px;padding:3px 12px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">+ New Revision</button></div></div>'
-    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff"><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:40px;text-align:center">Rev</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:70px">From</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:70px">To</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Plant</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Emp Type</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:70px">Category</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:70px">Team</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Dept</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Sub Dept</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Designation</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:50px">Roll</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:60px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:60px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:60px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Remarks</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
-    +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><button class="btn btn-secondary" onclick="_hrmsBackToList()" style="font-size:12px;padding:7px 16px">← Back</button><button class="btn btn-primary" onclick="saveHrmsEmp()" style="font-size:12px;padding:7px 20px">Save</button></div>'
+    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff"><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:40px;text-align:center">Rev</th><th style="padding:6px 4px;font-size:10px;font-weight:700;width:58px;min-width:58px;text-align:center">From</th><th style="padding:6px 4px;font-size:10px;font-weight:700;width:70px;min-width:70px;text-align:center">To</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:90px">Plant</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:90px">Emp Type</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Category</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px">Team</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:90px">Dept</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:90px">Sub Dept</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:90px">Designation</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:50px">Roll</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:60px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:60px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:50px;text-align:center">ESI</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:100px">Remarks</th><th style="padding:6px 4px;font-size:10px;font-weight:700;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
     +'</div>';
-  // Navigate to edit page
-  hrmsGo('pageHrmsEmpEdit');
+  // Open as modal popup
+  om('mHrmsEmpEdit');
   // Populate fields
   document.getElementById('hrmsEmpId').value=id||'';
   document.getElementById('mHrmsEmpErr').style.display='none';
@@ -1074,6 +1480,7 @@ function openHrmsEmpModal(id){
   document.getElementById('hrmsEmpDOB').value=e?e.dateOfBirth:'';
   _hrmsShowAge();
   document.getElementById('hrmsEmpDOJ').value=e?e.dateOfJoining:'';
+  document.getElementById('hrmsEmpNoPL').checked=e?!!e.noPL:false;
   document.getElementById('hrmsEmpPan').value=e?e.panNo:'';
   document.getElementById('hrmsEmpAadhaar').value=e?e.aadhaarNo:'';
   document.getElementById('hrmsEmpEsi').value=e?e.esiNo:'';
@@ -1105,9 +1512,10 @@ function openHrmsEmpModal(id){
   _hrmsBuildPeriodTable();
   _hrmsUpdateNavBtns();
   _hrmsShowRejoinBtn();
-  // Show edit page, hide list page
-  document.getElementById('pageHrmsEmployees').classList.remove('active');
-  document.getElementById('pageHrmsEmpEdit').classList.add('active');
+  // New employee → open directly in edit mode. Existing → open in view mode.
+  _hrmsEmpEditMode=!id;
+  _hrmsEmpEditSnap=null;
+  _hrmsApplyEmpEditModeToForm();
 }
 
 // Sanitize employee data: trim all strings, title case names
@@ -1133,7 +1541,7 @@ async function saveHrmsEmp(){
   var lastName=document.getElementById('hrmsEmpLastName').value.trim();
   var firstName=document.getElementById('hrmsEmpFirstName').value.trim();
   var middleName=document.getElementById('hrmsEmpMiddleName').value.trim();
-  var name=[firstName,middleName,lastName].filter(Boolean).join(' ');
+  var name=[lastName,firstName,middleName].filter(Boolean).join(' ');
   if(!code||!firstName||!lastName){modalErr('mHrmsEmp','Employee Code, First Name and Last Name are required');return;}
   if((DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase()&&e.id!==id;})){modalErr('mHrmsEmp','Employee Code already exists');return;}
   // Save current period form values to memory
@@ -1142,7 +1550,7 @@ async function saveHrmsEmp(){
   _hrmsEmpPeriods.forEach(function(p){delete p._saved;});
   // Active period = first (newest), sync flat fields for backward compat
   var ap=_hrmsEmpPeriods[0]||{};
-  var data={empCode:code,name:name,lastName:lastName,firstName:firstName,middleName:middleName,gender:document.getElementById('hrmsEmpGender').value,dateOfBirth:document.getElementById('hrmsEmpDOB').value,dateOfJoining:document.getElementById('hrmsEmpDOJ').value,panNo:document.getElementById('hrmsEmpPan').value.trim(),aadhaarNo:document.getElementById('hrmsEmpAadhaar').value.trim(),esiNo:document.getElementById('hrmsEmpEsi').value.trim(),pfNo:document.getElementById('hrmsEmpPf').value.trim(),uan:document.getElementById('hrmsEmpUan').value.trim(),email:document.getElementById('hrmsEmpEmail').value.trim(),mobile:document.getElementById('hrmsEmpMobile').value.trim(),bankName:document.getElementById('hrmsEmpBankName').value.trim(),branchName:document.getElementById('hrmsEmpBranchName').value.trim(),acctNo:document.getElementById('hrmsEmpAcctNo').value.trim(),ifsc:document.getElementById('hrmsEmpIfsc').value.trim(),periods:_hrmsEmpPeriods};
+  var data={empCode:code,name:name,lastName:lastName,firstName:firstName,middleName:middleName,gender:document.getElementById('hrmsEmpGender').value,dateOfBirth:document.getElementById('hrmsEmpDOB').value,dateOfJoining:document.getElementById('hrmsEmpDOJ').value,noPL:document.getElementById('hrmsEmpNoPL').checked,panNo:document.getElementById('hrmsEmpPan').value.trim(),aadhaarNo:document.getElementById('hrmsEmpAadhaar').value.trim(),esiNo:document.getElementById('hrmsEmpEsi').value.trim(),pfNo:document.getElementById('hrmsEmpPf').value.trim(),uan:document.getElementById('hrmsEmpUan').value.trim(),email:document.getElementById('hrmsEmpEmail').value.trim(),mobile:document.getElementById('hrmsEmpMobile').value.trim(),bankName:document.getElementById('hrmsEmpBankName').value.trim(),branchName:document.getElementById('hrmsEmpBranchName').value.trim(),acctNo:document.getElementById('hrmsEmpAcctNo').value.trim(),ifsc:document.getElementById('hrmsEmpIfsc').value.trim(),periods:_hrmsEmpPeriods};
   // Sync flat fields from active period for backward compat (table display, export, etc.)
   _PERIOD_FIELDS.forEach(function(f){data[f]=ap[f]||'';});
   // Override status from header select
@@ -1167,8 +1575,16 @@ async function saveHrmsEmp(){
     if(!await _dbSave('hrmsEmployees',e2)) return;
     DB.hrmsEmployees.push(e2);
   }
-  _hrmsBackToList();renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
+  renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
   notify(id?'Employee saved!':'New employee submitted for approval!');
+  _hrmsEmpEditSnap=null;
+  if(id){
+    // Existing employee: remain in modal but switch back to view mode
+    _hrmsSetEmpEditMode(false);
+  } else {
+    // New employee: close the modal
+    cm('mHrmsEmpEdit');
+  }
 }
 
 async function _hrmsDelEmp(id){
@@ -1189,6 +1605,177 @@ async function _hrmsDelEmp(id){
 }
 
 // ═══ IMPORT / EXPORT EMPLOYEES ═══════════════════════════════════════════
+
+// Build a case-insensitive lookup from a master table.
+// Returns {lookup: {lowerName: canonicalName}, names: [...]}
+function _hrmsMasterLookup(tbl){
+  var items=DB[tbl]||[];
+  var lookup={},names=[];
+  items.forEach(function(it){
+    var n=(it.name||'').trim();
+    if(n){lookup[n.toLowerCase()]=n;names.push(n);}
+  });
+  return{lookup:lookup,names:names.sort()};
+}
+
+// Canonicalize a master value against a lookup. Returns {ok:bool, value:canonical, err:msg}
+function _hrmsCanonicalize(raw,lookup,fieldLabel){
+  var s=(raw||'').toString().trim();
+  if(!s) return {ok:true,value:''};// empty is allowed
+  var hit=lookup.lookup[s.toLowerCase()];
+  if(hit) return {ok:true,value:hit};
+  return {ok:false,err:fieldLabel+' "'+s+'" not found in masters. Valid: '+(lookup.names.slice(0,8).join(', ')||'(none)')};
+}
+
+// One-time: deduplicate masters and normalize all employees' master field values.
+// Handles both: (1) master has duplicates like "Staff" + "STAFF", (2) employees have mixed casing.
+async function _hrmsFixEmployeeMasterCase(){
+  var emps=DB.hrmsEmployees||[];
+  console.log('=== _hrmsFixEmployeeMasterCase START ===');
+  console.log('Total employees:',emps.length);
+
+  var masterTables=[
+    {tbl:'hrmsCompanies',empField:'location',label:'Plant'},
+    {tbl:'hrmsCategories',empField:'category',label:'Category'},
+    {tbl:'hrmsEmpTypes',empField:'employmentType',label:'Employment Type'},
+    {tbl:'hrmsTeams',empField:'teamName',label:'Team'},
+    {tbl:'hrmsDepartments',empField:'department',label:'Department'},
+    {tbl:'hrmsSubDepartments',empField:'subDepartment',label:'Sub Department'},
+    {tbl:'hrmsDesignations',empField:'designation',label:'Designation'}
+  ];
+
+  // ── 1. Report current state ──
+  console.log('\n--- Master Data ---');
+  masterTables.forEach(function(m){
+    var items=DB[m.tbl]||[];
+    console.log(m.label+' ('+m.tbl+'):',items.map(function(x){return x.name;}));
+  });
+
+  console.log('\n--- Case-duplicate analysis ---');
+  var report={masterDupes:[],empMismatches:[],empCaseMismatches:[]};
+  masterTables.forEach(function(m){
+    var items=DB[m.tbl]||[];
+    var byLower={};
+    items.forEach(function(it){
+      var k=(it.name||'').trim().toLowerCase();if(!k)return;
+      if(!byLower[k]) byLower[k]=[];
+      byLower[k].push(it);
+    });
+    Object.keys(byLower).forEach(function(k){
+      if(byLower[k].length>1) report.masterDupes.push({field:m.label,names:byLower[k].map(function(x){return x.name;})});
+    });
+  });
+  if(report.masterDupes.length){
+    console.log('⚠ Master duplicates found:');
+    report.masterDupes.forEach(function(d){console.log(' ',d.field,'→',d.names.join(' vs '));});
+  } else {
+    console.log('✓ No master duplicates');
+  }
+
+  var summary='Analysis:\n\n';
+  summary+='• '+report.masterDupes.length+' master duplicate(s) detected\n';
+  report.masterDupes.forEach(function(d){summary+='  - '+d.field+': '+d.names.join(' ≈ ')+'\n';});
+
+  // Count employee case mismatches
+  var empChanges=0,empUnmatched=0;
+  var plannedChanges=[];
+  emps.forEach(function(e){
+    masterTables.forEach(function(m){
+      var cur=(e[m.empField]||'').toString().trim();
+      if(!cur) return;
+      var items=DB[m.tbl]||[];
+      // Pick the "canonical" by preferring title-case-ish entry
+      var hit=null;
+      items.forEach(function(it){
+        if((it.name||'').toLowerCase()===cur.toLowerCase()){
+          // Prefer entries that aren't all-upper/all-lower
+          if(!hit) hit=it.name;
+          else{
+            var a=hit,b=it.name;
+            var aAllCase=(a===a.toUpperCase()||a===a.toLowerCase());
+            var bAllCase=(b===b.toUpperCase()||b===b.toLowerCase());
+            if(aAllCase&&!bAllCase) hit=b;
+          }
+        }
+      });
+      if(hit&&hit!==e[m.empField]){
+        plannedChanges.push({emp:e.empCode,field:m.label,from:e[m.empField],to:hit});
+      } else if(!hit){
+        empUnmatched++;
+      }
+    });
+  });
+  summary+='\n• '+plannedChanges.length+' employee field(s) will be corrected\n';
+  summary+='• '+empUnmatched+' employee field value(s) don\'t match any master (will be left unchanged)\n';
+
+  if(plannedChanges.length){
+    summary+='\nSample changes:\n';
+    plannedChanges.slice(0,10).forEach(function(c){summary+='  - '+c.emp+' '+c.field+': "'+c.from+'" → "'+c.to+'"\n';});
+    if(plannedChanges.length>10) summary+='  … and '+(plannedChanges.length-10)+' more\n';
+  }
+  summary+='\nProceed with fixing?';
+  console.log('\n--- Planned changes ---');console.log(plannedChanges);
+  if(!confirm(summary))return;
+
+  // ── 2. Deduplicate masters: for each duplicate group, keep one and delete the rest ──
+  var masterDeletions=0;
+  for(var mi=0;mi<masterTables.length;mi++){
+    var m=masterTables[mi];
+    var items=(DB[m.tbl]||[]).slice();
+    var byLower={};
+    items.forEach(function(it){
+      var k=(it.name||'').trim().toLowerCase();if(!k)return;
+      if(!byLower[k])byLower[k]=[];byLower[k].push(it);
+    });
+    for(var k in byLower){
+      if(byLower[k].length<=1) continue;
+      // Keep the one with mixed case (not all-upper / all-lower)
+      var group=byLower[k].slice();
+      group.sort(function(a,b){
+        var aBad=(a.name===a.name.toUpperCase()||a.name===a.name.toLowerCase())?1:0;
+        var bBad=(b.name===b.name.toUpperCase()||b.name===b.name.toLowerCase())?1:0;
+        return aBad-bBad;
+      });
+      var keeper=group[0];
+      console.log('Master ['+m.tbl+']: keeping "'+keeper.name+'", deleting '+group.slice(1).map(function(x){return '"'+x.name+'"';}).join(', '));
+      for(var gi=1;gi<group.length;gi++){
+        await _dbDel(m.tbl,group[gi].id);
+        DB[m.tbl]=(DB[m.tbl]||[]).filter(function(x){return x.id!==group[gi].id;});
+        masterDeletions++;
+      }
+    }
+  }
+
+  // ── 3. Canonicalize all employees ──
+  var mLookups={};
+  masterTables.forEach(function(m){mLookups[m.tbl]=_hrmsMasterLookup(m.tbl);});
+  var changed=[];
+  emps.forEach(function(e){
+    var updated=false;
+    masterTables.forEach(function(m){
+      var cur=(e[m.empField]||'').toString().trim();
+      if(!cur) return;
+      var canon=mLookups[m.tbl].lookup[cur.toLowerCase()];
+      if(canon&&canon!==e[m.empField]){e[m.empField]=canon;updated=true;}
+    });
+    if(updated) changed.push(e);
+  });
+  console.log('Employees to update:',changed.length);
+
+  if(!changed.length&&!masterDeletions){notify('No changes needed — data already clean');return;}
+
+  var saved=0;
+  if(changed.length){
+    showSpinner('Saving '+changed.length+' updates…');
+    saved=await _dbSaveBulk('hrmsEmployees',changed);
+    hideSpinner();
+  }
+  console.log('=== DONE — '+saved+' employees updated, '+masterDeletions+' master duplicates removed ===');
+  notify('✅ Fixed '+saved+' employee(s), removed '+masterDeletions+' master duplicate(s)');
+  renderHrmsEmployees();
+  renderHrmsDashboard();
+}
+
 async function _hrmsImportEmployees(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
   showSpinner('Importing employees…');
@@ -1201,31 +1788,66 @@ async function _hrmsImportEmployees(inputEl){
         if(rows.length) console.log('HRMS Import: columns=',Object.keys(rows[0]));
         if(!rows.length){hideSpinner();notify('No data in file',true);return;}
         if(!DB.hrmsEmployees) DB.hrmsEmployees=[];
-        var added=0,updated=0,errors=0;
+
+        // Pre-build case-insensitive master lookups
+        var mLoc=_hrmsMasterLookup('hrmsCompanies');       // Plant
+        var mCat=_hrmsMasterLookup('hrmsCategories');      // Category
+        var mET =_hrmsMasterLookup('hrmsEmpTypes');        // Employment Type
+        var mTm =_hrmsMasterLookup('hrmsTeams');           // Team
+        var mDp =_hrmsMasterLookup('hrmsDepartments');     // Department
+        var mSD =_hrmsMasterLookup('hrmsSubDepartments'); // Sub Department
+        var mDg =_hrmsMasterLookup('hrmsDesignations');    // Designation
+
+        var _fd=function(v){var s=(v||'').toString().trim();if(!s)return'';if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;var n=parseFloat(s);if(!isNaN(n)&&n>20000&&n<60000){var d=new Date(Math.round((n-25569)*86400000));if(!isNaN(d.getTime()))return d.toISOString().slice(0,10);}var d2=new Date(s);if(!isNaN(d2.getTime()))return d2.toISOString().slice(0,10);var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);if(m){var yr=+m[3];if(yr<100)yr+=2000;var d3=new Date(yr,m[2]-1,m[1]);if(!isNaN(d3.getTime()))return d3.toISOString().slice(0,10);}return'';};
+
+        // ── Validate every row BEFORE saving ──
+        var errors=[];
+        var parsed=[];
         for(var i=0;i<rows.length;i++){
           var r=rows[i];
+          var rowNum=i+2;
           var code=(r['Employee Code']||r['Emp Code']||r['EmpCode']||r['Code']||'').toString().trim();
-          if(!code)continue;
+          if(!code) continue;
           var name=(r['EmployeeFull Name']||r['Employee Full Name']||r['Full Name']||r['Name']||'').toString().trim();
-          if(!name)continue;
-          var _np=name.split(/\s+/);
-          var lastName=_np[0]||'';var firstName=_np[1]||'';var middleName=_np.slice(2).join(' ')||'';
-          var _fd=function(v){var s=(v||'').toString().trim();if(!s)return'';if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;var n=parseFloat(s);if(!isNaN(n)&&n>20000&&n<60000){var d=new Date(Math.round((n-25569)*86400000));if(!isNaN(d.getTime()))return d.toISOString().slice(0,10);}var d2=new Date(s);if(!isNaN(d2.getTime()))return d2.toISOString().slice(0,10);var m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);if(m){var yr=+m[3];if(yr<100)yr+=2000;var d3=new Date(yr,m[2]-1,m[1]);if(!isNaN(d3.getTime()))return d3.toISOString().slice(0,10);}return'';};
+          if(!name){errors.push('Row '+rowNum+' ('+code+'): missing Name');continue;}
+
+          var rawLoc=r['Current Plant']||r['Location']||r['Plant']||r['Branch']||'';
+          var rawCat=r['Category']||'';
+          var rawET=r['Employment Type']||r['Emp Type']||'';
+          var rawTm=r['Team Name']||r['Team']||'';
+          var rawDp=r['Department']||r['Dept']||'';
+          var rawSD=r['Sub Department']||r['Sub Dept']||'';
+          var rawDg=r['Designation']||r['Title']||r['Position']||'';
+
+          var vLoc=_hrmsCanonicalize(rawLoc,mLoc,'Plant');
+          var vCat=_hrmsCanonicalize(rawCat,mCat,'Category');
+          var vET =_hrmsCanonicalize(rawET ,mET ,'Employment Type');
+          var vTm =_hrmsCanonicalize(rawTm ,mTm ,'Team');
+          var vDp =_hrmsCanonicalize(rawDp ,mDp ,'Department');
+          var vSD =_hrmsCanonicalize(rawSD ,mSD ,'Sub Department');
+          var vDg =_hrmsCanonicalize(rawDg ,mDg ,'Designation');
+
+          [vLoc,vCat,vET,vTm,vDp,vSD,vDg].forEach(function(v){
+            if(!v.ok) errors.push('Row '+rowNum+' ('+code+'): '+v.err);
+          });
+          if(!vLoc.ok||!vCat.ok||!vET.ok||!vTm.ok||!vDp.ok||!vSD.ok||!vDg.ok) continue;
+
           var _st=(r['Current Status']||r['Status']||'').toString().trim();
           if(_st.toLowerCase()==='working'||_st.toLowerCase()==='active')_st='Active';
           else if(_st.toLowerCase()==='left'||_st.toLowerCase()==='resigned')_st='Left';
           else if(!_st)_st='Active';
-          var data={empCode:code,name:name,lastName:lastName,firstName:firstName,middleName:middleName,
+
+          var _np=name.split(/\s+/);
+          var lastName=_np[0]||'';var firstName=_np[1]||'';var middleName=_np.slice(2).join(' ')||'';
+
+          parsed.push({rowNum:rowNum,code:code,data:{
+            empCode:code,name:name,lastName:lastName,firstName:firstName,middleName:middleName,
             gender:(r['Gender']||r['Sex']||'').toString().trim(),
             dateOfBirth:_fd(r['Date of Birth']||r['DOB']),
             dateOfJoining:_fd(r['Date of Joining']||r['DOJ']||r['Joining Date']),
-            department:(r['Department']||r['Dept']||'').toString().trim(),
-            subDepartment:(r['Sub Department']||r['Sub Dept']||'').toString().trim(),
-            designation:(r['Designation']||r['Title']||r['Position']||'').toString().trim(),
-            employmentType:(r['Employment Type']||r['Emp Type']||'').toString().trim(),
-            teamName:(r['Team Name']||r['Team']||'').toString().trim(),
-            category:(r['Category']||'').toString().trim(),
-            location:(r['Current Plant']||r['Location']||r['Plant']||r['Branch']||'').toString().trim(),
+            department:vDp.value,subDepartment:vSD.value,
+            designation:vDg.value,employmentType:vET.value,
+            teamName:vTm.value,category:vCat.value,location:vLoc.value,
             roll:(r['Roll']||'').toString().trim(),
             reportingTo:(r['Reporting To']||r['Manager']||'').toString().trim(),
             panNo:(r['PAN No.']||r['PAN No']||r['PAN']||'').toString().trim(),
@@ -1239,20 +1861,36 @@ async function _hrmsImportEmployees(inputEl){
             dateOfLeft:_fd(r['Date of Left']||r['DOL']),
             email:(r['Email']||r['E-mail']||'').toString().trim(),
             mobile:(r['Mobile']||r['Phone']||r['Contact']||'').toString().trim()
-          };
-          var existing=DB.hrmsEmployees.find(function(e){return e.empCode===code;});
+          }});
+        }
+
+        if(errors.length){
+          hideSpinner();
+          var msg='⚠ Import rejected — '+errors.length+' validation error'+(errors.length>1?'s':'')+':\n\n'+errors.slice(0,15).join('\n')+(errors.length>15?'\n… and '+(errors.length-15)+' more':'');
+          alert(msg);
+          notify('Import rejected — fix master data errors first',true);
+          return;
+        }
+
+        if(!parsed.length){hideSpinner();notify('No valid rows to import',true);return;}
+
+        // ── All rows validated. Save now. ──
+        var added=0,updated=0,failed=0;
+        for(var j=0;j<parsed.length;j++){
+          var p=parsed[j];
+          var existing=DB.hrmsEmployees.find(function(e){return e.empCode===p.code;});
           if(existing){
-            Object.assign(existing,data);
-            if(await _dbSave('hrmsEmployees',existing))updated++;else errors++;
+            Object.assign(existing,p.data);
+            if(await _dbSave('hrmsEmployees',existing))updated++;else failed++;
           } else {
-            var emp={id:'he'+uid(),...data};
-            if(await _dbSave('hrmsEmployees',emp))added++;else errors++;
+            var emp=Object.assign({id:'he'+uid()},p.data);
+            if(await _dbSave('hrmsEmployees',emp))added++;else failed++;
           }
         }
         hideSpinner();
         renderHrmsEmployees();renderHrmsDashboard();
-        notify('✅ Import: '+added+' added, '+updated+' updated'+(errors?', '+errors+' failed':''));
-      }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);}
+        notify('✅ Import: '+added+' added, '+updated+' updated'+(failed?', '+failed+' failed':''));
+      }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
     };
     reader.readAsArrayBuffer(file);
   }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
@@ -1326,6 +1964,126 @@ async function _hrmsBulkUpdate(inputEl){
     };
     reader.readAsArrayBuffer(file);
   }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
+}
+
+// ── Import Salary from Excel ──
+// Excel headers: Emp Code, Sal/Day, Sal/Month, Sp Allow
+// Creates a new period revision w.e.f. 2026-01 with salary values from Excel
+async function _hrmsImportSalary(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0]){notify('No file selected',true);return;}
+  var file=inputEl.files[0];
+  inputEl.value='';
+  if(!DB.hrmsEmployees||!DB.hrmsEmployees.length){notify('No employees loaded',true);return;}
+  showSpinner('Reading Excel…');
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(ev){
+      try{
+        var rows=await _parseXLSX(ev.target.result);
+        if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        var WEF='2026-01';
+        var updated=0,skipped=0,errors=0,noChange=0;
+        // Case-insensitive, whitespace-tolerant column lookup
+        var _g=function(r,keys){
+          var rKeys=Object.keys(r);
+          for(var i=0;i<keys.length;i++){
+            var k=keys[i].replace(/[\s.]+/g,'').toLowerCase();
+            for(var j=0;j<rKeys.length;j++){
+              if(rKeys[j].replace(/[\s.]+/g,'').toLowerCase()===k){
+                var v=(r[rKeys[j]]||'').toString().trim();
+                if(v) return v;
+              }
+            }
+          }
+          return '';
+        };
+        var preview=[];
+        for(var i=0;i<rows.length;i++){
+          var r=rows[i];
+          var code=_g(r,['Emp Code','Employee Code','EmpCode','Code']);
+          if(!code){skipped++;continue;}
+          var emp=DB.hrmsEmployees.find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+          if(!emp){skipped++;continue;}
+          var salD=parseFloat(_g(r,['Sal/Day','Sal Day','SalDay','Salary Day','Rate per Day'])||0)||0;
+          var salM=parseFloat(_g(r,['Sal/Month','Sal Month','SalMonth','Salary Month','Rate per Month'])||0)||0;
+          var spA=parseFloat(_g(r,['Sp Allow','Sp.Allow','SpAllow','Special Allowance','Transport Allowance','Tr Allow'])||0)||0;
+          if(!salD&&!salM&&!spA){noChange++;continue;}
+          var curP=(emp.periods||[]).find(function(p){return !p.to&&!p._wfStatus;});
+          if(!curP){skipped++;continue;}
+          var oldD=curP.salaryDay||0,oldM=curP.salaryMonth||0,oldSp=curP.specialAllowance||0;
+          if(oldD===salD&&oldM===salM&&oldSp===spA){noChange++;continue;}
+          preview.push({code:code,name:_hrmsDispName(emp),oldD:oldD,oldM:oldM,oldSp:oldSp,salD:salD,salM:salM,spA:spA,emp:emp,curP:curP});
+        }
+        hideSpinner();
+        if(!preview.length){
+          notify('No changes needed. '+skipped+' skipped, '+noChange+' unchanged.');
+          return;
+        }
+        var msg='Salary Import (w.e.f. '+WEF+'):\n\n'+preview.length+' employees:\n';
+        preview.slice(0,8).forEach(function(p){
+          msg+=p.code+' '+p.name+': Day '+p.oldD+'→'+p.salD+', Mon '+p.oldM+'→'+p.salM+', SpA '+p.oldSp+'→'+p.spA+'\n';
+        });
+        if(preview.length>8) msg+='…and '+(preview.length-8)+' more\n';
+        msg+='\nSkipped: '+skipped+', No change: '+noChange;
+        msg+='\n\nThis creates a new revision per employee. Continue?';
+        if(!confirm(msg)) return;
+        showSpinner('Updating '+preview.length+' employees…');
+        for(var j=0;j<preview.length;j++){
+          var p=preview[j];
+          var emp=p.emp;
+          var curP=p.curP;
+          curP.to='2025-12';
+          var newP={};
+          Object.keys(curP).forEach(function(k){newP[k]=curP[k];});
+          newP.from=WEF;
+          newP.to=null;
+          newP.salaryDay=p.salD;
+          newP.salaryMonth=p.salM;
+          newP.specialAllowance=p.spA;
+          delete newP._wfStatus;
+          delete newP._ecrResult;
+          emp.periods.unshift(newP);
+          emp.salaryDay=p.salD;
+          emp.salaryMonth=p.salM;
+          emp.specialAllowance=p.spA;
+          _hrmsSanitize(emp);
+          _hrmsSanitizePeriods(emp.periods);
+          if(await _dbSave('hrmsEmployees',emp)){updated++;}else{errors++;}
+        }
+        hideSpinner();
+        renderHrmsEmployees();renderHrmsDashboard();
+        notify('✅ Salary imported: '+updated+' updated'+(errors?', '+errors+' failed':''));
+      }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
+}
+
+// ── Collapse On Roll revisions to single R1 ──
+async function _hrmsCollapseOnRollRevisions(){
+  if(!DB.hrmsEmployees||!DB.hrmsEmployees.length){notify('No employees',true);return;}
+  var targets=DB.hrmsEmployees.filter(function(e){
+    return (e.employmentType||'').toLowerCase()==='on roll'&&(e.periods||[]).length>1;
+  });
+  if(!targets.length){notify('No On Roll employees with multiple revisions found');return;}
+  if(!confirm('Collapse revisions for '+targets.length+' On Roll employees?\n\nKeeps only the current (latest) period as R1.\nAll older revisions will be deleted.\n\nContinue?')) return;
+  showSpinner('Collapsing revisions…');
+  var updated=0,errors=0;
+  for(var i=0;i<targets.length;i++){
+    var emp=targets[i];
+    var latest=(emp.periods||[]).find(function(p){return !p.to&&!p._wfStatus;})||(emp.periods||[])[0];
+    if(!latest) continue;
+    latest.to=null;
+    delete latest._wfStatus;
+    delete latest._ecrResult;
+    emp.periods=[latest];
+    _hrmsSanitize(emp);
+    _hrmsSanitizePeriods(emp.periods);
+    if(await _dbSave('hrmsEmployees',emp)){updated++;}else{errors++;}
+  }
+  hideSpinner();
+  renderHrmsEmployees();renderHrmsDashboard();
+  notify('✅ '+updated+' On Roll employees collapsed to R1'+(errors?', '+errors+' failed':''));
 }
 
 // ── Merge Duplicate Employees (by Emp Code) ──
@@ -1538,10 +2296,122 @@ function _hrmsAttSetTab(tab){
   } else if(tab==='pot'){
     document.getElementById('hrmsAttTabPot').style.display='flex';
     _hrmsRenderPotTab(yr,mo);
-  } else if(tab==='entryexit'){
-    document.getElementById('hrmsAttTabEntryexit').style.display='block';
-    _hrmsRenderEntryExitTab(yr,mo);
+  } else if(tab==='entry'){
+    document.getElementById('hrmsAttTabEntry').style.display='block';
+    _hrmsRenderEntryTab(yr,mo);
+  } else if(tab==='exit'){
+    document.getElementById('hrmsAttTabExit').style.display='block';
+    _hrmsRenderExitTab(yr,mo);
   }
+}
+
+// Compute attendance totals (P, OT, OT@S) for all employees — stores on emp._totalP etc.
+// Consistent name display: Last First Middle
+// ═══ EMPLOYEE AUTOCOMPLETE (Manual Att / TDS / Advance inputs) ═══════════
+function _hrmsEmpAC(inp){
+  var id=inp.id;
+  var list=document.getElementById('ac_'+id);if(!list)return;
+  var q=(inp.value||'').trim().toLowerCase();
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){return(e.status||'Active')==='Active';});
+  var matches;
+  if(!q){
+    matches=emps.slice(0,50);
+  } else {
+    matches=emps.filter(function(e){
+      var code=(e.empCode||'').toLowerCase();
+      var name=(_hrmsDispName(e)||e.name||'').toLowerCase();
+      return code.indexOf(q)>=0||name.indexOf(q)>=0;
+    }).slice(0,50);
+  }
+  if(!matches.length){
+    list.innerHTML='<div style="padding:8px 12px;color:var(--text3);font-size:12px">No matches</div>';
+    list.style.display='block';
+    return;
+  }
+  var h='';
+  matches.forEach(function(e){
+    var name=_hrmsDispName(e)||e.name||'';
+    var plant=e.location||'';
+    var pClr=_hrmsGetPlantColor(plant);
+    h+='<div onmousedown="_hrmsEmpACPick(\''+id+'\',\''+e.empCode+'\')" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:12px;display:flex;align-items:center;gap:8px" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'#fff\'">';
+    h+='<span style="font-family:var(--mono);font-weight:800;color:var(--accent);min-width:48px">'+e.empCode+'</span>';
+    h+='<span style="font-weight:600;flex:1">'+name+'</span>';
+    if(plant) h+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+pClr+';color:#1e293b;font-weight:700">'+plant+'</span>';
+    h+='</div>';
+  });
+  list.innerHTML=h;
+  list.style.display='block';
+}
+
+function _hrmsEmpACPick(inpId,code){
+  var inp=document.getElementById(inpId);if(inp){inp.value=code;inp.dispatchEvent(new Event('change'));}
+  _hrmsEmpACClose(inpId);
+  inp&&inp.focus();
+  // Auto-advance focus to next input for speed
+  var nextId={hrmsManualPCode:'hrmsManualPDays',hrmsTdsCode:'hrmsTdsAmount',hrmsAdvCode:'hrmsAdvAmount'}[inpId];
+  if(nextId){var n=document.getElementById(nextId);if(n)n.focus();}
+}
+
+function _hrmsEmpACClose(inpId){
+  var list=document.getElementById('ac_'+inpId);if(list)list.style.display='none';
+}
+
+function _hrmsDispName(emp){
+  return [emp.lastName,emp.firstName,emp.middleName].filter(Boolean).join(' ')||emp.name||'';
+}
+
+function _hrmsComputeAttTotals(yr,mo){
+  var mk=yr+'-'+String(mo).padStart(2,'0');
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var R=_hrmsGetOtRules(mk);
+  var attRecords=_hrmsAttCache[mk]||[];
+  var altRecords=_hrmsAltCache[mk]||[];
+  var attLookup={};attRecords.forEach(function(a){attLookup[a.empCode]=a.days||{};});
+  var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    var empAtt=attLookup[emp.empCode]||{};
+    var empAlt=altLookup[emp.empCode]||{};
+    var isStaff=(emp.category||'').toLowerCase()==='staff';
+    var totalP=0,totalA=0,totalOT=0,totalOTS=0,elCount=0;
+    for(var dd=1;dd<=daysInMonth;dd++){
+      var alt=empAlt[String(dd)]||null;
+      var ddd=alt||empAtt[String(dd)]||{};
+      var ti=ddd['in']||'',to2=ddd['out']||'';
+      var dType=_hrmsGetDayType(mk,dd,yr,mo,emp.location);
+      var isDayOff=dType==='WO'||dType==='PH';
+      var worked=0;
+      if(ti&&to2){
+        var t1=_hrmsRoundIn(_hrmsParseTime(ti)),t2=_hrmsRoundOut(_hrmsParseTime(to2));
+        if(t1!==null&&t2!==null){if(t2<t1)t2+=1440;worked=(t2-t1)/60;}
+      }
+      var hasTime=!!(ti||to2);
+      if(isDayOff){
+        if(worked>0&&!isStaff){
+          var otS=worked;
+          if(otS>R.otsTier2Threshold) otS-=R.otsTier2Deduct;
+          else if(otS>=R.otsTier1Threshold) otS-=R.otsTier1Deduct;
+          totalOTS+=Math.min(Math.max(otS,0),R.otsMaxPerDay);
+        }
+      } else {
+        var status='';
+        if(!hasTime){status='A';}
+        else if(worked>=R.fullDay){status='P';}
+        else if(isStaff&&worked>=R.elMin&&worked<R.fullDay&&elCount<R.elMaxPerMonth){status='EL';elCount++;}
+        else if(worked>=R.halfDay){status='P/2';}
+        else{status='A';}
+        if(status==='P'||status==='EL') totalP+=1;
+        else if(status==='P/2'){totalP+=0.5;totalA+=0.5;}
+        if(status==='A') totalA+=1;
+        if(worked>0&&!isStaff){
+          var ot=0;
+          if(worked>R.otTier2Threshold) ot=worked-R.otTier2Subtract;
+          else if(worked>=R.otTier1Threshold) ot=worked-R.otTier1Subtract;
+          if(ot>0) totalOT+=Math.min(ot,R.otMaxPerDay);
+        }
+      }
+    }
+    emp._totalP=totalP;emp._totalA=totalA;emp._totalOT=totalOT;emp._totalOTS=totalOTS;
+  });
 }
 
 function _hrmsRenderSummaryTab(yr,mo){
@@ -1647,7 +2517,8 @@ function _hrmsRenderPotTab(yr,mo){
   var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
 
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX_PER_MONTH=2;
+  var _otR=_hrmsGetOtRules(mk);
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
 
   // Build list of all emp codes with attendance
   var allCodes={};attRecords.forEach(function(a){allCodes[a.empCode]=true;});
@@ -1673,30 +2544,19 @@ function _hrmsRenderPotTab(yr,mo){
   var _psI=function(id,field){return '<input type="search" id="potSrch_'+field+'" value="'+(_ps[field]||'')+'" oninput="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" onsearch="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" placeholder="🔍" style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;width:100%">';};
   var _psSrt=function(key){return ' onclick="var s=window._hrmsPotSort;if(s.key===\''+key+'\')s.asc=!s.asc;else{s.key=\''+key+'\';s.asc=true;}_hrmsRenderPotTab('+yr+','+mo+')" style="cursor:pointer"';};
   var _psSI=function(key){var s=window._hrmsPotSort;return s.key===key?(s.asc?' ▲':' ▼'):' ⇅';};
-  var _thS='padding:6px 4px;font-size:11px;font-weight:800;white-space:nowrap';
-  var h='<table style="width:100%;font-size:13px;margin-bottom:16px;border-collapse:collapse"><thead>';
-  h+='<tr style="background:#1e293b;color:#fff">';
-  h+='<th style="'+_thS+'">#</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('empCode')+'>Code'+_psSI('empCode')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('name')+'>Name'+_psSI('name')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('employmentType')+'>Type'+_psSI('employmentType')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('location')+'>Plant'+_psSI('location')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('category')+'>Category'+_psSI('category')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('teamName')+'>Team'+_psSI('teamName')+'</th>';
-  h+='<th style="'+_thS+'"'+_psSrt('department')+'>Dept'+_psSI('department')+'</th>';
-  h+='<th style="'+_thS+';text-align:center;background:#15803d;color:#fff"'+_psSrt('_totalP')+'>P'+_psSI('_totalP')+'</th>';
-  h+='<th style="'+_thS+';text-align:center;background:#dc2626;color:#fff"'+_psSrt('_totalA')+'>A'+_psSI('_totalA')+'</th>';
-  h+='<th style="'+_thS+';text-align:center;background:#7c3aed;color:#fff"'+_psSrt('_totalOT')+'>OT'+_psSI('_totalOT')+'</th>';
-  h+='<th style="'+_thS+';text-align:center;background:#c2410c;color:#fff"'+_psSrt('_totalOTS')+'>OT@S'+_psSI('_totalOTS')+'</th>';
-  h+='</tr>';
+  var _thS='padding:6px 4px;font-size:11px;font-weight:800;white-space:nowrap;border-bottom:1px solid var(--border)';
+  var h='<table style="font-size:12px;margin-bottom:16px;border-collapse:collapse;table-layout:fixed;width:auto!important">';
+  h+='<colgroup><col style="width:34px"><col style="width:70px"><col style="width:170px"><col style="width:80px"><col style="width:80px"><col style="width:70px"><col style="width:90px"><col style="width:90px"><col style="width:50px"><col style="width:50px"><col style="width:60px"><col style="width:60px"></colgroup>';
+  h+='<thead>';
   // Build unique values for dropdowns from employees with attendance
   var _potVals=function(field){var v={};emps.forEach(function(e){if(e[field])v[e[field]]=1;});return Object.keys(v).sort();};
   var _potSel=function(field,psField){
     var vals=_potVals(field);
-    return '<select id="potSrch_'+psField+'" onchange="window._hrmsPotSearch.'+psField+'=this.value;_hrmsRenderPotTab('+yr+','+mo+')" style="font-size:10px;padding:2px 3px;border:1px solid var(--border);border-radius:3px;width:100%"><option value="">All</option>'+vals.map(function(v){return '<option value="'+v+'"'+(v===_ps[psField]?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
+    return '<select id="potSrch_'+psField+'" onchange="window._hrmsPotSearch.'+psField+'=this.value;_hrmsRenderPotTab('+yr+','+mo+')" style="font-size:10px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option>'+vals.map(function(v){return '<option value="'+v+'"'+(v===_ps[psField]?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
   };
-  h+='<tr style="background:#f0f9ff">';
-  h+='<th></th>';
+  // Row 1: Search / Filter inputs (above column headers)
+  h+='<tr style="background:#fff">';
+  h+='<th style="padding:3px 2px"></th>';
   h+='<th style="padding:3px">'+_psI('code','code')+'</th>';
   h+='<th style="padding:3px">'+_psI('name','name')+'</th>';
   h+='<th style="padding:3px">'+_potSel('employmentType','type')+'</th>';
@@ -1705,7 +2565,23 @@ function _hrmsRenderPotTab(yr,mo){
   h+='<th style="padding:3px">'+_potSel('teamName','team')+'</th>';
   h+='<th style="padding:3px">'+_potSel('department','dept')+'</th>';
   h+='<th colspan="4"></th>';
-  h+='</tr></thead><tbody>';
+  h+='</tr>';
+  // Row 2: Column headers (below search)
+  h+='<tr style="background:#f1f5f9;color:var(--text)">';
+  h+='<th style="'+_thS+'">#</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('empCode')+'>Code'+_psSI('empCode')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('name')+'>Name'+_psSI('name')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('employmentType')+'>Type'+_psSI('employmentType')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('location')+'>Plant'+_psSI('location')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('category')+'>Category'+_psSI('category')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('teamName')+'>Team'+_psSI('teamName')+'</th>';
+  h+='<th style="'+_thS+'"'+_psSrt('department')+'>Dept'+_psSI('department')+'</th>';
+  h+='<th style="'+_thS+';text-align:center;background:#dcfce7;color:#15803d"'+_psSrt('_totalP')+'>P'+_psSI('_totalP')+'</th>';
+  h+='<th style="'+_thS+';text-align:center;background:#fee2e2;color:#dc2626"'+_psSrt('_totalA')+'>A'+_psSI('_totalA')+'</th>';
+  h+='<th style="'+_thS+';text-align:center;background:#faf5ff;color:#7c3aed"'+_psSrt('_totalOT')+'>OT'+_psSI('_totalOT')+'</th>';
+  h+='<th style="'+_thS+';text-align:center;background:#fff7ed;color:#c2410c"'+_psSrt('_totalOTS')+'>OT@S'+_psSI('_totalOTS')+'</th>';
+  h+='</tr>';
+  h+='</thead><tbody>';
 
   // Pre-compute P/A/OT for each employee for sorting/filtering
   emps.forEach(function(emp){
@@ -1726,7 +2602,7 @@ function _hrmsRenderPotTab(yr,mo){
       }
       var hasTime=!!(ti||to2);
       if(isDayOff){
-        if(worked>0&&!isStaff){var otS=worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;totalOTS+=Math.min(Math.max(otS,0),15);}
+        if(worked>0&&!isStaff){var otS=worked;if(otS>_otR.otsTier2Threshold)otS-=_otR.otsTier2Deduct;else if(otS>=_otR.otsTier1Threshold)otS-=_otR.otsTier1Deduct;totalOTS+=Math.min(Math.max(otS,0),_otR.otsMaxPerDay);}
       } else {
         var status='';
         if(!hasTime){status='A';}
@@ -1738,8 +2614,8 @@ function _hrmsRenderPotTab(yr,mo){
         else if(status==='P/2'){totalP+=0.5;totalA+=0.5;}
         if(status==='A') totalA+=1;
         if(worked>0&&!isStaff){
-          var ot=0;if(worked>14)ot=worked-9;else if(worked>8.5)ot=worked-8.5;
-          if(ot>0)totalOT+=Math.min(ot,7);
+          var ot=0;if(worked>_otR.otTier2Threshold)ot=worked-_otR.otTier2Subtract;else if(worked>=_otR.otTier1Threshold)ot=worked-_otR.otTier1Subtract;
+          if(ot>0)totalOT+=Math.min(ot,_otR.otMaxPerDay);
         }
       }
     }
@@ -1764,19 +2640,21 @@ function _hrmsRenderPotTab(yr,mo){
     var aDisp=emp._totalA%1===0?emp._totalA:+emp._totalA.toFixed(1);
     var totalOT=emp._totalOT,totalOTS=emp._totalOTS;
 
+    var _td='padding:4px 5px;font-size:11px;border-bottom:1px solid #f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    var nm=isU?'Employee NA':_hrmsDispName(emp);
     h+='<tr>';
-    h+='<td>'+(ei+1)+'</td>';
-    h+='<td style="font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+'">'+emp.empCode+'</td>';
-    h+='<td style="font-weight:700">'+(isU?'Employee NA':emp.name)+'</td>';
-    h+='<td>'+(emp.employmentType||'—')+'</td>';
-    h+='<td style="font-weight:700;background:'+pClr+'">'+(emp.location||'—')+'</td>';
-    h+='<td>'+(emp.category||'—')+'</td>';
-    h+='<td>'+(emp.teamName||'—')+'</td>';
-    h+='<td>'+(emp.department||'—')+'</td>';
-    h+='<td style="text-align:center;font-weight:900;color:#16a34a;background:#f0fdf4">'+pDisp+'</td>';
-    h+='<td style="text-align:center;font-weight:900;color:#dc2626;background:#fef2f2">'+aDisp+'</td>';
-    h+='<td style="text-align:center;font-weight:800;color:#7c3aed;background:#faf5ff">'+(totalOT>0?totalOT.toFixed(1):'0')+'</td>';
-    h+='<td style="text-align:center;font-weight:800;color:#c2410c;background:#fff7ed">'+(totalOTS>0?totalOTS.toFixed(1):'0')+'</td>';
+    h+='<td style="'+_td+';text-align:center;color:var(--text3)">'+(ei+1)+'</td>';
+    h+='<td style="'+_td+';font-family:var(--mono);font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+';cursor:'+(isU?'default':'pointer')+(isU?'':';text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+emp.empCode+'</td>';
+    h+='<td style="'+_td+';font-weight:700'+(isU?'':';cursor:pointer')+'" title="'+nm+'"'+(isU?'':' data-emp-code="'+emp.empCode+'"')+'>'+nm+'</td>';
+    h+='<td style="'+_td+'" title="'+(emp.employmentType||'')+'">'+(emp.employmentType||'—')+'</td>';
+    h+='<td style="'+_td+';font-weight:700;background:'+pClr+'" title="'+(emp.location||'')+'">'+(emp.location||'—')+'</td>';
+    h+='<td style="'+_td+'" title="'+(emp.category||'')+'">'+(emp.category||'—')+'</td>';
+    h+='<td style="'+_td+'" title="'+(emp.teamName||'')+'">'+(emp.teamName||'—')+'</td>';
+    h+='<td style="'+_td+'" title="'+(emp.department||'')+'">'+(emp.department||'—')+'</td>';
+    h+='<td style="'+_td+';text-align:center;font-weight:900;color:#16a34a;background:#f0fdf4">'+pDisp+'</td>';
+    h+='<td style="'+_td+';text-align:center;font-weight:900;color:#dc2626;background:#fef2f2">'+aDisp+'</td>';
+    h+='<td style="'+_td+';text-align:center;font-weight:800;color:#7c3aed;background:#faf5ff">'+_hrmsFmtOT(totalOT)+'</td>';
+    h+='<td style="'+_td+';text-align:center;font-weight:800;color:#c2410c;background:#fff7ed">'+_hrmsFmtOT(totalOTS)+'</td>';
     h+='</tr>';
   });
   h+='</tbody></table>';
@@ -1789,16 +2667,12 @@ function _hrmsRenderPotTab(yr,mo){
   }
 }
 
-async function _hrmsRenderEntryExitTab(yr,mo){
-  var el=document.getElementById('hrmsAttTabEntryexit');if(!el)return;
+// Shared helper for Entry/Exit tabs: compute differences and render
+async function _hrmsComputeEntryExit(yr,mo){
   var mk=yr+'-'+String(mo).padStart(2,'0');
-  el.innerHTML='<div class="empty-state">Loading…</div>';
-
-  // Current month emp codes from attendance
   var curRecords=_hrmsAttCache[mk]||[];
   var curCodes={};curRecords.forEach(function(a){curCodes[a.empCode]=true;});
 
-  // Previous month
   var prevMo=mo-1,prevYr=yr;
   if(prevMo<1){prevMo=12;prevYr--;}
   var prevMk=prevYr+'-'+String(prevMo).padStart(2,'0');
@@ -1807,13 +2681,9 @@ async function _hrmsRenderEntryExitTab(yr,mo){
   var prevCodes={};prevRecords.forEach(function(a){prevCodes[a.empCode]=true;});
 
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
-
-  // New entries: in current month but NOT in previous month
   var newCodes=Object.keys(curCodes).filter(function(ec){return !prevCodes[ec];});
-  // Left: in previous month but NOT in current month
   var leftCodes=Object.keys(prevCodes).filter(function(ec){return !curCodes[ec];});
 
-  // Build employee lists with details
   var _sort=function(a,b){
     var p=(a.location||'').localeCompare(b.location||'');if(p!==0)return p;
     var catOrder={'staff':0,'worker':1,'security':2};
@@ -1827,53 +2697,126 @@ async function _hrmsRenderEntryExitTab(yr,mo){
   var newEmps=newCodes.map(function(ec){return empMap[ec]||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',_unmatched:true};}).sort(_sort);
   var leftEmps=leftCodes.map(function(ec){return empMap[ec]||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',_unmatched:true};}).sort(_sort);
 
+  // Unknown emp codes across both sets
+  var unknownNew=newEmps.filter(function(e){return !!e._unmatched;});
+  var unknownLeft=leftEmps.filter(function(e){return !!e._unmatched;});
+  var allUnknown=[];var _seen={};
+  unknownNew.concat(unknownLeft).forEach(function(e){if(!_seen[e.empCode]){_seen[e.empCode]=true;allUnknown.push(e.empCode);}});
+  window._hrmsUnknownEmpCodes=allUnknown;
+
+  return{newEmps:newEmps,leftEmps:leftEmps,prevLabel:_MONTH_NAMES[prevMo]+' '+prevYr,curLabel:_MONTH_NAMES[mo]+' '+yr,allUnknown:allUnknown};
+}
+
+function _hrmsRenderEmpGroupedTable(list,color,mode){
+  if(!list.length) return '';
   var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
-  var _groupByType=function(list){
-    var groups={};
-    list.forEach(function(e){
-      var t=e.employmentType||'Unknown';
-      if(!groups[t]) groups[t]=[];
-      groups[t].push(e);
+  var groups={};
+  list.forEach(function(e){var t=e.employmentType||'Unknown';if(!groups[t])groups[t]=[];groups[t].push(e);});
+  var groupList=Object.keys(groups).sort(function(a,b){
+    var a1=typeOrder[a.toLowerCase().replace(/\s/g,'')],b1=typeOrder[b.toLowerCase().replace(/\s/g,'')];
+    if(a1===undefined)a1=9;if(b1===undefined)b1=9;return a1-b1;
+  }).map(function(t){return{type:t,emps:groups[t]};});
+
+  var t='';
+  groupList.forEach(function(g){
+    t+='<div style="font-size:13px;font-weight:800;color:'+color+';margin:10px 0 4px;padding:4px 8px;background:var(--surface2);border-radius:6px;display:inline-block">'+g.type+' ('+g.emps.length+')</div>';
+    t+='<table style="width:auto!important;margin-bottom:12px;font-size:13px"><thead><tr><th>#</th><th>Plant</th><th>Emp Code</th><th>Name</th><th>Category</th><th>Team</th><th>Status</th><th>Action</th></tr></thead><tbody>';
+    g.emps.forEach(function(e,i){
+      var isU=!!e._unmatched;
+      var pClr=isU?'#fecaca':_hrmsGetPlantColor(e.location);
+      var st=e.status||'Active';
+      var stBg=st==='Active'?'#dcfce7;color:#15803d':(st==='Left'?'#fee2e2;color:#dc2626':'#f1f5f9;color:#64748b');
+      t+='<tr><td>'+(i+1)+'</td>';
+      t+='<td style="font-weight:800;background:'+pClr+'">'+(e.location||'—')+'</td>';
+      t+='<td style="font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+(isU?'':';cursor:pointer;text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+e.empCode+'" title="Click to view employee"')+'>'+e.empCode+'</td>';
+      t+='<td style="font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
+      t+='<td>'+(e.category||'—')+'</td>';
+      t+='<td>'+(e.teamName||'—')+'</td>';
+      t+='<td><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:'+stBg+'">'+st+'</span></td>';
+      t+='<td>';
+      if(isU){
+        t+='<span style="font-size:10px;color:var(--text3)">Import first</span>';
+      } else if(mode==='entry'){
+        if(st==='Active') t+='<span style="font-size:10px;color:var(--text3)">Already Active</span>';
+        else t+='<button onclick="_hrmsMarkEmpStatus(\''+e.empCode+'\',\'Active\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dcfce7;border:1.5px solid #86efac;color:#15803d;border-radius:4px;cursor:pointer">✓ Mark Active</button>';
+      } else if(mode==='exit'){
+        if(st==='Inactive') t+='<span style="font-size:10px;color:var(--text3)">Already Inactive</span>';
+        else t+='<button onclick="_hrmsMarkEmpStatus(\''+e.empCode+'\',\'Inactive\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#475569;border-radius:4px;cursor:pointer">⏸ Mark Inactive</button>';
+      }
+      t+='</td></tr>';
     });
-    return Object.keys(groups).sort(function(a,b){
-      var a1=typeOrder[a.toLowerCase().replace(/\s/g,'')],b1=typeOrder[b.toLowerCase().replace(/\s/g,'')];
-      if(a1===undefined) a1=9;if(b1===undefined) b1=9;
-      return a1-b1;
-    }).map(function(t){return{type:t,emps:groups[t]};});
-  };
+    t+='</tbody></table>';
+  });
+  return t;
+}
 
-  var _renderGrouped=function(list,color){
-    if(!list.length) return '';
-    var groups=_groupByType(list);
-    var t='';
-    groups.forEach(function(g){
-      t+='<div style="font-size:13px;font-weight:800;color:'+color+';margin:10px 0 4px;padding:4px 8px;background:var(--surface2);border-radius:6px;display:inline-block">'+g.type+' ('+g.emps.length+')</div>';
-      t+='<table style="width:auto;margin-bottom:12px;font-size:13px"><thead><tr><th>#</th><th>Plant</th><th>Emp Code</th><th>Name</th><th>Category</th><th>Team</th></tr></thead><tbody>';
-      g.emps.forEach(function(e,i){
-        var isU=!!e._unmatched;
-        var pClr=isU?'#fecaca':_hrmsGetPlantColor(e.location);
-        t+='<tr><td>'+(i+1)+'</td>';
-        t+='<td style="font-weight:800;background:'+pClr+'">'+(e.location||'—')+'</td>';
-        t+='<td style="font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+'">'+e.empCode+'</td>';
-        t+='<td style="font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
-        t+='<td>'+(e.category||'—')+'</td>';
-        t+='<td>'+(e.teamName||'—')+'</td></tr>';
-      });
-      t+='</tbody></table>';
-    });
-    return t;
-  };
+async function _hrmsMarkEmpStatus(empCode,newStatus){
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===empCode;});
+  if(!emp){notify('Employee '+empCode+' not found',true);return;}
+  var curStatus=emp.status||'Active';
+  if(curStatus===newStatus){notify('Already '+newStatus);return;}
+  if(!confirm('Mark '+empCode+' ('+_hrmsDispName(emp)+') as '+newStatus+'?\n\nCurrent status: '+curStatus))return;
+  emp.status=newStatus;
+  if(newStatus==='Inactive'&&!emp.dateOfLeft){
+    // Set dateOfLeft to end of previous month if marking inactive
+    emp.dateOfLeft=new Date().toISOString().slice(0,10);
+  }
+  showSpinner('Saving…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Failed to update status',true);return;}
+  notify('✅ '+empCode+' marked as '+newStatus);
+  // Refresh both entry and exit tabs
+  var mk=_hrmsMonth;if(mk){var p=mk.split('-');var yr=+p[0],mo=+p[1];_hrmsRenderEntryTab(yr,mo);_hrmsRenderExitTab(yr,mo);}
+  renderHrmsEmployees();
+}
 
-  var prevLabel=_MONTH_NAMES[prevMo]+' '+prevYr;
-  var curLabel=_MONTH_NAMES[mo]+' '+yr;
+function _hrmsUnknownBanner(count){
+  if(!count) return '';
+  var h='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px">';
+  h+='<span style="font-size:13px;font-weight:700;color:#dc2626">⚠ '+count+' unknown employee code'+(count>1?'s':'')+' found in attendance data</span>';
+  h+='<div style="flex:1"></div>';
+  h+='<button onclick="_hrmsExportUnknownCodes()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">📤 Export Unknown Codes</button>';
+  h+='<label style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📥 Import Employees<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this);var mk=_hrmsMonth;if(mk){var p=mk.split(\'-\');_hrmsRenderEntryTab(+p[0],+p[1]);_hrmsRenderExitTab(+p[0],+p[1]);}" style="display:none"></label>';
+  h+='</div>';
+  return h;
+}
 
-  var h='<div style="font-size:15px;font-weight:900;margin-bottom:6px;color:#16a34a">New Employees in '+curLabel+' (not in '+prevLabel+') — '+newEmps.length+'</div>';
-  h+=newEmps.length?_renderGrouped(newEmps,'#16a34a'):'<div class="empty-state" style="padding:12px">No new employees compared to previous month.</div>';
-
-  h+='<div style="font-size:15px;font-weight:900;margin-bottom:6px;color:#dc2626;margin-top:20px">Employees Left (in '+prevLabel+' but not in '+curLabel+') — '+leftEmps.length+'</div>';
-  h+=leftEmps.length?_renderGrouped(leftEmps,'#dc2626'):'<div class="empty-state" style="padding:12px">No employees left compared to previous month.</div>';
-
+async function _hrmsRenderEntryTab(yr,mo){
+  var el=document.getElementById('hrmsAttTabEntry');if(!el)return;
+  el.innerHTML='<div class="empty-state">Loading…</div>';
+  var d=await _hrmsComputeEntryExit(yr,mo);
+  var h=_hrmsUnknownBanner(d.allUnknown.length);
+  h+='<div style="font-size:15px;font-weight:900;margin-bottom:6px;color:#16a34a">New Joinee / Rejoinee in '+d.curLabel+' (not in '+d.prevLabel+') — '+d.newEmps.length+'</div>';
+  h+=d.newEmps.length?_hrmsRenderEmpGroupedTable(d.newEmps,'#16a34a','entry'):'<div class="empty-state" style="padding:12px">No new joinee/rejoinee compared to previous month.</div>';
   el.innerHTML=h;
+}
+
+async function _hrmsRenderExitTab(yr,mo){
+  var el=document.getElementById('hrmsAttTabExit');if(!el)return;
+  el.innerHTML='<div class="empty-state">Loading…</div>';
+  var d=await _hrmsComputeEntryExit(yr,mo);
+  var h=_hrmsUnknownBanner(d.allUnknown.length);
+  h+='<div style="font-size:15px;font-weight:900;margin-bottom:6px;color:#dc2626">Employees Exited (in '+d.prevLabel+' but not in '+d.curLabel+') — '+d.leftEmps.length+'</div>';
+  h+=d.leftEmps.length?_hrmsRenderEmpGroupedTable(d.leftEmps,'#dc2626','exit'):'<div class="empty-state" style="padding:12px">No employees exited compared to previous month.</div>';
+  el.innerHTML=h;
+}
+
+function _hrmsExportUnknownCodes(){
+  var codes=window._hrmsUnknownEmpCodes||[];
+  if(!codes.length){notify('No unknown employee codes',true);return;}
+  var headers=['Emp Code','Employee Full Name','Gender','Date of Birth','Date of Joining',
+    'Department','Designation','Employment Type','Team Name','Category',
+    'Current Plant','Roll','PAN No','AADHAAR No','ESI NO','PF NO','UAN',
+    'Current Salary / Day','Current Salary / Month','Current Status','Bank Name','Branch Name','Account No','IFSC'];
+  var rows=[headers];
+  codes.forEach(function(ec){
+    var row=[ec];
+    for(var i=1;i<headers.length;i++) row.push('');
+    rows.push(row);
+  });
+  _downloadAsXlsx(rows,'Unknown Employees','Unknown_Employees.xlsx');
+  notify('📤 Exported '+codes.length+' unknown code'+(codes.length>1?'s':'')+' — fill in details and import back');
 }
 
 function _hrmsAttPopFilters(){
@@ -2021,8 +2964,9 @@ function _hrmsRenderAttGrid(yr,mo){
   h+='</thead><tbody>';
 
   // For each employee: 4 rows
-  // Attendance thresholds (hours)
-  var FULL_DAY=8.25, HALF_DAY=4, EL_MIN=6.5, EL_MAX_PER_MONTH=2;
+  // Attendance thresholds (from OT rules for this month)
+  var _otR=_hrmsGetOtRules(monthKey);
+  var FULL_DAY=_otR.fullDay, HALF_DAY=_otR.halfDay, EL_MIN=_otR.elMin, EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
   var rowLabels=['In','Out','P/A','OT'];
   var rowColors=['#eff6ff','#f0fdf4','#fefce8','#faf5ff'];
   emps.forEach(function(emp,ei){
@@ -2080,18 +3024,18 @@ function _hrmsRenderAttGrid(yr,mo){
       }
       if(ds.worked>0&&!isStaff){
         if(ds.isOff){
-          // O&P days: deduct lunch, cap to 15hrs
+          // Off days: deduct tiered breaks, cap to rules max
           var otS=ds.worked;
-          if(otS>13) otS-=1;        // 1hr lunch if >13hrs
-          else if(otS>4) otS-=0.5;  // 0.5hr lunch if >4hrs
+          if(otS>_otR.otsTier2Threshold) otS-=_otR.otsTier2Deduct;
+          else if(otS>=_otR.otsTier1Threshold) otS-=_otR.otsTier1Deduct;
           if(otS<0) otS=0;
-          otS=Math.min(otS,15);
+          otS=Math.min(otS,_otR.otsMaxPerDay);
           totalOTS+=otS;
           ds.otS=otS;
         } else {
           var ot=0;
-          if(ds.worked>14) ot=ds.worked-9;
-          if(ot>0){ot=Math.min(ot,7);totalOT+=ot;}
+          if(ds.worked>_otR.otTier2Threshold) ot=ds.worked-_otR.otTier2Subtract;else if(ds.worked>=_otR.otTier1Threshold) ot=ds.worked-_otR.otTier1Subtract;
+          if(ot>0){ot=Math.min(ot,_otR.otMaxPerDay);totalOT+=ot;}
           ds.ot=ot;
         }
       }
@@ -2109,8 +3053,8 @@ function _hrmsRenderAttGrid(yr,mo){
         var rowBg=isUnmatched?'#fef2f2':'#fff';
         h+='<td rowspan="4" style="position:sticky;left:'+L0+'px;z-index:2;background:'+rowBg+';font-weight:700;color:var(--text3);border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;text-align:center;font-size:9px;'+borderTop+'">'+(ei+1)+'</td>';
         h+='<td rowspan="4" style="position:sticky;left:'+L1+'px;z-index:2;background:'+pClr+';font-weight:800;color:#1e293b;border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:9px;text-align:center;'+borderTop+'">'+(isUnmatched?'—':plt)+'</td>';
-        h+='<td rowspan="4" style="position:sticky;left:'+L2+'px;z-index:2;background:'+rowBg+';font-weight:800;color:'+(isUnmatched?'#dc2626':'var(--accent)')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:12px;'+borderTop+'">'+emp.empCode+'</td>';
-        h+='<td rowspan="4" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;color:'+(isUnmatched?'#dc2626':'')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;'+borderTop+'">'+(isUnmatched?'Employee NA':emp.name)+'</td>';
+        h+='<td rowspan="4" style="position:sticky;left:'+L2+'px;z-index:2;background:'+rowBg+';font-weight:800;color:'+(isUnmatched?'#dc2626':'var(--accent)')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:12px;'+(isUnmatched?'':'cursor:pointer;text-decoration:underline')+';'+borderTop+'"'+(isUnmatched?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+emp.empCode+'</td>';
+        h+='<td rowspan="4" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;color:'+(isUnmatched?'#dc2626':'')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;'+(isUnmatched?'':'cursor:pointer')+';'+borderTop+'"'+(isUnmatched?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+(isUnmatched?'Employee NA':_hrmsDispName(emp))+'</td>';
       }
       var cBdr=ri===3?cBdrLast:cBdrInner;
       h+='<td style="position:sticky;left:'+L4+'px;z-index:2;background:'+rowColors[ri]+';font-weight:700;font-size:9px;'+cBdr+'padding:2px 3px;color:#475569;'+(ri===0?borderTop:'')+'">'+rowLabels[ri]+'</td>';
@@ -2148,9 +3092,9 @@ function _hrmsRenderAttGrid(yr,mo){
         } else if(ri===3){
           if(!isStaff&&ds.worked>0){
             if(ds.isOff&&ds.otS>0){
-              cellBg='#7c3aed';val='<span style="color:#fff;font-weight:800;font-size:9px">'+ds.otS.toFixed(1)+'</span>';
+              cellBg='#7c3aed';val='<span style="color:#fff;font-weight:800;font-size:9px">'+_hrmsFmtOT(ds.otS)+'</span>';
             } else if(!ds.isOff&&ds.ot>0){
-              val='<span style="color:#7c3aed;font-weight:700">'+ds.ot.toFixed(1)+'</span>';
+              val='<span style="color:#7c3aed;font-weight:700">'+_hrmsFmtOT(ds.ot)+'</span>';
             }
           }
         }
@@ -2161,8 +3105,8 @@ function _hrmsRenderAttGrid(yr,mo){
       if(ri===0){
         var pDisp=totalP%1===0?String(totalP):totalP.toFixed(1);
         h+='<td rowspan="4" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#f0fdf4;font-weight:900;font-size:14px;color:#16a34a;'+borderTop+'">'+pDisp+'</td>';
-        h+='<td rowspan="4" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#faf5ff;font-weight:900;font-size:13px;color:#7c3aed;'+borderTop+'">'+(totalOT>0?totalOT.toFixed(1):isStaff?'—':'0')+'</td>';
-        h+='<td rowspan="4" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#fff7ed;font-weight:900;font-size:13px;color:#c2410c;'+borderTop+'">'+(totalOTS>0?totalOTS.toFixed(1):isStaff?'—':'0')+'</td>';
+        h+='<td rowspan="4" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#faf5ff;font-weight:900;font-size:13px;color:#7c3aed;'+borderTop+'">'+(totalOT>0?_hrmsFmtOT(totalOT):isStaff?'—':'0')+'</td>';
+        h+='<td rowspan="4" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#fff7ed;font-weight:900;font-size:13px;color:#c2410c;'+borderTop+'">'+(totalOTS>0?_hrmsFmtOT(totalOTS):isStaff?'—':'0')+'</td>';
       }
       h+='</tr>';
     }
@@ -2238,7 +3182,8 @@ function _hrmsAttExportSummary(){
   var lookup={};attRecords.forEach(function(a){lookup[a.empCode]=a.days||{};});
   var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
 
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX_PER_MONTH=2;
+  var _otR=_hrmsGetOtRules(mk);
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     return lookup[e.empCode]||e.status==='Active';
   }).sort(function(a,b){
@@ -2278,8 +3223,8 @@ function _hrmsAttExportSummary(){
       if(isDayOff){
         // Off day OT
         if(worked>0&&!isStaff){
-          var otS=worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;
-          otS=Math.min(Math.max(otS,0),15);totalOTS+=otS;
+          var otS=worked;if(otS>_otR.otsTier2Threshold)otS-=_otR.otsTier2Deduct;else if(otS>=_otR.otsTier1Threshold)otS-=_otR.otsTier1Deduct;
+          otS=Math.min(Math.max(otS,0),_otR.otsMaxPerDay);totalOTS+=otS;
         }
       } else {
         // Working day
@@ -2296,14 +3241,14 @@ function _hrmsAttExportSummary(){
         // Working day OT
         if(worked>0&&!isStaff){
           var ot=0;
-          if(worked>14) ot=worked-9;
-          if(ot>0) totalOT+=Math.min(ot,7);
+          if(worked>_otR.otTier2Threshold) ot=worked-_otR.otTier2Subtract;else if(worked>=_otR.otTier1Threshold) ot=worked-_otR.otTier1Subtract;
+          if(ot>0) totalOT+=Math.min(ot,_otR.otMaxPerDay);
         }
       }
     }
     var pDisp=totalP%1===0?totalP:+totalP.toFixed(1);
     var aDisp=totalA%1===0?totalA:+totalA.toFixed(1);
-    rows.push([emp.empCode,emp.name,emp.employmentType||'',emp.location||'',emp.category||'',emp.teamName||'',emp.department||'',pDisp,aDisp,totalOT>0?+totalOT.toFixed(1):0,totalOTS>0?+totalOTS.toFixed(1):0]);
+    rows.push([emp.empCode,emp.name,emp.employmentType||'',emp.location||'',emp.category||'',emp.teamName||'',emp.department||'',pDisp,aDisp,totalOT>0?Math.round(totalOT*4)/4:0,totalOTS>0?Math.round(totalOTS*4)/4:0]);
   });
   _downloadAsXlsx([headers].concat(rows),'Summary','Attendance_Summary_'+monthNames[mo]+'_'+yr+'.xlsx');
   notify('📊 Exported summary for '+emps.length+' employees');
@@ -2311,6 +3256,7 @@ function _hrmsAttExportSummary(){
 
 async function _hrmsImportAttendance(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
+  if(_hrmsMonth&&_hrmsIsMonthLocked(_hrmsMonth)){notify('⚠ '+_hrmsMonthLabel(_hrmsMonth)+' is locked. Unlock to import.',true);return;}
   showSpinner('Importing attendance…');
   try{
     var reader=new FileReader();
@@ -2414,6 +3360,7 @@ async function _hrmsImportAttendance(inputEl){
         var ip=mk.split('-');
         document.getElementById('hrmsMonthLabel').textContent=_MONTH_NAMES[+ip[1]]+' '+ip[0];
         _hrmsAttPopFilters();
+        _hrmsUpdateLockBtn();
         _hrmsAttSetTab(_hrmsAttCurrentTab);
         notify('✅ '+(action==='replace'?'Replaced':'Imported')+': '+parsedRows.length+' rows → '+saved+' employees'+(errors?', '+errors+' failed':''));
       }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
@@ -2426,10 +3373,52 @@ async function _hrmsImportAttendance(inputEl){
 // _hrmsGetPrintFormats is in hrms-logic.js
 
 function _hrmsOpenPrintFormats(){
-  _hrmsPrintFmtReset();
-  _hrmsPrintFmtPopSelects();
   _hrmsPrintFmtRenderList();
   om('mPrintFmt');
+}
+
+// Check if an employee's field value matches a print format's filter.
+// filterVal may be: '' (all), 'single value', or 'v1,v2,v3' (multi).
+function _hrmsFmtFieldMatch(filterVal,empVal){
+  if(!filterVal) return true;// empty = all
+  var list=filterVal.split(',').map(function(s){return s.trim();}).filter(Boolean);
+  if(!list.length) return true;
+  return list.indexOf((empVal||'').toString().trim())>=0;
+}
+
+// Get selected values from a multi-select
+function _hrmsMultiGet(id){
+  var el=document.getElementById(id);if(!el) return [];
+  var sel=[];
+  for(var i=0;i<el.options.length;i++){if(el.options[i].selected&&el.options[i].value) sel.push(el.options[i].value);}
+  return sel;
+}
+// Set selected values on a multi-select (accepts array or comma-separated string or single value)
+function _hrmsMultiSet(id,vals){
+  var el=document.getElementById(id);if(!el) return;
+  var arr=Array.isArray(vals)?vals:(typeof vals==='string'&&vals?vals.split(',').map(function(s){return s.trim();}).filter(Boolean):[]);
+  var setMap={};arr.forEach(function(v){setMap[v]=1;});
+  for(var i=0;i<el.options.length;i++) el.options[i].selected=!!setMap[el.options[i].value];
+}
+
+function _hrmsOpenPrintFmtEdit(id){
+  _hrmsPrintFmtReset();
+  _hrmsPrintFmtPopSelects();
+  if(id){
+    var f=(DB.hrmsPrintFormats||[]).find(function(r){return r.id===id;});
+    if(f){
+      document.getElementById('printFmtId').value=f.id;
+      document.getElementById('printFmtName').value=f.name||'';
+      _hrmsMultiSet('printFmtPlant',f.plant||'');
+      _hrmsMultiSet('printFmtType',f.empType||'');
+      _hrmsMultiSet('printFmtCat',f.category||'');
+      _hrmsMultiSet('printFmtTeam',f.team||'');
+      document.getElementById('printFmtFormTitle').textContent='Edit Format: '+(f.name||'');
+    }
+  } else {
+    document.getElementById('printFmtFormTitle').textContent='Add New Format';
+  }
+  om('mPrintFmtEdit');
 }
 
 function _hrmsPrintFmtPopSelects(){
@@ -2440,10 +3429,13 @@ function _hrmsPrintFmtPopSelects(){
     if(e.category)cats[e.category]=1;if(e.teamName)teams[e.teamName]=1;
   });
   var _fill=function(id,obj){
-    var el=document.getElementById(id);if(!el)return;var v=el.value;
-    var h='<option value="">All</option>';
+    var el=document.getElementById(id);if(!el)return;
+    // Preserve any currently selected values
+    var prev=_hrmsMultiGet(id);
+    var h='';
     Object.keys(obj).sort().forEach(function(k){h+='<option value="'+k+'">'+k+'</option>';});
-    el.innerHTML=h;el.value=v;
+    el.innerHTML=h;
+    _hrmsMultiSet(id,prev);
   };
   _fill('printFmtPlant',plants);_fill('printFmtType',types);
   _fill('printFmtCat',cats);_fill('printFmtTeam',teams);
@@ -2451,22 +3443,23 @@ function _hrmsPrintFmtPopSelects(){
 
 function _hrmsPrintFmtRenderList(){
   var el=document.getElementById('printFmtList');if(!el)return;
-  var fmts=_hrmsGetPrintFormats();
-  if(!fmts.length){el.innerHTML='<div class="empty-state" style="padding:16px">No print formats saved. Create one below.</div>';return;}
-  var h='<div style="max-height:250px;overflow-y:auto">';
+  var fmts=_hrmsGetPrintFormats().slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  if(!fmts.length){el.innerHTML='<div class="empty-state" style="padding:16px">No print formats saved. Click "+ Add New Format" above to create one.</div>';return;}
+  var h='<div style="max-height:400px;overflow-y:auto">';
+  var _fmtList=function(s){if(!s) return '';return s.split(',').map(function(x){return x.trim();}).filter(Boolean).join(', ');};
   fmts.forEach(function(f){
     var desc=[];
-    if(f.plant) desc.push('Plant: '+f.plant);
-    if(f.empType) desc.push('Type: '+f.empType);
-    if(f.category) desc.push('Cat: '+f.category);
-    if(f.team) desc.push('Team: '+f.team);
+    var pStr=_fmtList(f.plant);if(pStr) desc.push('Plant: '+pStr);
+    var tStr=_fmtList(f.empType);if(tStr) desc.push('Type: '+tStr);
+    var cStr=_fmtList(f.category);if(cStr) desc.push('Cat: '+cStr);
+    var teamStr=_fmtList(f.team);if(teamStr) desc.push('Team: '+teamStr);
     if(!desc.length) desc.push('All employees');
     h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--surface2)">';
     h+='<input type="checkbox" class="printFmtCb" value="'+f.id+'" checked style="width:auto;flex-shrink:0">';
     h+='<div style="flex:1"><div style="font-weight:800;font-size:13px">'+f.name+'</div>';
     h+='<div style="font-size:11px;color:var(--text3)">'+desc.join(' · ')+'</div></div>';
     h+='<button onclick="_hrmsPrintWithFormat(\''+f.id+'\')" style="padding:5px 12px;font-size:11px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">🖨</button>';
-    h+='<button onclick="_hrmsEditPrintFmt(\''+f.id+'\')" style="padding:5px 8px;font-size:11px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:4px;cursor:pointer">✏️</button>';
+    h+='<button onclick="_hrmsOpenPrintFmtEdit(\''+f.id+'\')" style="padding:5px 8px;font-size:11px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:4px;cursor:pointer">✏️</button>';
     h+='<button onclick="_hrmsDelPrintFmt(\''+f.id+'\')" style="padding:5px 8px;font-size:11px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑</button>';
     h+='</div>';
   });
@@ -2481,10 +3474,9 @@ function _hrmsPrintFmtToggleAll(checked){
 function _hrmsPrintFmtReset(){
   document.getElementById('printFmtId').value='';
   document.getElementById('printFmtName').value='';
-  document.getElementById('printFmtPlant').value='';
-  document.getElementById('printFmtType').value='';
-  document.getElementById('printFmtCat').value='';
-  document.getElementById('printFmtTeam').value='';
+  ['printFmtPlant','printFmtType','printFmtCat','printFmtTeam'].forEach(function(id){
+    var el=document.getElementById(id);if(el) for(var i=0;i<el.options.length;i++) el.options[i].selected=false;
+  });
   document.getElementById('printFmtFormTitle').textContent='Add New Format';
 }
 
@@ -2497,10 +3489,10 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
   var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     if(!lookup[e.empCode]&&e.status!=='Active') return false;
-    if(f.plant&&e.location!==f.plant) return false;
-    if(f.empType&&e.employmentType!==f.empType) return false;
-    if(f.category&&e.category!==f.category) return false;
-    if(f.team&&e.teamName!==f.team) return false;
+    if(!_hrmsFmtFieldMatch(f.plant,e.location)) return false;
+    if(!_hrmsFmtFieldMatch(f.empType,e.employmentType)) return false;
+    if(!_hrmsFmtFieldMatch(f.category,e.category)) return false;
+    if(!_hrmsFmtFieldMatch(f.team,e.teamName)) return false;
     return true;
   }).sort(function(a,b){
     var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
@@ -2516,7 +3508,8 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
   });
   if(!emps.length) return null;
 
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX_PER_MONTH=2;
+  var _otR=_hrmsGetOtRules(mk);
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
   // A3 landscape: 420x297mm, margin 14mm (~50px)
   var doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a3',putOnlyUsedFonts:true,compress:false});
   var pageW=420,pageH=297,margin=14;
@@ -2589,8 +3582,8 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
       var ds=dayStatus[dd];
       if(!ds.isOff){if(ds.status==='P'||ds.status==='EL')totalP+=1;else if(ds.status==='P/2')totalP+=0.5;}
       if(ds.worked>0&&!isStaff){
-        if(ds.isOff){var otS=ds.worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;otS=Math.min(Math.max(otS,0),15);totalOTS+=otS;ds.otS=otS;}
-        else{var ot=0;if(ds.worked>14)ot=ds.worked-9;else if(ds.worked>8.5)ot=ds.worked-8.5;if(ot>0){ot=Math.min(ot,7);totalOT+=ot;}ds.ot=ot;}
+        if(ds.isOff){var otS=ds.worked;if(otS>_otR.otsTier2Threshold)otS-=_otR.otsTier2Deduct;else if(otS>=_otR.otsTier1Threshold)otS-=_otR.otsTier1Deduct;otS=Math.min(Math.max(otS,0),_otR.otsMaxPerDay);totalOTS+=otS;ds.otS=otS;}
+        else{var ot=0;if(ds.worked>_otR.otTier2Threshold)ot=ds.worked-_otR.otTier2Subtract;else if(ds.worked>=_otR.otTier1Threshold)ot=ds.worked-_otR.otTier1Subtract;if(ot>0){ot=Math.min(ot,_otR.otMaxPerDay);totalOT+=ot;}ds.ot=ot;}
       }
     }
 
@@ -2600,7 +3593,7 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
         row.push({content:String(ei+1),rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fontSize:8}});
         row.push({content:plt,rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:pClrRgb,fontSize:8}});
         row.push({content:emp.empCode,rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fontSize:10}});
-        row.push({content:emp.name,rowSpan:4,styles:{halign:'left',valign:'middle',fontStyle:'bold',fontSize:7,cellWidth:colName}});
+        row.push({content:_hrmsDispName(emp),rowSpan:4,styles:{halign:'left',valign:'middle',fontStyle:'bold',fontSize:7,cellWidth:colName}});
       }
       row.push({content:rowLabels[ri],styles:{halign:'center',fontStyle:'bold',fillColor:rowBgs[ri],fontSize:7}});
 
@@ -2608,8 +3601,9 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
         var ds=dayStatus[d];
         var alt=empAlt[String(d)]||null;var ddd=alt||empAtt[String(d)]||{};
         var tIn=ddd['in']||'',tOut=ddd['out']||'';
-        if(tIn){var rm=_hrmsRoundIn(_hrmsParseTime(tIn));if(rm!==null)tIn=_hrmsMinToTime(rm);}
-        if(tOut){var rm2=_hrmsRoundOut(_hrmsParseTime(tOut));if(rm2!==null)tOut=_hrmsMinToTime(rm2);}
+        // Display ACTUAL punch times (just normalize format HH:MM); rounding is only used for hour calculations
+        if(tIn){var pm=_hrmsParseTime(tIn);if(pm!==null) tIn=_hrmsMinToTime(pm);}
+        if(tOut){var pm2=_hrmsParseTime(tOut);if(pm2!==null) tOut=_hrmsMinToTime(pm2);}
         var cellStyle={halign:'center',fillColor:rowBgs[ri],fontSize:7};
         if(ds.isOff) cellStyle.fillColor=bgOff;
         if(ds.altered&&(ri===0||ri===1)) cellStyle.fillColor=bgAlt;
@@ -2631,8 +3625,8 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
           else if(st==='H'){val='H';cellStyle.textColor=cGrey;}
         } else if(ri===3){
           if(!isStaff&&ds.worked>0){
-            if(ds.isOff&&ds.otS>0){val=ds.otS.toFixed(1);cellStyle.textColor=[255,255,255];cellStyle.fontStyle='bold';cellStyle.fillColor=[124,58,237];}
-            else if(!ds.isOff&&ds.ot>0){val=ds.ot.toFixed(1);cellStyle.textColor=cPurple;}
+            if(ds.isOff&&ds.otS>0){val=_hrmsFmtOT(ds.otS);cellStyle.textColor=[255,255,255];cellStyle.fontStyle='bold';cellStyle.fillColor=[124,58,237];}
+            else if(!ds.isOff&&ds.ot>0){val=_hrmsFmtOT(ds.ot);cellStyle.textColor=cPurple;}
           }
         }
         row.push({content:val,styles:cellStyle});
@@ -2640,8 +3634,8 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames){
       if(ri===0){
         var pDisp=totalP%1===0?String(totalP):totalP.toFixed(1);
         row.push({content:pDisp,rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:bgTotP,textColor:cGreen,fontSize:8}});
-        row.push({content:totalOT>0?totalOT.toFixed(1):(isStaff?'-':'0'),rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:bgTotOT,textColor:cPurple,fontSize:6}});
-        row.push({content:totalOTS>0?totalOTS.toFixed(1):(isStaff?'-':'0'),rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:bgTotOTS,textColor:cOrange,fontSize:6}});
+        row.push({content:totalOT>0?_hrmsFmtOT(totalOT):(isStaff?'-':'0'),rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:bgTotOT,textColor:cPurple,fontSize:6}});
+        row.push({content:totalOTS>0?_hrmsFmtOT(totalOTS):(isStaff?'-':'0'),rowSpan:4,styles:{halign:'center',valign:'middle',fontStyle:'bold',fillColor:bgTotOTS,textColor:cOrange,fontSize:6}});
       }
       body.push(row);
     }
@@ -2698,7 +3692,9 @@ async function _hrmsBulkPrint(){
     var doc=_hrmsGeneratePdf(f,mk,yr,mo,monthNames);
     if(!doc)continue;
     var safeName=(f.name||'Format').replace(/[^a-zA-Z0-9\-_ ]/g,'');
-    var filename=monthNames[mo]+'_'+yr+'_'+safeName+'.pdf';
+    // Suffix: _MMYY (e.g. _0426 for April 2026)
+    var monthSuffix='_'+String(mo).padStart(2,'0')+String(yr).slice(-2);
+    var filename=safeName+monthSuffix+'.pdf';
 
     if(folderHandle){
       try{
@@ -2719,35 +3715,33 @@ async function _hrmsSavePrintFmt(){
   var editId=document.getElementById('printFmtId').value;
   var name=document.getElementById('printFmtName').value.trim();
   if(!name){notify('Format name is required',true);return;}
+  // Multi-select values joined as comma-separated string (empty = all)
+  var plantVal=_hrmsMultiGet('printFmtPlant').join(',');
+  var typeVal=_hrmsMultiGet('printFmtType').join(',');
+  var catVal=_hrmsMultiGet('printFmtCat').join(',');
+  var teamVal=_hrmsMultiGet('printFmtTeam').join(',');
   if(editId){
     var existing=byId(DB.hrmsPrintFormats||[],editId);
     if(existing){
       existing.name=name;
-      existing.plant=document.getElementById('printFmtPlant').value;
-      existing.empType=document.getElementById('printFmtType').value;
-      existing.category=document.getElementById('printFmtCat').value;
-      existing.team=document.getElementById('printFmtTeam').value;
+      existing.plant=plantVal;
+      existing.empType=typeVal;
+      existing.category=catVal;
+      existing.team=teamVal;
       await _dbSave('hrmsPrintFormats',existing);
     }
   } else {
-    var rec={id:'hpf'+uid(),name:name,plant:document.getElementById('printFmtPlant').value,empType:document.getElementById('printFmtType').value,category:document.getElementById('printFmtCat').value,team:document.getElementById('printFmtTeam').value,createdBy:CU?CU.id:''};
+    var rec={id:'hpf'+uid(),name:name,plant:plantVal,empType:typeVal,category:catVal,team:teamVal,createdBy:CU?CU.id:''};
     await _dbSave('hrmsPrintFormats',rec);
   }
   _hrmsPrintFmtReset();
+  cm('mPrintFmtEdit');
   _hrmsPrintFmtRenderList();
-  notify('Format saved');
+  notify('✅ Format saved');
 }
 
-function _hrmsEditPrintFmt(id){
-  var f=byId(DB.hrmsPrintFormats||[],id);if(!f)return;
-  document.getElementById('printFmtId').value=f.id;
-  document.getElementById('printFmtName').value=f.name;
-  document.getElementById('printFmtPlant').value=f.plant||'';
-  document.getElementById('printFmtType').value=f.empType||'';
-  document.getElementById('printFmtCat').value=f.category||'';
-  document.getElementById('printFmtTeam').value=f.team||'';
-  document.getElementById('printFmtFormTitle').textContent='Edit Format: '+f.name;
-}
+// Kept for backward compatibility — routes to the new edit modal
+function _hrmsEditPrintFmt(id){_hrmsOpenPrintFmtEdit(id);}
 
 async function _hrmsDelPrintFmt(id){
   if(!confirm('Delete this print format?'))return;
@@ -2765,10 +3759,10 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
   var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     if(!lookup[e.empCode]&&e.status!=='Active') return false;
-    if(f.plant&&e.location!==f.plant) return false;
-    if(f.empType&&e.employmentType!==f.empType) return false;
-    if(f.category&&e.category!==f.category) return false;
-    if(f.team&&e.teamName!==f.team) return false;
+    if(!_hrmsFmtFieldMatch(f.plant,e.location)) return false;
+    if(!_hrmsFmtFieldMatch(f.empType,e.employmentType)) return false;
+    if(!_hrmsFmtFieldMatch(f.category,e.category)) return false;
+    if(!_hrmsFmtFieldMatch(f.team,e.teamName)) return false;
     return true;
   }).sort(function(a,b){
     var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
@@ -2783,7 +3777,8 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
     return(a.teamName||'').localeCompare(b.teamName||'');
   });
   if(!emps.length) return'<h2>'+f.name+'</h2><p style="color:#999">No employees match this format.</p>';
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX_PER_MONTH=2;
+  var _otR=_hrmsGetOtRules(mk);
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
   var dtCls={WD:'dt-w',WO:'dt-h',PH:'dt-p'};
   var h='<h2>'+f.name+'</h2><h3>'+monthNames[mo]+' '+yr+' &mdash; '+emps.length+' employees</h3>';
   h+='<table><thead><tr>';
@@ -2821,8 +3816,8 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
       var ds=dayStatus[dd];
       if(!ds.isOff){if(ds.status==='P'||ds.status==='EL')totalP+=1;else if(ds.status==='P/2')totalP+=0.5;}
       if(ds.worked>0&&!isStaff){
-        if(ds.isOff){var otS=ds.worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;otS=Math.min(Math.max(otS,0),15);totalOTS+=otS;ds.otS=otS;}
-        else{var ot=0;if(ds.worked>14)ot=ds.worked-9;else if(ds.worked>8.5)ot=ds.worked-8.5;if(ot>0){ot=Math.min(ot,7);totalOT+=ot;}ds.ot=ot;}
+        if(ds.isOff){var otS=ds.worked;if(otS>_otR.otsTier2Threshold)otS-=_otR.otsTier2Deduct;else if(otS>=_otR.otsTier1Threshold)otS-=_otR.otsTier1Deduct;otS=Math.min(Math.max(otS,0),_otR.otsMaxPerDay);totalOTS+=otS;ds.otS=otS;}
+        else{var ot=0;if(ds.worked>_otR.otTier2Threshold)ot=ds.worked-_otR.otTier2Subtract;else if(ds.worked>=_otR.otTier1Threshold)ot=ds.worked-_otR.otTier1Subtract;if(ot>0){ot=Math.min(ot,_otR.otMaxPerDay);totalOT+=ot;}ds.ot=ot;}
       }
     }
     for(var ri=0;ri<4;ri++){
@@ -2832,14 +3827,15 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
         h+='<td rowspan="4" class="sep" style="font-weight:bold">'+(ei+1)+'</td>';
         h+='<td rowspan="4" class="sep" style="background:'+pClr+'">'+plt+'</td>';
         h+='<td rowspan="4" class="sep" style="font-weight:bold">'+emp.empCode+'</td>';
-        h+='<td rowspan="4" class="sep name">'+emp.name+'</td>';
+        h+='<td rowspan="4" class="sep name">'+_hrmsDispName(emp)+'</td>';
       }
       h+='<td style="font-weight:bold;font-size:7px">'+rowLabels[ri]+'</td>';
       for(var d=1;d<=daysInMonth;d++){
         var ds=dayStatus[d];var alt=empAlt[String(d)]||null;var ddd=alt||empAtt[String(d)]||{};
         var tIn=ddd['in']||'',tOut=ddd['out']||'';
-        if(tIn){var rm=_hrmsRoundIn(_hrmsParseTime(tIn));if(rm!==null)tIn=_hrmsMinToTime(rm);}
-        if(tOut){var rm2=_hrmsRoundOut(_hrmsParseTime(tOut));if(rm2!==null)tOut=_hrmsMinToTime(rm2);}
+        // Display ACTUAL punch times (just normalize format HH:MM); rounding is only used for hour calculations
+        if(tIn){var pm=_hrmsParseTime(tIn);if(pm!==null) tIn=_hrmsMinToTime(pm);}
+        if(tOut){var pm2=_hrmsParseTime(tOut);if(pm2!==null) tOut=_hrmsMinToTime(pm2);}
         var cls=[];
         if(ds.altered&&(ri===0||ri===1)) cls.push('alt');
         if(ds.isOff) cls.push('off');
@@ -2859,8 +3855,8 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
           else if(st==='H') val='<span class="H">H</span>';
         } else if(ri===3){
           if(!isStaff&&ds.worked>0){
-            if(ds.isOff&&ds.otS>0){cls.push('ots');val=ds.otS.toFixed(1);}
-            else if(!ds.isOff&&ds.ot>0) val=ds.ot.toFixed(1);
+            if(ds.isOff&&ds.otS>0){cls.push('ots');val=_hrmsFmtOT(ds.otS);}
+            else if(!ds.isOff&&ds.ot>0) val=_hrmsFmtOT(ds.ot);
           }
         }
         h+='<td'+(cls.length?' class="'+cls.join(' ')+'"':'')+'>'+ val+'</td>';
@@ -2868,8 +3864,8 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
       if(ri===0){
         var pDisp=totalP%1===0?String(totalP):totalP.toFixed(1);
         h+='<td rowspan="4" class="tot-p sep">'+pDisp+'</td>';
-        h+='<td rowspan="4" class="tot-ot sep">'+(totalOT>0?totalOT.toFixed(1):isStaff?'&#8212;':'0')+'</td>';
-        h+='<td rowspan="4" class="tot-ots sep">'+(totalOTS>0?totalOTS.toFixed(1):isStaff?'&#8212;':'0')+'</td>';
+        h+='<td rowspan="4" class="tot-ot sep">'+(totalOT>0?_hrmsFmtOT(totalOT):isStaff?'&#8212;':'0')+'</td>';
+        h+='<td rowspan="4" class="tot-ots sep">'+(totalOTS>0?_hrmsFmtOT(totalOTS):isStaff?'&#8212;':'0')+'</td>';
       }
       h+='</tr>';
     }
@@ -2889,18 +3885,20 @@ function _hrmsPrintWithFormat(id){
   hideSpinner();
   if(!doc){notify('No employees match this format',true);return;}
   var safeName=(f.name||'Format').replace(/[^a-zA-Z0-9\-_ ]/g,'');
-  doc.save(monthNames[mo]+'_'+yr+'_'+safeName+'.pdf');
+  var monthSuffix='_'+String(mo).padStart(2,'0')+String(yr).slice(-2);
+  doc.save(safeName+monthSuffix+'.pdf');
   notify('✅ PDF saved');
 }
 
 // ═══ COMBINED PAGE — UNIFIED MONTH + 3 MAIN TABS ════════════════════════
 var _hrmsMonth=null;
 var _hrmsActiveMainTab='settings';
+var _hrmsSavedMonth={};// monthKey → {meta:{...}, employees:{empCode: data}}
 
 // Main tab switcher: settings | attendance | salary
 function _hrmsMainTab(tab){
   _hrmsActiveMainTab=tab;
-  var tabs=['settings','attendance','salworker','salstaff'];
+  var tabs=['settings','attendance','salary','payments'];
   tabs.forEach(function(t){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
     var content=document.getElementById('hrmsMain'+t.charAt(0).toUpperCase()+t.slice(1)+'Content');
@@ -2936,26 +3934,555 @@ async function _hrmsSelectMonth(mk){
   _hrmsAttSelectedMonth=mk;
   var p=mk.split('-');var yr=+p[0],mo=+p[1];
   document.getElementById('hrmsMonthLabel').textContent=_MONTH_NAMES[mo]+' '+yr;
-  showSpinner('Loading data…');
-  await _hrmsAttFetchMonth(mk);
-  hideSpinner();
+  if(typeof _hrmsUpdateTopTitle==='function') _hrmsUpdateTopTitle();
+  // Restore any overridden employee data from previous locked month
+  _hrmsRestoreSavedCaches();
+  // If locked, load self-contained saved data
+  if(_hrmsIsMonthLocked(mk)){
+    await _hrmsLoadSavedMonth(mk);
+    if(_hrmsHasSavedData(mk)){
+      _hrmsPrepSavedCaches(mk);
+    } else {
+      // Locked but no saved data — load normally (shouldn't happen)
+      showSpinner('Loading data…');
+      await _hrmsAttFetchMonth(mk);
+      hideSpinner();
+    }
+  } else {
+    showSpinner('Loading data…');
+    await _hrmsAttFetchMonth(mk);
+    hideSpinner();
+  }
   _hrmsAttPopFilters();
   _hrmsLoadManualP();
+  _hrmsUpdateLockBtn();
   _hrmsRenderActiveTab();
+}
+
+// ═══ ADD MONTH ═══════════════════════════════════════════════════════════
+function _hrmsAddMonthOpen(){
+  var now=new Date();
+  document.getElementById('addMonthMonth').value=now.getMonth()+1;
+  document.getElementById('addMonthYear').value=now.getFullYear();
+  document.getElementById('addMonthError').style.display='none';
+  document.getElementById('addMonthInfo').style.display='none';
+  om('mAddMonth');
+}
+
+async function _hrmsAddMonthConfirm(){
+  var mo=+document.getElementById('addMonthMonth').value;
+  var yr=+document.getElementById('addMonthYear').value;
+  var errEl=document.getElementById('addMonthError');
+  var infoEl=document.getElementById('addMonthInfo');
+  errEl.style.display='none';infoEl.style.display='none';
+
+  if(!yr||yr<2024||yr>2099){errEl.textContent='Please enter a valid year (2024–2099).';errEl.style.display='block';return;}
+
+  var mk=yr+'-'+String(mo).padStart(2,'0');
+
+  // Check for duplicate — fetch index fresh
+  showSpinner('Checking existing months…');
+  _hrmsAttMonthIndex=null;
+  await _hrmsAttFetchIndex();
+  hideSpinner();
+  var existing=(_hrmsAttMonthIndex||[]).find(function(m){return m.monthKey===mk;});
+  if(existing){
+    errEl.textContent=_MONTH_NAMES[mo]+' '+yr+' already exists ('+existing.empCount+' employees). Choose a different month.';
+    errEl.style.display='block';
+    return;
+  }
+
+  // Get active employees
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){return(e.status||'Active')==='Active';});
+  if(!emps.length){errEl.textContent='No active employees found.';errEl.style.display='block';return;}
+
+  if(!confirm('Create '+_MONTH_NAMES[mo]+' '+yr+' with blank attendance for '+emps.length+' active employees?\n\nPL OB and Advance OB will be carried forward from the previous month.')){return;}
+
+  showSpinner('Creating '+_MONTH_NAMES[mo]+' '+yr+'…');
+  var prevMk=_hrmsPrevMonth(mk);
+
+  // Load previous month advances for carry-forward
+  await _hrmsLoadAdvances(prevMk);
+
+  // Create blank attendance record for each active employee
+  var saved=0,errors=0;
+  _hrmsAttCache[mk]=[];
+  for(var i=0;i<emps.length;i++){
+    var emp=emps[i];
+    var rec={id:'ha'+uid(),empCode:emp.empCode,monthKey:mk,days:{}};
+    if(await _dbSave('hrmsAttendance',rec)){
+      saved++;
+      _hrmsAttCache[mk].push(rec);
+    } else errors++;
+  }
+
+  // Carry forward balances: set PL OB and Advance OB from previous month CB
+  for(var i=0;i<emps.length;i++){
+    var emp=emps[i];
+    if(!emp.extra) emp.extra={};
+    if(!emp.extra.bal) emp.extra.bal={};
+    var ob=_hrmsGetEmpOB(emp,mk);
+    var advOB=_hrmsGetAdvOB(emp,mk);
+    emp.extra.bal[mk]={plOB:ob.plOB,plCB:ob.plOB,advOB:advOB,advCB:advOB};
+    await _dbSave('hrmsEmployees',emp);
+  }
+
+  // Carry forward OT rules from previous month (or default if none)
+  var prevOtRules=_hrmsGetOtRules(prevMk);
+  var newOtRec={id:'hs_ot_'+mk,key:'otRules_'+mk,data:prevOtRules};
+  if(!DB.hrmsSettings) DB.hrmsSettings=[];
+  DB.hrmsSettings.push(newOtRec);
+  await _dbSave('hrmsSettings',newOtRec);
+
+
+  hideSpinner();
+  cm('mAddMonth');
+
+  // Refresh index and select the new month
+  _hrmsAttMonthIndex=null;
+  _hrmsMonth=mk;
+  _hrmsAttSelectedMonth=mk;
+  document.getElementById('hrmsMonthLabel').textContent=_MONTH_NAMES[mo]+' '+yr;
+  _hrmsAttPopFilters();
+  _hrmsUpdateLockBtn();
+  _hrmsRenderActiveTab();
+  notify('✅ Created '+_MONTH_NAMES[mo]+' '+yr+': '+saved+' employees'+(errors?' ('+errors+' failed)':''));
+}
+
+// ═══ SAVE MONTH DATA (full snapshot) ═════════════════════════════════════
+// _hrmsSaveMonthData is now internal — called only from _hrmsSaveAndLock
+async function _hrmsSaveMonthData(mk){
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+
+  // ── 1. Compute salary (populates window._hrmsSalDetails)
+  _hrmsSpinMsg('Step 1/4 — Computing salary…');
+  _hrmsLoadStatutory();
+  await _hrmsAttFetchMonth(mk);
+  _hrmsLoadManualP();
+  _hrmsComputeAttTotals(yr,mo);
+  await _hrmsLoadAdvances(mk);
+  await _hrmsLoadAdvances(_hrmsPrevMonth(mk));
+  await _hrmsRenderOrSalary(yr,mo,'all');
+
+  // ── 2. Build per-employee rows
+  _hrmsSpinMsg('Step 2/4 — Building records…');
+  var salDetails=window._hrmsSalDetails||{};
+  var attRecords=_hrmsAttCache[mk]||[];
+  var altRecords=_hrmsAltCache[mk]||[];
+  var attLookup={};attRecords.forEach(function(a){attLookup[a.empCode]=a.days||{};});
+  var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+
+  var rows=[];
+  Object.keys(salDetails).forEach(function(ec){
+    var d=salDetails[ec];
+    var emp=empMap[ec];if(!emp) return;
+    var ex=emp.extra||{};
+
+    var empLoc=d.location||emp.location||'';
+    var empDayTypes={};
+    for(var dd=1;dd<=daysInMonth;dd++){
+      empDayTypes[String(dd)]=_hrmsGetDayType(mk,dd,yr,mo,empLoc);
+    }
+
+    var advRec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===ec&&a.monthKey===mk;});
+
+    rows.push({
+      id:'hmd_'+mk+'_'+ec,monthKey:mk,empCode:ec,
+      name:_hrmsDispName(emp),firstName:emp.firstName||'',lastName:emp.lastName||'',middleName:emp.middleName||'',
+      location:empLoc,category:d.category||emp.category||'',
+      department:emp.department||'',subDepartment:emp.subDepartment||'',
+      designation:emp.designation||'',employmentType:emp.employmentType||'',
+      dateOfJoining:emp.dateOfJoining||'',dateOfBirth:emp.dateOfBirth||'',
+      gender:emp.gender||'',status:emp.status||'Active',
+      teamName:emp.teamName||'',roll:emp.roll||'',noPL:emp.noPL||false,
+      esiNo:emp.esiNo||'',pfNo:emp.pfNo||'',uan:emp.uan||'',
+      panNo:emp.panNo||'',aadhaarNo:emp.aadhaarNo||'',
+      bankName:emp.bankName||'',branchName:emp.branchName||'',
+      acctNo:emp.acctNo||'',ifsc:emp.ifsc||'',
+      rateD:d.rateD,rateM:d.rateM,spAllow:d.spAllow,
+      attendance:attLookup[ec]||{},alterations:altLookup[ec]||{},dayTypes:empDayTypes,
+      wdCount:d.wdCount,phCount:d.phCount,
+      totalP:d.totalP,totalA:d.totalA,paidAbsent:d.paidAbsent,
+      totalOT:d.totalOT,totalOTS:d.totalOTS,totalPL:d.totalPL,
+      manualP:(ex.manualP&&ex.manualP[mk]!==undefined)?ex.manualP[mk]:null,
+      manualPL:(ex.manualPL&&ex.manualPL[mk]!==undefined)?ex.manualPL[mk]:null,
+      manualOT:(ex.manualOT&&ex.manualOT[mk]!==undefined)?ex.manualOT[mk]:null,
+      manualOTS:(ex.manualOTS&&ex.manualOTS[mk]!==undefined)?ex.manualOTS[mk]:null,
+      tds:_hrmsGetTdsForMonth(emp,mk)||0,
+      plOB:d.plOB,plGiven:d.plGiven,plCB:d.plCB,plAvail:d.plAvail,
+      confMonths:d.confMonths,fyMonthNo:d.fyMonthNo,
+      otAt1:d.otAt1,otAt15:d.otAt15,otAt2:d.otAt2,
+      salForP:d.salForP,salAb:d.salAb,salForPL:d.salForPL,
+      salOT1:d.salOT1,salOT15:d.salOT15,salOT2:d.salOT2,
+      allowance:d.allowance,gross:d.gross,
+      advOB:d.advOB,advMonth:(advRec&&advRec.advance)||0,
+      advDed:d.dedAdv,advCB:d.advCB,
+      dedPT:d.dedPT,dedPF:d.dedPF,dedESI:d.dedESI,
+      dedAdv:d.dedAdv,dedTDS:d.dedTDS,dedOther:d.dedOther,dedTotal:d.dedTotal,
+      net:d.net,meta:{}
+    });
+  });
+
+  // ── 3. Build _meta row (statutory, calendar)
+  var statSnap={};
+  ['pfWorker','pfCompany','pfThreshold','esiWorker','esiThreshold','plStaffJunior','plStaffSenior','plWorker','plSeniorMonths'].forEach(function(k){
+    statSnap[k]=_hrmsStatutory[k];
+  });
+  statSnap.ptRules=JSON.parse(JSON.stringify(_hrmsStatutory.ptRules||[]));
+
+  var calSnap=[];
+  (DB.hrmsDayTypes||[]).filter(function(r){return r.monthKey===mk;}).forEach(function(r){
+    calSnap.push({plant:r.plant,dayTypes:JSON.parse(JSON.stringify(r.dayTypes||{}))});
+  });
+
+  var otRulesSnap=_hrmsGetOtRules(mk);
+  var metaData={savedAt:new Date().toISOString(),savedBy:CU?CU.name:'',empCount:rows.length,statutory:statSnap,calendar:calSnap,otRules:otRulesSnap};
+  rows.push({id:'hmd_'+mk+'__meta',monthKey:mk,empCode:'_meta',meta:metaData});
+
+  // ── 4. Delete existing saved data for this month (if re-saving)
+  _hrmsSpinMsg('Step 3/4 — Saving '+rows.length+' records to database…');
+  if(_sb&&_sbReady){
+    try{
+      await _sb.from('hrms_month_data').delete().eq('month_key',mk);
+    }catch(e){console.warn('Delete old month data:',e);}
+  }
+
+  // ── 5. Save all rows in bulk
+  var saved=await _dbSaveBulk('hrmsMonthData',rows);
+  if(!saved) console.warn('hrmsMonthData save returned 0 — check if table exists in Supabase');
+
+  // ── 6. Save balances to employee records (for next month OB chain)
+  _hrmsSpinMsg('Step 4/4 — Saving balances…');
+  var balData=window['_hrmsSalBal'];
+  if(balData&&balData.balances&&balData.balances.length){
+    var balEmpMap={};(DB.hrmsEmployees||[]).forEach(function(e){balEmpMap[e.empCode]=e;});
+    var toSave=[];
+    balData.balances.forEach(function(b){
+      var emp=balEmpMap[b.empCode];if(!emp)return;
+      if(!emp.extra) emp.extra={};
+      if(!emp.extra.bal) emp.extra.bal={};
+      emp.extra.bal[mk]={plOB:b.plOB,plCB:b.plCB,advOB:b.advOB,advCB:b.advCB};
+      toSave.push(emp);
+    });
+    if(toSave.length) await _dbSaveBulk('hrmsEmployees',toSave);
+  }
+
+  // ── 7. Cache the saved data locally
+  _hrmsSavedMonth[mk]={meta:metaData,employees:{}};
+  rows.forEach(function(r){
+    if(r.empCode!=='_meta') _hrmsSavedMonth[mk].employees[r.empCode]=r;
+  });
+
+  return saved;
+}
+
+// ═══ LOCK / UNLOCK MONTH ═════════════════════════════════════════════════
+function _hrmsIsMonthLocked(mk){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+  return rec&&rec.data&&rec.data[mk]===true;
+}
+
+function _hrmsUpdateLockBtn(){
+  var mk=_hrmsMonth;
+  var saveLockBtn=document.getElementById('btnSaveLock');
+  var unlockBtn=document.getElementById('btnUnlock');
+  var banner=document.getElementById('hrmsLockBanner');
+  if(!mk){
+    if(saveLockBtn)saveLockBtn.style.display='none';
+    if(unlockBtn)unlockBtn.style.display='none';
+    if(banner)banner.style.display='none';
+    return;
+  }
+  var locked=_hrmsIsMonthLocked(mk);
+  if(saveLockBtn)saveLockBtn.style.display=locked?'none':'';
+  if(unlockBtn)unlockBtn.style.display=locked?'':'none';
+  if(banner)banner.style.display=locked?'flex':'none';
+}
+
+async function _hrmsSaveAndLock(){
+  var mk=_hrmsMonth;
+  if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is already locked.',true);return;}
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+
+  if(!confirm('Save & Lock '+_MONTH_NAMES[mo]+' '+yr+'?\n\nThis will save all data (salary, attendance, calendar, statutory, advances, bank details) to a permanent record, then lock the month.\n\nOnce saved, this month\'s data is fully self-contained — master data changes will NOT affect it.'))return;
+
+  showSpinner('Saving & Locking…');
+  try{
+    // Save all data
+    var saved=await _hrmsSaveMonthData(mk);
+
+    // Lock the month
+    _hrmsSpinMsg('Locking…');
+    var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+    if(!rec){
+      rec={id:'hs'+uid(),key:'monthLocks',data:{}};
+      if(!DB.hrmsSettings) DB.hrmsSettings=[];
+      DB.hrmsSettings.push(rec);
+    }
+    rec.data[mk]=true;
+    await _dbSave('hrmsSettings',rec);
+  }catch(e){
+    console.error('Save & Lock error:',e);
+    notify('⚠ Save & Lock failed: '+e.message,true);
+  }finally{
+    // Force-clear spinner depth to 0
+    _spinDepth=0;hideSpinner();
+    _hrmsUpdateLockBtn();
+  }
+  if(_hrmsIsMonthLocked(mk)) notify('🔒 '+_MONTH_NAMES[mo]+' '+yr+' saved & locked');
+}
+
+// Update spinner message without changing depth
+function _hrmsSpinMsg(msg){var m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg;}
+
+async function _hrmsToggleMonthLock(){
+  var mk=_hrmsMonth;
+  if(!mk){notify('Select a month first',true);return;}
+  var locked=_hrmsIsMonthLocked(mk);
+  var label=_hrmsMonthLabel(mk);
+  if(!locked){
+    if(!confirm('Lock '+label+'?\n\nThis will prevent edits to attendance, salary settings, and advances for this month.'))return;
+  }
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+  if(!rec){
+    rec={id:'hs'+uid(),key:'monthLocks',data:{}};
+    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    DB.hrmsSettings.push(rec);
+  }
+  rec.data[mk]=!locked;
+  showSpinner(locked?'Unlocking…':'Locking…');
+  await _dbSave('hrmsSettings',rec);
+  if(locked){
+    // Unlocking: restore employee master data and reload from normal tables
+    _hrmsRestoreSavedCaches();
+    await _hrmsAttFetchMonth(mk);
+  }
+  hideSpinner();
+  _hrmsUpdateLockBtn();
+  _hrmsRenderActiveTab();
+  notify(locked?'🔓 '+label+' unlocked':'🔒 '+label+' locked');
+}
+
+// ═══ LOAD SAVED MONTH DATA (for locked months) ══════════════════════════
+async function _hrmsLoadSavedMonth(mk){
+  if(_hrmsSavedMonth[mk]) return _hrmsSavedMonth[mk];
+  if(!_sb||!_sbReady) return null;
+  showSpinner('Loading saved data…');
+  try{
+    var {data,error}=await _sb.from('hrms_month_data').select('*').eq('month_key',mk);
+    if(error){console.error('Load saved month error:',error.message);hideSpinner();return null;}
+    if(!data||!data.length){hideSpinner();return null;}
+    var result={meta:null,employees:{}};
+    data.forEach(function(row){
+      var rec=_fromRow('hrmsMonthData',row);if(!rec) return;
+      if(rec.empCode==='_meta') result.meta=rec.meta;
+      else result.employees[rec.empCode]=rec;
+    });
+    _hrmsSavedMonth[mk]=result;
+    hideSpinner();
+    return result;
+  }catch(e){console.error('Load saved month error:',e);hideSpinner();return null;}
+}
+
+function _hrmsHasSavedData(mk){
+  return _hrmsSavedMonth[mk]&&_hrmsSavedMonth[mk].meta&&Object.keys(_hrmsSavedMonth[mk].employees).length>0;
+}
+
+// Populate normal caches from saved data so existing render functions work for locked months
+function _hrmsPrepSavedCaches(mk){
+  var saved=_hrmsSavedMonth[mk];if(!saved) return;
+  var empData=saved.employees;
+  var codes=Object.keys(empData);
+
+  // 1. Populate attendance cache
+  _hrmsAttCache[mk]=codes.map(function(ec){
+    return{id:'sa_'+ec,empCode:ec,monthKey:mk,days:empData[ec].attendance||{}};
+  });
+
+  // 2. Populate alteration cache
+  _hrmsAltCache[mk]=[];
+  codes.forEach(function(ec){
+    var alt=empData[ec].alterations;
+    if(alt&&Object.keys(alt).length){
+      _hrmsAltCache[mk].push({id:'sl_'+ec,empCode:ec,monthKey:mk,days:alt});
+    }
+  });
+
+  // 3. Populate day types from saved calendar
+  if(saved.meta&&saved.meta.calendar){
+    // Remove current month's day types and replace with saved ones
+    DB.hrmsDayTypes=(DB.hrmsDayTypes||[]).filter(function(r){return r.monthKey!==mk;});
+    saved.meta.calendar.forEach(function(c){
+      DB.hrmsDayTypes.push({id:'sdt_'+mk+'_'+c.plant,monthKey:mk,plant:c.plant,dayTypes:c.dayTypes});
+    });
+  }
+
+  // 4. Override employee master data with saved snapshot for this month
+  // Store original values so they can be restored when switching to unlocked month
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  codes.forEach(function(ec){
+    var d=empData[ec];
+    var emp=empMap[ec];
+    if(!emp){
+      // Employee was deleted/left after this month was saved — recreate temporarily
+      emp={id:'tmp_'+ec,empCode:ec,periods:[],extra:{}};
+      DB.hrmsEmployees.push(emp);
+    }
+    // Save originals for restore
+    if(!emp._savedOriginal) emp._savedOriginal={};
+    var fields=['name','firstName','lastName','middleName','location','category','department','subDepartment','designation','employmentType','dateOfJoining','dateOfBirth','gender','status','teamName','roll','noPL','esiNo','pfNo','uan','panNo','aadhaarNo','bankName','branchName','acctNo','ifsc'];
+    fields.forEach(function(f){
+      if(emp._savedOriginal[f]===undefined) emp._savedOriginal[f]=emp[f];
+      emp[f]=d[f];
+    });
+    // Ensure status shows as it was at save time
+    emp.status=d.status||'Active';
+    // Set computed totals
+    emp._totalP=d.totalP||0;emp._totalA=d.totalA||0;emp._totalOT=d.totalOT||0;emp._totalOTS=d.totalOTS||0;
+  });
+
+  // 5. Populate advance cache
+  _hrmsAdvCache[mk]={};
+  codes.forEach(function(ec){
+    var d=empData[ec];
+    if(d.advMonth||d.advDed){
+      _hrmsAdvCache[mk][ec]={empCode:ec,monthKey:mk,advance:d.advMonth||0,deduction:d.advDed||0,emi:0};
+    }
+  });
+
+  // 6. Populate statutory from saved meta
+  if(saved.meta&&saved.meta.statutory){
+    var s=saved.meta.statutory;
+    Object.keys(s).forEach(function(k){_hrmsStatutory[k]=s[k];});
+  }
+
+  // 7. Populate manual P data
+  _hrmsManualPData[mk]={};
+  codes.forEach(function(ec){
+    var d=empData[ec];
+    if(d.manualP!==null&&d.manualP!==undefined) _hrmsManualPData[mk][ec]=d.manualP;
+  });
+}
+
+// Restore employee master data when leaving a locked month
+function _hrmsRestoreSavedCaches(){
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(emp._savedOriginal){
+      Object.keys(emp._savedOriginal).forEach(function(f){emp[f]=emp._savedOriginal[f];});
+      delete emp._savedOriginal;
+    }
+  });
+  // Remove temp employees
+  DB.hrmsEmployees=(DB.hrmsEmployees||[]).filter(function(e){return!e.id||e.id.indexOf('tmp_')!==0;});
 }
 
 function _hrmsRenderActiveTab(){
   var mk=_hrmsMonth;
   if(!mk) return;
   var p=mk.split('-');var yr=+p[0],mo=+p[1];
-  if(_hrmsActiveMainTab==='settings') _hrmsSalSettingsRender();
+  if(_hrmsActiveMainTab==='settings'){ _hrmsSalSettingsRender(); _hrmsSettingsSubTab(_hrmsActiveSettingsTab); }
   else if(_hrmsActiveMainTab==='attendance') _hrmsAttSetTab(_hrmsAttCurrentTab);
-  else if(_hrmsActiveMainTab==='salworker') _hrmsRenderOrSalary(yr,mo,'worker');
-  else if(_hrmsActiveMainTab==='salstaff') _hrmsRenderOrSalary(yr,mo,'staff');
+  else if(_hrmsActiveMainTab==='salary') _hrmsRenderOrSalary(yr,mo,'all');
+  else if(_hrmsActiveMainTab==='payments') _hrmsRenderPayments();
 }
 
 // ═══ SALARY SETTINGS — Per-Plant Working Days & Paid Holidays ═══════════
 var _hrmsSettingsApplyAll=false;
+
+// ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
+var _hrmsActiveSettingsTab='calendar';
+function _hrmsSettingsSubTab(tab){
+  _hrmsActiveSettingsTab=tab;
+  ['calendar','advances','manual','tds','salrevision','otrules','statutory'].forEach(function(t){
+    var panel=document.getElementById('hrmsSetPanel'+t.charAt(0).toUpperCase()+t.slice(1));
+    var btn=document.getElementById('hrmsSetTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(panel) panel.style.display=t===tab?'':'none';
+    if(btn){btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
+  });
+  if(tab==='statutory'){_hrmsLoadStatutory();_hrmsStatutoryToUI();_hrmsRenderPtRules();}
+  if(tab==='otrules'){_hrmsOtRulesEditMode=false;_hrmsRenderOtRules();}
+  if(tab==='manual') _hrmsRenderManualPList();
+  if(tab==='salrevision') _hrmsRenderSalRevisionTable();
+  if(tab==='tds') _hrmsTdsRender();
+  if(tab==='advances') _hrmsRenderAdvances();
+}
+
+function _hrmsRenderSalRevisionTable(){
+  var el=document.getElementById('hrmsBulkSalPreview');
+  if(!el) return;
+  if(_hrmsBulkSalData&&_hrmsBulkSalData.preview.length) return;
+  var mk=_hrmsMonth;
+  if(!mk){el.innerHTML='<div class="empty-state">Select a month above to view salary data</div>';return;}
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){return(e.status||'Active')==='Active';});
+  if(!emps.length){el.innerHTML='<div class="empty-state">No active employees</div>';return;}
+
+  var prevMk=_hrmsPrevMonth(mk);
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=mk.split('-');var curLabel=_mn[+p[1]]+' '+p[0];
+  var pp=prevMk.split('-');var prevLabel=_mn[+pp[1]]+' '+pp[0];
+
+  // For each employee, get salary values applicable to selected month and previous month
+  // by scanning periods to find which period covers each month
+  var rows=[];
+  emps.sort(function(a,b){return(a.empCode||'').localeCompare(b.empCode||'');});
+  emps.forEach(function(emp){
+    var periods=(emp.periods||[]).filter(function(pr){return !pr._wfStatus;});
+    if(!periods.length) return;
+    // Find period covering selected month
+    var curP=null,prevP=null;
+    for(var i=0;i<periods.length;i++){
+      var from=periods[i].from||'0000-00';
+      var to=periods[i].to||'9999-12';
+      if(mk>=from&&mk<=to) curP=periods[i];
+      if(prevMk>=from&&prevMk<=to) prevP=periods[i];
+    }
+    if(!curP) curP=periods[0];
+    if(!prevP) prevP=periods[periods.length-1]||{};
+    var curD=curP.salaryDay||0,curM=curP.salaryMonth||0,curSp=curP.specialAllowance||0;
+    var prevD=prevP.salaryDay||0,prevM=prevP.salaryMonth||0,prevSp=prevP.specialAllowance||0;
+    if(!curD&&!curM&&!curSp&&!prevD&&!prevM&&!prevSp) return;
+    var chD=curD!==prevD,chM=curM!==prevM,chSp=curSp!==prevSp;
+    if(!chD&&!chM&&!chSp) return;
+    rows.push({code:emp.empCode,name:_hrmsDispName(emp),type:curP.employmentType||emp.employmentType||'',
+      curD:curD,curM:curM,curSp:curSp,prevD:prevD,prevM:prevM,prevSp:prevSp,
+      chD:chD,chM:chM,chSp:chSp});
+  });
+
+  if(!rows.length){el.innerHTML='<div style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:13px;color:#15803d;font-weight:600">No salary changes between '+prevLabel+' and '+curLabel+'</div>';return;}
+  var h='<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">'+rows.length+' salary changes: '+prevLabel+' → '+curLabel+'</div>';
+  h+='<div style="overflow-x:auto;border:1.5px solid var(--border);border-radius:8px;max-height:500px;overflow-y:auto">';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  h+='<thead><tr style="background:#1e293b;color:#fff;position:sticky;top:0;z-index:1">';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:left">Code</th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:left">Name</th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:left">Type</th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sal/Day<br><span style="color:#94a3b8;font-size:8px">'+prevLabel+'</span></th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sal/Day<br><span style="color:#86efac;font-size:8px">'+curLabel+'</span></th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sal/Mon<br><span style="color:#94a3b8;font-size:8px">'+prevLabel+'</span></th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sal/Mon<br><span style="color:#86efac;font-size:8px">'+curLabel+'</span></th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sp.Allow<br><span style="color:#94a3b8;font-size:8px">'+prevLabel+'</span></th>';
+  h+='<th style="padding:6px 8px;font-size:10px;text-align:right">Sp.Allow<br><span style="color:#86efac;font-size:8px">'+curLabel+'</span></th>';
+  h+='</tr></thead><tbody>';
+  var _hi=function(ch,isNew){return ch?(isNew?'background:#dcfce7;font-weight:800;color:#15803d':'background:#fee2e2;color:#dc2626;text-decoration:line-through'):'';};
+  rows.forEach(function(r){
+    h+='<tr style="border-bottom:1px solid #e2e8f0">';
+    h+='<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;font-size:11px">'+r.code+'</td>';
+    h+='<td style="padding:4px 8px;font-size:11px">'+r.name+'</td>';
+    h+='<td style="padding:4px 8px;font-size:10px;color:var(--text3)">'+r.type+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chD,false)+'">'+r.prevD+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chD,true)+'">'+r.curD+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chM,false)+'">'+r.prevM+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chM,true)+'">'+r.curM+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chSp,false)+'">'+r.prevSp+'</td>';
+    h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(r.chSp,true)+'">'+r.curSp+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
 
 function _hrmsSalSettingsRender(){
   var body=document.getElementById('hrmsSalSettingsBody');if(!body)return;
@@ -3033,6 +4560,7 @@ function _hrmsToggleApplyAll(checked){
 }
 
 async function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
+  if(_hrmsIsMonthLocked(monthKey)){notify('⚠ '+_hrmsMonthLabel(monthKey)+' is locked.',true);return;}
   var plants=(DB.hrmsCompanies||[]).map(function(c){return c.name;}).filter(Boolean).sort();
   if(!plants.length) plants=['Default'];
   var targetPlants=_hrmsSettingsApplyAll?plants:[plant];
@@ -3068,11 +4596,181 @@ var _hrmsStatutory={
   ptRules:[
     {amount:0,op:'lt',threshold:25000,gender:'Female',month:'',remark:'Gross < 25000 (Women only)'},
     {amount:0,op:'lt',threshold:7500,gender:'',month:'',remark:'Gross < 7500'},
+    {amount:300,op:'gte',threshold:10000,gender:'',month:'feb',remark:'Gross >= 10000 (Feb only)'},
     {amount:175,op:'lt',threshold:10000,gender:'',month:'',remark:'Gross < 10000'},
-    {amount:200,op:'gte',threshold:10000,gender:'',month:'',remark:'Gross >= 10000'},
-    {amount:300,op:'gte',threshold:10000,gender:'',month:'feb',remark:'Gross >= 10000 (Feb only)'}
+    {amount:200,op:'gte',threshold:10000,gender:'',month:'',remark:'Gross >= 10000'}
   ]
 };
+
+// ═══ OT RULES (per-month) ════════════════════════════════════════════════
+var _hrmsOtRulesDefault={
+  fullDay:8.25,           // hours for full present
+  halfDay:4,              // hours for half present (P/2)
+  elMin:6.5,              // min hours for Extra Leave (Staff only)
+  elMaxPerMonth:2,        // max EL days per month (Staff)
+  // OT on working days
+  otTier2Threshold:14,    // if worked > this → OT = worked - otTier2Subtract
+  otTier2Subtract:9,
+  otTier1Threshold:8.5,   // if worked >= this → OT = worked - otTier1Subtract
+  otTier1Subtract:8.5,
+  otMaxPerDay:7,
+  // OTS on off days
+  otsTier2Threshold:13,   // if worked > this → subtract otsTier2Deduct
+  otsTier2Deduct:1,
+  otsTier1Threshold:4,    // if worked >= this → subtract otsTier1Deduct
+  otsTier1Deduct:0.5,
+  otsMaxPerDay:15,
+  // Ineligible OT
+  iotAbsentThreshold:1.5, // if absent > this → IOT = (absent - threshold) * iotHoursPerDay
+  iotHoursPerDay:8
+};
+
+function _hrmsGetOtRules(mk){
+  // Per-month override, else default
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
+  if(rec&&rec.data){
+    var out={};
+    Object.keys(_hrmsOtRulesDefault).forEach(function(k){
+      out[k]=rec.data[k]!==undefined?rec.data[k]:_hrmsOtRulesDefault[k];
+    });
+    return out;
+  }
+  // Global default if set
+  var glob=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules';});
+  if(glob&&glob.data){
+    var out={};
+    Object.keys(_hrmsOtRulesDefault).forEach(function(k){
+      out[k]=glob.data[k]!==undefined?glob.data[k]:_hrmsOtRulesDefault[k];
+    });
+    return out;
+  }
+  return Object.assign({},_hrmsOtRulesDefault);
+}
+
+var _hrmsOtRulesEditMode=false;
+
+function _hrmsRenderOtRules(){
+  var body=document.getElementById('hrmsOtRulesBody');if(!body)return;
+  var mk=_hrmsMonth;
+  if(!mk){body.innerHTML='<div class="empty-state">Select a month above to configure OT rules</div>';return;}
+  var locked=_hrmsIsMonthLocked(mk);
+  var rules=_hrmsGetOtRules(mk);
+  // Snapshot current rules for cancel-revert
+  window._hrmsOtRulesSnapshot=JSON.parse(JSON.stringify(rules));
+  var editable=_hrmsOtRulesEditMode&&!locked;
+
+  var _fld=function(key,label,step,unit){
+    return '<div style="display:flex;flex-direction:column;gap:3px;width:170px"><label style="font-size:11px;font-weight:700;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+(unit?' <span style="color:var(--text3);font-weight:500">('+unit+')</span>':'')+'</label>'+
+      '<input type="number" id="otr_'+key+'" step="'+(step||0.5)+'" value="'+rules[key]+'" '+(editable?'':'disabled')+' style="font-size:13px;padding:5px 8px;border:1.5px solid '+(editable?'var(--accent)':'var(--border)')+';border-radius:4px;width:90px;background:'+(editable?'#fff':'var(--surface2)')+';color:'+(editable?'var(--text)':'var(--text2)')+'">'+
+      '</div>';
+  };
+
+  var _sec=function(title,color,fields){
+    var h='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:800;color:'+color+';margin-bottom:6px;padding:5px 10px;background:var(--surface2);border-radius:6px;border-left:3px solid '+color+'">'+title+'</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:10px;padding:0 4px">';
+    fields.forEach(function(f){h+=_fld(f.key,f.label,f.step,f.unit);});
+    h+='</div></div>';
+    return h;
+  };
+
+  var h='<div style="margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;gap:10px">';
+  h+='<span style="font-size:13px;font-weight:700;color:var(--text)">Rules for <b style="color:var(--accent)">'+_hrmsMonthLabel(mk)+'</b></span>';
+  h+='<span style="font-size:11px;color:var(--text3)">'+(editable?'✏️ Edit mode — make changes and Save':'🔒 View mode — click Edit to modify')+'</span>';
+  h+='<div style="flex:1"></div>';
+  if(!locked){
+    if(editable){
+      h+='<button onclick="_hrmsCancelOtRules()" style="padding:5px 14px;font-size:12px;font-weight:700;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#475569;border-radius:5px;cursor:pointer">✕ Cancel</button>';
+      h+='<button onclick="_hrmsSaveOtRules()" style="padding:5px 14px;font-size:12px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">💾 Save</button>';
+    } else {
+      h+='<button onclick="_hrmsEditOtRules()" style="padding:5px 14px;font-size:12px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:5px;cursor:pointer">✏️ Edit</button>';
+    }
+  }
+  h+='</div>';
+
+  h+=_sec('🟢 Attendance Classification','#16a34a',[
+    {key:'fullDay',label:'Full Day Threshold',unit:'hrs'},
+    {key:'halfDay',label:'Half Day Threshold',unit:'hrs'},
+    {key:'elMin',label:'EL Minimum Hours',unit:'hrs (Staff only)'},
+    {key:'elMaxPerMonth',label:'EL Max Per Month',unit:'days',step:1}
+  ]);
+
+  h+=_sec('🟠 OT on Working Days (Workers only)','#f59e0b',[
+    {key:'otTier1Threshold',label:'Tier 1 Threshold',unit:'worked ≥ hrs'},
+    {key:'otTier1Subtract',label:'Tier 1 Subtract',unit:'hrs'},
+    {key:'otTier2Threshold',label:'Tier 2 Threshold',unit:'worked > hrs'},
+    {key:'otTier2Subtract',label:'Tier 2 Subtract',unit:'hrs'},
+    {key:'otMaxPerDay',label:'OT Max Per Day',unit:'hrs'}
+  ]);
+
+  h+=_sec('🔵 OT on Off Days / Sundays (Workers only)','#2563eb',[
+    {key:'otsTier1Threshold',label:'Tier 1 Threshold',unit:'worked ≥ hrs'},
+    {key:'otsTier1Deduct',label:'Tier 1 Deduct',unit:'hrs'},
+    {key:'otsTier2Threshold',label:'Tier 2 Threshold',unit:'worked > hrs'},
+    {key:'otsTier2Deduct',label:'Tier 2 Deduct',unit:'hrs'},
+    {key:'otsMaxPerDay',label:'OTS Max Per Day',unit:'hrs'}
+  ]);
+
+  h+=_sec('🔴 Ineligible OT (IOT)','#dc2626',[
+    {key:'iotAbsentThreshold',label:'Absent Threshold',unit:'days'},
+    {key:'iotHoursPerDay',label:'IOT Hours Per Day',unit:'hrs/day'}
+  ]);
+
+  h+='<div style="margin-top:12px;padding:10px 14px;background:#f0f9ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:11px;color:#1e40af;line-height:1.6">';
+  h+='<b>Formula reference:</b><br>';
+  h+='• Working Day OT: if worked > Tier2 → (worked − Tier2_Sub); else if worked ≥ Tier1 → (worked − Tier1_Sub); capped at Max<br>';
+  h+='• Off Day OTS: if worked > Tier2 → (worked − Tier2_Deduct); else if worked ≥ Tier1 → (worked − Tier1_Deduct); capped at Max<br>';
+  h+='• Ineligible OT (IOT) deducted first from OTS, then from OT';
+  h+='</div>';
+
+  body.innerHTML=h;
+}
+
+function _hrmsEditOtRules(){
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  _hrmsOtRulesEditMode=true;
+  _hrmsRenderOtRules();
+}
+
+function _hrmsCancelOtRules(){
+  _hrmsOtRulesEditMode=false;
+  _hrmsRenderOtRules();
+}
+
+async function _hrmsSaveOtRules(){
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  // Detect changes against snapshot
+  var snap=window._hrmsOtRulesSnapshot||{};
+  var data={};var changed=false;
+  Object.keys(_hrmsOtRulesDefault).forEach(function(k){
+    var el=document.getElementById('otr_'+k);
+    var v=el?(parseFloat(el.value)||_hrmsOtRulesDefault[k]):_hrmsOtRulesDefault[k];
+    data[k]=v;
+    if(v!==snap[k]) changed=true;
+  });
+  if(!changed){
+    notify('No changes to save');
+    _hrmsOtRulesEditMode=false;
+    _hrmsRenderOtRules();
+    return;
+  }
+  if(!confirm('Save OT rule changes for '+_hrmsMonthLabel(mk)+'?\n\nThis will affect attendance & salary calculations for this month.'))return;
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
+  if(rec){rec.data=data;}
+  else{
+    rec={id:'hs_ot_'+mk,key:'otRules_'+mk,data:data};
+    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    DB.hrmsSettings.push(rec);
+  }
+  showSpinner('Saving OT rules…');
+  await _dbSave('hrmsSettings',rec);
+  hideSpinner();
+  notify('✅ OT rules saved for '+_hrmsMonthLabel(mk));
+  _hrmsOtRulesEditMode=false;
+  _hrmsAdvCache={};
+  _hrmsRenderOtRules();
+}
 
 function _hrmsLoadStatutory(){
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='statutory';});
@@ -3170,6 +4868,151 @@ async function _hrmsSaveStatutory(){
 
 // _hrmsCalcPT is in hrms-logic.js
 
+// ═══ BULK SALARY REVISION ════════════════════════════════════════════════
+var _hrmsBulkSalData=null; // stores preview data for Apply
+
+async function _hrmsBulkSalRevision(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0]){notify('No file selected',true);return;}
+  var wef=_hrmsMonth;
+  if(!wef){notify('Please select a month first (use the month picker above)',true);inputEl.value='';return;}
+  if(_hrmsIsMonthLocked(wef)){notify('⚠ '+_hrmsMonthLabel(wef)+' is locked. Unlock to make changes.',true);inputEl.value='';return;}
+  var file=inputEl.files[0];
+  inputEl.value='';
+  if(!DB.hrmsEmployees||!DB.hrmsEmployees.length){notify('No employees loaded',true);return;}
+
+  // Calculate previous month
+  var wefParts=wef.split('-');var wefYr=+wefParts[0],wefMo=+wefParts[1];
+  var prevMo=wefMo-1,prevYr=wefYr;
+  if(prevMo<1){prevMo=12;prevYr--;}
+  var prevMonth=prevYr+'-'+String(prevMo).padStart(2,'0');
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var wefLabel=_mn[wefMo]+' '+wefYr;
+
+  showSpinner('Reading Excel...');
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(ev){
+      try{
+        var rows=await _parseXLSX(ev.target.result);
+        if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        var skipped=0,noChange=0;
+        var _g=function(r,keys){
+          var rKeys=Object.keys(r);
+          for(var i=0;i<keys.length;i++){
+            var k=keys[i].replace(/[\s./]+/g,'').toLowerCase();
+            for(var j=0;j<rKeys.length;j++){
+              if(rKeys[j].replace(/[\s./]+/g,'').toLowerCase()===k){
+                var v=(r[rKeys[j]]||'').toString().trim();
+                if(v) return v;
+              }
+            }
+          }
+          return '';
+        };
+        var preview=[];
+        for(var i=0;i<rows.length;i++){
+          var r=rows[i];
+          var code=_g(r,['Emp Code','Employee Code','EmpCode','Code']);
+          if(!code){skipped++;continue;}
+          var emp=DB.hrmsEmployees.find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+          if(!emp){skipped++;continue;}
+          var salD=parseFloat(_g(r,['Sal/Day','Sal Day','SalDay','Salary Day','Rate per Day'])||0)||0;
+          var salM=parseFloat(_g(r,['Sal/Month','Sal Month','SalMonth','Salary Month','Rate per Month'])||0)||0;
+          var spA=parseFloat(_g(r,['Sp Allow','Sp.Allow','SpAllow','Special Allowance','Transport Allowance','Tr Allow'])||0)||0;
+          if(!salD&&!salM&&!spA){noChange++;continue;}
+          var curP=(emp.periods||[]).find(function(p){return !p.to&&!p._wfStatus;});
+          if(!curP){skipped++;continue;}
+          var oldD=curP.salaryDay||0,oldM=curP.salaryMonth||0,oldSp=curP.specialAllowance||0;
+          if(oldD===salD&&oldM===salM&&oldSp===spA){noChange++;continue;}
+          preview.push({code:code,name:_hrmsDispName(emp),oldD:oldD,oldM:oldM,oldSp:oldSp,salD:salD,salM:salM,spA:spA,emp:emp,curP:curP,
+            chD:oldD!==salD,chM:oldM!==salM,chSp:oldSp!==spA});
+        }
+        hideSpinner();
+
+        // Render comparison table
+        var el=document.getElementById('hrmsBulkSalPreview');
+        if(!preview.length){
+          el.innerHTML='<div style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:13px;color:#15803d;font-weight:600">No changes detected. '+skipped+' skipped, '+noChange+' unchanged.</div>';
+          document.getElementById('hrmsBulkSalApplyBtn').style.display='none';
+          _hrmsBulkSalData=null;
+          return;
+        }
+        var h='<div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:6px">Preview: '+preview.length+' changes for '+wefLabel+' ('+skipped+' skipped, '+noChange+' unchanged)</div>';
+        h+='<div style="overflow-x:auto;border:1.5px solid var(--accent);border-radius:8px;max-height:400px;overflow-y:auto">';
+        h+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+        h+='<thead><tr style="background:#1e293b;color:#fff;position:sticky;top:0;z-index:1">';
+        h+='<th style="padding:6px 8px;font-size:10px;text-align:left">Code</th>';
+        h+='<th style="padding:6px 8px;font-size:10px;text-align:left">Name</th>';
+        h+='<th style="padding:6px 8px;font-size:10px;text-align:right" colspan="2">Sal/Day</th>';
+        h+='<th style="padding:6px 8px;font-size:10px;text-align:right" colspan="2">Sal/Month</th>';
+        h+='<th style="padding:6px 8px;font-size:10px;text-align:right" colspan="2">Sp.Allow</th>';
+        h+='</tr>';
+        h+='<tr style="background:#334155;color:#94a3b8;font-size:9px">';
+        h+='<th></th><th></th>';
+        h+='<th style="padding:2px 8px;text-align:right">Old</th><th style="padding:2px 8px;text-align:right">New</th>';
+        h+='<th style="padding:2px 8px;text-align:right">Old</th><th style="padding:2px 8px;text-align:right">New</th>';
+        h+='<th style="padding:2px 8px;text-align:right">Old</th><th style="padding:2px 8px;text-align:right">New</th>';
+        h+='</tr></thead><tbody>';
+        var _hi=function(changed){return changed?'background:#fef3c7;font-weight:800;color:#92400e':'color:var(--text3)';};
+        preview.forEach(function(p){
+          h+='<tr style="border-bottom:1px solid #e2e8f0">';
+          h+='<td style="padding:4px 8px;font-family:var(--mono);font-weight:700">'+p.code+'</td>';
+          h+='<td style="padding:4px 8px">'+p.name+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(false)+'">'+p.oldD+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(p.chD)+'">'+p.salD+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(false)+'">'+p.oldM+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(p.chM)+'">'+p.salM+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(false)+'">'+p.oldSp+'</td>';
+          h+='<td style="padding:4px 8px;text-align:right;font-family:var(--mono);'+_hi(p.chSp)+'">'+p.spA+'</td>';
+          h+='</tr>';
+        });
+        h+='</tbody></table></div>';
+        el.innerHTML=h;
+
+        // Show Apply button and store data
+        document.getElementById('hrmsBulkSalApplyBtn').style.display='';
+        _hrmsBulkSalData={preview:preview,wef:wef,prevMonth:prevMonth,wefLabel:wefLabel};
+      }catch(ex){hideSpinner();notify('Import error: '+ex.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify(ex.message,true);}
+}
+
+async function _hrmsBulkSalApply(){
+  if(!_hrmsBulkSalData||!_hrmsBulkSalData.preview.length){notify('No data to apply',true);return;}
+  var d=_hrmsBulkSalData;
+  if(!confirm('Apply salary revision for '+d.preview.length+' employees w.e.f. '+d.wefLabel+'?')) return;
+  showSpinner('Applying '+d.preview.length+' revisions...');
+  var updated=0,errors=0;
+  for(var j=0;j<d.preview.length;j++){
+    var p=d.preview[j];
+    var emp=p.emp;
+    var curP=p.curP;
+    curP.to=d.prevMonth;
+    var newP={};
+    Object.keys(curP).forEach(function(k){newP[k]=curP[k];});
+    newP.from=d.wef;
+    newP.to=null;
+    newP.salaryDay=p.salD;
+    newP.salaryMonth=p.salM;
+    newP.specialAllowance=p.spA;
+    delete newP._wfStatus;
+    delete newP._ecrResult;
+    emp.periods.unshift(newP);
+    emp.salaryDay=p.salD;
+    emp.salaryMonth=p.salM;
+    emp.specialAllowance=p.spA;
+    _hrmsSanitize(emp);
+    _hrmsSanitizePeriods(emp.periods);
+    if(await _dbSave('hrmsEmployees',emp)){updated++;}else{errors++;}
+  }
+  hideSpinner();
+  _hrmsBulkSalData=null;
+  document.getElementById('hrmsBulkSalPreview').innerHTML='<div style="padding:12px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;font-size:13px;color:#15803d;font-weight:700">Done: '+updated+' employees updated w.e.f. '+d.wefLabel+(errors?' ('+errors+' failed)':'')+'</div>';
+  document.getElementById('hrmsBulkSalApplyBtn').style.display='none';
+  renderHrmsEmployees();renderHrmsDashboard();
+}
+
 // ═══ BALANCE HELPERS ═════════════════════════════════════════════════════
 // _hrmsGetBal is in hrms-logic.js
 // _hrmsGetPrevMonth is in hrms-logic.js
@@ -3185,6 +5028,7 @@ async function _hrmsSaveStatutory(){
 // ═══ OPENING BALANCE IMPORT ══════════════════════════════════════════════
 async function _hrmsImportOB(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
+  if(_hrmsMonth&&_hrmsIsMonthLocked(_hrmsMonth)){notify('⚠ '+_hrmsMonthLabel(_hrmsMonth)+' is locked. Unlock to import.',true);return;}
   var statusEl=document.getElementById('hrmsOBStatus');
   statusEl.innerHTML='<span style="color:var(--accent);font-weight:700">Reading file…</span>';
   var reader=new FileReader();
@@ -3235,16 +5079,32 @@ function _hrmsLoadManualP(){
 function _hrmsRenderManualPList(){
   var el=document.getElementById('hrmsManualPList');if(!el)return;
   var mk=_hrmsMonth;if(!mk){el.innerHTML='';return;}
-  var data=_hrmsManualPData[mk]||{};
-  var codes=Object.keys(data).sort();
+  var pData=_hrmsManualPData[mk]||{};
+  // Collect all emp codes that have either manual P or manual PL
+  var allCodes={};
+  Object.keys(pData).forEach(function(c){allCodes[c]=true;});
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e.extra) return;
+    if((e.extra.manualPL&&e.extra.manualPL[mk]!==undefined)||(e.extra.manualOT&&e.extra.manualOT[mk]!==undefined)||(e.extra.manualOTS&&e.extra.manualOTS[mk]!==undefined)) allCodes[e.empCode]=true;
+  });
+  var codes=Object.keys(allCodes).sort();
   if(!codes.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">No manual entries for this month</div>';return;}
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
-  var h='<table style="border-collapse:collapse;font-size:11px;width:auto"><thead><tr style="background:#f8fafc"><th style="padding:3px 8px;border:1px solid var(--border);text-align:left">Code</th><th style="padding:3px 8px;border:1px solid var(--border);text-align:left">Name</th><th style="padding:3px 8px;border:1px solid var(--border);text-align:right">Days</th><th style="padding:3px 4px;border:1px solid var(--border)"></th></tr></thead><tbody>';
+  var _th='padding:3px 8px;border:1px solid var(--border)';
+  var h='<table style="border-collapse:collapse;font-size:11px;width:auto"><thead><tr style="background:#f8fafc"><th style="'+_th+';text-align:left">Code</th><th style="'+_th+';text-align:left">Name</th><th style="'+_th+';text-align:right">P Days</th><th style="'+_th+';text-align:right">PL Given</th><th style="'+_th+';text-align:right;color:#7c3aed">OT</th><th style="'+_th+';text-align:right;color:#c2410c">OT@S</th><th style="padding:3px 4px;border:1px solid var(--border)"></th></tr></thead><tbody>';
   codes.forEach(function(ec){
     var emp=empMap[ec];
-    h+='<tr><td style="padding:3px 8px;border:1px solid var(--border);font-weight:700;color:var(--accent)">'+ec+'</td>';
-    h+='<td style="padding:3px 8px;border:1px solid var(--border)">'+(emp?emp.name:'—')+'</td>';
-    h+='<td style="padding:3px 8px;border:1px solid var(--border);text-align:right;font-weight:700">'+data[ec]+'</td>';
+    var ex=emp&&emp.extra?emp.extra:{};
+    var pDays=pData[ec];
+    var plGiven=ex.manualPL?ex.manualPL[mk]:undefined;
+    var ot=ex.manualOT?ex.manualOT[mk]:undefined;
+    var ots=ex.manualOTS?ex.manualOTS[mk]:undefined;
+    h+='<tr><td style="'+_th+';font-weight:700;color:var(--accent)">'+ec+'</td>';
+    h+='<td style="'+_th+'">'+(emp?_hrmsDispName(emp):'—')+'</td>';
+    h+='<td style="'+_th+';text-align:right;font-weight:700">'+(pDays!==undefined?pDays:'—')+'</td>';
+    h+='<td style="'+_th+';text-align:right;font-weight:700">'+(plGiven!==undefined?plGiven:'—')+'</td>';
+    h+='<td style="'+_th+';text-align:right;font-weight:700;color:#7c3aed">'+(ot!==undefined?ot:'—')+'</td>';
+    h+='<td style="'+_th+';text-align:right;font-weight:700;color:#c2410c">'+(ots!==undefined?ots:'—')+'</td>';
     h+='<td style="padding:3px 4px;border:1px solid var(--border)"><button onclick="_hrmsRemoveManualP(\''+ec+'\')" style="font-size:9px;padding:2px 5px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer">✕</button></td></tr>';
   });
   h+='</tbody></table>';
@@ -3253,29 +5113,52 @@ function _hrmsRenderManualPList(){
 
 async function _hrmsAddManualP(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to make changes.',true);return;}
   var code=document.getElementById('hrmsManualPCode').value.trim();
-  var days=parseFloat(document.getElementById('hrmsManualPDays').value);
+  var days=document.getElementById('hrmsManualPDays').value;
+  var plVal=document.getElementById('hrmsManualPL').value;
+  var otVal=document.getElementById('hrmsManualOT').value;
+  var otsVal=document.getElementById('hrmsManualOTS').value;
   if(!code){notify('Enter employee code',true);return;}
-  if(isNaN(days)||days<0){notify('Enter valid present days',true);return;}
+  var hasDays=days!==''&&!isNaN(parseFloat(days));
+  var hasPL=plVal!==''&&!isNaN(parseFloat(plVal));
+  var hasOT=otVal!==''&&!isNaN(parseFloat(otVal));
+  var hasOTS=otsVal!==''&&!isNaN(parseFloat(otsVal));
+  if(!hasDays&&!hasPL&&!hasOT&&!hasOTS){notify('Enter at least one value',true);return;}
   var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
   if(!emp){notify('Employee '+code+' not found',true);return;}
   if(!emp.extra) emp.extra={};
   if(!emp.extra.manualP) emp.extra.manualP={};
-  emp.extra.manualP[mk]=days;
+  if(!emp.extra.manualPL) emp.extra.manualPL={};
+  if(!emp.extra.manualOT) emp.extra.manualOT={};
+  if(!emp.extra.manualOTS) emp.extra.manualOTS={};
   if(!_hrmsManualPData[mk]) _hrmsManualPData[mk]={};
-  _hrmsManualPData[mk][code]=days;
+  if(hasDays){
+    emp.extra.manualP[mk]=parseFloat(days);
+    _hrmsManualPData[mk][code]=parseFloat(days);
+  }
+  if(hasPL) emp.extra.manualPL[mk]=parseFloat(plVal);
+  if(hasOT) emp.extra.manualOT[mk]=parseFloat(otVal);
+  if(hasOTS) emp.extra.manualOTS[mk]=parseFloat(otsVal);
   await _dbSave('hrmsEmployees',emp);
   document.getElementById('hrmsManualPCode').value='';
   document.getElementById('hrmsManualPDays').value='';
+  document.getElementById('hrmsManualPL').value='';
+  document.getElementById('hrmsManualOT').value='';
+  document.getElementById('hrmsManualOTS').value='';
   _hrmsRenderManualPList();
-  notify('Manual present days set for '+code);
+  notify('Manual override set for '+code);
 }
 
 async function _hrmsRemoveManualP(code){
   var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
   var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
-  if(emp&&emp.extra&&emp.extra.manualP){
-    delete emp.extra.manualP[mk];
+  if(emp&&emp.extra){
+    if(emp.extra.manualP) delete emp.extra.manualP[mk];
+    if(emp.extra.manualPL) delete emp.extra.manualPL[mk];
+    if(emp.extra.manualOT) delete emp.extra.manualOT[mk];
+    if(emp.extra.manualOTS) delete emp.extra.manualOTS[mk];
     await _dbSave('hrmsEmployees',emp);
   }
   if(_hrmsManualPData[mk]) delete _hrmsManualPData[mk][code];
@@ -3286,6 +5169,7 @@ async function _hrmsRemoveManualP(code){
 async function _hrmsImportManualP(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to import.',true);return;}
   var reader=new FileReader();
   reader.onload=async function(e){
     try{
@@ -3321,11 +5205,780 @@ async function _hrmsImportManualP(inputEl){
   reader.readAsArrayBuffer(file);
 }
 
+// ═══ TDS TAB (month-specific) ═══════════════════════════════════════════
+// TDS is stored per-month in emp.extra.tdsByMonth[monthKey].
+// The old global emp.extra.tds is kept for backward compat reading but no longer written.
+
+// Get TDS for an employee for the given month (month-specific only — no global fallback)
+function _hrmsGetTdsForMonth(emp,mk){
+  var ex=emp&&emp.extra;if(!ex) return 0;
+  if(ex.tdsByMonth&&ex.tdsByMonth[mk]!==undefined) return +ex.tdsByMonth[mk]||0;
+  return 0;
+}
+
+function _hrmsTdsRender(){
+  var el=document.getElementById('hrmsTdsList');if(!el)return;
+  var mk=_hrmsMonth;
+  if(!mk){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Select a month above to view TDS entries for that month</div>';return;}
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){return _hrmsGetTdsForMonth(e,mk)>0;});
+  emps.sort(function(a,b){return(parseInt(a.empCode)||0)-(parseInt(b.empCode)||0);});
+  var hdr='<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Showing TDS for <b style="color:var(--accent)">'+_hrmsMonthLabel(mk)+'</b></div>';
+  if(!emps.length){el.innerHTML=hdr+'<div style="font-size:11px;color:var(--text3)">No TDS entries for '+_hrmsMonthLabel(mk)+'. Add employees above.</div>';return;}
+  var _th='padding:4px 8px;border:1px solid var(--border)';
+  var h=hdr+'<table style="border-collapse:collapse;font-size:12px;width:auto!important;table-layout:fixed"><colgroup><col style="width:70px"><col style="width:180px"><col style="width:90px"><col style="width:90px"><col style="width:40px"></colgroup><thead><tr style="background:#f8fafc">';
+  h+='<th style="'+_th+';text-align:left">Code</th><th style="'+_th+';text-align:left">Name</th><th style="'+_th+';text-align:left">Plant</th>';
+  h+='<th style="'+_th+';text-align:right">TDS/Month</th><th style="'+_th+'"></th></tr></thead><tbody>';
+  var total=0;
+  var _ov='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+  emps.forEach(function(e){
+    var amt=_hrmsGetTdsForMonth(e,mk);
+    total+=amt;
+    var nm=_hrmsDispName(e);
+    h+='<tr><td style="'+_th+';font-family:var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" data-emp-code="'+e.empCode+'" title="Click to view employee">'+e.empCode+'</td>';
+    h+='<td style="'+_th+';'+_ov+'" title="'+nm+'">'+nm+'</td>';
+    h+='<td style="'+_th+';font-size:11px;color:var(--text3);'+_ov+'" title="'+(e.location||'')+'">'+(e.location||'—')+'</td>';
+    h+='<td style="'+_th+';text-align:right;font-family:var(--mono);font-weight:700">'+Math.round(amt).toLocaleString()+'</td>';
+    h+='<td style="padding:3px 4px;border:1px solid var(--border);text-align:center"><button onclick="_hrmsTdsRemove(\''+e.empCode+'\')" style="font-size:9px;padding:2px 5px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer">✕</button></td></tr>';
+  });
+  h+='<tr style="background:#f1f5f9;font-weight:800"><td style="'+_th+'" colspan="3">Total</td>';
+  h+='<td style="'+_th+';text-align:right;font-family:var(--mono)">'+Math.round(total).toLocaleString()+'</td><td style="'+_th+'"></td></tr>';
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+
+async function _hrmsTdsAdd(){
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  var code=document.getElementById('hrmsTdsCode').value.trim();
+  var amt=parseFloat(document.getElementById('hrmsTdsAmount').value);
+  if(!code){notify('Enter employee code',true);return;}
+  if(!amt||amt<=0){notify('Enter TDS amount',true);return;}
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+  if(!emp){notify('Employee '+code+' not found',true);return;}
+  if(!emp.extra) emp.extra={};
+  if(!emp.extra.tdsByMonth) emp.extra.tdsByMonth={};
+  emp.extra.tdsByMonth[mk]=Math.round(amt);
+  showSpinner('Saving TDS…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Failed to save TDS',true);return;}
+  document.getElementById('hrmsTdsCode').value='';
+  document.getElementById('hrmsTdsAmount').value='';
+  _hrmsTdsRender();
+  notify('✅ TDS set for '+emp.empCode+' ('+_hrmsMonthLabel(mk)+'): '+Math.round(amt));
+}
+
+async function _hrmsTdsRemove(code){
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
+  if(!emp||_hrmsGetTdsForMonth(emp,mk)<=0){_hrmsTdsRender();return;}
+  if(!confirm('Remove TDS deduction for '+code+' ('+_hrmsMonthLabel(mk)+')?'))return;
+  if(emp.extra&&emp.extra.tdsByMonth) delete emp.extra.tdsByMonth[mk];
+  showSpinner('Removing TDS…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Failed to remove TDS',true);return;}
+  _hrmsTdsRender();
+  notify('✅ TDS removed for '+code);
+}
+
+// ═══ PAYMENTS TAB ════════════════════════════════════════════════════════
+var _hrmsActivePayTab='cosmos';
+
+function _hrmsPayTab(tab){
+  _hrmsActivePayTab=tab;
+  ['cosmos','neft'].forEach(function(t){
+    var btn=document.getElementById('hrmsPayTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(btn){btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
+  });
+  _hrmsRenderPayments();
+}
+
+function _hrmsRenderPayments(){
+  var el=document.getElementById('hrmsPayGrid');if(!el)return;
+  var mk=_hrmsMonth;
+  if(!mk){el.innerHTML='<div class="empty-state">Select a month above</div>';return;}
+  var details=window._hrmsSalDetails||{};
+  if(!Object.keys(details).length){el.innerHTML='<div class="empty-state">No salary data. Open Salary tab first.</div>';return;}
+  var isCosmos=_hrmsActivePayTab==='cosmos';
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+
+  var rows=[];
+  Object.keys(details).forEach(function(code){
+    var d=details[code];
+    var emp=empMap[code];if(!emp)return;
+    var net=Math.round(d.net||0);
+    if(net<=0)return;
+    var bank=(emp.bankName||'').toLowerCase();
+    var isCosBank=bank.indexOf('cosmos')>=0;
+    if(isCosmos&&!isCosBank)return;
+    if(!isCosmos&&isCosBank)return;
+    rows.push({code:emp.empCode,name:_hrmsDispName(emp),bank:emp.bankName||'',branch:emp.branchName||'',acct:emp.acctNo||'',ifsc:emp.ifsc||'',net:net,location:emp.location||''});
+  });
+  if(isCosmos){
+    rows.sort(function(a,b){return(a.acct||'').localeCompare(b.acct||'');});
+  } else {
+    rows.sort(function(a,b){var p=(a.ifsc||'').localeCompare(b.ifsc||'');return p!==0?p:(parseInt(a.code)||0)-(parseInt(b.code)||0);});
+  }
+
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=mk.split('-');var monthLabel=_mn[+p[1]]+' '+p[0];
+  var totalNet=0;rows.forEach(function(r){totalNet+=r.net;});
+
+  var _th='padding:4px 6px;font-size:11px;font-weight:700;border:1px solid #cbd5e1;white-space:nowrap';
+  var _td='padding:4px 6px;border:1px solid #e2e8f0;font-size:12px;white-space:nowrap';
+  var h='<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">'+(isCosmos?'Cosmos Bank':'NEFT')+' — '+monthLabel+' ('+rows.length+' employees, Total: '+totalNet.toLocaleString()+')</div>';
+  h+='<div style="display:inline-block;overflow-x:auto;max-height:500px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px">';
+  h+='<table style="border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff">';
+
+  if(isCosmos){
+    h+='<th style="'+_th+'">#</th><th style="'+_th+'">Emp Code</th><th style="'+_th+'">Name</th><th style="'+_th+'">Account No</th><th style="'+_th+'">IFSC</th><th style="'+_th+';text-align:right">Net Salary</th>';
+  } else {
+    h+='<th style="'+_th+'">#</th><th style="'+_th+'">Emp Code</th><th style="'+_th+'">Name</th><th style="'+_th+'">Bank</th><th style="'+_th+'">Branch</th><th style="'+_th+'">Account Type</th><th style="'+_th+'">IFSC</th><th style="'+_th+'">Account No</th><th style="'+_th+';text-align:right">Net Salary</th>';
+  }
+  h+='</tr></thead><tbody>';
+
+  rows.forEach(function(r,i){
+    h+='<tr>';
+    h+='<td style="'+_td+';text-align:center;color:var(--text3)">'+(i+1)+'</td>';
+    h+='<td style="'+_td+';font-family:var(--mono);font-weight:700;color:var(--accent)">'+r.code+'</td>';
+    h+='<td style="'+_td+';font-weight:600">'+r.name+'</td>';
+    if(isCosmos){
+      h+='<td style="'+_td+';font-family:var(--mono)">'+r.acct+'</td>';
+      h+='<td style="'+_td+';font-family:var(--mono)">'+r.ifsc+'</td>';
+    } else {
+      h+='<td style="'+_td+'">'+r.bank+'</td>';
+      h+='<td style="'+_td+'">'+r.branch+'</td>';
+      h+='<td style="'+_td+'">Savings</td>';
+      h+='<td style="'+_td+';font-family:var(--mono)">'+r.ifsc+'</td>';
+      h+='<td style="'+_td+';font-family:var(--mono)">'+r.acct+'</td>';
+    }
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:700">'+r.net.toLocaleString()+'</td>';
+    h+='</tr>';
+  });
+  // Total row
+  h+='<tr style="background:#f1f5f9;font-weight:800"><td style="'+_td+'" colspan="'+(isCosmos?5:8)+'">Total</td>';
+  h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+totalNet.toLocaleString()+'</td></tr>';
+  h+='</tbody></table></div>';
+  if(!rows.length) h='<div class="empty-state">No '+(isCosmos?'Cosmos bank':'non-Cosmos bank')+' employees with salary this month</div>';
+  el.innerHTML=h;
+}
+
+function _hrmsPayExport(){
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to export payments.',true);return;}
+  var details=window._hrmsSalDetails||{};
+  var isCosmos=_hrmsActivePayTab==='cosmos';
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  var label=isCosmos?'Cosmos':'NEFT';
+  var headers=isCosmos?['Emp Code','Name','Account No','IFSC','Net Salary']:['Emp Code','Name','Bank','Branch','Account Type','IFSC','Account No','Net Salary'];
+  var dataRows=[];
+  Object.keys(details).forEach(function(code){
+    var d=details[code];var emp=empMap[code];if(!emp)return;
+    var net=Math.round(d.net||0);if(net<=0)return;
+    var bank=(emp.bankName||'').toLowerCase();
+    var isCosBank=bank.indexOf('cosmos')>=0;
+    if(isCosmos&&!isCosBank)return;
+    if(!isCosmos&&isCosBank)return;
+    dataRows.push({code:emp.empCode,name:_hrmsDispName(emp),bank:emp.bankName||'',branch:emp.branchName||'',acct:emp.acctNo||'',ifsc:emp.ifsc||'',net:net});
+  });
+  if(isCosmos){
+    dataRows.sort(function(a,b){return(a.acct||'').localeCompare(b.acct||'');});
+  } else {
+    dataRows.sort(function(a,b){var p=(a.ifsc||'').localeCompare(b.ifsc||'');return p!==0?p:(parseInt(a.code)||0)-(parseInt(b.code)||0);});
+  }
+  var rows=[headers];
+  dataRows.forEach(function(r){
+    if(isCosmos) rows.push([r.code,r.name,r.acct,r.ifsc,r.net]);
+    else rows.push([r.code,r.name,r.bank,r.branch,'Savings',r.ifsc,r.acct,r.net]);
+  });
+  _downloadAsXlsx(rows,label+' Payment',label+'_Payment_'+mk+'.xlsx');
+  notify('📤 Exported '+(rows.length-1)+' '+label+' records');
+}
+
+// ═══ ADVANCES TAB ════════════════════════════════════════════════════════
+var _hrmsAdvCache={};// monthKey → [{empCode,advance,emi,deduction,id}]
+
+async function _hrmsLoadAdvances(mk){
+  if(_hrmsAdvCache[mk]) return;
+  showSpinner('Loading advances…');
+  try{
+    var sbTbl=SB_TABLES['hrmsAdvances'];
+    if(_sb&&_sbReady&&sbTbl){
+      var {data,error}=await _sb.from(sbTbl).select('*').eq('month_key',mk);
+      if(!error&&data){
+        if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+        var parsed=data.map(function(row){return _fromRow('hrmsAdvances',row);}).filter(Boolean);
+        // Merge into DB
+        parsed.forEach(function(rec){
+          var idx=DB.hrmsAdvances.findIndex(function(r){return r.id===rec.id;});
+          if(idx>=0) DB.hrmsAdvances[idx]=rec; else DB.hrmsAdvances.push(rec);
+        });
+      }
+    }
+  }catch(e){console.warn('Advance load error:',e);}
+  // Build cache from DB
+  _hrmsAdvCache[mk]={};
+  (DB.hrmsAdvances||[]).filter(function(a){return a.monthKey===mk;}).forEach(function(a){
+    _hrmsAdvCache[mk][a.empCode]=a;
+  });
+  hideSpinner();
+}
+
+function _hrmsGetAdvOB(emp,mk){
+  // OB = previous month's closing balance
+  var prevMk=_hrmsPrevMonth(mk);
+  // 1. Preferred: use the saved closing balance from previous month's salary computation
+  //    (stored in emp.extra.bal[prevMk].advCB whenever salary is computed/saved).
+  //    This is authoritative and doesn't require chaining back through all months.
+  var bal=emp.extra&&emp.extra.bal&&emp.extra.bal[prevMk];
+  if(bal&&bal.advCB!==undefined&&bal.advCB!==null){
+    return Math.round(bal.advCB);
+  }
+  // 2. Fallback: chain from previous month's advance record (recursive)
+  var prevRec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===emp.empCode&&a.monthKey===prevMk;});
+  if(prevRec){
+    var prevOB=_hrmsGetAdvOB(emp,prevMk);
+    return Math.round(prevOB+(prevRec.advance||0)-(prevRec.deduction||0));
+  }
+  // 3. Final fallback: employee's initial imported OB
+  return Math.round((emp.extra&&emp.extra.advOB)||0);
+}
+
+async function _hrmsRenderAdvances(){
+  var mk=_hrmsMonth;
+  var el=document.getElementById('hrmsAdvGrid');if(!el)return;
+  if(!mk){el.innerHTML='<div class="empty-state">Select a month above</div>';return;}
+  // Compute salary first (populates window._hrmsSalDetails and also writes emp.extra.bal[].advCB for OB chain)
+  // Note: _hrmsRenderOrSalary wipes _hrmsAdvCache at the end, so we must load advances AFTER it.
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  await _hrmsRenderOrSalary(yr,mo,'all');
+  // Load current and previous month advances (after salary so cache isn't wiped)
+  await _hrmsLoadAdvances(mk);
+  await _hrmsLoadAdvances(_hrmsPrevMonth(mk));
+
+  var cache=_hrmsAdvCache[mk]||{};
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var _advMonthStart=mk+'-01';
+  var _advMonthEnd=mk+'-'+String(daysInMonth).padStart(2,'0');
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){
+    if((e.status||'Active')!=='Active') return false;
+    // Gate by DOJ/DOL for this month
+    if(e.dateOfJoining&&e.dateOfJoining>_advMonthEnd) return false;
+    if(e.dateOfLeft&&e.dateOfLeft<_advMonthStart) return false;
+    return true;
+  });
+  // Show employees who have OB or advance or deduction
+  var rows=[];
+  emps.forEach(function(emp){
+    var rec=cache[emp.empCode]||{};
+    var ob=Math.round(_hrmsGetAdvOB(emp,mk));
+    var adv=Math.round(rec.advance||0);
+    var emi=Math.round(rec.emi||0);
+    var ded=Math.round(rec.deduction||0);
+    var total=ob+adv;
+    var cb=total-ded;
+    if(!ob&&!adv&&!ded) return;// skip zero rows
+    // Get net salary from salary details if available
+    var salDet=window._hrmsSalDetails&&window._hrmsSalDetails[emp.empCode];
+    var netSal=salDet?Math.round(salDet.net||0):0;
+    rows.push({code:emp.empCode,name:_hrmsDispName(emp),location:emp.location||'',ob:ob,adv:adv,emi:emi,total:total,ded:ded,cb:cb,netSal:netSal,id:rec.id||null});
+  });
+  rows.sort(function(a,b){return(parseInt(a.code)||0)-(parseInt(b.code)||0);});
+
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var monthLabel=_mn[mo]+' '+yr;
+  var totOB=0,totAdv=0,totDed=0,totCB=0;
+  rows.forEach(function(r){totOB+=r.ob;totAdv+=r.adv;totDed+=r.ded;totCB+=r.cb;});
+  var h='<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px">Advances — '+monthLabel+' ('+rows.length+' employees)</div>';
+  h+='<div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<div style="padding:6px 14px;border:1.5px solid var(--border);border-radius:6px;font-size:12px"><span style="color:var(--text3);font-weight:600">Total OB:</span> <span style="font-weight:800;font-family:var(--mono)">'+totOB.toLocaleString()+'</span></div>';
+  h+='<div style="padding:6px 14px;border:1.5px solid #fca5a5;border-radius:6px;font-size:12px;background:#fef2f2"><span style="color:#dc2626;font-weight:600">Total Advance:</span> <span style="font-weight:800;font-family:var(--mono);color:#dc2626">'+totAdv.toLocaleString()+'</span></div>';
+  h+='<div style="padding:6px 14px;border:1.5px solid #86efac;border-radius:6px;font-size:12px;background:#f0fdf4"><span style="color:#16a34a;font-weight:600">Total Deduction:</span> <span style="font-weight:800;font-family:var(--mono);color:#16a34a">'+totDed.toLocaleString()+'</span></div>';
+  h+='<div style="padding:6px 14px;border:1.5px solid '+(totCB>0?'#fca5a5':'#86efac')+';border-radius:6px;font-size:12px;background:'+(totCB>0?'#fef2f2':'#f0fdf4')+'"><span style="font-weight:600;color:'+(totCB>0?'#dc2626':'#16a34a')+'">Total CB:</span> <span style="font-weight:800;font-family:var(--mono);color:'+(totCB>0?'#dc2626':'#16a34a')+'">'+totCB.toLocaleString()+'</span></div>';
+  h+='</div>';
+  h+='<div style="display:inline-block;overflow-x:auto;border:1.5px solid var(--border);border-radius:8px;max-height:500px;overflow-y:auto">';
+  h+='<table style="border-collapse:collapse;font-size:12px">';
+  h+='<thead><tr style="background:#1e293b;color:#fff;position:sticky;top:0;z-index:1;white-space:nowrap">';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:left">Code</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:left">Name</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:left">Plant</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">OB</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">Advance</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:center">Action</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">Total</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">EMI</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">Deduction</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">CB</th>';
+  h+='<th style="padding:4px 6px;font-size:10px;text-align:right">Net Salary</th>';
+  h+='</tr></thead><tbody>';
+  rows.forEach(function(r,ri){
+    var cbClr=r.cb>0?'color:#dc2626':'color:#16a34a';
+    h+='<tr style="border-bottom:1px solid #e2e8f0;white-space:nowrap">';
+    h+='<td style="padding:4px 6px;font-family:var(--mono);font-weight:700;cursor:pointer;text-decoration:underline;color:var(--accent)" data-emp-code="'+r.code+'" title="Click to view employee">'+r.code+'</td>';
+    h+='<td style="padding:4px 6px">'+r.name+'</td>';
+    h+='<td style="padding:4px 6px;color:var(--text3)">'+r.location+'</td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);'+(r.ob?'font-weight:700':'color:var(--text3)')+'">'+r.ob+'</td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);'+(r.adv?'font-weight:700;color:#dc2626':'color:var(--text3)')+'">'+r.adv+'</td>';
+    // Action: edit/delete only if an advance was taken in this month (not just carried-forward OB)
+    var monthLocked=_hrmsIsMonthLocked(mk);
+    var actions='';
+    if(r.adv>0){
+      if(monthLocked){
+        actions+='<span style="color:var(--text3);font-size:10px" title="Month is locked">🔒</span>';
+      } else {
+        actions+='<button onclick="_hrmsEditAdvance(\''+r.code+'\')" title="Edit this month\'s advance" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:3px;cursor:pointer;margin-right:3px">✏️</button>';
+        actions+='<button onclick="_hrmsRemoveAdvance(\''+r.code+'\')" title="Delete this month\'s advance" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button>';
+      }
+    } else {
+      actions+='<span style="color:var(--text3);font-size:10px">—</span>';
+    }
+    h+='<td style="padding:4px 6px;text-align:center">'+actions+'</td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:800">'+r.total+'</td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:var(--text3)">'+r.emi+'</td>';
+    h+='<td style="padding:2px 4px;text-align:right"><input type="number" value="'+r.ded+'" min="0" step="100" data-code="'+r.code+'" onchange="_hrmsAdvDedChange(this)" style="width:70px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;text-align:right;font-family:var(--mono);font-weight:700"></td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:800;'+cbClr+'">'+r.cb+'</td>';
+    h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:600" id="hrmsAdvNet_'+r.code+'">'+r.netSal.toLocaleString()+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
+
+async function _hrmsAdvDedChange(input){
+  var code=input.dataset.code;
+  var ded=parseFloat(input.value)||0;
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  if(!_hrmsAdvCache[mk]) _hrmsAdvCache[mk]={};
+  // Use DB.hrmsAdvances as source of truth (cache may be stale)
+  var existingInDb=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
+  var rec=existingInDb||_hrmsAdvCache[mk][code];
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
+  var ob=emp?_hrmsGetAdvOB(emp,mk):0;
+  var adv=rec?rec.advance||0:0;
+  var cb=ob+adv-ded;
+  // Update CB cell (index 9) and Net salary display in the row
+  var tr=input.closest('tr');
+  if(tr){
+    var cells=tr.querySelectorAll('td');
+    // Columns: 0:Code 1:Name 2:Plant 3:OB 4:Advance 5:Action 6:Total 7:EMI 8:Deduction(input) 9:CB 10:Net
+    if(cells[9]){
+      cells[9].style.color=cb>0?'#dc2626':'#16a34a';
+      cells[9].textContent=cb;
+    }
+  }
+  var salDet=window._hrmsSalDetails&&window._hrmsSalDetails[code];
+  var netEl=document.getElementById('hrmsAdvNet_'+code);
+  if(netEl&&salDet){
+    var net=Math.round((salDet.net||0)-ded);
+    netEl.textContent=net.toLocaleString();
+  }
+  // Persist to database
+  if(rec){
+    rec.deduction=ded;
+    _hrmsAdvCache[mk][code]=rec;
+    await _dbSave('hrmsAdvances',rec);
+  } else {
+    if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+    var newRec={id:'adv'+uid(),empCode:code,monthKey:mk,advance:0,emi:0,deduction:ded};
+    DB.hrmsAdvances.push(newRec);
+    _hrmsAdvCache[mk][code]=newRec;
+    await _dbSave('hrmsAdvances',newRec);
+  }
+}
+
+async function _hrmsAddAdvance(){
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to add advances.',true);return;}
+  var code=document.getElementById('hrmsAdvCode').value.trim();
+  var adv=parseFloat(document.getElementById('hrmsAdvAmount').value)||0;
+  var emi=parseFloat(document.getElementById('hrmsAdvEmi').value)||0;
+  if(!code){notify('Enter employee code',true);return;}
+  if(!adv&&!emi){notify('Enter advance or EMI amount',true);return;}
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+  if(!emp){notify('Employee '+code+' not found',true);return;}
+  if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+  var existing=DB.hrmsAdvances.find(function(a){return a.empCode===emp.empCode&&a.monthKey===mk;});
+  if(existing){
+    existing.advance=(existing.advance||0)+adv;
+    if(emi) existing.emi=emi;
+    await _dbSave('hrmsAdvances',existing);
+  } else {
+    var rec={id:'adv'+uid(),empCode:emp.empCode,monthKey:mk,advance:adv,emi:emi,deduction:0};
+    if(await _dbSave('hrmsAdvances',rec)) DB.hrmsAdvances.push(rec);
+  }
+  _hrmsAdvCache={};// force reload
+  document.getElementById('hrmsAdvCode').value='';
+  document.getElementById('hrmsAdvAmount').value='';
+  document.getElementById('hrmsAdvEmi').value='';
+  _hrmsRenderAdvances();
+  notify('Advance added for '+emp.empCode);
+}
+
+async function _hrmsRemoveAdvance(code){
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  if(!confirm('Remove advance record for '+code+' in this month?'))return;
+  var rec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
+  if(rec){
+    DB.hrmsAdvances=DB.hrmsAdvances.filter(function(a){return a.id!==rec.id;});
+    if(_sb&&_sbReady){try{await _sb.from(SB_TABLES['hrmsAdvances']).delete().eq('code',rec.id);}catch(e){}}
+  }
+  _hrmsAdvCache={};
+  _hrmsRenderAdvances();
+  notify('Advance removed for '+code);
+}
+
+async function _hrmsEditAdvance(code){
+  var mk=_hrmsMonth;if(!mk)return;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
+  var rec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
+  var curAdv=rec?(rec.advance||0):0;
+  var curEmi=rec?(rec.emi||0):0;
+  var newAdv=prompt('Edit Advance amount for '+code+':',String(curAdv));
+  if(newAdv===null) return;
+  var advVal=parseFloat(newAdv);
+  if(isNaN(advVal)||advVal<0){notify('Invalid advance amount',true);return;}
+  var newEmi=prompt('Edit EMI amount for '+code+':',String(curEmi));
+  if(newEmi===null) return;
+  var emiVal=parseFloat(newEmi);
+  if(isNaN(emiVal)||emiVal<0){notify('Invalid EMI amount',true);return;}
+
+  showSpinner('Saving…');
+  if(rec){
+    rec.advance=Math.round(advVal);
+    rec.emi=Math.round(emiVal);
+    await _dbSave('hrmsAdvances',rec);
+  } else {
+    var newRec={id:'adv'+uid(),empCode:code,monthKey:mk,advance:Math.round(advVal),emi:Math.round(emiVal),deduction:0};
+    if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+    DB.hrmsAdvances.push(newRec);
+    await _dbSave('hrmsAdvances',newRec);
+  }
+  hideSpinner();
+  _hrmsAdvCache={};
+  _hrmsRenderAdvances();
+  notify('✅ Advance updated for '+code);
+}
+
+async function _hrmsSaveAdvDeductions(){
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock it to make changes.',true);return;}
+  var cache=_hrmsAdvCache[mk]||{};
+  if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+  var saved=0;
+  // Read deduction values from inputs
+  document.querySelectorAll('#hrmsAdvGrid input[data-code]').forEach(function(inp){
+    var code=inp.dataset.code;
+    var ded=Math.round(parseFloat(inp.value)||0);
+    var rec=cache[code];
+    if(rec) rec.deduction=ded;
+  });
+  // Save all cache entries with non-zero data
+  var codes=Object.keys(cache);
+  showSpinner('Saving deductions…');
+  for(var i=0;i<codes.length;i++){
+    var rec=cache[codes[i]];
+    if(!rec.deduction&&!rec.advance) continue;
+    var dbRec=DB.hrmsAdvances.find(function(a){return a.empCode===rec.empCode&&a.monthKey===mk;});
+    if(dbRec){
+      dbRec.deduction=rec.deduction;
+      await _dbSave('hrmsAdvances',dbRec);
+      saved++;
+    } else {
+      var newRec={id:rec.id||('adv'+uid()),empCode:rec.empCode,monthKey:mk,advance:rec.advance||0,emi:rec.emi||0,deduction:rec.deduction};
+      if(await _dbSave('hrmsAdvances',newRec)){DB.hrmsAdvances.push(newRec);rec.id=newRec.id;saved++;}
+    }
+  }
+  // Clear all advance caches so next month picks up updated CB as OB
+  _hrmsAdvCache={};
+  // Refresh salary tabs so deductions reflect immediately
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  await _hrmsRenderOrSalary(yr,mo,'all');
+  await _hrmsSaveBalances('all');
+  hideSpinner();
+  notify('✅ Saved deductions & balances for '+saved+' employees');
+}
+
+async function _hrmsImportAdvances(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0]){notify('No file selected',true);return;}
+  if(_hrmsMonth&&_hrmsIsMonthLocked(_hrmsMonth)){notify('⚠ '+_hrmsMonthLabel(_hrmsMonth)+' is locked. Unlock to import.',true);return;}
+  var file=inputEl.files[0];inputEl.value='';
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  showSpinner('Reading Excel…');
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(ev){
+      try{
+        var rows=await _parseXLSX(ev.target.result);
+        if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+        var _g=function(r,keys){
+          var rKeys=Object.keys(r);
+          for(var i=0;i<keys.length;i++){
+            var k=keys[i].replace(/[\s./]+/g,'').toLowerCase();
+            for(var j=0;j<rKeys.length;j++){
+              if(rKeys[j].replace(/[\s./]+/g,'').toLowerCase()===k){
+                var v=(r[rKeys[j]]||'').toString().trim();
+                if(v) return v;
+              }
+            }
+          }
+          return '';
+        };
+        // Check if any records already exist for this month — ask user for strategy
+        var existingRecs=(DB.hrmsAdvances||[]).filter(function(a){return a.monthKey===mk;});
+        var mode='append';// append, replace-matching, full-replace
+        if(existingRecs.length>0){
+          hideSpinner();
+          var choice=prompt(existingRecs.length+' advance record(s) already exist for '+_hrmsMonthLabel(mk)+'.\n\nType:\n  1 = OVERWRITE matching employees only (keep others unchanged)\n  2 = FULL REPLACE (delete ALL existing for the month, then import fresh)\n  Blank / Cancel = Cancel import','1');
+          if(choice===null||choice===''){notify('Import cancelled');return;}
+          if(choice==='2') mode='full-replace';
+          else if(choice==='1') mode='replace-matching';
+          else {notify('Import cancelled — invalid choice');return;}
+          showSpinner('Importing…');
+        }
+
+        // Full replace: delete all existing records for this month first
+        var deleted=0;
+        if(mode==='full-replace'){
+          for(var di=0;di<existingRecs.length;di++){
+            var delRec=existingRecs[di];
+            try{await _dbDel('hrmsAdvances',delRec.id);deleted++;}catch(e){console.warn('Delete error:',e);}
+          }
+          DB.hrmsAdvances=(DB.hrmsAdvances||[]).filter(function(a){return a.monthKey!==mk;});
+        }
+
+        var added=0,updated=0,skipped=0;
+        var skipReasons={noCode:[],noEmp:[],noValues:[]};
+        for(var i=0;i<rows.length;i++){
+          var r=rows[i];
+          var rowNum=i+2;
+          var code=_g(r,['Emp Code','Employee Code','EmpCode','Code']);
+          if(!code){skipped++;skipReasons.noCode.push('Row '+rowNum);continue;}
+          var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+          if(!emp){skipped++;skipReasons.noEmp.push('Row '+rowNum+' (code: '+code+')');continue;}
+          var adv=parseFloat(_g(r,['Advance','Adv','Amount'])||0)||0;
+          var ded=parseFloat(_g(r,['Deduction','Ded','Deduct'])||0)||0;
+          var emi=parseFloat(_g(r,['EMI','Emi','Installment'])||0)||0;
+          if(!adv&&!ded&&!emi){skipped++;skipReasons.noValues.push('Row '+rowNum+' ('+code+')');continue;}
+          var existing=DB.hrmsAdvances.find(function(a){return a.empCode===emp.empCode&&a.monthKey===mk;});
+          if(existing){
+            existing.advance=Math.round(adv);
+            existing.deduction=Math.round(ded);
+            existing.emi=Math.round(emi);
+            await _dbSave('hrmsAdvances',existing);
+            updated++;
+          } else {
+            var rec={id:'adv'+uid(),empCode:emp.empCode,monthKey:mk,advance:Math.round(adv),emi:Math.round(emi),deduction:Math.round(ded)};
+            if(await _dbSave('hrmsAdvances',rec)){DB.hrmsAdvances.push(rec);added++;}
+          }
+        }
+        _hrmsAdvCache={};
+        hideSpinner();
+        _hrmsRenderAdvances();
+        var msg='✅ Advances imported: '+added+' added, '+updated+' updated'+(deleted?', '+deleted+' deleted':'')+(skipped?', '+skipped+' skipped':'');
+        notify(msg);
+        // Show skip details if any
+        if(skipped>0){
+          var details='Skipped '+skipped+' row(s):\n';
+          if(skipReasons.noCode.length) details+='\n• Missing Emp Code ('+skipReasons.noCode.length+'): '+skipReasons.noCode.slice(0,10).join(', ')+(skipReasons.noCode.length>10?'…':'')+'\n';
+          if(skipReasons.noEmp.length) details+='\n• Emp Code not found in master ('+skipReasons.noEmp.length+'): '+skipReasons.noEmp.slice(0,10).join(', ')+(skipReasons.noEmp.length>10?'…':'')+'\n';
+          if(skipReasons.noValues.length) details+='\n• All Advance/Deduction/EMI values are 0 ('+skipReasons.noValues.length+'): '+skipReasons.noValues.slice(0,10).join(', ')+(skipReasons.noValues.length>10?'…':'')+'\n';
+          alert(details);
+        }
+      }catch(ex){hideSpinner();notify('Import error: '+ex.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify(ex.message,true);}
+}
+
+async function _hrmsImportAdvDeductions(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0]){notify('No file selected',true);return;}
+  if(_hrmsMonth&&_hrmsIsMonthLocked(_hrmsMonth)){notify('⚠ '+_hrmsMonthLabel(_hrmsMonth)+' is locked. Unlock to import.',true);return;}
+  var file=inputEl.files[0];inputEl.value='';
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  showSpinner('Reading Excel…');
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(ev){
+      try{
+        var rows=await _parseXLSX(ev.target.result);
+        if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+        var _g=function(r,keys){
+          var rKeys=Object.keys(r);
+          for(var i=0;i<keys.length;i++){
+            var k=keys[i].replace(/[\s./]+/g,'').toLowerCase();
+            for(var j=0;j<rKeys.length;j++){
+              if(rKeys[j].replace(/[\s./]+/g,'').toLowerCase()===k){
+                var v=(r[rKeys[j]]||'').toString().trim();
+                if(v) return v;
+              }
+            }
+          }
+          return '';
+        };
+        var updated=0,skipped=0;
+        for(var i=0;i<rows.length;i++){
+          var r=rows[i];
+          var code=_g(r,['Emp Code','Employee Code','EmpCode','Code']);
+          if(!code){skipped++;continue;}
+          var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase();});
+          if(!emp){skipped++;continue;}
+          var ded=parseFloat(_g(r,['Deduction','Ded','Deduct','Amount'])||0)||0;
+          if(!ded){skipped++;continue;}
+          ded=Math.round(ded);
+          // Update cache only — don't save to DB yet
+          if(!_hrmsAdvCache[mk]) _hrmsAdvCache[mk]={};
+          var cached=_hrmsAdvCache[mk][emp.empCode];
+          if(cached){
+            cached.deduction=ded;
+          } else {
+            _hrmsAdvCache[mk][emp.empCode]={empCode:emp.empCode,advance:0,emi:0,deduction:ded,id:null};
+          }
+          updated++;
+        }
+        hideSpinner();
+        _hrmsRenderAdvances();
+        notify('Deductions loaded: '+updated+' employees. Click "Save Deductions" to save.',false);
+      }catch(ex){hideSpinner();notify('Import error: '+ex.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify(ex.message,true);}
+}
+
 // ═══ ON ROLL SALARY CALCULATION ══════════════════════════════════════════
-function _hrmsRenderOrSalary(yr,mo,catFilter){
+// ═══ RENDER SALARY FROM SAVED DATA (locked months) ══════════════════════
+function _hrmsRenderSavedSalary(yr,mo,catFilter){
+  var mk=yr+'-'+String(mo).padStart(2,'0');
+  var saved=_hrmsSavedMonth[mk];if(!saved)return;
+  var isAll=catFilter==='all';
   var isWorker=catFilter==='worker';
-  var gridId=isWorker?'hrmsWorkerSalGrid':'hrmsStaffSalGrid';
-  var exportBtnId=isWorker?'hrmsWorkerSalExportBtn':'hrmsStaffSalExportBtn';
+  var gridId=isAll?'hrmsSalGrid':(isWorker?'hrmsWorkerSalGrid':'hrmsStaffSalGrid');
+  var exportBtnId=isAll?'hrmsSalExportBtn':(isWorker?'hrmsWorkerSalExportBtn':'hrmsStaffSalExportBtn');
+  var grid=document.getElementById(gridId);if(!grid)return;
+
+  // Build sorted employee list from saved data
+  var emps=[];
+  Object.keys(saved.employees).forEach(function(ec){
+    var d=saved.employees[ec];
+    var et=(d.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et!=='onroll') return;
+    var cat=(d.category||'').toLowerCase();
+    if(isAll||(isWorker&&cat==='worker')||(!isAll&&!isWorker&&cat==='staff'))
+      emps.push({empCode:ec,d:d});
+  });
+  emps.sort(function(a,b){
+    var catA=(a.d.category||'').toLowerCase()==='worker'?0:1;
+    var catB=(b.d.category||'').toLowerCase()==='worker'?0:1;
+    if(catA!==catB)return catA-catB;
+    var p=(a.d.location||'').localeCompare(b.d.location||'');if(p!==0)return p;
+    return(parseInt(a.empCode)||0)-(parseInt(b.empCode)||0);
+  });
+
+  var _th='padding:2px 3px;font-size:10px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b;text-align:center';
+  var h='<table style="border-collapse:collapse;font-size:11px;white-space:nowrap">';
+  h+='<thead style="position:sticky;top:0;z-index:2"><tr style="background:#f1f5f9;color:#1e293b">';
+  var _thF=_th+';position:sticky;z-index:3;background:#f1f5f9';
+  h+='<th style="'+_thF+';left:0;min-width:22px" rowspan="2">#</th><th style="'+_thF+';left:22px;min-width:40px" rowspan="2">Code</th><th style="'+_thF+';left:62px;min-width:120px;text-align:left" rowspan="2">Name</th><th style="'+_thF+';left:182px;min-width:24px" rowspan="2">Plt</th><th style="'+_th+'" rowspan="2">Sal/D</th><th style="'+_th+'" rowspan="2">Sal/M</th>';
+  h+='<th style="'+_th+';background:#f3e8ff" colspan="3">Paid Leaves</th>';
+  h+='<th style="'+_th+';background:#dbeafe" colspan="5">Attendance</th>';
+  h+='<th style="'+_th+';background:#fff7ed" colspan="3">Eff OT</th>';
+  h+='<th style="'+_th+';background:#dcfce7" colspan="8">Salary</th>';
+  h+='<th style="'+_th+';background:#fef2f2" colspan="5">Advance</th>';
+  h+='<th style="'+_th+';background:#f1f5f9" colspan="7">Deductions</th>';
+  h+='<th style="'+_th+';background:#dcfce7" rowspan="2">Net</th>';
+  h+='</tr><tr style="background:#f8fafc;color:#1e293b">';
+  ['OB','Gvn','CB'].forEach(function(c){h+='<th style="'+_th+';background:#f3e8ff">'+c+'</th>';});
+  ['P','A','OT','OTS','PL'].forEach(function(c){h+='<th style="'+_th+';background:#dbeafe">'+c+'</th>';});
+  ['@1','@1.5','@2'].forEach(function(c){h+='<th style="'+_th+';background:#fff7ed">'+c+'</th>';});
+  ['P','AB','PL','OT1','OT1.5','OT2','All','Grs'].forEach(function(c){h+='<th style="'+_th+';background:#dcfce7">'+c+'</th>';});
+  ['OB','Mth','Tot','Ded','CB'].forEach(function(c){h+='<th style="'+_th+';background:#fef2f2">'+c+'</th>';});
+  ['PT','PF','ESI','Adv','TDS','Oth','Tot'].forEach(function(c){h+='<th style="'+_th+';background:#f1f5f9">'+c+'</th>';});
+  h+='</tr></thead><tbody>';
+
+  var totals={salP:0,salAb:0,salPL:0,salOT1:0,salOT15:0,salOT2:0,allow:0,gross:0,advOB:0,advMonth:0,advTotal:0,advDed:0,advCB:0,dedPT:0,dedPF:0,dedESI:0,dedAdv:0,dedTDS:0,dedOther:0,dedTotal:0,net:0};
+  if(!window._hrmsSalDetails) window._hrmsSalDetails={};
+
+  emps.forEach(function(item,ei){
+    var ec=item.empCode,d=item.d;
+    var _r=Math.round;
+    var advTotal=(d.advOB||0)+(d.advMonth||0);
+    // Accumulate totals
+    totals.salP+=d.salForP||0;totals.salAb+=d.salAb||0;totals.salPL+=d.salForPL||0;
+    totals.salOT1+=d.salOT1||0;totals.salOT15+=d.salOT15||0;totals.salOT2+=d.salOT2||0;
+    totals.allow+=d.allowance||0;totals.gross+=d.gross||0;
+    totals.advOB+=d.advOB||0;totals.advMonth+=d.advMonth||0;totals.advTotal+=advTotal;totals.advDed+=d.advDed||0;totals.advCB+=d.advCB||0;
+    totals.dedPT+=d.dedPT||0;totals.dedPF+=d.dedPF||0;totals.dedESI+=d.dedESI||0;
+    totals.dedAdv+=d.dedAdv||0;totals.dedTDS+=d.dedTDS||0;totals.dedOther+=d.dedOther||0;totals.dedTotal+=d.dedTotal||0;totals.net+=d.net||0;
+
+    // Store for detail click + payments
+    window._hrmsSalDetails[ec]=d;
+
+    var pClr=_hrmsGetPlantColor(d.location||'');
+    var plt=(d.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var _td='padding:2px 3px;border:1px solid #e2e8f0;';
+    var _tdr=_td+'text-align:right;font-family:var(--mono);';
+    var _tdF=_td+'position:sticky;z-index:1;background:#fff;';
+
+    h+='<tr style="border-bottom:1px solid #e2e8f0;cursor:pointer" onclick="_hrmsSalShowDetail(\''+ec+'\')" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'">';
+    h+='<td style="'+_tdF+'left:0;text-align:center">'+(ei+1)+'</td>';
+    h+='<td style="'+_tdF+'left:22px;font-weight:800;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline" data-emp-code="'+ec+'" title="Click to view employee">'+ec+'</td>';
+    h+='<td style="'+_tdF+'left:62px;font-weight:700;font-size:12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+d.name+'</td>';
+    h+='<td style="'+_tdF+'left:182px"><span style="background:'+pClr+';padding:1px 2px;border-radius:3px;font-size:9px;font-weight:700">'+plt+'</span></td>';
+    h+='<td style="'+_tdr+'">'+_r(d.rateD||0)+'</td><td style="'+_tdr+'">'+_r(d.rateM||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#faf5ff">'+(d.plOB||0)+'</td><td style="'+_tdr+'background:#faf5ff">'+(d.plGiven||0)+'</td><td style="'+_tdr+'background:#faf5ff">'+(d.plCB||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#eff6ff">'+(d.totalP||0)+'</td><td style="'+_tdr+'background:#eff6ff;color:#dc2626">'+(d.totalA||0)+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(d.totalOT)+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(d.totalOTS)+'</td><td style="'+_tdr+'background:#eff6ff">'+(d.totalPL||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(d.otAt1)+'</td><td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(d.otAt15)+'</td><td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(d.otAt2)+'</td>';
+    h+='<td style="'+_tdr+'background:#f0fdf4;font-weight:700">'+_r(d.salForP||0)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(d.salAb||0)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(d.salForPL||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#f0fdf4">'+_r(d.salOT1||0)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(d.salOT15||0)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(d.salOT2||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#f0fdf4">'+_r(d.allowance||0)+'</td><td style="'+_tdr+'background:#dcfce7;font-weight:900;color:#15803d">'+_r(d.gross||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#fef2f2">'+_r(d.advOB||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advMonth||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(advTotal)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advDed||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advCB||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedPT||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedPF||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedESI||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedAdv||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedTDS||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedOther||0)+'</td><td style="'+_tdr+'background:#f1f5f9;font-weight:700">'+_r(d.dedTotal||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#dcfce7;font-weight:900;font-size:12px;color:#15803d">'+_r(d.net||0)+'</td>';
+    h+='</tr>';
+  });
+  // Totals row
+  var _r2=function(v){return Math.round(v).toLocaleString();};
+  var _tf='padding:2px 3px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b';
+  h+='<tr style="background:#e2e8f0;color:#1e293b;font-weight:900"><td colspan="4" style="padding:4px 6px;border:1px solid #cbd5e1;position:sticky;left:0;z-index:1;background:#e2e8f0">Total ('+emps.length+')</td><td style="border:1px solid #cbd5e1"></td><td style="border:1px solid #cbd5e1"></td>';
+  h+='<td colspan="3" style="border:1px solid #cbd5e1"></td><td colspan="5" style="border:1px solid #cbd5e1"></td><td colspan="3" style="border:1px solid #cbd5e1"></td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.salP)+'</td><td style="'+_tf+'">'+_r2(totals.salAb)+'</td><td style="'+_tf+'">'+_r2(totals.salPL)+'</td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.salOT1)+'</td><td style="'+_tf+'">'+_r2(totals.salOT15)+'</td><td style="'+_tf+'">'+_r2(totals.salOT2)+'</td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.allow)+'</td><td style="'+_tf+';font-weight:900;color:#15803d">'+_r2(totals.gross)+'</td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.advOB)+'</td><td style="'+_tf+'">'+_r2(totals.advMonth)+'</td><td style="'+_tf+'">'+_r2(totals.advTotal)+'</td><td style="'+_tf+'">'+_r2(totals.advDed)+'</td><td style="'+_tf+'">'+_r2(totals.advCB)+'</td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.dedPT)+'</td><td style="'+_tf+'">'+_r2(totals.dedPF)+'</td><td style="'+_tf+'">'+_r2(totals.dedESI)+'</td><td style="'+_tf+'">'+_r2(totals.dedAdv)+'</td><td style="'+_tf+'">'+_r2(totals.dedTDS)+'</td><td style="'+_tf+'">'+_r2(totals.dedOther)+'</td><td style="'+_tf+'">'+_r2(totals.dedTotal)+'</td>';
+  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:12px">'+_r2(totals.net)+'</td></tr>';
+  h+='</tbody></table>';
+  grid.innerHTML=emps.length?h:'<div class="empty-state">No saved salary data for this filter</div>';
+  var expBtn=document.getElementById(exportBtnId);
+  if(expBtn) expBtn.style.display=emps.length?'':'none';
+}
+
+async function _hrmsRenderOrSalary(yr,mo,catFilter){
+  var _mk=yr+'-'+String(mo).padStart(2,'0');
+  // ── LOCKED MONTH: render from saved data (no master dependency) ──
+  if(_hrmsIsMonthLocked(_mk)&&_hrmsHasSavedData(_mk)){
+    _hrmsRenderSavedSalary(yr,mo,catFilter);
+    return;
+  }
+  // Load all prerequisites before calculating
+  _hrmsLoadStatutory();
+  var _otR=_hrmsGetOtRules(_mk);
+  await _hrmsAttFetchMonth(_mk);
+  _hrmsLoadManualP();
+  // Compute attendance totals for all employees
+  _hrmsComputeAttTotals(yr,mo);
+  // Ensure advances data is loaded for this month
+  await _hrmsLoadAdvances(_mk);
+  await _hrmsLoadAdvances(_hrmsPrevMonth(_mk));
+  var isAll=catFilter==='all';
+  var isWorker=catFilter==='worker';
+  var gridId=isAll?'hrmsSalGrid':(isWorker?'hrmsWorkerSalGrid':'hrmsStaffSalGrid');
+  var exportBtnId=isAll?'hrmsSalExportBtn':(isWorker?'hrmsWorkerSalExportBtn':'hrmsStaffSalExportBtn');
   var grid=document.getElementById(gridId);if(!grid)return;
   var mk=yr+'-'+String(mo).padStart(2,'0');
   var daysInMonth=new Date(yr,mo,0).getDate();
@@ -3335,45 +5988,57 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
   var altLookup={};altRecords.forEach(function(a){altLookup[a.empCode]=a.days||{};});
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
 
-  // Filter: All active On Roll employees by category (regardless of attendance)
+  // Filter: All active On Roll employees
+  var _getPLoc=function(e){var periods=e.periods||[];for(var i=0;i<periods.length;i++){if(!periods[i].to&&!periods[i]._wfStatus)return periods[i].location||e.location||'';}return e.location||'';};
+  // Month boundaries for DOJ/DOL gating
+  var _salMonthStart=mk+'-01';// "2026-01-01"
+  var _salMonthEnd=mk+'-'+String(daysInMonth).padStart(2,'0');// "2026-01-31"
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
     var cat=(e.category||'').toLowerCase();
     if(et!=='onroll'||(e.status||'Active')!=='Active') return false;
+    // Gate by Date of Joining: exclude employees whose DOJ is AFTER the end of this salary month
+    if(e.dateOfJoining&&e.dateOfJoining>_salMonthEnd) return false;
+    // Gate by Date of Left: exclude employees who left BEFORE the start of this salary month
+    if(e.dateOfLeft&&e.dateOfLeft<_salMonthStart) return false;
+    if(isAll) return true;
     return isWorker?cat==='worker':cat==='staff';
   }).sort(function(a,b){
-    var p=(a.location||'').localeCompare(b.location||'');if(p!==0)return p;
-    var an=parseInt((a.empCode||'').replace(/\D/g,''))||0,bn=parseInt((b.empCode||'').replace(/\D/g,''))||0;
-    return an-bn;
+    // Workers first, then Staff. Within each: plant, then emp code
+    var catA=(a.category||'').toLowerCase()==='worker'?0:1;
+    var catB=(b.category||'').toLowerCase()==='worker'?0:1;
+    if(catA!==catB) return catA-catB;
+    var p=_getPLoc(a).localeCompare(_getPLoc(b));if(p!==0)return p;
+    return (parseInt(a.empCode)||0)-(parseInt(b.empCode)||0);
   });
 
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX=2;
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX=_otR.elMaxPerMonth;
   var _salBalances=[];// collect {empCode,plOB,plCB,advOB,advCB} for saving
-  var _th='padding:4px 6px;font-size:10px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b';
+  var _th='padding:2px 3px;font-size:10px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b;text-align:center';
   var h='<table style="border-collapse:collapse;font-size:11px;white-space:nowrap">';
   // Header row 1 — grouped
   h+='<thead style="position:sticky;top:0;z-index:2"><tr style="background:#f1f5f9;color:#1e293b">';
   var _thF=_th+';position:sticky;z-index:3;background:#f1f5f9';
-  h+='<th style="'+_thF+';left:0;min-width:30px" rowspan="2">#</th><th style="'+_thF+';left:30px;min-width:45px" rowspan="2">Code</th><th style="'+_thF+';left:75px;min-width:100px" rowspan="2">Name</th><th style="'+_thF+';left:175px;min-width:30px" rowspan="2">Plt</th>'+(isWorker?'<th style="'+_th+'" rowspan="2">Rate/Day</th>':'<th style="'+_th+'" rowspan="2">Rate/Mon</th>');
+  h+='<th style="'+_thF+';left:0;min-width:22px" rowspan="2">#</th><th style="'+_thF+';left:22px;min-width:40px" rowspan="2">Code</th><th style="'+_thF+';left:62px;min-width:120px;text-align:left" rowspan="2">Name</th><th style="'+_thF+';left:182px;min-width:24px" rowspan="2">Plt</th><th style="'+_th+'" rowspan="2">Sal/D</th><th style="'+_th+'" rowspan="2">Sal/M</th>';
   h+='<th style="'+_th+';background:#f3e8ff" colspan="3">Paid Leaves</th>';
   h+='<th style="'+_th+';background:#dbeafe" colspan="5">Attendance</th>';
-  h+='<th style="'+_th+';background:#fff7ed" colspan="3">Effective OT</th>';
-  h+='<th style="'+_th+';background:#dcfce7" colspan="8">Salary Bifurcation</th>';
+  h+='<th style="'+_th+';background:#fff7ed" colspan="3">Eff OT</th>';
+  h+='<th style="'+_th+';background:#dcfce7" colspan="8">Salary</th>';
   h+='<th style="'+_th+';background:#fef2f2" colspan="5">Advance</th>';
   h+='<th style="'+_th+';background:#f1f5f9" colspan="7">Deductions</th>';
-  h+='<th style="'+_th+';background:#dcfce7" rowspan="2">Net Salary</th>';
+  h+='<th style="'+_th+';background:#dcfce7" rowspan="2">Net</th>';
   h+='</tr>';
   // Header row 2 — sub-columns
   h+='<tr style="background:#f8fafc;color:#1e293b">';
-  ['OB','Given','CB'].forEach(function(c){h+='<th style="'+_th+';background:#f3e8ff">'+c+'</th>';});
-  ['P','A','OT','OT@S','Tot PL'].forEach(function(c){h+='<th style="'+_th+';background:#dbeafe">'+c+'</th>';});
+  ['OB','Gvn','CB'].forEach(function(c){h+='<th style="'+_th+';background:#f3e8ff">'+c+'</th>';});
+  ['P','A','OT','OTS','PL'].forEach(function(c){h+='<th style="'+_th+';background:#dbeafe">'+c+'</th>';});
   ['@1','@1.5','@2'].forEach(function(c){h+='<th style="'+_th+';background:#fff7ed">'+c+'</th>';});
-  ['For P','AB','For PL','OT@1','OT@1.5','OT@2','Allow','Gross'].forEach(function(c){h+='<th style="'+_th+';background:#dcfce7">'+c+'</th>';});
-  ['OB','Month','Total','Ded','CB'].forEach(function(c){h+='<th style="'+_th+';background:#fef2f2">'+c+'</th>';});
-  ['PT','PF','ESI','Adv','TDS','Other','Total'].forEach(function(c){h+='<th style="'+_th+';background:#f1f5f9">'+c+'</th>';});
+  ['P','AB','PL','OT1','OT1.5','OT2','All','Grs'].forEach(function(c){h+='<th style="'+_th+';background:#dcfce7">'+c+'</th>';});
+  ['OB','Mth','Tot','Ded','CB'].forEach(function(c){h+='<th style="'+_th+';background:#fef2f2">'+c+'</th>';});
+  ['PT','PF','ESI','Adv','TDS','Oth','Tot'].forEach(function(c){h+='<th style="'+_th+';background:#f1f5f9">'+c+'</th>';});
   h+='</tr></thead><tbody>';
 
-  var totals={salP:0,salAb:0,salPL:0,salOT1:0,salOT15:0,salOT2:0,allow:0,gross:0,dedPT:0,dedPF:0,dedESI:0,dedAdv:0,dedTDS:0,dedOther:0,dedTotal:0,net:0};
+  var totals={salP:0,salAb:0,salPL:0,salOT1:0,salOT15:0,salOT2:0,allow:0,gross:0,advOB:0,advMonth:0,advTotal:0,advDed:0,advCB:0,dedPT:0,dedPF:0,dedESI:0,dedAdv:0,dedTDS:0,dedOther:0,dedTotal:0,net:0};
 
   // Find the active period for a given month
   var _getPeriod=function(emp,mk){
@@ -3392,7 +6057,7 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
     var isStaff=(period.category||(emp.category||'')).toLowerCase()==='staff';
     var rateD=period.salaryDay||emp.salaryDay||0,rateM=period.salaryMonth||emp.salaryMonth||0,spAllow=period.specialAllowance||emp.specialAllowance||0;
     var _ob=_hrmsGetEmpOB(emp,mk);
-    var plOB=_ob.plOB;
+    var plOB=emp.noPL?0:(mo===4?0:_ob.plOB);// April: PL OB resets to 0
     var _confMo=_hrmsMonthsSinceConfirmation(emp,yr,mo);
     // FY month number: Apr=1, May=2, ... Jan=10, Feb=11, Mar=12
     var _fyMonthNo=mo>=4?mo-3:mo+9;
@@ -3408,42 +6073,42 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
     } else {
       plAvailTill=0;
     }
-    var totalP=0,totalA=0,totalOT=0,totalOTS=0,elCount=0,phCount=0,wdCount=0;
-
+    if(emp.noPL) plAvailTill=0;
+    // Count WD and PH from calendar
+    var phCount=0,wdCount=0;
+    var _pLoc=period.location||emp.location;
     for(var dd=1;dd<=daysInMonth;dd++){
-      var alt=empAlt[String(dd)]||null;
-      var ddd=alt||empAtt[String(dd)]||{};
-      var ti=ddd['in']||'',to2=ddd['out']||'';
-      var _pLoc=period.location||emp.location;
       var dType=_hrmsGetDayType(mk,dd,yr,mo,_pLoc);
-      var isDayOff=dType==='WO'||dType==='PH';
       if(dType==='PH') phCount++;
-      if(!isDayOff) wdCount++;
-      var worked=0;
-      if(ti&&to2){var t1=_hrmsRoundIn(_hrmsParseTime(ti)),t2=_hrmsRoundOut(_hrmsParseTime(to2));if(t1!==null&&t2!==null){if(t2<t1)t2+=1440;worked=(t2-t1)/60;}}
-      if(isDayOff){
-        if(worked>0&&!isStaff){var otS=worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;totalOTS+=Math.min(Math.max(otS,0),15);}
-      } else {
-        var status='';
-        if(!ti&&!to2){status='A';}
-        else if(worked>=FULL_DAY){status='P';}
-        else if(isStaff&&worked>=EL_MIN&&worked<FULL_DAY&&elCount<EL_MAX){status='EL';elCount++;}
-        else if(worked>=HALF_DAY){status='P/2';}
-        else{status='A';}
-        if(status==='P') totalP+=1;
-        else if(status==='P/2') totalP+=0.5;
-        // EL not counted as present — handled via PL
-        if(worked>0&&!isStaff){var ot=0;if(worked>14)ot=worked-9;else if(worked>8.5)ot=worked-8.5;if(ot>0)totalOT+=Math.min(ot,7);}
-      }
+      if(dType!=='WO'&&dType!=='PH') wdCount++;
     }
-    // Manual present days override
+    // Use attendance tab's pre-computed values (emp._totalP, _totalOT, _totalOTS)
+    var totalP=emp._totalP||0;
+    var totalOT=emp._totalOT||0;
+    var totalOTS=emp._totalOTS||0;
+    // Manual overrides
     var _mpData=(_hrmsManualPData[mk]||{});
     if(_mpData[emp.empCode]!==undefined) totalP=_mpData[emp.empCode];
+    if(emp.extra&&emp.extra.manualOT&&emp.extra.manualOT[mk]!==undefined) totalOT=emp.extra.manualOT[mk];
+    if(emp.extra&&emp.extra.manualOTS&&emp.extra.manualOTS[mk]!==undefined) totalOTS=emp.extra.manualOTS[mk];
     // Absent = Working Days - Present Days (PL/EL not included in present)
     totalA=Math.max(wdCount-totalP,0);
-    // PL Given: only if absent, min(absent days, available PL after OB)
+    // PL Given: skip if noPL flag set, check manual override, then auto-calc
+    var _manualPL=emp.extra&&emp.extra.manualPL&&emp.extra.manualPL[mk];
     var plRemain=Math.max(plAvailTill-plOB,0);// PLs available beyond OB
-    var plGiven=Math.min(totalA,plRemain);// give only up to absent days
+    var plGiven;
+    if(emp.noPL){
+      plGiven=0;
+    } else if(_manualPL!==undefined){
+      plGiven=_manualPL;
+    } else if(totalP<=0){
+      plGiven=0;// no PL if absent entire month
+    } else if(mo===3){
+      // March: Workers get all available PL, Staff get max 5
+      plGiven=isStaff?Math.min(plRemain,5):plRemain;
+    } else {
+      plGiven=Math.min(totalA,plRemain);// normal: PL up to absent days
+    }
     var paidAbsent=totalA-plGiven;// absent days after PL (for salary deduction)
     var totalPL=plGiven+(totalP>0?phCount:0);// PL given + PH (if present at least 1 day)
     var plCB=plOB+plGiven;
@@ -3451,8 +6116,8 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
     // IOT uses raw totalA (before PL reduction)
     var otAt1=0,otAt15=0,otAt2=0;
     if(!isStaff){
-      // Ineligible OT (IOT): if absent > 1.5 days, IOT hrs = (A - 1.5) * 8
-      var iot=totalA>1.5?(totalA-1.5)*8:0;
+      // Ineligible OT (IOT): if absent > threshold days, IOT hrs = (A - threshold) * hrsPerDay
+      var iot=totalA>_otR.iotAbsentThreshold?(totalA-_otR.iotAbsentThreshold)*_otR.iotHoursPerDay:0;
       // IOT deducted first from OTS, then from OT; IOT itself goes to @1 rate
       var remIOT=iot;
       var otsAfter=totalOTS;
@@ -3471,55 +6136,70 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
     }
     // Salary bifurcation
     var hourlyRate=rateD/8;
-    var salForP=isStaff?rateM:(totalP*rateD);
+    var staffDayRate=isStaff&&(wdCount+phCount)>0?rateM/(wdCount+phCount):0;
+    var salForP=Math.round(isStaff?staffDayRate*totalP:(totalP*rateD));
     var salAb=isStaff?0:(totalA<=0?200:totalA<=1?100:0);// Workers: 0A→200, 1A→100, >1A→0
-    var salForPL=isStaff?(rateM/(wdCount+phCount||1))*plGiven:(totalPL*rateD);
-    var salOT1=otAt1*hourlyRate;
-    var salOT15=otAt15*hourlyRate*1.5;
-    var salOT2=otAt2*hourlyRate*2;
-    var allowance=spAllow;
+    var salForPL=Math.round(isStaff?staffDayRate*totalPL:(totalPL*rateD));
+    var salOT1=Math.round(otAt1*hourlyRate);
+    var salOT15=Math.round(otAt15*hourlyRate*1.5);
+    var salOT2=Math.round(otAt2*hourlyRate*2);
+    var allowance=Math.round(_hrmsCalcTA(spAllow, wdCount, totalP));
     var gross=salForP+salAb+salForPL+salOT1+salOT15+salOT2+allowance;
     // Advance
-    var advOB=_ob.advOB;
-    var advMonth=0,advTotal=advOB+advMonth,advDed=0,advCB=advTotal-advDed;
+    var advOB=_hrmsGetAdvOB(emp,mk);
+    var _advRec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===emp.empCode&&a.monthKey===mk;});
+    var advMonth=Math.round((_advRec&&_advRec.advance)||0);
+    var advDed=Math.round((_advRec&&_advRec.deduction)||0);
+    var advTotal=advOB+advMonth;
+    var advCB=advTotal-advDed;
     // Deductions — from statutory settings
-    var dedPT=0,dedPF=0,dedESI=0,dedAdv=advDed,dedTDS=0,dedOther=0;
-    if(gross>_hrmsStatutory.pfThreshold) dedPF=Math.round(gross*_hrmsStatutory.pfWorker/100);
-    if(gross<=_hrmsStatutory.esiThreshold) dedESI=Math.round(gross*_hrmsStatutory.esiWorker/100);
+    var dedPT=0,dedPF=0,dedESI=0,dedAdv=advDed,dedTDS=mo===4?0:Math.round(_hrmsGetTdsForMonth(emp,mk)),dedOther=0;
+    // PF: BV based on gross. GS>19000→BV=15000, GS<15000→BV=GS, 15000-19000→BV=15000/(WD+PH)*(P+totalPL)
+    var pfBV=0;
+    if(gross>19000) pfBV=15000;
+    else if(gross<15000) pfBV=gross;
+    else pfBV=(wdCount+phCount)>0?15000/(wdCount+phCount)*(totalP+totalPL):0;
+    dedPF=Math.round(pfBV*_hrmsStatutory.pfWorker/100);
+    // ESI: applied only if period.esiApplicable is not "No". Default to Yes for Worker, No for Staff.
+    var _esiApp=period.esiApplicable||(isStaff?'No':'Yes');
+    if(_esiApp==='Yes') dedESI=Math.ceil(gross*_hrmsStatutory.esiWorker/100);
     var _moNames=['','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     dedPT=_hrmsCalcPT(gross,emp.gender,_moNames[mo]);
+    dedPT=Math.round(dedPT);dedPF=Math.round(dedPF);dedESI=Math.round(dedESI);
     var dedTotal=dedPT+dedPF+dedESI+dedAdv+dedTDS+dedOther;
     var net=gross-dedTotal;
     // Store balances for saving
-    _salBalances.push({empCode:emp.empCode,plOB:plOB,plGiven:plGiven,plCB:plCB,advOB:advOB,advCB:advCB});
+    _salBalances.push({empCode:emp.empCode,plOB:plOB,plGiven:plGiven,plCB:plCB,advOB:advOB,advMonth:advMonth,advDed:advDed,advCB:advCB});
     // Round
     var _r=function(v){return Math.round(v);};
     // Accumulate totals
     totals.salP+=salForP;totals.salAb+=salAb;totals.salPL+=salForPL;totals.salOT1+=salOT1;totals.salOT15+=salOT15;totals.salOT2+=salOT2;totals.allow+=allowance;totals.gross+=gross;
+    totals.advOB+=advOB;totals.advMonth+=advMonth;totals.advTotal+=advTotal;totals.advDed+=advDed;totals.advCB+=advCB;
     totals.dedPT+=dedPT;totals.dedPF+=dedPF;totals.dedESI+=dedESI;totals.dedAdv+=dedAdv;totals.dedTDS+=dedTDS;totals.dedOther+=dedOther;totals.dedTotal+=dedTotal;totals.net+=net;
 
     var _empLoc=period.location||emp.location;
     var pClr=_hrmsGetPlantColor(_empLoc);
-    var _td='padding:3px 5px;border:1px solid #e2e8f0;';
+    var _td='padding:2px 3px;border:1px solid #e2e8f0;';
     var _tdr=_td+'text-align:right;font-family:var(--mono);';
     // Store detail data for click
-    var _det={empCode:emp.empCode,name:emp.name,location:_empLoc,category:period.category||emp.category,doj:emp.dateOfJoining,gender:emp.gender,rateD:rateD,rateM:rateM,spAllow:spAllow,plOB:plOB,plGiven:plGiven,plCB:plCB,plAvail:plAvailTill,confMonths:_confMo,fyMonthNo:_fyMonthNo,wdCount:wdCount,phCount:phCount,totalP:totalP,totalA:totalA,paidAbsent:paidAbsent,totalOT:totalOT,totalOTS:totalOTS,otAt1:otAt1,otAt15:otAt15,otAt2:otAt2,salForP:salForP,salAb:salAb,salForPL:salForPL,salOT1:salOT1,salOT15:salOT15,salOT2:salOT2,allowance:allowance,gross:gross,dedPT:dedPT,dedPF:dedPF,dedESI:dedESI,dedAdv:dedAdv,dedTDS:dedTDS,dedOther:dedOther,dedTotal:dedTotal,net:net,totalPL:totalPL,advOB:advOB,advCB:advCB,iot:(!isStaff&&totalA>1.5?(totalA-1.5)*8:0)};
+    var _det={empCode:emp.empCode,name:_hrmsDispName(emp),location:_empLoc,category:period.category||emp.category,doj:emp.dateOfJoining,gender:emp.gender,rateD:rateD,rateM:rateM,spAllow:spAllow,plOB:plOB,plGiven:plGiven,plCB:plCB,plAvail:plAvailTill,confMonths:_confMo,fyMonthNo:_fyMonthNo,wdCount:wdCount,phCount:phCount,totalP:totalP,totalA:totalA,paidAbsent:paidAbsent,totalOT:totalOT,totalOTS:totalOTS,otAt1:otAt1,otAt15:otAt15,otAt2:otAt2,salForP:salForP,salAb:salAb,salForPL:salForPL,salOT1:salOT1,salOT15:salOT15,salOT2:salOT2,allowance:allowance,gross:gross,dedPT:dedPT,dedPF:dedPF,dedESI:dedESI,dedAdv:dedAdv,dedTDS:dedTDS,dedOther:dedOther,dedTotal:dedTotal,net:net,totalPL:totalPL,advOB:advOB,advCB:advCB,iot:(!isStaff&&totalA>_otR.iotAbsentThreshold?(totalA-_otR.iotAbsentThreshold)*_otR.iotHoursPerDay:0)};
     if(!window._hrmsSalDetails) window._hrmsSalDetails={};
     window._hrmsSalDetails[emp.empCode]=_det;
     h+='<tr style="border-bottom:1px solid #e2e8f0;cursor:pointer" onclick="_hrmsSalShowDetail(\''+emp.empCode+'\')" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'">';
     var plt=(_empLoc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     var _tdF=_td+'position:sticky;z-index:1;background:#fff;';
     h+='<td style="'+_tdF+'left:0;text-align:center">'+(ei+1)+'</td>';
-    h+='<td style="'+_tdF+'left:30px;font-weight:800;color:var(--accent);font-size:10px">'+emp.empCode+'</td>';
-    h+='<td style="'+_tdF+'left:75px;font-weight:700;font-size:10px;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis">'+emp.name+'</td>';
-    h+='<td style="'+_tdF+'left:175px"><span style="background:'+pClr+';padding:1px 3px;border-radius:3px;font-size:9px;font-weight:700">'+plt+'</span></td>';
-    h+='<td style="'+_tdr+'">'+(isWorker?_r(rateD):_r(rateM))+'</td>';
+    h+='<td style="'+_tdF+'left:22px;font-weight:800;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline" data-emp-code="'+emp.empCode+'" title="Click to view employee">'+emp.empCode+'</td>';
+    h+='<td style="'+_tdF+'left:62px;font-weight:700;font-size:12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+_hrmsDispName(emp)+'</td>';
+    h+='<td style="'+_tdF+'left:182px"><span style="background:'+pClr+';padding:1px 2px;border-radius:3px;font-size:9px;font-weight:700">'+plt+'</span></td>';
+    h+='<td style="'+_tdr+'">'+_r(rateD)+'</td>';
+    h+='<td style="'+_tdr+'">'+_r(rateM)+'</td>';
     // PL
     h+='<td style="'+_tdr+'background:#faf5ff">'+plOB+'</td><td style="'+_tdr+'background:#faf5ff">'+plGiven+'</td><td style="'+_tdr+'background:#faf5ff">'+plCB+'</td>';
     // Attendance
-    h+='<td style="'+_tdr+'background:#eff6ff">'+totalP+'</td><td style="'+_tdr+'background:#eff6ff;color:#dc2626">'+totalA+'</td><td style="'+_tdr+'background:#eff6ff">'+(totalOT>0?totalOT.toFixed(1):'0')+'</td><td style="'+_tdr+'background:#eff6ff">'+(totalOTS>0?totalOTS.toFixed(1):'0')+'</td><td style="'+_tdr+'background:#eff6ff">'+totalPL+'</td>';
+    h+='<td style="'+_tdr+'background:#eff6ff">'+totalP+'</td><td style="'+_tdr+'background:#eff6ff;color:#dc2626">'+totalA+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(totalOT)+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(totalOTS)+'</td><td style="'+_tdr+'background:#eff6ff">'+totalPL+'</td>';
     // Effective OT
-    h+='<td style="'+_tdr+'background:#fff7ed">'+(otAt1>0?otAt1.toFixed(1):'0')+'</td><td style="'+_tdr+'background:#fff7ed">'+(otAt15>0?otAt15.toFixed(1):'0')+'</td><td style="'+_tdr+'background:#fff7ed">'+(otAt2>0?otAt2.toFixed(1):'0')+'</td>';
+    h+='<td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(otAt1)+'</td><td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(otAt15)+'</td><td style="'+_tdr+'background:#fff7ed">'+_hrmsFmtOT(otAt2)+'</td>';
     // Salary bifurcation
     h+='<td style="'+_tdr+'background:#f0fdf4;font-weight:700">'+_r(salForP)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(salAb)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(salForPL)+'</td>';
     h+='<td style="'+_tdr+'background:#f0fdf4">'+_r(salOT1)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(salOT15)+'</td><td style="'+_tdr+'background:#f0fdf4">'+_r(salOT2)+'</td>';
@@ -3534,15 +6214,15 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
   });
   // Totals row
   var _r2=function(v){return Math.round(v).toLocaleString();};
-  var _tf='padding:3px 5px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b';
-  h+='<tr style="background:#e2e8f0;color:#1e293b;font-weight:900"><td colspan="4" style="padding:4px 6px;border:1px solid #cbd5e1;position:sticky;left:0;z-index:1;background:#e2e8f0">Total ('+emps.length+')</td><td style="border:1px solid #cbd5e1"></td>';
+  var _tf='padding:2px 3px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b';
+  h+='<tr style="background:#e2e8f0;color:#1e293b;font-weight:900"><td colspan="4" style="padding:4px 6px;border:1px solid #cbd5e1;position:sticky;left:0;z-index:1;background:#e2e8f0">Total ('+emps.length+')</td><td style="border:1px solid #cbd5e1"></td><td style="border:1px solid #cbd5e1"></td>';
   h+='<td colspan="3" style="border:1px solid #cbd5e1"></td>';
   h+='<td colspan="5" style="border:1px solid #cbd5e1"></td>';
   h+='<td colspan="3" style="border:1px solid #cbd5e1"></td>';
   h+='<td style="'+_tf+'">'+_r2(totals.salP)+'</td><td style="'+_tf+'">'+_r2(totals.salAb)+'</td><td style="'+_tf+'">'+_r2(totals.salPL)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.salOT1)+'</td><td style="'+_tf+'">'+_r2(totals.salOT15)+'</td><td style="'+_tf+'">'+_r2(totals.salOT2)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.allow)+'</td><td style="'+_tf+';font-weight:900;color:#15803d">'+_r2(totals.gross)+'</td>';
-  h+='<td colspan="5" style="border:1px solid #cbd5e1"></td>';
+  h+='<td style="'+_tf+'">'+_r2(totals.advOB)+'</td><td style="'+_tf+'">'+_r2(totals.advMonth)+'</td><td style="'+_tf+'">'+_r2(totals.advTotal)+'</td><td style="'+_tf+'">'+_r2(totals.advDed)+'</td><td style="'+_tf+'">'+_r2(totals.advCB)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.dedPT)+'</td><td style="'+_tf+'">'+_r2(totals.dedPF)+'</td><td style="'+_tf+'">'+_r2(totals.dedESI)+'</td><td style="'+_tf+'">'+_r2(totals.dedAdv)+'</td><td style="'+_tf+'">'+_r2(totals.dedTDS)+'</td><td style="'+_tf+'">'+_r2(totals.dedOther)+'</td><td style="'+_tf+'">'+_r2(totals.dedTotal)+'</td>';
   h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:12px">'+_r2(totals.net)+'</td></tr>';
   h+='</tbody></table>';
@@ -3550,47 +6230,253 @@ function _hrmsRenderOrSalary(yr,mo,catFilter){
   grid.innerHTML=emps.length?h:'<div class="empty-state">'+emptyMsg+'</div>';
   var expBtn=document.getElementById(exportBtnId);
   if(expBtn) expBtn.style.display=emps.length?'':'none';
-  var savBalBtn=document.getElementById(isWorker?'hrmsWorkerSaveBalBtn':'hrmsStaffSaveBalBtn');
-  if(savBalBtn) savBalBtn.style.display=emps.length?'':'none';
   // Auto-save balances in background
-  var balKey=isWorker?'_hrmsWorkerBal':'_hrmsStaffBal';
+  var balKey=isAll?'_hrmsSalBal':(isWorker?'_hrmsWorkerBal':'_hrmsStaffBal');
   window[balKey]={mk:mk,balances:_salBalances};
   if(_salBalances.length){
     var empMap2={};(DB.hrmsEmployees||[]).forEach(function(e){empMap2[e.empCode]=e;});
     var toSave=[];
+    if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
+    var advToSave=[];
     _salBalances.forEach(function(b){
       var emp=empMap2[b.empCode];if(!emp)return;
       if(!emp.extra) emp.extra={};
       if(!emp.extra.bal) emp.extra.bal={};
       emp.extra.bal[mk]={plOB:b.plOB,plGiven:b.plGiven,plCB:b.plCB,advOB:b.advOB,advCB:b.advCB};
       toSave.push(emp);
+      // Always ensure advance record exists in DB.hrmsAdvances for next month OB calculation
+      // Even zero records are needed to maintain the chain (prevents fallback to stale emp.extra.advOB)
+      var advRec=DB.hrmsAdvances.find(function(a){return a.empCode===b.empCode&&a.monthKey===mk;});
+      if(!advRec){
+        advRec={id:'adv'+uid(),empCode:b.empCode,monthKey:mk,advance:b.advMonth||0,emi:0,deduction:b.advDed||0};
+        DB.hrmsAdvances.push(advRec);
+      }
+      advToSave.push(advRec);
     });
     _dbSaveBulk('hrmsEmployees',toSave).then(function(n){
       if(n) console.log('Auto-saved balances for '+n+' employees ('+mk+')');
     });
+    if(advToSave.length){
+      advToSave.forEach(function(r){_dbSave('hrmsAdvances',r);});
+      _hrmsAdvCache={};
+    }
   }
 }
-function _hrmsOrSalExport(catFilter){
-  if(!_hrmsMonth) return;
-  var isWorker=catFilter==='worker';
-  var gridId=isWorker?'hrmsWorkerSalGrid':'hrmsStaffSalGrid';
-  var grid=document.getElementById(gridId);if(!grid)return;
-  var table=grid.querySelector('table');if(!table)return;
+// ═══ SALARY COMPARE ══════════════════════════════════════════════════════
+var _hrmsSalRefData=null;// reference file rows
+
+async function _hrmsSalLoadRef(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0])return;
+  var file=inputEl.files[0];inputEl.value='';
+  showSpinner('Reading reference file…');
+  try{
+    var reader=new FileReader();
+    reader.onload=async function(ev){
+      try{
+        var rows=await _parseXLSX(ev.target.result);
+        if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        _hrmsSalRefData=rows;
+        hideSpinner();
+        document.getElementById('hrmsSalRefLabel').innerHTML='📎 '+file.name+' ('+rows.length+' rows)<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalLoadRef(this)" style="display:none">';
+        document.getElementById('hrmsSalRefLabel').style.background='#dcfce7';
+        document.getElementById('hrmsSalRefLabel').style.borderColor='#86efac';
+        document.getElementById('hrmsSalRefLabel').style.color='#15803d';
+        document.getElementById('hrmsSalCompareBtn').style.display='';
+        notify('Reference file loaded: '+rows.length+' rows. Click Compare.');
+      }catch(ex){hideSpinner();notify('Error: '+ex.message,true);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify(ex.message,true);}
+}
+
+function _hrmsSalGetCurrentRows(){
+  // Build current salary data as array of objects (same format as export)
+  var details=window._hrmsSalDetails||{};
+  var mk=_hrmsMonth;if(!mk||!Object.keys(details).length) return[];
+  var _mkP=mk.split('-');var _calMo=+_mkP[1];var _expMo=_calMo>=4?_calMo-3:_calMo+9;
   var rows=[];
-  table.querySelectorAll('tr').forEach(function(tr){
-    var row=[];tr.querySelectorAll('th,td').forEach(function(td){row.push(td.textContent.trim());});
-    rows.push(row);
+  Object.keys(details).forEach(function(code){
+    var d=details[code];
+    var cat=(d.category||'').toLowerCase();
+    var _r=Math.round;
+    var _advRec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
+    var advOB=_r(d.advOB||0),advMonth=_r((_advRec&&_advRec.advance)||0);
+    var advTotal=advOB+advMonth,advDed=_r((_advRec&&_advRec.deduction)||0),advCB=advTotal-advDed;
+    var catShort=cat==='staff'?'ST':'W';
+    var plantShort=(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
+    rows.push({
+      'Category':catShort,'Plant':plantShort,'Emp Code':String(d.empCode),'Name':d.name,
+      'P':d.totalP,'A':d.totalA,'PL Given':+(d.plGiven||0).toFixed(2),'PH':d.phCount||0,
+      'OT Hrs@1':Math.round((d.otAt1||0)*4)/4,'OT Hrs@1.5':Math.round((d.otAt15||0)*4)/4,'OT Hrs@2':Math.round((d.otAt2||0)*4)/4,
+      'Sal for P':_r(d.salForP||0),'AB':_r(d.salAb||0),'Sal PL':_r(d.salForPL||0),
+      'Sal OT@1':_r(d.salOT1||0),'Sal OT@1.5':_r(d.salOT15||0),'Sal OT@2':_r(d.salOT2||0),
+      'Allow':_r(d.allowance||0),'Gross':_r(d.gross||0),
+      'Adv OB':advOB,'Adv Month':advMonth,'Adv Total':advTotal,'Adv Deduction':advDed,'Adv CB':advCB,
+      'PT':_r(d.dedPT||0),'PF':_r(d.dedPF||0),'ESI':_r(d.dedESI||0),'ADV':_r(d.dedAdv||0),'TDS':_r(d.dedTDS||0),'Other':_r(d.dedOther||0),
+      'Total Deduction':_r(d.dedTotal||0),'Net Salary':_r(d.net||0)
+    });
   });
-  var label=isWorker?'Worker':'Staff';
+  return rows;
+}
+
+function _hrmsSalCompare(){
+  if(!_hrmsSalRefData){notify('Upload reference file first',true);return;}
+  if(!window._hrmsSalDetails||!Object.keys(window._hrmsSalDetails).length){notify('No salary data. Render salary tab first.',true);return;}
+  var refRows=_hrmsSalRefData;
+  var curRows=_hrmsSalGetCurrentRows();
+  // Same logic as Excel compare tool — match by column name, key = column C (3rd header)
+  var refHeaders=Object.keys(refRows[0]||{});
+  var curHeaders=Object.keys(curRows[0]||{});
+  // Key column = 3rd column (index 2) from reference file
+  var keyCol=refHeaders[2]||refHeaders[0];
+  // Match columns between files (case/space insensitive)
+  var _norm=function(s){return(s||'').replace(/[\s.]+/g,'').toLowerCase();};
+  var refNormMap={};refHeaders.forEach(function(h){refNormMap[_norm(h)]=h;});
+  // Build column mapping: curHeader → refHeader (only columns in both)
+  var colMap={};// curHeader → refHeader
+  var allHeaders=[];
+  curHeaders.forEach(function(h){
+    var rh=refNormMap[_norm(h)];
+    if(rh){colMap[h]=rh;allHeaders.push(h);}
+  });
+  // Build maps
+  var refMap={};refRows.forEach(function(r){var k=(r[keyCol]||'').toString().trim();if(k)refMap[k]=r;});
+  // Find matching key column in current data
+  var curKeyCol=curHeaders[2]||curHeaders[0];
+  var curMap={};curRows.forEach(function(r){var k=(r[curKeyCol]||'').toString().trim();if(k)curMap[k]=r;});
+  // All keys
+  var allKeys={};
+  Object.keys(refMap).forEach(function(k){allKeys[k]=true;});
+  Object.keys(curMap).forEach(function(k){allKeys[k]=true;});
+  var keys=Object.keys(allKeys).sort(function(a,b){
+    var na=parseInt(a)||0,nb=parseInt(b)||0;
+    return na!==nb?na-nb:a.localeCompare(b);
+  });
+  // Compare — same as Excel compare tool
+  var diffRows=[],matched=0;
+  var colsWithDiffs={};colsWithDiffs[keyCol]=true;
+  // Always show name column (col D = index 3)
+  if(curHeaders[3]) colsWithDiffs[curHeaders[3]]=true;
+  keys.forEach(function(key){
+    var r1=refMap[key],r2=curMap[key];
+    if(!r1||!r2)return;
+    var diffs={};var hasDiff=false;
+    allHeaders.forEach(function(h){
+      var refCol=colMap[h]||h;
+      var v1=(r1[refCol]===undefined?'':r1[refCol]).toString().trim();
+      var v2=(r2[h]===undefined?'':r2[h]).toString().trim();
+      var n1=parseFloat(v1),n2=parseFloat(v2);
+      if(!isNaN(n1)&&!isNaN(n2)&&v1!==''&&v2!==''){
+        if(Math.abs(n1-n2)>3){diffs[h]={old:v1,new:v2};hasDiff=true;colsWithDiffs[h]=true;}
+      } else {
+        if(v1.toLowerCase()!==v2.toLowerCase()){diffs[h]={old:v1,new:v2};hasDiff=true;colsWithDiffs[h]=true;}
+      }
+    });
+    if(hasDiff) diffRows.push({key:key,diffs:diffs,r1:r1,r2:r2});
+    else matched++;
+  });
+  // Render — hide columns with no changes (except key + name)
+  var el=document.getElementById('hrmsSalCompareResult');
+  var visHeaders=allHeaders.filter(function(h){return colsWithDiffs[h];});
+  if(!diffRows.length){
+    el.innerHTML='<div style="padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:14px;color:#15803d;font-weight:700">All matched! '+matched+' employees identical.</div>';
+    el.style.display='';
+    document.getElementById('hrmsSalCloseCompBtn').style.display='';
+    return;
+  }
+  var h='<div style="font-size:12px;font-weight:800;margin-bottom:6px">Differences: <span style="color:#dc2626">'+diffRows.length+'</span> | Matched: <span style="color:#16a34a">'+matched+'</span></div>';
+  h+='<div style="display:inline-block;overflow-x:auto;border:1.5px solid #dc2626;border-radius:8px;max-height:50vh;overflow-y:auto">';
+  h+='<table style="border-collapse:collapse;font-size:12px;white-space:nowrap"><thead><tr style="background:#1e293b;color:#fff;position:sticky;top:0;z-index:1">';
+  visHeaders.forEach(function(c){h+='<th style="padding:4px 6px;font-size:10px;text-align:center">'+c+'</th>';});
+  h+='</tr></thead><tbody>';
+  diffRows.forEach(function(row){
+    h+='<tr style="border-bottom:1px solid #e2e8f0">';
+    visHeaders.forEach(function(c){
+      var d=row.diffs[c];
+      var val=row.r2[c]!==undefined?row.r2[c]:(row.r1[c]||'');
+      if(d){
+        h+='<td style="padding:3px 6px"><div style="color:#dc2626;text-decoration:line-through;font-size:10px">'+d.old+'</div><div style="color:#16a34a;font-weight:800">'+d.new+'</div></td>';
+      } else {
+        h+='<td style="padding:3px 6px;'+(c===keyCol?'font-family:var(--mono);font-weight:700;color:var(--accent)':'')+'">'+val+'</td>';
+      }
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+  el.style.display='';
+  document.getElementById('hrmsSalCloseCompBtn').style.display='';
+}
+
+function _hrmsSalCloseCompare(){
+  document.getElementById('hrmsSalCompareResult').style.display='none';
+  document.getElementById('hrmsSalCloseCompBtn').style.display='none';
+}
+
+function _hrmsOrSalExport(catFilter){
+  if(!_hrmsMonth||!window._hrmsSalDetails) return;
+  var details=window._hrmsSalDetails;
+  var mk=_hrmsMonth;
+  var _mkP=mk.split('-');var _calMo=+_mkP[1];var _expMo=_calMo>=4?_calMo-3:_calMo+9;// FY month: Apr=1, Mar=12
+  var isAll=catFilter==='all';
+  var isWorker=catFilter==='worker';
+  var label=isAll?'Salary':(isWorker?'Worker':'Staff');
+  var headers=['Category','Plant','Emp Code','Name','P','A','PL Given','PH','OT Hrs@1','OT Hrs@1.5','OT Hrs@2',
+    'Sal for P','AB','Sal PL','Sal OT@1','Sal OT@1.5','Sal OT@2','Allow','Gross',
+    'Adv OB','Adv Month','Adv Total','Adv Deduction','Adv CB',
+    'PT','PF','ESI','ADV','TDS','Other','Total Deduction','Net Salary',
+    'TPL','CTC','PLB'];
+  var rows=[headers];
+  // Sort: workers first, then staff; within each: plant, emp code
+  var codes=Object.keys(details);
+  codes.sort(function(a,b){
+    var da=details[a],db=details[b];
+    var catA=(da.category||'').toLowerCase()==='worker'?0:1;
+    var catB=(db.category||'').toLowerCase()==='worker'?0:1;
+    if(catA!==catB) return catA-catB;
+    var p=(da.location||'').localeCompare(db.location||'');if(p!==0)return p;
+    return(parseInt(a)||0)-(parseInt(b)||0);
+  });
+  codes.forEach(function(code){
+    var d=details[code];
+    var cat=(d.category||'').toLowerCase();
+    if(!isAll){
+      if(isWorker&&cat==='staff') return;
+      if(!isWorker&&cat!=='staff') return;
+    }
+    var _r=Math.round;
+    var _advRec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
+    var advOB=_r(d.advOB||0);
+    var advMonth=_r((_advRec&&_advRec.advance)||0);
+    var advTotal=advOB+advMonth;
+    var advDed=_r((_advRec&&_advRec.deduction)||0);
+    var advCB=advTotal-advDed;
+    var catShort=(d.category||'').toLowerCase()==='staff'?'ST':'W';
+    var plantShort=(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
+    rows.push([
+      catShort,plantShort,d.empCode,d.name,
+      d.totalP,d.totalA,+(d.plGiven||0).toFixed(2),d.phCount||0,
+      Math.round((d.otAt1||0)*4)/4,Math.round((d.otAt15||0)*4)/4,Math.round((d.otAt2||0)*4)/4,
+      _r(d.salForP||0),_r(d.salAb||0),_r(d.salForPL||0),
+      _r(d.salOT1||0),_r(d.salOT15||0),_r(d.salOT2||0),
+      _r(d.allowance||0),_r(d.gross||0),
+      advOB,advMonth,advTotal,advDed,advCB,
+      _r(d.dedPT||0),_r(d.dedPF||0),_r(d.dedESI||0),_r(d.dedAdv||0),_r(d.dedTDS||0),_r(d.dedOther||0),
+      _r(d.dedTotal||0),_r(d.net||0),
+      +(d.plCB||0).toFixed(2),
+      _r((d.gross||0)+2083+(cat!=='staff'?(d.gross||0)*3.25/100:0)+(d.dedPF||0)/12*13),
+      +(Math.min(_expMo*1.5,d.plAvail||0)-(d.plCB||0)).toFixed(2)
+    ]);
+  });
   _downloadAsXlsx(rows,label+' Salary',label+'_Salary_'+_hrmsMonth+'.xlsx');
-  notify('📤 Exported '+label+' Salary');
+  notify('📤 Exported '+(rows.length-1)+' '+label+' records');
 }
 
 function _hrmsSalShowDetail(empCode){
   var d=window._hrmsSalDetails&&window._hrmsSalDetails[empCode];
   if(!d) return;
   var _r=function(v){return Math.round(v).toLocaleString();};
-  var _f=function(v){return v%1===0?String(v):v.toFixed(1);};
+  var _f=function(v){if(v==null)return'0';if(v%1===0)return String(v);var r=Math.round(v*4)/4;return r.toFixed(2).replace(/\.?0+$/,'');};
   var isStaff=(d.category||'').toLowerCase()==='staff';
   var mk=_hrmsMonth||'';
   var conf=null;
@@ -3598,100 +6484,126 @@ function _hrmsSalShowDetail(empCode){
   if(emp) conf=_hrmsGetConfirmationDate(emp);
   var confStr=conf?conf.getDate()+'-'+_MON3[conf.getMonth()+1]+'-'+String(conf.getFullYear()).slice(-2):'—';
 
-  var _row=function(label,val,bg){return '<tr style="'+(bg||'')+'"><td style="padding:4px 10px;font-weight:700;color:var(--text2);font-size:12px;white-space:nowrap">'+label+'</td><td style="padding:4px 10px;font-weight:800;font-size:12px;text-align:right;font-family:var(--mono)">'+val+'</td></tr>';};
-  var _sec=function(title,clr){return '<tr><td colspan="2" style="padding:8px 10px 4px;font-weight:900;font-size:13px;color:'+clr+';border-top:1.5px solid var(--border)">'+title+'</td></tr>';};
+  // Build a single section card
+  var _section=function(title,clr,rows){
+    var h='<div style="border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:#fff;break-inside:avoid">';
+    h+='<div style="font-size:13px;font-weight:900;color:'+clr+';margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid '+clr+'">'+title+'</div>';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    rows.forEach(function(r){
+      h+='<tr'+(r[2]?' style="'+r[2]+'"':'')+'><td style="padding:3px 4px;font-weight:600;color:var(--text2);white-space:nowrap">'+r[0]+'</td><td style="padding:3px 4px;font-weight:800;text-align:right;font-family:var(--mono)">'+r[1]+'</td></tr>';
+    });
+    h+='</table></div>';
+    return h;
+  };
 
-  var h='<div style="max-width:420px">';
-  h+='<div style="font-size:18px;font-weight:900;margin-bottom:4px">'+d.name+'</div>';
-  h+='<div style="font-size:12px;color:var(--text3);margin-bottom:12px">'+d.empCode+' | '+d.location+' | '+(d.category||'—')+' | '+mk+'</div>';
-  h+='<table style="width:100%;border-collapse:collapse">';
-
-  // Employee Info
-  h+=_sec('Employee Info','var(--accent)');
-  h+=_row('Date of Joining',_hrmsFmtDate(d.doj));
-  h+=_row('Confirmation Date',confStr);
-  h+=_row('Conf Months',d.confMonths>=0?_f(d.confMonths):'Not confirmed');
-  h+=_row('FY Month No.',d.fyMonthNo);
-  h+=_row('Rate/Day',d.rateD?_r(d.rateD):'—');
-  h+=_row('Rate/Month',d.rateM?_r(d.rateM):'—');
-  h+=_row('Sp. Allowance',d.spAllow?_r(d.spAllow):'0');
-
-  // Days
-  h+=_sec('Days','#2563eb');
-  h+=_row('Working Days (WD)',d.wdCount);
-  h+=_row('Paid Holidays (PH)',d.phCount);
-  h+=_row('Present (P)',_f(d.totalP));
-  h+=_row('Absent (A)',_f(d.totalA));
-  h+=_row('Paid Absent (after PL)',_f(d.paidAbsent));
-
-  // Paid Leave
-  h+=_sec('Paid Leave','#7c3aed');
-  h+=_row('PL Available (cumulative)',_f(d.plAvail));
-  h+=_row('PL OB',_f(d.plOB));
-  h+=_row('PL Given',_f(d.plGiven));
-  h+=_row('PL CB',_f(d.plCB));
-  h+=_row('Total PL (incl PH)',_f(d.totalPL));
-
-  // OT
+  // Define all sections
+  var empInfoRows=[
+    ['Date of Joining',_hrmsFmtDate(d.doj)],
+    ['Confirmation',confStr],
+    ['Conf Months',d.confMonths>=0?_f(d.confMonths):'Not confirmed'],
+    ['FY Month No.',d.fyMonthNo],
+    ['Rate/Day',d.rateD?_r(d.rateD):'—'],
+    ['Rate/Month',d.rateM?_r(d.rateM):'—'],
+    ['Sp. Allow (rate)',d.spAllow?_r(d.spAllow):'0']
+  ];
+  var daysRows=[
+    ['Working Days (WD)',d.wdCount],
+    ['Paid Holidays (PH)',d.phCount],
+    ['Present (P)',_f(d.totalP)],
+    ['Absent (A)',_f(d.totalA)],
+    ['Paid Absent (after PL)',_f(d.paidAbsent)]
+  ];
+  var plRows=[
+    ['PL Available (cum.)',_f(d.plAvail)],
+    ['PL OB',_f(d.plOB)],
+    ['PL Given',_f(d.plGiven)],
+    ['PL CB',_f(d.plCB)],
+    ['Total PL (incl PH)',_f(d.totalPL)]
+  ];
+  var otRows=[
+    ['Raw OT hrs',_f(d.totalOT)],
+    ['Raw OT@Sunday',_f(d.totalOTS)],
+    ['Ineligible OT (IOT)',_f(d.iot)],
+    ['Effective @1',_f(d.otAt1)],
+    ['Effective @1.5',_f(d.otAt15)],
+    ['Effective @2',_f(d.otAt2)]
+  ];
+  var salRows=[
+    ['For Present',_r(d.salForP)],
+    ['Attendance Bonus',_r(d.salAb)],
+    ['For PL',_r(d.salForPL)]
+  ];
   if(!isStaff){
-    h+=_sec('Overtime','#b45309');
-    h+=_row('Raw OT hrs',_f(d.totalOT));
-    h+=_row('Raw OT@Sunday hrs',_f(d.totalOTS));
-    h+=_row('Ineligible OT (IOT)',_f(d.iot));
-    h+=_row('Effective @1',_f(d.otAt1));
-    h+=_row('Effective @1.5',_f(d.otAt15));
-    h+=_row('Effective @2',_f(d.otAt2));
+    salRows.push(['OT @1',_r(d.salOT1)]);
+    salRows.push(['OT @1.5',_r(d.salOT15)]);
+    salRows.push(['OT @2',_r(d.salOT2)]);
   }
+  salRows.push(['Allowance',_r(d.allowance)]);
+  salRows.push(['Gross','<span style="color:#15803d">'+_r(d.gross)+'</span>','background:#dcfce7']);
+  var dedRows=[
+    ['PT',_r(d.dedPT)],
+    ['PF',_r(d.dedPF)],
+    ['ESI',_r(d.dedESI)],
+    ['Advance Ded',_r(d.dedAdv)],
+    ['TDS',_r(d.dedTDS)],
+    ['Other',_r(d.dedOther)],
+    ['Total Deductions',_r(d.dedTotal),'background:#fef2f2']
+  ];
 
-  // Salary
-  h+=_sec('Salary Bifurcation','#16a34a');
-  h+=_row('For Present',_r(d.salForP));
-  h+=_row('Attendance Bonus (AB)',_r(d.salAb));
-  h+=_row('For PL',_r(d.salForPL));
-  if(!isStaff){
-    h+=_row('OT @1',_r(d.salOT1));
-    h+=_row('OT @1.5',_r(d.salOT15));
-    h+=_row('OT @2',_r(d.salOT2));
-  }
-  h+=_row('Allowance',_r(d.allowance));
-  h+=_row('Gross','<span style="color:#15803d;font-size:14px">'+_r(d.gross)+'</span>','background:#dcfce7');
+  // Header
+  var h='<div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--accent);gap:12px">';
+  h+='<div><div style="font-size:20px;font-weight:900;color:var(--accent)"><span data-emp-code="'+d.empCode+'" style="cursor:pointer;text-decoration:underline" title="Click to view employee details">'+d.empCode+'</span> — '+d.name+'</div>';
+  h+='<div style="font-size:12px;color:var(--text3);margin-top:2px">'+d.location+' · '+(d.category||'—')+' · '+_hrmsMonthLabel(mk)+'</div></div>';
+  h+='<div style="display:flex;align-items:center;gap:12px">';
+  h+='<div style="text-align:right"><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Net Salary</div><div style="font-size:26px;font-weight:900;color:#15803d;font-family:var(--mono)">₹'+_r(d.net)+'</div></div>';
+  h+='<button onclick="cm(\'mSalDetail\')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f1f5f9;border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">✕ Close</button>';
+  h+='</div></div>';
 
-  // Deductions
-  h+=_sec('Deductions','#dc2626');
-  h+=_row('PT',_r(d.dedPT));
-  h+=_row('PF',_r(d.dedPF));
-  h+=_row('ESI',_r(d.dedESI));
-  h+=_row('Advance Ded',_r(d.dedAdv));
-  h+=_row('TDS',_r(d.dedTDS));
-  h+=_row('Other',_r(d.dedOther));
-  h+=_row('Total Deductions',_r(d.dedTotal));
+  // Multi-column grid of section cards
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start">';
+  h+=_section('Employee Info','var(--accent)',empInfoRows);
+  h+=_section('Days','#2563eb',daysRows);
+  h+=_section('Paid Leave','#7c3aed',plRows);
+  if(!isStaff) h+=_section('Overtime','#b45309',otRows);
+  h+=_section('Salary Bifurcation','#16a34a',salRows);
+  h+=_section('Deductions','#dc2626',dedRows);
+  h+='</div>';
 
-  // Net
-  h+=_sec('Net Salary','#15803d');
-  h+=_row('Net Salary','<span style="font-size:16px;color:#15803d">'+_r(d.net)+'</span>','background:#dcfce7');
+  h+='</div>';
 
-  h+='</table></div>';
-
-  // Show in modal
+  // Show in modal — wide, no vertical scroll
   var modal=document.getElementById('mSalDetail');
   if(!modal){
     modal=document.createElement('div');modal.id='mSalDetail';
     modal.style.cssText='display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:500;justify-content:center;align-items:center';
     modal.onclick=function(e){if(e.target===modal){modal.style.display='none';}};
     var inner=document.createElement('div');inner.id='mSalDetailInner';
-    inner.style.cssText='background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;padding:20px;max-width:460px;width:95vw';
     modal.appendChild(inner);
     document.body.appendChild(modal);
   }
-  document.getElementById('mSalDetailInner').innerHTML=h;
+  var inner=document.getElementById('mSalDetailInner');
+  inner.style.cssText='background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:18px 22px;max-width:1200px;width:96vw;max-height:94vh;overflow:auto';
+  inner.innerHTML=h;
   modal.style.display='flex';
 }
 
+// ESC closes the salary detail popup
+if(!window._hrmsSalDetailEscInstalled){
+  document.addEventListener('keydown',function(ev){
+    if(ev.key!=='Escape') return;
+    var m=document.getElementById('mSalDetail');
+    if(m&&m.style.display!=='none') m.style.display='none';
+  });
+  window._hrmsSalDetailEscInstalled=true;
+}
+
 async function _hrmsSaveBalances(catFilter){
+  var isAll=catFilter==='all';
   var isWorker=catFilter==='worker';
-  var balKey=isWorker?'_hrmsWorkerBal':'_hrmsStaffBal';
+  var balKey=isAll?'_hrmsSalBal':(isWorker?'_hrmsWorkerBal':'_hrmsStaffBal');
   var data=window[balKey];
-  if(!data||!data.balances||!data.balances.length){notify('No balances to save',true);return;}
+  if(!data||!data.balances||!data.balances.length){if(!isAll)notify('No balances to save',true);return;}
   var mk=data.mk;
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
   var toSave=[];
@@ -3706,7 +6618,7 @@ async function _hrmsSaveBalances(catFilter){
   showSpinner('Saving balances…');
   var saved=await _dbSaveBulk('hrmsEmployees',toSave);
   hideSpinner();
-  var label=isWorker?'Worker':'Staff';
+  var label=isAll?'All':(isWorker?'Worker':'Staff');
   notify('✅ '+label+' balances saved for '+saved+' employees');
 }
 
@@ -3785,7 +6697,8 @@ function _hrmsRenderAltGrid(yr,mo){
   });
   document.getElementById('hrmsAltCount').textContent=emps.length+' employee(s), '+altDayNums.length+' date(s) altered';
 
-  var FULL_DAY=8.25,HALF_DAY=4,EL_MIN=6.5,EL_MAX_PER_MONTH=2;
+  var _otR=_hrmsGetOtRules(monthKey);
+  var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
   var dtColors={WD:{bg:'#fef3c7',color:'#b45309',label:'W'},WO:{bg:'#dbeafe',color:'#1d4ed8',label:'H'},PH:{bg:'#dcfce7',color:'#15803d',label:'P'}};
   var L0=0,L1=20,L2=50,L3=100,L4=160;
   var RDT=0,RHD=22;
@@ -3844,8 +6757,8 @@ function _hrmsRenderAltGrid(yr,mo){
         else if(worked>=HALF_DAY) totalP+=0.5;
       }
       if(worked>0&&!isStaff){
-        if(isDayOff){var otS=worked;if(otS>13)otS-=1;else if(otS>4)otS-=0.5;totalOTS+=Math.min(Math.max(otS,0),15);}
-        else{var ot=0;if(worked>14)ot=worked-9;else if(worked>8.5)ot=worked-8.5;if(ot>0)totalOT+=Math.min(ot,7);}
+        if(isDayOff){var otS=worked;if(otS>_otR.otsTier2Threshold)otS-=_otR.otsTier2Deduct;else if(otS>=_otR.otsTier1Threshold)otS-=_otR.otsTier1Deduct;totalOTS+=Math.min(Math.max(otS,0),_otR.otsMaxPerDay);}
+        else{var ot=0;if(worked>_otR.otTier2Threshold)ot=worked-_otR.otTier2Subtract;else if(worked>=_otR.otTier1Threshold)ot=worked-_otR.otTier1Subtract;if(ot>0)totalOT+=Math.min(ot,_otR.otMaxPerDay);}
       }
     }
 
@@ -3857,7 +6770,7 @@ function _hrmsRenderAltGrid(yr,mo){
         h+='<td rowspan="3" style="position:sticky;left:'+L0+'px;z-index:2;background:'+rowBg+';font-weight:700;color:var(--text3);border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;text-align:center;font-size:9px;'+borderTop+'">'+(ei+1)+'</td>';
         h+='<td rowspan="3" style="position:sticky;left:'+L1+'px;z-index:2;background:'+pClr+';font-weight:800;color:#1e293b;border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:9px;text-align:center;'+borderTop+'">'+(isUnmatched?'—':plt)+'</td>';
         h+='<td rowspan="3" style="position:sticky;left:'+L2+'px;z-index:2;background:'+rowBg+';font-weight:800;color:'+(isUnmatched?'#dc2626':'var(--accent)')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:12px;'+borderTop+'">'+emp.empCode+'</td>';
-        h+='<td rowspan="3" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;'+borderTop+'">'+emp.name+'</td>';
+        h+='<td rowspan="3" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;'+borderTop+'">'+_hrmsDispName(emp)+'</td>';
       }
       h+='<td style="position:sticky;left:'+L4+'px;z-index:2;background:'+rowColors[ri]+';font-weight:700;font-size:8px;'+cBdr+'padding:2px 3px;color:#475569;'+(ri===0?borderTop:'')+'">'+rowLabels[ri]+'</td>';
 
@@ -3888,8 +6801,8 @@ function _hrmsRenderAltGrid(yr,mo){
       if(ri===0){
         var pDisp=totalP%1===0?String(totalP):totalP.toFixed(1);
         h+='<td rowspan="3" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#f0fdf4;font-weight:900;font-size:14px;color:#16a34a;'+borderTop+'">'+pDisp+'</td>';
-        h+='<td rowspan="3" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#faf5ff;font-weight:900;font-size:13px;color:#7c3aed;'+borderTop+'">'+(totalOT>0?totalOT.toFixed(1):'0')+'</td>';
-        h+='<td rowspan="3" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#fff7ed;font-weight:900;font-size:13px;color:#c2410c;'+borderTop+'">'+(totalOTS>0?totalOTS.toFixed(1):'0')+'</td>';
+        h+='<td rowspan="3" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#faf5ff;font-weight:900;font-size:13px;color:#7c3aed;'+borderTop+'">'+_hrmsFmtOT(totalOT)+'</td>';
+        h+='<td rowspan="3" style="text-align:center;vertical-align:middle;border:1.5px solid #475569;padding:2px 4px;background:#fff7ed;font-weight:900;font-size:13px;color:#c2410c;'+borderTop+'">'+_hrmsFmtOT(totalOTS)+'</td>';
       }
       h+='</tr>';
     }
@@ -3903,6 +6816,7 @@ function _hrmsRenderAltGrid(yr,mo){
 async function _hrmsImportAlteration(inputEl){
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
   if(!_hrmsAttSelectedMonth){notify('Open a month first',true);return;}
+  if(_hrmsIsMonthLocked(_hrmsAttSelectedMonth)){notify('⚠ '+_hrmsMonthLabel(_hrmsAttSelectedMonth)+' is locked. Unlock to import.',true);return;}
   var mk=_hrmsAttSelectedMonth;
   showSpinner('Importing alteration…');
   try{
