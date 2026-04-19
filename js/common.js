@@ -242,7 +242,7 @@ function _fromRow(tbl, row) {
   if(tbl==='vehicles')     return {id:row.code,_dbId:row.id,number:row.number,typeId:row.type_id||'',vendorId:row.vendor_id||'',pucExpiry:row.puc_expiry||'',rtpExpiry:row.rtp_expiry||'',insExpiry:row.ins_expiry||'',inactive:row.inactive||false};
   if(tbl==='locations')    return {id:row.code,_dbId:row.id,name:row.name,type:row.type,address:row.address||'',geo:row.geo||'',colour:row.colour||'',kapSec:row.kap_sec||'',tripBook:row.trip_book||[],matRecv:row.mat_recv||[],approvers:row.approvers||[],plantHead:row.plant_head||'',inactive:row.inactive||false};
   if(tbl==='tripRates')    return {id:row.code,_dbId:row.id,name:row.name||'',vTypeId:row.v_type_id||'',start:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',rate:row.rate||0,validStart:row.valid_start||'',validEnd:row.valid_end||'',status:row.status||'',addedBy:row.added_by||'',approvedBy:row.approved_by||'',approvedAt:row.approved_at||''};
-  if(tbl==='trips')        return {id:row.code,_dbId:row.id,bookedBy:row.booked_by||'',plant:row.plant||'',date:row.date||'',startLoc:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',driverId:row.driver_id||'',vehicleId:row.vehicle_id||'',vehicleTypeId:row.vehicle_type_id||'',actualVehicleTypeId:row.actual_vehicle_type_id||'',vendor:row.vendor||'',desc:row.description||'',tripCatId:row.trip_cat_id||'',challans1:row.challans1||[],challan1:row.challan1||'',weight1:row.weight1||'',photo1:row.photo1||'',challans2:row.challans2||[],challan2:row.challan2||'',weight2:row.weight2||'',photo2:row.photo2||'',challans3:row.challans3||[],challan3:row.challan3||'',weight3:row.weight3||'',photo3:row.photo3||'',editedBy:row.edited_by||'',editedAt:row.edited_at||'',cancelled:row.cancelled||false};
+  if(tbl==='trips')        return {id:row.code,_dbId:row.id,bookedBy:row.booked_by||'',plant:row.plant||'',date:row.date||'',startLoc:row.start_loc||'',dest1:row.dest1||'',dest2:row.dest2||'',dest3:row.dest3||'',driverId:row.driver_id||'',vehicleId:row.vehicle_id||'',vehicleTypeId:row.vehicle_type_id||'',actualVehicleTypeId:row.actual_vehicle_type_id||'',vendor:row.vendor||'',desc:row.description||'',tripCatId:row.trip_cat_id||'',challans1:('challans1' in row)?(row.challans1||[]):undefined,challan1:row.challan1||'',weight1:row.weight1||'',photo1:row.photo1||'',challans2:('challans2' in row)?(row.challans2||[]):undefined,challan2:row.challan2||'',weight2:row.weight2||'',photo2:row.photo2||'',challans3:('challans3' in row)?(row.challans3||[]):undefined,challan3:row.challan3||'',weight3:row.weight3||'',photo3:row.photo3||'',editedBy:row.edited_by||'',editedAt:row.edited_at||'',cancelled:row.cancelled||false};
   if(tbl==='segments')     return {id:row.code,_dbId:row.id,tripId:row.trip_id||'',label:row.label||'',sLoc:row.s_loc||'',dLoc:row.d_loc||'',criteria:row.criteria||1,tripCatId:row.trip_cat_id||'',steps:row.steps||row.steps_light||{},status:row.status||'Active',date:row.date||'',currentStep:row.current_step||1};
   if(tbl==='spotTrips')    return {id:row.code,_dbId:row.id,vehicleNum:row.vehicle_num||'',supplier:row.supplier||'',challan:row.challan||'',challanPhoto:row.challan_photo||'',driverName:row.driver_name||'',driverMobile:row.driver_mobile||'',driverPhoto:row.driver_photo||'',entryVehiclePhoto:row.entry_vehicle_photo||'',entryRemarks:row.entry_remarks||'',date:row.date||'',entryTime:row.entry_time||'',entryBy:row.entry_by||'',location:row.location||'',exitTime:row.exit_time||'',exitBy:row.exit_by||'',exitVehiclePhoto:row.exit_vehicle_photo||'',exitRemarks:row.exit_remarks||''};
   if(tbl==='checkpoints')  return {id:row.code,_dbId:row.id,locationId:row.location_id||'',name:row.name||'',description:row.description||'',sortOrder:row.sort_order||1,active:row.active!==false};
@@ -1028,16 +1028,21 @@ async function bootDB(){
           if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
           const {data,error} = await q;
           if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
-          // Apply immediately so partial data is available if timeout fires
-          DB[tbl] = (data||[]).map(r=>_fromRow(tbl,r)).filter(Boolean);
+          // Apply immediately so partial data is available if timeout fires.
+          // Use _syncMergeRows when available so _PHOTO_PRESERVE fields
+          // (e.g. trip challans loaded on-demand) survive cold boot.
+          var _parsed=(data||[]).map(r=>_fromRow(tbl,r)).filter(Boolean);
+          if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
+          if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
+          else DB[tbl]=_parsed;
           return {tbl, rows: data||[]};
         }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
-      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },8000));
+      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },20000));
       const raceResult = await Promise.race([_sbFetch, _sbTimeout]);
       if(raceResult==='timeout'){
         // Some tables may have loaded — proceed with what we have, sync rest in background
-        console.warn('bootDB: timeout after 15s — users='+DB.users.length+' (will retry remaining in background)');
+        console.warn('bootDB: timeout after 20s — users='+DB.users.length+' (will retry remaining in background)');
         if(DB.users.length>0){
           _sbSetStatus('ok');
         } else {
@@ -1049,10 +1054,8 @@ async function bootDB(){
         setTimeout(function(){ _bgSyncFromSupabase(); }, 1000);
         return;
       }
-      // All tables loaded within timeout
-      raceResult.forEach(({tbl,rows})=>{
-        DB[tbl] = rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
-      });
+      // All tables loaded within timeout. Already merged above inside the
+      // per-table fetch; no second pass needed.
       console.log('bootDB: ready (Supabase) — users='+DB.users.length);
       _bgSyncDone=true;
       _sbSetStatus('ok');
@@ -1094,7 +1097,11 @@ function _bgSyncFromSupabase(){
   })).then(results=>{
     if(!results) return;
     results.filter(Boolean).forEach(({tbl,rows})=>{
-      DB[tbl] = rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
+      var _parsed=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
+      // Preserve on-demand-loaded step photos for segments before merge
+      if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
+      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
+      else DB[tbl]=_parsed;
     });
     console.log('bgSync: full — '+_getActiveTables().length+' tables, users='+(DB.users||[]).length);
     _bgSyncDone=true;
@@ -1124,7 +1131,11 @@ function _bgSyncHot(){
   })).then(results=>{
     if(!results) return;
     results.filter(Boolean).forEach(({tbl,rows})=>{
-      DB[tbl]=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
+      var _parsed=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
+      // Preserve on-demand-loaded step photos for segments before merge
+      if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
+      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
+      else DB[tbl]=_parsed;
     });
     _bgSyncDone=true;
     if(_sbStatus!=='ok') _sbSetStatus('ok');
@@ -1227,7 +1238,279 @@ let CU=null; // current user — declared here so boot sequence can access it
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════
 const ROLES=['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
 const HWMS_ROLES=['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
-const HRMS_ROLES=['Super Admin','HR Admin','Employee'];
+const HRMS_ROLES=['Super Admin','HR Manager','HR Admin','Employee'];
+
+// ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
+// Defined here (not portal-ui.js) so every app bundle (VMS, HWMS, HRMS,
+// Security, Portal) can call permCanView / permCanAct during render.
+// The Role Settings editor in portal-ui.js writes into the same data store.
+var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'roles'};
+var _PERM_KEYS={
+  HRMS:[
+    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
+    {key:'page.employees',label:'Employees Page',group:'👤 Employees'},
+    {key:'action.addEmployee',label:'Add Employee',group:'👤 Employees'},
+    {key:'action.editEmployee',label:'Edit Employee',group:'👤 Employees'},
+    {key:'action.deleteEmployee',label:'Delete Employee',group:'👤 Employees'},
+    {key:'action.viewEmployee',label:'View Employee Details',group:'👤 Employees'},
+    {key:'action.showHistory',label:'Show History',group:'👤 Employees'},
+    {key:'action.newRevision',label:'New Salary Revision',group:'👤 Employees'},
+    {key:'action.approveReject',label:'Approve/Reject ECR',group:'👤 Employees'},
+    {key:'action.importEmployees',label:'Import Employees',group:'👤 Employees'},
+    {key:'action.exportEmployees',label:'Export Employees',group:'👤 Employees'},
+    {key:'page.attSal',label:'Attendance & Salary Page',group:'📅 Attendance & Salary'},
+    {key:'action.addMonth',label:'Add New Month',group:'📅 Attendance & Salary'},
+    {key:'action.saveLock',label:'Save & Lock Month',group:'📅 Attendance & Salary'},
+    {key:'action.unlock',label:'Unlock Month',group:'📅 Attendance & Salary'},
+    {key:'tab.settings',label:'Settings Tab',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.calendar',label:'Calendar',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.editCalendar',label:'Edit Calendar',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.esslatt',label:'ESSL Import',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.importEssl',label:'Import ESSL Data',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.altimport',label:'Alteration Import',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.importAlterations',label:'Import Alterations',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.advances',label:'Advances',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.importAdvances',label:'Import Advances',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.manual',label:'Manual Attendance',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.importOB',label:'Import Opening Bal.',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.tds',label:'TDS',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.salrevision',label:'Salary Revisions',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.bulkSalRevision',label:'Import Salary Excel',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.otrules',label:'OT Rules',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.editOtRules',label:'Edit OT Rules',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.statutory',label:'Statutory',group:'⚙️ Settings & Sub-tabs'},
+    {key:'action.editStatutory',label:'Edit Statutory Rules',group:'⚙️ Settings & Sub-tabs'},
+    {key:'tab.attendance',label:'Attendance Tab',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.summary',label:'Summary',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.muster',label:'Muster Roll',group:'📋 Attendance & Sub-tabs'},
+    {key:'action.exportAttendance',label:'Export Attendance',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.alteration',label:'Alterations',group:'📋 Attendance & Sub-tabs'},
+    {key:'action.approveAlt',label:'Approve Alteration',group:'📋 Attendance & Sub-tabs'},
+    {key:'action.rejectAlt',label:'Reject Alteration',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.pot',label:'P & OT',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.entry',label:'New Joinee/Rejoinee',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.exit',label:'Exit Employees',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.printformats',label:'Print Formats',group:'📋 Attendance & Sub-tabs'},
+    {key:'action.addPrintFormat',label:'Add/Edit Print Format',group:'📋 Attendance & Sub-tabs'},
+    {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},
+    {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
+    {key:'tab.payments',label:'Payments Tab',group:'🏦 Payments Tab'},
+    {key:'action.exportPayments',label:'Export Payments',group:'🏦 Payments Tab'},
+    {key:'tab.esipf',label:'ESI/PF List Tab',group:'📋 ESI/PF List Tab'},
+    {key:'action.exportEsiPf',label:'Export ESI/PF',group:'📋 ESI/PF List Tab'},
+    {key:'tab.contract',label:'Contract Salary Tab',group:'📋 Contract Salary Tab'},
+    {key:'action.exportContract',label:'Export Contract Sal.',group:'📋 Contract Salary Tab'},
+    {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
+    {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
+    {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},
+    {key:'page.masterCategory',label:'Category',group:'📂 Masters'},
+    {key:'page.masterEmpType',label:'Employment Type',group:'📂 Masters'},
+    {key:'page.masterTeam',label:'Team',group:'📂 Masters'},
+    {key:'page.masterDept',label:'Department',group:'📂 Masters'},
+    {key:'page.masterSubDept',label:'Sub Department',group:'📂 Masters'},
+    {key:'page.masterDesig',label:'Designation',group:'📂 Masters'},
+    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+  ],
+  VMS:[
+    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
+    {key:'page.trips',label:'Trip Booking Page',group:'🚚 Trip Booking'},
+    {key:'action.bookTrip',label:'Book Trip',group:'🚚 Trip Booking'},
+    {key:'action.editTrip',label:'Edit Trip',group:'🚚 Trip Booking'},
+    {key:'action.cancelTrip',label:'Cancel Trip',group:'🚚 Trip Booking'},
+    {key:'action.deleteTrip',label:'Delete Trip',group:'🚚 Trip Booking'},
+    {key:'action.exportTrips',label:'Export Trips',group:'🚚 Trip Booking'},
+    {key:'page.kapSecurity',label:'KAP Security Page',group:'🔒 KAP Security'},
+    {key:'tab.kap.exit',label:'Exit Tab',group:'🔒 KAP Security'},
+    {key:'action.recordGateExit',label:'Record Gate Exit',group:'🔒 KAP Security'},
+    {key:'action.recordEmptyExit',label:'Record Empty Vehicle Exit',group:'🔒 KAP Security'},
+    {key:'tab.kap.entry',label:'Entry Tab',group:'🔒 KAP Security'},
+    {key:'action.recordGateEntry',label:'Record Gate Entry',group:'🔒 KAP Security'},
+    {key:'tab.kap.spot',label:'Spot Entry Tab',group:'🔒 KAP Security'},
+    {key:'action.spotEntry',label:'Record Spot Entry',group:'🔒 KAP Security'},
+    {key:'action.spotExit',label:'Record Spot Exit',group:'🔒 KAP Security'},
+    {key:'page.materialReceiver',label:'Material Receiver Page',group:'📦 Material Receiver'},
+    {key:'action.ackMR',label:'Acknowledge Receipt',group:'📦 Material Receiver'},
+    {key:'page.approve',label:'Trip Approval Page',group:'✅ Approvals'},
+    {key:'action.approveTrip',label:'Approve Trip',group:'✅ Approvals'},
+    {key:'action.rejectTrip',label:'Reject Trip',group:'✅ Approvals'},
+    {key:'page.vendorTrips',label:'Vendor Trips Page',group:'🏢 Vendor'},
+    {key:'page.users',label:'User Master',group:'📂 Masters'},
+    {key:'page.vehicleTypes',label:'Vehicle Types',group:'📂 Masters'},
+    {key:'page.drivers',label:'Drivers',group:'📂 Masters'},
+    {key:'page.vendors',label:'Vendors',group:'📂 Masters'},
+    {key:'page.vehicles',label:'Vehicles',group:'📂 Masters'},
+    {key:'page.locations',label:'Locations',group:'📂 Masters'},
+    {key:'page.tripRates',label:'Trip Rates',group:'📂 Masters'},
+    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+  ],
+  HWMS:[
+    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
+    {key:'page.invoices',label:'Main Invoices Page',group:'📄 Main Invoices'},
+    {key:'action.createInvoice',label:'Create Invoice',group:'📄 Main Invoices'},
+    {key:'action.editInvoice',label:'Edit Invoice',group:'📄 Main Invoices'},
+    {key:'action.deleteInvoice',label:'Delete Invoice',group:'📄 Main Invoices'},
+    {key:'action.importInvoice',label:'Import Invoices',group:'📄 Main Invoices'},
+    {key:'action.exportInvoice',label:'Export Invoice',group:'📄 Main Invoices'},
+    {key:'action.confirmInvoice',label:'Confirm Invoice',group:'📄 Main Invoices'},
+    {key:'page.containers',label:'Containers Page',group:'📦 Containers'},
+    {key:'action.addContainer',label:'Add Container',group:'📦 Containers'},
+    {key:'action.editContainer',label:'Edit Container',group:'📦 Containers'},
+    {key:'action.deleteContainer',label:'Delete Container',group:'📦 Containers'},
+    {key:'action.importContainer',label:'Import Containers',group:'📦 Containers'},
+    {key:'action.exportContainer',label:'Export Containers',group:'📦 Containers'},
+    {key:'action.viewContainerValue',label:'View Invoice Value section',group:'📦 Containers'},
+    {key:'action.viewContainerDispatch',label:'View Dispatch section',group:'📦 Containers'},
+    {key:'action.viewContainerPostShip',label:'View Post-Shipment section',group:'📦 Containers'},
+    {key:'page.inventory',label:'Inventory Page',group:'📦 Inventory'},
+    {key:'page.subinvoices',label:'Sub-Invoices Page',group:'📤 Sub-Invoices'},
+    {key:'action.addSubInvoice',label:'Add Sub-Invoice',group:'📤 Sub-Invoices'},
+    {key:'action.editSubInvoice',label:'Edit Sub-Invoice',group:'📤 Sub-Invoices'},
+    {key:'action.deleteSubInvoice',label:'Delete Sub-Invoice',group:'📤 Sub-Invoices'},
+    {key:'action.importSubInvoice',label:'Import Sub-Invoices',group:'📤 Sub-Invoices'},
+    {key:'action.exportSubInvoice',label:'Export Sub-Invoices',group:'📤 Sub-Invoices'},
+    {key:'page.mr',label:'Material Requests Page',group:'📝 Material Requests'},
+    {key:'action.addMR',label:'Add MR',group:'📝 Material Requests'},
+    {key:'action.editMR',label:'Edit MR',group:'📝 Material Requests'},
+    {key:'action.deleteMR',label:'Delete MR',group:'📝 Material Requests'},
+    {key:'action.importMR',label:'Import MR',group:'📝 Material Requests'},
+    {key:'action.exportMR',label:'Export MR',group:'📝 Material Requests'},
+    {key:'action.generateSI',label:'Generate SI from MR',group:'📝 Material Requests'},
+    {key:'action.mrPickup',label:'Record MR Pickup',group:'📝 Material Requests'},
+    {key:'page.payments',label:'Payments Page',group:'💳 Payments'},
+    {key:'page.outstanding',label:'Outstanding Page',group:'📈 Outstanding'},
+    {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
+    {key:'masters.customers',label:'Customers',group:'📂 Masters'},
+    {key:'masters.parts',label:'Parts',group:'📂 Masters'},
+    {key:'masters.carriers',label:'Carriers',group:'📂 Masters'},
+    {key:'masters.ports',label:'Ports',group:'📂 Masters'},
+    {key:'masters.other',label:'Other Masters',group:'📂 Masters'},
+    {key:'masters.company',label:'Company Details',group:'📂 Masters'},
+    {key:'masters.hsn',label:'HSN Codes',group:'📂 Masters'},
+    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+  ],
+  Security:[
+    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
+    {key:'page.rounds',label:'Rounds Page',group:'🔄 Rounds'},
+    {key:'action.createRound',label:'Create Round Schedule',group:'🔄 Rounds'},
+    {key:'action.editRound',label:'Edit Round Schedule',group:'🔄 Rounds'},
+    {key:'page.spotTrips',label:'Spot Trips Page',group:'🚛 Spot Trips'},
+    {key:'action.logSpotEntry',label:'Log Spot Entry',group:'🚛 Spot Trips'},
+    {key:'action.logSpotExit',label:'Log Spot Exit',group:'🚛 Spot Trips'},
+    {key:'page.masters',label:'Masters Page',group:'📂 Masters'},
+    {key:'masters.checkpoints',label:'Checkpoints',group:'📂 Masters'},
+    {key:'masters.guards',label:'Guards',group:'📂 Masters'},
+    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+  ]
+};
+function _permKeyKind(key){ return /^(page|tab)\./.test(key)?'pageTab':'action'; }
+// Cross-group umbrella relationships: these umbrella keys auto-inherit the
+// max level from their children at READ time, even when children live in a
+// different _PERM_KEYS group (where the save-time umbrella compute can't
+// see them). Needed because HRMS's page.attSal lives in "📅 Attendance &
+// Salary" but its tabs live in separate groups, and page.masters in HRMS
+// wraps page.masterX siblings that aren't auto-rollable.
+var _PERM_UMBRELLA={
+  HRMS:{
+    'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.contract',
+                   'action.addMonth','action.saveLock','action.unlock'],
+    'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
+                    'page.masterDept','page.masterSubDept','page.masterDesig','masters.edit']
+  },
+  HWMS:{
+    'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
+                    'masters.other','masters.company','masters.hsn','masters.edit']
+  },
+  Security:{
+    'page.masters':['masters.checkpoints','masters.guards','masters.edit']
+  }
+};
+function _permLoadData(){
+  var rec=(typeof DB!=='undefined'&&DB.hrmsSettings||[]).find?(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';}):null;
+  return (rec&&rec.data)||{};
+}
+// Highest permission level across a user's roles for a given page/tab key.
+// Super Admin always returns 'full'. Legacy boolean true → 'full'.
+// If an umbrella key (e.g. page.attSal) has no explicit level but its
+// children in _PERM_UMBRELLA[mod] do, inherit the max of those. Cycle-safe
+// via a visited set.
+function permLevel(mod,pageTabKey,_visited){
+  if(typeof CU==='undefined'||!CU) return 'none';
+  var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
+  var userRoles=CU[field]||[];
+  if(userRoles.indexOf('Super Admin')>=0) return 'full';
+  var all=_permLoadData()[mod]||{};
+  var perms=all.permissions||{};
+  var best='none';
+  userRoles.forEach(function(r){
+    var v=(perms[r]||{})[pageTabKey];
+    if(v===true||v==='full') best='full';
+    else if(v==='view'&&best!=='full') best='view';
+  });
+  if(best==='full') return best;
+  // Umbrella inheritance — check cross-group children if this key declares any
+  var umb=_PERM_UMBRELLA[mod]&&_PERM_UMBRELLA[mod][pageTabKey];
+  if(umb&&umb.length){
+    _visited=_visited||{};
+    if(!_visited[pageTabKey]){
+      _visited[pageTabKey]=true;
+      for(var i=0;i<umb.length;i++){
+        if(_visited[umb[i]]) continue;
+        var cl=permLevel(mod,umb[i],_visited);
+        if(cl==='full') return 'full';
+        if(cl==='view'&&best!=='full') best='view';
+      }
+    }
+  }
+  return best;
+}
+function permCanView(mod,pageTabKey){var l=permLevel(mod,pageTabKey);return l==='view'||l==='full';}
+// True when any role the current user holds has an explicit non-empty
+// permissions object for this module. Callers use this to decide whether
+// permissions should OVERRIDE role-based visibility, or fall back to legacy
+// role checks for roles that predate granular permissions.
+function permConfigured(mod){
+  if(typeof CU==='undefined'||!CU) return false;
+  var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
+  var userRoles=CU[field]||[];
+  if(userRoles.indexOf('Super Admin')>=0) return false; // SA ignores permissions
+  var all=_permLoadData()[mod]||{};
+  var perms=all.permissions||{};
+  return userRoles.some(function(r){
+    var p=perms[r];
+    return p&&typeof p==='object'&&Object.keys(p).length>0;
+  });
+}
+// True if admin has EXPLICITLY set (any value, including 'none') this exact
+// key for one of the user's roles. Lets callers distinguish
+//   "admin revoked this → honour as none"
+// from
+//   "admin didn't touch it → fall back to role default".
+function permIsExplicit(mod,key){
+  if(typeof CU==='undefined'||!CU) return false;
+  var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
+  var userRoles=CU[field]||[];
+  if(userRoles.indexOf('Super Admin')>=0) return false;
+  var all=_permLoadData()[mod]||{};
+  var perms=all.permissions||{};
+  return userRoles.some(function(r){
+    var p=perms[r];
+    return !!(p&&Object.prototype.hasOwnProperty.call(p,key));
+  });
+}
+function permCanAct(mod,actionKey){
+  if(typeof CU==='undefined'||!CU) return false;
+  var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
+  var userRoles=CU[field]||[];
+  if(userRoles.indexOf('Super Admin')>=0) return true;
+  var keys=(_PERM_KEYS[mod])||[];
+  var item=keys.find(function(k){return k.key===actionKey;});
+  if(!item) return false;
+  var parent=keys.find(function(k){return k.group===item.group&&_permKeyKind(k.key)==='pageTab';});
+  if(parent&&permLevel(mod,parent.key)!=='full') return false;
+  var all=_permLoadData()[mod]||{};
+  var perms=all.permissions||{};
+  return userRoles.some(function(r){return (perms[r]||{})[actionKey]===true;});
+}
 const PORTAL_APPS=[
   {id:'vms',    label:'VMS',        icon:'🚚', full:'Vehicle Management System'},
   {id:'hwms',   label:'HWMS',       icon:'📦', full:'HGAP Warehouse Management System'},
@@ -1700,6 +1983,182 @@ function _downloadAsXlsx(data,sheetName,filename){
 }
 // Keep _downloadAsXls as alias for backwards compat (trip report)
 function _downloadAsXls(data,sheetName,filename){_downloadAsXlsx(data,sheetName,filename?filename.replace(/\.xls$/,'.xlsx'):filename);}
+
+// Multi-sheet XLSX export: sheets=[{name:'Sheet1',data:[[...],[...]]}, ...]
+// sheets=[{name, data, stripeStart?, stripeCount?, noFilter?, noFreeze?, merges?, colWidths?}]
+// data rows: plain arrays OR {cells:[...], bold:true} for bold rows
+// Cell values: plain values OR {_t:'text'} to force text
+// merges: ['A1:D1', 'B9:C9', ...] — cell merge ranges
+// colWidths: [12, 30, 20, ...] — explicit column widths
+function _downloadMultiSheetXlsx(sheets,filename){
+  const ex=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const sstArr=[];const sstMap=new Map();
+  function sstIdx(s){const k=String(s);if(sstMap.has(k))return sstMap.get(k);const i=sstArr.length;sstArr.push(k);sstMap.set(k,i);return i;}
+  // Styles: 0=normal,1=dark header,2=grey stripe,3=bold,4=bold+stripe,
+  //   5=border,6=stripe+border,7=bold+border,8=bold+stripe+border,9=dark+border,10=title(14pt bold)
+  function buildSheet(sh){
+    var data=sh.data,stripeStart=sh.stripeStart!=null?sh.stripeStart:-1;
+    var stripeCount=sh.stripeCount||0,noFilter=!!sh.noFilter,noFreeze=!!sh.noFreeze;
+    var merges=sh.merges||[];
+    var bStart=sh.borderStart!=null?sh.borderStart:-1;
+    var bCount=sh.borderCount||0;
+    var bEnd=bStart>=0?(bStart+(bCount||999999)):999999;
+    let rowsXml='';
+    var sEnd=stripeStart>=0?(stripeStart+(stripeCount||999999)):999999;
+    data.forEach((rawRow,ri)=>{
+      var isBoldRow=rawRow&&rawRow.bold;
+      var isTitleRow=rawRow&&rawRow.title;
+      var isCompanyRow=rawRow&&rawRow.company;
+      const cells=isBoldRow||isTitleRow||isCompanyRow?(rawRow.cells||[]):(Array.isArray(rawRow)?rawRow:Object.values(rawRow));
+      var customHt=rawRow&&rawRow.ht;
+      var ht=(isTitleRow||isCompanyRow)?' ht="22" customHeight="1"':(customHt?' ht="'+customHt+'" customHeight="1"':'');
+      rowsXml+=`<row r="${ri+1}"${ht}>`;
+      var isStripe=ri>=stripeStart&&ri<sEnd&&((ri-stripeStart)%2===1);
+      var isBorder=ri>=bStart&&ri<bEnd;
+      cells.forEach((cell,ci)=>{
+        const ref=_xlCol(ci)+(ri+1);
+        var isForceText=cell&&typeof cell==='object'&&cell._t!==undefined;
+        var isNumFmt=cell&&typeof cell==='object'&&cell._n!==undefined;
+        var isWrap=cell&&typeof cell==='object'&&cell._w!==undefined;
+        const v=isForceText?cell._t:(isNumFmt?cell._n:(isWrap?cell._w:(cell===null||cell===undefined?'':cell)));
+        const vStr=String(v).trim();const num=Number(v);
+        const forceText=isForceText||(typeof v==='string'&&/^\d{5,}$/.test(vStr))||(typeof v==='string'&&vStr.length>1&&vStr.charAt(0)==='0'&&/^\d+$/.test(vStr));
+        var style;
+        if(isWrap){
+          style=16;
+          var si2=sstIdx(String(v));rowsXml+=`<c r="${ref}" t="s" s="16"><v>${si2}</v></c>`;
+        } else if(isNumFmt){
+          if(isBorder&&isBoldRow) style=13;
+          else if(isBorder&&isStripe) style=14;
+          else if(isBorder) style=12;
+          else style=11;
+          rowsXml+=`<c r="${ref}" s="${style}"><v>${typeof v==='number'?v:num}</v></c>`;
+        } else {
+          if(isCompanyRow) style=15;
+          else if(isTitleRow) style=10;
+          else if(ri===0&&!noFreeze) style=isBorder?9:1;
+          else if(isBorder){
+            if(isBoldRow&&isStripe) style=8;
+            else if(isBoldRow) style=7;
+            else if(isStripe) style=6;
+            else style=5;
+          } else {
+            if(isBoldRow&&isStripe) style=4;
+            else if(isBoldRow) style=3;
+            else if(isStripe) style=2;
+            else style=0;
+          }
+          if(forceText||vStr===''){const si=sstIdx(forceText?vStr:String(v));rowsXml+=`<c r="${ref}" t="s" s="${style}"><v>${si}</v></c>`;}
+          else if(typeof v==='number'||(!isNaN(num)&&vStr!=='')) rowsXml+=`<c r="${ref}" s="${style}"><v>${typeof v==='number'?v:num}</v></c>`;
+          else{const si=sstIdx(String(v));rowsXml+=`<c r="${ref}" t="s" s="${style}"><v>${si}</v></c>`;}
+        }
+      });
+      rowsXml+='</row>';
+    });
+    var firstRow=data[0];if(firstRow&&(firstRow.bold||firstRow.title||firstRow.company||firstRow.cells)) firstRow=firstRow.cells||firstRow;
+    const colCount=Array.isArray(firstRow)?firstRow.length:Object.keys(firstRow||{}).length;
+    const rowCount=data.length;
+    const dimRef='A1:'+_xlCol(Math.max(0,colCount-1))+rowCount;
+    let colsXml='<cols>';
+    for(let ci=0;ci<colCount;ci++){
+      var w=sh.colWidths&&sh.colWidths[ci]?sh.colWidths[ci]:Math.max(10,Math.min(40,(Array.isArray(firstRow)?(firstRow[ci]||''):Object.keys(firstRow||{})[ci]||'').toString().length*1.3+4));
+      colsXml+='<col min="'+(ci+1)+'" max="'+(ci+1)+'" width="'+Number(w).toFixed(1)+'" bestFit="1" customWidth="1"/>';
+    }
+    colsXml+='</cols>';
+    var mergeXml='';
+    if(merges.length){mergeXml='<mergeCells count="'+merges.length+'">'+merges.map(function(r){return '<mergeCell ref="'+r+'"/>';}).join('')+'</mergeCells>';}
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      +'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+      +'<dimension ref="'+dimRef+'"/>'
+      +(noFreeze?'<sheetViews><sheetView workbookViewId="0"/></sheetViews>':'<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>')
+      +'<sheetFormatPr defaultRowHeight="15"/>'+colsXml
+      +'<sheetData>'+rowsXml+'</sheetData>'
+      +mergeXml
+      +(!noFilter&&colCount>0?'<autoFilter ref="A1:'+_xlCol(colCount-1)+rowCount+'"/>':'')
+      +(sh.landscape?'<pageSetup orientation="landscape"/>':'')
+      +'</worksheet>';
+  }
+  // Fonts: 0=regular 10pt, 1=bold white 10pt, 2=bold 10pt, 3=bold 14pt (title)
+  // Fills: 0=none, 1=gray125(required), 2=dark, 3=light grey
+  // Borders: 0=none, 1=thin all-around
+  // cellXfs: 0=normal,1=dark header,2=stripe,3=bold,4=bold+stripe,
+  //   5=border,6=stripe+border,7=bold+border,8=bold+stripe+border,9=dark+border,10=title
+  // numFmtId 164 = Indian number format #,##,##0
+  var _bdr='<left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/>';
+  var _nf=164;// custom numFmt ID for Indian comma format
+  const stylesXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    +'<numFmts count="1"><numFmt numFmtId="'+_nf+'" formatCode="#,##,##0"/></numFmts>'
+    +'<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><sz val="11"/><b/><name val="Calibri"/></font><font><sz val="15"/><b/><name val="Calibri"/></font><font><sz val="16"/><b/><name val="Calibri"/></font></fonts>'
+    +'<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF1e2028"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/></patternFill></fill></fills>'
+    +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>'+_bdr+'</border></borders>'
+    +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    +'<cellXfs count="17">'
+    // 0=normal, 1=dark header, 2=stripe, 3=bold, 4=bold+stripe
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
+    +'<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/>'
+    +'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    +'<xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
+    // 5=border, 6=stripe+border, 7=bold+border, 8=bold+stripe+border, 9=dark+border
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+    // 10=title(16pt bold)
+    +'<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    // 11=Indian num, 12=Indian num+border, 13=Indian num+bold+border, 14=Indian num+stripe+border
+    +'<xf numFmtId="'+_nf+'" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+    +'<xf numFmtId="'+_nf+'" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
+    +'<xf numFmtId="'+_nf+'" fontId="2" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/>'
+    +'<xf numFmtId="'+_nf+'" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1"/>'
+    // 15=company name (17pt bold center), 16=wrap text
+    +'<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1"/></xf>'
+    +'</cellXfs></styleSheet>';
+  var files={};
+  // Build each sheet
+  var sheetNames=[];var sheetXmls=[];
+  sheets.forEach(function(sh,i){
+    var nm=(sh.name||'Sheet'+(i+1)).slice(0,31);
+    sheetNames.push(nm);
+    sheetXmls.push(buildSheet(sh));
+    files['xl/worksheets/sheet'+(i+1)+'.xml']=sheetXmls[i];
+  });
+  // Shared strings
+  files['xl/sharedStrings.xml']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+sstArr.length+'" uniqueCount="'+sstArr.length+'">'
+    +sstArr.map(s=>'<si><t>'+ex(s)+'</t></si>').join('')+'</sst>';
+  // Workbook with optional print-title rows
+  var sheetsTag=sheetNames.map(function(nm,i){return '<sheet name="'+ex(nm)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>';}).join('');
+  var defNames='';
+  sheets.forEach(function(sh,i){
+    if(sh.printTitleRow!=null){
+      var r1=sh.printTitleRow+1;// 1-indexed
+      defNames+='<definedName name="_xlnm.Print_Titles" localSheetId="'+i+'">\''+ex(sheetNames[i])+'\'!$'+r1+':$'+r1+'</definedName>';
+    }
+  });
+  files['xl/workbook.xml']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    +'<bookViews><workbookView/></bookViews><sheets>'+sheetsTag+'</sheets>'
+    +(defNames?'<definedNames>'+defNames+'</definedNames>':'')
+    +'</workbook>';
+  files['xl/styles.xml']=stylesXml;
+  // Relationships
+  var wbRels=sheetNames.map(function(_,i){return '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>';}).join('');
+  wbRels+='<Relationship Id="rId'+(sheetNames.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+  wbRels+='<Relationship Id="rId'+(sheetNames.length+2)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>';
+  files['xl/_rels/workbook.xml.rels']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+wbRels+'</Relationships>';
+  files['_rels/.rels']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  // Content types
+  var overrides=sheetNames.map(function(_,i){return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';}).join('');
+  files['[Content_Types].xml']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+overrides+'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>';
+  var blob=_buildZipBlob(files,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  _triggerDownload(blob,filename||'Export.xlsx');
+}
 
 
 // ── CSV parser (no external lib needed) ────────────────────────────────────

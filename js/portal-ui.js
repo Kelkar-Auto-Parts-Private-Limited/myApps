@@ -312,11 +312,12 @@ function showPortal(){
   if(sa){if(CU.photo){sa.innerHTML='<img src="'+CU.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px">';}else{sa.textContent=initials;}}
   var sn=document.getElementById('pSideName');if(sn)sn.textContent=CU.fullName||CU.name;
   var sr=document.getElementById('pSideRole');if(sr)sr.textContent=(CU.roles||[]).join(', ');
-  // Show Users tab for Admin/SA
-  var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
+  // Show Users/DB/Permissions tabs only for Super Admin
+  var isAdmin=(CU.roles||[]).indexOf('Super Admin')>=0;
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=isAdmin?'':'none';
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=isAdmin?'':'none';
   var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isAdmin||(CU.hwmsRoles||[]).some(function(r){return r==='HWMS Admin';}))?'':'none';
+  var psPerm=document.getElementById('psNavPermissions');if(psPerm)psPerm.style.display=isAdmin?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
@@ -335,14 +336,20 @@ function showTab(tab){
   document.getElementById('appsSection').style.display=tab==='apps'?'block':'none';
   document.getElementById('usersSection').style.display=tab==='users'?'block':'none';
   document.getElementById('profileSection').style.display=tab==='profile'?'block':'none';
+  var permSec=document.getElementById('permissionsSection');
+  if(permSec) permSec.style.display=tab==='permissions'?'block':'none';
   document.getElementById('dbStorageSection').style.display=tab==='dbstorage'?'block':'none';
   // Sidebar nav highlighting
   document.querySelectorAll('.ps-nav').forEach(n=>n.classList.remove('active'));
   var sn=document.getElementById('psNav'+tab.charAt(0).toUpperCase()+tab.slice(1));
   if(sn) sn.classList.add('active');
   if(tab==='apps') renderAppGrid();
+  // Guard admin-only tabs
+  var _isSA=(CU&&(CU.roles||[]).indexOf('Super Admin')>=0);
+  if((tab==='users'||tab==='permissions'||tab==='dbstorage')&&!_isSA){showTab('apps');return;}
   if(tab==='users') renderPortalUsers();
   if(tab==='profile') ppLoadProfile();
+  if(tab==='permissions') renderPermissions();
   if(tab==='dbstorage') renderPortalDbStorage();
 }
 
@@ -723,11 +730,31 @@ function _recalcEgress(){
 }
 
 function renderAppGrid(){
-  const grid=document.getElementById('appGrid'),userApps=CU.apps||[];
+  const grid=document.getElementById('appGrid');
   const isAdmin=(CU.roles||[]).some(r=>r==='Super Admin'||r==='Admin');
-  grid.innerHTML=PORTAL_APPS.map(app=>{
-    const file=APP_FILES[app.id]||null,active=APP_ACTIVE[app.id]||false,hasAccess=isAdmin||userApps.includes(app.id),enabled=active&&hasAccess;
-    return `<div class="app-card${enabled?'':' disabled'}" ${enabled?`onclick="openApp('${app.id}','${file}')"`:''}><span class="app-icon">${app.icon}</span><div class="app-label">${app.label}</div><div class="app-full">${app.full}</div><span class="app-badge ${active?'active':'coming'}">${active?(hasAccess?'Active':'No Access'):'Coming Soon'}</span></div>`;
+  // VMS and Security share the CU.roles field but have different role sets,
+  // so we can't just check length. Filter the user's roles against the
+  // app-specific role list defined for each module.
+  const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
+  const SEC_ROLES=['KAP Security','Guard','Viewer']; // Security-specific (excluding Super Admin which falls under isAdmin)
+  function _hasAnyRoleFor(appId){
+    if(isAdmin) return true;
+    if(appId==='vms') return (CU.roles||[]).some(r=>VMS_ONLY_ROLES.indexOf(r)>=0);
+    if(appId==='security') return (CU.roles||[]).some(r=>SEC_ROLES.indexOf(r)>=0);
+    if(appId==='hwms') return ((CU.hwmsRoles)||[]).length>0;
+    if(appId==='hrms') return ((CU.hrmsRoles)||[]).length>0;
+    return false; // Apps without a role model (maintenance/review) stay hidden unless admin.
+  }
+  const visibleApps=PORTAL_APPS.filter(a=>_hasAnyRoleFor(a.id)||(APP_ACTIVE[a.id]===false&&isAdmin));
+  if(!visibleApps.length){
+    grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px;grid-column:1/-1">No apps assigned yet. Contact your admin to request access.</div>';
+    return;
+  }
+  grid.innerHTML=visibleApps.map(app=>{
+    const file=APP_FILES[app.id]||null;
+    const active=APP_ACTIVE[app.id]||false;
+    const enabled=active; // tile is visible only when user has role, so effectively enabled when active
+    return `<div class="app-card${enabled?'':' disabled'}" ${enabled?`onclick="openApp('${app.id}','${file}')"`:''}><span class="app-icon">${app.icon}</span><div class="app-label">${app.label}</div><div class="app-full">${app.full}</div><span class="app-badge ${active?'active':'coming'}">${active?'Active':'Coming Soon'}</span></div>`;
   }).join('');
 }
 function openApp(id,file){
@@ -809,7 +836,7 @@ function puOpenModal(id){
   const u=id?byId(DB.users,id):null;
   document.getElementById('muId').value=id||'';
   document.getElementById('muName').value=u?.name||'';
-  document.getElementById('muPass').value=u?.password||'';
+  // Password field removed — new users get _PORTAL_RESET_PWD automatically.
   document.getElementById('muFull').value=u?.fullName||'';
   document.getElementById('muMobile').value=u?.mobile||'';
   document.getElementById('muTitle').textContent=id?'Edit User':'Add User';
@@ -845,7 +872,6 @@ function puAppChange(cb){
 async function puSaveUser(){
   const id=document.getElementById('muId').value;
   const name=document.getElementById('muName').value.trim().toLowerCase().replace(/[\s!@#$%^&*()+=\[\]{};':"\\|,.<>\/?]/g,'');
-  const pass=document.getElementById('muPass').value;
   const plant=document.getElementById('muLoc').value;
   const fullName=document.getElementById('muFull').value.trim();
   const mobile=document.getElementById('muMobile').value;
@@ -854,7 +880,7 @@ async function puSaveUser(){
   const hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
   const hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
   const inactive=document.getElementById('muInactive')?.checked===true;
-  if(!name||!pass){modalErr('mUser','Username and password required');return}
+  if(!name){modalErr('mUser','Username required');return}
   if(!plant){modalErr('mUser','Location required');return}
   if(!fullName){modalErr('mUser','Full name required');return}
   if(!apps.length){modalErr('mUser','Select at least one app');return}
@@ -872,15 +898,16 @@ async function puSaveUser(){
   if(DB.users.find(u=>u&&u.name===name&&u.id!==id&&!u.inactive)){modalErr('mUser','Username already exists');return}
   if(DB.users.find(u=>(u.fullName||'').trim().toLowerCase()===fullName.toLowerCase()&&u.id!==id&&!u.inactive)){modalErr('mUser','Full name already exists');return}
   if(id){
+    // Edit: never touch password from this form. Password changes go
+    // through Reset (Super Admin 🔑 button) or self-service login flow.
     const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
-    // If password field was changed, hash it server-side
-    if(pass) await _authSetPassword(eu.id,pass);
   } else {
+    // New user: always assign the default password. User must change it
+    // on first login (forced via password-strength check).
     const nu={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive,photo:'',email:''};
     if(!await _dbSave('users',nu)) return;
-    // Hash password server-side for new user
-    await _authSetPassword(nu.id,pass||'Kappl@123');
+    await _authSetPassword(nu.id,_PORTAL_RESET_PWD);
   }
   cm('mUser');
   // Auto-sync user's roles into their plant location's role arrays
@@ -1164,7 +1191,7 @@ function doLogout(){
 // ═══ BOOT / INITIALISATION ═══════════════════════════════════════════════
 async function _portalBoot(){
   // Portal only needs users and locations — not VMS/HWMS/Security operational tables
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations'];
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings'];
   // Check session
   var su,sp2;
   try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_token'); }catch(e){}
@@ -1191,7 +1218,10 @@ async function _portalBoot(){
       if(_cu) user=JSON.parse(_cu);
       if(!user||user.name.toLowerCase()!==su) user=null;
     }catch(e){ user=null; }
-    if(!user) user=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===su;});
+    // Prefer the live DB record over the cached one — admin may have
+    // updated roles/apps since this session was created.
+    var freshU=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===su;});
+    if(freshU) user=freshU;
     if(user&&!user.inactive){
       CU=user; _enrichCU();
       _portalLoggedIn=true;
@@ -1236,3 +1266,342 @@ document.addEventListener('DOMContentLoaded', ()=>{
     document.getElementById('loginPage').style.display='flex';
   });
 });
+
+// ═══ ROLE SETTINGS — Multi-module Role & Permission Management ═══════════
+var _permActiveModule='';
+var _permActiveRole='';
+
+
+// _PERM_ROLE_FIELDS, permLevel, permCanView, permCanAct, _permLoadData,
+// _permKeyKind are all defined in common.js. Portal reuses those globals.
+
+// Module → default roles from constants (Portal editor-only helper)
+function _permGetDefaultRoles(mod){
+  if(mod==='HRMS') return typeof HRMS_ROLES!=='undefined'?HRMS_ROLES.slice():['Super Admin','HR Manager','HR Admin','Employee'];
+  if(mod==='VMS') return typeof ROLES!=='undefined'?ROLES.slice():['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
+  if(mod==='HWMS') return typeof HWMS_ROLES!=='undefined'?HWMS_ROLES.slice():['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
+  if(mod==='Security') return ['Super Admin','KAP Security','Guard','Viewer'];
+  return ['Super Admin'];
+}
+
+function _permModuleData(mod){
+  var all=_permLoadData();
+  if(!all[mod]) all[mod]={roles:[],permissions:{}};
+  var md=all[mod];
+  // Auto-merge: ensure all default/constant roles exist in the saved list
+  var defaults=_permGetDefaultRoles(mod);
+  defaults.forEach(function(r){if(md.roles.indexOf(r)<0) md.roles.push(r);});
+  // Also scan users for any custom roles assigned but not yet in the role list
+  var field=_PERM_ROLE_FIELDS[mod];
+  if(field){
+    (DB.users||[]).forEach(function(u){
+      var userRoles=u[field]||[];
+      userRoles.forEach(function(r){if(r&&md.roles.indexOf(r)<0) md.roles.push(r);});
+    });
+  }
+  // Ensure Super Admin is always first
+  var saIdx=md.roles.indexOf('Super Admin');
+  if(saIdx>0){md.roles.splice(saIdx,1);md.roles.unshift('Super Admin');}
+  else if(saIdx<0) md.roles.unshift('Super Admin');
+  return md;
+}
+
+function renderPermissions(){
+  var tabs=document.getElementById('permModuleTabs');
+  if(!tabs) return;
+  var modules=Object.keys(_PERM_KEYS);
+  if(!_permActiveModule) _permActiveModule=modules[0];
+  tabs.innerHTML=modules.map(function(m){
+    var active=m===_permActiveModule;
+    return '<div onclick="_permSelectModule(\''+m+'\')" style="padding:8px 18px;font-size:13px;font-weight:'+(active?'800':'600')+';cursor:pointer;border-bottom:3px solid '+(active?'var(--accent)':'transparent')+';color:'+(active?'var(--accent)':'var(--text3)')+';transition:all .15s">'+m+'</div>';
+  }).join('');
+  _permRenderRoles();
+}
+
+function _permSelectModule(mod){
+  _permActiveModule=mod;
+  _permActiveRole='';
+  renderPermissions();
+}
+
+function _permRenderRoles(){
+  var el=document.getElementById('permRoleList');
+  var header=document.getElementById('permHeader');
+  var body=document.getElementById('permBody');
+  if(!el) return;
+  var md=_permModuleData(_permActiveModule);
+  var roles=md.roles||[];
+  var h='';
+  roles.forEach(function(r){
+    var isSA=r==='Super Admin';
+    var active=r===_permActiveRole;
+    h+='<div onclick="_permSelectRole(\''+r.replace(/'/g,"\\'")+'\')" style="display:flex;align-items:center;gap:6px;padding:8px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:'+(active?'800':'600')+';background:'+(active?'var(--accent-light)':'#fff')+';border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';color:'+(active?'var(--accent)':'var(--text)')+'">';
+    h+='<span style="flex:1">'+r+'</span>';
+    if(isSA) h+='<span style="font-size:9px;background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-weight:700">Full Access</span>';
+    else if(!isSA) h+='<span onclick="event.stopPropagation();_permDeleteRole(\''+r.replace(/'/g,"\\'")+'\')" style="font-size:11px;color:#dc2626;cursor:pointer;opacity:0.5" title="Delete role">✕</span>';
+    h+='</div>';
+  });
+  el.innerHTML=h;
+  if(_permActiveRole) _permRenderPerms();
+  else{
+    if(header) header.innerHTML='<div style="font-size:13px;color:var(--text3)">← Select a role to configure permissions</div>';
+    if(body) body.innerHTML='';
+  }
+}
+
+function _permSelectRole(role){
+  _permActiveRole=role;
+  _permRenderRoles();
+}
+
+// Classify a perm key: 'pageTab' (tri-state page/tab) or 'action' (checkbox).
+function _permKeyKind(key){
+  return /^(page|tab)\./.test(key)?'pageTab':'action';
+}
+// Read tri-state level for a page/tab key from role's perms.
+// Backward-compatible: rolePerms[key]===true → 'full' (legacy boolean). New value 'view' → 'view'.
+function _permReadLevel(rolePerms,key){
+  var v=rolePerms[key];
+  if(v===true||v==='full') return 'full';
+  if(v==='view') return 'view';
+  return 'none';
+}
+
+// Determine indent depth for a permission key:
+//   0 = page        (top-level umbrella)
+//   1 = tab         (sub-umbrella)
+//   2 = sub-tab     (settings.X / att.X / masters.X / etc. — umbrella if actions follow)
+//   3 = action      (leaf)
+function _permDepth(key){
+  if(/^page\./.test(key)) return 0;
+  if(/^tab\./.test(key)) return 1;
+  if(/^action\./.test(key)) return 3;
+  return 2;
+}
+// Items "under" this one: subsequent entries at greater depth, stopping at
+// the next item of same or shallower depth. Based on declared order within
+// the group, which already reflects the intended hierarchy.
+function _permScopedChildren(items,index){
+  var parentDepth=_permDepth(items[index].key);
+  var kids=[];
+  for(var i=index+1;i<items.length;i++){
+    var d=_permDepth(items[i].key);
+    if(d<=parentDepth) break;
+    kids.push(items[i]);
+  }
+  return kids;
+}
+// Is this item an umbrella (no tri-state of its own, auto-derived)?
+//   Must have scoped children.
+//   page.* additionally requires it to be the sole page.* in the group —
+//   otherwise groups like "📂 Masters" (seven page.* siblings + one shared
+//   masters.edit action) would wrongly treat the last page as a parent.
+function _permIsUmbrella(items,index){
+  var item=items[index];
+  var kids=_permScopedChildren(items,index);
+  if(!kids.length) return false;
+  if(/^page\./.test(item.key)){
+    var pagesInGroup=items.filter(function(it){return /^page\./.test(it.key);});
+    if(pagesInGroup.length>1) return false;
+  }
+  return true;
+}
+
+function _permRenderPerms(){
+  var header=document.getElementById('permHeader');
+  var body=document.getElementById('permBody');
+  if(!header||!body) return;
+  var role=_permActiveRole;
+  var isSA=role==='Super Admin';
+  var md=_permModuleData(_permActiveModule);
+  var rolePerms=(md.permissions&&md.permissions[role])||{};
+  var keys=_PERM_KEYS[_permActiveModule]||[];
+
+  header.innerHTML='<div style="font-size:15px;font-weight:900;color:var(--accent)">'+role+'</div>'
+    +'<span style="font-size:11px;color:var(--text3)">'+_permActiveModule+'</span>'
+    +(isSA?'<span style="font-size:11px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700">Full access — cannot be modified</span>':'')
+    +(!isSA?'<button onclick="_permSaveRole()" style="margin-left:auto;font-size:12px;padding:5px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer">💾 Save</button>':'');
+
+  if(isSA){body.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">Super Admin has unrestricted access to all features. No configuration needed.</div>';return;}
+
+  // Group keys (preserving declared order within each group)
+  var groups={};var groupOrder=[];
+  keys.forEach(function(k){
+    if(!groups[k.group]){groups[k.group]=[];groupOrder.push(k.group);}
+    groups[k.group].push(k);
+  });
+
+  // Tri-state segmented control renderer — used for every permission entry.
+  function levelSeg(k,currentLevel){
+    var levels=[
+      {v:'none',lbl:'None',bg:'#f3f4f6',fg:'#6b7280',activeBg:'#9ca3af',activeFg:'#fff'},
+      {v:'view',lbl:'View',bg:'#eff6ff',fg:'#1d4ed8',activeBg:'#2563eb',activeFg:'#fff'},
+      {v:'full',lbl:'Full',bg:'#ecfdf5',fg:'#047857',activeBg:'#16a34a',activeFg:'#fff'}
+    ];
+    var out='<div data-perm-ptkey="'+k.key+'" data-level="'+currentLevel+'" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0">';
+    levels.forEach(function(L){
+      var on=(L.v===currentLevel);
+      out+='<button type="button" onclick="_permSetLevel(\''+k.key+'\',\''+L.v+'\')" '
+        +'style="font-size:10px;font-weight:800;padding:3px 9px;border:none;cursor:pointer;'
+        +'background:'+(on?L.activeBg:L.bg)+';color:'+(on?L.activeFg:L.fg)+';'
+        +'transition:all .1s">'+L.lbl+'</button>';
+    });
+    out+='</div>';
+    return out;
+  }
+
+  var h='';
+  groupOrder.forEach(function(g){
+    var items=groups[g];
+    h+='<div style="margin-bottom:14px" data-perm-group="'+g.replace(/"/g,'&quot;')+'">';
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid var(--border)">';
+    h+='<span style="font-size:13px;font-weight:900;color:var(--text)">'+g+'</span>';
+    h+='</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:4px">';
+    items.forEach(function(k,idx){
+      var depth=_permDepth(k.key);
+      var indent=depth*18; // slightly tighter now that we have 4 levels (0–3)
+      var lvl=_permReadLevel(rolePerms,k.key);
+      var icon=depth===0?'📄':depth===1?'📁':depth===2?'└─':'•';
+      var fontWeight=depth<=1?'700':'500';
+      var labelColor=depth===0?'var(--text)':depth===1?'var(--text)':depth===2?'var(--text2)':'var(--text3)';
+      var isUmbrella=_permIsUmbrella(items,idx);
+      // Fixed-width label (indent inside padding) so every tri-state lines up.
+      h+='<div style="display:flex;align-items:center;gap:10px;padding:3px 0">';
+      h+='<span style="font-size:'+(depth<=1?12:11)+'px;color:'+labelColor+';font-weight:'+fontWeight+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:280px;padding-left:'+indent+'px;flex-shrink:0;box-sizing:border-box">';
+      h+='<span style="opacity:0.5;margin-right:4px">'+icon+'</span>'+k.label;
+      h+='</span>';
+      if(isUmbrella){
+        h+='<span data-perm-umbrella="'+k.key+'" data-perm-group-id="'+g.replace(/"/g,'&quot;')+'" data-perm-index="'+idx+'" style="font-size:10px;color:var(--text3);font-style:italic">auto (from items below)</span>';
+      } else {
+        h+=levelSeg(k,lvl);
+      }
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='</div>';
+  });
+  body.innerHTML=h;
+}
+
+// Click a segment in the tri-state selector. Updates just the DOM for this
+// one entry so other unsaved rows aren't disturbed.
+function _permSetLevel(pageTabKey,level){
+  var body=document.getElementById('permBody');if(!body) return;
+  var seg=body.querySelector('[data-perm-ptkey="'+pageTabKey+'"]');
+  if(!seg) return;
+  seg.setAttribute('data-level',level);
+  var btns=seg.querySelectorAll('button');
+  var stylesByLvl={
+    none:{bg:'#f3f4f6',fg:'#6b7280',activeBg:'#9ca3af',activeFg:'#fff'},
+    view:{bg:'#eff6ff',fg:'#1d4ed8',activeBg:'#2563eb',activeFg:'#fff'},
+    full:{bg:'#ecfdf5',fg:'#047857',activeBg:'#16a34a',activeFg:'#fff'}
+  };
+  var order=['none','view','full'];
+  btns.forEach(function(btn,i){
+    var lv=order[i];var s=stylesByLvl[lv];var on=(lv===level);
+    btn.style.background=on?s.activeBg:s.bg;
+    btn.style.color=on?s.activeFg:s.fg;
+  });
+}
+
+// Legacy no-op shims — the UI no longer renders checkboxes.
+function _permItemChange(){}
+function _permToggleGroup(){}
+
+function _permAddRole(){
+  var name=prompt('Enter new role name for '+_permActiveModule+':');
+  if(!name||!name.trim()) return;
+  name=name.trim();
+  var md=_permModuleData(_permActiveModule);
+  if(md.roles.indexOf(name)>=0){notify('Role "'+name+'" already exists',true);return;}
+  md.roles.push(name);
+  // Also update the constant arrays so user management picks them up
+  if(_permActiveModule==='HRMS'&&typeof HRMS_ROLES!=='undefined'&&HRMS_ROLES.indexOf(name)<0) HRMS_ROLES.push(name);
+  if(_permActiveModule==='HWMS'&&typeof HWMS_ROLES!=='undefined'&&HWMS_ROLES.indexOf(name)<0) HWMS_ROLES.push(name);
+  _permActiveRole=name;
+  _permSaveData(md);
+}
+
+function _permDeleteRole(role){
+  if(role==='Super Admin'){notify('Cannot delete Super Admin',true);return;}
+  if(!confirm('Delete role "'+role+'" from '+_permActiveModule+'?')) return;
+  var md=_permModuleData(_permActiveModule);
+  md.roles=md.roles.filter(function(r){return r!==role;});
+  if(md.permissions) delete md.permissions[role];
+  if(_permActiveRole===role) _permActiveRole='';
+  _permSaveData(md);
+}
+
+async function _permSaveRole(){
+  var role=_permActiveRole;if(!role||role==='Super Admin') return;
+  var body=document.getElementById('permBody');if(!body) return;
+  var perms={};
+  // Every visible tri-state control (pages/tabs/sub-tabs/actions without
+  // an umbrella override). Persist uniformly:
+  //   Full → true,  View → 'view',  None → key omitted
+  body.querySelectorAll('[data-perm-ptkey]').forEach(function(seg){
+    var key=seg.getAttribute('data-perm-ptkey');
+    var lvl=seg.getAttribute('data-level')||'none';
+    if(lvl==='full') perms[key]=true;
+    else if(lvl==='view') perms[key]='view';
+    // None: key omitted — runtime falls through to role defaults for that key
+  });
+  // Umbrella items (no visible control). Level is auto-computed from the
+  // SCOPED children — items immediately nested under this umbrella in
+  // declared order, stopping at the next sibling at same-or-shallower depth.
+  // This makes e.g. tab.kap.exit inherit max(recordGateExit, recordEmptyExit)
+  // without accidentally absorbing tab.kap.entry's actions.
+  var keys=_PERM_KEYS[_permActiveModule]||[];
+  var groupsByName={};
+  keys.forEach(function(k){(groupsByName[k.group]=groupsByName[k.group]||[]).push(k);});
+  // Walk from deepest to shallowest so children umbrellas settle first,
+  // then their parents see those rolled-up values.
+  body.querySelectorAll('[data-perm-umbrella]').forEach(function(el){
+    el._idxNum=parseInt(el.getAttribute('data-perm-index')||'0',10);
+  });
+  var umbEls=[].slice.call(body.querySelectorAll('[data-perm-umbrella]'));
+  umbEls.sort(function(a,b){
+    var ga=a.getAttribute('data-perm-group-id'),gb=b.getAttribute('data-perm-group-id');
+    if(ga!==gb) return 0;
+    return b._idxNum-a._idxNum; // later index first → deeper umbrellas resolve first
+  });
+  umbEls.forEach(function(el){
+    var umbKey=el.getAttribute('data-perm-umbrella');
+    var groupName=el.getAttribute('data-perm-group-id');
+    var items=groupsByName[groupName]||[];
+    var idx=items.findIndex(function(k){return k.key===umbKey;});
+    if(idx<0) return;
+    var kids=_permScopedChildren(items,idx);
+    var best='none';
+    kids.forEach(function(c){
+      var v=perms[c.key];
+      if(v===true||v==='full') best='full';
+      else if(v==='view'&&best!=='full') best='view';
+    });
+    if(best==='full') perms[umbKey]=true;
+    else if(best==='view') perms[umbKey]='view';
+    // umbrella: none ⇒ omit (no children granted)
+  });
+  var md=_permModuleData(_permActiveModule);
+  if(!md.permissions) md.permissions={};
+  md.permissions[role]=perms;
+  await _permSaveData(md);
+  notify('✓ Permissions saved for '+role+' ('+_permActiveModule+')');
+}
+
+async function _permSaveData(md){
+  var all=_permLoadData();
+  all[_permActiveModule]=md;
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';});
+  if(!rec){
+    rec={id:'hs_rolePermissions',key:'rolePermissions',data:{}};
+    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    DB.hrmsSettings.push(rec);
+  }
+  rec.data=all;
+  showSpinner('Saving…');
+  await _dbSave('hrmsSettings',rec);
+  hideSpinner();
+  _permRenderRoles();
+}

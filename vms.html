@@ -784,7 +784,11 @@
       </div>
     </div></div>
 <div class="modal-overlay" id="mUser"><div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto"><div class="modal-header" style="position:sticky;top:0;background:var(--surface);z-index:1;padding-bottom:12px"><div class="modal-title" id="mUserTitle">Add User</div><div class="modal-close" onclick="cm('mUser')">×</div></div><input type="hidden" id="eUid">
-<div class="form-row"><div class="form-group"><label>Username *</label><input type="text" id="uNameI" placeholder="No spaces/special chars"></div><div class="form-group"><label>Password *</label><input type="password" id="uPass"></div></div>
+<div class="form-group"><label>Username *</label><input type="text" id="uNameI" placeholder="No spaces/special chars"></div>
+<!-- Password is never captured in the user form. New users get default
+     password "Kappl@123"; password changes happen via Reset (Super Admin)
+     or self-service on next login. -->
+<input type="hidden" id="uPass" value="">
 <div class="form-row"><div class="form-group"><label>Full Name *</label><input type="text" id="uFullName" placeholder="Display name"></div><div class="form-group"><label>Location *</label><select id="uPlant"><option value="">-- Select --</option></select></div></div>
 <div class="form-group" style="margin-bottom:12px"><label>Mobile (Optional)</label><input type="tel" id="uMobile" maxlength="10" placeholder="10 digits"></div>
 

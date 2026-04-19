@@ -55,6 +55,51 @@ function _hrmsGetActivePeriod(){return _hrmsEmpPeriods[_hrmsActivePeriodIdx]||_h
  * @returns {boolean} True if current user is Super Admin
  */
 function _hrmsIsSA(){return CU&&((CU.hrmsRoles||[]).indexOf('Super Admin')>=0||(CU.roles||[]).indexOf('Super Admin')>=0);}
+function _hrmsIsHRM(){return _hrmsIsSA()||CU&&(CU.hrmsRoles||[]).indexOf('HR Manager')>=0;}
+
+// ═══ PERMISSIONS ═════════════════════════════════════════════════════════
+var _hrmsPermissions=null;
+
+function _hrmsLoadPermissions(){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';});
+  var all=(rec&&rec.data)||{};
+  var hrms=all.HRMS||{};
+  _hrmsPermissions=hrms.permissions||{};
+}
+
+function _hrmsHasAccess(featureKey){
+  if(_hrmsIsSA()) return true;
+  // If admin has saved ANY permissions for one of the user's HRMS roles,
+  // those are AUTHORITATIVE — items admin didn't grant are hidden.
+  // This matches VMS/HWMS/Security semantics.
+  if(typeof permConfigured==='function'&&permConfigured('HRMS')){
+    // Action keys AND edit-level keys require Full (not View). View-level on
+    // an action-like key means "no action allowed". e.g. masters.edit set
+    // to View by admin should not permit editing masters.
+    if(/^action\./.test(featureKey)||featureKey==='masters.edit'){
+      return typeof permCanAct==='function'&&permCanAct('HRMS',featureKey);
+    }
+    return typeof permCanView==='function'&&permCanView('HRMS',featureKey);
+  }
+  // No permissions configured yet for any of this user's HRMS roles —
+  // fall back to role-based defaults so privileged roles aren't blank-
+  // screened before admin opts into Role Settings.
+  if(!CU) return false;
+  var roles=CU.hrmsRoles||[];
+  if(roles.indexOf('HR Manager')>=0||roles.indexOf('HR Admin')>=0) return true;
+  if(roles.indexOf('Employee')>=0){
+    return !/^action\./.test(featureKey);
+  }
+  // Any other custom role: honour the legacy boolean store if populated.
+  if(!_hrmsPermissions) return false;
+  for(var i=0;i<roles.length;i++){
+    var rp=_hrmsPermissions[roles[i]];
+    if(rp&&rp[featureKey]===true) return true;
+  }
+  return false;
+}
+
+// HRMS_PERMISSION_KEYS now defined in portal-ui.js (_PERM_KEYS.HRMS) and shared at runtime
 
 // ═══ DATA SANITIZATION ═══
 
@@ -172,6 +217,20 @@ function _hrmsRoundOut(mins){
   if(mins>=1140&&mins<=1160) return 1140;
   // Default: round to nearest 15 min
   return Math.round(mins/15)*15;
+}
+
+// ═══ ALTERATION APPROVAL ═══
+/**
+ * Returns the alteration object only if it is effective (approved).
+ * Legacy records without an `approved` field are treated as approved.
+ * Records with `approved===false` are pending and should NOT override attendance.
+ * @param {Object|null} alt - alteration day object
+ * @returns {Object|null} alt if effective, null otherwise
+ */
+function _hrmsEffectiveAlt(alt){
+  if(!alt) return null;
+  if(alt.approved===false) return null;
+  return alt;
 }
 
 // ═══ OT FORMATTING ═══

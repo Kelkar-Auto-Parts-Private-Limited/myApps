@@ -233,7 +233,9 @@ async function _loadOlderData(localTbl,extraDays){
 }
 var _PHOTO_PRESERVE={
   'spotTrips':['challanPhoto','driverPhoto','entryVehiclePhoto','exitVehiclePhoto'],
-  'trips':['photo1','photo2','photo3']
+  // challans1/2/3 hold base64 photos and are excluded from the boot select —
+  // preserve any locally-loaded copies so realtime/bgSync don't wipe them.
+  'trips':['photo1','photo2','photo3','challans1','challans2','challans3']
 };
 var _PHOTO_DB_COLS={
   'vms_spot_trips':['challan_photo','driver_photo','entry_vehicle_photo','exit_vehicle_photo']
@@ -241,6 +243,147 @@ var _PHOTO_DB_COLS={
 // _syncSelect → moved to vms-logic.js
 
 // _syncMergeRows → moved to vms-logic.js
+
+// On-demand fetch of challans1/2/3 for a single trip. The boot select
+// excludes these (they hold base64 photos and bloat the fetch). This is
+// called by entry points that need to read/validate challans: trip edit
+// modal, KAP Security gate actions, Material Receipt, Trip Approval.
+// Deduped via _loadedChallansTripIds so clicking around doesn't refetch.
+var _loadedChallansTripIds={};
+var _inflightChallansLoad={};
+async function _loadTripChallans(tripId){
+  if(!tripId||!_sbReady||!_sb) return null;
+  if(_loadedChallansTripIds[tripId]) return byId(DB.trips||[],tripId);
+  if(_inflightChallansLoad[tripId]) return _inflightChallansLoad[tripId];
+  var rec=byId(DB.trips||[],tripId);
+  if(!rec) return null;
+  _inflightChallansLoad[tripId]=(async function(){
+    try{
+      var res=await _sb.from(SB_TABLES['trips'])
+        .select('code,challans1,challans2,challans3')
+        .eq('code',tripId).limit(1);
+      if(res.error||!res.data||!res.data.length) return rec;
+      var row=res.data[0];
+      rec.challans1=row.challans1||[];
+      rec.challans2=row.challans2||[];
+      rec.challans3=row.challans3||[];
+      _loadedChallansTripIds[tripId]=true;
+      return rec;
+    }catch(e){ console.warn('_loadTripChallans error:',e.message); return rec; }
+    finally{ delete _inflightChallansLoad[tripId]; }
+  })();
+  return _inflightChallansLoad[tripId];
+}
+
+// On-demand batch loader: called by render functions with the trip IDs
+// they're about to display. Fetches challans (with photos) only for trips
+// not yet loaded. Triggers one view refresh after the batch lands so
+// thumbnails appear for just what's actually visible.
+var _ensureChallansPending=null;
+function _ensureTripChallans(tripIds){
+  if(!_sbReady||!_sb||!tripIds||!tripIds.length) return;
+  var todo=tripIds.filter(function(id){return id&&!_loadedChallansTripIds[id]&&!_inflightChallansLoad[id];});
+  if(!todo.length) return;
+  // Mark inflight immediately so overlapping renders don't re-request
+  todo.forEach(function(id){_inflightChallansLoad[id]=true;});
+  var run=(async function(){
+    try{
+      var CHUNK=25;
+      for(var i=0;i<todo.length;i+=CHUNK){
+        var batch=todo.slice(i,i+CHUNK);
+        try{
+          var res=await _sb.from(SB_TABLES['trips'])
+            .select('code,challans1,challans2,challans3')
+            .in('code',batch);
+          if(res.error){ console.warn('_ensureTripChallans error:',res.error.message); continue; }
+          (res.data||[]).forEach(function(row){
+            var rec=byId(DB.trips||[],row.code);
+            if(!rec) return;
+            rec.challans1=row.challans1||[];
+            rec.challans2=row.challans2||[];
+            rec.challans3=row.challans3||[];
+            _loadedChallansTripIds[row.code]=true;
+          });
+        }catch(e){ console.warn('_ensureTripChallans chunk exception:',e.message); }
+        batch.forEach(function(id){delete _inflightChallansLoad[id];});
+      }
+      if(!_kapPopupOpen&&typeof _onRefreshViews==='function') _onRefreshViews();
+      // If a popup is currently open (MR/Approve detail), re-render the page
+      // with popup state preserved so photos appear inside the popup.
+      if(_currentOpenPopId) _refreshOpenPopup();
+    }finally{
+      todo.forEach(function(id){delete _inflightChallansLoad[id];});
+    }
+  })();
+  return run;
+}
+
+// Same pattern for segment step photos. Boot loads steps_light (photos
+// stripped server-side); full `steps` is fetched only for segments being
+// rendered. Replaces DB.segments[x].steps with the full copy containing
+// photos.
+var _loadedStepsSegIds={};
+var _inflightStepsLoad={};
+
+// Per-card loader: fires when the user opens a trip card. Fetches the one
+// trip's challans + its segments' step photos, then triggers a view refresh
+// so the just-opened card shows thumbnails. Deduped via the two ID sets,
+// so reopening is free. If bodyEl is provided and a fetch is needed, injects
+// a small "loading photos…" spinner — removed automatically when the
+// re-render rebuilds the card body.
+function _loadTripCardPhotos(tripId,bodyEl){
+  if(!tripId) return;
+  var segIds=(DB.segments||[]).filter(function(s){return s&&s.tripId===tripId;}).map(function(s){return s.id;});
+  var needChallans=!_loadedChallansTripIds[tripId];
+  var needSteps=segIds.some(function(id){return !_loadedStepsSegIds[id];});
+  if((needChallans||needSteps)&&bodyEl) _showCardPhotoSpinner(bodyEl);
+  if(needChallans&&typeof _ensureTripChallans==='function') _ensureTripChallans([tripId]);
+  if(needSteps&&typeof _ensureSegmentSteps==='function') _ensureSegmentSteps(segIds);
+}
+
+// Inject a small loading indicator at the top of a card body element.
+// Removed automatically when _onRefreshViews rebuilds the parent's innerHTML.
+function _showCardPhotoSpinner(bodyEl){
+  if(!bodyEl||bodyEl.querySelector('.card-photo-spinner')) return;
+  // Ensure @keyframes kapSpin exists (common.js injects it lazily)
+  if(typeof _spinnerEnsureDOM==='function') _spinnerEnsureDOM();
+  var sp=document.createElement('div');
+  sp.className='card-photo-spinner';
+  sp.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(42,154,160,.06);border-bottom:1px solid var(--border);color:var(--text3);font-size:11px;font-style:italic;font-weight:600';
+  sp.innerHTML='<div style="width:12px;height:12px;border:2px solid rgba(42,154,160,.25);border-top-color:#2a9aa0;border-radius:50%;animation:kapSpin 0.7s linear infinite;flex-shrink:0"></div><span>Loading photos…</span>';
+  bodyEl.insertBefore(sp,bodyEl.firstChild);
+}
+
+function _ensureSegmentSteps(segIds){
+  if(!_sbReady||!_sb||!segIds||!segIds.length) return;
+  var todo=segIds.filter(function(id){return id&&!_loadedStepsSegIds[id]&&!_inflightStepsLoad[id];});
+  if(!todo.length) return;
+  todo.forEach(function(id){_inflightStepsLoad[id]=true;});
+  (async function(){
+    try{
+      var CHUNK=25;
+      for(var i=0;i<todo.length;i+=CHUNK){
+        var batch=todo.slice(i,i+CHUNK);
+        try{
+          var res=await _sb.from(SB_TABLES['segments'])
+            .select('code,steps').in('code',batch);
+          if(res.error){ console.warn('_ensureSegmentSteps error:',res.error.message); continue; }
+          (res.data||[]).forEach(function(row){
+            var rec=byId(DB.segments||[],row.code);
+            if(!rec||!row.steps) return;
+            rec.steps=row.steps;
+            _loadedStepsSegIds[row.code]=true;
+          });
+        }catch(e){ console.warn('_ensureSegmentSteps chunk exception:',e.message); }
+        batch.forEach(function(id){delete _inflightStepsLoad[id];});
+      }
+      if(!_kapPopupOpen&&typeof _onRefreshViews==='function') _onRefreshViews();
+      if(_currentOpenPopId) _refreshOpenPopup();
+    }finally{
+      todo.forEach(function(id){delete _inflightStepsLoad[id];});
+    }
+  })();
+}
 
 async function _loadPhotos(localTbl,recordId){
   var sbTbl=SB_TABLES[localTbl];var photoCols=_PHOTO_DB_COLS[sbTbl];
@@ -404,6 +547,16 @@ bootDB=async function(){
     await _origBootDB();
     console.log('bootDB(VMS): original bootDB completed, users='+(DB.users||[]).length);
     if(typeof _vmsUpdateSyncTime==='function')_vmsUpdateSyncTime();
+    // Force next bgSync to be trueFull. The common.js timeout path at +1s, and the 60s poll,
+    // both call the VMS-overridden _bgSyncFromSupabase — which defaults to incremental.
+    // Incremental with 90s lookback returns 0 rows on cold boot, causing minute-long empty states.
+    _vmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
+    // Proactively schedule a trueFull sync if heavy operational tables are empty
+    var _heavyEmpty=(DB.users||[]).length>0&&(DB.trips||[]).length===0&&(DB.segments||[]).length===0;
+    if(_heavyEmpty){
+      console.log('bootDB(VMS): operational tables empty — scheduling trueFull sync in 800ms');
+      setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},800);
+    }
   }catch(e){
     console.error('bootDB(VMS): original bootDB failed:',e);
   }
@@ -413,7 +566,9 @@ async function _appBoot(){
   console.log('VMS: _appBoot starting...');
   var splash=document.getElementById('dbSplash');
   // Set all VMS tables before boot
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips'];
+  // hrmsSettings holds role-permission data (shared across apps), needed for
+  // permCanView / permCanAct to work in VMS nav and page-level enforcement.
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips','hrmsSettings'];
   // Add essential lookup tables to hot sync so they load immediately
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicles','drivers','locations','vendors'];
 
@@ -442,8 +597,11 @@ async function _appBoot(){
     var user=null;
     // Restore from cached user object (set during portal login)
     try{var _cu=localStorage.getItem('kap_current_user');if(_cu){user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==ss.toLowerCase())user=null;}}catch(e){user=null;}
-    // Fallback: find in DB.users loaded from cache
-    if(!user) user=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===ss.toLowerCase();});
+    // Always prefer the live DB record over the cached one — roles/apps
+    // may have been updated by an admin since this session was created.
+    // Fall back to the cache only if DB.users hasn't loaded (offline).
+    var freshUser=(DB.users||[]).find(function(u){return u&&u.name&&u.name.toLowerCase()===ss.toLowerCase();});
+    if(freshUser) user=freshUser;
     if(user){
       console.log('VMS: session restored, auto-login');
       if(_tryAutoLogin(user)) return;
@@ -1137,20 +1295,20 @@ function goToPortal(){
 
 const NAV=[
   {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',action:'goToPortal',r:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
-  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin','Plant Head'],app:'vms'},
+  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin','Plant Head'],permKey:'page.dashboard',app:'vms'},
   {sec:'OPERATIONS',app:'vms'},
-  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin','Plant Head'],badge:'bTB',app:'vms'},
-  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin','Plant Head'],badge:'bKS',app:'vms'},
-  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin','Plant Head'],badge:'bMR',app:'vms'},
-  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin','Plant Head'],badge:'bAP',app:'vms'},
-  {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],app:'vms'},
+  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin','Plant Head'],badge:'bTB',permKey:'page.trips',app:'vms'},
+  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin','Plant Head'],badge:'bKS',permKey:'page.kapSecurity',app:'vms'},
+  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin','Plant Head'],badge:'bMR',permKey:'page.materialReceiver',app:'vms'},
+  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin','Plant Head'],badge:'bAP',permKey:'page.approve',app:'vms'},
+  {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],permKey:'page.vendorTrips',app:'vms'},
   {sec:'MASTERS',app:'vms'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Plant Head','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',app:'vms'},
-  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',app:'vms'},
-  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',app:'vms'},
-  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',app:'vms'},
-  {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',app:'vms'},
-  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Plant Head','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',permKey:'page.locations',app:'vms'},
+  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',permKey:'page.vehicleTypes',app:'vms'},
+  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',permKey:'page.vendors',app:'vms'},
+  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',permKey:'page.vehicles',app:'vms'},
+  {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',permKey:'page.drivers',app:'vms'},
+  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',permKey:'page.tripRates',app:'vms'},
   {sec:'SYSTEM',app:'vms'},
   {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
 ];
@@ -1223,9 +1381,26 @@ function _runInitApp(){
   if(_logoText) _logoText.textContent=_currentApp==='security'?'Security Surveillance':_currentApp==='hwms'?'HGAP Warehouse Management':'Vehicle Management System';
   const nav=document.getElementById('sidebarNav');
   nav.innerHTML='';
+  // Visibility rules:
+  //   Super Admin  → always visible.
+  //   If Role Settings have any explicit permissions saved for a role the
+  //   user holds in this module, those permissions are AUTHORITATIVE — the
+  //   item shows only if permCanView returns true. This lets admins revoke
+  //   access that the user's role would otherwise grant.
+  //   Otherwise (no permissions configured for user's roles) fall back to
+  //   the legacy role-based check so existing roles keep working until the
+  //   admin opts in by saving a permission set.
+  const _navVisible=(item)=>{
+    if(!CU||!CU.roles) return false;
+    if(CU.roles.includes('Super Admin')) return true;
+    if(item.permKey&&typeof permConfigured==='function'&&permConfigured('VMS')){
+      return permCanView('VMS',item.permKey);
+    }
+    return hasRole(item.r);
+  };
   NAV.filter(item=>item.app==='all'||item.app===_currentApp).forEach(item=>{
     if(item.sec){const s=document.createElement('div');s.className='nav-section';s.textContent=item.sec;nav.appendChild(s);}
-    else if(hasRole(item.r)||CU.roles.includes('Super Admin')){
+    else if(_navVisible(item)){
       const d=document.createElement('div');d.className='nav-item';d.id='n'+item.id;
       if(item.id==='MyApps') d.style.cssText='background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border-radius:8px;margin:8px 10px;padding:10px 14px;font-weight:900;font-size:14px;border:none;';
       d.innerHTML=`<span class="nav-icon">${item.i}</span><span class="nav-label">${item.l}</span>`
@@ -1260,21 +1435,28 @@ function _runInitApp(){
     // HWMS is now a separate module — redirect
     _navigateTo('hwms.html');
     return;
-  } else if(isAdminOrSA){
-    showPage('pageDashboard','Dashboard');
-    if(_mc)_mc.scrollTop=0;
-  } else if(CU.roles.includes('KAP Security')){
-    showPage('pageKapSecurity','KapSec');
-  } else if(CU.roles.includes('Trip Approver')){
-    showPage('pageApprove','Approve');
-  } else if(CU.roles.includes('Material Receiver')){
-    showPage('pageMR','MR');
-  } else if(CU.roles.includes('Trip Booking User')){
-    showPage('pageTripBooking','TripBooking');
-  } else if(CU.roles.includes('Vendor')){
-    showPage('pageVendorTrips','VendorTrips');
   } else {
-    showPage('pageDashboard','Dashboard');
+    // Role-based preferred landing page
+    var _preferred=isAdminOrSA?'Dashboard'
+      :CU.roles.includes('KAP Security')?'KapSec'
+      :CU.roles.includes('Trip Approver')?'Approve'
+      :CU.roles.includes('Material Receiver')?'MR'
+      :CU.roles.includes('Trip Booking User')?'TripBooking'
+      :CU.roles.includes('Vendor')?'VendorTrips'
+      :'Dashboard';
+    // If Role Settings override access, skip to the first nav item the
+    // user can actually see. Prevents e.g. a Plant Head with View=None
+    // on Dashboard from landing on a page they shouldn't reach.
+    var _navItems=NAV.filter(function(it){return !it.sec&&it.app==='vms'&&it.id!=='MyApps';});
+    var _landingItem=_navItems.find(function(it){return it.id===_preferred&&_navVisible(it);})
+      ||_navItems.find(function(it){return _navVisible(it);});
+    if(_landingItem){
+      showPage(_landingItem.p,_landingItem.id);
+      if(_landingItem.id==='Dashboard'&&_mc) _mc.scrollTop=0;
+    } else {
+      // Nothing visible — leave page blank and rely on nav being empty
+      if(_mc) _mc.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px">No pages accessible. Contact your admin to request access.</div>';
+    }
   }
   // Populate sidebar counts immediately
   updBadges();
@@ -1370,11 +1552,39 @@ function _updTopbarUser(){
   }
 }
 
+// VMS page id → permission key used by Role Settings. Kept in sync with
+// NAV[].permKey entries; the lookup below gates direct programmatic
+// navigation (e.g. from code, hash routes, or showPage calls).
+var _VMS_PAGE_PERM_KEY={
+  pageDashboard:'page.dashboard',
+  pageTripBooking:'page.trips',
+  pageKapSecurity:'page.kapSecurity',
+  pageMR:'page.materialReceiver',
+  pageApprove:'page.approve',
+  pageVendorTrips:'page.vendorTrips',
+  pageLocations:'page.locations',
+  pageVTypes:'page.vehicleTypes',
+  pageVendors:'page.vendors',
+  pageVehicles:'page.vehicles',
+  pageDrivers:'page.drivers',
+  pageTripRates:'page.tripRates'
+};
 function showPage(pid,nid){
   // Special: navigate back to portal
   if(pid==='__portal__'){
     _navigateTo('index.html'); return;
   }
+  // Permission guard: block direct navigation to a page the user isn't
+  // allowed to view. Bypassable only by Super Admin (permCanView returns
+  // full) or when no permissions are configured (falls back to legacy).
+  try{
+    var _pk=_VMS_PAGE_PERM_KEY[pid];
+    if(_pk&&typeof permConfigured==='function'&&permConfigured('VMS')
+       &&typeof permCanView==='function'&&!permCanView('VMS',_pk)){
+      notify('⚠ You do not have access to this page.',true);
+      return;
+    }
+  }catch(e){}
   closeMobNav();
   // Close any open modal-overlays when navigating pages
   document.querySelectorAll('.modal-overlay.open').forEach(m=>{m.style.display='none';m.classList.remove('open');});
@@ -1642,13 +1852,17 @@ function setDashTab(tab){
   document.getElementById('dashReportsPanel').style.display=tab==='reports'?'block':'none';
   if(tab==='reports'){initRptDates();renderReports();}
   if(tab==='overview'){initDfMonth('ov','ovFrom','ovTo');initOvDates();renderDashOverview();}
-  if(tab==='trips'){initDfMonth('td','tdFrom','tdTo');initTdDates();renderDashTrips();}
+  if(tab==='trips'){initDfLast7Days('td','tdFrom','tdTo');initTdDates();renderDashTrips();}
 }
 
 // ── Date range shortcut helper ────────────────────────────────────────────────
 function initTdDates(){
   const _e1=document.getElementById('tdFrom');const _e2=document.getElementById('tdTo');
-  if(_e1&&!_e1.value){const _n=new Date();const _d=_n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0')+'-'+String(_n.getDate()).padStart(2,'0');_e1.value=_d;updDateBtnLbl('tdFrom');_e2.value=_d;updDateBtnLbl('tdTo');}
+  if(_e1&&!_e1.value){
+    const r=_last7DaysRange();
+    _e1.value=r.from;updDateBtnLbl('tdFrom');
+    if(_e2){_e2.value=r.to;updDateBtnLbl('tdTo');}
+  }
 }
 
 function toggleDashTrip(el){
@@ -1661,6 +1875,13 @@ function toggleDashTrip(el){
   const open=body.style.display==='none'||body.style.display==='';
   body.style.display=open?'block':'none';
   btn.setAttribute('data-open',open?'1':'0');
+  // On open, lazy-load photos for this card's trip (tid is btoa(id)-stripped)
+  if(open){
+    try{
+      var trip=(DB.trips||[]).find(function(t){return t&&t.id&&btoa(t.id).replace(/[^a-zA-Z0-9]/g,'')===tid;});
+      if(trip) _loadTripCardPhotos(trip.id,body);
+    }catch(e){}
+  }
 }
 function renderDashTrips(){
   initTdDates();
@@ -1871,6 +2092,24 @@ function initDfMonth(pfx,fromId,toId){
   te.value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(new Date(now.getFullYear(),now.getMonth()+1,0).getDate())}`;
   updDateBtnLbl(fromId);updDateBtnLbl(toId);
   setTimeout(()=>updDrBtns(pfx,fromId,toId),30);
+}
+// Rolling-window default: last 7 days inclusive (today-6 → today). Used by
+// all VMS history views so the user sees recent activity without picking a
+// month. Distinct from preset 'week' (current calendar week Mon–Sun).
+function _last7DaysRange(){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const fmt=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const from=new Date(now);from.setDate(now.getDate()-6);
+  return {from:fmt(from),to:fmt(now)};
+}
+function initDfLast7Days(pfx,fromId,toId){
+  const fe=document.getElementById(fromId);const te=document.getElementById(toId);
+  if(!fe||!te||fe.value)return; // already set
+  const r=_last7DaysRange();
+  fe.value=r.from;te.value=r.to;
+  updDateBtnLbl(fromId);updDateBtnLbl(toId);
+  if(pfx)setTimeout(()=>updDrBtns(pfx,fromId,toId),30);
 }
 function initOvDates(){
   const now=new Date();
@@ -2472,6 +2711,9 @@ function renderDash(){
 }
 
 async function deleteTrip(tripId){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.deleteTrip')){
+    notify('⚠ You do not have permission to delete trips.',true);return;
+  }
   const trip = byId(DB.trips, tripId);
   if(!trip) return;
   const segs = DB.segments.filter(s=>s.tripId===tripId);
@@ -2572,6 +2814,9 @@ async function _rollbackAutoSkippedEmptyExit(tripId){
   if(restored) console.log('Restored empty exit on '+restored+' segment(s) after trip '+tripId+' cancelled/deleted');
 }
 async function cancelTrip(tripId){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.cancelTrip')){
+    notify('⚠ You do not have permission to cancel trips.',true);return;
+  }
   const trip=byId(DB.trips,tripId);
   if(!trip) return;
   const segs=DB.segments.filter(s=>s.tripId===tripId);
@@ -2597,13 +2842,11 @@ async function cancelTrip(tripId){
 let _tbPageTab='active';
 
 function initTbHistDates(){
-  const now=new Date();
-  const to=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const from1=new Date(now.getFullYear(),now.getMonth(),1);
-  const from=`${from1.getFullYear()}-${String(from1.getMonth()+1).padStart(2,'0')}-01`;
+  // Default to last 7 days (today-6 → today). Rolling window, not calendar week.
+  const r=_last7DaysRange();
   const fe=document.getElementById('tbHistFrom');const te=document.getElementById('tbHistTo');
-  if(fe&&!fe.value){fe.value=from;updDateBtnLbl('tbHistFrom');}
-  if(te&&!te.value){te.value=to;updDateBtnLbl('tbHistTo');}
+  if(fe&&!fe.value){fe.value=r.from;updDateBtnLbl('tbHistFrom');}
+  if(te&&!te.value){te.value=r.to;updDateBtnLbl('tbHistTo');}
 }
 
 // genTripId, _tripIdPrefix, _cTid → moved to vms-logic.js
@@ -2611,16 +2854,30 @@ function initTbHistDates(){
 let _tbDestCount=1;// how many destinations are visible (1-3)
 
 function openTripBookingModal(editTripId){
+  // Permission guard — bookTrip for new, editTrip when editing an existing.
+  var _actKey=editTripId?'action.editTrip':'action.bookTrip';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
+    notify('⚠ You do not have permission to '+(editTripId?'edit':'book')+' trips.',true);return;
+  }
   // If vehicleTypes not loaded yet, demand-load first then open
   if(!(DB.vehicleTypes||[]).length&&typeof _demandLoad==='function'){
     showSpinner('Loading vehicle types…');
     _demandLoad(['vehicleTypes','vehicles','drivers','locations','vendors']).then(function(){
-      hideSpinner();
-      _openTripBookingModalInner(editTripId);
+      _loadChallansThen(editTripId,function(){hideSpinner();_openTripBookingModalInner(editTripId);});
     }).catch(function(){hideSpinner();_openTripBookingModalInner(editTripId);});
     return;
   }
-  _openTripBookingModalInner(editTripId);
+  _loadChallansThen(editTripId,function(){_openTripBookingModalInner(editTripId);});
+}
+// Helper: on-demand load challans for a trip before opening a modal that
+// needs them. For new trips (no editTripId) or when already loaded, opens
+// immediately. Shows a brief spinner if a fetch is needed.
+function _loadChallansThen(editTripId,then){
+  if(!editTripId){ then(); return; }
+  if(_loadedChallansTripIds[editTripId]){ then(); return; }
+  showSpinner('Loading challans…');
+  _loadTripChallans(editTripId).then(function(){hideSpinner();then();})
+    .catch(function(){hideSpinner();then();});
 }
 function _openTripBookingModalInner(editTripId){
   _editingTripId=editTripId||null;
@@ -2752,8 +3009,10 @@ function _openTripBookingModalInner(editTripId){
     if(bStarted){lockEl('tbDest2');lockChallanList(2);}
     // Dest3 + challans3: locked if seg C first step done
     if(cStarted){lockEl('tbDest3');lockChallanList(3);}
-    // Hide '+ Add Destination' once any segment of this trip has started
-    if(aStarted||bStarted||cStarted){
+    // '+ Add Destination' stays available on started trips so users can
+    // extend a single-hop (e.g. KAP→External) into a multi-hop trip.
+    // Only hide when the trip already has the final destination (C).
+    if(cStarted){
       document.getElementById('tbAddDestBtn').style.display='none';
     }
 
@@ -3139,6 +3398,12 @@ function addChallanRow(destNum, data){
     <button class="ch-del" onclick="removeChallanRow(this,${destNum})" title="Remove">×</button>
   `;
   list.appendChild(row);
+  // Seed the file input's _photoData so untouched rows keep their existing
+  // photo on save — getChallanRows reads _photoData, not the thumb <img>.
+  if(photo){
+    const _chPhotoInp=row.querySelector('input[type=file]');
+    if(_chPhotoInp) _chPhotoInp._photoData=photo;
+  }
   if(list.querySelectorAll('.challan-row').length>=3&&addBtn) addBtn.style.display='none';
   setTimeout(()=>{if(typeof updateTbPrompt==='function')updateTbPrompt();},30);
 }
@@ -3325,6 +3590,11 @@ async function bookTrip(){
   }
 }
 async function _doBookTrip(){
+  // Permission guard — check either book or edit depending on the mode.
+  var _actKey=_editingTripId?'action.editTrip':'action.bookTrip';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
+    notify('⚠ You do not have permission to '+(_editingTripId?'edit':'book')+' trips.',true);return;
+  }
   const s=document.getElementById('tbStart').value;
   const d1=document.getElementById('tbDest1').value;
   const d2=document.getElementById('tbDest2').value;
@@ -3579,7 +3849,12 @@ function _tripsForMyBookingPlant(){
 }
 
 function renderMyTrips(){
-  initDfMonth('tbHist','tbHistFrom','tbHistTo');
+  initDfLast7Days('tbHist','tbHistFrom','tbHistTo');
+  // Hide the "+ Book New Trip" button when user lacks permission.
+  try{
+    var _bookBtn=document.querySelector('#pageTripBooking button[onclick="openTripBookingModal()"]');
+    if(_bookBtn) _bookBtn.style.display=(typeof permCanAct==='function'&&!permCanAct('VMS','action.bookTrip'))?'none':'';
+  }catch(e){}
   // Preserve which cards are currently expanded
   const _expanded=new Set([...document.querySelectorAll('[id^="myTrip_"]')].filter(el=>el.style.display!=='none').map(el=>el.id.replace('myTrip_','')));
   const fromVal=document.getElementById('tbHistFrom')?.value||'';
@@ -3601,7 +3876,8 @@ function renderMyTrips(){
     const isCompleted=segs.length>0&&segs.every(s=>s.status==='Completed');
     const isCancelled=!!t.cancelled;
     const canDelete=isSA;
-    const canCancel=!isCancelled&&!isCompleted&&!anyActionDone;
+    const canCancel=!isCancelled&&!isCompleted&&!anyActionDone
+      &&((typeof permCanAct!=='function')||permCanAct('VMS','action.cancelTrip'));
     const tid=t.id.replace(/[^a-zA-Z0-9]/g,'_');
 
     const vn=vnum(t.vehicleId);
@@ -3692,8 +3968,8 @@ function renderMyTrips(){
           if(!arr.length&&!leg) return 'none';
           if(!arr.length&&leg){
             var m2=[];
-            if(!trip?.['weight'+idx]) m2.push('Weight');
-            if(!trip?.['photo'+idx]) m2.push('Photo');
+            if(!t?.['weight'+idx]) m2.push('Weight');
+            if(!t?.['photo'+idx]) m2.push('Photo');
             return m2.length?m2:null;
           }
           var missing=[];
@@ -3733,8 +4009,12 @@ function renderMyTrips(){
         :recVtName)
       :'';
     const isApproved=segs.some(s=>s.steps[4]?.done&&!s.steps[4]?.rejected);
-    const canEdit=!isCompleted&&!isApproved&&!isCancelled;
-    const deleteBtn=canDelete
+    // Permission-aware flags — fall back to legacy rules if permissions
+    // aren't configured via Role Settings yet.
+    const _editAllowed=(typeof permCanAct!=='function')||permCanAct('VMS','action.editTrip');
+    const _delAllowed=(typeof permCanAct!=='function')||permCanAct('VMS','action.deleteTrip');
+    const canEdit=!isCompleted&&!isApproved&&!isCancelled&&_editAllowed;
+    const deleteBtn=(canDelete&&_delAllowed)
       ?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:10px;padding:2px 6px;cursor:pointer;font-weight:700" title="Delete trip">🗑</button>`
       :'';
 
@@ -3811,6 +4091,13 @@ function toggleMyTripCard(tid){
   if(!el)return;
   const isOpen=el.style.display!=='none';
   el.style.display=isOpen?'none':'block';
+  // On open, lazy-load photos (tid is id.replace(/[^a-zA-Z0-9]/g,'_'))
+  if(!isOpen){
+    try{
+      var trip=(DB.trips||[]).find(function(t){return t&&t.id&&t.id.replace(/[^a-zA-Z0-9]/g,'_')===tid;});
+      if(trip) _loadTripCardPhotos(trip.id,el);
+    }catch(e){}
+  }
 }
 
 function filterQuickVeh(){
@@ -4161,18 +4448,79 @@ function _kapRestorePopup(popId){
 }
 // Generic popup open/close for MR and Approval pages
 var _popOpen=false;
+var _currentOpenPopId='';
 function _openPop(popId){
   _popOpen=true;
+  _currentOpenPopId=popId;
   const el=document.getElementById(popId);
   if(el) el.style.display='flex';
+  // Lazy-load photos for whatever trip this popup displays. popId encodes
+  // either a segment or trip id; decode to find the trip, then inject a
+  // spinner into the popup's content area so the user sees loading feedback.
+  try{
+    var tripId=_tripIdForPopId(popId);
+    if(tripId){
+      var popEl=el;
+      // Prefer the inner content box as spinner anchor (has relative layout)
+      var innerBox=el?el.querySelector('div[style*="background:#fff"]'):null;
+      _loadTripCardPhotos(tripId, innerBox||popEl);
+    }
+  }catch(e){ console.warn('_openPop lazy-load error:',e); }
 }
 function _closePop(popId){
   _popOpen=false;
+  if(_currentOpenPopId===popId) _currentOpenPopId='';
   const el=document.getElementById(popId);
   if(el) el.style.display='none';
   // Refresh pages now that popup is closed (data may have changed while popup was open)
   try{renderMR();}catch(e){}
   try{renderApprove();}catch(e){}
+}
+// Resolve popId → trip id (works for mr_pop_/ap_pop_/kap_pop_ prefixes)
+function _tripIdForPopId(popId){
+  if(!popId) return '';
+  if(popId.indexOf('mr_pop_')===0){
+    // sid = seg.id.replace(/-/g,'_')
+    var sid=popId.replace(/^mr_pop_/,'');
+    var seg=(DB.segments||[]).find(function(s){return s&&s.id&&s.id.replace(/-/g,'_')===sid;});
+    return seg?seg.tripId:'';
+  }
+  if(popId.indexOf('ap_pop_')===0){
+    var apKey=popId.replace(/^ap_pop_/,'');
+    var trip=(DB.trips||[]).find(function(t){return t&&t.id&&t.id.replace(/[^a-z0-9]/gi,'_')===apKey;});
+    return trip?trip.id:'';
+  }
+  if(popId.indexOf('kap_pop_')===0){
+    var kapKey=popId.replace(/^kap_pop_/,'');
+    var kseg=(DB.segments||[]).find(function(s){return s&&s.id&&s.id.replace(/[^a-z0-9]/gi,'_')===kapKey;});
+    return kseg?kseg.tripId:'';
+  }
+  return '';
+}
+// Refresh the currently-open popup's contents after a photo fetch lands.
+// renderMR/renderApprove normally skip when _popOpen=true to avoid flicker.
+// We temporarily flip it off, re-render, then re-open the same popup (which
+// was just recreated as fresh HTML containing the newly-loaded photos).
+function _refreshOpenPopup(){
+  var popId=_currentOpenPopId;
+  if(!popId) return;
+  var wasOpen=false;
+  var el=document.getElementById(popId);
+  if(el&&el.style.display==='flex') wasOpen=true;
+  _popOpen=false;
+  try{
+    var activePage=document.querySelector('.page.active');
+    if(activePage){
+      var pid=activePage.id;
+      var map={pageMR:renderMR,pageApprove:renderApprove,pageKapSecurity:renderKapPage,pageDashboard:renderDash,pageTripBooking:renderTripBooking,pageVendorTrips:renderVendorTrips};
+      if(map[pid]) map[pid]();
+    }
+  }catch(e){ console.warn('_refreshOpenPopup error:',e); }
+  if(wasOpen){
+    var fresh=document.getElementById(popId);
+    if(fresh){ fresh.style.display='flex'; _popOpen=true; }
+    else{ _currentOpenPopId=''; }
+  }
 }
 function renderKap(){
   try{ _renderKapInner(); }catch(e){
@@ -4184,8 +4532,8 @@ function renderKap(){
 function _renderKapInner(){
   const _savedPop=_kapGetOpenPopup(); // save before re-render destroys DOM
   // Init date ranges for both exit and entry history (1M default)
-  initDfMonth('kapHistExit','kapHistExitFrom','kapHistExitTo');
-  initDfMonth('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');
+  initDfLast7Days('kapHistExit','kapHistExitFrom','kapHistExitTo');
+  initDfLast7Days('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');
   const srch=(document.getElementById(_kapMode==='entry'?'kapSearchEntry':'kapSearchExit')?.value||'').toLowerCase();
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
 
@@ -4481,7 +4829,13 @@ function _renderKapInner(){
                   const _warn=cs===1&&(_noVeh||_noCh)
                     ?`<div style="width:100%;text-align:center;margin-top:4px"><span class="flash-red" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px">⚠ ${_noVeh&&_noCh?'Add Vehicle & '+_chWarn:_noVeh?'Add Vehicle':'Add '+_chWarn} before Gate Exit</span></div>`
                     :'';
-                  const _btn=_gateExitBlocked
+                  // View-only enforcement: hide the action button when the
+                  // user lacks permission to record the corresponding step.
+                  var _stepActionKey=cs===1?'action.recordGateExit':_isStep5?'action.recordEmptyExit':'action.recordGateEntry';
+                  var _canRecord=(typeof permCanAct!=='function')||permCanAct('VMS',_stepActionKey);
+                  const _btn=!_canRecord
+                    ?`<button class="btn" disabled title="View-only access — contact admin for record permission" style="height:52px;flex:1;font-size:12px;font-weight:700;opacity:.5;cursor:not-allowed;white-space:nowrap;background:var(--surface2);color:var(--text3);border:1.5px dashed var(--border2)">🔒 View Only</button>`
+                    :_gateExitBlocked
                     ?`<button class="btn btn-danger" disabled style="height:52px;flex:1;font-size:14px;font-weight:800;opacity:.4;cursor:not-allowed;white-space:nowrap">${btnLabel}</button>`
                     :`<button class="btn ${btnCls}" onclick="doKapInline('${seg.id}',${_isStep5?5:cs})" style="height:52px;flex:1;font-size:14px;font-weight:800;white-space:nowrap">${btnLabel}</button>`;
                   const _closeBtn=`<button onclick="_kapClosePopup('${popId}')" style="height:52px;width:52px;flex-shrink:0;font-size:22px;font-weight:900;background:var(--surface2);border:2px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center" title="Close">✕</button>`;
@@ -4650,12 +5004,20 @@ function toggleKapHistCard(hid){
   const el=document.getElementById(hid);if(!el)return;
   const isOpen=el.style.display!=='none';
   el.style.display=isOpen?'none':'block';
+  // On open: hid is 'khist_'+seg.id.replace(/[^a-zA-Z0-9]/g,'_') — find segment
+  if(!isOpen){
+    try{
+      var key=hid.replace(/^khist_/,'');
+      var seg=(DB.segments||[]).find(function(s){return s&&s.id&&s.id.replace(/[^a-zA-Z0-9]/g,'_')===key;});
+      if(seg) _loadTripCardPhotos(seg.tripId,el);
+    }catch(e){}
+  }
 }
 
 // ═══ SPOT VEHICLE ENTRY ═════════════════════════════════════════════════
 function renderSpotTab(){
   updBadges();
-  initDfMonth('spotHist','spotHistFrom','spotHistTo');
+  initDfLast7Days('spotHist','spotHistFrom','spotHistTo');
   renderSpotHistory();
 }
 
@@ -4718,6 +5080,9 @@ function clearSpotForm(){
 }
 
 async function submitSpotEntry(){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.spotEntry')){
+    notify('⚠ You do not have permission to record spot entries.',true);return;
+  }
   const vehNum=document.getElementById('spotVehNum').value.trim().toUpperCase();
   const driverMob=document.getElementById('spotDriverMob').value.trim();
   if(!vehNum){notify('Vehicle number is required',true);return;}
@@ -4798,6 +5163,9 @@ function cancelSpotEdit(){
 }
 
 async function doSpotExit(){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.spotExit')){
+    notify('⚠ You do not have permission to record spot exits.',true);return;
+  }
   const spotId=document.getElementById('spotExitId').value;
   if(!spotId){notify('No spot trip selected',true);return;}
   const exitPhoto=document.getElementById('spotExitVehFile')?._compressedData||'';
@@ -4815,6 +5183,9 @@ async function doSpotExit(){
   renderSpotTab();renderSpotHistory();renderDash();updBadges();
 }
 async function doSpotExitModal(){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.spotExit')){
+    notify('⚠ You do not have permission to record spot exits.',true);return;
+  }
   const spotId=document.getElementById('spotExitId').value;
   const exitPhoto=document.getElementById('spotExitPhotoFile')?._compressedData||'';
   if(!exitPhoto){modalErr('mSpotExit','Capture vehicle exit photo');return;}
@@ -4929,15 +5300,11 @@ async function deleteSpotEntry(id){
 }
 
 function initHistDates(fromId, toId, grpId){
-  const now=new Date();
-  const pad=n=>String(n).padStart(2,'0');
-  // Default to this month
-  const from=`${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
-  const last=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const to=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(last)}`;
+  // Default to last 7 days (today-6 → today). Rolling window, not calendar week.
+  const r=_last7DaysRange();
   const fe=document.getElementById(fromId);const te=document.getElementById(toId);
-  if(fe&&!fe.value){fe.value=from;updDateBtnLbl(fromId);}
-  if(te&&!te.value){te.value=to;updDateBtnLbl(toId);}
+  if(fe&&!fe.value){fe.value=r.from;updDateBtnLbl(fromId);}
+  if(te&&!te.value){te.value=r.to;updDateBtnLbl(toId);}
   if(grpId)setTimeout(()=>updDrBtns(grpId,fromId,toId),50);
 }
 
@@ -5049,9 +5416,18 @@ function clearInlinePhoto(sid){
   const clear=document.getElementById('thumbClear_'+sid);if(clear)clear.style.display='none';
 }
 async function doKapInline(segId,step){
+  // Permission guard — view-only users must not be able to bypass the UI.
+  var _actKey=step===1?'action.recordGateExit':step===5?'action.recordEmptyExit':'action.recordGateEntry';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
+    notify('⚠ You have view-only access. Contact your admin for record permission.',true);
+    return;
+  }
   const sid=segId.replace(/-/g,'_');
   const seg=byId(DB.segments,segId);if(!seg)return;
   const trip=byId(DB.trips,seg.tripId);
+  // Ensure challans (with photos) are loaded before validating — boot excludes
+  // them to keep initial load fast, so they may be absent until first use.
+  if(trip) await _loadTripChallans(trip.id);
 
   // Validate vehicle number for all steps
   if(trip&&!trip.vehicleId){
@@ -5146,7 +5522,14 @@ async function doKapInline(segId,step){
 async function doKapAction(){
   const segId=document.getElementById('kapSegId').value;
   const step=parseInt(document.getElementById('kapStep').value);
+  // Permission guard — same keys as doKapInline.
+  var _actKeyM=step===1?'action.recordGateExit':step===5?'action.recordEmptyExit':'action.recordGateEntry';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKeyM)){
+    notify('⚠ You have view-only access. Contact your admin for record permission.',true);
+    return;
+  }
   const seg=byId(DB.segments,segId);
+  if(seg) await _loadTripChallans(seg.tripId);
   // Skip challan/weight/photo validation if trip already has any step done (started before challan rule)
   var _kapAlreadyStarted=seg&&seg.steps&&Object.keys(seg.steps).some(function(k){return seg.steps[k]&&seg.steps[k].done;});
   // For Gate Exit (step 1), require at least 1 challan entry for this segment
@@ -5384,10 +5767,12 @@ function renderMR(){
                     style="width:100%;box-sizing:border-box;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text);font-family:inherit;resize:vertical"></textarea>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:8px" onclick="event.stopPropagation()">
-                  <button id="mrAckBtn_${sid}" onclick="doMRInline('${seg.id}', document.getElementById('mrOpts_${sid}')?.dataset.selected)"
-                    style="flex:1;padding:10px 16px;font-size:13px;font-weight:800;border-radius:8px;border:none;background:#d1d5db;color:#6b7280;cursor:not-allowed;transition:all .2s;white-space:nowrap" disabled>
-                    📦 Acknowledge Receipt
-                  </button>
+                  ${(typeof permCanAct==='function'&&!permCanAct('VMS','action.ackMR'))
+                    ?`<button disabled title="View-only access" style="flex:1;padding:10px 16px;font-size:12px;font-weight:700;border-radius:8px;border:1.5px dashed var(--border2);background:var(--surface2);color:var(--text3);cursor:not-allowed;white-space:nowrap">🔒 View Only</button>`
+                    :`<button id="mrAckBtn_${sid}" onclick="doMRInline('${seg.id}', document.getElementById('mrOpts_${sid}')?.dataset.selected)"
+                        style="flex:1;padding:10px 16px;font-size:13px;font-weight:800;border-radius:8px;border:none;background:#d1d5db;color:#6b7280;cursor:not-allowed;transition:all .2s;white-space:nowrap" disabled>
+                        📦 Acknowledge Receipt
+                      </button>`}
                   <button onclick="_closePop('${_mrPopId}')" style="width:48px;flex-shrink:0;font-size:20px;font-weight:900;background:var(--surface2);border:2px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center" title="Close">✕</button>
                 </div>
               </div>
@@ -5503,6 +5888,14 @@ function toggleMrCard(id){
   if(!body)return;
   const open=body.style.display!=='none';
   body.style.display=open?'none':'block';
+  // On open: id is 'mrhc_' or similar + seg.id transformed — find the trip
+  if(!open){
+    try{
+      var key=id.replace(/^[a-z]+_/,'');
+      var seg=(DB.segments||[]).find(function(s){return s&&s.id&&s.id.replace(/[^a-zA-Z0-9]/g,'_')===key;});
+      if(seg) _loadTripCardPhotos(seg.tripId,body);
+    }catch(e){}
+  }
 }
 
 function selectMrOption(sid, type, labelEl){
@@ -5533,8 +5926,12 @@ function selectMrOption(sid, type, labelEl){
 }
 
 async function doMRInline(segId, receiptType){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.ackMR')){
+    notify('⚠ You do not have permission to acknowledge material receipts.',true);return;
+  }
   const seg=byId(DB.segments,segId);if(!seg)return;
   const trip=byId(DB.trips,seg.tripId);
+  if(trip) await _loadTripChallans(trip.id);
   // Check vehicle details
   if(!trip?.vehicleId||!byId(DB.vehicles,trip.vehicleId)){
     notify('⚠ Vehicle details are required before acknowledging material receipt. Please assign a vehicle to this trip first.',true);
@@ -5596,6 +5993,9 @@ async function _doRevokeMR(){
   }
 }
 async function doMR(){
+  if(typeof permCanAct==='function'&&!permCanAct('VMS','action.ackMR')){
+    notify('⚠ You do not have permission to acknowledge material receipts.',true);return;
+  }
   const seg=byId(DB.segments,document.getElementById('mrSegId').value);
   const rem=(document.getElementById('mrRem')?.value||'').trim();
   seg.steps[3].done=true;seg.steps[3].time=new Date().toISOString();seg.steps[3].by=CU.id;
@@ -5606,14 +6006,10 @@ async function doMR(){
 // ═══ TRIP APPROVALS ═════════════════════════════════════════════════════
 let _apTab='pending';
 function initApproveDates(){
-  const now=new Date();
-  const pad=n=>String(n).padStart(2,'0');
-  const from=`${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
-  const last=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const to=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(last)}`;
+  const r=_last7DaysRange();
   const fe=document.getElementById('approveFrom');const te=document.getElementById('approveTo');
-  if(fe&&!fe.value){fe.value=from;updDateBtnLbl('approveFrom');}
-  if(te&&!te.value){te.value=to;updDateBtnLbl('approveTo');}
+  if(fe&&!fe.value){fe.value=r.from;updDateBtnLbl('approveFrom');}
+  if(te&&!te.value){te.value=r.to;updDateBtnLbl('approveTo');}
   setTimeout(()=>updDrBtns('approve','approveFrom','approveTo'),30);
 }
 
@@ -5840,10 +6236,17 @@ function renderApprove(){
                   <input type="text" id="rem_trip_${tripId}" placeholder="Remarks (optional)…"
                     style="background:#fffbeb;border:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit;width:100%;box-sizing:border-box${_mrBlocked?';opacity:.5':''}">
                   <div style="display:flex;gap:8px;justify-content:flex-end">
-                    <button class="btn btn-danger" style="padding:8px 22px;font-size:13px;font-weight:800;border-radius:8px;${_disabledStyle}"
-                      ${_mrBlocked?'disabled':''} onclick="doTripApprovalInline('${tripId}','reject')">✗ Reject</button>
-                    <button class="btn btn-green" style="padding:8px 22px;font-size:13px;font-weight:800;border-radius:8px;${_disabledStyle}"
-                      ${_mrBlocked?'disabled':''} onclick="doTripApprovalInline('${tripId}','approve')">✓ Approve</button>
+                    ${(typeof permCanAct==='function'&&!permCanAct('VMS','action.rejectTrip'))
+                      ?''
+                      :`<button class="btn btn-danger" style="padding:8px 22px;font-size:13px;font-weight:800;border-radius:8px;${_disabledStyle}"
+                          ${_mrBlocked?'disabled':''} onclick="doTripApprovalInline('${tripId}','reject')">✗ Reject</button>`}
+                    ${(typeof permCanAct==='function'&&!permCanAct('VMS','action.approveTrip'))
+                      ?''
+                      :`<button class="btn btn-green" style="padding:8px 22px;font-size:13px;font-weight:800;border-radius:8px;${_disabledStyle}"
+                          ${_mrBlocked?'disabled':''} onclick="doTripApprovalInline('${tripId}','approve')">✓ Approve</button>`}
+                    ${(typeof permCanAct==='function'&&!permCanAct('VMS','action.approveTrip')&&!permCanAct('VMS','action.rejectTrip'))
+                      ?'<span style="flex:1;padding:8px 12px;font-size:11px;font-style:italic;color:var(--text3);background:var(--surface2);border:1.5px dashed var(--border2);border-radius:8px;text-align:center">🔒 View-only access</span>'
+                      :''}
                     <button onclick="_closePop('${_apPopId}')" style="width:48px;flex-shrink:0;font-size:20px;font-weight:900;background:var(--surface2);border:2px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center" title="Close">✕</button>
                   </div>
                 </div>`;
@@ -6023,6 +6426,14 @@ function toggleApCard(id){
   if(!el)return;
   const open=el.style.display!=='none';
   el.style.display=open?'none':'block';
+  // On open: id is 'apcard_'+tripId.replace(/[^a-z0-9]/gi,'_') — find the trip
+  if(!open){
+    try{
+      var key=id.replace(/^apcard_/,'');
+      var trip=(DB.trips||[]).find(function(t){return t&&t.id&&t.id.replace(/[^a-z0-9]/gi,'_')===key;});
+      if(trip) _loadTripCardPhotos(trip.id,el);
+    }catch(e){}
+  }
 }
 function revokeApproval(baseId){
   const isSA=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
@@ -6056,6 +6467,10 @@ async function _doRevoke(){
   renderApprove();updBadges();
 }
 async function doApproval(action){
+  var _actKey=action==='approve'?'action.approveTrip':'action.rejectTrip';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
+    notify('⚠ You do not have permission to '+(action==='approve'?'approve':'reject')+' trips.',true);return;
+  }
   try{
     const seg=byId(DB.segments,document.getElementById('appSegId').value);
     const rem=document.getElementById('appRem').value;
@@ -6093,6 +6508,10 @@ async function acceptRejectedTrip(tripId){
   renderApprove();updBadges();
 }
 async function doTripApprovalInline(tripId, action, receiptType){
+  var _actKey=action==='approve'?'action.approveTrip':'action.rejectTrip';
+  if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
+    notify('⚠ You do not have permission to '+(action==='approve'?'approve':'reject')+' trips.',true);return;
+  }
   try{
   const tripSegs=DB.segments.filter(s=>s.tripId===tripId);
   const rem=(document.getElementById('rem_trip_'+tripId)?.value||'').trim();
@@ -6183,7 +6602,8 @@ function openUserModal(id){
   const u=id?byId(DB.users,id):null;
   document.getElementById('eUid').value=id||'';
   document.getElementById('uNameI').value=u?.name||'';
-  document.getElementById('uPass').value=u?.password||'';
+  // Password field removed — new users get default password automatically;
+  // changes happen via Reset (Super Admin) or self-change on login.
   const kapLocs=DB.locations.filter(l=>l&&l.type==='KAP').sort((a,b)=>a.name.localeCompare(b.name));
   document.getElementById('uPlant').innerHTML='<option value="">-- Select Location --</option>'+kapLocs.map(l=>{
     const bg=l.colour?` style="background:${l.colour};color:${colourContrast(l.colour)}"`:'';
@@ -6277,7 +6697,6 @@ function updateRoleBox(input){
 async function saveUser(){
   const id=document.getElementById('eUid').value;
   const name=document.getElementById('uNameI').value.trim().toLowerCase().replace(/[\s!@#$%^&*()+=\[\]{};':"\\|,.<>\/?]/g,'');
-  const pass=document.getElementById('uPass').value;
   const plant=document.getElementById('uPlant').value;
   const fullName=document.getElementById('uFullName').value.trim();
   const mobile=document.getElementById('uMobile').value;
@@ -6285,7 +6704,7 @@ async function saveUser(){
   const roles=[...document.querySelectorAll('#roleBoxes input:checked')].map(i=>i.value);
   const hwmsRoles=[...document.querySelectorAll('#hwmsRoleBoxes input:checked')].map(i=>i.value);
   const hrmsRoles=[...document.querySelectorAll('#hrmsRoleBoxes input:checked')].map(i=>i.value);
-  if(!name||!pass){modalErr('mUser','Username and password required');return;}
+  if(!name){modalErr('mUser','Username required');return;}
   if(!plant){modalErr('mUser','Location name is required');return;}
   if(!fullName){modalErr('mUser','Full name required');return;}
   if(!apps.length){modalErr('mUser','Select at least one app');return;}
@@ -6320,13 +6739,20 @@ async function saveUser(){
   if(dupFN){modalErr('mUser','Full name already exists');return;}
   const uInactive=document.getElementById('uInactive')?.checked===true;
   if(id){
+    // Edit: never touch password from this form. Password changes go via
+    // Reset (Super Admin 🔑) or self-service change on next login.
     const _eu=byId(DB.users,id);
     const _backup={..._eu};
     Object.assign(_eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive});
     if(!await _dbSave('users',_eu)){ Object.assign(_eu,_backup); return; }
-    if(pass) await _authSetPassword(_eu.id,pass);
   }
-  else{const _u={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive};if(!await _dbSave('users',_u)) return;await _authSetPassword(_u.id,pass||'Kappl@123');}
+  else{
+    // New user: default password Kappl@123. User forced to change on first
+    // login (password-strength check triggers the reset flow).
+    const _u={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive:uInactive};
+    if(!await _dbSave('users',_u)) return;
+    await _authSetPassword(_u.id,'Kappl@123');
+  }
   cm('mUser');
   // Auto-sync user's roles into their plant location's role arrays
   const _savedId=id||(DB.users[DB.users.length-1]?.id);
@@ -7902,7 +8328,8 @@ let _vtDatesInit=false;
 function _initVtDates(){
   if(_vtDatesInit) return;
   _vtDatesInit=true;
-  setDateRange('vtFrom','vtTo','month',null,'vt');
+  // Default Vendor Trips to last 7 days (rolling window) instead of month.
+  initDfLast7Days('vt','vtFrom','vtTo');
 }
 function renderVendorTrips(){
   _initVtDates();

@@ -46,6 +46,25 @@ function hwmsGo(pageId){
   if(pageId==='pageHwmsInvoices'||pageId==='pageHwmsInvEdit'||pageId==='pageHwmsInvView') _hwmsActiveMiPage=pageId;
   // Track active sub-page for SI group
   if(pageId==='pageHwmsSubInvoices'||pageId==='pageHwmsSiView') _hwmsActiveSiPage=pageId;
+  // Permission gate — honor rolePermissions config + hardcoded defaults
+  var _pagePerm={
+    pageHwmsDashboard:'page.dashboard',
+    pageHwmsInvoices:'page.invoices',pageHwmsInvEdit:'page.invoices',pageHwmsInvView:'page.invoices',
+    pageHwmsContainers:'page.containers',
+    pageHwmsInventory:'page.inventory',
+    pageHwmsSubInvoices:'page.subinvoices',pageHwmsSiView:'page.subinvoices',
+    pageHwmsMR:'page.mr',pageHwmsMrView:'page.mr',
+    pageHwmsPayments:'page.payments',
+    pageHwmsOutstanding:'page.outstanding',
+    pageHwmsCustomers:'masters.customers',pageHwmsParts:'masters.parts',pageHwmsCarriers:'masters.carriers',
+    pageHwmsPorts:'masters.ports',pageHwmsOtherMasters:'masters.other',pageHwmsCompany:'masters.company',
+    pageHwmsSteelRates:'masters.customers'
+  }[pageId];
+  if(_pagePerm&&CU){
+    var _role=_hwmsRole();
+    var _fb=_role==='SA'||_hwmsCan(_pagePerm)||(_pagePerm.indexOf('masters.')===0&&_hwmsCan('page.masters'));
+    if(!_hwmsPageAllowed(_pagePerm,_fb)){if(typeof notify==='function')notify('Access denied',true);return;}
+  }
   document.querySelectorAll('#hwmsApp .page').forEach(p=>p.classList.remove('active'));
   const pg=document.getElementById(pageId);
   if(pg) pg.classList.add('active');
@@ -162,35 +181,83 @@ function _hwmsRole(){
   if(r.includes('WH User')) return 'WU';
   return '';
 }
-// Granular permission check
+// Read rolePermissions config for HWMS.
+// When admin has configured permissions for any role the user holds, the
+// configuration is AUTHORITATIVE — returns true only if the key is granted
+// (Full or View). Otherwise returns null so caller falls back to hardcoded
+// role defaults (legacy behaviour for pre-config roles).
+function _hwmsConfiguredAccess(key){
+  if(!CU) return null;
+  if((CU.roles||[]).includes('Super Admin')||(CU.hwmsRoles||[]).includes('Super Admin')) return true;
+  if(typeof permConfigured==='function'&&permConfigured('HWMS')){
+    return typeof permCanView==='function'&&permCanView('HWMS',key);
+  }
+  return null;
+}
+function _hwmsPageAllowed(key,fallback){
+  var c=_hwmsConfiguredAccess(key);
+  return c===null?fallback:c;
+}
+// Translation: internal HWMS shorthand → central _PERM_KEYS key.
+// When Role Settings have been configured for HWMS, _hwmsCan delegates
+// to permCanView / permCanAct using this map. Keys without a mapping
+// (e.g. view-only column toggles like cont.viewValue) keep the legacy
+// hardcoded role-based behaviour below.
+var _HWMS_PERM_MAP={
+  'cont.add':'action.addContainer','cont.edit':'action.editContainer','cont.delete':'action.deleteContainer',
+  'cont.import':'action.importContainer','cont.export':'action.exportContainer',
+  // Container section-level view toggles
+  'cont.viewValue':'action.viewContainerValue',
+  'cont.viewDispatch':'action.viewContainerDispatch',
+  'cont.viewPostShip':'action.viewContainerPostShip',
+  'mi.add':'action.createInvoice','mi.edit':'action.editInvoice','mi.delete':'action.deleteInvoice',
+  'mi.import':'action.importInvoice','mi.export':'action.exportInvoice','mi.confirm':'action.confirmInvoice',
+  'si.add':'action.addSubInvoice','si.edit':'action.editSubInvoice','si.delete':'action.deleteSubInvoice',
+  'si.import':'action.importSubInvoice','si.export':'action.exportSubInvoice',
+  'mr.add':'action.addMR','mr.edit':'action.editMR','mr.delete':'action.deleteMR',
+  'mr.import':'action.importMR','mr.export':'action.exportMR',
+  'mr.gensi':'action.generateSI','mr.pickup':'action.mrPickup'
+  // si.viewDetail / si.viewAmounts still kept hardcoded — user hasn't
+  // asked for those sections yet; add the same way if/when needed.
+};
 function _hwmsCan(action){
   var role=_hwmsRole();
   if(!role) return false;
   if(role==='SA') return true;
+  // If Role Settings have been configured for HWMS, they are authoritative.
+  if(typeof permConfigured==='function'&&permConfigured('HWMS')){
+    // Edit-style keys must require Full even if named masters.edit etc.
+    // View-level on an action-like key means "cannot do".
+    if(action==='masters.edit'){
+      return typeof permCanAct==='function'&&permCanAct('HWMS','masters.edit');
+    }
+    // Page / master-sub-section keys → view-or-full is enough to allow.
+    if(/^(page|masters)\./.test(action)){
+      return typeof permCanView==='function'&&permCanView('HWMS',action);
+    }
+    // Action-like shorthand (cont.add, mi.edit, etc.) → map to action.X and
+    // require Full. Unmapped keys fall through to the legacy hardcoded map.
+    var mapped=_HWMS_PERM_MAP[action];
+    if(mapped){
+      return typeof permCanAct==='function'&&permCanAct('HWMS',mapped);
+    }
+  }
+  // Legacy hardcoded role defaults (used when no permissions configured,
+  // or for unmapped view-toggle keys).
   var perms={
-    // Pages
     'page.containers':['HA','WA','WU'],
     'page.invoices':['HA'],
     'page.inventory':['HA','WA','WU'],
     'page.subinvoices':['HA','WA','WU'],
     'page.mr':['HA','WA','WU'],
     'page.masters':['HA'],
-    // Container ops
     'cont.add':['HA'],'cont.edit':['HA'],'cont.delete':[],'cont.import':['HA'],'cont.export':['HA'],
-    'cont.viewValue':['HA'],
-    'cont.viewDispatch':['HA'],
-    'cont.viewPostShip':['HA'],
-    // MI ops
+    'cont.viewValue':['HA'],'cont.viewDispatch':['HA'],'cont.viewPostShip':['HA'],
     'mi.add':['HA'],'mi.edit':['HA'],'mi.delete':[],'mi.import':['HA'],'mi.export':['HA'],'mi.confirm':['HA'],
-    // SI ops
     'si.add':['HA'],'si.edit':['HA'],'si.delete':[],'si.import':['HA'],'si.export':['HA'],
-    'si.viewDetail':['HA'],
-    'si.viewAmounts':['HA'],
-    // MR ops
+    'si.viewDetail':['HA'],'si.viewAmounts':['HA'],
     'mr.add':['HA','WA'],'mr.edit':['HA','WA'],'mr.delete':['HA'],'mr.import':['HA','WA'],'mr.export':['HA','WA'],
-    'mr.gensi':['HA'],
-    'mr.pickup':['HA','WA','WU'],
-    // Masters
+    'mr.gensi':['HA'],'mr.pickup':['HA','WA','WU'],
     'masters.edit':['HA']
   };
   var allowed=perms[action];
@@ -202,21 +269,25 @@ function _hwmsApplyPermissions(){
   var role=_hwmsRole();
   if(!role) return;
   var show=function(id,v){var el=document.getElementById(id);if(el) el.style.display=v?'':'none';};
-  // Nav pages
-  show('navDashboard',true); // Dashboard visible to all roles
-  show('navContainers',role==='SA'||_hwmsCan('page.containers'));
-  show('navInvoices',role==='SA'||_hwmsCan('page.invoices'));
-  show('navInventory',role==='SA'||_hwmsCan('page.inventory'));
-  show('navSubInvoices',role==='SA'||_hwmsCan('page.subinvoices'));
-  show('navMR',role==='SA'||_hwmsCan('page.mr'));
-  show('navPayments',true);
-  show('navOutstanding',true);
+  // Nav pages — rolePermissions config overrides hardcoded defaults when present
+  var pa=_hwmsPageAllowed;
+  show('navDashboard',pa('page.dashboard',true));
+  show('navContainers',pa('page.containers',role==='SA'||_hwmsCan('page.containers')));
+  show('navInvoices',pa('page.invoices',role==='SA'||_hwmsCan('page.invoices')));
+  show('navInventory',pa('page.inventory',role==='SA'||_hwmsCan('page.inventory')));
+  show('navSubInvoices',pa('page.subinvoices',role==='SA'||_hwmsCan('page.subinvoices')));
+  show('navMR',pa('page.mr',role==='SA'||_hwmsCan('page.mr')));
+  show('navPayments',pa('page.payments',true));
+  show('navOutstanding',pa('page.outstanding',true));
   // Masters section
-  var showMasters=role==='SA'||_hwmsCan('page.masters');
+  var showMasters=pa('page.masters',role==='SA'||_hwmsCan('page.masters'));
   show('navSecMasters',showMasters);
-  show('navCustomers',showMasters);show('navParts',showMasters);
-  show('navCarriers',showMasters);show('navPorts',showMasters);
-  show('navOtherMasters',showMasters);show('navCompany',showMasters);
+  show('navCustomers',pa('masters.customers',showMasters));
+  show('navParts',pa('masters.parts',showMasters));
+  show('navCarriers',pa('masters.carriers',showMasters));
+  show('navPorts',pa('masters.ports',showMasters));
+  show('navOtherMasters',pa('masters.other',showMasters));
+  show('navCompany',pa('masters.company',showMasters));
   // System Guide — Super Admin and HWMS Admin
   show('navSysGuide',role==='SA'||role==='HA');
   // MI page buttons
@@ -1127,6 +1198,16 @@ bootDB=async function(){
     await _origBootDB();
     console.log('bootDB(HWMS): original bootDB completed, users='+(DB.users||[]).length);
     if(typeof _hwmsUpdateSyncTime==='function')_hwmsUpdateSyncTime();
+    // Force next bgSync to be trueFull. The common.js timeout path at +1s, and the 60s poll,
+    // both call the HWMS-overridden _bgSyncFromSupabase — which defaults to incremental.
+    // Incremental with 90s lookback returns 0 rows on cold boot, causing minute-long empty states.
+    _hwmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
+    // Proactively schedule a trueFull sync if heavy tables are empty (bootDB may have timed out)
+    var _heavyEmpty=(DB.users||[]).length>0&&(DB.hwmsInvoices||[]).length===0&&(DB.hwmsContainers||[]).length===0;
+    if(_heavyEmpty){
+      console.log('bootDB(HWMS): heavy tables empty — scheduling trueFull sync in 800ms');
+      setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},800);
+    }
   }catch(e){
     console.error('bootDB(HWMS): original bootDB failed:',e);
   }
@@ -1151,7 +1232,9 @@ async function _hwmsBoot(){
   if(splashMsg) splashMsg.textContent='Loading…';
   
   // Set HWMS tables
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts'];
+  // hrmsSettings holds role-permission data (shared across apps); needed for
+  // permCanView / permCanAct to work in HWMS nav and page-level enforcement.
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts','hrmsSettings'];
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['hwmsContainers','hwmsInvoices','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts'];
   
   // Boot DB — suppress Common.js spinner since HWMS has its own splash
@@ -1189,7 +1272,10 @@ async function _hwmsBoot(){
   if(su && sp){
     var user=null;
     try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}
-    if(!user) user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
+    // Prefer the live DB record over the cached one — admin may have
+    // updated roles/apps since this session was created.
+    var freshUser=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
+    if(freshUser) user=freshUser;
     
     if(user && !user.inactive){
       console.log('HWMS: user found, showing app');
@@ -1211,10 +1297,34 @@ async function _hwmsBoot(){
       var rl=document.getElementById('hwmsUserRole');
       if(rl) rl.textContent=((CU.hwmsRoles||CU.roles)||[]).join(', ');
       
-      // Navigate
-      hwmsGo('pageHwmsDashboard');
-      if(typeof _hwmsUpdCounts==='function') _hwmsUpdCounts();
+      // Apply permissions FIRST so nav visibility is correct before landing.
       if(typeof _hwmsApplyPermissions==='function') _hwmsApplyPermissions();
+      // Pick the first accessible landing page instead of always going to
+      // Dashboard — otherwise users without page.dashboard access would
+      // still see Dashboard content even though the nav item is hidden.
+      var _landingOrder=[
+        ['pageHwmsDashboard','page.dashboard'],
+        ['pageHwmsMR','page.mr'],
+        ['pageHwmsInvoices','page.invoices'],
+        ['pageHwmsSubInvoices','page.subinvoices'],
+        ['pageHwmsContainers','page.containers'],
+        ['pageHwmsInventory','page.inventory'],
+        ['pageHwmsPayments','page.payments'],
+        ['pageHwmsOutstanding','page.outstanding']
+      ];
+      var _landed=false;
+      for(var _li=0;_li<_landingOrder.length;_li++){
+        var _lp=_landingOrder[_li];
+        if(typeof _hwmsCan==='function'&&_hwmsCan(_lp[1])){
+          hwmsGo(_lp[0]); _landed=true; break;
+        }
+      }
+      if(!_landed){
+        // No accessible operational page — fall back to Dashboard; hwmsGo
+        // will gate it and notify if not allowed.
+        hwmsGo('pageHwmsDashboard');
+      }
+      if(typeof _hwmsUpdCounts==='function') _hwmsUpdCounts();
       
       // Background sync
       setTimeout(function(){
@@ -3017,7 +3127,7 @@ function _hwmsContRenderLinkedInvs(contId){
         <td style="padding:5px 8px"><span class="badge ${_miS.cls}" style="font-weight:700">${_miS.label}</span></td>
         <td style="padding:5px 8px">${_siS.cls?'<span class="badge '+_siS.cls+'" style="font-weight:700">'+_siS.label+'</span>':'—'}</td>
         <td style="padding:5px 8px">${_payS.label!=='Pending'?'<span class="badge '+_payS.cls+'" style="font-weight:700">'+_payS.label+'</span>':'—'}</td>
-        <td style="padding:3px 4px;text-align:center;white-space:nowrap"><button onclick="event.stopPropagation();_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px" title="USA Print Preview">🖨️</button><button onclick="event.stopPropagation();_hwmsInvDownloadPdf('${inv.id}','usa')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px" title="Download PDF">📥</button></td>
+        <td style="padding:3px 4px;text-align:center;white-space:nowrap;pointer-events:auto"><button onclick="event.stopPropagation();_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px;pointer-events:auto" title="USA Print Preview">🖨️</button><button onclick="event.stopPropagation();_hwmsInvDownloadPdf('${inv.id}','usa')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px;pointer-events:auto" title="Download PDF">📥</button></td>
         <td style="padding:5px 8px">${(!isDispatched&&_hwmsContEditMode)?`<button class="action-btn" onclick="_hwmsContRemoveInv('${inv.id}')" title="Remove" style="font-size:11px;color:#dc2626">✕</button>`:''}</td>
       </tr>`;
     }).join('');

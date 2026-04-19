@@ -83,6 +83,7 @@
       <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')">🏠 Apps</div>
       <div class="ps-nav" id="psNavUsers" onclick="showTab('users')" style="display:none">👥 Users <span id="pSideUserCount" style="font-size:10px;background:rgba(42,154,160,.12);color:var(--accent);padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:800"></span></div>
       <div class="ps-nav" id="psNavProfile" onclick="showTab('profile')">👤 Profile</div>
+      <div class="ps-nav" id="psNavPermissions" onclick="showTab('permissions')" style="display:none">🔐 Role Settings</div>
       <div class="ps-nav" id="psNavDbstorage" onclick="showTab('dbstorage')" style="display:none">📊 DB Storage</div>
     </div>
     <!-- Bottom: Connection + Sign Out -->
@@ -185,6 +186,33 @@
       </div>
     </div>
     <!-- DB STORAGE -->
+    <div id="permissionsSection" style="display:none">
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
+        <div style="display:flex;align-items:center;margin-bottom:16px">
+          <div style="font-size:20px;font-weight:900;color:var(--accent)">🔐 Role Settings</div>
+          <button onclick="showTab('apps')" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">← Back to Apps</button>
+        </div>
+        <!-- Module tabs -->
+        <div id="permModuleTabs" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px"></div>
+        <!-- Two-column layout: roles list + permissions -->
+        <div style="display:flex;gap:16px;min-height:400px">
+          <!-- Left: Roles -->
+          <div style="width:200px;flex-shrink:0;border-right:1.5px solid var(--border);padding-right:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="font-size:13px;font-weight:800;color:var(--text)">Roles</div>
+              <button onclick="_permAddRole()" style="font-size:11px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700">+ Add</button>
+            </div>
+            <div id="permRoleList"></div>
+          </div>
+          <!-- Right: Permissions for selected role -->
+          <div style="flex:1;overflow-y:auto;max-height:calc(100vh - 220px)">
+            <div id="permHeader" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;position:sticky;top:0;background:#fff;padding-bottom:8px;z-index:1"></div>
+            <div id="permBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="dbStorageSection" style="display:none;max-width:1100px">
       <div style="margin-bottom:12px">
         <button onclick="showTab('apps')" style="display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">← Back to Apps</button>
@@ -204,7 +232,11 @@
     <div class="modal-header"><div class="modal-title" id="muTitle">Add User</div><div class="modal-close" onclick="cm('mUser')">×</div></div>
     <div class="modal-body">
       <input type="hidden" id="muId">
-      <div class="form-row"><div class="form-group"><label>Username *</label><input type="text" id="muName" placeholder="no spaces"></div><div class="form-group"><label>Password *</label><input type="password" id="muPass"></div></div>
+      <div class="form-group"><label>Username *</label><input type="text" id="muName" placeholder="no spaces"></div>
+      <!-- Password is never captured in the user form. New users get default
+           password "Kappl@123"; changes happen via reset (Super Admin) or
+           self-change on login. -->
+      <input type="hidden" id="muPass" value="">
       <div class="form-row"><div class="form-group"><label>Full Name *</label><input type="text" id="muFull"></div><div class="form-group"><label>Location *</label><select id="muLoc"><option value="">-- Select --</option></select></div></div>
       <div class="form-group"><label>Mobile</label><input type="tel" id="muMobile" maxlength="10" placeholder="10 digits"></div>
       <div class="form-group"><label>Apps Access</label><div id="muApps" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div></div>

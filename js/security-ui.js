@@ -8,7 +8,39 @@ if(typeof _COMMON_LOADED==='undefined'){
 }
 
 // ═══ NAVIGATION ══════════════════════════════════════════════════════════
+// Security page → permission key (in _PERM_KEYS.Security).
+var _SEC_PAGE_PERM_KEY={
+  pageCheckpoints:'masters.checkpoints',
+  pageGuards:'masters.guards',
+  pageRoundSchedules:'page.rounds'
+};
+function _secNavVisible(pageId){
+  if(typeof CU==='undefined'||!CU) return false;
+  if(CU.roles&&CU.roles.includes('Super Admin')) return true;
+  var pk=_SEC_PAGE_PERM_KEY[pageId];
+  if(pk&&typeof permConfigured==='function'&&permConfigured('Security')
+     &&typeof permCanView==='function'){
+    return permCanView('Security',pk);
+  }
+  return true; // Legacy: no granular gate yet — show everything.
+}
+function _secApplyNavPermissions(){
+  // Hide nav items the user can't view.
+  var map={pageCheckpoints:'nCheckpoints',pageGuards:'nGuards',pageRoundSchedules:'nRoundSchedules'};
+  Object.keys(map).forEach(function(pid){
+    var el=document.getElementById(map[pid]);
+    if(el) el.style.display=_secNavVisible(pid)?'':'none';
+  });
+}
 function secGo(pageId){
+  // Permission guard — block direct navigation when the user lacks view
+  // permission for this page. Runs once perms are in DB.hrmsSettings.
+  if(!_secNavVisible(pageId)){
+    if(typeof notify==='function') notify('⚠ You do not have access to this page.',true);
+    return;
+  }
+  // Refresh nav visibility each time in case perms changed via realtime sync.
+  try{_secApplyNavPermissions();}catch(e){}
   document.querySelectorAll('#secApp .page').forEach(function(p){p.classList.remove('active');p.style.display='none';});
   var pg=document.getElementById(pageId);
   if(pg){pg.classList.add('active');pg.style.display='block';}
@@ -104,6 +136,10 @@ function openCPModal(id,preLocId){
   om('mCheckpoint');
 }
 async function saveCP(){
+  if(typeof permCanAct==='function'&&typeof permConfigured==='function'
+     &&permConfigured('Security')&&!permCanAct('Security','masters.edit')){
+    notify('⚠ You do not have permission to edit masters.',true);return;
+  }
   const id=document.getElementById('eCPid').value;
   const locId=document.getElementById('cpLocS').value;
   const name=document.getElementById('cpNameI').value.trim();
@@ -205,6 +241,10 @@ function openGuardModal(id){
   om('mGuard');
 }
 async function saveGuard(){
+  if(typeof permCanAct==='function'&&typeof permConfigured==='function'
+     &&permConfigured('Security')&&!permCanAct('Security','masters.edit')){
+    notify('⚠ You do not have permission to edit masters.',true);return;
+  }
   const id=document.getElementById('eGuardId').value;
   const name=document.getElementById('guardNameI').value.trim();
   const mobile=document.getElementById('guardMobI').value.trim();
@@ -318,6 +358,11 @@ function openRSModal(id){
   om('mRoundSchedule');
 }
 async function saveRS(){
+  var _act=document.getElementById('eRSid').value?'action.editRound':'action.createRound';
+  if(typeof permCanAct==='function'&&typeof permConfigured==='function'
+     &&permConfigured('Security')&&!permCanAct('Security',_act)){
+    notify('⚠ You do not have permission to '+(_act==='action.editRound'?'edit':'create')+' round schedules.',true);return;
+  }
   const id=document.getElementById('eRSid').value;
   const name=document.getElementById('rsNameI').value.trim();
   const locId=document.getElementById('rsLocS').value;
@@ -358,7 +403,9 @@ async function _secBoot(){
   var _hasCache=false;try{_hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
   if(!_hasCache && splash) splash.style.display='flex';
   // Load only Security tables — not VMS/HWMS tables
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules'];
+  // hrmsSettings holds role-permission data (shared across apps); required
+  // for permCanView / permCanAct to work in Security nav + page enforcement.
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules','hrmsSettings'];
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
   var su=_sessionGet('kap_session_user')||localStorage.getItem('kap_rm_user');
@@ -366,7 +413,10 @@ async function _secBoot(){
   if(su&&sp){
     var user=null;
     try{var _cu=localStorage.getItem('kap_current_user');if(_cu)user=JSON.parse(_cu);if(!user||user.name.toLowerCase()!==su.toLowerCase())user=null;}catch(e){user=null;}
-    if(!user) user=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
+    // Prefer the live DB record over the cached one — admin may have
+    // updated roles/apps since this session was created.
+    var freshU=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
+    if(freshU) user=freshU;
     if(user&&!user.inactive){
       CU=user;
       _enrichCU();

@@ -9,7 +9,10 @@
 
 // Supabase column selections — exclude large photo columns to reduce egress
 var _SYNC_SELECT={
-  'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challans1,challan1,weight1,challans2,challan2,weight2,challans3,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
+  // challans1/2/3 (JSONB arrays holding base64 photos inside each challan) are
+  // excluded here — they bloated the fetch to ~48 MB / 6-min load. Loaded
+  // on-demand by _loadTripChallans() when a trip is opened.
+  'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challan1,weight1,challan2,weight2,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
   'vms_segments':'id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at',
   'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
 };
@@ -37,10 +40,31 @@ function _getLoadedTables(){return Object.keys(_loadedTables).filter(function(t)
  * @param {Object[]} segments - Array of segment objects with steps property
  * @returns {void}
  */
-// Strip base64 photos from segment steps JSON to reduce memory after fetch
+// Strip base64 photos from segment steps JSON to reduce memory after fetch.
+// If a segment's full steps were already fetched on-demand (tracked in
+// _loadedStepsSegIds), copy those photos back so a subsequent hot-sync
+// overwrite doesn't wipe them from the UI. The hot sync fetches steps_light
+// (no photo keys), so we iterate existing's steps — not parsed's — to decide
+// what to restore.
 function _stripStepPhotos(segments){
+  var loaded=(typeof _loadedStepsSegIds==='object')?_loadedStepsSegIds:null;
+  var dbSegs=(typeof DB!=='undefined'&&DB.segments)?DB.segments:[];
   (segments||[]).forEach(function(seg){
-    if(seg.steps&&typeof seg.steps==='object'){
+    if(!seg.steps||typeof seg.steps!=='object') return;
+    var existing=null;
+    if(loaded&&loaded[seg.id]){
+      for(var i=0;i<dbSegs.length;i++){ if(dbSegs[i]&&dbSegs[i].id===seg.id){ existing=dbSegs[i]; break; } }
+    }
+    if(existing&&existing.steps){
+      Object.keys(existing.steps).forEach(function(k){
+        var oldPh=existing.steps[k]&&existing.steps[k].photo;
+        if(oldPh&&oldPh!=='__deferred__'&&seg.steps[k]){
+          // Copy on-demand-loaded photo into the freshly-parsed step
+          seg.steps[k].photo=oldPh;
+        }
+      });
+    } else {
+      // Not on-demand-loaded: mark any incoming photo as deferred (memory-lite)
       Object.keys(seg.steps).forEach(function(k){
         if(seg.steps[k]&&seg.steps[k].photo) seg.steps[k].photo='__deferred__';
       });
