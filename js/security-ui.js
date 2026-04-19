@@ -418,6 +418,16 @@ async function _secBoot(){
     var freshU=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
     if(freshU) user=freshU;
     if(user&&!user.inactive){
+      // Role gate — Security roles are KAP Security / Guard / Viewer /
+      // Super Admin (stored in CU.roles). Users without any of these
+      // shouldn't be able to reach security.html by URL.
+      var _secRoles=['Super Admin','KAP Security','Guard','Viewer'];
+      var _hasSec=(user.roles||[]).some(function(r){return _secRoles.indexOf(r)>=0;});
+      if(!_hasSec){
+        if(typeof notify==='function') notify('⚠ You do not have access to Security.',true);
+        _navigateTo('index.html');
+        return;
+      }
       CU=user;
       _enrichCU();
       var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'\u{1F464}';

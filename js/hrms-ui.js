@@ -24,7 +24,17 @@ if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsC
     // updated roles/apps since this session was created.
     var freshU=(DB.users||[]).find(function(x){return x&&x.name&&x.name.toLowerCase()===su.toLowerCase();});
     if(freshU) u=freshU;
-    if(u){CU=u;_enrichCU();_hrmsLaunch();return;}
+    if(u){
+      // Role gate — block direct URL access when user has no HRMS role.
+      var _isSA=((u.roles||[]).indexOf('Super Admin')>=0)
+        ||((u.hrmsRoles||[]).indexOf('Super Admin')>=0);
+      if(!_isSA && !((u.hrmsRoles||[]).length)){
+        if(typeof notify==='function') notify('⚠ You do not have access to HRMS.',true);
+        _navigateTo('index.html');
+        return;
+      }
+      CU=u;_enrichCU();_hrmsLaunch();return;
+    }
   }
   // No valid session — redirect to portal login
   setTimeout(function(){_navigateTo('index.html');},2000);

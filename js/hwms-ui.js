@@ -1278,10 +1278,22 @@ async function _hwmsBoot(){
     if(freshUser) user=freshUser;
     
     if(user && !user.inactive){
+      // Role gate — block direct URL access when user has no HWMS role.
+      // Super Admin bypass honoured via either the global `roles` or
+      // module-specific field.
+      var _isSA=((user.roles||[]).indexOf('Super Admin')>=0)
+        ||((user.hwmsRoles||[]).indexOf('Super Admin')>=0);
+      if(!_isSA && !((user.hwmsRoles||[]).length)){
+        console.log('HWMS: user has no HWMS role, redirecting to portal');
+        if(splash) splash.style.display='none';
+        if(typeof notify==='function') notify('⚠ You do not have access to HWMS.',true);
+        _navigateTo('index.html');
+        return;
+      }
       console.log('HWMS: user found, showing app');
       CU=user;
       if(typeof _enrichCU==='function') _enrichCU();
-      
+
       // Show app
       document.getElementById('hwmsTopbar').style.display='flex';
       document.getElementById('hwmsApp').style.display='block';

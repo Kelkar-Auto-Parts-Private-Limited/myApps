@@ -731,21 +731,22 @@ function _recalcEgress(){
 
 function renderAppGrid(){
   const grid=document.getElementById('appGrid');
-  const isAdmin=(CU.roles||[]).some(r=>r==='Super Admin'||r==='Admin');
-  // VMS and Security share the CU.roles field but have different role sets,
-  // so we can't just check length. Filter the user's roles against the
-  // app-specific role list defined for each module.
+  // Only Super Admin is the GLOBAL admin. "Admin" is a VMS-scoped role —
+  // it shouldn't grant HWMS/HRMS/Security tile visibility.
+  const isSuperAdmin=(CU.roles||[]).some(r=>r==='Super Admin')
+    ||(CU.hwmsRoles||[]).some(r=>r==='Super Admin')
+    ||(CU.hrmsRoles||[]).some(r=>r==='Super Admin');
   const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
-  const SEC_ROLES=['KAP Security','Guard','Viewer']; // Security-specific (excluding Super Admin which falls under isAdmin)
+  const SEC_ROLES=['KAP Security','Guard','Viewer'];
   function _hasAnyRoleFor(appId){
-    if(isAdmin) return true;
+    if(isSuperAdmin) return true;
     if(appId==='vms') return (CU.roles||[]).some(r=>VMS_ONLY_ROLES.indexOf(r)>=0);
     if(appId==='security') return (CU.roles||[]).some(r=>SEC_ROLES.indexOf(r)>=0);
     if(appId==='hwms') return ((CU.hwmsRoles)||[]).length>0;
     if(appId==='hrms') return ((CU.hrmsRoles)||[]).length>0;
-    return false; // Apps without a role model (maintenance/review) stay hidden unless admin.
+    return false; // Apps without a role model (maintenance/review) hidden unless Super Admin.
   }
-  const visibleApps=PORTAL_APPS.filter(a=>_hasAnyRoleFor(a.id)||(APP_ACTIVE[a.id]===false&&isAdmin));
+  const visibleApps=PORTAL_APPS.filter(a=>_hasAnyRoleFor(a.id)||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
   if(!visibleApps.length){
     grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px;grid-column:1/-1">No apps assigned yet. Contact your admin to request access.</div>';
     return;
