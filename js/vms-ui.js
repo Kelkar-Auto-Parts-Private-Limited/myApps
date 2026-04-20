@@ -1179,18 +1179,26 @@ let _logoutHideTimer=null;
 function doLogout(){
   CU=null;
   _adminLocFilter='';
-  _sbStopPing();
-  _sbStopRealtime();
+  try{ _sbStopPing(); }catch(e){}
+  try{ _sbStopRealtime(); }catch(e){}
   _sessionDel('kap_session_user');
   _sessionDel('kap_session_token');
-  try{ localStorage.removeItem('kap_rm_user'); localStorage.removeItem('kap_rm_token'); }catch(e){}
-  // On file:// show login form directly; otherwise redirect to portal
-  if(location.protocol==='file:'){
-    const lp=document.getElementById('loginPage');if(lp)lp.style.display='flex';
-    const app=document.getElementById('app');if(app)app.style.display='none';
-    const tb=document.getElementById('topbar');if(tb)tb.style.display='none';
-  } else {
-    _navigateTo('index.html');
+  try{
+    localStorage.removeItem('kap_rm_user');
+    localStorage.removeItem('kap_rm_token');
+    localStorage.removeItem('kap_current_user');
+    // Also drop the DB cache — user is logging out; next load should
+    // re-authenticate against a fresh DB state.
+    localStorage.removeItem('kap_db_cache');
+  }catch(e){}
+  // Always redirect to Portal — the in-page vms.html login path occasionally
+  // failed to come back online (stopped ping/realtime + stale login form),
+  // and the Portal has the canonical login flow anyway.
+  try{
+    window.location.href='index.html';
+  }catch(e){
+    // Fallback — replace current URL if href assignment blocked
+    try{ window.location.replace('index.html'); }catch(e2){}
   }
 }
 function toggleNav(){

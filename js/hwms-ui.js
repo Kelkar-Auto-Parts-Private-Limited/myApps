@@ -328,8 +328,14 @@ function _hwmsContApplyRoleVisibility(){
 }
 function hwmsLogout(){
   CU=null; _sessionDel('kap_session_user'); _sessionDel('kap_session_token');
-  try{localStorage.removeItem('kap_rm_user');localStorage.removeItem('kap_rm_token');}catch(e){}
-  _navigateTo('index.html');
+  try{
+    localStorage.removeItem('kap_rm_user');
+    localStorage.removeItem('kap_rm_token');
+    localStorage.removeItem('kap_current_user');
+    localStorage.removeItem('kap_db_cache');
+  }catch(e){}
+  try{ window.location.href='index.html'; }
+  catch(e){ try{ window.location.replace('index.html'); }catch(e2){} }
 }
 
 // Restore saved invoice folder handle on load
