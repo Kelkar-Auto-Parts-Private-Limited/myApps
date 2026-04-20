@@ -524,6 +524,18 @@ bootDB=async function(){
           console.log('bootDB(VMS): instant from cache — users='+(DB.users||[]).length);
           if(typeof _vmsUpdateSyncTime==='function')_vmsUpdateSyncTime();
           if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
+          // Portal's pre-fetch is async with a 4s timeout, so hrmsSettings
+          // can be cached as [] when the tile is clicked early. Sync-refetch
+          // now so permCanAct has data by the time _tryAutoLogin runs.
+          if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
+            try{
+              var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
+              if(!_hsR.error){
+                DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
+                console.log('bootDB(VMS): hrmsSettings synced — rows='+DB.hrmsSettings.length);
+              } else { console.warn('bootDB(VMS): hrmsSettings err:',_hsR.error.message); }
+            }catch(e){ console.warn('bootDB(VMS): hrmsSettings fetch failed:',e.message); }
+          }
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();

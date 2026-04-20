@@ -1180,6 +1180,17 @@ bootDB=async function(){
           console.log('bootDB(HWMS): instant from cache — users='+(DB.users||[]).length);
           if(typeof _hwmsUpdateSyncTime==='function')_hwmsUpdateSyncTime();
           if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
+          // Sync-refetch hrmsSettings if cached empty (Portal's 4s pre-fetch
+          // can time out). Permissions must be loaded before any page render.
+          if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
+            try{
+              var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
+              if(!_hsR.error){
+                DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
+                console.log('bootDB(HWMS): hrmsSettings synced — rows='+DB.hrmsSettings.length);
+              } else { console.warn('bootDB(HWMS): hrmsSettings err:',_hsR.error.message); }
+            }catch(e){ console.warn('bootDB(HWMS): hrmsSettings fetch failed:',e.message); }
+          }
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
