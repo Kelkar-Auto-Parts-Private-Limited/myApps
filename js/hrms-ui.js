@@ -164,15 +164,34 @@ function hrmsGo(pid){
   var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig'};
   var nid=navMap[pid];if(nid){var ne=document.getElementById(nid);if(ne)ne.classList.add('active');}
   _hrmsUpdateTopTitle();
+  // Re-render the employee list whenever the user lands on the page — the
+  // initial boot render may have happened before DB.hrmsEmployees finished
+  // loading, which left the table empty until a filter change forced a
+  // re-render.
+  if(pid==='pageHrmsEmployees') renderHrmsEmployees();
   if(pid==='pageHrmsAttSal'){
     // Find first allowed main tab
-    var _mainTabs=['settings','attendance','salary','payments','esipf','contract'];
-    var _mainTabPerms={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',contract:'tab.contract'};
+    var _mainTabs=['settings','attendance','salary','payments','esipf','pt','contract'];
+    var _mainTabPerms={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',pt:'tab.pt',contract:'tab.contract'};
     var _defTab='attendance';
     for(var _ti=0;_ti<_mainTabs.length;_ti++){if(_hrmsHasAccess(_mainTabPerms[_mainTabs[_ti]])){_defTab=_mainTabs[_ti];break;}}
     _hrmsActiveMainTab=_defTab;
-    var _defMonth=_hrmsMonth||'2026-03';
-    _hrmsSelectMonth(_defMonth).then(function(){_hrmsMainTab(_defTab);_hrmsUpdateTopTitle();});
+    // Default month: keep the user's current selection if set; otherwise pick
+    // the current calendar month if data exists for it, else the most recent
+    // month with data, else today's YYYY-MM as a harmless fallback.
+    (async function(){
+      var _dm=_hrmsMonth;
+      if(!_dm){
+        try{ await _hrmsAttFetchIndex(); }catch(e){}
+        var _now=new Date();
+        var _thisMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
+        var _idx=_hrmsAttMonthIndex||[];
+        if(_idx.some(function(m){return m.monthKey===_thisMk;})) _dm=_thisMk;
+        else if(_idx.length) _dm=_idx[0].monthKey; // already sorted desc
+        else _dm=_thisMk;
+      }
+      _hrmsSelectMonth(_dm).then(function(){_hrmsMainTab(_defTab);_hrmsUpdateTopTitle();});
+    })();
   }
   if(pid.indexOf('pageHrmsM')===0){renderHrmsMaster(pid);document.getElementById('hrmsMastersGroup').style.display='block';document.getElementById('hrmsMastersArrow').textContent='▼';}
   document.querySelector('.sidebar').classList.remove('open');
@@ -4400,10 +4419,10 @@ var _hrmsSavedMonth={};// monthKey → {meta:{...}, employees:{empCode: data}}
 // Main tab switcher: settings | attendance | salary
 function _hrmsMainTab(tab){
   // Permission check for main tabs
-  var _tabPerm={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',contract:'tab.contract'};
+  var _tabPerm={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',pt:'tab.pt',contract:'tab.contract'};
   if(_tabPerm[tab]&&!_hrmsHasAccess(_tabPerm[tab])){notify('Access denied',true);return;}
   _hrmsActiveMainTab=tab;
-  var tabs=['settings','attendance','salary','payments','esipf','contract'];
+  var tabs=['settings','attendance','salary','payments','esipf','pt','contract'];
   tabs.forEach(function(t){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
     var content=document.getElementById('hrmsMain'+t.charAt(0).toUpperCase()+t.slice(1)+'Content');
@@ -4900,8 +4919,8 @@ function _hrmsRenderActiveTab(){
   if(!mk) return;
   var p=mk.split('-');var yr=+p[0],mo=+p[1];
   // Show/hide main tabs based on permissions
-  var _tabPerms={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',contract:'tab.contract'};
-  ['settings','attendance','salary','payments','esipf','contract'].forEach(function(t){
+  var _tabPerms={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',pt:'tab.pt',contract:'tab.contract'};
+  ['settings','attendance','salary','payments','esipf','pt','contract'].forEach(function(t){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(btn) btn.style.display=_hrmsHasAccess(_tabPerms[t])?'':'none';
   });
@@ -4910,6 +4929,7 @@ function _hrmsRenderActiveTab(){
   else if(_hrmsActiveMainTab==='salary') _hrmsRenderOrSalary(yr,mo,'all');
   else if(_hrmsActiveMainTab==='payments') _hrmsRenderPayments();
   else if(_hrmsActiveMainTab==='esipf') _hrmsRenderEsiPfList();
+  else if(_hrmsActiveMainTab==='pt') _hrmsRenderPtDetails();
   else if(_hrmsActiveMainTab==='contract') _hrmsRenderContractSalary(yr,mo);
 }
 
@@ -6267,6 +6287,262 @@ function _hrmsEsiPfExport(){
   _downloadMultiSheetXlsx([{name:'ESI PF List',data:out,stripeStart:1,stripeCount:rows.length,borderStart:0,borderCount:rows.length+2,
     colWidths:[4,18,18,16,16,16,10,14,14,14,10,10]}],'ESI_PF_List_'+mk+'.xlsx');
   notify('\ud83d\udce4 Exported ESI/PF list ('+rows.length+' employees)');
+}
+
+// ═══ PT DETAILS TAB ══════════════════════════════════════════════════════
+// On Roll only — mirrors the filter on ESI/PF List so both summaries cover
+// the same population. Shows a single rules-applied summary (all configured
+// PT rules, with 0-count rows for rules nobody matched this month) plus a
+// total row — no per-employee list, as PT is a slab-driven deduction and
+// the rule-level breakdown is what admins actually reconcile.
+function _hrmsRenderPtDetails(){
+  var el=document.getElementById('hrmsPtGrid');if(!el)return;
+  var mk=_hrmsMonth;
+  if(!mk){el.innerHTML='<div class="empty-state">Select a month above</div>';return;}
+  var details=window._hrmsSalDetails||{};
+  if(!Object.keys(details).length){el.innerHTML='<div class="empty-state">No salary data. Open Salary tab first.</div>';return;}
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _moLower=['','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  var p=mk.split('-');var mo=+p[1];var monthLabel=_mn[mo]+' '+p[0];
+  var monthLow=_moLower[mo];
+  var rules=(_hrmsStatutory.ptRules||[]).slice();
+  // Mirror of _hrmsCalcPT but also returns which rule matched, so we can
+  // aggregate per-rule counts.
+  var matchRule=function(gross,gen,moKey){
+    var gl=(gen||'').toLowerCase();
+    var passes=[
+      function(r){return r.gender&&r.gender.toLowerCase()===gl&&(!r.month||r.month.toLowerCase()===moKey);},
+      function(r){return !r.gender&&r.month&&r.month.toLowerCase()===moKey;},
+      function(r){return !r.gender&&!r.month;}
+    ];
+    for(var pi=0;pi<passes.length;pi++){
+      for(var i=0;i<rules.length;i++){
+        var r=rules[i];if(!passes[pi](r)) continue;
+        var match=(r.op==='lt'?gross<r.threshold:r.op==='gte'?gross>=r.threshold:false);
+        if(match) return {amount:r.amount,ruleIdx:i,rule:r};
+      }
+    }
+    return {amount:0,ruleIdx:-1,rule:null};
+  };
+  // Per-rule aggregate. Every configured rule gets a row, even when count=0,
+  // so the table doubles as a visual inventory of the slab policy.
+  var ruleAgg=rules.map(function(r,i){return {idx:i,rule:r,count:0,amount:0};});
+  var noMatchAgg={idx:-1,rule:null,count:0,amount:0};
+  var totalHead=0,totalPt=0,paidHead=0;
+  // Iterate every On Roll employee processed for this month's salary — keep
+  // zero-gross employees in the count so the PT headcount ties out with the
+  // Salary tab's On Roll total. A zero-gross employee naturally falls into
+  // the lowest slab (Gross < threshold) with ₹0 PT, which is correct.
+  Object.keys(details).forEach(function(code){
+    var d=details[code];var emp=empMap[code];if(!emp)return;
+    // On Roll only — Contract / Piece Rate don't have PT slabs applied here.
+    if((emp.employmentType||'').toLowerCase().replace(/\s/g,'')!=='onroll') return;
+    var gross=Math.round(d.gross||0);
+    var res=matchRule(gross,emp.gender||'',monthLow);
+    totalHead++;totalPt+=res.amount;if(res.amount>0) paidHead++;
+    var bucket=res.ruleIdx>=0?ruleAgg[res.ruleIdx]:noMatchAgg;
+    bucket.count++;bucket.amount+=res.amount;
+  });
+  var _r=function(v){return Math.round(v).toLocaleString('en-IN');};
+  var _th='padding:6px 6px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b;text-align:center';
+  var _td='padding:5px 6px;font-size:12px;border:1px solid #e2e8f0;white-space:nowrap';
+  var canExport=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportPt');
+  var h='<div style="position:sticky;top:0;z-index:3;background:#fff;padding-bottom:8px">';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--text)">PT Details \u2014 '+monthLabel+' (On Roll)</div>';
+  if(canExport) h+='<div style="margin-left:auto"><button onclick="_hrmsPtExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div>';
+  h+='</div>';
+  // Rules-applied summary — all configured rules, plus a tail row for
+  // employees who didn't match any rule (only shown if count > 0 since the
+  // "no rule" bucket isn't part of the policy inventory).
+  h+='<table style="border-collapse:collapse;font-size:12px;width:auto;margin-bottom:0">';
+  h+='<thead><tr>';
+  h+='<th style="'+_th+'">#</th>';
+  h+='<th style="'+_th+';text-align:left">Condition</th>';
+  h+='<th style="'+_th+'">Gender</th>';
+  h+='<th style="'+_th+'">Month</th>';
+  h+='<th style="'+_th+';text-align:right">PT Rate</th>';
+  h+='<th style="'+_th+';text-align:right">Headcount</th>';
+  h+='<th style="'+_th+';text-align:right">Amount</th>';
+  h+='</tr></thead><tbody>';
+  var _renderRow=function(a){
+    var condTxt,genTxt,moTxt,rateTxt;
+    if(a.rule){
+      var opSym=a.rule.op==='lt'?'<':a.rule.op==='gte'?'\u2265':'?';
+      condTxt='Gross '+opSym+' '+_r(a.rule.threshold||0);
+      genTxt=a.rule.gender?a.rule.gender:'All';
+      moTxt=a.rule.month?a.rule.month.toUpperCase():'All';
+      rateTxt='\u20b9 '+_r(a.rule.amount||0);
+    } else { condTxt='No matching rule'; genTxt='\u2014'; moTxt='\u2014'; rateTxt='\u2014'; }
+    var zero=a.count===0;
+    var tdZero=zero?';color:var(--text3);opacity:.7':'';
+    h+='<tr'+(zero?' style="background:#fafbfc"':'')+'>';
+    h+='<td style="'+_td+';text-align:center'+tdZero+'">'+(a.idx>=0?(a.idx+1):'\u2014')+'</td>';
+    h+='<td style="'+_td+tdZero+'">'+condTxt+(a.rule&&a.rule.remark?' <span style="color:var(--text3);font-size:11px">\u2014 '+a.rule.remark+'</span>':'')+'</td>';
+    h+='<td style="'+_td+';text-align:center'+tdZero+'">'+genTxt+'</td>';
+    h+='<td style="'+_td+';text-align:center'+tdZero+'">'+moTxt+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)'+tdZero+'">'+rateTxt+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-weight:'+(a.count>0?'800':'400')+tdZero+'">'+a.count+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:'+(a.amount>0?'800':'400')+';color:'+(a.amount>0?'#a16207':'var(--text3)')+tdZero+'">'+_r(a.amount)+'</td>';
+    h+='</tr>';
+  };
+  ruleAgg.forEach(_renderRow);
+  if(noMatchAgg.count>0) _renderRow(noMatchAgg);
+  // Total footer
+  var _stk='background:#e2e8f0';
+  var _tf='padding:6px 6px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b;font-weight:900;'+_stk;
+  h+='</tbody><tfoot><tr>';
+  h+='<td colspan="5" style="padding:6px 8px;border:1px solid #cbd5e1;font-weight:900;text-align:right;'+_stk+'">Total Headcount &amp; PT</td>';
+  h+='<td style="'+_tf+'">'+totalHead+'</td>';
+  h+='<td style="'+_tf+';color:#a16207">\u20b9 '+_r(totalPt)+'</td>';
+  h+='</tr>';
+  if(paidHead<totalHead){
+    h+='<tr><td colspan="7" style="padding:4px 8px;border:1px solid #cbd5e1;background:#f8fafc;font-size:11px;color:var(--text3);text-align:right">'+(totalHead-paidHead)+' of '+totalHead+' On Roll employees are PT-exempt this month</td></tr>';
+  }
+  h+='</tfoot></table>';
+  el.innerHTML=h;
+  window._hrmsPtRuleAgg=ruleAgg;
+  window._hrmsPtNoMatchAgg=noMatchAgg;
+  window._hrmsPtTotals={head:totalHead,pt:totalPt,paid:paidHead};
+}
+
+// ═══ WORKER'S SALARY SLIP (PDF) ═══════════════════════════════════════════
+// Generates a per-worker salary slip PDF. Each worker gets its own 2-row
+// block (31-col header + values) repeated across the document — so the
+// header restates on every record. Uses jsPDF + AutoTable (already loaded
+// in hrms.html). Scoped to On Roll Worker category, matching the business
+// need for monthly wage reconciliation that only wage workers require.
+function _hrmsWorkerSalarySlip(){
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportWorkerSlip')){notify('Access denied',true);return;}
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+  var details=window._hrmsSalDetails||{};
+  if(!Object.keys(details).length){notify('No salary data. Open Salary tab first.',true);return;}
+  if(!window.jspdf||!window.jspdf.jsPDF){notify('PDF library not loaded',true);return;}
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=mk.split('-');var mo=+p[1];var monthLabel=_mn[mo]+'-'+p[0].slice(2);// e.g. "Mar-26"
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  // Workers only, On Roll only, with positive gross (wage workers without
+  // any salary for the month don't need a slip — they can be added back if
+  // the user asks).
+  var rows=[];
+  Object.keys(details).forEach(function(code){
+    var d=details[code];var emp=empMap[code];if(!emp)return;
+    var cat=(d.category||emp.category||'').toLowerCase();
+    if(cat!=='worker') return;
+    var et=(emp.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et!=='onroll') return;
+    rows.push({code:code,d:d,emp:emp});
+  });
+  if(!rows.length){notify('No On Roll Worker salary data for this month',true);return;}
+  // Stable sort: plant, then empCode numeric.
+  rows.sort(function(a,b){
+    var pa=(a.d.location||a.emp.location||'').toString();
+    var pb=(b.d.location||b.emp.location||'').toString();
+    if(pa!==pb) return pa.localeCompare(pb);
+    return (parseInt(a.code)||0)-(parseInt(b.code)||0);
+  });
+  var headers=['Plant','EMP',monthLabel,'P','A','PL','PH','OT','OT 1.5','OT 2',
+    'P','AB','PL','OT','OT 1.5','OT 2','VP','GS',
+    'OB','FTM','T','DED','CB',
+    'PT','PF','ESI','ADV','TDS','OTH','TOT','NS'];
+  var doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a3',compress:true});
+  var _r=function(v){return Math.round(v||0);};
+  var _plt=function(loc){return (loc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');};
+  doc.setFontSize(18);doc.setFont('helvetica','bold');
+  doc.text("Worker's Salary Slip — "+monthLabel+' ('+rows.length+' workers)',14,13);
+  var startY=22;
+  rows.forEach(function(r){
+    var d=r.d;var emp=r.emp;
+    // Advance: advMonth and advTotal aren't stored on the detail object, so
+    // derive them from the stored balances: advCB = advTotal - advDed, and
+    // advTotal = advOB + advMonth.
+    var advOB=d.advOB||0, advCB=d.advCB||0, advDed=d.dedAdv||0;
+    var advTotal=advCB+advDed;
+    var advMonth=advTotal-advOB;
+    var body=[[
+      _plt(d.location||emp.location||''),
+      r.code,
+      d.name||emp.name||'',
+      _r(d.totalP), _r(d.totalA), _r(d.plGiven||0), _r(d.phCount),
+      _r(d.otAt1), _r(d.otAt15), _r(d.otAt2),
+      _r(d.salForP), _r(d.salAb), _r(d.salForPL),
+      _r(d.salOT1), _r(d.salOT15), _r(d.salOT2),
+      _r(d.allowance), _r(d.gross),
+      _r(advOB), _r(advMonth), _r(advTotal), _r(advDed), _r(advCB),
+      _r(d.dedPT), _r(d.dedPF), _r(d.dedESI), _r(d.dedAdv), _r(d.dedTDS), _r(d.dedOther), _r(d.dedTotal),
+      _r(d.net)
+    ]];
+    // Estimate the block height (header row + 1 body row + padding) so we
+    // can force a page break BEFORE this slip if it won't fit — autoTable's
+    // `pageBreak:'avoid'` is also set as a safety net. Each row at fontSize
+    // 12 + cellPadding 1.4 ≈ 8mm, so a 2-row block is ~16mm plus 3mm gap.
+    var _blockH=18;
+    var _pageH=297,_bottomMargin=14;
+    if(startY+_blockH>_pageH-_bottomMargin){ doc.addPage(); startY=14; }
+    doc.autoTable({
+      startY:startY,
+      head:[headers],
+      body:body,
+      margin:{left:10,right:10,bottom:_bottomMargin},
+      styles:{fontSize:12,cellPadding:1.4,lineColor:[180,180,180],lineWidth:0.1,halign:'center',valign:'middle'},
+      headStyles:{fillColor:[226,232,240],textColor:[15,23,42],fontStyle:'bold',fontSize:12,halign:'center'},
+      columnStyles:{2:{halign:'left',cellWidth:50}},// Name column wider + left-aligned
+      theme:'grid',
+      tableWidth:'auto',
+      // Keep header + body row together — never split a slip across pages.
+      pageBreak:'avoid',
+      rowPageBreak:'avoid',
+      // Color-code the three main amount groups so admins can read across a
+      // dense 31-col row. Columns mirror the on-screen Salary tab palette:
+      //   10-17 Salary (P..GS)         → emerald-100
+      //   18-22 Advance (OB..CB)       → red-50
+      //   23-29 Deductions (PT..TOT)   → slate-100
+      // Applied via didParseCell so both the header and body cells in each
+      // group share the same tint.
+      didParseCell:function(data){
+        var c=data.column.index;
+        if(c>=10&&c<=17) data.cell.styles.fillColor=[220,252,231];
+        else if(c>=18&&c<=22) data.cell.styles.fillColor=[254,242,242];
+        else if(c>=23&&c<=29) data.cell.styles.fillColor=[241,245,249];
+      }
+    });
+    startY=doc.lastAutoTable.finalY+3;
+  });
+  doc.save("Workers_Salary_Slip_"+mk+".pdf");
+  notify("\ud83d\udcc4 Worker's Salary Slip generated ("+rows.length+' workers)');
+}
+
+function _hrmsPtExport(){
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportPt')){notify('Access denied',true);return;}
+  var agg=window._hrmsPtRuleAgg;
+  if(!agg){notify('No PT data. Open the tab first.',true);return;}
+  var noMatch=window._hrmsPtNoMatchAgg;
+  var totals=window._hrmsPtTotals||{head:0,pt:0};
+  var mk=_hrmsMonth||'';
+  var _r=function(v){return Math.round(v||0);};
+  var headers=['#','Condition','Gender','Month','PT Rate','Headcount','Amount','Remark'];
+  var out=[headers];
+  var _row=function(a){
+    if(a.rule){
+      var opSym=a.rule.op==='lt'?'<':a.rule.op==='gte'?'>=':'?';
+      out.push([a.idx>=0?(a.idx+1):'',
+        'Gross '+opSym+' '+_r(a.rule.threshold),
+        a.rule.gender||'All',
+        a.rule.month?a.rule.month.toUpperCase():'All',
+        {_n:_r(a.rule.amount)},
+        a.count,
+        {_n:_r(a.amount)},
+        a.rule.remark||'']);
+    } else {
+      out.push(['','No matching rule','\u2014','\u2014','\u2014',a.count,{_n:_r(a.amount)},'']);
+    }
+  };
+  agg.forEach(_row);
+  if(noMatch&&noMatch.count>0) _row(noMatch);
+  out.push({bold:true,cells:['','','','','Total',totals.head,{_n:_r(totals.pt)},'']});
+  _downloadMultiSheetXlsx([{name:'PT Details',data:out,stripeStart:1,stripeCount:agg.length+(noMatch&&noMatch.count>0?1:0),borderStart:0,borderCount:out.length,
+    colWidths:[4,22,10,8,12,12,14,30]}],'PT_Details_'+mk+'.xlsx');
+  notify('\ud83d\udce4 Exported PT details');
 }
 
 // ═══ AMOUNT IN WORDS (Indian: Lakhs/Crores) ═════════════════════════════
@@ -7636,6 +7912,16 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
   grid.innerHTML=emps.length?h:'<div class="empty-state">No saved salary data for this filter</div>';
   var expBtn=document.getElementById(exportBtnId);
   if(expBtn) expBtn.style.display=emps.length?'':'none';
+  // Mirror the live-render path: show the Worker's Salary Slip button when
+  // any worker row is visible and the user has export-worker-slip perm.
+  if(isAll){
+    var _slipBtn=document.getElementById('hrmsWorkerSlipBtn');
+    if(_slipBtn){
+      var _hasWorker=emps.some(function(it){return((it&&it.category)||(it&&it.d&&it.d.category)||'').toLowerCase()==='worker';});
+      var _canSlip=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportWorkerSlip');
+      _slipBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
+    }
+  }
 }
 
 async function _hrmsRenderOrSalary(yr,mo,catFilter){
@@ -7912,6 +8198,16 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
   grid.innerHTML=emps.length?h:'<div class="empty-state">'+emptyMsg+'</div>';
   var expBtn=document.getElementById(exportBtnId);
   if(expBtn) expBtn.style.display=emps.length?'':'none';
+  // Worker's Salary Slip button — visible on the unified "all" grid when
+  // at least one worker row exists AND the user has action.exportWorkerSlip.
+  if(isAll){
+    var _slipBtn=document.getElementById('hrmsWorkerSlipBtn');
+    if(_slipBtn){
+      var _hasWorker=emps.some(function(it){return(it.category||'').toLowerCase()==='worker';});
+      var _canSlip=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportWorkerSlip');
+      _slipBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
+    }
+  }
   // Auto-save balances in background
   var balKey=isAll?'_hrmsSalBal':(isWorker?'_hrmsWorkerBal':'_hrmsStaffBal');
   window[balKey]={mk:mk,balances:_salBalances};

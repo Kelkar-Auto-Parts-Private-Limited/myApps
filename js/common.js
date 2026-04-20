@@ -1346,10 +1346,13 @@ var _PERM_KEYS={
     {key:'action.addPrintFormat',label:'Add/Edit Print Format',group:'📋 Attendance & Sub-tabs'},
     {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},
     {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
+    {key:'action.exportWorkerSlip',label:"Worker's Salary Slip PDF",group:'💰 Salary Tab'},
     {key:'tab.payments',label:'Payments Tab',group:'🏦 Payments Tab'},
     {key:'action.exportPayments',label:'Export Payments',group:'🏦 Payments Tab'},
     {key:'tab.esipf',label:'ESI/PF List Tab',group:'📋 ESI/PF List Tab'},
     {key:'action.exportEsiPf',label:'Export ESI/PF',group:'📋 ESI/PF List Tab'},
+    {key:'tab.pt',label:'PT Details Tab',group:'🧾 PT Details Tab'},
+    {key:'action.exportPt',label:'Export PT Details',group:'🧾 PT Details Tab'},
     {key:'tab.contract',label:'Contract Salary Tab',group:'📋 Contract Salary Tab'},
     {key:'action.exportContract',label:'Export Contract Sal.',group:'📋 Contract Salary Tab'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
@@ -1463,7 +1466,7 @@ function _permKeyKind(key){ return /^(page|tab)\./.test(key)?'pageTab':'action';
 // wraps page.masterX siblings that aren't auto-rollable.
 var _PERM_UMBRELLA={
   HRMS:{
-    'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.contract',
+    'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
                    'action.addMonth','action.saveLock','action.unlock'],
     'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
                     'page.masterDept','page.masterSubDept','page.masterDesig','masters.edit']

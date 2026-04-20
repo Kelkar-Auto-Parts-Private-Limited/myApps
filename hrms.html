@@ -247,6 +247,7 @@
       <button onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">💰 Salary</button>
       <button onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🏦 Payments</button>
       <button onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 ESI/PF List</button>
+      <button onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🧾 PT Details</button>
       <button onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none;padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 Contract Salary</button>
     </div>
 
@@ -527,6 +528,7 @@
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
           <button onclick="_hrmsOrSalExport('all')" id="hrmsSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
+          <button onclick="_hrmsWorkerSalarySlip()" id="hrmsWorkerSlipBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">🧾 Worker's Salary Slip</button>
         </div>
         <div id="hrmsSalGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -550,6 +552,13 @@
     <div id="hrmsMainEsipfContent" style="display:none;flex-direction:column;flex:1;overflow:hidden">
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <div id="hrmsEsiPfGrid" style="overflow:auto;flex:1"></div>
+      </div>
+    </div>
+
+    <!-- === PT DETAILS TAB === -->
+    <div id="hrmsMainPtContent" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+        <div id="hrmsPtGrid" style="overflow:auto;flex:1"></div>
       </div>
     </div>
 
