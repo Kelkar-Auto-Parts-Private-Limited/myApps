@@ -746,7 +746,12 @@ function renderAppGrid(){
     if(appId==='hrms') return ((CU.hrmsRoles)||[]).length>0;
     return false; // Apps without a role model (maintenance/review) hidden unless Super Admin.
   }
-  const visibleApps=PORTAL_APPS.filter(a=>_hasAnyRoleFor(a.id)||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
+  // user.apps is authoritative: tile is visible only if the admin has
+  // granted the app in the user's app list AND the user has a matching role.
+  // Super Admin bypasses both. Coming-soon apps still appear for SA only.
+  var _userApps=(CU.apps||[]);
+  function _hasAppAccess(appId){ return isSuperAdmin||_userApps.indexOf(appId)>=0; }
+  const visibleApps=PORTAL_APPS.filter(a=>(_hasAppAccess(a.id)&&_hasAnyRoleFor(a.id))||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
   if(!visibleApps.length){
     grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px;grid-column:1/-1">No apps assigned yet. Contact your admin to request access.</div>';
     return;
