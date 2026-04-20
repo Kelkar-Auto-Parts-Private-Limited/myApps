@@ -1236,7 +1236,7 @@ function _startBgReconnect(silentMode){
 let CU=null; // current user — declared here so boot sequence can access it
 
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════
-const ROLES=['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
+const ROLES=['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
 const HWMS_ROLES=['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
 const HRMS_ROLES=['Super Admin','HR Manager','HR Admin','Employee'];
 
@@ -1436,7 +1436,7 @@ function _permLoadData(){
 // Module-admin roles that bypass granular permission checks and get full
 // access to their module. Super Admin is global and handled separately.
 // "Admin" is VMS-scoped (not cross-module); HWMS/HRMS have their own.
-var _PERM_MODULE_ADMIN={VMS:['Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[]};
+var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[]};
 function permLevel(mod,pageTabKey,_visited){
   if(typeof CU==='undefined'||!CU) return 'none';
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
@@ -1668,7 +1668,7 @@ async function _syncUserToLocation(userId, plantId, roles){
 // Central step-access check — location membership, not static users array
 function canDoStep(seg, stepNum){
   if(!CU) return false;
-  const isSA=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+  const isSA=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
   if(isSA) return true;
   const step=seg.steps[stepNum];
   if(!step||step.skip||step.done) return false;
@@ -1826,7 +1826,7 @@ function _navigateTo(url){
 
 
 // ═══ ROLE CHECK ═══════════════════════════════════════════════════════════
-function hasRole(roles){if(!CU)return false;if(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'))return true;var allRoles=(CU.roles||[]).concat(CU.hwmsRoles||[]);return roles.some(r=>allRoles.includes(r));}
+function hasRole(roles){if(!CU)return false;if(CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin'))return true;var allRoles=(CU.roles||[]).concat(CU.hwmsRoles||[]);return roles.some(r=>allRoles.includes(r));}
 
 // ═══ PASSWORD POLICY ═════════════════════════════════════════════════════
 function _pwdErrors(pwd){
@@ -2471,7 +2471,7 @@ async function _applyImportRows(rows, col, schema){
 }
 
 function importMaster(col,inputEl){
-  if(!CU||!CU.roles.some(r=>['Super Admin','Admin'].includes(r))){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
+  if(!CU||!CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r))){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
   const file=inputEl.files[0];
   if(!file){return;}
   inputEl.value='';

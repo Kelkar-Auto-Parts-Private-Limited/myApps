@@ -634,7 +634,7 @@ function renderMyApps(){
   var grid=document.getElementById('vmsAppGrid');
   if(!grid) return;
   var userApps=CU.apps||[];
-  var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='Admin';});
+  var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='VMS Admin';});
   var APP_FILES_MAP={vms:null,hwms:'hwms.html',security:'security.html',maintenance:null,review:null,hrms:'hrms.html'};
   var APP_ACTIVE_MAP={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:true};
   grid.innerHTML=PORTAL_APPS.map(function(app){
@@ -1294,21 +1294,21 @@ function goToPortal(){
 }
 
 const NAV=[
-  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',action:'goToPortal',r:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
-  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','Admin','Plant Head'],permKey:'page.dashboard',app:'vms'},
+  {id:'MyApps',l:'My Apps',i:'🏠',p:'__portal__',action:'goToPortal',r:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],app:'all'},
+  {id:'Dashboard',l:'Dashboard',i:'📊',p:'pageDashboard',r:['Super Admin','VMS Admin','Plant Head'],permKey:'page.dashboard',app:'vms'},
   {sec:'OPERATIONS',app:'vms'},
-  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','Admin','Plant Head'],badge:'bTB',permKey:'page.trips',app:'vms'},
-  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','Admin','Plant Head'],badge:'bKS',permKey:'page.kapSecurity',app:'vms'},
-  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','Admin','Plant Head'],badge:'bMR',permKey:'page.materialReceiver',app:'vms'},
-  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','Admin','Plant Head'],badge:'bAP',permKey:'page.approve',app:'vms'},
-  {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','Admin','Super Admin'],permKey:'page.vendorTrips',app:'vms'},
+  {id:'TripBooking',l:'Trip Booking',i:'🚚',p:'pageTripBooking',r:['Trip Booking User','VMS Admin','Plant Head'],badge:'bTB',permKey:'page.trips',app:'vms'},
+  {id:'KapSec',l:'KAP Security',i:'🔒',p:'pageKapSecurity',r:['KAP Security','VMS Admin','Plant Head'],badge:'bKS',permKey:'page.kapSecurity',app:'vms'},
+  {id:'MR',l:'Material Receipt',i:'📦',p:'pageMR',r:['Material Receiver','VMS Admin','Plant Head'],badge:'bMR',permKey:'page.materialReceiver',app:'vms'},
+  {id:'Approve',l:'Trip Approvals',i:'✅',p:'pageApprove',r:['Trip Approver','VMS Admin','Plant Head'],badge:'bAP',permKey:'page.approve',app:'vms'},
+  {id:'VendorTrips',l:'My Trips (Vendor)',i:'🏢',p:'pageVendorTrips',r:['Vendor','VMS Admin','Super Admin'],permKey:'page.vendorTrips',app:'vms'},
   {sec:'MASTERS',app:'vms'},
-  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['Admin','Plant Head','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',permKey:'page.locations',app:'vms'},
-  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['Admin'],      count:'vehicleTypes',cid:'cVTypes',permKey:'page.vehicleTypes',app:'vms'},
-  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['Admin'],      count:'vendors',   cid:'cVendors',permKey:'page.vendors',app:'vms'},
-  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',permKey:'page.vehicles',app:'vms'},
-  {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',permKey:'page.drivers',app:'vms'},
-  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',permKey:'page.tripRates',app:'vms'},
+  {id:'Locations', l:'Locations',     i:'📍',p:'pageLocations', r:['VMS Admin','Plant Head','Trip Booking User','Material Receiver','Trip Approver'],      count:'locations', cid:'cLocations',permKey:'page.locations',app:'vms'},
+  {id:'VTypes',    l:'Vehicle Types', i:'🏷️',p:'pageVTypes',    r:['VMS Admin'],      count:'vehicleTypes',cid:'cVTypes',permKey:'page.vehicleTypes',app:'vms'},
+  {id:'Vendors',   l:'Vendors',       i:'🏢',p:'pageVendors',   r:['VMS Admin'],      count:'vendors',   cid:'cVendors',permKey:'page.vendors',app:'vms'},
+  {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['VMS Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',permKey:'page.vehicles',app:'vms'},
+  {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['VMS Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',permKey:'page.drivers',app:'vms'},
+  {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['VMS Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',permKey:'page.tripRates',app:'vms'},
   {sec:'SYSTEM',app:'vms'},
   {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
 ];
@@ -1368,7 +1368,7 @@ function _runInitApp(){
   if(CU){document.getElementById('uName2').textContent=CU.fullName||CU.name;
   document.getElementById('uRole2').textContent=(CU.roles||[]).concat(CU.hwmsRoles||[]).join(', ');}
   // Sync admin-only UI visibility
-  const _isAdm=CU&&CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+  const _isAdm=CU&&CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
   document.body.classList.toggle('is-admin',!!_isAdm);
   const _locEl=document.getElementById('uLoc2');
   if(_locEl&&CU.locName){
@@ -1425,7 +1425,7 @@ function _runInitApp(){
   // Set date range BEFORE showPage so dashboard renders with correct month on first call
   setDashMonth(0);
   // Default page based on app and role
-  const isAdminOrSA=CU.roles.includes('Admin')||CU.roles.includes('Super Admin');
+  const isAdminOrSA=CU.roles.includes('VMS Admin')||CU.roles.includes('Super Admin');
   const _mc=document.querySelector('.main-content');
   if(_currentApp==='security'){
     // Security Surveillance is a separate app — redirect
@@ -1482,7 +1482,7 @@ function _runInitApp(){
 
 function updBadges(){
   const me=CU.id;
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const kap=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked')return false;
     const cs=s.currentStep;
@@ -1891,7 +1891,7 @@ function renderDashTrips(){
   const from=document.getElementById('tdFrom')?.value||'';
   const to=document.getElementById('tdTo')?.value||'';
   const _dtSrch=(document.getElementById('dashTripSearch')?.value||'').toLowerCase();
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
 
   // All trips in date range accessible to user
   let trips2=DB.trips.filter(t=>{
@@ -1948,7 +1948,7 @@ function renderDashTrips(){
       const mrByU=byId(DB.users,s.steps[3]?.by);const mrByName=mrByU?.fullName||mrByU?.name||'';
       const apByU=byId(DB.users,s.steps[4]?.by);const apByName=apByU?.fullName||apByU?.name||'';
       const fmtTs=ts=>ts?new Date(ts).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'';
-      const _isSADash=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+      const _isSADash=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
       const _stepLocName=(stepObj)=>{if(!_isSADash||!stepObj)return '';const loc=byId(DB.locations,stepObj.ownerLoc);return loc?` <span style="font-size:8px;font-weight:600;opacity:.75">(${loc.name})</span>`:stepObj.skip?` <span style="font-size:8px;font-weight:600;opacity:.6">(skip)</span>`:'';};
       const stepBadgeLoc=(done,label,clr,stepObj)=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${done?clr+'22':'rgba(0,0,0,0.05)'};color:${done?clr:'var(--text3)'};border:1px solid ${done?clr+'44':'transparent'}">${done?'✓':' '}${label}${_stepLocName(stepObj)}</span>`;
       return `<div style="background:${sBg};border:1.5px solid ${sBorder}44;border-radius:8px;padding:8px 10px;margin-bottom:6px">
@@ -2683,8 +2683,8 @@ function setDashMonth(offset){
 
 function renderDash(){
   if(typeof renderDashOverview==='function'){renderDashOverview();}
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
-  const canSeeAmt=(CU.roles.includes('Super Admin')||CU.roles.includes('Admin')||CU.roles.includes('Trip Approver'))
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
+  const canSeeAmt=(CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin')||CU.roles.includes('Trip Approver'))
     && !CU.roles.includes('KAP Security')
     && !CU.roles.includes('Material Receiver');
   const visibleTrips=getVisibleTrips();
@@ -3799,7 +3799,7 @@ function _isMyLocation(locId){
 }
 function tripsForMyPlant(){
   if(!CU) return [];
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   if(isSA){
     // If a specific KAP location is chosen in the sidebar filter, narrow to trips from that location
     if(_adminLocFilter) return DB.trips.filter(t=>t.startLoc===_adminLocFilter);
@@ -3830,7 +3830,7 @@ function tripsForMyPlant(){
 // Narrower filter for Trip Booking page: only plant/tripBook locations + own bookings
 function _tripsForMyBookingPlant(){
   if(!CU) return [];
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   if(isSA){
     if(_adminLocFilter) return DB.trips.filter(t=>t.startLoc===_adminLocFilter);
     return [...DB.trips];
@@ -3860,7 +3860,7 @@ function renderMyTrips(){
   const fromVal=document.getElementById('tbHistFrom')?.value||'';
   const toVal=document.getElementById('tbHistTo')?.value||'';
 
-  const isSA=(CU.roles||[]).includes('Super Admin')||(CU.roles||[]).includes('Admin');
+  const isSA=(CU.roles||[]).includes('Super Admin')||(CU.roles||[]).includes('VMS Admin');
   let trips=_tripsForMyBookingPlant();
   // Trip ID search filter
   const tbSearch=(document.getElementById('tbTripSearch')?.value||'').toLowerCase();
@@ -4193,7 +4193,7 @@ function setKapMode(mode){
   _kapUpdateCounts();
 }
 function _kapUpdateCounts(){
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   // Exit count: segments at step 1 pending
   const exitCount=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked') return false;
@@ -4364,7 +4364,7 @@ function _kapOpenSpotPopup(spotId){
       _spotRestoreThumb('spotExitVehThumb',s.exitVehiclePhoto);
       document.getElementById('spotExitVehThumb').onclick=s.exitVehiclePhoto?()=>openPhoto(s.exitVehiclePhoto):null;
       // Check if within 2hrs for revoke
-      const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+      const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
       const can=isSA||(CU.id===s.exitBy);
       const exitAge=(Date.now()-new Date(s.exitTime))/1000/3600;
       const exitBtn=document.getElementById('spotExitBtn');
@@ -4535,7 +4535,7 @@ function _renderKapInner(){
   initDfLast7Days('kapHistExit','kapHistExitFrom','kapHistExitTo');
   initDfLast7Days('kapHistEntry','kapHistEntryFrom','kapHistEntryTo');
   const srch=(document.getElementById(_kapMode==='entry'?'kapSearchEntry':'kapSearchExit')?.value||'').toLowerCase();
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
 
   // Read date range from mode-specific inputs
   const _kapFromId=_kapMode==='entry'?'kapHistEntryFrom':'kapHistExitFrom';
@@ -5219,7 +5219,7 @@ async function _spotRevokeExit(spotId){
 function renderSpotHistory(){
   const list=document.getElementById('spotHistoryList');
   if(!list)return;
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const isSuperAdmin=CU.roles.includes('Super Admin');
   const myLocId=CU.plant||'';
   const myLoc=byId(DB.locations,myLocId);
@@ -5509,7 +5509,7 @@ async function doKapInline(segId,step){
   if(_inlineStreams[sid]){_inlineStreams[sid].getTracks().forEach(t=>t.stop());delete _inlineStreams[sid];}
   await advance(seg);if(!await _dbSave('segments',seg)) return;
   // Remember which trip comes next so we can auto-expand it
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const _pendingSegsAfter=DB.segments.filter(s=>{
     if(s.id===seg.id||s.status==='Completed'||s.status==='Locked'||s.status==='Rejected') return false;
     if(s.currentStep!==step) return false;
@@ -5620,7 +5620,7 @@ let _mrActiveTab='pending';
 function renderMR(){
   // Skip re-render while popup is open to prevent flicker
   if(_popOpen) return;
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const _myTripIds=new Set(tripsForMyPlant().map(t=>t.id));
   let pending=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked')return false;
@@ -5790,7 +5790,7 @@ function renderMR(){
 }
 
 function renderMRHistory(){
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const _mrTripIds=new Set(tripsForMyPlant().map(t=>t.id));
   const fromVal=document.getElementById('mrHistFrom')?.value||'';
   const toVal=document.getElementById('mrHistTo')?.value||'';
@@ -6017,7 +6017,7 @@ function renderApprove(){
   // Skip re-render while popup is open to prevent flicker
   if(_popOpen) return;
   initApproveDates();
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
 
   // Helper: is current user an approver for this segment's destination location?
 
@@ -6287,7 +6287,7 @@ function renderApprove(){
     return tb-ta;
   });
 
-  let totalAmt=0;const canSeeAmt=CU.roles.some(r=>['Super Admin','Admin','Trip Approver'].includes(r));
+  let totalAmt=0;const canSeeAmt=CU.roles.some(r=>['Super Admin','VMS Admin','Trip Approver'].includes(r));
   const fmtAp=t=>t?new Date(t).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'})+' '+new Date(t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—';
 
   const apThSm=(src,clr,sz)=>{const s=sz||36;return src
@@ -6353,7 +6353,7 @@ function renderApprove(){
     }).join('');
 
     // Revoke button — within 24hrs of approval, for approver or SA/Admin
-    const isSA_comp=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+    const isSA_comp=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
     const approvalTimeMs=Math.max(...segs.map(s=>s.steps[4]?.time?new Date(s.steps[4].time).getTime():0));
     const hrsSince_comp=(Date.now()-approvalTimeMs)/3600000;
     const hrsLeft=Math.max(0,24-hrsSince_comp);
@@ -6436,7 +6436,7 @@ function toggleApCard(id){
   }
 }
 function revokeApproval(baseId){
-  const isSA=CU.roles.some(r=>['Super Admin','Admin'].includes(r));
+  const isSA=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
   const segs=DB.segments.filter(s=>s.tripId===baseId||s.tripId.replace(/-R\d+$/,'')===baseId);
   if(!segs.length){notify('⚠ No segments found for trip '+baseId,true);return;}
   const approvedSegs=segs.filter(s=>s.steps[4]?.time);
@@ -6488,7 +6488,7 @@ async function doApproval(action){
 
 
 async function acceptRejectedTrip(tripId){
-  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('Admin');
+  const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   if(!isSA){notify('⚠ Only Admin or Super Admin can accept a rejected trip.',true);return;}
   const rem=(document.getElementById('rem_rej_'+tripId)?.value||'').trim();
   const tripSegs=DB.segments.filter(s=>s.tripId===tripId);
@@ -6802,7 +6802,7 @@ async function saveVT(){
 
 // Drivers
 function renderDrivers(){
-  const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','Admin','Trip Booking User','Material Receiver'].includes(r));
+  const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin','Trip Booking User','Material Receiver'].includes(r));
   const _bAddDrv=document.getElementById('btnAddDrv');if(_bAddDrv)_bAddDrv.style.display=_canEdit?'':'none';
   document.getElementById('drvBody').innerHTML=[...DB.drivers].filter(d=>!document.getElementById('showInactiveDrv')?.checked||!d.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>{
     const inactive=d.inactive===true;
@@ -6915,7 +6915,7 @@ async function saveVendor(){
 
 // Vehicles
 function renderVehicles(){
-  const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','Admin','Trip Booking User','Material Receiver'].includes(r));
+  const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin','Trip Booking User','Material Receiver'].includes(r));
   const _bAddVeh=document.getElementById('btnAddVeh');if(_bAddVeh)_bAddVeh.style.display=_canEdit?'':'none';
   document.getElementById('vehBody').innerHTML=[...DB.vehicles].filter(v=>!document.getElementById('showInactiveVeh')?.checked||!v.inactive).sort((a,b)=>a.number.localeCompare(b.number)).map(v=>{
     const inactive=v.inactive===true;
@@ -7049,7 +7049,7 @@ async function saveVehicle(){
 
 // Locations
 function renderLocations(){
-  var _isLocAdmin=CU&&CU.roles&&(CU.roles.includes('Admin')||CU.roles.includes('Super Admin'));
+  var _isLocAdmin=CU&&CU.roles&&(CU.roles.includes('VMS Admin')||CU.roles.includes('Super Admin'));
   // Hide add/export/import buttons for non-admin
   var _btnAdd=document.getElementById('btnAddLoc');if(_btnAdd)_btnAdd.style.display=_isLocAdmin?'':'none';
   var _eaWraps=document.querySelectorAll('#pageLocations .ea-wrap');_eaWraps.forEach(function(el){el.style.display=_isLocAdmin?'':'none';});
@@ -7158,7 +7158,7 @@ function rateSort(col){
 }
 function renderRates(){
   const isSA=CU.roles.includes('Super Admin');
-  const isAdmin=CU.roles.includes('Admin')||isSA;
+  const isAdmin=CU.roles.includes('VMS Admin')||isSA;
   const today=new Date().toISOString().split('T')[0];
 
   // Pending section (SA only)
@@ -7174,7 +7174,7 @@ function renderRates(){
         <div>
           <div style="font-size:13px;font-weight:700">${r.name} <span style="color:var(--text3)">· ₹${r.rate.toLocaleString()}</span></div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">${vtname(r.vTypeId)} · ${lnameText(r.start)} → ${lnameText(r.dest1)}${r.dest2?' → '+lnameText(r.dest2):''}${r.dest3?' → '+lnameText(r.dest3):''}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:1px">Valid: ${fd(r.validStart)} → ${fd(r.validEnd)} · Added by: ${uname(r.addedBy)||'Admin'}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px">Valid: ${fd(r.validStart)} → ${fd(r.validEnd)} · Added by: ${uname(r.addedBy)||'VMS Admin'}</div>
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-green" style="padding:5px 14px;font-size:12px;font-weight:700" onclick="approveRate('${r.id}')">✓ Approve</button>
@@ -7272,7 +7272,7 @@ function openRateHistory(encodedKey){
   const [vTypeId,start,dest1,dest2,dest3]=parts;
   const today=new Date().toISOString().split('T')[0];
   const isSA=CU.roles.includes('Super Admin');
-  const isAdmin=CU.roles.includes('Admin')||isSA;
+  const isAdmin=CU.roles.includes('VMS Admin')||isSA;
   const periods=DB.tripRates.filter(r=>
     r.vTypeId===vTypeId&&r.start===start&&r.dest1===dest1&&
     (r.dest2||'')===(dest2||'')&&(r.dest3||'')===(dest3||'')
@@ -7310,7 +7310,7 @@ function openRateHistory(encodedKey){
           <span style="font-size:10px;font-weight:700;color:${stClr}">${stLabel}</span>
           ${isCurr?'<span style="font-size:10px;font-weight:800;background:#dcfce7;color:#16a34a;padding:1px 7px;border-radius:4px">ACTIVE</span>':''}
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px">Added by ${uname(r.addedBy)||'Admin'}${r.approvedBy?' · Approved by '+uname(r.approvedBy):''}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Added by ${uname(r.addedBy)||'VMS Admin'}${r.approvedBy?' · Approved by '+uname(r.approvedBy):''}</div>
       </div>
       ${isAdmin?`<div style="display:flex;gap:4px;flex-shrink:0">
         ${isSA&&r.status==='pending'?`<button class="action-btn" style="color:#16a34a" onclick="approveRate('${r.id}');openRateHistory(document.getElementById('rhRouteKey').value)" title="Approve">✓</button>`:''}
@@ -7814,7 +7814,7 @@ function showRecordDetail(table,id){
       +((u.hwmsRoles||[]).length?_rdRow('HWMS Roles',_rdBadges(u.hwmsRoles),{html:true}):'')
       +_rdRow('Status',_rdStatus(u.inactive),{html:true});
     // Reset Password button — visible to Admin/SA, but not for SA users
-    const isMeAdminOrSA=CU&&(CU.roles.includes('Super Admin')||CU.roles.includes('Admin'));
+    const isMeAdminOrSA=CU&&(CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin'));
     const isTargetSA=u.roles&&u.roles.includes('Super Admin');
     if(isMeAdminOrSA&&!isTargetSA&&u.id!==CU.id){
       html+=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
@@ -7924,8 +7924,8 @@ function showRecordDetail(table,id){
   title.textContent=titleText;
   body.innerHTML=html;
   if(editBtn){
-    const isAdmin=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','Admin'].includes(r));
-    const canEditExtended=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','Admin','Trip Booking User','Material Receiver'].includes(r));
+    const isAdmin=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
+    const canEditExtended=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin','Trip Booking User','Material Receiver'].includes(r));
     let canEdit=isAdmin;
     if(table==='drivers'||table==='vehicles') canEdit=canEditExtended;
     if(table==='tripRates') canEdit=isAdmin||(rec.addedBy===CU?.id);
@@ -8121,7 +8121,7 @@ const MASTER_SCHEMA = {
 
 // ── Excel Export/Import for User Master ─────────────────────────────────────
 function exportUsersExcel(){
-  if(!CU||!CU.roles.some(r=>['Super Admin','Admin'].includes(r))){notify('⚠ Export is restricted to Admin users only.',true);return;}
+  if(!CU||!CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r))){notify('⚠ Export is restricted to Admin users only.',true);return;}
   const rows=DB.users.map(u=>({
     'Username': u.name||'',
     'Full Name': u.fullName||'',
@@ -8141,7 +8141,7 @@ function exportUsersExcel(){
 }
 
 function importUsersExcel(inputEl){
-  if(!CU||!CU.roles.some(r=>['Super Admin','Admin'].includes(r))){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
+  if(!CU||!CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r))){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
   const file=inputEl.files[0];
   if(!file){return;}
   inputEl.value='';
@@ -8228,7 +8228,7 @@ async function _applyUsersImportRows(rows){
 }
 
 function exportMaster(col){
-  if(!CU||!CU.roles.some(r=>['Super Admin','Admin'].includes(r))){notify('⚠ Export is restricted to Admin users only.',true);return;}
+  if(!CU||!CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r))){notify('⚠ Export is restricted to Admin users only.',true);return;}
   const schema=MASTER_SCHEMA[col];
   if(!schema){notify('Export not supported for this master',true);return;}
   let objRows;
@@ -8251,7 +8251,7 @@ function exportMaster(col){
 }
 
 // ═══ VENDOR TRIPS PAGE ══════════════════════════════════════════════════
-function _isVtAdmin(){ return CU&&CU.roles.some(r=>['Super Admin','Admin'].includes(r)); }
+function _isVtAdmin(){ return CU&&CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r)); }
 function _getMyVendor(){
   if(!CU) return null;
   return DB.vendors.find(v=>v.userId===CU.id&&!v.inactive)||null;

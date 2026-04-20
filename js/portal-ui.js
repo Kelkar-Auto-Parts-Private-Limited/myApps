@@ -736,7 +736,7 @@ function renderAppGrid(){
   const isSuperAdmin=(CU.roles||[]).some(r=>r==='Super Admin')
     ||(CU.hwmsRoles||[]).some(r=>r==='Super Admin')
     ||(CU.hrmsRoles||[]).some(r=>r==='Super Admin');
-  const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
+  const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
   const SEC_ROLES=['KAP Security','Guard','Viewer'];
   function _hasAnyRoleFor(appId){
     if(isSuperAdmin) return true;
@@ -1279,7 +1279,7 @@ var _permActiveRole='';
 // Module → default roles from constants (Portal editor-only helper)
 function _permGetDefaultRoles(mod){
   if(mod==='HRMS') return typeof HRMS_ROLES!=='undefined'?HRMS_ROLES.slice():['Super Admin','HR Manager','HR Admin','Employee'];
-  if(mod==='VMS') return typeof ROLES!=='undefined'?ROLES.slice():['Super Admin','Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
+  if(mod==='VMS') return typeof ROLES!=='undefined'?ROLES.slice():['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
   if(mod==='HWMS') return typeof HWMS_ROLES!=='undefined'?HWMS_ROLES.slice():['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
   if(mod==='Security') return ['Super Admin','KAP Security','Guard','Viewer'];
   return ['Super Admin'];
