@@ -737,7 +737,7 @@ function renderAppGrid(){
     ||(CU.hwmsRoles||[]).some(r=>r==='Super Admin')
     ||(CU.hrmsRoles||[]).some(r=>r==='Super Admin');
   const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
-  const SEC_ROLES=['KAP Security','Guard','Viewer'];
+  const SEC_ROLES=['Guard','Viewer'];
   function _hasAnyRoleFor(appId){
     if(isSuperAdmin) return true;
     if(appId==='vms') return (CU.roles||[]).some(r=>VMS_ONLY_ROLES.indexOf(r)>=0);
@@ -1281,7 +1281,7 @@ function _permGetDefaultRoles(mod){
   if(mod==='HRMS') return typeof HRMS_ROLES!=='undefined'?HRMS_ROLES.slice():['Super Admin','HR Manager','HR Admin','Employee'];
   if(mod==='VMS') return typeof ROLES!=='undefined'?ROLES.slice():['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
   if(mod==='HWMS') return typeof HWMS_ROLES!=='undefined'?HWMS_ROLES.slice():['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
-  if(mod==='Security') return ['Super Admin','KAP Security','Guard','Viewer'];
+  if(mod==='Security') return ['Super Admin','Guard','Viewer'];
   return ['Super Admin'];
 }
 
