@@ -351,9 +351,16 @@ function showTab(tab){
   var sn=document.getElementById('psNav'+tab.charAt(0).toUpperCase()+tab.slice(1));
   if(sn) sn.classList.add('active');
   if(tab==='apps') renderAppGrid();
-  // Guard admin-only tabs
-  var _isSA=(CU&&(CU.roles||[]).indexOf('Super Admin')>=0);
-  if((tab==='users'||tab==='permissions'||tab==='dbstorage')&&!_isSA){showTab('apps');return;}
+  // Guard admin-only tabs — must stay in sync with renderPortal() visibility
+  var _isSA=CU&&(CU.roles||[]).indexOf('Super Admin')>=0;
+  var _isVmsAdmin=CU&&(CU.roles||[]).indexOf('VMS Admin')>=0;
+  var _isHwmsAdmin=CU&&(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
+  var _isHrAdmin=CU&&(CU.hrmsRoles||[]).indexOf('HR Admin')>=0;
+  var _canUsers=_isSA||_isVmsAdmin||_isHwmsAdmin||_isHrAdmin;
+  var _canDb=_isSA||_isHwmsAdmin;
+  if(tab==='users'&&!_canUsers){showTab('apps');return;}
+  if(tab==='permissions'&&!_isSA){showTab('apps');return;}
+  if(tab==='dbstorage'&&!_canDb){showTab('apps');return;}
   if(tab==='users') renderPortalUsers();
   if(tab==='profile') ppLoadProfile();
   if(tab==='permissions') renderPermissions();
