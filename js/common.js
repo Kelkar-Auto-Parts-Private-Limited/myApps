@@ -1433,11 +1433,20 @@ function _permLoadData(){
 // If an umbrella key (e.g. page.attSal) has no explicit level but its
 // children in _PERM_UMBRELLA[mod] do, inherit the max of those. Cycle-safe
 // via a visited set.
+// Module-admin roles that bypass granular permission checks and get full
+// access to their module. Super Admin is global and handled separately.
+// "Admin" is VMS-scoped (not cross-module); HWMS/HRMS have their own.
+var _PERM_MODULE_ADMIN={VMS:['Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[]};
 function permLevel(mod,pageTabKey,_visited){
   if(typeof CU==='undefined'||!CU) return 'none';
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
   var userRoles=CU[field]||[];
   if(userRoles.indexOf('Super Admin')>=0) return 'full';
+  // Module-admin role → always full access to this module.
+  var _ma=_PERM_MODULE_ADMIN[mod]||[];
+  for(var _mi=0;_mi<_ma.length;_mi++){
+    if(userRoles.indexOf(_ma[_mi])>=0) return 'full';
+  }
   var all=_permLoadData()[mod]||{};
   var perms=all.permissions||{};
   var best='none';
@@ -1473,6 +1482,11 @@ function permConfigured(mod){
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
   var userRoles=CU[field]||[];
   if(userRoles.indexOf('Super Admin')>=0) return false; // SA ignores permissions
+  // Module-admin roles also bypass permissions (treat as always-full).
+  var _ma=_PERM_MODULE_ADMIN[mod]||[];
+  for(var _mi=0;_mi<_ma.length;_mi++){
+    if(userRoles.indexOf(_ma[_mi])>=0) return false;
+  }
   var all=_permLoadData()[mod]||{};
   var perms=all.permissions||{};
   return userRoles.some(function(r){
@@ -1502,6 +1516,11 @@ function permCanAct(mod,actionKey){
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
   var userRoles=CU[field]||[];
   if(userRoles.indexOf('Super Admin')>=0) return true;
+  // Module-admin role → always allowed (same as Super Admin for this module).
+  var _ma=_PERM_MODULE_ADMIN[mod]||[];
+  for(var _mi=0;_mi<_ma.length;_mi++){
+    if(userRoles.indexOf(_ma[_mi])>=0) return true;
+  }
   var keys=(_PERM_KEYS[mod])||[];
   var item=keys.find(function(k){return k.key===actionKey;});
   if(!item) return false;
