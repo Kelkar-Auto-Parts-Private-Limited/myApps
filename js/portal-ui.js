@@ -312,12 +312,19 @@ function showPortal(){
   if(sa){if(CU.photo){sa.innerHTML='<img src="'+CU.photo+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px">';}else{sa.textContent=initials;}}
   var sn=document.getElementById('pSideName');if(sn)sn.textContent=CU.fullName||CU.name;
   var sr=document.getElementById('pSideRole');if(sr)sr.textContent=(CU.roles||[]).join(', ');
-  // Show Users/DB/Permissions tabs only for Super Admin
-  var isAdmin=(CU.roles||[]).indexOf('Super Admin')>=0;
-  var ut=document.getElementById('usersTab'); if(ut) ut.style.display=isAdmin?'':'none';
-  var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=isAdmin?'':'none';
-  var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isAdmin||(CU.hwmsRoles||[]).some(function(r){return r==='HWMS Admin';}))?'':'none';
-  var psPerm=document.getElementById('psNavPermissions');if(psPerm)psPerm.style.display=isAdmin?'':'none';
+  // Tab visibility:
+  //   Users     — Super Admin, VMS Admin, HWMS Admin, HR Admin (can manage users)
+  //   DB Storage— Super Admin, HWMS Admin
+  //   Permissions (Role Settings) — Super Admin only
+  var isSuper=(CU.roles||[]).indexOf('Super Admin')>=0;
+  var isVmsAdmin=(CU.roles||[]).indexOf('VMS Admin')>=0;
+  var isHwmsAdmin=(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
+  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HR Admin')>=0;
+  var canManageUsers=isSuper||isVmsAdmin||isHwmsAdmin||isHrAdmin;
+  var ut=document.getElementById('usersTab'); if(ut) ut.style.display=canManageUsers?'':'none';
+  var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=canManageUsers?'':'none';
+  var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isSuper||isHwmsAdmin)?'':'none';
+  var psPerm=document.getElementById('psNavPermissions');if(psPerm)psPerm.style.display=isSuper?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
