@@ -746,12 +746,17 @@ function renderAppGrid(){
     if(appId==='hrms') return ((CU.hrmsRoles)||[]).length>0;
     return false; // Apps without a role model (maintenance/review) hidden unless Super Admin.
   }
-  // user.apps is authoritative: tile is visible only if the admin has
-  // granted the app in the user's app list AND the user has a matching role.
-  // Super Admin bypasses both. Coming-soon apps still appear for SA only.
+  // Role-based visibility is authoritative. If the user also has an explicit
+  // user.apps list, it acts as an extra restriction; but a missing/empty
+  // apps list does NOT hide tiles — legacy users and users whose apps list
+  // wasn't re-saved after a role change would otherwise lose access.
   var _userApps=(CU.apps||[]);
-  function _hasAppAccess(appId){ return isSuperAdmin||_userApps.indexOf(appId)>=0; }
-  const visibleApps=PORTAL_APPS.filter(a=>(_hasAppAccess(a.id)&&_hasAnyRoleFor(a.id))||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
+  function _appsAllows(appId){
+    if(isSuperAdmin) return true;
+    if(!_userApps.length) return true; // no explicit restriction
+    return _userApps.indexOf(appId)>=0;
+  }
+  const visibleApps=PORTAL_APPS.filter(a=>(_appsAllows(a.id)&&_hasAnyRoleFor(a.id))||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
   if(!visibleApps.length){
     grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px;grid-column:1/-1">No apps assigned yet. Contact your admin to request access.</div>';
     return;
