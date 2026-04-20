@@ -987,8 +987,28 @@ async function bootDB(){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
         localStorage.removeItem('kap_db_cache');
         console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
-        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
+        // If any required table was absent from the cache (common for
+        // hrmsSettings in older Portal→VMS handoffs), fetch them now so
+        // permission checks have current data. Detect via cache, not DB,
+        // so a legitimately-empty table isn't re-fetched every boot.
+        var _missing=_getActiveTables().filter(function(t){return !Array.isArray(_cObj[t]);});
         if(!_sbReady) _initSupabase();
+        if(_missing.length&&_sbReady&&_sb){
+          console.log('bootDB: cache missing tables, fetching:', _missing.join(','));
+          Promise.all(_missing.map(async function(tbl){
+            try{
+              var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
+              var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
+              var q=_sb.from(sbTbl).select(sel).limit(10000);
+              if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+              var res=await q;
+              if(!res.error) DB[tbl]=(res.data||[]).map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+            }catch(e){ console.warn('bootDB: missing-table fetch '+tbl+' failed:',e.message); }
+          })).then(function(){
+            if(typeof _onRefreshViews==='function') try{_onRefreshViews();}catch(e){}
+          });
+        }
+        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
         if(_sbReady && _sb){
           _sbSetStatus('ok');
           _sbStartRealtime();
