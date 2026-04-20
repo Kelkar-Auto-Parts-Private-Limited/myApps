@@ -987,12 +987,25 @@ async function bootDB(){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
         localStorage.removeItem('kap_db_cache');
         console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
-        // If any required table was absent from the cache (common for
-        // hrmsSettings in older Portal→VMS handoffs), fetch them now so
-        // permission checks have current data. Detect via cache, not DB,
-        // so a legitimately-empty table isn't re-fetched every boot.
-        var _missing=_getActiveTables().filter(function(t){return !Array.isArray(_cObj[t]);});
         if(!_sbReady) _initSupabase();
+        // hrmsSettings holds role permissions — if empty or missing in cache,
+        // block boot to refetch synchronously. Portal's pre-fetch is async and
+        // can time out, caching an empty array; nav then sees empty perms.
+        // Tiny table (< 10 rows), so the extra round-trip is negligible.
+        if(_getActiveTables().indexOf('hrmsSettings')>=0 && _sbReady && _sb
+            && (!Array.isArray(DB.hrmsSettings) || DB.hrmsSettings.length===0)){
+          try{
+            var _hsRes=await _sb.from('hrms_settings').select('*').limit(1000);
+            if(!_hsRes.error){
+              DB.hrmsSettings=(_hsRes.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
+              console.log('bootDB: hrmsSettings synced on cache-hit — rows='+DB.hrmsSettings.length);
+            } else { console.warn('bootDB: hrmsSettings sync error:',_hsRes.error.message); }
+          }catch(e){ console.warn('bootDB: hrmsSettings sync failed:',e.message); }
+        }
+        // Other tables missing from cache: fetch in background so permission
+        // checks have current data. Use !Array.isArray to detect truly missing
+        // keys so a legitimately-empty table isn't refetched every boot.
+        var _missing=_getActiveTables().filter(function(t){return t!=='hrmsSettings'&&!Array.isArray(_cObj[t]);});
         if(_missing.length&&_sbReady&&_sb){
           console.log('bootDB: cache missing tables, fetching:', _missing.join(','));
           Promise.all(_missing.map(async function(tbl){
