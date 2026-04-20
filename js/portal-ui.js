@@ -1297,13 +1297,25 @@ function _permModuleData(mod){
   // Auto-merge: ensure all default/constant roles exist in the saved list
   var defaults=_permGetDefaultRoles(mod);
   defaults.forEach(function(r){if(md.roles.indexOf(r)<0) md.roles.push(r);});
-  // Also scan users for any custom roles assigned but not yet in the role list
+  // Also scan users for any custom roles assigned but not yet in the role list.
+  // Filter by _PERM_MODULE_ROLES so modules that share a user field (VMS and
+  // Security both use user.roles) don't leak each other's roles into the
+  // Role Settings editor.
   var field=_PERM_ROLE_FIELDS[mod];
+  var allow=(typeof _PERM_MODULE_ROLES!=='undefined')&&_PERM_MODULE_ROLES[mod];
   if(field){
     (DB.users||[]).forEach(function(u){
       var userRoles=u[field]||[];
-      userRoles.forEach(function(r){if(r&&md.roles.indexOf(r)<0) md.roles.push(r);});
+      userRoles.forEach(function(r){
+        if(!r||md.roles.indexOf(r)>=0) return;
+        if(allow&&allow.indexOf(r)<0) return;
+        md.roles.push(r);
+      });
     });
+  }
+  // Drop any previously-saved cross-module roles that no longer belong here
+  if(allow){
+    md.roles=md.roles.filter(function(r){return allow.indexOf(r)>=0;});
   }
   // Ensure Super Admin is always first
   var saIdx=md.roles.indexOf('Super Admin');

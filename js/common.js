@@ -1278,6 +1278,25 @@ const HRMS_ROLES=['Super Admin','HR Manager','HR Admin','Employee'];
 // Security, Portal) can call permCanView / permCanAct during render.
 // The Role Settings editor in portal-ui.js writes into the same data store.
 var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'roles'};
+// VMS and Security share user.roles. To keep them decoupled, each module
+// declares which role names actually belong to it — permLevel/permCanAct
+// and the Role Settings role picker ignore roles outside this set.
+// A user with role 'KAP Security' (VMS-only) therefore can't accidentally
+// inherit permissions saved under the Security module.
+var _PERM_MODULE_ROLES={
+  VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],
+  HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'],
+  HRMS:['Super Admin','HR Admin','HR Manager','Employee'],
+  Security:['Super Admin','Guard','Viewer']
+};
+function _permModuleUserRoles(mod){
+  if(typeof CU==='undefined'||!CU) return [];
+  var field=_PERM_ROLE_FIELDS[mod];if(!field) return [];
+  var all=CU[field]||[];
+  var allow=_PERM_MODULE_ROLES[mod];
+  if(!allow) return all.slice();
+  return all.filter(function(r){return allow.indexOf(r)>=0;});
+}
 var _PERM_KEYS={
   HRMS:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -1473,7 +1492,7 @@ var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],
 function permLevel(mod,pageTabKey,_visited){
   if(typeof CU==='undefined'||!CU) return 'none';
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
-  var userRoles=CU[field]||[];
+  var userRoles=_permModuleUserRoles(mod);
   if(userRoles.indexOf('Super Admin')>=0) return 'full';
   // Module-admin role → always full access to this module.
   var _ma=_PERM_MODULE_ADMIN[mod]||[];
@@ -1513,7 +1532,7 @@ function permCanView(mod,pageTabKey){var l=permLevel(mod,pageTabKey);return l===
 function permConfigured(mod){
   if(typeof CU==='undefined'||!CU) return false;
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
-  var userRoles=CU[field]||[];
+  var userRoles=_permModuleUserRoles(mod);
   if(userRoles.indexOf('Super Admin')>=0) return false; // SA ignores permissions
   // Module-admin roles also bypass permissions (treat as always-full).
   var _ma=_PERM_MODULE_ADMIN[mod]||[];
@@ -1535,7 +1554,7 @@ function permConfigured(mod){
 function permIsExplicit(mod,key){
   if(typeof CU==='undefined'||!CU) return false;
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
-  var userRoles=CU[field]||[];
+  var userRoles=_permModuleUserRoles(mod);
   if(userRoles.indexOf('Super Admin')>=0) return false;
   var all=_permLoadData()[mod]||{};
   var perms=all.permissions||{};
@@ -1547,7 +1566,7 @@ function permIsExplicit(mod,key){
 function permCanAct(mod,actionKey){
   if(typeof CU==='undefined'||!CU) return false;
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return false;
-  var userRoles=CU[field]||[];
+  var userRoles=_permModuleUserRoles(mod);
   if(userRoles.indexOf('Super Admin')>=0) return true;
   // Module-admin role → always allowed (same as Super Admin for this module).
   var _ma=_PERM_MODULE_ADMIN[mod]||[];
