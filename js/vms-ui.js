@@ -4596,6 +4596,16 @@ function _renderKapInner(){
   // ── Pending section ──
   // Sort by trip booking date descending (newest first)
   pendingSegs.sort((a,b)=>{const ta=byId(DB.trips,a.tripId);const tb=byId(DB.trips,b.tripId);return (tb?.date||'').localeCompare(ta?.date||'');});
+  // Pull challan details for the pending trips. The gate-exit "missing
+  // challan/weight/photo" warning reads trip.challans1/2/3, which are
+  // excluded from the boot select (lazy-loaded). Without this call, a KAP
+  // Security user would see a false alert while admin — who usually has
+  // the challans loaded from a prior action — does not.
+  if(typeof _ensureTripChallans==='function'){
+    var _kapTripIds=[];var _seenKapTrip={};
+    pendingSegs.forEach(function(s){if(s&&s.tripId&&!_seenKapTrip[s.tripId]){_seenKapTrip[s.tripId]=1;_kapTripIds.push(s.tripId);}});
+    if(_kapTripIds.length) _ensureTripChallans(_kapTripIds);
+  }
   let pendingHtml='';
   if(pendingSegs.length){
     pendingHtml+=pendingSegs.map((seg,_idx)=>{
@@ -4706,9 +4716,14 @@ function _renderKapInner(){
         </div>`;
       }).join('');
 
-      // Gate Exit blocked if missing challan, weight, or photo for this segment
+      // Gate Exit blocked if missing challan, weight, or photo for this segment.
+      // challans1/2/3 are lazy-loaded (excluded from boot select), so the
+      // array may be undefined on first render — only treat as blocked once
+      // the lazy-load for this trip has actually resolved. Otherwise a KAP
+      // Security user sees a false alert until _ensureTripChallans lands.
       const _segIdx={'A':1,'B':2,'C':3}[seg.label]||1;
       const _tripForCh=byId(DB.trips,seg.tripId);
+      const _chLoaded=!!(_loadedChallansTripIds&&_loadedChallansTripIds[seg.tripId]);
       const _chArr=_tripForCh?.['challans'+_segIdx]||[];
       const _hasChallanNo=(_chArr.some&&_chArr.some(x=>x.no&&x.no.trim()))||!!(_tripForCh?.['challan'+_segIdx]||'').trim();
       var _challanComplete=false;
@@ -4717,7 +4732,10 @@ function _renderKapInner(){
       } else if((_tripForCh?.['challan'+_segIdx]||'').trim()){
         _challanComplete=!!_tripForCh?.['weight'+_segIdx]&&!!_tripForCh?.['photo'+_segIdx];
       }
-      const _gateExitBlocked=cs===1&&!_challanComplete;
+      // Defer the block until challans are actually loaded. The action handler
+      // (doKapInline at line 5450) calls _loadTripChallans before recording,
+      // so a click before the async fetch lands still validates correctly.
+      const _gateExitBlocked=cs===1&&_chLoaded&&!_challanComplete;
       const pendId='kpend_'+sid;
       const vn=vnum(trip?.vehicleId);
       // Coloured location pills for route
