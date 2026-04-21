@@ -385,6 +385,29 @@ function _ensureSegmentSteps(segIds){
   })();
 }
 
+// List-render helper: for a batch of segments being shown in a list, eagerly
+// fetch full steps (with photos) for any segment whose step 1 / 2 / 5 is
+// marked done but whose photo is missing in-memory. Photos are compulsory
+// at record time, so a missing photo here is almost always the boot-time
+// steps_light stripping — not a real data gap. Runs only when needed so
+// repeat renders don't re-query.
+function _ensureStepPhotosForList(segs){
+  if(!segs||!segs.length||typeof _ensureSegmentSteps!=='function') return;
+  var todo=[];
+  var seen={};
+  segs.forEach(function(s){
+    if(!s||!s.id||seen[s.id]) return; seen[s.id]=1;
+    if(_loadedStepsSegIds&&_loadedStepsSegIds[s.id]) return;
+    var need=false;
+    [1,2,5].forEach(function(n){
+      var st=s.steps&&s.steps[n];
+      if(st&&st.done&&!st.photo) need=true;
+    });
+    if(need) todo.push(s.id);
+  });
+  if(todo.length) _ensureSegmentSteps(todo);
+}
+
 async function _loadPhotos(localTbl,recordId){
   var sbTbl=SB_TABLES[localTbl];var photoCols=_PHOTO_DB_COLS[sbTbl];
   if(!sbTbl||!photoCols||!photoCols.length||!_sbReady||!_sb) return null;
@@ -1924,6 +1947,14 @@ function renderDashTrips(){
   }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   if(!trips2.length){el.innerHTML='<div class="empty-state">No trips in selected period</div>';return;}
+
+  // Eager-load step photos for visible dashboard trip cards — seg.steps photo
+  // fields are stripped at boot (steps_light) and wouldn't otherwise render.
+  try{
+    var _dtVisIds={};trips2.forEach(function(t){_dtVisIds[t.id]=1;});
+    var _dtSegsAll=(DB.segments||[]).filter(function(s){return s&&_dtVisIds[s.tripId];});
+    _ensureStepPhotosForList(_dtSegsAll);
+  }catch(e){}
 
   const thumbD=(src,label,clr)=>{
     if(!src)return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:48px;height:46px;border-radius:6px;border:2px dashed var(--border2);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--border2)">📷</div><span style="font-size:7px;color:var(--text3);text-transform:uppercase;font-weight:600">${label}</span></div>`;
@@ -3890,6 +3921,15 @@ function renderMyTrips(){
   // Sort by date descending (newest first)
   trips.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
+  // Eager-load step photos for visible trips — photos are stripped at boot
+  // (steps_light) and only populate on card-open otherwise, so the collapsed
+  // row would show an empty slot even for a done Gate Exit.
+  try{
+    var _mtTripIds={};trips.forEach(function(t){_mtTripIds[t.id]=1;});
+    var _mtSegs=(DB.segments||[]).filter(function(s){return s&&_mtTripIds[s.tripId];});
+    _ensureStepPhotosForList(_mtSegs);
+  }catch(e){}
+
   const rows=trips.map(t=>{
     const segs=DB.segments.filter(s=>s.tripId===t.id).sort((a,b)=>a.label.localeCompare(b.label));
     const anyActionDone=segs.some(s=>[1,2,3,4].some(n=>s.steps[n]?.done));
@@ -4922,6 +4962,9 @@ function _renderKapInner(){
   if(!srch&&fromVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
   if(!srch&&toVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)<=toVal);
   if(srch)histSegs=histSegs.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
+  // Eager-load step photos for visible history rows so gate-exit/entry
+  // thumbnails render without requiring each card to be opened first.
+  try{ _ensureStepPhotosForList(histSegs); }catch(e){}
   histSegs.sort((a,b)=>{
     const ta=a.steps[step]?.time?new Date(a.steps[step].time).getTime():0;
     const tb=b.steps[step]?.time?new Date(b.steps[step].time).getTime():0;
@@ -5689,6 +5732,9 @@ function renderMR(){
   // Pending content
   // Sort by trip booking date descending (newest first)
   pending.sort((a,b)=>{const ta=byId(DB.trips,a.tripId);const tb=byId(DB.trips,b.tripId);return (tb?.date||'').localeCompare(ta?.date||'');});
+  // Eager-load step photos for visible MR cards — exit/entry thumbnails
+  // pulled from seg.steps[1/2].photo are otherwise empty until card-open.
+  try{ _ensureStepPhotosForList(pending); }catch(e){}
   if(!pending.length){document.getElementById('mrPendingContent').innerHTML='<div class="empty-state" style="padding:12px">No pending material receipts</div>';}
   else{
     document.getElementById('mrPendingContent').innerHTML=pending.map((seg,_si)=>{
@@ -6097,6 +6143,14 @@ function renderApprove(){
     const allSegs=DB.segments.filter(s=>s.tripId===tripId);
     return allSegs.every(s=>s.status==='Completed'||s.status==='Locked'||stepsUpTo3Done(s)||s.status==='Rejected');
   });
+
+  // Eager-load step photos for visible Approve cards — gate-exit/entry
+  // thumbnails are pulled from seg.steps[1/2].photo.
+  try{
+    var _apVisIds={};pendingTrips.forEach(function(e){_apVisIds[e[0]]=1;});
+    var _apSegsAll=(DB.segments||[]).filter(function(s){return s&&_apVisIds[s.tripId];});
+    _ensureStepPhotosForList(_apSegsAll);
+  }catch(e){}
 
   // Sort pending trips by booking date descending (newest first)
   pendingTrips.sort((a,b)=>{const ta=byId(DB.trips,a[0]);const tb=byId(DB.trips,b[0]);return (tb?.date||'').localeCompare(ta?.date||'');});
@@ -8560,26 +8614,7 @@ function renderHelper(){
     </tr>`;
   });
 
-  // Count spot vehicles pending exit > 48hrs
-  var _spotStale=(DB.spotTrips||[]).filter(function(s){return !s.exitTime&&s.entryTime&&(Date.now()-new Date(s.entryTime).getTime())>48*3600000;});
-
   el.innerHTML=`
-  <!-- REPAIR TOOLS -->
-  ${s('🔧 Repair Tools','rgba(220,38,38,.06)',`
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
-      <div style="flex:1;min-width:250px">
-        <p style="margin:0 0 8px"><strong>Mark Empty Exit for Old Trips:</strong> Finds all trips with vehicles waiting for Empty Vehicle Exit and marks step 5 as completed without requiring a photo.</p>
-        <button onclick="_repairMarkEmptyExitDone()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#dc2626;border:none;color:#fff;border-radius:6px;cursor:pointer">🔧 Mark All Empty Exits Done</button>
-        <div id="repairEmptyExitResult" style="margin-top:10px;font-size:12px;display:none"></div>
-      </div>
-      <div style="flex:1;min-width:250px">
-        <p style="margin:0 0 8px"><strong>Auto-Exit Stale Spot Vehicles:</strong> Spot vehicles inside for more than 48 hours with no exit recorded. Marks them as auto-exited without photo.</p>
-        <div style="font-size:12px;margin-bottom:8px;font-weight:700;color:${_spotStale.length?'#dc2626':'#16a34a'}">${_spotStale.length} spot vehicle(s) pending exit &gt; 48 hrs</div>
-        <button onclick="_repairAutoExitSpotVehicles()" style="padding:8px 20px;font-size:12px;font-weight:800;background:#f59e0b;border:none;color:#fff;border-radius:6px;cursor:pointer" ${_spotStale.length?'':'disabled style="opacity:.5;cursor:not-allowed"'}>🏁 Auto-Exit Stale Spot Vehicles</button>
-        <div id="repairSpotExitResult" style="margin-top:10px;font-size:12px;display:none"></div>
-      </div>
-    </div>
-  `)}
   <!-- TRIP ID ALLOCATION TOOL -->
   <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
     <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">
