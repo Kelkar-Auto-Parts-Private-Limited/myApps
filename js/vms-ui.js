@@ -4565,12 +4565,26 @@ function _renderKapInner(){
   const fromVal=document.getElementById(_kapFromId)?.value||'';
   const toVal=document.getElementById(_kapToId)?.value||'';
 
+  // Helper: ensure the PREVIOUS segment (A→B→C chain) has finished its
+  // gate ops (steps 1 & 2) before this segment is actionable. The stored
+  // seg.status='Locked' should cover this at trip-create time, but legacy
+  // trips and edge-cases can leave a sibling segment 'Active' prematurely
+  // — so we also gate on the prior sibling's gate state at render time.
+  const _priorGatesDone=(s)=>{
+    const prev={B:'A',C:'B'}[s.label];
+    if(!prev) return true; // segment A has no predecessor
+    const prevSeg=DB.segments.find(x=>x.tripId===s.tripId&&x.label===prev);
+    if(!prevSeg) return true;
+    return stepsOneAndTwoDone(prevSeg);
+  };
   // All active (pending) segments across both steps — show ALL until recorded
   let allPending=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked')return false;
     const cs=s.currentStep;
-    // Steps 1 & 2: sequential KAP gate actions
-    if(cs===1||cs===2){if(s.steps[cs]?.skip)return false;return canDoStep(s,cs);}
+    // Steps 1 & 2: sequential KAP gate actions — also require the prior
+    // segment's gates to be complete so a later segment's Gate Exit doesn't
+    // surface before the current segment's Gate Entry is recorded.
+    if(cs===1||cs===2){if(s.steps[cs]?.skip)return false;if(!_priorGatesDone(s))return false;return canDoStep(s,cs);}
     // Step 5: parallel Empty Vehicle Exit — available as soon as steps 1 & 2 are done
     if(!s.steps[5]?.skip&&!s.steps[5]?.done&&stepsOneAndTwoDone(s))return canDoStep(s,5);
     return false;
