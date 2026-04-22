@@ -550,13 +550,22 @@ async function _forceSyncAll(){
   notify('🔄 Syncing all data to Supabase…');
   _sbSetStatus('connecting');
   let saved=0, failed=0;
+  const _fsAuth=_hwmsAuthArgs();
   for(const tbl of DB_TABLES){
+    const sbTbl=SB_TABLES[tbl];
+    const useRpc=_isHwmsSbTbl(sbTbl);
+    if(useRpc && !_fsAuth){ console.warn('ForceSync skip HWMS ['+tbl+']: no session'); continue; }
     for(const rec of (DB[tbl]||[])){
       const row = _toRow(tbl, rec);
       if(!row) continue;
       try{
-        const {error} = await _sb.from(SB_TABLES[tbl]).upsert(row, {onConflict:'code'}).select();
-        if(error){ console.error('ForceSync error ['+tbl+']:', error.message); failed++; }
+        let res;
+        if(useRpc){
+          res=await _sb.rpc('hwms_upsert',{p_username:_fsAuth.u,p_token:_fsAuth.t,p_table:sbTbl,p_row:row});
+        } else {
+          res=await _sb.from(sbTbl).upsert(row, {onConflict:'code'}).select();
+        }
+        if(res.error){ console.error('ForceSync error ['+tbl+']:', res.error.message); failed++; }
         else saved++;
       }catch(e){ console.error('ForceSync exception ['+tbl+']:', e.message); failed++; }
     }
@@ -791,6 +800,18 @@ function saveDB(){ /* Supabase-only mode: no localStorage writes */ }
 // All writes go to Supabase first. In-memory DB is updated ONLY on success.
 // On failure: error toast shown, DB NOT updated, returns false.
 
+// ── HWMS RPC routing ──────────────────────────────────────────────────────────
+// Supabase HWMS tables are locked down: anon has no direct grants on them.
+// Reads/writes must go through SECURITY DEFINER RPCs (hwms_read/hwms_upsert/
+// hwms_upsert_bulk/hwms_delete) which gate on the caller's session token.
+// See supabase_hwms_lockdown.sql.
+function _isHwmsSbTbl(sbTbl){ return typeof sbTbl==='string' && sbTbl.indexOf('hwms_')===0; }
+function _hwmsAuthArgs(){
+  var u=_sessionGet('kap_session_user');
+  var t=_sessionGet('kap_session_token');
+  if(!u||!t) return null;
+  return {u:u, t:t};
+}
 
 // ═══ CORE DB OPERATIONS ═══════════════════════════════════════════════════
 async function _dbSave(tbl, record){
@@ -803,10 +824,23 @@ async function _dbSave(tbl, record){
   }
   const row = _toRow(tbl, record);
   if(!row){ console.error('❌ _dbSave: _toRow returned null for', tbl, record); return false; }
-  console.log('💾 _dbSave('+tbl+') id='+record.id+' →', SB_TABLES[tbl]);
+  const _sbTbl = SB_TABLES[tbl];
+  const _useRpc = _isHwmsSbTbl(_sbTbl);
+  let _rpcAuth = null;
+  if(_useRpc){
+    _rpcAuth=_hwmsAuthArgs();
+    if(!_rpcAuth){console.error('❌ _dbSave('+tbl+'): no session — cannot call HWMS RPC');notify('⚠ Session expired — please log in again.',true);return false;}
+  }
+  console.log('💾 _dbSave('+tbl+') id='+record.id+' →', _sbTbl, _useRpc?'(rpc)':'');
   for(var _attempt=0;_attempt<2;_attempt++){
     try{
-      const {data, error} = await _sb.from(SB_TABLES[tbl]).upsert(row, {onConflict:'code'}).select();
+      let _res;
+      if(_useRpc){
+        _res=await _sb.rpc('hwms_upsert',{p_username:_rpcAuth.u,p_token:_rpcAuth.t,p_table:_sbTbl,p_row:row});
+      } else {
+        _res=await _sb.from(_sbTbl).upsert(row, {onConflict:'code'}).select();
+      }
+      const error=_res&&_res.error;
       if(error){
         if(_attempt===0){ console.warn('_dbSave retry after error:', error.message); continue; }
         console.error('❌ Supabase upsert error ['+tbl+']:', error.code, error.message, error.details, error.hint);
@@ -914,12 +948,20 @@ async function _dbSaveBulk(tbl, records){
   var sbTbl=SB_TABLES[tbl];if(!sbTbl)return 0;
   var rows=records.map(function(r){return _toRow(tbl,r);}).filter(Boolean);
   if(!rows.length)return 0;
+  var useRpc=_isHwmsSbTbl(sbTbl);
+  var auth=useRpc?_hwmsAuthArgs():null;
+  if(useRpc&&!auth){notify('⚠ Session expired — please log in again.',true);return 0;}
   var saved=0,batchSize=50;
   for(var i=0;i<rows.length;i+=batchSize){
     var batch=rows.slice(i,i+batchSize);
     try{
-      var {error}=await _sb.from(sbTbl).upsert(batch,{onConflict:'code'});
-      if(error){console.error('Bulk save error ['+tbl+']:',error.message);continue;}
+      var res;
+      if(useRpc){
+        res=await _sb.rpc('hwms_upsert_bulk',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_rows:batch});
+      } else {
+        res=await _sb.from(sbTbl).upsert(batch,{onConflict:'code'});
+      }
+      if(res.error){console.error('Bulk save error ['+tbl+']:',res.error.message);continue;}
       saved+=batch.length;
     }catch(e){console.error('Bulk save exception ['+tbl+']:',e.message);}
   }
@@ -942,9 +984,22 @@ async function _dbDel(tbl, id){
     return false;
   }
   console.log('🗑 _dbDel('+tbl+') id='+id);
+  const _sbTblDel = SB_TABLES[tbl];
+  const _useRpcDel = _isHwmsSbTbl(_sbTblDel);
+  let _authDel=null;
+  if(_useRpcDel){
+    _authDel=_hwmsAuthArgs();
+    if(!_authDel){console.error('❌ _dbDel('+tbl+'): no session');notify('⚠ Session expired — please log in again.',true);return false;}
+  }
   for(var _attempt=0;_attempt<2;_attempt++){
     try{
-      const {error} = await _sb.from(SB_TABLES[tbl]).delete().eq('code', id);
+      let _resDel;
+      if(_useRpcDel){
+        _resDel=await _sb.rpc('hwms_delete',{p_username:_authDel.u,p_token:_authDel.t,p_table:_sbTblDel,p_code:id});
+      } else {
+        _resDel=await _sb.from(_sbTblDel).delete().eq('code', id);
+      }
+      const error=_resDel&&_resDel.error;
       if(error){
         if(_attempt===0){ console.warn('_dbDel retry after error:', error.message); continue; }
         console.error('❌ Supabase delete error ['+tbl+']:', error.code, error.message);
@@ -1008,13 +1063,21 @@ async function bootDB(){
         var _missing=_getActiveTables().filter(function(t){return t!=='hrmsSettings'&&!Array.isArray(_cObj[t]);});
         if(_missing.length&&_sbReady&&_sb){
           console.log('bootDB: cache missing tables, fetching:', _missing.join(','));
+          var _bootAuth=_hwmsAuthArgs();
           Promise.all(_missing.map(async function(tbl){
             try{
               var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
+              var res;
+              if(_isHwmsSbTbl(sbTbl)){
+                if(!_bootAuth) return;
+                res=await _sb.rpc('hwms_read',{p_username:_bootAuth.u,p_token:_bootAuth.t,p_table:sbTbl});
+                if(!res.error) DB[tbl]=(Array.isArray(res.data)?res.data:[]).map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+                return;
+              }
               var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
               var q=_sb.from(sbTbl).select(sel).limit(10000);
               if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
-              var res=await q;
+              res=await q;
               if(!res.error) DB[tbl]=(res.data||[]).map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
             }catch(e){ console.warn('bootDB: missing-table fetch '+tbl+' failed:',e.message); }
           })).then(function(){
@@ -1052,14 +1115,22 @@ async function bootDB(){
       const _sm0=document.getElementById('splashMsg');if(_sm0)_sm0.textContent='Connecting to database…';
       // Each table fetch resolves independently; collect as they arrive
       var _timedOut = false;
+      const _bootAuth2=_hwmsAuthArgs();
       const _sbFetch = Promise.all(_getActiveTables().map(async tbl=>{
         try{
           var sbTbl=SB_TABLES[tbl];
-          // Use photo-excluded select if available, with date filtering
-          var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
-          var q=_sb.from(sbTbl).select(sel).limit(10000);
-          if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
-          const {data,error} = await q;
+          let data,error;
+          if(_isHwmsSbTbl(sbTbl)){
+            if(!_bootAuth2){ return {tbl, rows:[]}; }
+            const _res=await _sb.rpc('hwms_read',{p_username:_bootAuth2.u,p_token:_bootAuth2.t,p_table:sbTbl});
+            data=Array.isArray(_res.data)?_res.data:[]; error=_res.error;
+          } else {
+            var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
+            var q=_sb.from(sbTbl).select(sel).limit(10000);
+            if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+            const _res2=await q;
+            data=_res2.data; error=_res2.error;
+          }
           if(error){ console.warn('bootDB: table '+tbl+' error:', error.message); return {tbl, rows:[]}; }
           // Apply immediately so partial data is available if timeout fires.
           // Use _syncMergeRows when available so _PHOTO_PRESERVE fields
@@ -1122,9 +1193,17 @@ function _bgSyncFromSupabase(){
   _bgSyncDone=false;
   _dbConnectCount++;
   console.log('📡 bgSync #'+_dbConnectCount+' start — caller: '+(new Error().stack.split('\n')[2]||'?').trim());
+  const _bgAuth=_hwmsAuthArgs();
   Promise.all(_getActiveTables().map(async tbl=>{
-    const sel=typeof _syncSelect==='function'?_syncSelect(SB_TABLES[tbl]):'*';
-    const {data,error} = await _sb.from(SB_TABLES[tbl]).select(sel).limit(10000);
+    const sbTbl=SB_TABLES[tbl];
+    if(_isHwmsSbTbl(sbTbl)){
+      if(!_bgAuth) return null;// HWMS unreadable without a session — just skip
+      const {data,error}=await _sb.rpc('hwms_read',{p_username:_bgAuth.u,p_token:_bgAuth.t,p_table:sbTbl});
+      if(error) return null;
+      return {tbl, rows: Array.isArray(data)?data:[]};
+    }
+    const sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
+    const {data,error} = await _sb.from(sbTbl).select(sel).limit(10000);
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{
@@ -1355,6 +1434,8 @@ var _PERM_KEYS={
     {key:'action.exportPt',label:'Export PT Details',group:'🧾 PT Details Tab'},
     {key:'tab.contract',label:'Contract Salary Tab',group:'📋 Contract Salary Tab'},
     {key:'action.exportContract',label:'Export Contract Sal.',group:'📋 Contract Salary Tab'},
+    {key:'page.contractRev',label:'Contract Salary Revision Page',group:'💵 Contract Salary Revision'},
+    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
     {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},

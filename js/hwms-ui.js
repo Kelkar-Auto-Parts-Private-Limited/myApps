@@ -956,11 +956,19 @@ async function _demandLoad(tables){
   if(!_sbReady||!_sb) return;
   var needed=tables.filter(function(t){return !_loadedTables[t]&&SB_TABLES[t];});
   if(!needed.length) return;
+  var auth=_hwmsAuthArgs();
   var results=await Promise.all(needed.map(async function(tbl){
     var sbTbl=SB_TABLES[tbl];
     try{
+      var res;
+      if(_isHwmsSbTbl(sbTbl)){
+        if(!auth) return null;
+        res=await _sb.rpc('hwms_read',{p_username:auth.u,p_token:auth.t,p_table:sbTbl});
+        if(res.error){console.warn('demandLoad '+tbl+':',res.error.message);return null;}
+        return {tbl:tbl,rows:Array.isArray(res.data)?res.data:[]};
+      }
       var sel=_syncSelect(sbTbl);
-      var res=await _sb.from(sbTbl).select(sel);
+      res=await _sb.from(sbTbl).select(sel);
       if(res.error){console.warn('demandLoad '+tbl+':',res.error.message);return null;}
       return {tbl:tbl,rows:res.data||[]};
     }catch(e){return null;}
@@ -1003,8 +1011,17 @@ async function _loadOlderData(localTbl,extraDays){
   if(newCutoff>=currentCutoff) return 0;
   showSpinner('Loading older records…');
   try{
-    var sel=_syncSelect(sbTbl);
-    var res=await _sb.from(sbTbl).select(sel).gte(col,newCutoff).lt(col,currentCutoff);
+    var res;
+    if(_isHwmsSbTbl(sbTbl)){
+      var auth=_hwmsAuthArgs();
+      if(!auth){hideSpinner();return 0;}
+      res=await _sb.rpc('hwms_read_date_range',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_col:col,p_from:newCutoff,p_to:currentCutoff});
+      if(res.error){hideSpinner();return 0;}
+      res.data=Array.isArray(res.data)?res.data:[];
+    } else {
+      var sel=_syncSelect(sbTbl);
+      res=await _sb.from(sbTbl).select(sel).gte(col,newCutoff).lt(col,currentCutoff);
+    }
     if(res.error||!res.data){hideSpinner();return 0;}
     var parsed=res.data.map(function(row){return _fromRow(localTbl,row);}).filter(Boolean);
     var arr=DB[localTbl]||[];
@@ -1057,9 +1074,20 @@ async function _loadPhotos(localTbl,recordId){
   var jsFields=_PHOTO_PRESERVE[localTbl]||[];
   if(jsFields.length&&jsFields.every(function(f){return !!rec[f];})) return rec;
   try{
-    var res=await _sb.from(sbTbl).select('code,'+photoCols.join(',')).eq('code',recordId).limit(1);
-    if(res.error||!res.data||!res.data.length) return rec;
-    var mapped=_fromRow(localTbl,res.data[0]);
+    var row=null;
+    if(_isHwmsSbTbl(sbTbl)){
+      var auth=_hwmsAuthArgs();
+      if(!auth) return rec;
+      var res=await _sb.rpc('hwms_read_cols_by_code',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_code:recordId,p_cols:['code'].concat(photoCols)});
+      if(res.error||!res.data) return rec;
+      row=res.data;// object (or null if not found)
+    } else {
+      var res2=await _sb.from(sbTbl).select('code,'+photoCols.join(',')).eq('code',recordId).limit(1);
+      if(res2.error||!res2.data||!res2.data.length) return rec;
+      row=res2.data[0];
+    }
+    if(!row) return rec;
+    var mapped=_fromRow(localTbl,row);
     if(mapped) jsFields.forEach(function(f){if(mapped[f])rec[f]=mapped[f];});
     return rec;
   }catch(e){return rec;}
@@ -1075,9 +1103,19 @@ async function _hwmsProbeIncremental(){
   if(_hwmsIncr.probed)return;_hwmsIncr.probed=true;
   var sbTbl=SB_TABLES[_HOT_TABLES[0]];
   if(!sbTbl||!_sbReady||!_sb){_hwmsIncr.mode='full';return;}
-  try{var res=await _sb.from(sbTbl).select('updated_at').limit(1);
-    if(res.error){console.warn('⚠ HWMS Hot: probe failed →',res.error.message);_hwmsIncr.mode='full';}
-    else{_hwmsIncr.mode='incremental';console.log('✅ HWMS Hot: incremental mode active');}
+  try{
+    var res;
+    if(_isHwmsSbTbl(sbTbl)){
+      var auth=_hwmsAuthArgs();
+      if(!auth){_hwmsIncr.mode='full';return;}
+      res=await _sb.rpc('hwms_has_updated_at',{p_username:auth.u,p_token:auth.t,p_table:sbTbl});
+      if(res.error){console.warn('⚠ HWMS Hot: probe failed →',res.error.message);_hwmsIncr.mode='full';}
+      else{_hwmsIncr.mode=res.data===true?'incremental':'full';console.log('✅ HWMS Hot: '+_hwmsIncr.mode+' mode active');}
+    } else {
+      res=await _sb.from(sbTbl).select('updated_at').limit(1);
+      if(res.error){console.warn('⚠ HWMS Hot: probe failed →',res.error.message);_hwmsIncr.mode='full';}
+      else{_hwmsIncr.mode='incremental';console.log('✅ HWMS Hot: incremental mode active');}
+    }
   }catch(e){_hwmsIncr.mode='full';}
 }
 
@@ -1093,10 +1131,19 @@ function _hwmsIncrSyncHot(){
   var now=new Date().toISOString();
   var hotLoaded=_HOT_TABLES.filter(function(t){return _loadedTables[t];});
   if(!hotLoaded.length) return;
+  var auth=_hwmsAuthArgs();
   Promise.all(hotLoaded.map(async function(tbl){
     var sbTbl=SB_TABLES[tbl];if(!sbTbl)return null;
     var lastTs=_hwmsIncr.lastTs[tbl]||new Date(Date.now()-35000).toISOString();
-    try{var res=await _sb.from(sbTbl).select(_syncSelect(sbTbl)).gt('updated_at',lastTs);
+    try{
+      var res;
+      if(_isHwmsSbTbl(sbTbl)){
+        if(!auth) return null;
+        res=await _sb.rpc('hwms_read_since',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_last_ts:lastTs});
+        if(res.error) return null;
+        return{tbl:tbl,rows:Array.isArray(res.data)?res.data:[]};
+      }
+      res=await _sb.from(sbTbl).select(_syncSelect(sbTbl)).gt('updated_at',lastTs);
       if(res.error)return null;return{tbl:tbl,rows:res.data||[]};
     }catch(e){return null;}
   })).then(function(results){
@@ -1114,8 +1161,11 @@ var _hwmsFullIncr={lastTs:{},callCount:0,mode:'unknown',probed:false};
 
 async function _hwmsProbeFullIncr(){
   if(_hwmsFullIncr.probed)return;_hwmsFullIncr.probed=true;
-  try{var res=await _sb.from('hwms_hsn').select('updated_at').limit(1);
-    _hwmsFullIncr.mode=res.error?'full':'incremental';
+  try{
+    var auth=_hwmsAuthArgs();
+    if(!auth){_hwmsFullIncr.mode='full';return;}
+    var res=await _sb.rpc('hwms_has_updated_at',{p_username:auth.u,p_token:auth.t,p_table:'hwms_hsn'});
+    _hwmsFullIncr.mode=(res.error||res.data!==true)?'full':'incremental';
     console.log(_hwmsFullIncr.mode==='incremental'?'✅ HWMS Full: incremental (all tables)':'⚠ HWMS Full: standard');
   }catch(e){_hwmsFullIncr.mode='full';}
 }
@@ -1134,13 +1184,28 @@ function _hwmsDoFullSync(){
   var now=new Date().toISOString();
   var isIncr=!trueFull;
   var cutoff=_dateCutoff();
+  var auth=_hwmsAuthArgs();
   Promise.all(at.map(async function(tbl){
     var sbTbl=SB_TABLES[tbl];if(!sbTbl)return null;
     try{
+      if(_isHwmsSbTbl(sbTbl)){
+        if(!auth) return null;
+        // HWMS has no date-column filters configured (_DATE_FILTER_COL is
+        // empty for hwms tables), so we only need the updated_at branch.
+        var res;
+        if(isIncr){
+          var lastTs=_hwmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();
+          res=await _sb.rpc('hwms_read_since',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_last_ts:lastTs});
+        } else {
+          res=await _sb.rpc('hwms_read',{p_username:auth.u,p_token:auth.t,p_table:sbTbl});
+        }
+        if(res.error) return null;
+        return{tbl:tbl,rows:Array.isArray(res.data)?res.data:[]};
+      }
       var q=_sb.from(sbTbl).select(_syncSelect(sbTbl));
       q=_applyDateFilter(q,sbTbl,cutoff);
-      if(isIncr){var lastTs=_hwmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();q=q.gt('updated_at',lastTs);}
-      var res=await q;if(res.error)return null;return{tbl:tbl,rows:res.data||[]};
+      if(isIncr){var lastTs2=_hwmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();q=q.gt('updated_at',lastTs2);}
+      var res2=await q;if(res2.error)return null;return{tbl:tbl,rows:res2.data||[]};
     }catch(e){return null;}
   })).then(function(results){
     if(!results)return;var tc=0;

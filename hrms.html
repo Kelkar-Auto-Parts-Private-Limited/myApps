@@ -40,6 +40,7 @@
     <div class="nav-item" id="navMDept" onclick="hrmsGo('pageHrmsMDept')" style="font-size:12px;padding:7px 16px">🏛 Department</div>
     <div class="nav-item" id="navMSubDept" onclick="hrmsGo('pageHrmsMSubDept')" style="font-size:12px;padding:7px 16px">📁 Sub Department</div>
     <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">🎖 Designation</div>
+    <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">🪪 Roll</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <div class="nav-section">CONNECTION</div>
@@ -89,7 +90,7 @@
       <div class="table-wrap" style="max-height:calc(100vh - 200px)">
         <table style="table-layout:fixed;width:100%"><colgroup>
           <col style="width:34px"><col style="width:70px"><col style="width:180px"><col style="width:60px"><col style="width:85px">
-          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:70px">
+          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:55px"><col style="width:70px"><col style="width:70px">
         </colgroup>
         <thead>
         <tr style="background:#fff">
@@ -102,6 +103,8 @@
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFType" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFTeam" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFRoll" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all filters" style="font-size:11px;padding:2px 6px;border-radius:3px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕</button></th>
         </tr>
         <tr style="background:#f1f5f9">
@@ -114,6 +117,8 @@
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('employmentType')">Type <span id="hrmsEmpSortI_employmentType" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('teamName')">Team <span id="hrmsEmpSortI_teamName" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">⇅</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Roll <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">⇅</span></th>
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)">Actions</th>
         </tr>
         </thead><tbody id="hrmsEmpBody"></tbody></table>
@@ -227,6 +232,7 @@
   <div class="page" id="pageHrmsMDept"></div>
   <div class="page" id="pageHrmsMSubDept"></div>
   <div class="page" id="pageHrmsMDesig"></div>
+  <div class="page" id="pageHrmsMRoll"></div>
 
   <!-- ATTENDANCE & SALARY (Combined) -->
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
@@ -262,6 +268,7 @@
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Attendance</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">TDS</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Salary Revisions</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Contract Salary Revision</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('otrules')" id="hrmsSetTabOtrules" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">OT Rules</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('statutory')" id="hrmsSetTabStatutory" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Statutory</div>
       </div>
@@ -305,20 +312,22 @@
         <div id="hrmsAltImportLog"></div>
       </div>
 
-      <!-- Sub-tab: Salary Revision -->
+      <!-- Sub-tab: Salary Revision (On-Roll employees only) -->
       <div id="hrmsSetPanelSalrevision" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-          <div>
-            <div style="font-size:14px;font-weight:900;color:var(--text)">Bulk Salary Revision</div>
-            <div style="font-size:11px;color:var(--text3)">Import Excel to update salary for selected month. Only changed values create a new revision.</div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <label id="btnImportSalExcel" class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0">📥 Import Salary Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsBulkSalRevision(this)" style="display:none"></label>
-            <button class="btn btn-primary" id="hrmsBulkSalApplyBtn" onclick="_hrmsBulkSalApply()" style="display:none;font-size:13px;padding:8px 18px">✅ Apply Changes</button>
-          </div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Salary Revision (On Roll)</div>
+        <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Roll</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Applies only to <b>On-Roll</b> employees. Each approved row creates a new revision effective from the given month; every other period field is copied forward.
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Excel columns: <b>Emp Code</b>, <b>Sal/Day</b>, <b>Sal/Month</b>, <b>Sp Allow</b>, <b>Wef</b> <i>(optional — per-row effective month like "Apr-26" or "2026-04"; falls back to selected month if blank)</i></div>
-        <div id="hrmsBulkSalPreview"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
+          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('onroll',this)" style="display:none"></label>
+          <span id="hrmsSalImpSummary_onroll" style="font-size:11px;color:var(--text3)"></span>
+          <span style="flex:1"></span>
+          <button id="hrmsSalImpApproveSelBtn_onroll" onclick="_hrmsSalImpApprove('onroll',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
+          <button id="hrmsSalImpApproveAllBtn_onroll" onclick="_hrmsSalImpApprove('onroll',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
+          <button id="hrmsSalImpCancelBtn_onroll" onclick="_hrmsSalImpCancel('onroll')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+        </div>
+        <div id="hrmsSalImpPreview_onroll"></div>
       </div>
 
       <!-- Sub-tab: Manual Attendance -->
@@ -421,6 +430,24 @@
         <div id="hrmsTdsList" style="max-height:400px;overflow-y:auto"></div>
       </div>
 
+      <!-- Sub-tab: Contract Salary Revision (Excel import + selective approve) -->
+      <div id="hrmsSetPanelContractrev" style="display:none">
+        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Contract Salary Revision</div>
+        <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Roll</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Each approved row creates a new revision with the given Effective Month (defaulting to the current month); every other period field is copied from the active period.
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
+          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('contract',this)" style="display:none"></label>
+          <span id="hrmsSalImpSummary_contract" style="font-size:11px;color:var(--text3)"></span>
+          <span style="flex:1"></span>
+          <button id="hrmsSalImpApproveSelBtn_contract" onclick="_hrmsSalImpApprove('contract',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
+          <button id="hrmsSalImpApproveAllBtn_contract" onclick="_hrmsSalImpApprove('contract',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
+          <button id="hrmsSalImpCancelBtn_contract" onclick="_hrmsSalImpCancel('contract')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+        </div>
+        <div id="hrmsSalImpPreview_contract"></div>
+      </div>
+
       <!-- Sub-tab: Advances -->
       <!-- Sub-tab: OT Rules -->
       <div id="hrmsSetPanelOtrules" style="display:none">
@@ -440,8 +467,9 @@
             <button onclick="_hrmsSaveAdvDeductions()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">💾 Save Deductions</button>
           </div>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Import Excel: <b>Emp Code</b>, <b>Advance</b>, <b>Deduction</b>, <b>EMI</b> (all optional except Emp Code)</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Import Excel columns: <b>Emp Code</b>, <b>Name</b>, <b>Amount</b>, <b>Paid By</b> (optional), <b>Date</b> (optional). Legacy: <b>Advance</b>, <b>Deduction</b>, <b>EMI</b> still accepted.</div>
         <div id="hrmsAdvGrid" style="overflow:auto;max-height:500px"></div>
+        <div id="hrmsAdvImportLog" style="margin-top:10px"></div>
       </div>
     </div>
 
@@ -587,7 +615,7 @@
 </div>
 
 <!-- EMPLOYEE EDIT/VIEW MODAL -->
-<div class="modal-overlay" id="mHrmsEmpEdit" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;max-height:92vh;display:flex;flex-direction:column;padding:0">
+<div class="modal-overlay" id="mHrmsEmpEdit" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;height:92vh;display:flex;flex-direction:column;padding:0">
   <div id="hrmsEmpModalContent" style="overflow:auto;padding:16px 20px;flex:1"></div>
 </div></div>
 
