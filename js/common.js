@@ -1420,7 +1420,7 @@ var _PERM_KEYS={
     {key:'action.rejectAlt',label:'Reject Alteration',group:'📋 Attendance & Sub-tabs'},
     {key:'att.pot',label:'P & OT',group:'📋 Attendance & Sub-tabs'},
     {key:'att.entry',label:'New Joinee/Rejoinee',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.exit',label:'Exit Employees',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.exit',label:'Absent Employees FTM',group:'📋 Attendance & Sub-tabs'},
     {key:'att.printformats',label:'Print Formats',group:'📋 Attendance & Sub-tabs'},
     {key:'action.addPrintFormat',label:'Add/Edit Print Format',group:'📋 Attendance & Sub-tabs'},
     {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},

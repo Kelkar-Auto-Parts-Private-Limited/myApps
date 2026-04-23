@@ -401,11 +401,24 @@ function _ensureStepPhotosForList(segs){
     var need=false;
     [1,2,5].forEach(function(n){
       var st=s.steps&&s.steps[n];
-      if(st&&st.done&&!st.photo) need=true;
+      if(!st||!st.done) return;
+      // Missing photo OR the deferred sentinel both require a fresh fetch.
+      // Without the sentinel check, <img src="__deferred__"> would render as
+      // a broken image and the list would stay photo-less.
+      var ph=st.photo;
+      if(!ph||ph==='__deferred__') need=true;
     });
     if(need) todo.push(s.id);
   });
   if(todo.length) _ensureSegmentSteps(todo);
+}
+
+// Return the usable photo data-URL for a step, or '' when it's missing or
+// only the deferred sentinel. Used by every list-render site that pipes a
+// step photo into an <img src> so '__deferred__' never reaches the DOM.
+function _stepPhoto(step){
+  var p=step&&step.photo;
+  return (!p||p==='__deferred__')?'':p;
 }
 
 async function _loadPhotos(localTbl,recordId){
@@ -1986,7 +1999,7 @@ function renderDashTrips(){
       const challans=t?.['challans'+idx]||[];
       const legCh=t?.['challan'+idx]||'';const legWt=t?.['weight'+idx]||'';const legPh=t?.['photo'+idx]||'';
       const chRows=challans.filter(c=>c.no||c.weight||c.photo).length?challans.filter(c=>c.no||c.weight||c.photo):legCh?[{no:legCh,weight:legWt,photo:legPh}]:[];
-      const exitPh=s.steps[1]?.photo||'';const entryPh=s.steps[2]?.photo||'';
+      const exitPh=_stepPhoto(s.steps[1]);const entryPh=_stepPhoto(s.steps[2]);
       const dLoc=byId(DB.locations,s.dLoc);
       const sBg=dLoc?.colour?dLoc.colour+'18':'var(--surface2)';
       const sBorder=dLoc?.colour||'var(--border)';
@@ -5740,8 +5753,8 @@ function renderMR(){
     document.getElementById('mrPendingContent').innerHTML=pending.map((seg,_si)=>{
       const trip=byId(DB.trips,seg.tripId);
       const idx=seg.label==='A'?1:seg.label==='B'?2:3;
-      const exitPhoto=seg.steps[1]?.photo||'';
-      const entryPhoto=seg.steps[2]?.photo||'';
+      const exitPhoto=_stepPhoto(seg.steps[1]);
+      const entryPhoto=_stepPhoto(seg.steps[2]);
       const sid=seg.id.replace(/-/g,'_');
       const bu=byId(DB.users,trip?.bookedBy);const bookedName=bu?.fullName||bu?.name||'—';
 
@@ -6217,7 +6230,7 @@ function renderApprove(){
         const chRows=challans2.filter(ch=>ch.no||ch.weight||ch.photo).length
           ?challans2.filter(ch=>ch.no||ch.weight||ch.photo)
           :legCh?[{no:legCh,weight:legWt,photo:legPh}]:[];
-        const exitPh2=s.steps[1]?.photo||'';const entryPh2=s.steps[2]?.photo||'';
+        const exitPh2=_stepPhoto(s.steps[1]);const entryPh2=_stepPhoto(s.steps[2]);
         // Status label
         const mrDone=s.steps[3]?.done&&!s.steps[3]?.skip;
         const mrSkipped=!!s.steps[3]?.skip;
@@ -6427,7 +6440,7 @@ function renderApprove(){
       const dLoc=byId(DB.locations,s.dLoc);
       const dBg=dLoc?.colour?dLoc.colour+'18':'var(--surface2)';
       const dBorder=dLoc?.colour||'var(--border)';
-      const exitPh=s.steps[1]?.photo||'';const entryPh=s.steps[2]?.photo||'';
+      const exitPh=_stepPhoto(s.steps[1]);const entryPh=_stepPhoto(s.steps[2]);
       // MR info
       const mrDone=s.steps[3]?.done;
       const mrUser=mrDone?byId(DB.users,s.steps[3].by):null;

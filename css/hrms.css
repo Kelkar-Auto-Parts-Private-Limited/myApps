@@ -24,6 +24,8 @@
 @keyframes hrmsFlash{0%,100%{border-color:#f59e0b}50%{border-color:#dc2626}}
 .hrms-changed{border:2px solid #f59e0b!important;animation:hrmsFlash 1s infinite!important;background:#fefce8!important}
 .hrms-att-tab.active{color:var(--accent)!important;border-bottom-color:var(--accent)!important}
+.no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.no-spin{-moz-appearance:textfield}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
 .btn{padding:8px 16px;border-radius:var(--radius);font-weight:700;cursor:pointer;font-size:13px;border:1.5px solid var(--border);background:var(--surface);transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:var(--accent2)}

@@ -42,6 +42,10 @@
     <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">🎖 Designation</div>
     <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">🪪 Roll</div>
   </div>
+  <div class="nav-item" onclick="_hrmsToggleUtilities()" style="cursor:pointer">🛠 Utilities <span id="hrmsUtilsArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
+  <div id="hrmsUtilsGroup" style="display:none;padding-left:12px">
+    <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
+  </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <div class="nav-section">CONNECTION</div>
   <div id="hrmsConnWidget" style="margin:8px 16px;padding:8px 12px;border-radius:8px;background:#f1f5f9;border:1.5px solid #475569;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="if(typeof _testDbConn==='function')_testDbConn()">
@@ -77,7 +81,7 @@
         <button onclick="_hrmsEmpTypeFilter('Contract')" id="hrmsEtfContract" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #93c5fd;background:#fff;color:#1d4ed8;border-radius:20px;cursor:pointer">Contract <span id="hrmsEtfCount_Contract" style="font-weight:800">0</span></button>
         <button onclick="_hrmsEmpTypeFilter('Piece Rate')" id="hrmsEtfPieceRate" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #c4b5fd;background:#fff;color:#7c3aed;border-radius:20px;cursor:pointer">Piece Rate <span id="hrmsEtfCount_PieceRate" style="font-weight:800">0</span></button>
         <button onclick="_hrmsEmpTypeFilter('Visitor')" id="hrmsEtfVisitor" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor <span id="hrmsEtfCount_Visitor" style="font-weight:800">0</span></button>
-        <label style="display:flex;align-items:center;gap:6px;margin-left:10px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;padding:6px 12px;background:#f1f5f9;border-radius:20px;border:1.5px solid var(--border)"><input type="checkbox" id="hrmsEmpOnlyActive" checked onchange="renderHrmsEmployees()" style="width:auto;margin:0"> Show only Active Employees</label>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:10px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;padding:6px 12px;background:#f1f5f9;border-radius:20px;border:1.5px solid var(--border)"><input type="checkbox" id="hrmsEmpOnlyActive" checked onchange="renderHrmsEmployees()" style="width:auto;margin:0"> Show only Active/Present Employees</label>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-size:18px;font-weight:900">👤 Employees <span id="hrmsEmpCount" style="font-size:13px;font-weight:700;color:var(--text3)"></span></div>
@@ -234,6 +238,27 @@
   <div class="page" id="pageHrmsMDesig"></div>
   <div class="page" id="pageHrmsMRoll"></div>
 
+  <!-- UTILITIES: Attendance Excel Converter -->
+  <div class="page" id="pageHrmsUtilAttConv" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:900">📗 Attendance Excel Converter</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsAttConvUpload(this)" style="display:none"></label>
+          <button id="hrmsAttConvDlBtn" onclick="_hrmsAttConvDownload()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Download Consolidated XLSX</button>
+          <button id="hrmsAttConvClearBtn" onclick="_hrmsAttConvClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
+        Upload the biometric workbook. Each sheet represents one date and must have:
+        <b>Column A = Emp Code</b>, <b>Column C = Employee Name</b>, <b>Column D = Date</b>, <b>Column F = Time IN</b>, <b>Column G = Time Out</b>.
+        The first row is treated as a header and skipped. Rows from every sheet are merged into a single table you can review and download.
+      </div>
+      <div id="hrmsAttConvSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
+      <div id="hrmsAttConvBody" style="flex:1;overflow:auto"></div>
+    </div>
+  </div>
+
   <!-- ATTENDANCE & SALARY (Combined) -->
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
@@ -258,9 +283,9 @@
     </div>
 
     <!-- === SETTINGS TAB === -->
-    <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column">
+    <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column;padding-top:0">
       <!-- Settings sub-tabs -->
-      <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid var(--border);flex-wrap:wrap">
+      <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
         <div class="hrms-settings-tab active" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent)">Calendar</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">ESSL Attendance</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('altimport')" id="hrmsSetTabAltimport" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration</div>
@@ -483,7 +508,7 @@
           <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration</div>
           <div class="hrms-att-tab" id="hrmsTabPot" onclick="_hrmsAttSetTab('pot')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">P & OT</div>
           <div class="hrms-att-tab" id="hrmsTabEntry" onclick="_hrmsAttSetTab('entry')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">New Joinee/Rejoinee</div>
-          <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Exit Employees</div>
+          <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Absent Employees FTM</div>
           <div class="hrms-att-tab" id="hrmsTabPrintformats" onclick="_hrmsAttSetTab('printformats')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">🖨 Print Formats</div>
         </div>
         <!-- Tab: Summary -->
