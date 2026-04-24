@@ -83,7 +83,7 @@
       <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')">🏠 Apps</div>
       <div class="ps-nav" id="psNavUsers" onclick="showTab('users')" style="display:none">👥 Users <span id="pSideUserCount" style="font-size:10px;background:rgba(42,154,160,.12);color:var(--accent);padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:800"></span></div>
       <div class="ps-nav" id="psNavProfile" onclick="showTab('profile')">👤 Profile</div>
-      <div class="ps-nav" id="psNavPermissions" onclick="showTab('permissions')" style="display:none">🔐 Role Settings</div>
+      <div class="ps-nav" id="psNavPermissions" onclick="showTab('permissions')" style="display:none">🔐 Configure Access</div>
       <div class="ps-nav" id="psNavDbstorage" onclick="showTab('dbstorage')" style="display:none">📊 DB Storage</div>
     </div>
     <!-- Bottom: Connection + Sign Out -->
@@ -189,7 +189,7 @@
     <div id="permissionsSection" style="display:none">
       <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
         <div style="display:flex;align-items:center;margin-bottom:16px">
-          <div style="font-size:20px;font-weight:900;color:var(--accent)">🔐 Role Settings</div>
+          <div style="font-size:20px;font-weight:900;color:var(--accent)">🔐 Configure Access</div>
           <button onclick="showTab('apps')" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border2);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">← Back to Apps</button>
         </div>
         <!-- Module tabs -->

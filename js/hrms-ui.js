@@ -96,8 +96,10 @@ var _hrmsPageTitles={
   pageHrmsMDept:'Masters — Department',
   pageHrmsMSubDept:'Masters — Sub Department',
   pageHrmsMDesig:'Masters — Designation',
-  pageHrmsMRoll:'Masters — Roll',
-  pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter'
+  pageHrmsMRoll:'Masters — Role',
+  pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
+  pageHrmsUtilDailyAtt:'Utilities — Daily Attendance Summary',
+  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph'
 };
 
 function _hrmsUpdateTopTitle(){
@@ -118,15 +120,15 @@ var _HRMS_PAGE_PERMS={
   pageHrmsDashboard:'page.dashboard',pageHrmsEmployees:'page.employees',pageHrmsAttSal:'page.attSal',
   pageHrmsAttRules:'page.attRules',pageHrmsMCompany:'page.masterPlant',pageHrmsMCategory:'page.masterCategory',
   pageHrmsMEmpType:'page.masterEmpType',pageHrmsMTeam:'page.masterTeam',pageHrmsMDept:'page.masterDept',
-  pageHrmsMSubDept:'page.masterSubDept',pageHrmsMDesig:'page.masterDesig',pageHrmsMRoll:'page.masterDesig',
-  // Utilities — no dedicated perm yet; gate on a page that's only visible to
-  // users already permitted to work with attendance data.
-  pageHrmsUtilAttConv:'page.attSal'
+  pageHrmsMSubDept:'page.masterSubDept',pageHrmsMDesig:'page.masterDesig',pageHrmsMRoll:'page.masterRoll',
+  pageHrmsUtilAttConv:'page.utilAttConv',
+  pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
+  pageHrmsUtilMonthlyHc:'page.utilMonthlyHc'
 };
 
 function _hrmsEnforcePermissions(){
   // Hide sidebar nav items the user can't access
-  var navPerms={navDashboard:'page.dashboard',navEmployees:'page.employees',navAttSal:'page.attSal',navAttRules:'page.attRules',navUtilAttConv:'page.attSal'};
+  var navPerms={navDashboard:'page.dashboard',navEmployees:'page.employees',navAttSal:'page.attSal',navAttRules:'page.attRules',navUtilAttConv:'page.utilAttConv',navUtilDailyAtt:'page.utilDailyAttSum',navUtilMonthlyHc:'page.utilMonthlyHc'};
   Object.keys(navPerms).forEach(function(navId){
     var el=document.getElementById(navId);
     if(el) el.style.display=_hrmsHasAccess(navPerms[navId])?'':'none';
@@ -136,12 +138,15 @@ function _hrmsEnforcePermissions(){
   if(mastersNav) mastersNav.style.display=_hrmsHasAccess('page.masters')?'':'none';
   var mastersGroup=document.getElementById('hrmsMastersGroup');
   if(mastersGroup){
-    var mPerms={navMCompany:'page.masterPlant',navMCategory:'page.masterCategory',navMEmpType:'page.masterEmpType',navMTeam:'page.masterTeam',navMDept:'page.masterDept',navMSubDept:'page.masterSubDept',navMDesig:'page.masterDesig',navMRoll:'page.masterDesig'};
+    var mPerms={navMCompany:'page.masterPlant',navMCategory:'page.masterCategory',navMEmpType:'page.masterEmpType',navMTeam:'page.masterTeam',navMDept:'page.masterDept',navMSubDept:'page.masterSubDept',navMDesig:'page.masterDesig',navMRoll:'page.masterRoll'};
     Object.keys(mPerms).forEach(function(navId){
       var el=document.getElementById(navId);
       if(el) el.style.display=_hrmsHasAccess(mPerms[navId])?'':'none';
     });
   }
+  // Utilities menu (parent toggle + child items)
+  var utilsNav=document.querySelector('[onclick*="_hrmsToggleUtilities"]');
+  if(utilsNav) utilsNav.style.display=_hrmsHasAccess('page.utilities')?'':'none';
   // Hide action buttons based on permissions
   var btnPerms={
     btnImportEmployees:'action.importEmployees',
@@ -167,7 +172,7 @@ function hrmsGo(pid){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   var pg=document.getElementById(pid);if(pg)pg.classList.add('active');
-  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsUtilAttConv:'navUtilAttConv'};
+  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsUtilAttConv:'navUtilAttConv',pageHrmsUtilDailyAtt:'navUtilDailyAtt',pageHrmsUtilMonthlyHc:'navUtilMonthlyHc'};
   var nid=navMap[pid];if(nid){var ne=document.getElementById(nid);if(ne)ne.classList.add('active');}
   _hrmsUpdateTopTitle();
   // Re-render the employee list whenever the user lands on the page — the
@@ -209,6 +214,15 @@ function hrmsGo(pid){
     var _ug=document.getElementById('hrmsUtilsGroup');if(_ug) _ug.style.display='block';
     var _ua=document.getElementById('hrmsUtilsArrow');if(_ua) _ua.textContent='▼';
     if(pid==='pageHrmsUtilAttConv'&&typeof _hrmsAttConvRender==='function') _hrmsAttConvRender();
+    if(pid==='pageHrmsUtilDailyAtt'){
+      var _di=document.getElementById('hrmsDasHistDate');
+      if(_di&&!_di.value){
+        var _dnow=new Date();
+        _di.value=_dnow.getFullYear()+'-'+String(_dnow.getMonth()+1).padStart(2,'0')+'-'+String(_dnow.getDate()).padStart(2,'0');
+      }
+      if(typeof _hrmsDasRender==='function') _hrmsDasRender();
+    }
+    if(pid==='pageHrmsUtilMonthlyHc'&&typeof _hrmsMhgInit==='function') _hrmsMhgInit();
   }
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelector('.sidebar-overlay').classList.remove('show');
@@ -925,7 +939,16 @@ function renderHrmsEmployees(){
     if(fTeam&&e.teamName!==fTeam) return false;
     if(fCat&&e.category!==fCat) return false;
     if(fRoll&&(e.roll||'')!==fRoll) return false;
-    if(onlyActive&&(e.status||'Active')!=='Active') return false;
+    if(onlyActive){
+      // Consider EITHER the flat status field OR the active period's status —
+      // if either one says Inactive/Resigned, hide. Prevents stale flat fields
+      // (where the period was updated but the emp header wasn't synced) from
+      // leaking resigned employees through the filter.
+      var _ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      var _flatOk=(e.status||'Active')==='Active';
+      var _periodOk=!_ap||(_ap.status||'Active')==='Active';
+      if(!_flatOk||!_periodOk) return false;
+    }
     return true;
   });
   var sk=_hrmsEmpSortKey,sa=_hrmsEmpSortAsc;
@@ -1257,12 +1280,7 @@ function _hrmsBuildPeriodTable(){
           opts='<option value="Active"'+(normSt==='Active'?' selected':'')+'>Active</option>'+
                '<option value="Inactive"'+(normSt==='Inactive'?' selected':'')+'>Inactive</option>';
         }
-        // TEMP: allow manual status edits on the ACTIVE period for On-Roll
-        // employees in edit mode, regardless of the "current-month + unlocked"
-        // rule that gates the other fields. Gives a quick way to mark
-        // Present / Resigned without creating a whole new revision.
-        var canEditStatus=isEditable||(isOnRoll&&isActive&&_hrmsEmpEditMode);
-        var statusDis=canEditStatus?'':'disabled style="opacity:'+(isActive?'0.8':(isProposed?'0.8':'0.5'))+'"';
+        var statusDis=isEditable?'':'disabled style="opacity:'+(isActive?'0.8':(isProposed?'0.8':'0.5'))+'"';
         return '<td style="padding:4px 3px;text-align:center"><select class="'+_chk('status')+'" onchange="_hrmsPeriodFieldChange('+i+',\'status\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1.5px solid '+clr+';border-radius:4px;width:100%;font-weight:800;background:'+bg+';color:'+clr+'" '+statusDis+'>'+opts+'</select></td>';
       })()
       +'<td style="padding:4px 3px"><input type="text" value="'+(p.remarks||'')+'" onchange="_hrmsPeriodFieldChange('+i+',\'remarks\',this.value)" placeholder="'+(isEditable?'Add remarks…':'')+'" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+(isEditable?'':'disabled style="opacity:0.6"')+'></td>'
@@ -1348,7 +1366,7 @@ function _hrmsSavePeriodToMemory(){
 }
 
 // ═══ CHANGE REQUEST APPROVAL PAGE ═══════════════════════════════════════
-var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
+var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Role',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
 function _hrmsUpdateChangeReqBadge(){
   var count=0;
   (DB.hrmsEmployees||[]).forEach(function(e){(e.periods||[]).forEach(function(p){if(p._wfStatus==='proposed')count++;});});
@@ -1399,7 +1417,7 @@ function _hrmsRenderChangeReq(){
     h+='<div style="font-size:11px;color:var(--text3)">Proposed from <b>'+_hrmsMonthLabel(p.from)+'</b>'+(p.submittedBy?' by '+p.submittedBy:'')+'</div></div>';
     // Unified timeline table: all periods + proposed row with changes highlighted
     var _ecrCols=['location','employmentType','category','teamName','department','subDepartment','designation','roll','salaryDay','salaryMonth','specialAllowance','esiApplicable'];
-    var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Roll',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
+    var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Sub Dept',designation:'Designation',roll:'Role',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
     var _th2='padding:5px 6px;font-size:10px;font-weight:700;white-space:nowrap';
     h+='<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:6px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff"><th style="'+_th2+'">Period</th><th style="'+_th2+'">Status</th>';
     _ecrCols.forEach(function(c){h+='<th style="'+_th2+(c==='salaryDay'||c==='salaryMonth'||c==='specialAllowance'?';text-align:right':'')+'">'+_ecrColH[c]+'</th>';});
@@ -1502,6 +1520,10 @@ async function _hrmsApproveChange(empId,periodIdx){
   }
   // Clear new employee flag
   delete e._isNewEcr;
+  // If the revision reinstates the employee (Active), any stale dateOfLeft
+  // inherited from a prior Resigned period must be wiped — otherwise the
+  // Muster Roll DOL gate filters them out despite status=Active.
+  if((p.status||'Active')==='Active'){ p.dateOfLeft=''; }
   // Sync flat fields from new active period
   _PERIOD_FIELDS.forEach(function(f){e[f]=p[f]||'';});
   if(await _dbSave('hrmsEmployees',e)){
@@ -1568,6 +1590,8 @@ function _hrmsNewPeriod(){
   var prev=_hrmsEmpPeriods.find(function(p){return !p.to&&p._wfStatus!=='proposed'&&p._wfStatus!=='rejected'&&p._wfStatus!=='draft';})||_hrmsEmpPeriods[0];
   var np={from:curMonth,to:null,_wfStatus:'draft'};
   _PERIOD_FIELDS.forEach(function(f){np[f]=prev[f];});
+  np.status='Active';
+  np.dateOfLeft='';
   _hrmsEmpPeriods.unshift(np);
   _hrmsBuildPeriodTable();
   notify('New revision created from '+_hrmsMonthLabel(curMonth)+' — make changes and click Submit');
@@ -2386,7 +2410,7 @@ async function _hrmsImportEmployees(inputEl){
             department:vDp.value,subDepartment:vSD.value,
             designation:vDg.value,employmentType:vET.value,
             teamName:vTm.value,category:vCat.value,location:vLoc.value,
-            roll:(r['Roll']||'').toString().trim(),
+            roll:(r['Role']||r['Roll']||'').toString().trim(),
             reportingTo:(r['Reporting To']||r['Manager']||'').toString().trim(),
             panNo:(r['PAN No.']||r['PAN No']||r['PAN']||'').toString().trim(),
             aadhaarNo:(r['AADHAAR No.']||r['AADHAAR No']||r['Aadhaar']||'').toString().trim(),
@@ -2759,7 +2783,7 @@ function _hrmsExportEmployees(){
   if(!_hrmsHasAccess('action.exportEmployees')){notify('Access denied',true);return;}
   var emps=_hrmsGetFilteredEmployees();
   if(!emps.length){notify('No employees to export (check filters)',true);return;}
-  var headers=['Employee Code','EmployeeFull Name','Gender','Date of Birth','PAN No.','AADHAAR No.','Employment Type','Team Name','Category','ESI NO','PF NO','UAN','Current Plant','Date of Joining','Current Status','Date of Left','Roll','Current Salary / Day','Current Salary / Month','Department','Sub Department','Designation','Email','Mobile','Reporting To'];
+  var headers=['Employee Code','EmployeeFull Name','Gender','Date of Birth','PAN No.','AADHAAR No.','Employment Type','Team Name','Category','ESI NO','PF NO','UAN','Current Plant','Date of Joining','Current Status','Date of Left','Role','Current Salary / Day','Current Salary / Month','Department','Sub Department','Designation','Email','Mobile','Reporting To'];
   var rows=emps.map(function(e){return[e.empCode,e.name,e.gender,e.dateOfBirth,e.panNo,e.aadhaarNo,e.employmentType,e.teamName,e.category,e.esiNo,e.pfNo,e.uan,e.location,e.dateOfJoining,e.status,e.dateOfLeft,e.roll,e.salaryDay,e.salaryMonth,e.department,e.subDepartment,e.designation,e.email,e.mobile,e.reportingTo];});
   _downloadAsXlsx([headers].concat(rows),'Employees','HRMS_Employees.xlsx');
   notify('📤 Exported '+emps.length+' employees');
@@ -3498,7 +3522,7 @@ function _hrmsExportUnknownCodes(){
   if(!codes.length){notify('No unknown employee codes',true);return;}
   var headers=['Emp Code','Employee Full Name','Gender','Date of Birth','Date of Joining',
     'Department','Designation','Employment Type','Team Name','Category',
-    'Current Plant','Roll','PAN No','AADHAAR No','ESI NO','PF NO','UAN',
+    'Current Plant','Role','PAN No','AADHAAR No','ESI NO','PF NO','UAN',
     'Current Salary / Day','Current Salary / Month','Current Status','Bank Name','Branch Name','Account No','IFSC'];
   var rows=[headers];
   codes.forEach(function(ec){
@@ -3781,6 +3805,1193 @@ function _hrmsAttConvDownload(){
 function _hrmsAttConvClear(){
   _hrmsAttConvData=null;
   _hrmsAttConvRender();
+}
+
+// ═══ DAILY ATTENDANCE SUMMARY (Utilities) ═══════════════════════════════════
+// Upload a daily attendance export and produce a head-count pivot with
+// departments as rows and plants as columns. Columns expected:
+//   B = Date & Time, C = In/Out, D = Emp Code.
+// Only IN records count; per emp code, the latest (max) timestamp wins.
+var _hrmsDasState=null;// {present:[{code,ts,matched}],unmatched:[code],fileName,rowCount}
+
+// Parse an arbitrary date+time cell into a sortable number (ms since epoch).
+// Accepts Excel serial (days since 1900 with fractional time), ISO strings,
+// DD/MM/YYYY [HH:MM[:SS]], Mon DD YYYY formats. Returns NaN on failure.
+function _hrmsDasParseDateTime(raw){
+  if(raw==null) return NaN;
+  var s=String(raw).trim();if(!s) return NaN;
+  // Excel serial (with optional fraction)
+  if(/^\d+(\.\d+)?$/.test(s)){
+    var n=+s;
+    if(n>=1&&n<60000){
+      return Math.round((n-25569)*86400000);
+    }
+  }
+  // ISO: 2026-04-24[T ]HH:MM[:SS]
+  var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(iso){
+    return Date.UTC(+iso[1],+iso[2]-1,+iso[3],+(iso[4]||0),+(iso[5]||0),+(iso[6]||0));
+  }
+  // DD/MM/YYYY [HH:MM[:SS]] [AM/PM]
+  var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?)?/);
+  if(dmy){
+    var d=+dmy[1],m=+dmy[2],y=+dmy[3];if(y<100)y+=2000;
+    if(m>12&&d<=12){var t=d;d=m;m=t;}
+    var hh=+(dmy[4]||0),mm=+(dmy[5]||0),ss=+(dmy[6]||0),ap=(dmy[7]||'').toUpperCase();
+    if(ap==='PM'&&hh<12) hh+=12; if(ap==='AM'&&hh===12) hh=0;
+    return Date.UTC(y,m-1,d,hh,mm,ss);
+  }
+  // Mon DD YYYY [HH:MM]
+  var md=s.match(/^([A-Za-z]{3,})[\s\-\/\.](\d{1,2})[\s\-\/\.,]+(\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(md){
+    var mons=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    var mi=mons.indexOf(md[1].slice(0,3).toLowerCase());
+    if(mi>=0){
+      var y2=+md[3];if(y2<100)y2+=2000;
+      return Date.UTC(y2,mi,+md[2],+(md[4]||0),+(md[5]||0),+(md[6]||0));
+    }
+  }
+  // Last-ditch: let the JS parser try
+  var t2=Date.parse(s);
+  return isNaN(t2)?NaN:t2;
+}
+
+// Bucket definitions (sub-columns per plant). `short` is used in the pivot
+// header to keep columns compact; `label` is the full name shown in tooltips,
+// drill-down modal, and the exported file.
+var _hrmsDasBuckets=[
+  {key:'staff',label:'Staff',short:'Staff'},
+  {key:'onrollW',label:'On Roll Workers',short:'OR'},
+  {key:'contractW',label:'Contract Workers',short:'Con'},
+  {key:'pieceRateW',label:'Piece Rate Workers',short:'PR'}
+];
+
+// Pull dept/plant + bucket from the employee's active period (falling back
+// to flat fields). Bucket logic: Staff category → staff; else bucket by
+// employment type (On Roll / Contract / Piece Rate). Anything else falls
+// through to 'other' and surfaces as a dynamic 5th column.
+function _hrmsDasEmpOrg(e){
+  var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var cat=(((ap&&ap.category)||e.category||'')+'').toLowerCase();
+  var et=(((ap&&ap.employmentType)||e.employmentType||'')+'').toLowerCase().replace(/\s/g,'');
+  var bucket='other';
+  if(cat.indexOf('staff')>=0) bucket='staff';
+  else if(et==='onroll') bucket='onrollW';
+  else if(et==='contract') bucket='contractW';
+  else if(et==='piecerate') bucket='pieceRateW';
+  return {
+    dept:(ap&&ap.department)||e.department||'— Unassigned —',
+    plant:(ap&&ap.location)||e.location||'— Unassigned —',
+    bucket:bucket
+  };
+}
+
+async function _hrmsDasUpload(inputEl){
+  if(!inputEl||!inputEl.files||!inputEl.files[0]){notify('No file selected',true);return;}
+  var file=inputEl.files[0]; inputEl.value='';
+  showSpinner('Reading Excel…');
+  try{
+    var buf=await file.arrayBuffer();
+    var sheets=await _hrmsAttConvParseAll(buf);
+    var latest={};// code → ts
+    var totalRows=0;
+    sheets.forEach(function(s){
+      for(var i=0;i<s.rows.length;i++){
+        var r=s.rows[i];
+        var dt=r[1], io=((r[2]==null?'':r[2])+'').trim().toUpperCase(), code=((r[3]==null?'':r[3])+'').trim();
+        if(!code) continue;
+        if(i===0){
+          var allText=String(dt||'')+' '+String(io||'')+' '+String(code||'');
+          if(/[A-Za-z]/.test(allText)&&!/^\d/.test(code)) continue;
+        }
+        if(io!=='IN'&&io.indexOf('IN')!==0) continue;
+        if(io.indexOf('OUT')>=0) continue;
+        totalRows++;
+        var ts=_hrmsDasParseDateTime(dt);
+        if(isNaN(ts)) continue;
+        if(latest[code]===undefined||ts>latest[code]) latest[code]=ts;
+      }
+    });
+    var empByCode={};
+    (DB.hrmsEmployees||[]).forEach(function(e){if(e.empCode) empByCode[String(e.empCode).trim()]=e;});
+    var present=[],unmatched=[];
+    Object.keys(latest).forEach(function(code){
+      var e=empByCode[code];
+      if(e) present.push({code:code,ts:latest[code],emp:e});
+      else unmatched.push({code:code,ts:latest[code]});
+    });
+    _hrmsDasState={fileName:file.name,rowCount:totalRows,present:present,unmatched:unmatched,generatedAt:new Date()};
+    _hrmsDasBuildPivot();
+    hideSpinner();
+    _hrmsDasRender();
+    notify('✅ Loaded '+present.length+' present employee(s)'+(unmatched.length?' ('+unmatched.length+' unknown code(s))':''));
+  }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
+}
+
+function _hrmsDasClear(){
+  _hrmsDasState=null;
+  _hrmsDasRender();
+}
+
+// Build the Daily Attendance Summary from already-stored attendance + alteration
+// records for a specific calendar date. Uses `days[<dayOfMonth>].in` and stamps
+// each with the actual date so downstream pivot/drill-down code sees real
+// timestamps like the upload path does.
+async function _hrmsDasLoadFromHistory(){
+  var di=document.getElementById('hrmsDasHistDate');
+  if(!di||!di.value){notify('Pick a date first',true);return;}
+  var parts=di.value.split('-');
+  if(parts.length!==3){notify('Invalid date',true);return;}
+  var yr=+parts[0], mo=+parts[1]-1, day=+parts[2];
+  var mk=parts[0]+'-'+parts[1];
+  var dayStr=String(day);
+  var dateLbl=String(day).padStart(2,'0')+'/'+String(mo+1).padStart(2,'0')+'/'+yr;
+
+  showSpinner('Loading attendance for '+dateLbl+'…');
+  try{
+    await _hrmsAttFetchMonth(mk);
+    var attRecs=_hrmsAttCache[mk]||[];
+    var altRecs=(_hrmsAltCache&&_hrmsAltCache[mk])||[];
+    if(!attRecs.length&&!altRecs.length){
+      hideSpinner();
+      notify('No attendance data found for '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk),true);
+      return;
+    }
+
+    // Build "latest IN" per emp code for the chosen day. Attendance stores
+    // only a single HH:MM per day, so ts = (selected date at that HH:MM).
+    var latest={};
+    var _absorb=function(code,timeStr){
+      if(!code||!timeStr) return;
+      var m=String(timeStr).match(/^(\d{1,2}):(\d{2})/);
+      if(!m) return;
+      var ts=new Date(yr,mo,day,+m[1],+m[2]).getTime();
+      if(isNaN(ts)) return;
+      if(latest[code]===undefined||ts>latest[code]) latest[code]=ts;
+    };
+    attRecs.forEach(function(a){
+      var d=a.days&&a.days[dayStr];
+      if(!d) return;
+      _absorb(a.empCode,d.in||d['in']);
+    });
+    altRecs.forEach(function(a){
+      var d=a.days&&a.days[dayStr];
+      if(!d) return;
+      _absorb(a.empCode,d.in||d['in']);
+    });
+
+    var empByCode={};
+    (DB.hrmsEmployees||[]).forEach(function(e){if(e.empCode) empByCode[String(e.empCode).trim()]=e;});
+    var present=[],unmatched=[];
+    Object.keys(latest).forEach(function(code){
+      var e=empByCode[code];
+      if(e) present.push({code:code,ts:latest[code],emp:e});
+      else unmatched.push({code:code,ts:latest[code]});
+    });
+
+    if(!present.length&&!unmatched.length){
+      hideSpinner();
+      notify('No IN records for '+dateLbl+' in stored attendance',true);
+      return;
+    }
+
+    _hrmsDasState={
+      fileName:'History · '+dateLbl,
+      rowCount:present.length+unmatched.length,
+      present:present,
+      unmatched:unmatched,
+      generatedAt:new Date(),
+      source:'history',
+      historyDate:di.value
+    };
+    _hrmsDasBuildPivot();
+    hideSpinner();
+    _hrmsDasRender();
+    notify('✅ Loaded '+present.length+' present employee(s) from history'+(unmatched.length?' ('+unmatched.length+' unknown code(s))':''));
+  }catch(e){hideSpinner();notify('⚠ Load error: '+e.message,true);console.error(e);}
+}
+
+// Build the dept × plant × bucket pivot and stash on state for render,
+// drill-down, and export.
+function _hrmsDasBuildPivot(){
+  if(!_hrmsDasState) return;
+  var st=_hrmsDasState;
+  var pivot={}, plantSet={}, deptSet={}, dateSet={};
+  var hasOther=false;
+  st.present.forEach(function(p){
+    var org=_hrmsDasEmpOrg(p.emp);
+    deptSet[org.dept]=1;plantSet[org.plant]=1;
+    if(org.bucket==='other') hasOther=true;
+    if(!pivot[org.dept]) pivot[org.dept]={};
+    if(!pivot[org.dept][org.plant]) pivot[org.dept][org.plant]={};
+    if(!pivot[org.dept][org.plant][org.bucket]) pivot[org.dept][org.plant][org.bucket]=[];
+    pivot[org.dept][org.plant][org.bucket].push({code:p.code,name:p.emp.name||p.emp.empCode,ts:p.ts});
+    var d=new Date(p.ts);
+    dateSet[String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()]=1;
+  });
+  st.pivot=pivot;
+  st.depts=Object.keys(deptSet).sort();
+  st.plants=Object.keys(plantSet).sort();
+  st.dateLabels=Object.keys(dateSet).sort();
+  st.bucketKeys=_hrmsDasBuckets.map(function(b){return b.key;});
+  if(hasOther) st.bucketKeys.push('other');
+}
+
+function _hrmsDasBucketLabel(bk){
+  var found=_hrmsDasBuckets.find(function(b){return b.key===bk;});
+  return found?found.label:(bk==='other'?'Other':bk);
+}
+function _hrmsDasBucketShort(bk){
+  var found=_hrmsDasBuckets.find(function(b){return b.key===bk;});
+  return found?(found.short||found.label):(bk==='other'?'Oth':bk);
+}
+
+function _hrmsDasRender(){
+  var body=document.getElementById('hrmsDasBody');
+  var sumEl=document.getElementById('hrmsDasSummary');
+  var clrBtn=document.getElementById('hrmsDasClearBtn');
+  var expBtn=document.getElementById('hrmsDasExportBtn');
+  if(!body) return;
+  if(!_hrmsDasState){
+    body.innerHTML='<div class="empty-state" style="padding:40px">Upload an Excel file to generate the head-count summary.</div>';
+    if(sumEl) sumEl.textContent='';
+    if(clrBtn) clrBtn.style.display='none';
+    if(expBtn) expBtn.style.display='none';
+    return;
+  }
+  if(clrBtn) clrBtn.style.display='';
+  var st=_hrmsDasState;
+  if(!st.pivot) _hrmsDasBuildPivot();
+  var pivot=st.pivot||{}, depts=st.depts||[], plants=st.plants||[], bucketKeys=st.bucketKeys||[];
+
+  var _pad=function(n){return String(n).padStart(2,'0');};
+  var genTs=st.generatedAt;
+  var genStr=genTs?(_pad(genTs.getDate())+'/'+_pad(genTs.getMonth()+1)+'/'+genTs.getFullYear()+' '+_pad(genTs.getHours())+':'+_pad(genTs.getMinutes())):'';
+  var dateHdr=(st.dateLabels&&st.dateLabels.length)?st.dateLabels.join(', '):'';
+  var summary='';
+  if(dateHdr) summary+='<span style="font-size:15px;font-weight:900;color:var(--accent)">📅 '+dateHdr+'</span> &nbsp; ';
+  summary+='File: <b>'+(st.fileName||'')+'</b> · IN records: '+st.rowCount+' · Present: <b>'+st.present.length+'</b>';
+  if(st.unmatched.length) summary+=' · <span style="color:#dc2626">Unknown codes: '+st.unmatched.length+'</span>';
+  if(genStr) summary+=' · Generated: '+genStr;
+  if(sumEl) sumEl.innerHTML=summary;
+  if(expBtn) expBtn.style.display=st.present.length?'':'none';
+
+  if(!st.present.length){
+    body.innerHTML='<div class="empty-state" style="padding:40px">No IN records recognised in this file.</div>';
+    return;
+  }
+
+  // Column totals per (plant, bucket) and per plant
+  var cellTot={};// "plant|bucket" → n
+  var plTot={};// plant → n (sum across buckets)
+  var grand=0;
+  depts.forEach(function(d){
+    plants.forEach(function(pl){
+      bucketKeys.forEach(function(bk){
+        var n=(((pivot[d]||{})[pl]||{})[bk]||[]).length;
+        cellTot[pl+'|'+bk]=(cellTot[pl+'|'+bk]||0)+n;
+        plTot[pl]=(plTot[pl]||0)+n;
+        grand+=n;
+      });
+    });
+  });
+
+  // Sticky two-row header: row 1 at top:0, row 2 stacked just below. Using
+  // position:sticky on individual <th> cells (works with border-collapse:
+  // separate — so we use borders + border-spacing:0 to keep the grid look).
+  var _stickyBase='position:sticky;background-clip:padding-box;box-shadow:inset 0 -1px 0 #cbd5e1,inset 0 1px 0 #cbd5e1';
+  var _th='padding:5px 6px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;'+_stickyBase+';top:0;z-index:4';
+  var _thSub='padding:3px 4px;font-size:10px;font-weight:800;background:#f8fafc;border:1px solid #e2e8f0;text-align:center;color:var(--text2);white-space:nowrap;width:42px;min-width:42px;max-width:60px;'+_stickyBase+';top:27px;z-index:3';
+  var _thSubTot='padding:3px 4px;font-size:10px;font-weight:900;background:#e2e8f0;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;width:48px;min-width:48px;'+_stickyBase+';top:27px;z-index:3';
+  var _td='padding:5px 6px;font-size:13px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700';
+  var _tdL='padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;text-align:left;font-weight:700;white-space:nowrap';
+  var _tdSub='padding:4px 4px;font-size:12px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700;width:42px;min-width:42px';
+  var _tdTot='padding:5px 6px;font-size:13px;border:1px solid #94a3b8;text-align:right;font-family:var(--mono);font-weight:800;background:#f1f5f9;width:60px;min-width:60px';
+
+  var h='<div style="overflow:auto;max-height:calc(100vh - 260px);position:relative"><table style="border-collapse:separate;border-spacing:0;min-width:100%">';
+  // Header row 1: Department + Plant (colspan=bucketKeys.length+1 for subtotal) + Grand Total
+  h+='<thead><tr>';
+  h+='<th rowspan="2" style="'+_th+';left:0;z-index:5;text-align:left;min-width:160px">Department</th>';
+  plants.forEach(function(pl){
+    var plClr=(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(pl):'#e2e8f0');
+    h+='<th colspan="'+(bucketKeys.length+1)+'" style="'+_th+';background:'+plClr+'">'+pl+'</th>';
+  });
+  h+='<th rowspan="2" style="'+_th+';background:#1e293b;color:#fff;min-width:72px">GT</th>';
+  h+='</tr>';
+  // Header row 2: sub-columns per plant. Short labels with `title` tooltips.
+  h+='<tr>';
+  plants.forEach(function(pl){
+    bucketKeys.forEach(function(bk){h+='<th style="'+_thSub+'" title="'+_hrmsDasBucketLabel(bk)+'">'+_hrmsDasBucketShort(bk)+'</th>';});
+    h+='<th style="'+_thSubTot+'" title="Plant Sub-total">Σ</th>';
+  });
+  h+='</tr></thead><tbody>';
+
+  depts.forEach(function(d){
+    var dEsc=String(d).replace(/'/g,"\\'");
+    var rowTot=0;
+    h+='<tr><td style="'+_tdL+';position:sticky;left:0;background:#fff;z-index:1">'+d+'</td>';
+    plants.forEach(function(pl){
+      var plEsc=String(pl).replace(/'/g,"\\'");
+      var plantRowSub=0;
+      bucketKeys.forEach(function(bk){
+        var n=(((pivot[d]||{})[pl]||{})[bk]||[]).length;
+        plantRowSub+=n;
+        if(n>0) h+='<td style="'+_tdSub+';cursor:pointer;color:var(--accent);text-decoration:underline" onclick="_hrmsDasShowDetail(\''+dEsc+'\',\''+plEsc+'\',\''+bk+'\')" title="Click to view names">'+n+'</td>';
+        else h+='<td style="'+_tdSub+';color:var(--text3)">—</td>';
+      });
+      rowTot+=plantRowSub;
+      h+='<td style="'+_td+';background:#f8fafc;width:48px;min-width:48px">'+(plantRowSub||'—')+'</td>';
+    });
+    h+='<td style="'+_tdTot+'">'+rowTot+'</td></tr>';
+  });
+  // Totals row
+  h+='<tr><td style="'+_tdL+';position:sticky;left:0;z-index:1;background:#1e293b;color:#fff">Total</td>';
+  plants.forEach(function(pl){
+    bucketKeys.forEach(function(bk){
+      h+='<td style="'+_tdSub+';background:#334155;color:#fff">'+(cellTot[pl+'|'+bk]||0)+'</td>';
+    });
+    h+='<td style="'+_tdTot+';background:#1e293b;color:#fff">'+(plTot[pl]||0)+'</td>';
+  });
+  h+='<td style="'+_tdTot+';background:#16a34a;color:#fff">'+grand+'</td></tr>';
+  h+='</tbody></table></div>';
+
+  if(st.unmatched.length){
+    h+='<div style="margin-top:16px;padding:10px 12px;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;font-size:12px;color:#7f1d1d">'+
+       '<b>Unknown emp codes ('+st.unmatched.length+')</b> — not found in Employee master; excluded from the head count:<br>'+
+       '<div style="margin-top:6px;font-family:var(--mono);font-size:11px;max-height:90px;overflow:auto">'+
+       st.unmatched.map(function(u){return u.code;}).join(', ')+
+       '</div></div>';
+  }
+  body.innerHTML=h;
+}
+
+// Drill-down: show the list of employees behind a head-count cell.
+function _hrmsDasShowDetail(dept,plant,bucketKey){
+  if(!_hrmsDasState||!_hrmsDasState.pivot) return;
+  var list=(((_hrmsDasState.pivot[dept]||{})[plant]||{})[bucketKey])||[];
+  list=list.slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  var _pad=function(n){return String(n).padStart(2,'0');};
+  var bucketLbl=_hrmsDasBucketLabel(bucketKey);
+  var dateHdr=(_hrmsDasState.dateLabels||[]).join(', ');
+  var h='';
+  h+='<div id="_hrmsDasDetailOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000" onclick="if(event.target===this)this.remove()">';
+  h+='<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;width:min(620px,94vw);padding:20px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;gap:12px">';
+  h+='<div>';
+  h+='<div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:1px">'+(dateHdr?'📅 '+dateHdr+' · ':'')+dept+' · '+plant+'</div>';
+  h+='<div style="font-size:18px;font-weight:900;margin-top:4px">'+bucketLbl+' — '+list.length+' employee(s)</div>';
+  h+='</div>';
+  h+='<button onclick="document.getElementById(\'_hrmsDasDetailOverlay\').remove()" style="background:none;border:none;font-size:26px;cursor:pointer;color:var(--text3);line-height:1;padding:0 4px">×</button>';
+  h+='</div>';
+  if(!list.length){
+    h+='<div class="empty-state" style="padding:30px">No employees.</div>';
+  } else {
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
+    var _sth='padding:6px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:left';
+    h+='<th style="'+_sth+'">#</th>';
+    h+='<th style="'+_sth+'">Emp Code</th>';
+    h+='<th style="'+_sth+'">Name</th>';
+    h+='<th style="'+_sth+';text-align:right">IN Time</th>';
+    h+='</tr></thead><tbody>';
+    var _std='padding:5px 8px;border-bottom:1px solid #f1f5f9;font-size:12px';
+    list.forEach(function(r,i){
+      var d=new Date(r.ts);
+      var timeStr=_pad(d.getHours())+':'+_pad(d.getMinutes())+':'+_pad(d.getSeconds());
+      h+='<tr>';
+      h+='<td style="'+_std+';color:var(--text3)">'+(i+1)+'</td>';
+      h+='<td style="'+_std+';font-family:var(--mono);font-weight:700;color:var(--accent)">'+r.code+'</td>';
+      h+='<td style="'+_std+';font-weight:700">'+(r.name||'—')+'</td>';
+      h+='<td style="'+_std+';text-align:right;font-family:var(--mono)">'+timeStr+'</td>';
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='</div></div>';
+  // Remove any prior overlay first
+  var prior=document.getElementById('_hrmsDasDetailOverlay');if(prior) prior.remove();
+  var tmp=document.createElement('div');tmp.innerHTML=h;
+  document.body.appendChild(tmp.firstChild);
+}
+
+// Excel sheet names disallow : \ / ? * [ ] and cap at 31 chars.
+function _hrmsDasSheetName(name){
+  return String(name||'Plant').replace(/[:\\\/?*\[\]]/g,'-').slice(0,31);
+}
+
+// Format a time-of-day from ms timestamp.
+function _hrmsDasFmtTime(ts){
+  var d=new Date(ts);
+  var _p=function(n){return String(n).padStart(2,'0');};
+  return _p(d.getHours())+':'+_p(d.getMinutes())+':'+_p(d.getSeconds());
+}
+
+// Build the "All" sheet — combined plant-wise pivot on the left, full employee
+// list on the right (sorted by plant, department, name).
+// Returns {data, merges, colWidths, freezeRow, noFilter} for _downloadMultiSheetXlsx.
+function _hrmsDasBuildAllSheet(st){
+  var pivot=st.pivot, depts=st.depts||[], plants=st.plants||[], bucketKeys=st.bucketKeys||[];
+  var dateHdr=(st.dateLabels||[]).join(', ');
+  var perPlantSpan=bucketKeys.length+1;// buckets + Plant-Sub column
+  var sumW=1+plants.length*perPlantSpan+1;// Dept + plants + GrandTotal
+  var empHdr=['Plant','Department','Emp Code','Name','Bucket','IN Time'];
+  var empW=empHdr.length;
+  var gap=1;// single blank column between summary and emp list
+  var totalCols=sumW+gap+empW;
+  var lastColA=_xlCol(totalCols-1);
+
+  // Build header rows
+  var hdr1=['Department'];
+  plants.forEach(function(pl){
+    hdr1.push(pl);
+    for(var k=0;k<perPlantSpan-1;k++) hdr1.push('');
+  });
+  hdr1.push('Grand Total');
+  // Gap + emp header
+  hdr1=hdr1.concat(['']).concat(empHdr);
+
+  var hdr2=[''];
+  plants.forEach(function(pl){
+    bucketKeys.forEach(function(bk){hdr2.push(_hrmsDasBucketLabel(bk));});
+    hdr2.push('Plant Sub');
+  });
+  hdr2.push('');// under Grand Total
+  for(var g=0;g<=empW;g++) hdr2.push('');// gap + emp cols
+
+  // Body: side-by-side summary rows and emp rows
+  var cellTot={}, plTot={}, grand=0;
+  var sumBody=[];
+  depts.forEach(function(d){
+    var row=[d];var rowTot=0;
+    plants.forEach(function(pl){
+      var sub=0;
+      bucketKeys.forEach(function(bk){
+        var n=(((pivot[d]||{})[pl]||{})[bk]||[]).length;
+        row.push(n||0);sub+=n;
+        cellTot[pl+'|'+bk]=(cellTot[pl+'|'+bk]||0)+n;
+      });
+      row.push(sub);plTot[pl]=(plTot[pl]||0)+sub;rowTot+=sub;
+    });
+    row.push(rowTot);grand+=rowTot;
+    sumBody.push(row);
+  });
+  var totRow=['Total'];
+  plants.forEach(function(pl){
+    bucketKeys.forEach(function(bk){totRow.push(cellTot[pl+'|'+bk]||0);});
+    totRow.push(plTot[pl]||0);
+  });
+  totRow.push(grand);
+
+  // Emp list
+  var list=[];
+  st.present.forEach(function(p){
+    var org=_hrmsDasEmpOrg(p.emp);
+    list.push({plant:org.plant,dept:org.dept,code:p.code,name:p.emp.name||p.code,bucketKey:org.bucket,time:_hrmsDasFmtTime(p.ts)});
+  });
+  list.sort(function(a,b){
+    return (a.plant||'').localeCompare(b.plant||'')
+        || (a.dept||'').localeCompare(b.dept||'')
+        || (a.name||'').localeCompare(b.name||'');
+  });
+  var empBody=list.map(function(e){return [e.plant,e.dept,e.code,e.name,_hrmsDasBucketLabel(e.bucketKey),e.time];});
+
+  // Stitch rows together
+  var padSum=new Array(sumW).fill('');
+  var padEmp=new Array(empW).fill('');
+  var data=[];
+  // Row 0: banner (merged across all columns)
+  data.push({banner:true,cells:(function(){var r=['Daily Attendance Summary'+(dateHdr?'  —  '+dateHdr:'')];for(var i=1;i<totalCols;i++) r.push('');return r;})()});
+  // Row 1: info (merged)
+  data.push({banner:true,cells:(function(){var r=['File: '+(st.fileName||'')+'    |    Present: '+st.present.length+(st.unmatched.length?'    |    Unknown codes: '+st.unmatched.length:'')];for(var i=1;i<totalCols;i++) r.push('');return r;})()});
+  // Row 2: header1 (tblheader — plant labels)
+  data.push({tblheader:true,cells:hdr1});
+  // Row 3: header2 (tblsubheader — bucket labels)
+  data.push({tblsubheader:true,cells:hdr2});
+  // Data rows — each row = summary-body + gap + emp-body (padded)
+  var maxBody=Math.max(sumBody.length,empBody.length);
+  for(var i=0;i<maxBody;i++){
+    var s=sumBody[i]||padSum;
+    var e=empBody[i]||padEmp;
+    data.push(s.concat(['']).concat(e));
+  }
+  // Total row — aligns with summary side only; pad emp cols blank
+  data.push({tbltotal:true,cells:totRow.concat(['']).concat(padEmp)});
+
+  // Unknown-code trailer (outside the pivot, spans width)
+  if(st.unmatched.length){
+    data.push([]);
+    var unkTitle=new Array(totalCols).fill('');
+    unkTitle[0]='Unknown emp codes (not in Employee master): '+st.unmatched.length;
+    data.push({bold:true,cells:unkTitle});
+    st.unmatched.forEach(function(u){
+      var r=new Array(totalCols).fill('');r[0]=u.code;data.push(r);
+    });
+  }
+
+  // Build merges
+  var merges=[];
+  merges.push('A1:'+lastColA+'1');// banner
+  merges.push('A2:'+lastColA+'2');// info
+  // Department cell: rows 3-4 (1-indexed)
+  merges.push('A3:A4');
+  // Plant header spans
+  var colIdx=1;// after Dept
+  plants.forEach(function(pl){
+    var start=_xlCol(colIdx);
+    var end=_xlCol(colIdx+perPlantSpan-1);
+    merges.push(start+'3:'+end+'3');
+    colIdx+=perPlantSpan;
+  });
+  // Grand Total spans rows 3-4
+  var gtCol=_xlCol(sumW-1);
+  merges.push(gtCol+'3:'+gtCol+'4');
+  // Emp header labels span both header rows
+  for(var ec=0;ec<empW;ec++){
+    var c=_xlCol(sumW+gap+ec);
+    merges.push(c+'3:'+c+'4');
+  }
+
+  // Column widths
+  var colWidths=[];
+  colWidths.push(22);// Department (summary)
+  plants.forEach(function(){
+    bucketKeys.forEach(function(){colWidths.push(9);});// Staff/OR/Con/PR
+    colWidths.push(11);// Plant Sub
+  });
+  colWidths.push(13);// Grand Total
+  colWidths.push(3);// gap
+  // Emp list: Plant, Dept, Code, Name, Bucket, IN Time
+  colWidths.push(16,22,12,28,14,12);
+
+  return {
+    data:data,
+    merges:merges,
+    colWidths:colWidths,
+    freezeRow:4,// freeze banner + info + 2 header rows
+    noFilter:true,
+    noFreeze:false
+  };
+}
+
+// Build a per-plant sheet — plant-scoped dept × bucket pivot on the left,
+// employee list on the right (sorted by department, then name).
+function _hrmsDasBuildPlantSheet(st,plantName){
+  var pivot=st.pivot, bucketKeys=st.bucketKeys||[];
+  var dateHdr=(st.dateLabels||[]).join(', ');
+  var allDepts=st.depts||[];
+  var depts=allDepts.filter(function(d){
+    var pl=(pivot[d]||{})[plantName];if(!pl) return false;
+    return bucketKeys.some(function(bk){return(pl[bk]||[]).length>0;});
+  });
+
+  var sumHdr=['Department'].concat(bucketKeys.map(_hrmsDasBucketLabel)).concat(['Total']);
+  var sumW=sumHdr.length;
+  var empHdr=['Department','Emp Code','Name','Bucket','IN Time'];
+  var empW=empHdr.length;
+  var totalCols=sumW+1+empW;
+  var lastColA=_xlCol(totalCols-1);
+
+  var colTot={},grand=0;
+  bucketKeys.forEach(function(bk){colTot[bk]=0;});
+  var body=[];
+  depts.forEach(function(d){
+    var row=[d];var rowTot=0;
+    bucketKeys.forEach(function(bk){
+      var n=(((pivot[d]||{})[plantName]||{})[bk]||[]).length;
+      row.push(n);colTot[bk]+=n;rowTot+=n;
+    });
+    row.push(rowTot);grand+=rowTot;
+    body.push(row);
+  });
+  var totRow=['Total'];
+  bucketKeys.forEach(function(bk){totRow.push(colTot[bk]);});
+  totRow.push(grand);
+
+  var list=[];
+  st.present.forEach(function(p){
+    var org=_hrmsDasEmpOrg(p.emp);
+    if(org.plant!==plantName) return;
+    list.push({dept:org.dept,code:p.code,name:p.emp.name||p.code,bucketKey:org.bucket,time:_hrmsDasFmtTime(p.ts)});
+  });
+  list.sort(function(a,b){
+    return (a.dept||'').localeCompare(b.dept||'')
+        || (a.name||'').localeCompare(b.name||'');
+  });
+  var empBody=list.map(function(e){return [e.dept,e.code,e.name,_hrmsDasBucketLabel(e.bucketKey),e.time];});
+
+  var padSum=new Array(sumW).fill('');
+  var padEmp=new Array(empW).fill('');
+  var data=[];
+  // Banner row
+  data.push({banner:true,cells:(function(){var r=['Plant: '+plantName+(dateHdr?'  —  '+dateHdr:'')];for(var i=1;i<totalCols;i++) r.push('');return r;})()});
+  // Info row
+  data.push({banner:true,cells:(function(){var r=['Present at this plant: '+list.length];for(var i=1;i<totalCols;i++) r.push('');return r;})()});
+  // Combined header row — summary + gap + emp header
+  data.push({tblheader:true,cells:sumHdr.concat(['']).concat(empHdr)});
+  // Body
+  var maxBody=Math.max(body.length,empBody.length);
+  for(var i=0;i<maxBody;i++){
+    var s=body[i]||padSum;
+    var e=empBody[i]||padEmp;
+    data.push(s.concat(['']).concat(e));
+  }
+  // Total row
+  data.push({tbltotal:true,cells:totRow.concat(['']).concat(padEmp)});
+
+  var merges=[];
+  merges.push('A1:'+lastColA+'1');
+  merges.push('A2:'+lastColA+'2');
+
+  var colWidths=[22];
+  bucketKeys.forEach(function(){colWidths.push(11);});
+  colWidths.push(12);// Total
+  colWidths.push(3);// gap
+  colWidths.push(22,12,28,14,12);// Dept, Code, Name, Bucket, IN Time
+
+  return {
+    data:data,
+    merges:merges,
+    colWidths:colWidths,
+    freezeRow:3,// freeze banner + info + header
+    noFilter:true,
+    noFreeze:false
+  };
+}
+
+function _hrmsDasExport(){
+  if(!_hrmsDasState||!_hrmsDasState.present.length){notify('Nothing to export',true);return;}
+  var st=_hrmsDasState;
+  if(!st.pivot) _hrmsDasBuildPivot();
+  var plants=st.plants||[];
+  var sheets=[];
+  var allSh=_hrmsDasBuildAllSheet(st);allSh.name='All';sheets.push(allSh);
+  var usedNames={'All':1};
+  plants.forEach(function(pl){
+    var base=_hrmsDasSheetName(pl);
+    var nm=base,k=1;
+    while(usedNames[nm]){ nm=_hrmsDasSheetName(base.slice(0,28)+'~'+k); k++; }
+    usedNames[nm]=1;
+    var sh=_hrmsDasBuildPlantSheet(st,pl);sh.name=nm;sheets.push(sh);
+  });
+  var fnDate=(st.dateLabels&&st.dateLabels[0]?st.dateLabels[0].replace(/\//g,'-'):'daily');
+  _downloadMultiSheetXlsx(sheets,'Daily_Attendance_Summary_'+fnDate+'.xlsx');
+  notify('📤 Exported '+sheets.length+' sheet(s): All + '+plants.length+' plant(s)');
+}
+
+// ═══ MONTHLY HEADCOUNT GRAPH (Utilities) ════════════════════════════════════
+// Plant-wise day-by-day head-count line chart for a selected month, using
+// attendance (+ alteration) records already in the system. Three overlapping
+// lines per plant: On Roll / Contract / Piece Rate. Employment type is taken
+// from the employee's currently-active period.
+var _hrmsMhgState=null;// {mk, yr, mo, daysInMonth, byPlant}
+
+async function _hrmsMhgInit(){
+  var sel=document.getElementById('hrmsMhgMonth');
+  if(!sel) return;
+  // Ensure the month index is loaded — mirrors how other views bootstrap.
+  if(!_hrmsAttMonthIndex){
+    showSpinner('Loading month list…');
+    try{ await _hrmsAttFetchIndex(); }catch(e){console.error(e);}
+    hideSpinner();
+  }
+  var months=(_hrmsAttMonthIndex||[]).map(function(m){return m.monthKey;});
+  if(!months.length){
+    sel.innerHTML='<option value="">No attendance data yet</option>';
+    _hrmsMhgState=null;
+    _hrmsMhgRenderCharts();
+    return;
+  }
+  sel.innerHTML=months.map(function(mk){return '<option value="'+mk+'">'+_hrmsMonthLabel(mk)+'</option>';}).join('');
+  var initial=(_hrmsMhgState&&months.indexOf(_hrmsMhgState.mk)>=0)?_hrmsMhgState.mk:months[0];
+  sel.value=initial;
+  await _hrmsMhgLoad(initial);
+}
+
+function _hrmsMhgMonthChanged(){
+  var sel=document.getElementById('hrmsMhgMonth');
+  if(sel&&sel.value) _hrmsMhgLoad(sel.value);
+}
+
+// Aggregate a single month from already-cached attendance + alteration records
+// into {mk, yr, mo, daysInMonth, byPlant:{plant:{onroll,contract,piecerate}[daysInMonth+1]}}.
+// Synchronous — caller must ensure _hrmsAttFetchMonth(mk) was awaited first.
+function _hrmsMhgAggMonth(mk){
+  var attRecs=_hrmsAttCache[mk]||[];
+  var altRecs=(_hrmsAltCache&&_hrmsAltCache[mk])||[];
+  var parts=mk.split('-');
+  var yr=+parts[0], mo=+parts[1];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+
+  var empByCode={};
+  (DB.hrmsEmployees||[]).forEach(function(e){if(e.empCode) empByCode[String(e.empCode).trim()]=e;});
+
+  var presDays={};
+  var absorb=function(code,daysObj){
+    if(!code||!daysObj) return;
+    for(var dk in daysObj){
+      var d=+dk;if(isNaN(d)||d<1||d>daysInMonth) continue;
+      var entry=daysObj[dk];if(!entry) continue;
+      if(entry.in||entry['in']){
+        if(!presDays[code]) presDays[code]={};
+        presDays[code][d]=true;
+      }
+    }
+  };
+  attRecs.forEach(function(a){absorb(a.empCode,a.days);});
+  altRecs.forEach(function(a){absorb(a.empCode,a.days);});
+
+  var byPlant={};
+  var ensure=function(plant){
+    if(byPlant[plant]) return byPlant[plant];
+    byPlant[plant]={
+      staff:new Array(daysInMonth+1).fill(0),
+      onroll:new Array(daysInMonth+1).fill(0),
+      contract:new Array(daysInMonth+1).fill(0),
+      piecerate:new Array(daysInMonth+1).fill(0)
+    };
+    return byPlant[plant];
+  };
+  // Bucketing: Staff (any emp type with category=Staff) takes priority; the
+  // other three buckets are workers partitioned by employment type so Staff
+  // counts don't double-count.
+  Object.keys(presDays).forEach(function(code){
+    var e=empByCode[code];if(!e) return;
+    var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var cat=(((ap&&ap.category)||e.category||'')+'').toLowerCase();
+    var et=(((ap&&ap.employmentType)||e.employmentType||'')+'').toLowerCase().replace(/\s/g,'');
+    var bucket=null;
+    if(cat.indexOf('staff')>=0) bucket='staff';
+    else if(et==='onroll') bucket='onroll';
+    else if(et==='contract') bucket='contract';
+    else if(et==='piecerate') bucket='piecerate';
+    if(!bucket) return;
+    var plant=(ap&&ap.location)||e.location||'— Unassigned —';
+    var b=ensure(plant);
+    var days=presDays[code];
+    for(var d in days){ b[bucket][+d]++; }
+  });
+  return {mk:mk,yr:yr,mo:mo,daysInMonth:daysInMonth,byPlant:byPlant};
+}
+
+// Compute working-day average for one plant in one month, excluding:
+//   • H (WO) and P (PH) days per the plant calendar
+//   • "Unseeded" working days where no headcount has been recorded at all
+//     (total across all 3 buckets = 0). This avoids end-of-month or
+//     partial-import gaps dragging the average below the daily minimum.
+function _hrmsMhgComputePlantAvg(agg,plant){
+  var b=agg.byPlant[plant];
+  if(!b) return {workDays:0,avgS:0,avgOR:0,avgC:0,avgPR:0,hasData:false};
+  var workDays=0,sS=0,sOR=0,sC=0,sPR=0;
+  for(var d=1;d<=agg.daysInMonth;d++){
+    var dType=(typeof _hrmsGetDayType==='function')
+      ? _hrmsGetDayType(agg.mk,d,agg.yr,agg.mo,plant)
+      : (new Date(agg.yr,agg.mo-1,d).getDay()===0?'WO':'WD');
+    if(dType==='WO'||dType==='PH') continue;
+    var tot=(b.staff[d]||0)+(b.onroll[d]||0)+(b.contract[d]||0)+(b.piecerate[d]||0);
+    if(tot===0) continue;// working day but no attendance imported → skip
+    workDays++;
+    sS+=b.staff[d]||0;
+    sOR+=b.onroll[d]||0;
+    sC+=b.contract[d]||0;
+    sPR+=b.piecerate[d]||0;
+  }
+  return {
+    workDays:workDays,
+    avgS:workDays?sS/workDays:0,
+    avgOR:workDays?sOR/workDays:0,
+    avgC:workDays?sC/workDays:0,
+    avgPR:workDays?sPR/workDays:0,
+    hasData:(sS+sOR+sC+sPR)>0
+  };
+}
+
+async function _hrmsMhgLoad(mk){
+  if(!mk) return;
+  showSpinner('Computing headcount for '+_hrmsMonthLabel(mk)+'…');
+  try{
+    var parts=mk.split('-');
+    var yr=+parts[0], mo=+parts[1];
+    // Last 3 months in chronological (oldest→newest) order.
+    var histMonths=[];
+    for(var i=3;i>=1;i--){
+      var py=yr, pm=mo-i;
+      while(pm<1){pm+=12;py--;}
+      histMonths.push(py+'-'+String(pm).padStart(2,'0'));
+    }
+    // Fetch current + 3 prior months in parallel.
+    var allMonths=histMonths.concat([mk]);
+    await Promise.all(allMonths.map(function(m){
+      return _hrmsAttFetchMonth(m).catch(function(err){console.warn('Att fetch failed for',m,err);return null;});
+    }));
+
+    // Current-month aggregation (daily series drives the main bars).
+    var curAgg=_hrmsMhgAggMonth(mk);
+
+    // Prior-month averages per plant (keyed same as current so we can align).
+    var histByPlant={};
+    histMonths.forEach(function(hmk){
+      var hAgg=_hrmsMhgAggMonth(hmk);
+      Object.keys(hAgg.byPlant).forEach(function(plant){
+        var avg=_hrmsMhgComputePlantAvg(hAgg,plant);
+        if(!histByPlant[plant]) histByPlant[plant]=[];
+        histByPlant[plant].push({mk:hmk,avgS:avg.avgS,avgOR:avg.avgOR,avgC:avg.avgC,avgPR:avg.avgPR,workDays:avg.workDays,hasData:avg.hasData});
+      });
+    });
+    Object.keys(curAgg.byPlant).forEach(function(p){
+      if(!histByPlant[p]) histByPlant[p]=[];
+      var have={};histByPlant[p].forEach(function(e){have[e.mk]=true;});
+      histMonths.forEach(function(hmk){
+        if(!have[hmk]) histByPlant[p].push({mk:hmk,avgS:0,avgOR:0,avgC:0,avgPR:0,workDays:0,hasData:false});
+      });
+      histByPlant[p].sort(function(a,b){return a.mk<b.mk?-1:(a.mk>b.mk?1:0);});
+    });
+
+    _hrmsMhgState={
+      mk:mk,yr:yr,mo:mo,daysInMonth:curAgg.daysInMonth,
+      byPlant:curAgg.byPlant,
+      histByPlant:histByPlant,
+      histMonths:histMonths
+    };
+    hideSpinner();
+    _hrmsMhgRenderCharts();
+  }catch(e){hideSpinner();notify('⚠ Load failed: '+e.message,true);console.error(e);}
+}
+
+function _hrmsMhgRenderCharts(){
+  var el=document.getElementById('hrmsMhgCharts');
+  if(!el) return;
+  if(!_hrmsMhgState){
+    el.innerHTML='<div class="empty-state" style="padding:40px">Select a month above to load data.</div>';
+    return;
+  }
+  var st=_hrmsMhgState;
+  var plants=Object.keys(st.byPlant).sort();
+  if(!plants.length){
+    el.innerHTML='<div class="empty-state" style="padding:40px">No attendance data (with a recognised On Roll / Contract / Piece Rate employee) for '+_hrmsMonthLabel(st.mk)+'.</div>';
+    return;
+  }
+  var h='';
+  plants.forEach(function(pl){
+    var hist=(st.histByPlant&&st.histByPlant[pl])||[];
+    h+=_hrmsMhgPlantCard(pl,st.byPlant[pl],st.daysInMonth,st.yr,st.mo,hist,st.histMonths||[]);
+  });
+  // Combined (All Plants) chart at the end — sum across plants per day and
+  // per historical month. Only show when more than one plant is present,
+  // otherwise it duplicates the sole plant's card.
+  if(plants.length>1){
+    var combined={
+      staff:new Array(st.daysInMonth+1).fill(0),
+      onroll:new Array(st.daysInMonth+1).fill(0),
+      contract:new Array(st.daysInMonth+1).fill(0),
+      piecerate:new Array(st.daysInMonth+1).fill(0)
+    };
+    plants.forEach(function(p){
+      var pd=st.byPlant[p];
+      for(var d=1;d<=st.daysInMonth;d++){
+        combined.staff[d]+=pd.staff[d]||0;
+        combined.onroll[d]+=pd.onroll[d]||0;
+        combined.contract[d]+=pd.contract[d]||0;
+        combined.piecerate[d]+=pd.piecerate[d]||0;
+      }
+    });
+    // Combined history = sum of each plant's history entry for the same mk.
+    var combinedHist=(st.histMonths||[]).map(function(hmk){
+      var sS=0,sOR=0,sC=0,sPR=0,anyData=false;
+      plants.forEach(function(p){
+        var hE=((st.histByPlant||{})[p]||[]).find(function(e){return e.mk===hmk;});
+        if(hE){sS+=hE.avgS||0;sOR+=hE.avgOR||0;sC+=hE.avgC||0;sPR+=hE.avgPR||0;if(hE.hasData) anyData=true;}
+      });
+      return {mk:hmk,avgS:sS,avgOR:sOR,avgC:sC,avgPR:sPR,workDays:0,hasData:anyData};
+    });
+    // Plant name '' tells _hrmsGetDayType to fall back to Sunday=WO (no
+    // plant-specific calendar for the combined view).
+    h+=_hrmsMhgPlantCard('All Plants (Combined)',combined,st.daysInMonth,st.yr,st.mo,combinedHist,st.histMonths||[]);
+  }
+  el.innerHTML=h;
+}
+
+function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths){
+  var plClr=(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0');
+
+  // Pre-compute day type for every day (plant-specific calendar).
+  var mk=_hrmsMhgState&&_hrmsMhgState.mk;
+  var dayTypes=new Array(daysInMonth+1).fill('WD');
+  for(var d=1;d<=daysInMonth;d++){
+    dayTypes[d]=(typeof _hrmsGetDayType==='function')
+      ? _hrmsGetDayType(mk,d,yr,mo,plant)
+      : (new Date(yr,mo-1,d).getDay()===0?'WO':'WD');
+  }
+
+  // Average: exclude H/P days AND working days with zero recorded headcount
+  // (a zero means the day hasn't been seeded with attendance yet — counting
+  // it would drag the average below the actual daily minimum).
+  var workDays=0, hpDays=0, noDataDays=0, sS=0, sOR=0, sC=0, sPR=0;
+  for(var d=1;d<=daysInMonth;d++){
+    if(dayTypes[d]==='WO'||dayTypes[d]==='PH'){ hpDays++; continue; }
+    var tot=(data.staff[d]||0)+(data.onroll[d]||0)+(data.contract[d]||0)+(data.piecerate[d]||0);
+    if(tot===0){ noDataDays++; continue; }
+    workDays++;
+    sS+=data.staff[d]||0;
+    sOR+=data.onroll[d]||0;
+    sC+=data.contract[d]||0;
+    sPR+=data.piecerate[d]||0;
+  }
+  var avgS=workDays?sS/workDays:0;
+  var avgOR=workDays?sOR/workDays:0;
+  var avgC=workDays?sC/workDays:0;
+  var avgPR=workDays?sPR/workDays:0;
+  var _r=function(x){return Math.round(x);};// integer rounding for display
+
+  var peakS=Math.max.apply(Math,data.staff);
+  var peakOR=Math.max.apply(Math,data.onroll);
+  var peakC=Math.max.apply(Math,data.contract);
+  var peakPR=Math.max.apply(Math,data.piecerate);
+
+  // Max Y must fit the tallest daily stack AND the tallest historical avg stack.
+  var maxY=1;
+  for(var d=1;d<=daysInMonth;d++){
+    var sum=(data.staff[d]||0)+(data.onroll[d]||0)+(data.contract[d]||0)+(data.piecerate[d]||0);
+    if(sum>maxY) maxY=sum;
+  }
+  (history||[]).forEach(function(h){
+    var ht=(h.avgS||0)+(h.avgOR||0)+(h.avgC||0)+(h.avgPR||0);
+    if(ht>maxY) maxY=ht;
+  });
+  var step=maxY<=10?2:(maxY<=50?5:(maxY<=100?10:(maxY<=500?50:100)));
+  maxY=Math.ceil(maxY/step)*step;
+  if(maxY<step) maxY=step;
+
+  var svg=_hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,{
+    avgS:avgS,avgOR:avgOR,avgC:avgC,avgPR:avgPR,
+    workDays:workDays,dayTypes:dayTypes,
+    history:history||[],histMonths:histMonths||[]
+  });
+
+  var h='<div class="card" style="margin-bottom:16px;padding:14px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px">';
+  h+='<div style="display:flex;align-items:center;gap:10px">';
+  h+='<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:'+plClr+';border:1px solid rgba(0,0,0,.15)"></span>';
+  h+='<span style="font-size:16px;font-weight:900">'+plant+'</span>';
+  h+='<span style="font-size:11px;font-weight:700;color:var(--text3)">· avg over '+workDays+' working day(s) with data (excluded '+hpDays+' H/P'+(noDataDays?', '+noDataDays+' no-data':'')+')</span>';
+  h+='</div>';
+  h+='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap">';
+  h+='<span style="color:#d97706;font-weight:700">● Staff · peak '+peakS+' · avg '+_r(avgS)+'</span>';
+  h+='<span style="color:#15803d;font-weight:700">● On Roll · peak '+peakOR+' · avg '+_r(avgOR)+'</span>';
+  h+='<span style="color:#1d4ed8;font-weight:700">● Contract · peak '+peakC+' · avg '+_r(avgC)+'</span>';
+  h+='<span style="color:#7c3aed;font-weight:700">● Piece Rate · peak '+peakPR+' · avg '+_r(avgPR)+'</span>';
+  h+='</div>';
+  h+='</div>';
+  h+=svg;
+  h+='</div>';
+  return h;
+}
+
+function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var W=1060,H=356;
+  // padR widened for avg-line labels; padB taller for 3-line x labels.
+  var padL=46,padR=70,padT=26,padB=62;
+  var plotW=W-padL-padR, plotH=H-padT-padB;
+  var history=(avgs&&avgs.history)||[];
+  var histCount=history.length;// usually 3
+  var gapSlots=histCount>0?1:0;
+  var totalSlots=histCount+gapSlots+daysInMonth;
+  var colW=plotW/totalSlots;
+  var barW=colW*0.78;
+  // Slot 0..histCount-1 = historical months; histCount = gap; histCount+gapSlots..end = daily.
+  var xHistCenter=function(i){ return padL + colW*(i+0.5); };
+  var xDayCenter=function(d){ return padL + colW*(histCount+gapSlots+(d-1)+0.5); };
+  var xSepCenter=function(){ return padL + colW*(histCount+0.5); };
+  var yOf=function(v){ return padT + plotH - (v/maxY)*plotH; };
+  var dayTypes=(avgs&&avgs.dayTypes)||null;
+  var isExcluded=function(d){
+    if(dayTypes) return dayTypes[d]==='WO'||dayTypes[d]==='PH';
+    var dow=new Date(yr,mo-1,d).getDay();
+    return dow===0||dow===6;
+  };
+  var dayTypeOf=function(d){return dayTypes?dayTypes[d]:(new Date(yr,mo-1,d).getDay()===0?'WO':'WD');};
+
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px">';
+
+  // History column band — soft amber wash to signal "comparison, not current"
+  if(histCount>0){
+    s+='<rect x="'+padL+'" y="'+padT+'" width="'+(colW*histCount)+'" height="'+plotH+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    // Vertical separator line after the last historical column
+    var sepX=padL+colW*histCount+colW/2;
+    s+='<line x1="'+sepX+'" y1="'+padT+'" x2="'+sepX+'" y2="'+(padT+plotH)+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 4"/>';
+  }
+
+  // Excluded daily column bands — H (WO) and P (PH) get a soft grey wash.
+  for(var d=1;d<=daysInMonth;d++){
+    if(isExcluded(d)){
+      var dayX=padL+colW*(histCount+gapSlots+(d-1));
+      s+='<rect x="'+dayX+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="#e2e8f0" fill-opacity="0.55"/>';
+    }
+  }
+
+  // Y gridlines + labels
+  var ySteps=4;
+  for(var i=0;i<=ySteps;i++){
+    var v=Math.round(maxY*i/ySteps);
+    var y=yOf(v);
+    s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/>';
+    s+='<text x="'+(padL-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+v+'</text>';
+  }
+
+  // X labels: three lines — date, day-of-week, optional H/P exclusion badge.
+  for(var d=1;d<=daysInMonth;d++){
+    var dt2=new Date(yr,mo-1,d);
+    var dow2=dt2.getDay();
+    var excluded=isExcluded(d);
+    var dateColor=excluded?'#b91c1c':'#334155';
+    var dowColor=excluded?'#dc2626':'#64748b';
+    var xl=xDayCenter(d);
+    s+='<text x="'+xl+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="10" font-weight="700" fill="'+dateColor+'">'+d+'</text>';
+    s+='<text x="'+xl+'" y="'+(H-padB+28)+'" text-anchor="middle" font-size="9" fill="'+dowColor+'">'+DOW[dow2]+'</text>';
+    if(excluded){
+      var dt=dayTypeOf(d);
+      var badgeTxt=dt==='PH'?'P':(dt==='WO'?'H':'');
+      var badgeBg=dt==='PH'?'#dcfce7':'#dbeafe';
+      var badgeFg=dt==='PH'?'#15803d':'#1d4ed8';
+      if(badgeTxt){
+        var bw=12, bh=11;
+        s+='<rect x="'+(xl-bw/2)+'" y="'+(H-padB+32)+'" width="'+bw+'" height="'+bh+'" rx="2" ry="2" fill="'+badgeBg+'" stroke="'+badgeFg+'" stroke-width="0.6"/>';
+        s+='<text x="'+xl+'" y="'+(H-padB+41)+'" text-anchor="middle" font-size="8" font-weight="800" fill="'+badgeFg+'">'+badgeTxt+'</text>';
+      }
+    }
+  }
+
+  // Axes
+  s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
+  s+='<line x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(W-padR)+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
+
+  var _r0=function(x){return Math.round(x);};
+
+  // Average reference LINES drawn here (before columns) so the stacked bars
+  // render ON TOP of them — prevents the lines from obscuring the per-segment
+  // count text. Right-edge labels are drawn later so they remain visible.
+  var avgLineState=null;
+  if(avgs){
+    var lineStartX=histCount>0?(padL+colW*(histCount+gapSlots-0.1)):padL;
+    var lineEndX=W-padR+4;
+    var stack=[
+      {v:avgs.avgS||0, color:'#d97706',label:'S'},
+      {v:avgs.avgOR||0,color:'#15803d',label:'OR'},
+      {v:avgs.avgC||0, color:'#1d4ed8',label:'C'},
+      {v:avgs.avgPR||0,color:'#7c3aed',label:'PR'}
+    ];
+    var cum=0;
+    var lines=[];
+    stack.forEach(function(a){
+      if(a.v>0){
+        var mid=cum+a.v/2;
+        lines.push({y:yOf(mid),color:a.color,label:a.label,v:a.v});
+      }
+      cum+=a.v;
+    });
+    lines.forEach(function(l){
+      s+='<line x1="'+lineStartX+'" y1="'+l.y+'" x2="'+(W-padR)+'" y2="'+l.y+'" stroke="'+l.color+'" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"><title>'+l.label+' avg (working days with data): '+_r0(l.v)+'</title></line>';
+    });
+    var totalAvg=cum;
+    if(totalAvg>0){
+      var totalY=yOf(totalAvg);
+      s+='<line x1="'+lineStartX+'" y1="'+totalY+'" x2="'+(W-padR)+'" y2="'+totalY+'" stroke="#0f172a" stroke-width="3" stroke-linecap="round" opacity="0.95"><title>Total avg (working days with data): '+_r0(totalAvg)+'</title></line>';
+    }
+    // Save for label rendering at the end of the SVG (after columns).
+    avgLineState={lines:lines,totalAvg:totalAvg,lineEndX:lineEndX};
+  }
+
+  // Staff (amber) sits at the bottom of every stack so it's the first row
+  // counted upward. On Roll / Contract / Piece Rate follow.
+  var buckets=[
+    {key:'staff',color:'#d97706',label:'Staff'},
+    {key:'onroll',color:'#15803d',label:'On Roll'},
+    {key:'contract',color:'#1d4ed8',label:'Contract'},
+    {key:'piecerate',color:'#7c3aed',label:'Piece Rate'}
+  ];
+
+  // Historical month columns (rounded averages) drawn first, then labels.
+  for(var hi=0;hi<histCount;hi++){
+    var hEntry=history[hi];
+    var hXC=xHistCenter(hi);
+    var hX=hXC-barW/2;
+    var vS=_r0(hEntry.avgS||0), vOR=_r0(hEntry.avgOR||0), vC=_r0(hEntry.avgC||0), vPR=_r0(hEntry.avgPR||0);
+    var hTotal=vS+vOR+vC+vPR;
+    var hCumBottom=padT+plotH;
+    var hSegs=[{key:'staff',v:vS,color:'#d97706',label:'Staff'},
+               {key:'onroll',v:vOR,color:'#15803d',label:'On Roll'},
+               {key:'contract',v:vC,color:'#1d4ed8',label:'Contract'},
+               {key:'piecerate',v:vPR,color:'#7c3aed',label:'Piece Rate'}];
+    hSegs.forEach(function(seg){
+      if(seg.v<=0) return;
+      var segH=(seg.v/maxY)*plotH;
+      var yTop=hCumBottom-segH;
+      s+='<rect x="'+hX+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+seg.color+'" fill-opacity="0.7" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"><title>'+_hrmsMonthLabel(hEntry.mk)+' avg — '+seg.label+': '+seg.v+'</title></rect>';
+      if(segH>=12){
+        s+='<text x="'+(hX+barW/2)+'" y="'+(yTop+segH/2+3)+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">'+seg.v+'</text>';
+      }
+      hCumBottom=yTop;
+    });
+    if(hTotal>0){
+      var hTopY=padT+plotH-(hTotal/maxY)*plotH;
+      s+='<text x="'+hXC+'" y="'+(hTopY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#92400e">'+hTotal+'</text>';
+    } else if(!hEntry.hasData){
+      // Show a faint "N/A" placeholder so the column position isn't mistaken for a zero day.
+      var midY=padT+plotH/2;
+      s+='<text x="'+hXC+'" y="'+midY+'" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">N/A</text>';
+    }
+    // X-axis label: month short name + year + "avg" badge
+    var hParts=hEntry.mk.split('-');
+    var hYr=+hParts[0], hMo=+hParts[1];
+    s+='<text x="'+hXC+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#92400e">'+MON[hMo-1]+'</text>';
+    s+='<text x="'+hXC+'" y="'+(H-padB+28)+'" text-anchor="middle" font-size="9" fill="#b45309">\''+String(hYr).slice(-2)+'</text>';
+    var bw=20,bh=11;
+    s+='<rect x="'+(hXC-bw/2)+'" y="'+(H-padB+32)+'" width="'+bw+'" height="'+bh+'" rx="2" ry="2" fill="#fef3c7" stroke="#b45309" stroke-width="0.6"/>';
+    s+='<text x="'+hXC+'" y="'+(H-padB+41)+'" text-anchor="middle" font-size="8" font-weight="800" fill="#92400e">AVG</text>';
+  }
+
+  // Stacked bars per day — On Roll (bottom), Contract (middle), Piece Rate (top)
+  for(var d=1;d<=daysInMonth;d++){
+    var x=xDayCenter(d)-barW/2;
+    var total=0;
+    buckets.forEach(function(b){total+=data[b.key][d];});
+    var cumBottom=padT+plotH;
+    buckets.forEach(function(b){
+      var v=data[b.key][d];
+      if(v<=0) return;
+      var segH=(v/maxY)*plotH;
+      var yTop=cumBottom-segH;
+      s+='<rect x="'+x+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+b.color+'" stroke="#fff" stroke-width="0.5"><title>Day '+d+' — '+b.label+': '+v+'</title></rect>';
+      if(segH>=12){
+        var ty=yTop+segH/2+3;
+        s+='<text x="'+(x+barW/2)+'" y="'+ty+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">'+v+'</text>';
+      }
+      cumBottom=yTop;
+    });
+    if(total>0){
+      var topY=padT+plotH-(total/maxY)*plotH;
+      s+='<text x="'+xDayCenter(d)+'" y="'+(topY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#1e293b">'+total+'</text>';
+    }
+  }
+
+  // Average-line LABELS (right-edge tags) — drawn last so they stay visible
+  // over everything. The actual dashed/solid lines were drawn before columns.
+  if(avgLineState){
+    var _lines=avgLineState.lines, _totalAvg=avgLineState.totalAvg, _lineEndX=avgLineState.lineEndX;
+    var allLbl=_lines.map(function(l){return {y:l.y,color:l.color,label:l.label,v:l.v,total:false};});
+    if(_totalAvg>0) allLbl.push({y:yOf(_totalAvg),color:'#0f172a',label:'Total',v:_totalAvg,total:true});
+    var sorted=allLbl.slice().sort(function(a,b){return a.y-b.y;});
+    for(var i=1;i<sorted.length;i++){
+      if(sorted[i].y-sorted[i-1].y<11) sorted[i].y=sorted[i-1].y+11;
+    }
+    sorted.forEach(function(a){
+      var fs=a.total?11:10;
+      s+='<text x="'+_lineEndX+'" y="'+(a.y+4)+'" font-size="'+fs+'" font-weight="800" fill="#fff" stroke="'+a.color+'" stroke-width="3" paint-order="stroke">'+a.label+' '+_r0(a.v)+'</text>';
+    });
+  }
+
+  s+='</svg>';
+  return s;
 }
 
 function _hrmsAttPopFilters(){
@@ -4292,8 +5503,12 @@ function _hrmsRenderEsslImportLog(){
   h+='<th style="'+_th+'">Action</th>';
   h+='<th style="'+_th+'">By</th>';
   h+='<th style="'+_th+';text-align:center">File</th>';
+  h+='<th style="'+_th+';text-align:center">Delete</th>';
   h+='</tr></thead><tbody>';
   imports.forEach(function(e){
+    var actLbl=e.action==='merge'?'MERGE':(e.action==='replace'?'REPLACE':'NEW');
+    var actBg=e.action==='replace'?'#fef3c7;color:#b45309':(e.action==='merge'?'#dbeafe;color:#1d4ed8':'#dcfce7;color:#15803d');
+    var empCnt=(e.affectedEmps&&e.affectedEmps.length)||e.employees||0;
     h+='<tr>';
     h+='<td style="'+_td+';white-space:nowrap;font-family:var(--mono);font-size:11px">'+_fmtTime(e.timestamp)+'</td>';
     h+='<td style="'+_td+';font-weight:700" title="'+(e.fileName||'')+' ('+_fmtBytes(e.fileSize)+')">'+(e.fileName||'—')+'</td>';
@@ -4301,13 +5516,88 @@ function _hrmsRenderEsslImportLog(){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+(e.totalRows||0)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);color:#16a34a;font-weight:700">'+(e.added||0)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);color:#2563eb;font-weight:700">'+(e.updated||0)+'</td>';
-    h+='<td style="'+_td+';font-size:11px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-weight:700;background:'+(e.action==='replace'?'#fef3c7;color:#b45309':'#dcfce7;color:#15803d')+'">'+(e.action==='replace'?'REPLACE':'NEW')+'</span></td>';
+    h+='<td style="'+_td+';font-size:11px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-weight:700;background:'+actBg+'">'+actLbl+'</span></td>';
     h+='<td style="'+_td+';font-size:11px;color:var(--text2)">'+(e.importedBy||'—')+'</td>';
     h+='<td style="'+_td+';text-align:center"><button onclick="_hrmsDownloadEsslImport(\''+e.id+'\',\''+(e.fileName||'file').replace(/[\'"\\]/g,'')+'\')" title="Download original file" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer">⬇ Download</button></td>';
+    h+='<td style="'+_td+';text-align:center"><button onclick="_hrmsDeleteEsslImport(\''+e.id+'\')" title="Delete attendance data imported by this file ('+empCnt+' employee(s))" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑 Delete</button></td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
   el.innerHTML=h;
+}
+
+async function _hrmsDeleteEsslImport(logId){
+  if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
+  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
+  var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
+  var idx=imports.findIndex(function(e){return e.id===logId;});
+  if(idx<0){notify('Import log entry not found',true);return;}
+  var entry=imports[idx];
+  var mk=entry.monthKey||'';
+  if(mk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+    notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to delete import.',true);return;
+  }
+  // Determine affected empCodes — prefer stored list; fall back to re-parsing the stored file
+  var empCodes=(entry.affectedEmps||[]).slice();
+  if(!empCodes.length){
+    showSpinner('Loading file to determine affected employees…');
+    try{
+      var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImpFile_'+logId;});
+      if(!fileRec&&_sb&&_sbReady){
+        var {data}=await _sb.from('hrms_settings').select('*').eq('code','hs_attImpFile_'+logId).maybeSingle();
+        if(data) fileRec=_fromRow('hrmsSettings',data);
+      }
+      if(fileRec&&fileRec.data&&fileRec.data.base64){
+        var blob=_hrmsB642Blob(fileRec.data.base64);
+        var buf=await blob.arrayBuffer();
+        var rows=await _parseXLSX(buf);
+        var _norm=function(k){return String(k||'').replace(/\([^)]*\)/g,'').replace(/[\s._\-\/]+/g,'').toLowerCase();};
+        var hMap={};
+        if(rows.length){Object.keys(rows[0]).forEach(function(k){var n=_norm(k);if(!hMap[n])hMap[n]=k;});}
+        var codeKeys=['empcode','employeecode','code'];
+        var codeKey=null;
+        for(var i=0;i<codeKeys.length;i++){if(hMap[codeKeys[i]]){codeKey=hMap[codeKeys[i]];break;}}
+        var seen={};
+        rows.forEach(function(r){var c=((codeKey?r[codeKey]:'')||'').toString().trim();if(c&&!seen[c]){seen[c]=1;empCodes.push(c);}});
+      }
+    }catch(e){console.error(e);}
+    hideSpinner();
+  }
+  if(!empCodes.length){
+    if(!confirm('Could not determine which employees were affected by this import (file may have been pruned).\n\nDelete just the log entry without touching attendance data?')) return;
+    // Fall through to just delete log + file
+  } else {
+    if(!confirm('Delete attendance data for '+empCodes.length+' employee(s) imported by "'+(entry.fileName||'this file')+'" ('+_hrmsMonthLabel(mk)+')?\n\nThis cannot be undone. Other employees\' data for the month will be kept.')) return;
+  }
+
+  showSpinner('Deleting imported attendance…');
+  try{
+    if(empCodes.length){
+      await _hrmsAttFetchMonth(mk);
+      var recs=_hrmsAttCache[mk]||[];
+      var byCode={};recs.forEach(function(r){byCode[r.empCode]=r;});
+      var removed=0;
+      for(var i=0;i<empCodes.length;i++){
+        var r=byCode[empCodes[i]];
+        if(r&&await _dbDel('hrmsAttendance',r.id)){ removed++; }
+      }
+      _hrmsAttCache[mk]=(recs||[]).filter(function(r){return empCodes.indexOf(r.empCode)<0;});
+    }
+    // Remove log entry
+    imports.splice(idx,1);
+    await _dbSave('hrmsSettings',logRec);
+    // Remove the stored file record
+    var fileRecIdx=(DB.hrmsSettings||[]).findIndex(function(r){return r.key==='attImpFile_'+logId;});
+    if(fileRecIdx>=0){
+      var fRec=DB.hrmsSettings[fileRecIdx];
+      await _dbDel('hrmsSettings',fRec.id);
+      DB.hrmsSettings.splice(fileRecIdx,1);
+    }
+    hideSpinner();
+    notify('🗑 Deleted attendance for '+empCodes.length+' employee(s) and removed import log entry');
+    _hrmsRenderEsslImportLog();
+    if(_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
+  }catch(e){hideSpinner();notify('⚠ Delete failed: '+e.message,true);console.error(e);}
 }
 
 // Render alteration import history
@@ -4577,16 +5867,6 @@ async function _hrmsImportAttendance(inputEl){
         if(!parsedRows.length){hideSpinner();notify('No valid data rows found',true);return;}
 
         var mk=monthKeys[0];
-        // Check if data already exists for this month
-        await _hrmsAttFetchMonth(mk);
-        var existingRecords=_hrmsAttCache[mk]||[];
-        var action='import';
-        if(existingRecords.length>0){
-          var choice=confirm('Attendance data already exists for '+mk+'.\n\nOK = Replace all existing data\nCancel = Skip import');
-          if(!choice){hideSpinner();notify('Import cancelled');return;}
-          action='replace';
-        }
-
         // Group by empCode → days. Use the same normalized header lookup
         // so "Time IN (HH:MM)" etc. still resolve.
         var grouped={};
@@ -4598,26 +5878,50 @@ async function _hrmsImportAttendance(inputEl){
           grouped[pr.empCode][String(pr.day)]={'in':timeIn,'out':timeOut};
         }
 
-        // If replacing, delete existing records first
-        if(action==='replace'){
-          for(var ei=0;ei<existingRecords.length;ei++){
-            await _dbDel('hrmsAttendance',existingRecords[ei].id);
-          }
-          _hrmsAttCache[mk]=[];
-        }
+        // Load existing records for the month and build a by-code index.
+        // Import is ALWAYS a merge: only employees present in the file are
+        // touched, and within each such employee only the imported day-keys
+        // overwrite existing ones. Other employees and other days are left
+        // exactly as they were — preventing accidental full wipes when the
+        // file only contains a small set of corrections.
+        await _hrmsAttFetchMonth(mk);
+        var existingRecords=_hrmsAttCache[mk]||[];
+        var existingByCode={};
+        existingRecords.forEach(function(r){existingByCode[r.empCode]=r;});
 
-        // Save new records
-        var saved=0,errors=0;
-        for(var ec in grouped){
-          var rec={id:'ha'+uid(),empCode:ec,monthKey:mk,days:grouped[ec]};
-          if(await _dbSave('hrmsAttendance',rec)){
-            saved++;
-            if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
-            _hrmsAttCache[mk].push(rec);
-          } else errors++;
+        // Compute impact for the confirm prompt.
+        var impUpd=0,impAdd=0;
+        for(var _ec in grouped){
+          if(existingByCode[_ec]) impUpd++; else impAdd++;
         }
-        var addedCount=action==='replace'?0:saved;
-        var updatedCount=action==='replace'?saved:0;
+        var impKeep=existingRecords.length-impUpd;
+        if(existingRecords.length>0){
+          var msg='Attendance data exists for '+mk+':\n\n'+
+                  '• '+impUpd+' employee(s) will be UPDATED (imported days overwrite same dates; other days kept)\n'+
+                  '• '+impAdd+' new employee(s) will be ADDED\n'+
+                  '• '+impKeep+' other employee(s) will remain UNCHANGED\n\n'+
+                  'Proceed?';
+          if(!confirm(msg)){hideSpinner();notify('Import cancelled');return;}
+        }
+        var action='merge';
+
+        // Save / merge records
+        var saved=0,errors=0,addedCount=0,updatedCount=0;
+        for(var ec in grouped){
+          var existing=existingByCode[ec];
+          if(existing){
+            existing.days=existing.days||{};
+            Object.keys(grouped[ec]).forEach(function(dk){existing.days[dk]=grouped[ec][dk];});
+            if(await _dbSave('hrmsAttendance',existing)){saved++;updatedCount++;} else errors++;
+          } else {
+            var rec={id:'ha'+uid(),empCode:ec,monthKey:mk,days:grouped[ec]};
+            if(await _dbSave('hrmsAttendance',rec)){
+              saved++;addedCount++;
+              if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
+              _hrmsAttCache[mk].push(rec);
+            } else errors++;
+          }
+        }
 
         // ── Save import log + file copy to DB ──
         try{
@@ -4628,6 +5932,7 @@ async function _hrmsImportAttendance(inputEl){
             monthKey:mk,action:action,
             totalRows:parsedRows.length,employees:saved,
             added:addedCount,updated:updatedCount,errors:errors,
+            affectedEmps:Object.keys(grouped),
             importedBy:(CU?(CU.name||CU.id||''):'')
           };
           // Save metadata (small, fast to list)
@@ -4660,7 +5965,7 @@ async function _hrmsImportAttendance(inputEl){
         _hrmsAttSetTab(_hrmsAttCurrentTab);
         // Refresh the ESSL import history if visible
         if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
-        notify('✅ '+(action==='replace'?'Replaced':'Imported')+': '+parsedRows.length+' rows → '+saved+' employees'+(errors?', '+errors+' failed':''));
+        notify('✅ Imported '+parsedRows.length+' rows: '+addedCount+' added, '+updatedCount+' updated'+(errors?', '+errors+' failed':''));
       }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
     };
     reader.readAsArrayBuffer(file);
@@ -7376,19 +8681,19 @@ function _hrmsRenderRollMaster(){
 
   var h='<div class="card">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
-  h+='<div style="font-size:18px;font-weight:900">🪪 Roll Master</div>';
+  h+='<div style="font-size:18px;font-weight:900">🪪 Role Master</div>';
   h+='<div style="display:flex;gap:8px">';
-  // Quick-link to the Contract Salary Revision sub-tab where rolls are consumed.
+  // Quick-link to the Contract Salary Revision sub-tab where roles are consumed.
   h+='<button class="btn btn-secondary" onclick="_hrmsRollMasterGoContractRev()" style="padding:7px 14px;font-size:12px;font-weight:700">💵 Contract Salary Revision →</button>';
-  if(canEdit) h+='<button class="btn btn-primary" onclick="_hrmsRollMasterAdd()">+ Add Roll</button>';
+  if(canEdit) h+='<button class="btn btn-primary" onclick="_hrmsRollMasterAdd()">+ Add Role</button>';
   else h+='<span style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1.5px dashed var(--border2);border-radius:6px;color:var(--text3);font-style:italic">🔒 View Only</span>';
   h+='</div></div>';
 
   h+='<div class="table-wrap" style="max-height:calc(100vh - 200px)"><table><thead><tr>';
-  h+='<th>#</th><th>Roll</th><th>Description</th><th>Employees</th><th>Actions</th>';
+  h+='<th>#</th><th>Role</th><th>Description</th><th>Employees</th><th>Actions</th>';
   h+='</tr></thead><tbody>';
   if(!rolls.length){
-    h+='<tr><td colspan="5" class="empty-state">No rolls defined yet.</td></tr>';
+    h+='<tr><td colspan="5" class="empty-state">No roles defined yet.</td></tr>';
   } else {
     rolls.forEach(function(r,i){
       var cnt=empCounts[r.code]||0;
@@ -7424,46 +8729,46 @@ function _hrmsRollMasterGoContractRev(){
 
 async function _hrmsRollMasterAdd(){
   if(!_hrmsHasAccess('masters.edit')){notify('⚠ You have view-only access to masters.',true);return;}
-  var code=(prompt('Roll code (e.g. BJ):')||'').trim().toUpperCase();
+  var code=(prompt('Role code (e.g. BJ):')||'').trim().toUpperCase();
   if(!code) return;
   var rolls=_hrmsGetRolls();
-  if(rolls.some(function(r){return(r.code||'').toUpperCase()===code;})){notify('Roll "'+code+'" already exists',true);return;}
-  var name=(prompt('Roll description:')||'').trim();
+  if(rolls.some(function(r){return(r.code||'').toUpperCase()===code;})){notify('Role "'+code+'" already exists',true);return;}
+  var name=(prompt('Role description:')||'').trim();
   if(!name) return;
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
-  if(!rec){notify('Roll master not initialized',true);return;}
+  if(!rec){notify('Role master not initialized',true);return;}
   rec.data=rec.data||{};rec.data.rolls=rec.data.rolls||[];
   rec.data.rolls.push({code:code,name:name,history:[]});
   showSpinner('Saving…');var ok=await _hrmsSaveRolls();hideSpinner();
   if(!ok){notify('Save failed',true);rec.data.rolls.pop();return;}
-  notify('Roll added');_hrmsRenderRollMaster();
+  notify('Role added');_hrmsRenderRollMaster();
 }
 
 async function _hrmsRollMasterEdit(code){
   if(!_hrmsHasAccess('masters.edit')){notify('⚠ You have view-only access to masters.',true);return;}
   var rolls=_hrmsGetRolls();
   var r=rolls.find(function(x){return x.code===code;});if(!r) return;
-  var newName=(prompt('Roll description:',r.name||'')||'').trim();
+  var newName=(prompt('Role description:',r.name||'')||'').trim();
   if(!newName||newName===r.name) return;
   var oldName=r.name;
   r.name=newName;
   showSpinner('Saving…');var ok=await _hrmsSaveRolls();hideSpinner();
   if(!ok){notify('Save failed',true);r.name=oldName;return;}
-  notify('Roll updated');_hrmsRenderRollMaster();
+  notify('Role updated');_hrmsRenderRollMaster();
 }
 
 async function _hrmsRollMasterDelete(code){
   if(!_hrmsHasAccess('masters.edit')){notify('⚠ You have view-only access to masters.',true);return;}
   var cnt=(_hrmsMasterUsageCounts('roll')[code])||0;
-  if(cnt>0){notify('Cannot delete — roll "'+code+'" is used by '+cnt+' employee(s) (including past revisions).',true);return;}
-  if(!confirm('Delete roll "'+code+'"?')) return;
+  if(cnt>0){notify('Cannot delete — role "'+code+'" is used by '+cnt+' employee(s) (including past revisions).',true);return;}
+  if(!confirm('Delete role "'+code+'"?')) return;
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
   if(!rec||!rec.data||!rec.data.rolls) return;
   var backup=rec.data.rolls.slice();
   rec.data.rolls=rec.data.rolls.filter(function(r){return r.code!==code;});
   showSpinner('Deleting…');var ok=await _hrmsSaveRolls();hideSpinner();
   if(!ok){notify('Delete failed',true);rec.data.rolls=backup;return;}
-  notify('Roll deleted');_hrmsRenderRollMaster();
+  notify('Role deleted');_hrmsRenderRollMaster();
 }
 
 // ═══ SALARY REVISION IMPORT (shared by On-Roll and Contract sub-tabs) ════════
@@ -7697,7 +9002,7 @@ function _hrmsSalImpRenderPreview(mode){
     h+='<td style="padding:4px 8px;text-align:center"><input type="checkbox" '+(p.selected?'checked':'')+' onchange="_hrmsSalImpToggle(\''+mode+'\','+idx+')"></td>';
     h+='<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;color:var(--accent);text-decoration:underline;cursor:pointer" onclick="event.stopPropagation();_hrmsOpenEmpByCode(\''+(p.code+'').replace(/\'/g,"\\'")+'\')" title="Click to view employee profile">'+p.code+'</td>';
     h+='<td style="padding:4px 8px;text-align:center;font-family:var(--mono);'+_hi(false)+'">'+(p.oldRoll||'—')+'</td>';
-    var newRollCell=(p.newRoll||'—')+(p.newRoll&&!p.rollValid?' <span title="Unknown roll — add it to the Roll Master first" style="color:#dc2626">⚠</span>':'');
+    var newRollCell=(p.newRoll||'—')+(p.newRoll&&!p.rollValid?' <span title="Unknown role — add it to the Role Master first" style="color:#dc2626">⚠</span>':'');
     h+='<td style="padding:4px 8px;text-align:center;font-family:var(--mono);'+_hi(p.chRoll)+'">'+newRollCell+'</td>';
     h+='<td style="padding:4px 8px">'+p.name+(p.isStaff?' <span style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 5px;border-radius:3px;margin-left:3px">STAFF</span>':'')+'</td>';
     h+='<td style="padding:4px 8px;text-align:center;font-weight:800;color:var(--accent)">'+p.wefLabel+'</td>';
@@ -8259,7 +9564,7 @@ function _hrmsContractShowDetail(empCode){
     ['Date of Joining',_hrmsFmtDate(r.doj)],
     ['Plant',r.plant||'—'],
     ['Team',r.team||'—'],
-    ['Roll',r.roll||'—'],
+    ['Role',r.roll||'—'],
     ['Rate/Day',_r(r.rateD)]
   ];
   if(r.cat==='staff') empInfo.push(['Sal/Month',_r(r.rateM)]);
@@ -8355,7 +9660,7 @@ function _hrmsContractExport(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   var rows=_hrmsContractCache[mk]||[];
   if(!rows.length){notify('No contract salary data to export',true);return;}
-  var headers=['Emp Code','Name','DOJ','Team','Plant','Roll','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','PF','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
+  var headers=['Emp Code','Name','DOJ','Team','Plant','Role','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','PF','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
   var _rowArr=function(r){return[r.empCode,r.name,r.doj,r.team,(r.plant||'').replace(/plant[\s\-]*/i,'P'),r.roll,r.rateD,r.cat==='staff'?r.rateM:'',r.P,Math.round((r.OT||0)*4)/4,Math.round((r.OTS||0)*4)/4,r.PH,r.pPlusPH,r.A,Math.round((r.totalOT||0)*4)/4,Math.round((r.otAt1||0)*4)/4,r.forPresent,r.forOT,r.spAllow,r.gross,r.pf,r.esi,r.totalSal,r.commission,r.totalBill,r.diwali,r.ctc];};
   var _totKeys=['P','OT','OTS','totalOT','forPresent','forOT','spAllow','gross','pf','esi','totalSal','commission','totalBill','diwali','ctc'];
   var _totRow=function(label,t){return['','','',label,'','','','',t.P,Math.round(t.OT*4)/4,Math.round(t.OTS*4)/4,'','','',Math.round(t.totalOT*4)/4,'',t.forPresent,t.forOT,t.spAllow,t.gross,t.pf,t.esi,t.totalSal,t.commission,t.totalBill,t.diwali,t.ctc];};
@@ -8430,7 +9735,7 @@ function _hrmsContractGetCurrentRows(){
   var out=[];
   rows.forEach(function(r){
     out.push({
-      'Emp Code':String(r.empCode),'Name':r.name,'DOJ':r.doj,'Team':r.team,'Plant':r.plant,'Roll':r.roll,
+      'Emp Code':String(r.empCode),'Name':r.name,'DOJ':r.doj,'Team':r.team,'Plant':r.plant,'Role':r.roll,
       'Rate/Day':r.rateD,'Sal/Month':r.cat==='staff'?r.rateM:'','P':r.P,'OT':Math.round((r.OT||0)*4)/4,'OT@S':Math.round((r.OTS||0)*4)/4,
       'PH':r.PH,'P+PH':r.pPlusPH,'A':r.A,
       'Total OT':Math.round((r.totalOT||0)*4)/4,'OT@1':Math.round((r.otAt1||0)*4)/4,

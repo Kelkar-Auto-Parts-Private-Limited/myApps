@@ -40,11 +40,13 @@
     <div class="nav-item" id="navMDept" onclick="hrmsGo('pageHrmsMDept')" style="font-size:12px;padding:7px 16px">🏛 Department</div>
     <div class="nav-item" id="navMSubDept" onclick="hrmsGo('pageHrmsMSubDept')" style="font-size:12px;padding:7px 16px">📁 Sub Department</div>
     <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">🎖 Designation</div>
-    <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">🪪 Roll</div>
+    <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">🪪 Role</div>
   </div>
   <div class="nav-item" onclick="_hrmsToggleUtilities()" style="cursor:pointer">🛠 Utilities <span id="hrmsUtilsArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsUtilsGroup" style="display:none;padding-left:12px">
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
+    <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
+    <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <div class="nav-section">CONNECTION</div>
@@ -121,7 +123,7 @@
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('employmentType')">Type <span id="hrmsEmpSortI_employmentType" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('teamName')">Team <span id="hrmsEmpSortI_teamName" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Roll <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Role <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">⇅</span></th>
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)">Actions</th>
         </tr>
@@ -259,6 +261,49 @@
     </div>
   </div>
 
+  <!-- UTILITIES: Daily Attendance Summary -->
+  <div class="page" id="pageHrmsUtilDailyAtt" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:900">📊 Daily Attendance Summary</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsDasUpload(this)" style="display:none"></label>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">📅 From history:</span>
+            <input type="date" id="hrmsDasHistDate" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans)">
+            <button onclick="_hrmsDasLoadFromHistory()" style="padding:5px 12px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">Load</button>
+          </span>
+          <button id="hrmsDasExportBtn" onclick="_hrmsDasExport()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Export Summary</button>
+          <button id="hrmsDasClearBtn" onclick="_hrmsDasClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
+        Two ways to generate the summary:<br>
+        <b>1. Upload Excel</b> — raw biometric file with <b>Column B = Date &amp; Time</b>, <b>Column C = In/Out</b>, <b>Column D = Emp Code</b>. Only <b>IN</b> records count; each employee's latest IN timestamp is used.<br>
+        <b>2. Pick a date from history</b> — uses the attendance data already imported into the system for that month. Head count is grouped with departments in rows and plants in columns.
+      </div>
+      <div id="hrmsDasSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
+      <div id="hrmsDasBody" style="flex:1;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- UTILITIES: Monthly Headcount Graph -->
+  <div class="page" id="pageHrmsUtilMonthlyHc" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:900">📈 Monthly Headcount Graph</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;font-weight:700;color:var(--text2)">Month:</span>
+          <select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
+        Daily presence (any IN punch) rolled up by plant, grouped by employment type. One chart per plant; three overlapping lines: <b style="color:#15803d">On Roll</b>, <b style="color:#1d4ed8">Contract</b>, <b style="color:#7c3aed">Piece Rate</b>. Data comes from attendance records already imported for the selected month.
+      </div>
+      <div id="hrmsMhgCharts" style="flex:1;overflow:auto"></div>
+    </div>
+  </div>
+
   <!-- ATTENDANCE & SALARY (Combined) -->
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
@@ -341,7 +386,7 @@
       <div id="hrmsSetPanelSalrevision" style="display:none">
         <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Salary Revision (On Roll)</div>
         <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Roll</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
           Applies only to <b>On-Roll</b> employees. Each approved row creates a new revision effective from the given month; every other period field is copied forward.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
@@ -459,7 +504,7 @@
       <div id="hrmsSetPanelContractrev" style="display:none">
         <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Contract Salary Revision</div>
         <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Roll</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
           Each approved row creates a new revision with the given Effective Month (defaulting to the current month); every other period field is copied from the active period.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">

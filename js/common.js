@@ -1445,7 +1445,12 @@ var _PERM_KEYS={
     {key:'page.masterDept',label:'Department',group:'📂 Masters'},
     {key:'page.masterSubDept',label:'Sub Department',group:'📂 Masters'},
     {key:'page.masterDesig',label:'Designation',group:'📂 Masters'},
-    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+    {key:'page.masterRoll',label:'Role',group:'📂 Masters'},
+    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'},
+    {key:'page.utilities',label:'Utilities Menu',group:'🛠 Utilities'},
+    {key:'page.utilAttConv',label:'Attendance Excel Converter',group:'🛠 Utilities'},
+    {key:'page.utilDailyAttSum',label:'Daily Attendance Summary',group:'🛠 Utilities'},
+    {key:'page.utilMonthlyHc',label:'Monthly Headcount Graph',group:'🛠 Utilities'}
   ],
   VMS:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -1550,7 +1555,8 @@ var _PERM_UMBRELLA={
     'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
                    'action.addMonth','action.saveLock','action.unlock'],
     'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
-                    'page.masterDept','page.masterSubDept','page.masterDesig','masters.edit']
+                    'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','masters.edit'],
+    'page.utilities':['page.utilAttConv','page.utilDailyAttSum','page.utilMonthlyHc']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
@@ -2140,11 +2146,20 @@ function _downloadAsXlsx(data,sheetName,filename){
 function _downloadAsXls(data,sheetName,filename){_downloadAsXlsx(data,sheetName,filename?filename.replace(/\.xls$/,'.xlsx'):filename);}
 
 // Multi-sheet XLSX export: sheets=[{name:'Sheet1',data:[[...],[...]]}, ...]
-// sheets=[{name, data, stripeStart?, stripeCount?, noFilter?, noFreeze?, merges?, colWidths?}]
-// data rows: plain arrays OR {cells:[...], bold:true} for bold rows
-// Cell values: plain values OR {_t:'text'} to force text
+// sheets=[{name, data, stripeStart?, stripeCount?, noFilter?, noFreeze?, freezeRow?, merges?, colWidths?, rowHeights?}]
+// data rows: plain arrays OR {cells:[...]} with one of:
+//   bold:true    → bold text, no fill
+//   title:true   → 15pt bold
+//   company:true → 17pt bold centered
+//   banner:true  → 14pt bold white on deep teal, centered, wrapped (use with merges)
+//   tblheader:true    → bold white on teal, bordered, wrapped, centered
+//   tblsubheader:true → bold on light teal, bordered, wrapped, centered
+//   tbltotal:true     → bold on gold, bordered; numeric cells auto-apply Indian fmt
+// Cell values: plain values OR {_t:'text'} to force text, {_n:value} Indian num fmt, {_w:'value'} wrap
 // merges: ['A1:D1', 'B9:C9', ...] — cell merge ranges
 // colWidths: [12, 30, 20, ...] — explicit column widths
+// rowHeights: {rowIndex: height} — explicit row heights (0-indexed)
+// freezeRow: N → freeze first N rows (overrides noFreeze default ySplit=1)
 function _downloadMultiSheetXlsx(sheets,filename){
   const ex=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const sstArr=[];const sstMap=new Map();
@@ -2160,13 +2175,24 @@ function _downloadMultiSheetXlsx(sheets,filename){
     var bEnd=bStart>=0?(bStart+(bCount||999999)):999999;
     let rowsXml='';
     var sEnd=stripeStart>=0?(stripeStart+(stripeCount||999999)):999999;
+    var rowHeights=sh.rowHeights||{};
     data.forEach((rawRow,ri)=>{
       var isBoldRow=rawRow&&rawRow.bold;
       var isTitleRow=rawRow&&rawRow.title;
       var isCompanyRow=rawRow&&rawRow.company;
-      const cells=isBoldRow||isTitleRow||isCompanyRow?(rawRow.cells||[]):(Array.isArray(rawRow)?rawRow:Object.values(rawRow));
+      var isBannerRow=rawRow&&rawRow.banner;
+      var isTblHdr=rawRow&&rawRow.tblheader;
+      var isTblSubHdr=rawRow&&rawRow.tblsubheader;
+      var isTblTotal=rawRow&&rawRow.tbltotal;
+      var hasCellsProp=isBoldRow||isTitleRow||isCompanyRow||isBannerRow||isTblHdr||isTblSubHdr||isTblTotal;
+      const cells=hasCellsProp?(rawRow.cells||[]):(Array.isArray(rawRow)?rawRow:Object.values(rawRow));
       var customHt=rawRow&&rawRow.ht;
-      var ht=(isTitleRow||isCompanyRow)?' ht="22" customHeight="1"':(customHt?' ht="'+customHt+'" customHeight="1"':'');
+      var ht='';
+      if(rowHeights[ri]) ht=' ht="'+rowHeights[ri]+'" customHeight="1"';
+      else if(isBannerRow) ht=' ht="30" customHeight="1"';
+      else if(isTblHdr||isTblSubHdr) ht=' ht="30" customHeight="1"';
+      else if(isTitleRow||isCompanyRow) ht=' ht="22" customHeight="1"';
+      else if(customHt) ht=' ht="'+customHt+'" customHeight="1"';
       rowsXml+=`<row r="${ri+1}"${ht}>`;
       var isStripe=ri>=stripeStart&&ri<sEnd&&((ri-stripeStart)%2===1);
       var isBorder=ri>=bStart&&ri<bEnd;
@@ -2183,13 +2209,21 @@ function _downloadMultiSheetXlsx(sheets,filename){
           style=16;
           var si2=sstIdx(String(v));rowsXml+=`<c r="${ref}" t="s" s="16"><v>${si2}</v></c>`;
         } else if(isNumFmt){
-          if(isBorder&&isBoldRow) style=13;
+          if(isTblTotal) style=21;
+          else if(isBorder&&isBoldRow) style=13;
           else if(isBorder&&isStripe) style=14;
           else if(isBorder) style=12;
           else style=11;
           rowsXml+=`<c r="${ref}" s="${style}"><v>${typeof v==='number'?v:num}</v></c>`;
         } else {
-          if(isCompanyRow) style=15;
+          if(isBannerRow) style=17;
+          else if(isTblHdr) style=18;
+          else if(isTblSubHdr) style=19;
+          else if(isTblTotal){
+            var isNumericCell=!forceText&&(typeof v==='number'||(!isNaN(num)&&vStr!==''));
+            style=isNumericCell?21:20;
+          }
+          else if(isCompanyRow) style=15;
           else if(isTitleRow) style=10;
           else if(ri===0&&!noFreeze) style=isBorder?9:1;
           else if(isBorder){
@@ -2225,7 +2259,13 @@ function _downloadMultiSheetXlsx(sheets,filename){
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       +'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
       +'<dimension ref="'+dimRef+'"/>'
-      +(noFreeze?'<sheetViews><sheetView workbookViewId="0"/></sheetViews>':'<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>')
+      +(function(){
+        var fr=sh.freezeRow!=null?sh.freezeRow:(noFreeze?0:1);
+        if(fr>0){
+          return '<sheetViews><sheetView workbookViewId="0"><pane ySplit="'+fr+'" topLeftCell="A'+(fr+1)+'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+        }
+        return '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+      })()
       +'<sheetFormatPr defaultRowHeight="15"/>'+colsXml
       +'<sheetData>'+rowsXml+'</sheetData>'
       +mergeXml
@@ -2244,13 +2284,24 @@ function _downloadMultiSheetXlsx(sheets,filename){
   const stylesXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     +'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     +'<numFmts count="1"><numFmt numFmtId="'+_nf+'" formatCode="#,##,##0"/></numFmts>'
-    +'<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><sz val="11"/><b/><name val="Calibri"/></font><font><sz val="15"/><b/><name val="Calibri"/></font><font><sz val="16"/><b/><name val="Calibri"/></font></fonts>'
-    +'<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+    +'<fonts count="6">'
+    +'<font><sz val="11"/><name val="Calibri"/></font>'
+    +'<font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+    +'<font><sz val="11"/><b/><name val="Calibri"/></font>'
+    +'<font><sz val="15"/><b/><name val="Calibri"/></font>'
+    +'<font><sz val="16"/><b/><name val="Calibri"/></font>'
+    +'<font><sz val="14"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+    +'</fonts>'
+    +'<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FF1e2028"/></patternFill></fill>'
-    +'<fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/></patternFill></fill></fills>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF2A9AA0"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFCFEEEF"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFFE066"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF1E7A7F"/></patternFill></fill></fills>'
     +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>'+_bdr+'</border></borders>'
     +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    +'<cellXfs count="17">'
+    +'<cellXfs count="22">'
     // 0=normal, 1=dark header, 2=stripe, 3=bold, 4=bold+stripe
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
@@ -2263,16 +2314,26 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>'
     +'<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
-    // 10=title(16pt bold)
+    // 10=title(15pt bold)
     +'<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     // 11=Indian num, 12=Indian num+border, 13=Indian num+bold+border, 14=Indian num+stripe+border
     +'<xf numFmtId="'+_nf+'" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
     +'<xf numFmtId="'+_nf+'" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
     +'<xf numFmtId="'+_nf+'" fontId="2" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1"/>'
     +'<xf numFmtId="'+_nf+'" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1"/>'
-    // 15=company name (17pt bold center), 16=wrap text
+    // 15=company name (16pt bold center), 16=wrap text
     +'<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1"/></xf>'
+    // 17=banner (14pt bold white on deep teal, centered, bordered, wrapped)
+    +'<xf numFmtId="0" fontId="5" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    // 18=tblheader (bold white on teal, bordered, wrapped, centered)
+    +'<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    // 19=tblsubheader (bold dark on light teal, bordered, wrapped, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    // 20=tbltotal text (bold on gold, bordered)
+    +'<xf numFmtId="0" fontId="2" fillId="6" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 21=tbltotal number (bold on gold, bordered, Indian num)
+    +'<xf numFmtId="'+_nf+'" fontId="2" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
     +'</cellXfs></styleSheet>';
   var files={};
   // Build each sheet
