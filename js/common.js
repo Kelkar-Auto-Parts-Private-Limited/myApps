@@ -1402,7 +1402,7 @@ var _PERM_KEYS={
     {key:'action.importAlterations',label:'Import Alterations',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.advances',label:'Advances',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.importAdvances',label:'Import Advances',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.manual',label:'Manual Attendance',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.manual',label:'Manual Overrides',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.importOB',label:'Import Opening Bal.',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.tds',label:'TDS',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.salrevision',label:'Salary Revisions',group:'⚙️ Settings & Sub-tabs'},
@@ -1421,8 +1421,8 @@ var _PERM_KEYS={
     {key:'att.pot',label:'P & OT',group:'📋 Attendance & Sub-tabs'},
     {key:'att.entry',label:'New Joinee/Rejoinee',group:'📋 Attendance & Sub-tabs'},
     {key:'att.exit',label:'Absent Employees FTM',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.printformats',label:'Print Formats',group:'📋 Attendance & Sub-tabs'},
-    {key:'action.addPrintFormat',label:'Add/Edit Print Format',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.printformats',label:'Print Muster',group:'📋 Attendance & Sub-tabs'},
+    {key:'action.addPrintFormat',label:'Add/Edit Print Muster',group:'📋 Attendance & Sub-tabs'},
     {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},
     {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
     {key:'action.exportWorkerSlip',label:"Worker's Salary Slip PDF",group:'💰 Salary Tab'},
@@ -1443,9 +1443,10 @@ var _PERM_KEYS={
     {key:'page.masterEmpType',label:'Employment Type',group:'📂 Masters'},
     {key:'page.masterTeam',label:'Team',group:'📂 Masters'},
     {key:'page.masterDept',label:'Department',group:'📂 Masters'},
-    {key:'page.masterSubDept',label:'Sub Department',group:'📂 Masters'},
+    {key:'page.masterSubDept',label:'Department-Staff',group:'📂 Masters'},
     {key:'page.masterDesig',label:'Designation',group:'📂 Masters'},
     {key:'page.masterRoll',label:'Role',group:'📂 Masters'},
+    {key:'page.masterAllocation',label:'Allocation',group:'📂 Masters'},
     {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'},
     {key:'page.utilities',label:'Utilities Menu',group:'🛠 Utilities'},
     {key:'page.utilAttConv',label:'Attendance Excel Converter',group:'🛠 Utilities'},
@@ -1555,7 +1556,7 @@ var _PERM_UMBRELLA={
     'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
                    'action.addMonth','action.saveLock','action.unlock'],
     'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
-                    'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','masters.edit'],
+                    'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','page.masterAllocation','masters.edit'],
     'page.utilities':['page.utilAttConv','page.utilDailyAttSum','page.utilMonthlyHc']
   },
   HWMS:{
@@ -1579,6 +1580,13 @@ function _permLoadData(){
 // access to their module. Super Admin is global and handled separately.
 // "Admin" is VMS-scoped (not cross-module); HWMS/HRMS have their own.
 var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[]};
+// Per-key default-full role grants. Applied only when no explicit role
+// permission is configured — admins can still revoke via Configure Access.
+var _PERM_DEFAULTS_FULL={
+  HRMS:{
+    'page.masterAllocation':['HR Manager']
+  }
+};
 function permLevel(mod,pageTabKey,_visited){
   if(typeof CU==='undefined'||!CU) return 'none';
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
@@ -1592,11 +1600,20 @@ function permLevel(mod,pageTabKey,_visited){
   var all=_permLoadData()[mod]||{};
   var perms=all.permissions||{};
   var best='none';
+  var hasExplicit=false;
   userRoles.forEach(function(r){
     var v=(perms[r]||{})[pageTabKey];
+    if(v!==undefined) hasExplicit=true;
     if(v===true||v==='full') best='full';
     else if(v==='view'&&best!=='full') best='view';
   });
+  // Apply per-key role defaults when no explicit permission is set.
+  if(!hasExplicit){
+    var defs=(_PERM_DEFAULTS_FULL[mod]||{})[pageTabKey]||[];
+    for(var di=0;di<defs.length;di++){
+      if(userRoles.indexOf(defs[di])>=0){best='full';break;}
+    }
+  }
   if(best==='full') return best;
   // Umbrella inheritance — check cross-group children if this key declares any
   var umb=_PERM_UMBRELLA[mod]&&_PERM_UMBRELLA[mod][pageTabKey];
