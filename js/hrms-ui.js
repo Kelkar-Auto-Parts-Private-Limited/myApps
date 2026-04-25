@@ -9985,18 +9985,23 @@ function _hrmsAllocColDrop(ev,destIdx){
 
 async function _hrmsAllocSaveGrid(){
   if(!_hrmsHasAccess('masters.edit')){notify('⚠ View-only access',true);return;}
-  // Re-collect from inputs (defensive)
+  // Edits already update rec.data.allocations in-place via
+  // _hrmsAllocCellChange, so all plants' values accumulate as the user
+  // switches tabs. Merge any visible-tab inputs as a safety net — do NOT
+  // reset the dict, or we'd lose every plant except the active one.
   var rec=_hrmsAllocationData();
-  rec.data.allocations={};
+  if(!rec.data.allocations) rec.data.allocations={};
   document.querySelectorAll('#pageHrmsMAllocation input[data-alloc-key]').forEach(function(i){
     var v=+(i.value||0)||0;
-    if(v) rec.data.allocations[i.dataset.allocKey]=v;
+    var k=i.dataset.allocKey;
+    if(v) rec.data.allocations[k]=v;
+    else delete rec.data.allocations[k];
   });
   showSpinner('Saving…');
   var ok=await _hrmsAllocationSave();
   hideSpinner();
   if(!ok){notify('Save failed',true);return;}
-  notify('✅ Allocations saved');
+  notify('✅ Allocations saved (all plants)');
 }
 
 // Group CRUD — minimal prompt-based UI; simple and reliable.
