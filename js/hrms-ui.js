@@ -2591,10 +2591,10 @@ function _hrmsSanitize(obj){
 function _hrmsConfirmEmpSave(info){
   return new Promise(function(resolve){
     var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
-    // For NEW employee saves, highlight the three fields most often gotten
-    // wrong — Emp Type, Team, Salary — in a flashing red so the user
-    // double-checks them before confirming. Edit saves use normal styling.
-    var flashKeys=info.isNew?{'Emp Type':1,'Team':1,'Salary':1}:{};
+    // Highlight the three fields most often gotten wrong — Emp Type, Team,
+    // Salary — in a flashing red so the user double-checks them before
+    // confirming, on both add and edit.
+    var flashKeys={'Emp Type':1,'Team':1,'Salary':1};
     var rows=[
       ['Emp Code',info.code],
       ['Name',info.name],
@@ -2730,6 +2730,9 @@ async function saveHrmsEmp(){
   renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
   // Re-render the active HRMS tab so changes (salary revisions, ESI, etc.) reflect immediately
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
+  // If the Daily Attendance Summary is loaded, re-render it so live edits to
+  // department / plant / role / category flow into the pivot without a re-upload.
+  if(typeof _hrmsDasState!=='undefined'&&_hrmsDasState&&typeof _hrmsDasRender==='function') _hrmsDasRender();
   notify(id?'Employee saved!':'New employee submitted for approval!');
   _hrmsEmpEditSnap=null;
   if(id){
@@ -4909,19 +4912,19 @@ function _hrmsDasIsExcluded(org){
 }
 
 // Build the dept × plant × bucket pivot and stash on state for render,
-// drill-down, and export.
+// drill-down, and export. NON-DESTRUCTIVE: filtering HO + Staff happens
+// inline so edits that move an employee in or out of those buckets show
+// up on the next rebuild.
 function _hrmsDasBuildPivot(){
   if(!_hrmsDasState) return;
   var st=_hrmsDasState;
-  // Drop HO + Staff from `present` once so every downstream consumer
-  // (header count, alloc comparison, export) stays consistent.
-  st.present=(st.present||[]).filter(function(p){
-    return !_hrmsDasIsExcluded(_hrmsDasEmpOrg(p.emp));
-  });
   var pivot={}, plantSet={}, deptSet={}, dateSet={};
   var hasOther=false;
-  st.present.forEach(function(p){
+  var visible=0;
+  (st.present||[]).forEach(function(p){
     var org=_hrmsDasEmpOrg(p.emp);
+    if(_hrmsDasIsExcluded(org)) return;
+    visible++;
     deptSet[org.dept]=1;plantSet[org.plant]=1;
     if(org.bucket==='other') hasOther=true;
     if(!pivot[org.dept]) pivot[org.dept]={};
@@ -4935,6 +4938,7 @@ function _hrmsDasBuildPivot(){
   st.depts=Object.keys(deptSet).sort();
   st.plants=Object.keys(plantSet).sort();
   st.dateLabels=Object.keys(dateSet).sort();
+  st.visibleCount=visible;
   // Drop the Staff bucket entirely — no Staff rows means the column would
   // just be a wasteland of dashes.
   st.bucketKeys=_hrmsDasBuckets.filter(function(b){return b.key!=='staff';}).map(function(b){return b.key;});
@@ -4964,6 +4968,7 @@ function _hrmsDasBuildAllocActuals(st){
   var plants={},depts={};
   st.present.forEach(function(p){
     var org=_hrmsDasEmpOrg(p.emp);
+    if(_hrmsDasIsExcluded(org)) return;// keep alloc comparison in sync with the table
     plants[org.plant]=1;depts[org.dept]=1;
     var ap=(p.emp.periods||[]).find(function(pp){return !pp.to&&(!pp._wfStatus||pp._wfStatus==='approved');});
     var role=((ap&&ap.roll)||p.emp.roll||'');
@@ -4990,7 +4995,9 @@ function _hrmsDasRender(){
   }
   if(clrBtn) clrBtn.style.display='';
   var st=_hrmsDasState;
-  if(!st.pivot) _hrmsDasBuildPivot();
+  // Rebuild every render so live edits to employees (department, plant,
+  // category, etc.) flow through without needing a re-upload.
+  _hrmsDasBuildPivot();
   var pivot=st.pivot||{}, depts=st.depts||[], plants=st.plants||[], bucketKeys=st.bucketKeys||[];
 
   var _pad=function(n){return String(n).padStart(2,'0');};
@@ -4999,7 +5006,8 @@ function _hrmsDasRender(){
   var dateHdr=(st.dateLabels&&st.dateLabels.length)?st.dateLabels.join(', '):'';
   var summary='';
   if(dateHdr) summary+='<span style="font-size:15px;font-weight:900;color:var(--accent)">📅 '+dateHdr+'</span> &nbsp; ';
-  summary+='File: <b>'+(st.fileName||'')+'</b> · IN records: '+st.rowCount+' · Present: <b>'+st.present.length+'</b>';
+  var displayedCount=(st.visibleCount!=null)?st.visibleCount:st.present.length;
+  summary+='File: <b>'+(st.fileName||'')+'</b> · IN records: '+st.rowCount+' · Present: <b>'+displayedCount+'</b>';
   if(st.unmatched.length) summary+=' · <span style="color:#dc2626">Unknown codes: '+st.unmatched.length+'</span>';
   if(genStr) summary+=' · Generated: '+genStr;
   if(sumEl) sumEl.innerHTML=summary;
@@ -5465,7 +5473,8 @@ function _hrmsDasBuildPlantSheet(st,plantName){
 function _hrmsDasExport(){
   if(!_hrmsDasState||!_hrmsDasState.present.length){notify('Nothing to export',true);return;}
   var st=_hrmsDasState;
-  if(!st.pivot) _hrmsDasBuildPivot();
+  // Rebuild so the export reflects any edits made since the last render.
+  _hrmsDasBuildPivot();
   var plants=st.plants||[];
   var sheets=[];
   var allSh=_hrmsDasBuildAllSheet(st);allSh.name='All';sheets.push(allSh);
