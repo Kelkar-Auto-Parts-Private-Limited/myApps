@@ -2124,6 +2124,42 @@ function _hrmsEmpModalTab(tab){
 // distinct background.
 var _hrmsEmpInitialDays=[];
 
+// Visibility rule for the Initial IN/OUT tab:
+//   - DOJ must be set.
+//   - DOJ's month must NOT be Save-&-Locked.
+//   - Today must be on or before the 11th of the month FOLLOWING DOJ.
+//     (Months normally lock on/before the 11th of the next month — even
+//     when not yet locked, we hard-cap the window so retroactive entries
+//     can't slip in.)
+// For brand-new employees (no id) we still apply the same rules using the
+// DOJ that's currently in the form input.
+function _hrmsRefreshInitialTabVisibility(){
+  var btn=document.getElementById('hrmsEmpTabBtn_initial');if(!btn) return;
+  var idVal=(document.getElementById('hrmsEmpId')||{}).value||'';
+  var emp=idVal?byId(DB.hrmsEmployees||[],idVal):null;
+  var doj=(emp&&emp.dateOfJoining)
+    ||(document.getElementById('hrmsEmpDOJ')||{}).value||'';
+  var show=false;
+  if(doj){
+    var p=String(doj).split('-');
+    if(p.length===3&&p[0].length===4){
+      var y=+p[0],m=+p[1];
+      if(y&&m){
+        var mk=p[0]+'-'+p[1];
+        var locked=(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk));
+        // 11th of (DOJ month + 1) at end-of-day. JS Date constructor with
+        // monthIndex==m (0-indexed +1) rolls into the next calendar month.
+        var cutoff=new Date(y,m,11,23,59,59);
+        var withinCutoff=new Date()<=cutoff;
+        show=withinCutoff&&!locked;
+      }
+    }
+  }
+  btn.style.display=show?'':'none';
+  // If the active tab was Initial but it's now hidden, snap back to Details.
+  if(!show&&_hrmsEmpActiveTab==='initial') _hrmsEmpModalTab('details');
+}
+
 function _hrmsInitialDaysFromDoj(){
   var dojRaw=(document.getElementById('hrmsEmpDOJ')||{}).value||'';
   if(!dojRaw) return [];
@@ -2811,7 +2847,7 @@ function openHrmsEmpModal(id){
     // Row 3: DOB / Age / Email / Mobile
     +'<div style="display:grid;grid-template-columns:140px 60px 1fr 130px;gap:8px;margin-bottom:4px"><div class="form-group"><label>Date of Birth</label><input type="date" id="hrmsEmpDOB" onchange="_hrmsShowAge()"></div><div class="form-group"><label>Age</label><input type="text" id="hrmsEmpAge" readonly style="background:var(--surface2);font-weight:700;color:var(--accent)"></div><div class="form-group"><label>Email</label><input type="email" id="hrmsEmpEmail"></div><div class="form-group"><label>Mobile</label><input type="text" id="hrmsEmpMobile"></div></div>'
     // Row 4: DOJ + PL
-    +'<div style="display:grid;grid-template-columns:140px 1fr;gap:8px"><div class="form-group"><label>Date of Joining</label><input type="date" id="hrmsEmpDOJ"></div><div class="form-group" style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="hrmsEmpNoPL" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer"><label for="hrmsEmpNoPL" style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;text-transform:none;letter-spacing:0">Paid Leaves not applicable</label></div></div>'
+    +'<div style="display:grid;grid-template-columns:140px 1fr;gap:8px"><div class="form-group"><label>Date of Joining</label><input type="date" id="hrmsEmpDOJ" onchange="if(typeof _hrmsRefreshInitialTabVisibility===\'function\') _hrmsRefreshInitialTabVisibility();"></div><div class="form-group" style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="hrmsEmpNoPL" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer"><label for="hrmsEmpNoPL" style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;text-transform:none;letter-spacing:0">Paid Leaves not applicable</label></div></div>'
     +'</div>'
     // ── Column 2: Statutory (top) + Banking (bottom) ──
     +'<div style="display:flex;flex-direction:column;gap:10px">'
@@ -2909,24 +2945,9 @@ function openHrmsEmpModal(id){
   // employee's history is re-fetched when that tab is next opened.
   _hrmsEmpHistoryLoadedFor=null;
   _hrmsEmpInitialDays=[];// re-populated on first Initial-tab open
-  // Initial IN/OUT tab visibility: any employee whose joining month is not
-  // yet Save-&-Locked. Brand-new employees (no id) always qualify. Existing
-  // employees with a locked joining month are blocked because adding initial
-  // entries there would change records that are already snapshotted.
-  var _initBtn=document.getElementById('hrmsEmpTabBtn_initial');
-  if(_initBtn){
-    var _showInitial=true;
-    if(id&&e){
-      var _doj=e.dateOfJoining||'';
-      if(!_doj){
-        _showInitial=false;
-      } else {
-        var _dojMk=String(_doj).slice(0,7);
-        if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(_dojMk)) _showInitial=false;
-      }
-    }
-    _initBtn.style.display=_showInitial?'':'none';
-  }
+  // Initial IN/OUT tab visibility — recomputed on open and whenever the
+  // user changes the Date of Joining field (see input handler below).
+  if(typeof _hrmsRefreshInitialTabVisibility==='function') _hrmsRefreshInitialTabVisibility();
   _hrmsEmpModalTab('details');
 }
 
