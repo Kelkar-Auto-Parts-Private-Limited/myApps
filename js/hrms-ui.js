@@ -4898,11 +4898,26 @@ async function _hrmsDasLoadFromHistory(){
   }catch(e){hideSpinner();notify('⚠ Load error: '+e.message,true);console.error(e);}
 }
 
+// HO plant + Staff category are informational only — exclude them from the
+// Daily Attendance Summary head count (rows, columns, totals, drill-down,
+// allocation comparison, and export).
+function _hrmsDasIsExcluded(org){
+  if(!org) return true;
+  if(org.bucket==='staff') return true;
+  if(String(org.plant||'').trim().toUpperCase()==='HO') return true;
+  return false;
+}
+
 // Build the dept × plant × bucket pivot and stash on state for render,
 // drill-down, and export.
 function _hrmsDasBuildPivot(){
   if(!_hrmsDasState) return;
   var st=_hrmsDasState;
+  // Drop HO + Staff from `present` once so every downstream consumer
+  // (header count, alloc comparison, export) stays consistent.
+  st.present=(st.present||[]).filter(function(p){
+    return !_hrmsDasIsExcluded(_hrmsDasEmpOrg(p.emp));
+  });
   var pivot={}, plantSet={}, deptSet={}, dateSet={};
   var hasOther=false;
   st.present.forEach(function(p){
@@ -4920,7 +4935,9 @@ function _hrmsDasBuildPivot(){
   st.depts=Object.keys(deptSet).sort();
   st.plants=Object.keys(plantSet).sort();
   st.dateLabels=Object.keys(dateSet).sort();
-  st.bucketKeys=_hrmsDasBuckets.map(function(b){return b.key;});
+  // Drop the Staff bucket entirely — no Staff rows means the column would
+  // just be a wasteland of dashes.
+  st.bucketKeys=_hrmsDasBuckets.filter(function(b){return b.key!=='staff';}).map(function(b){return b.key;});
   if(hasOther) st.bucketKeys.push('other');
 }
 
@@ -6527,10 +6544,20 @@ async function _hrmsDeleteEsslImport(logId){
   if(mk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
     notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to delete import.',true);return;
   }
-  // Determine affected empCodes — prefer stored list; fall back to re-parsing the stored file
-  var empCodes=(entry.affectedEmps||[]).slice();
-  if(!empCodes.length){
-    showSpinner('Loading file to determine affected employees…');
+
+  // Build affectedDays: {empCode:[day,...]}.
+  //   1. Prefer the day-level provenance stored on the log entry (new imports)
+  //   2. Fall back to re-parsing the stored file (legacy log entries)
+  //   3. If neither is available, the user must opt-in to a whole-record wipe.
+  var affectedDays=null;
+  if(entry.affectedDays&&typeof entry.affectedDays==='object'&&Object.keys(entry.affectedDays).length){
+    affectedDays={};
+    Object.keys(entry.affectedDays).forEach(function(ec){
+      affectedDays[ec]=(entry.affectedDays[ec]||[]).map(String);
+    });
+  } else {
+    // Legacy entry — try to reconstruct from the stored file
+    showSpinner('Loading file to reconstruct day-level changes…');
     try{
       var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImpFile_'+logId;});
       if(!fileRec&&_sb&&_sbReady){
@@ -6543,35 +6570,71 @@ async function _hrmsDeleteEsslImport(logId){
         var rows=await _parseXLSX(buf);
         var _norm=function(k){return String(k||'').replace(/\([^)]*\)/g,'').replace(/[\s._\-\/]+/g,'').toLowerCase();};
         var hMap={};
-        if(rows.length){Object.keys(rows[0]).forEach(function(k){var n=_norm(k);if(!hMap[n])hMap[n]=k;});}
-        var codeKeys=['empcode','employeecode','code'];
-        var codeKey=null;
-        for(var i=0;i<codeKeys.length;i++){if(hMap[codeKeys[i]]){codeKey=hMap[codeKeys[i]];break;}}
-        var seen={};
-        rows.forEach(function(r){var c=((codeKey?r[codeKey]:'')||'').toString().trim();if(c&&!seen[c]){seen[c]=1;empCodes.push(c);}});
+        if(rows.length) Object.keys(rows[0]).forEach(function(k){var n=_norm(k);if(!hMap[n])hMap[n]=k;});
+        var _pick=function(r,keys){for(var i=0;i<keys.length;i++){var w=_norm(keys[i]);if(hMap[w]&&r[hMap[w]]!==undefined&&r[hMap[w]]!=='') return r[hMap[w]];}return '';};
+        var _fdDay=function(v){
+          var s=(v||'').toString().trim();if(!s) return '';
+          var m1=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if(m1) return String(+m1[1]);
+          var m2=s.match(/^\d{4}-\d{2}-(\d{2})$/);
+          if(m2) return String(+m2[1]);
+          var d=new Date(s);return isNaN(d)?'':String(d.getDate());
+        };
+        affectedDays={};
+        rows.forEach(function(r){
+          var ec=((_pick(r,['Emp Code','Employee Code','EmpCode','Code'])||'')+'').trim();
+          if(!ec) return;
+          var day=_fdDay(_pick(r,['Date','Att Date','AttDate']));
+          if(!day) return;
+          (affectedDays[ec]=affectedDays[ec]||[]).push(day);
+        });
+        if(!Object.keys(affectedDays).length) affectedDays=null;
       }
     }catch(e){console.error(e);}
     hideSpinner();
   }
-  if(!empCodes.length){
-    if(!confirm('Could not determine which employees were affected by this import (file may have been pruned).\n\nDelete just the log entry without touching attendance data?')) return;
-    // Fall through to just delete log + file
+
+  // Confirm with the user — surface what we know and what we don't
+  if(!affectedDays){
+    var empCount=(entry.affectedEmps||[]).length;
+    if(!confirm('Day-level info missing for this import (file pruned, legacy entry).\n\nFalling back to whole-record delete: attendance for '+empCount+' employee(s) in '+_hrmsMonthLabel(mk)+' will be wiped completely — including days from EARLIER imports merged into the same record.\n\nProceed?')) return;
   } else {
-    if(!confirm('Delete attendance data for '+empCodes.length+' employee(s) imported by "'+(entry.fileName||'this file')+'" ('+_hrmsMonthLabel(mk)+')?\n\nThis cannot be undone. Other employees\' data for the month will be kept.')) return;
+    var ecs=Object.keys(affectedDays);
+    var dayCount=0;ecs.forEach(function(ec){dayCount+=affectedDays[ec].length;});
+    if(!confirm('Remove '+dayCount+' day record(s) across '+ecs.length+' employee(s) from "'+(entry.fileName||'this file')+'" ('+_hrmsMonthLabel(mk)+')?\n\nDays from other imports merged into the same employees will be kept.\n\nThis cannot be undone.')) return;
   }
 
   showSpinner('Deleting imported attendance…');
   try{
-    if(empCodes.length){
+    var trimmed=0,wiped=0;
+    if(affectedDays){
+      // Surgical: remove just the day-keys this file contributed.
       await _hrmsAttFetchMonth(mk);
       var recs=_hrmsAttCache[mk]||[];
       var byCode={};recs.forEach(function(r){byCode[r.empCode]=r;});
-      var removed=0;
-      for(var i=0;i<empCodes.length;i++){
-        var r=byCode[empCodes[i]];
-        if(r&&await _dbDel('hrmsAttendance',r.id)){ removed++; }
+      for(var ec in affectedDays){
+        var r=byCode[ec];if(!r||!r.days) continue;
+        affectedDays[ec].forEach(function(dk){delete r.days[dk];});
+        if(Object.keys(r.days).length===0){
+          if(await _dbDel('hrmsAttendance',r.id)){
+            wiped++;
+            _hrmsAttCache[mk]=_hrmsAttCache[mk].filter(function(x){return x.id!==r.id;});
+          }
+        } else {
+          if(await _dbSave('hrmsAttendance',r)) trimmed++;
+        }
       }
-      _hrmsAttCache[mk]=(recs||[]).filter(function(r){return empCodes.indexOf(r.empCode)<0;});
+    } else {
+      // Legacy fallback — whole-record wipe (user explicitly confirmed).
+      var ecs=(entry.affectedEmps||[]).slice();
+      await _hrmsAttFetchMonth(mk);
+      var recs=_hrmsAttCache[mk]||[];
+      var byCode={};recs.forEach(function(r){byCode[r.empCode]=r;});
+      for(var i=0;i<ecs.length;i++){
+        var r=byCode[ecs[i]];
+        if(r&&await _dbDel('hrmsAttendance',r.id)) wiped++;
+      }
+      _hrmsAttCache[mk]=(recs||[]).filter(function(r){return ecs.indexOf(r.empCode)<0;});
     }
     // Remove log entry
     imports.splice(idx,1);
@@ -6584,7 +6647,10 @@ async function _hrmsDeleteEsslImport(logId){
       DB.hrmsSettings.splice(fileRecIdx,1);
     }
     hideSpinner();
-    notify('🗑 Deleted attendance for '+empCodes.length+' employee(s) and removed import log entry');
+    var msg='🗑 Removed import';
+    if(trimmed) msg+=' · trimmed '+trimmed+' record(s)';
+    if(wiped) msg+=' · wiped '+wiped+' record(s)';
+    notify(msg);
     _hrmsRenderEsslImportLog();
     if(_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
   }catch(e){hideSpinner();notify('⚠ Delete failed: '+e.message,true);console.error(e);}
@@ -6806,12 +6872,36 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
   if(!_hrmsHasAccess('action.importEssl')){hideSpinner();notify('Access denied',true);return;}
   if(!rows||!rows.length){hideSpinner();notify('No data to import',true);return;}
   try{
+        // Robust date → 'YYYY-MM-DD'. Tolerates trailing time portions and
+        // avoids the timezone trap of `new Date().toISOString()` which shifts
+        // local-midnight strings back a day in positive-offset zones (IST).
         var _fd=function(v){
-          var s=(v||'').toString().trim();if(!s)return'';
-          if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;
-          var m2=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-          if(m2) return m2[3]+'-'+m2[2].padStart(2,'0')+'-'+m2[1].padStart(2,'0');
-          var d=new Date(s);return isNaN(d)?'':d.toISOString().slice(0,10);
+          var s=(v||'').toString().trim();if(!s) return '';
+          if(/^\d+(\.\d+)?$/.test(s)){
+            var n=+s;
+            if(n>30000&&n<60000){
+              var ed=new Date(Math.round((n-25569)*86400000));
+              if(!isNaN(ed)) return ed.getUTCFullYear()+'-'+String(ed.getUTCMonth()+1).padStart(2,'0')+'-'+String(ed.getUTCDate()).padStart(2,'0');
+            }
+          }
+          var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+          if(iso) return iso[1]+'-'+String(+iso[2]).padStart(2,'0')+'-'+String(+iso[3]).padStart(2,'0');
+          var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT,].*)?$/);
+          if(dmy){
+            var dd=+dmy[1],mm=+dmy[2],yy=+dmy[3];if(yy<100) yy+=2000;
+            if(mm>12&&dd<=12){var tmp=dd;dd=mm;mm=tmp;}
+            if(dd>=1&&dd<=31&&mm>=1&&mm<=12) return yy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+          }
+          var dmm=s.match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3,})[\s\-\/,]+(\d{2,4})(?:[\sT,].*)?$/);
+          if(dmm){
+            var mons={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+            var dM=+dmm[1],mM=mons[dmm[2].slice(0,3).toLowerCase()],yM=+dmm[3];
+            if(yM<100) yM+=2000;
+            if(dM>=1&&dM<=31&&mM) return yM+'-'+String(mM).padStart(2,'0')+'-'+String(dM).padStart(2,'0');
+          }
+          // Last resort — parse via Date() but read LOCAL components, never UTC.
+          var dd2=new Date(s);if(isNaN(dd2)) return '';
+          return dd2.getFullYear()+'-'+String(dd2.getMonth()+1).padStart(2,'0')+'-'+String(dd2.getDate()).padStart(2,'0');
         };
         var _ft=function(v){
           var s=(v||'').toString().trim();if(!s)return'';
@@ -6934,6 +7024,13 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
         // ── Save import log + file copy to DB ──
         try{
           var logId='impAtt_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+          // Capture day-level provenance so a future delete can remove only
+          // the days this file contributed — without touching days that
+          // belong to earlier merged imports.
+          var affectedDays={};
+          Object.keys(grouped).forEach(function(_ec){
+            affectedDays[_ec]=Object.keys(grouped[_ec]||{});
+          });
           var logEntry={
             id:logId,timestamp:new Date().toISOString(),
             type:'essl',fileName:_fileName,fileSize:_fileSize,
@@ -6941,6 +7038,7 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
             totalRows:parsedRows.length,employees:saved,
             added:addedCount,updated:updatedCount,errors:errors,
             affectedEmps:Object.keys(grouped),
+            affectedDays:affectedDays,
             importedBy:(CU?(CU.name||CU.id||''):'')
           };
           // Save metadata (small, fast to list)
@@ -12952,12 +13050,33 @@ async function _hrmsImportAlteration(inputEl){
         var _fileBuf=ev.target.result;
         var rows=await _parseXLSX(_fileBuf);
         if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        // Robust date parser — see notes in _hrmsImportAttendanceFromRows.
         var _fd=function(v){
-          var s=(v||'').toString().trim();if(!s)return'';
-          if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;
-          var m2=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-          if(m2) return m2[3]+'-'+m2[2].padStart(2,'0')+'-'+m2[1].padStart(2,'0');
-          var d=new Date(s);return isNaN(d)?'':d.toISOString().slice(0,10);
+          var s=(v||'').toString().trim();if(!s) return '';
+          if(/^\d+(\.\d+)?$/.test(s)){
+            var n=+s;
+            if(n>30000&&n<60000){
+              var ed=new Date(Math.round((n-25569)*86400000));
+              if(!isNaN(ed)) return ed.getUTCFullYear()+'-'+String(ed.getUTCMonth()+1).padStart(2,'0')+'-'+String(ed.getUTCDate()).padStart(2,'0');
+            }
+          }
+          var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+          if(iso) return iso[1]+'-'+String(+iso[2]).padStart(2,'0')+'-'+String(+iso[3]).padStart(2,'0');
+          var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT,].*)?$/);
+          if(dmy){
+            var dd=+dmy[1],mm=+dmy[2],yy=+dmy[3];if(yy<100) yy+=2000;
+            if(mm>12&&dd<=12){var tmp=dd;dd=mm;mm=tmp;}
+            if(dd>=1&&dd<=31&&mm>=1&&mm<=12) return yy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+          }
+          var dmm=s.match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3,})[\s\-\/,]+(\d{2,4})(?:[\sT,].*)?$/);
+          if(dmm){
+            var mons={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+            var dM=+dmm[1],mM=mons[dmm[2].slice(0,3).toLowerCase()],yM=+dmm[3];
+            if(yM<100) yM+=2000;
+            if(dM>=1&&dM<=31&&mM) return yM+'-'+String(mM).padStart(2,'0')+'-'+String(dM).padStart(2,'0');
+          }
+          var dd2=new Date(s);if(isNaN(dd2)) return '';
+          return dd2.getFullYear()+'-'+String(dd2.getMonth()+1).padStart(2,'0')+'-'+String(dd2.getDate()).padStart(2,'0');
         };
         var _ft=function(v){
           var s=(v||'').toString().trim();if(!s)return'';
