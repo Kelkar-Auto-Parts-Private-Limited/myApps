@@ -6778,13 +6778,70 @@ async function _hwmsGenSiFromAlloc(){
     c=(a.poNumber||'').localeCompare(b.poNumber||'');if(c!==0)return c;
     return(a.qty||0)-(b.qty||0);
   });
-  // Group selected rows by MI
+  // Detect shared pallets — if any selected row is on a pallet with other
+  // parts in the MI that weren't selected, prompt the user to include
+  // them so the whole pallet ships in one sub-invoice.
+  var _palSel={};
+  flatRows2.forEach(function(r,ri){
+    if(!selectedIdx[String(ri)]) return;
+    var k=r.invId+'|'+(r.pallet||'');
+    if(!_palSel[k]) _palSel[k]={invId:r.invId,invNum:r.invNum,pallet:r.pallet||'',selectedParts:{}};
+    _palSel[k].selectedParts[r.partId]=true;
+  });
+  var _missingAlloc=[];
+  Object.keys(_palSel).forEach(function(k){
+    var info=_palSel[k];
+    if(!info.pallet) return;
+    var inv=byId(DB.hwmsInvoices||[],info.invId);
+    if(!inv||!inv.lineItems) return;
+    inv.lineItems.forEach(function(li){
+      if(li._mrMeta||li._meta) return;
+      if((li.palletNumber||'')!==info.pallet) return;
+      if(info.selectedParts[li.partId]) return;
+      var part=byId(DB.hwmsParts||[],li.partId);
+      _missingAlloc.push({
+        invId:info.invId,
+        invNum:info.invNum,
+        pallet:info.pallet,
+        partId:li.partId,
+        partNumber:part?.partNumber||'',
+        qty:Number(li.quantity||0),
+        rate:Number(li.rate||0),
+        poNumber:li.poNumber||'',
+        packageType:li.packageType||''
+      });
+    });
+  });
+  // Group selected rows by MI — one SI per MI (regular behaviour).
   var miGroups={};var miOrder=[];
   flatRows2.forEach(function(r,ri){
     if(!selectedIdx[String(ri)]) return;
     if(!miGroups[r.invNum]){miGroups[r.invNum]={invId:r.invId,invNum:r.invNum,items:[]};miOrder.push(r.invNum);}
     miGroups[r.invNum].items.push({partId:r.partId,partNumber:r.partNumber,pallet:r.pallet,qty:r.qty,rate:r.rate,poNumber:r.poNumber,packageType:r.packageType});
   });
+  if(_missingAlloc.length){
+    var _byPalA={};
+    _missingAlloc.forEach(function(p){
+      var k='Pallet '+p.pallet+' on MI '+p.invNum;
+      if(!_byPalA[k]) _byPalA[k]=[];
+      _byPalA[k].push(p.partNumber+' (Qty '+p.qty+')');
+    });
+    var _msgA='⚠ Multiple parts share a pallet you selected.\n\n'+
+      'A pallet must ship as a whole. The following parts are on the SAME pallet '+
+      'as your selection but were not checked:\n\n';
+    Object.keys(_byPalA).forEach(function(k){
+      _msgA+='• '+k+'\n   '+_byPalA[k].join(', ')+'\n';
+    });
+    _msgA+='\nInclude these parts in the sub-invoice so the pallet ships together?';
+    if(!confirm(_msgA)){
+      notify('Cancelled — please confirm or unselect the shared-pallet parts manually',true);
+      return;
+    }
+    _missingAlloc.forEach(function(p){
+      if(!miGroups[p.invNum]){miGroups[p.invNum]={invId:p.invId,invNum:p.invNum,items:[]};miOrder.push(p.invNum);}
+      miGroups[p.invNum].items.push({partId:p.partId,partNumber:p.partNumber,pallet:p.pallet,qty:p.qty,rate:p.rate,poNumber:p.poNumber,packageType:p.packageType});
+    });
+  }
   if(!miOrder.length){notify('⚠ No line items for confirmed MIs',true);return;}
   if(!confirm('Create '+miOrder.length+' sub-invoice'+(miOrder.length>1?'s':'')+'?')) return;
   showSpinner('Creating sub-invoices…');
@@ -7197,7 +7254,62 @@ async function _hwmsMrCreateSiFromRef(mrId){
       packageType:cb.getAttribute('data-pkgtype')||''
     });
   });
-  // Group by invoice ID
+  // Detect shared pallets — if any selected line is on a pallet that has
+  // other parts in the MI which weren't selected, prompt the user to
+  // include them so the whole pallet ships together.
+  var _palAcc={};
+  selected.forEach(function(s){
+    var k=s.invId+'|'+(s.pallet||'');
+    if(!_palAcc[k]) _palAcc[k]={invId:s.invId,invNum:s.invNum,pallet:s.pallet||'',selectedParts:{}};
+    _palAcc[k].selectedParts[s.partId]=true;
+  });
+  var _missingPalletParts=[];
+  Object.keys(_palAcc).forEach(function(k){
+    var info=_palAcc[k];
+    if(!info.pallet) return;
+    var inv=byId(DB.hwmsInvoices||[],info.invId);
+    if(!inv||!inv.lineItems) return;
+    inv.lineItems.forEach(function(li){
+      if(li._mrMeta||li._meta) return;
+      if((li.palletNumber||'')!==info.pallet) return;
+      if(info.selectedParts[li.partId]) return;
+      var part=byId(DB.hwmsParts||[],li.partId);
+      _missingPalletParts.push({
+        invId:info.invId,
+        partId:li.partId,
+        pallet:info.pallet,
+        availQty:Number(li.quantity||0),
+        partNumber:part?.partNumber||'',
+        invNum:info.invNum,
+        poNumber:li.poNumber||'',
+        rate:Number(li.rate||0),
+        packageType:li.packageType||''
+      });
+    });
+  });
+  if(_missingPalletParts.length){
+    var _byPal={};
+    _missingPalletParts.forEach(function(p){
+      var k='Pallet '+p.pallet+' on MI '+p.invNum;
+      if(!_byPal[k]) _byPal[k]=[];
+      _byPal[k].push(p.partNumber+' (Qty '+p.availQty+')');
+    });
+    var _msg='⚠ Multiple parts share a pallet you selected.\n\n'+
+      'A pallet must ship as a whole. The following parts are on the SAME pallet '+
+      'as your selection but were not checked:\n\n';
+    Object.keys(_byPal).forEach(function(k){
+      _msg+='• '+k+'\n   '+_byPal[k].join(', ')+'\n';
+    });
+    _msg+='\nInclude these parts in the sub-invoice so the pallet ships together?';
+    if(!confirm(_msg)){
+      notify('Cancelled — please confirm or unselect the shared-pallet parts manually',true);
+      return;
+    }
+    selected=selected.concat(_missingPalletParts);
+  }
+  // Group by invoice ID — one SI per MI (regular behaviour). Parts on a
+  // shared pallet naturally land in the same SI because they're on the
+  // same MI; multi-parts-per-pallet doesn't change SI grouping.
   var invGroups={};var invOrder=[];
   selected.forEach(function(s){
     if(!invGroups[s.invId]){invGroups[s.invId]={invId:s.invId,invNum:s.invNum,items:[]};invOrder.push(s.invId);}
@@ -13049,7 +13161,10 @@ function _hwmsInvBuildHtml(id){
   const totalQty=lis.reduce((s,li)=>s+(li.quantity||0),0);
   const totalValue=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
   const totalNetWt=lis.reduce((s,li)=>s+(li.netWeight||0),0);
-  const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
+  // Dedupe by pallet so a shared pallet's pkgWeight (stored on every sibling
+  // for downstream consumers) is counted ONCE in the gross total.
+  var _palMap={};lis.forEach(function(li){var pn=li.palletNumber||('_'+Math.random());if(_palMap[pn]===undefined) _palMap[pn]={pkg:+(li.pkgWeight||0),net:0};_palMap[pn].net+=(+(li.netWeight||0));});
+  var totalGrossWt=0;Object.keys(_palMap).forEach(function(k){totalGrossWt+=_palMap[k].pkg+_palMap[k].net;});
   const fd=d=>{if(!d)return'';const dt=new Date(d+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);};
   const _m=v=>v?v:'<span style="color:#dc2626;font-weight:700;font-style:italic">MISSING</span>';
   const _fmt=n=>isNaN(n)?'0.00':n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
@@ -13076,33 +13191,56 @@ function _hwmsInvBuildHtml(id){
   const consCountry=_isAirInv?(cust?.country||inv.countryOfDest||''):(consignee?.country||cust?.country||inv.countryOfDest||'');
   const deliveryTerms=(inv.delivery||'DDP')+', '+(_isAirInv?'7 days':(inv.paymentTerms||''));
 
-  // Build line items - 10 columns now with HSN
-  var liRows='';
-  for(var i=0;i<15;i++){
-    var li=lis[i];
-    if(li){
+  // Build line items grouped by pallet so multi-parts-per-pallet shows the
+  // pallet number, package dimensions and gross weight ONCE (rowspan) for
+  // every part on that pallet. The pallet's gross weight = sum of parts'
+  // net weights + the shared pkgWeight (counted once, not per row).
+  var _printGroups=[];var _printIdx={};
+  lis.forEach(function(li){
+    var pn=li.palletNumber||'';
+    if(_printIdx[pn]===undefined){_printIdx[pn]=_printGroups.length;_printGroups.push({pallet:pn,items:[]});}
+    _printGroups[_printIdx[pn]].items.push(li);
+  });
+  var liRows='';var _rowsRendered=0;
+  _printGroups.forEach(function(g){
+    var first=g.items[0];
+    var dims=[first.pkgL,first.pkgW,first.pkgH].filter(function(v){return v;});
+    var dimsStr=dims.length===3?dims.join(' X '):'';
+    var palletPkg=+(first.pkgWeight||0);
+    var palletNetSum=g.items.reduce(function(s,li){return s+(+(li.netWeight||0));},0);
+    var palletGross=palletNetSum+palletPkg;
+    g.items.forEach(function(li,gi){
       var part=byId(DB.hwmsParts||[],li.partId);
       var pn=part?.partNumber||'';
       var desc=part?.description||'';
-      var dims=[li.pkgL,li.pkgW,li.pkgH].filter(function(v){return v;});
-      var dimsStr=dims.length===3?dims.join(' X '):'';
       var amt=(li.rate||0)*(li.quantity||0);
-      liRows+='<tr style="height:22px">'+
-        '<td class="c b" style="width:32px">P'+(i+1)+'</td>'+
-        '<td class="c mono b" style="font-size:10px">'+_m(dimsStr)+'</td>'+
-        '<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
+      liRows+='<tr style="height:22px">';
+      if(gi===0){
+        liRows+='<td rowspan="'+g.items.length+'" class="c b" style="width:32px;vertical-align:middle">'+(g.pallet||'P'+(_rowsRendered+1))+'</td>';
+        liRows+='<td rowspan="'+g.items.length+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(dimsStr)+'</td>';
+      }
+      liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
         '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
         '<td>'+(li.poNumber||'')+'</td>'+
         '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
         '<td class="r mono b">'+_fmt(li.rate||0)+'</td>'+
         '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
-        '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>'+
-        '<td class="r mono b">'+_m(li.grossWeight?''+Math.round(li.grossWeight):'')+'</td>'+
-      '</tr>';
-    } else {
-      liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
-    }
+        '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
+      if(gi===0){
+        liRows+='<td rowspan="'+g.items.length+'" class="r mono b" style="vertical-align:middle">'+_m(palletGross?''+Math.round(palletGross):'')+'</td>';
+      }
+      liRows+='</tr>';
+      _rowsRendered++;
+    });
+  });
+  // Pad with blank rows so the items table keeps its A4 visual height.
+  while(_rowsRendered<15){
+    liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+    _rowsRendered++;
   }
+  // Pallet count for the totals row (shows the actual number of pallets,
+  // not the number of line items).
+  var _palletCount=_printGroups.length;
 
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>'+
   '<style>'+
@@ -13189,7 +13327,7 @@ function _hwmsInvBuildHtml(id){
     '</tr></thead>'+
     '<tbody>'+liRows+'</tbody>'+
     '<tr class="total-row">'+
-      '<td class="c b">'+lis.length+'</td>'+
+      '<td class="c b">'+_palletCount+'</td>'+
       '<td class="c b" style="font-size:10px">Total Box Qty</td>'+
       '<td></td>'+
       '<td></td>'+
@@ -13239,7 +13377,10 @@ function _hwmsInvBuildHtmlUSA(id){
   const totalQty=lis.reduce((s,li)=>s+(li.quantity||0),0);
   const totalValue=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
   const totalNetWt=lis.reduce((s,li)=>s+(li.netWeight||0),0);
-  const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
+  // Dedupe by pallet so a shared pallet's pkgWeight (stored on every sibling
+  // for downstream consumers) is counted ONCE in the gross total.
+  var _palMap={};lis.forEach(function(li){var pn=li.palletNumber||('_'+Math.random());if(_palMap[pn]===undefined) _palMap[pn]={pkg:+(li.pkgWeight||0),net:0};_palMap[pn].net+=(+(li.netWeight||0));});
+  var totalGrossWt=0;Object.keys(_palMap).forEach(function(k){totalGrossWt+=_palMap[k].pkg+_palMap[k].net;});
   const fd=d=>{if(!d)return'';const dt=new Date(d+'T00:00:00');const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate().toString().padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);};
   const _m=v=>v?v:'<span style="color:#dc2626;font-weight:700;font-style:italic">MISSING</span>';
   const _fmt=n=>isNaN(n)?'0.00':n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
@@ -13270,41 +13411,65 @@ function _hwmsInvBuildHtmlUSA(id){
   const consCountry=_isAirInv2?(cust?.country||inv.countryOfDest||''):(consignee?.country||cust?.country||inv.countryOfDest||'');
   const deliveryTerms=(inv.delivery||'DDP')+', '+(_isAirInv2?'7 days':(inv.paymentTerms||''));
 
-  // Build line items with ex-works rate + steelage wt
+  // Build line items grouped by pallet (multi-parts-per-pallet rendering).
+  // Pallet#, Pkg dims, Steelage Wt, Gross Wt are merged with rowspan; the
+  // per-part columns (Part, HSN, PO, Qty, Rate, Amount, Net Wt) stay
+  // per-row.
+  var _printGroupsU=[];var _printIdxU={};
+  lis.forEach(function(li){
+    var pn=li.palletNumber||'';
+    if(_printIdxU[pn]===undefined){_printIdxU[pn]=_printGroupsU.length;_printGroupsU.push({pallet:pn,items:[]});}
+    _printGroupsU[_printIdxU[pn]].items.push(li);
+  });
   var liRows='';
   var totalSteelageWt=0;
   var totalExWorksAmt=0;
-  for(var i=0;i<15;i++){
-    var li=lis[i];
-    if(li){
+  var _rowsRenderedU=0;
+  _printGroupsU.forEach(function(g){
+    var first=g.items[0];
+    var dims=[first.pkgL,first.pkgW,first.pkgH].filter(function(v){return v;});
+    var dimsStr=dims.length===3?dims.join(' X '):'';
+    var palletPkg=+(first.pkgWeight||0);
+    var palletNetSum=g.items.reduce(function(s,li){return s+(+(li.netWeight||0));},0);
+    var palletGross=palletNetSum+palletPkg;
+    var firstPart=byId(DB.hwmsParts||[],first.partId);
+    var isSteelagePallet=(firstPart?.packingType||'').toLowerCase()==='steelage';
+    var palletSteelageWt=isSteelagePallet?Math.round(palletPkg):0;
+    totalSteelageWt+=palletSteelageWt;
+    g.items.forEach(function(li,gi){
       var part=byId(DB.hwmsParts||[],li.partId);
       var pn=part?.partNumber||'';
       var desc=part?.description||'';
-      var dims=[li.pkgL,li.pkgW,li.pkgH].filter(function(v){return v;});
-      var dimsStr=dims.length===3?dims.join(' X '):'';
       var exRate=part?.exWorksRate||0;
       var amt=exRate*(li.quantity||0);
       totalExWorksAmt+=amt;
-      var isSteelage=(part?.packingType||'').toLowerCase()==='steelage';
-      var steelageWt=isSteelage?Math.round(li.pkgWeight||0):0;
-      totalSteelageWt+=steelageWt;
-      liRows+='<tr style="height:22px">'+
-        '<td class="c b" style="width:32px">P'+(i+1)+'</td>'+
-        '<td class="c mono b" style="font-size:10px">'+_m(dimsStr)+'</td>'+
-        '<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
+      liRows+='<tr style="height:22px">';
+      if(gi===0){
+        liRows+='<td rowspan="'+g.items.length+'" class="c b" style="width:32px;vertical-align:middle">'+(g.pallet||'P'+(_rowsRenderedU+1))+'</td>';
+        liRows+='<td rowspan="'+g.items.length+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(dimsStr)+'</td>';
+      }
+      liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
         '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
         '<td>'+(li.poNumber||'')+'</td>'+
         '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
         '<td class="r mono b">'+_fmt(exRate||0)+'</td>'+
-        '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
-        '<td class="r mono">'+(steelageWt||'')+'</td>'+
-        '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>'+
-        '<td class="r mono b">'+_m(li.grossWeight?''+Math.round(li.grossWeight):'')+'</td>'+
-      '</tr>';
-    } else {
-      liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
-    }
+        '<td class="r mono b">'+_fmt(amt||0)+'</td>';
+      if(gi===0){
+        liRows+='<td rowspan="'+g.items.length+'" class="r mono" style="vertical-align:middle">'+(palletSteelageWt||'')+'</td>';
+      }
+      liRows+='<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
+      if(gi===0){
+        liRows+='<td rowspan="'+g.items.length+'" class="r mono b" style="vertical-align:middle">'+_m(palletGross?''+Math.round(palletGross):'')+'</td>';
+      }
+      liRows+='</tr>';
+      _rowsRenderedU++;
+    });
+  });
+  while(_rowsRenderedU<15){
+    liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+    _rowsRenderedU++;
   }
+  var _palletCountU=_printGroupsU.length;
 
   // Calculations
   var steelContentCost=Math.round(((totalNetWt+totalSteelageWt)*steelRatePerKg/forexRate)*100)/100;
@@ -13409,7 +13574,7 @@ function _hwmsInvBuildHtmlUSA(id){
     '</tr></thead>'+
     '<tbody>'+liRows+'</tbody>'+
     '<tr class="total-row">'+
-      '<td class="c b">'+lis.length+'</td>'+
+      '<td class="c b">'+_palletCountU+'</td>'+
       '<td></td><td></td><td></td>'+
       '<td class="r b" style="font-size:9px">Total</td>'+
       '<td class="r b">'+totalQty+'</td>'+
@@ -13881,56 +14046,107 @@ function _hwmsLiRenderTable(){
   const m='hwms-li-missing';
   if(!_hwmsLiItems.length){
     tbody.innerHTML='<tr><td colspan="15" style="text-align:center;padding:16px;color:var(--text3);font-size:13px">No line items added yet</td></tr>';
-  } else {
-    tbody.innerHTML=_hwmsLiItems.map(function(li,i){
-      const part=byId(DB.hwmsParts||[],li.partId);
-      const partLabel=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):'—';
-      const partDesc=part?.description||'';
-      const partCell=li.partId?'<a href="#" onclick="event.preventDefault();showHwmsPartDetail(\''+li.partId+'\')" style="color:var(--accent);text-decoration:none;cursor:pointer"><div style="font-weight:700;text-decoration:underline">'+partLabel+'</div>'+(partDesc?'<div style="font-size:10px;color:var(--text3);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">'+partDesc+'</div>':'')+'</a>':partLabel;
-      const isEditing=_hwmsLiEditIdx===i;
-      const dims=[li.pkgL,li.pkgW,li.pkgH].filter(function(v){return v;});
-      const dimsStr=dims.length===3?dims.join(' × '):'';
-      const amt=(li.rate||0)*(li.quantity||0);
+    const sumEl=document.getElementById('hwmsLiSummary');if(sumEl) sumEl.innerHTML='';
+    return;
+  }
+  // Group items by pallet number while preserving original index for the
+  // edit/delete handlers. Pallets with >1 part get merged (rowspan) cells
+  // for the pallet-level fields (Dims, Pkg Type, Pkg Wt, Gross Wt). The
+  // groups are rendered in first-appearance order so the table reads
+  // sensibly even when shared-pallet rows were added out of sequence.
+  var groups=[];var palletIdx={};
+  _hwmsLiItems.forEach(function(li,i){
+    var pn=li.palletNumber||'';
+    if(palletIdx[pn]===undefined){palletIdx[pn]=groups.length;groups.push({pallet:pn,items:[]});}
+    groups[palletIdx[pn]].items.push({li:li,idx:i});
+  });
+  var html='';
+  var rowCounter=0;
+  groups.forEach(function(g){
+    var n=g.items.length;
+    var firstLi=g.items[0].li;
+    // Common pallet values — taken from first item; siblings are kept in sync.
+    var dims=[firstLi.pkgL,firstLi.pkgW,firstLi.pkgH].filter(function(v){return v;});
+    var dimsStr=dims.length===3?dims.join(' × '):'';
+    var noDims=(dims.length<3)?m:'';
+    var noPkg=(!firstLi.packageType)?m:'';
+    var palletPkgWt=+(firstLi.pkgWeight||0);
+    var noPkgWt=(palletPkgWt<=0)?m:'';
+    // Pallet's gross weight = sum of part nets + one pkg weight (so the
+    // shared pkg weight isn't counted N times across siblings).
+    var palletNetSum=g.items.reduce(function(s,it){return s+(+(it.li.netWeight||0));},0);
+    var palletGross=palletNetSum+palletPkgWt;
+    var noGross=(palletGross<=0)?m:'';
+    g.items.forEach(function(it,gi){
+      var li=it.li;var i=it.idx;
+      var part=byId(DB.hwmsParts||[],li.partId);
+      var partLabel=part?(part.partNumber+(part.partRevision?' '+part.partRevision:'')):'—';
+      var partDesc=part?.description||'';
+      var partCell=li.partId?'<a href="#" onclick="event.preventDefault();showHwmsPartDetail(\''+li.partId+'\')" style="color:var(--accent);text-decoration:none;cursor:pointer"><div style="font-weight:700;text-decoration:underline">'+partLabel+'</div>'+(partDesc?'<div style="font-size:10px;color:var(--text3);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">'+partDesc+'</div>':'')+'</a>':partLabel;
+      var isEditing=_hwmsLiEditIdx===i;
+      var amt=(li.rate||0)*(li.quantity||0);
       var noRate=(!li.rate||li.rate<=0)?m:'';
       var noQty=(!li.quantity||li.quantity<=0)?m:'';
       var noNetWt=(!li.netWeight||li.netWeight<=0)?m:'';
-      var noPkgWt=(!li.pkgWeight||li.pkgWeight<=0)?m:'';
-      var noGrossWt=(!li.grossWeight||li.grossWeight<=0)?m:'';
-      var noPkg=(!li.packageType)?m:'';
-      var noDims=(dims.length<3)?m:'';
-      return '<tr style="'+(isEditing?'background:rgba(42,154,160,.08)':'')+'">'+
-        '<td style="padding:5px 6px;font-weight:700;color:var(--text3)">'+(i+1)+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-weight:800;color:var(--accent)">'+(li.palletNumber||'—')+'</td>'+
-        '<td style="padding:5px 6px">'+partCell+'</td>'+
-        '<td style="padding:5px 6px">'+(li.poNumber||'—')+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-weight:700;text-align:right" class="'+noQty+'">'+(noQty?'Missing':li.quantity)+'</td>'+
-        '<td style="padding:5px 6px">'+(li.uom||'—')+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);text-align:right" class="'+noRate+'">'+(noRate?'Missing':Number(li.rate).toFixed(2))+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-weight:700;color:#16a34a;text-align:right">'+(amt?'$'+amt.toFixed(2):'—')+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-size:11px;white-space:nowrap" class="'+noDims+'">'+(noDims?'Missing':dimsStr)+'</td>'+
-        '<td style="padding:5px 6px;font-size:12px" class="'+noPkg+'">'+(noPkg?'Missing':li.packageType)+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);text-align:right" class="'+noNetWt+'">'+(noNetWt?'Missing':Math.round(li.netWeight))+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);text-align:right" class="'+noPkgWt+'">'+(noPkgWt?'Missing':Math.round(li.pkgWeight))+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-weight:700;text-align:right" class="'+noGrossWt+'">'+(noGrossWt?'Missing':Math.round(li.grossWeight))+'</td>'+
-        '<td style="padding:5px 6px;font-family:var(--mono);font-size:11px">'+(li.hsnCode||'—')+'</td>'+
-        '<td style="padding:5px 6px;white-space:nowrap">'+
-          '<button class="action-btn" onclick="_hwmsLiEdit('+i+')" title="Edit" style="font-size:13px">✏️</button>'+
-          '<button class="action-btn" onclick="_hwmsLiDelete('+i+')" title="Delete" style="font-size:13px">🗑️</button>'+
-        '</td>'+
-      '</tr>';
-    }).join('');
-  }
+      // Visual hint for shared pallets — soft left border on inner rows.
+      var sharedRowStyle=(n>1)?'border-left:3px solid #c7e4e6;':'';
+      rowCounter++;
+      html+='<tr style="'+(isEditing?'background:rgba(42,154,160,.08);':'')+sharedRowStyle+'">';
+      html+='<td style="padding:5px 6px;font-weight:700;color:var(--text3)">'+rowCounter+'</td>';
+      // Merged Pallet # cell on first row of the group only
+      if(gi===0){
+        html+='<td rowspan="'+n+'" style="padding:5px 6px;font-family:var(--mono);font-weight:800;color:var(--accent);vertical-align:middle'+(n>1?';background:rgba(42,154,160,.06)':'')+'">'+(g.pallet||'—')+(n>1?'<div style="font-size:9px;font-weight:600;color:var(--text3);margin-top:2px">'+n+' parts</div>':'')+'</td>';
+      }
+      html+='<td style="padding:5px 6px">'+partCell+'</td>';
+      html+='<td style="padding:5px 6px">'+(li.poNumber||'—')+'</td>';
+      html+='<td style="padding:5px 6px;font-family:var(--mono);font-weight:700;text-align:right" class="'+noQty+'">'+(noQty?'Missing':li.quantity)+'</td>';
+      html+='<td style="padding:5px 6px">'+(li.uom||'—')+'</td>';
+      html+='<td style="padding:5px 6px;font-family:var(--mono);text-align:right" class="'+noRate+'">'+(noRate?'Missing':Number(li.rate).toFixed(2))+'</td>';
+      html+='<td style="padding:5px 6px;font-family:var(--mono);font-weight:700;color:#16a34a;text-align:right">'+(amt?'$'+amt.toFixed(2):'—')+'</td>';
+      // Merged pallet-level cells — Dims, Pkg Type, Pkg Wt — first row only.
+      if(gi===0){
+        var sharedBg=(n>1)?';background:rgba(42,154,160,.04)':'';
+        html+='<td rowspan="'+n+'" style="padding:5px 6px;font-family:var(--mono);font-size:11px;white-space:nowrap;vertical-align:middle'+sharedBg+'" class="'+noDims+'">'+(noDims?'Missing':dimsStr)+'</td>';
+        html+='<td rowspan="'+n+'" style="padding:5px 6px;font-size:12px;vertical-align:middle'+sharedBg+'" class="'+noPkg+'">'+(noPkg?'Missing':firstLi.packageType)+'</td>';
+      }
+      // Net Wt is per-part
+      html+='<td style="padding:5px 6px;font-family:var(--mono);text-align:right" class="'+noNetWt+'">'+(noNetWt?'Missing':Math.round(li.netWeight))+'</td>';
+      // Merged Pkg Wt + Gross Wt — first row only. Gross Wt shows the
+      // PALLET's total (sum of part nets + one pkg wt).
+      if(gi===0){
+        var sharedBg2=(n>1)?';background:rgba(42,154,160,.04)':'';
+        html+='<td rowspan="'+n+'" style="padding:5px 6px;font-family:var(--mono);text-align:right;vertical-align:middle'+sharedBg2+'" class="'+noPkgWt+'">'+(noPkgWt?'Missing':Math.round(palletPkgWt))+'</td>';
+        html+='<td rowspan="'+n+'" style="padding:5px 6px;font-family:var(--mono);font-weight:700;text-align:right;vertical-align:middle'+sharedBg2+'" class="'+noGross+'">'+(noGross?'Missing':Math.round(palletGross))+'</td>';
+      }
+      html+='<td style="padding:5px 6px;font-family:var(--mono);font-size:11px">'+(li.hsnCode||'—')+'</td>';
+      html+='<td style="padding:5px 6px;white-space:nowrap">'+
+        '<button class="action-btn" onclick="_hwmsLiEdit('+i+')" title="Edit" style="font-size:13px">✏️</button>'+
+        '<button class="action-btn" onclick="_hwmsLiDelete('+i+')" title="Delete" style="font-size:13px">🗑️</button>'+
+      '</td>';
+      html+='</tr>';
+    });
+  });
+  tbody.innerHTML=html;
   const sumEl=document.getElementById('hwmsLiSummary');
   if(_hwmsLiItems.length){
     const totalQty=_hwmsLiItems.reduce(function(s,li){return s+(li.quantity||0);},0);
     const totalValue=_hwmsLiItems.reduce(function(s,li){return s+(li.rate||0)*(li.quantity||0);},0);
     const totalNetWt=_hwmsLiItems.reduce(function(s,li){return s+(li.netWeight||0);},0);
-    const totalPkgWt=_hwmsLiItems.reduce(function(s,li){return s+(li.pkgWeight||0);},0);
-    const totalGrossWt=_hwmsLiItems.reduce(function(s,li){return s+(li.grossWeight||0);},0);
+    // Pkg Wt + Gross Wt totals must dedupe by pallet so a shared pkg weight
+    // isn't counted N times. Pallet gross = sum(pallet's part nets) + pkg.
+    var seen={};var totalPkgWt=0;var totalGrossWt=0;
+    groups.forEach(function(g){
+      var pw=+((g.items[0].li.pkgWeight)||0);
+      var nsum=g.items.reduce(function(s,it){return s+(+(it.li.netWeight||0));},0);
+      totalPkgWt+=pw;
+      totalGrossWt+=nsum+pw;
+      seen[g.pallet]=true;
+    });
+    void seen;
     const ts='padding:6px 6px;font-size:14px;font-weight:800;font-family:var(--mono);border-top:2px solid var(--border);text-align:right';
     const tl='padding:6px 6px;font-size:14px;font-weight:800;border-top:2px solid var(--border)';
     sumEl.innerHTML='<tr style="background:var(--surface2)">'+
-      '<td style="'+tl+'" colspan="2">'+_hwmsLiItems.length+' items</td>'+
+      '<td style="'+tl+'" colspan="2">'+_hwmsLiItems.length+' items / '+groups.length+' pallet'+(groups.length>1?'s':'')+'</td>'+
       '<td style="'+tl+'"></td><td style="'+tl+'"></td>'+
       '<td style="'+ts+'">'+totalQty+'</td>'+
       '<td style="'+tl+'"></td><td style="'+tl+'"></td>'+
@@ -13950,18 +14166,54 @@ function _hwmsLiAdd(){
   const part=byId(DB.hwmsParts||[],partId);
   const qty=parseInt(document.getElementById('hwmsLiAddQty').value)||0;
   const unitNetWt=part?.netWeightKg||0;
-  const pkgWt=parseInt(document.getElementById('hwmsLiAddPkgWt').value)||0;
+  var pkgWt=parseInt(document.getElementById('hwmsLiAddPkgWt').value)||0;
   var netWt=unitNetWt>0?Math.round(unitNetWt*qty):parseInt(document.getElementById('hwmsLiAddNetWt').value)||0;
+  // For multi-parts-per-pallet:
+  //   - When ADDING a new row to a pallet that already has parts, inherit
+  //     dims / pkg type / pkg weight from the existing pallet so siblings
+  //     stay in sync.
+  //   - When EDITING an existing row, KEEP the user's typed values — they
+  //     will be propagated to siblings after the save (see below).
+  var palName=document.getElementById('hwmsLiAddPallet').value||'';
+  var pkgL=document.getElementById('hwmsLiAddPkgL').value||'';
+  var pkgW=document.getElementById('hwmsLiAddPkgW').value||'';
+  var pkgH=document.getElementById('hwmsLiAddPkgH').value||'';
+  var pkgType=document.getElementById('hwmsLiAddPkg').value||part?.packingType||'';
+  var isEditMode=(_hwmsLiEditIdx>=0);
+  if(!isEditMode&&palName){
+    var sibling=_hwmsLiItems.find(function(li){return li.palletNumber===palName;});
+    if(sibling){
+      pkgL=sibling.pkgL||'';pkgW=sibling.pkgW||'';pkgH=sibling.pkgH||'';
+      pkgType=sibling.packageType||pkgType;
+      pkgWt=+(sibling.pkgWeight||0);
+    }
+  }
   var grossWt=netWt+pkgWt;
-  const item={partId:partId,palletNumber:document.getElementById('hwmsLiAddPallet').value||'',
-    packageType:document.getElementById('hwmsLiAddPkg').value||part?.packingType||'',
+  const item={partId:partId,palletNumber:palName,
+    packageType:pkgType,
     poNumber:document.getElementById('hwmsLiAddPo').value||'',quantity:qty,uom:part?.uom||'',
     rate:parseFloat(document.getElementById('hwmsLiAddRate').value)||0,
-    pkgL:document.getElementById('hwmsLiAddPkgL').value||'',pkgW:document.getElementById('hwmsLiAddPkgW').value||'',pkgH:document.getElementById('hwmsLiAddPkgH').value||'',
+    pkgL:pkgL,pkgW:pkgW,pkgH:pkgH,
     netWeight:netWt,pkgWeight:pkgWt,grossWeight:grossWt,hsnCode:document.getElementById('hwmsLiAddHsn')?.value||part?.hsnCode||''};
   if(_hwmsLiEditIdx>=0){ _hwmsLiItems[_hwmsLiEditIdx]=item; }
-  else { if(_hwmsLiItems.length>=15){notify('Maximum 15 line items (P1–P15)',true);return;} _hwmsLiItems.push(item); }
+  else { if(_hwmsLiItems.length>=50){notify('Maximum 50 line items',true);return;} _hwmsLiItems.push(item); }
+  // After save, sync common pallet fields across every sibling on the same
+  // pallet so the merged-cell display always shows one consistent value.
+  if(item.palletNumber){
+    _hwmsLiItems.forEach(function(li){
+      if(li!==item&&li.palletNumber===item.palletNumber){
+        li.pkgL=item.pkgL;li.pkgW=item.pkgW;li.pkgH=item.pkgH;
+        li.packageType=item.packageType;
+        li.pkgWeight=item.pkgWeight;
+        li.grossWeight=(li.netWeight||0)+(item.pkgWeight||0);
+      }
+    });
+  }
   _hwmsLiRenderTable();
+  // Pallet field auto-advances to the next unused P-number by default.
+  // To put another part on the SAME pallet, the user simply types the
+  // existing pallet name (e.g. "P1") into the field — multi-parts-per-
+  // pallet stays an explicit, opt-in action.
   _hwmsLiResetAddRow();
 }
 
@@ -14003,7 +14255,14 @@ function _hwmsLiEdit(idx){
 
 function _hwmsLiDelete(idx){
   _hwmsLiItems.splice(idx,1);
-  _hwmsLiItems.forEach(function(li,i){li.palletNumber='P'+(i+1);});
+  // Regular case (one part per pallet) — keep the original sequential
+  // P1, P2, ... auto-renumber. Multi-parts-per-pallet is rare and only
+  // kicks in when a user explicitly types a duplicate pallet name; in
+  // that case we preserve the user's assignments.
+  var palCounts={};
+  _hwmsLiItems.forEach(function(li){var p=li.palletNumber||'';palCounts[p]=(palCounts[p]||0)+1;});
+  var hasShared=Object.keys(palCounts).some(function(p){return palCounts[p]>1;});
+  if(!hasShared) _hwmsLiItems.forEach(function(li,i){li.palletNumber='P'+(i+1);});
   if(_hwmsLiEditIdx===idx) _hwmsLiResetAddRow();
   else if(_hwmsLiEditIdx>idx) _hwmsLiEditIdx--;
   _hwmsLiRenderTable();
