@@ -1447,19 +1447,11 @@ function _hrmsBuildPeriodTable(){
     //  • Draft row — always editable in edit mode.
     //  • Proposed row — editable so the user can fix data before approval.
     //  • New-employee current row — editable (the period is also proposed).
-    //  • Existing employee's active period — directly editable AS LONG AS
-    //    no month in the period's range has been Save-&-Locked. Once any
-    //    month is locked, direct edits would retroactively change locked
-    //    salary snapshots, so all fields go read-only and changes must
-    //    flow through a new revision (ECR).
-    //  • Dept / Sub Dept / Role on the active period are always editable
-    //    in edit mode (handled by `disOrg` below) — these don't require
-    //    ECR approval and don't affect already-locked salary calcs.
-    var _periodLocked=(typeof _hrmsPeriodOverlapsLock==='function')
-      ?_hrmsPeriodOverlapsLock(p.from,p.to)
-      :false;
-    var _canEditActive=isActive&&!_isNewEmp&&!_periodLocked;
-    var isEditable=_hrmsEmpEditMode&&(isDraft||isProposed||(_isNewEmp&&isActive)||_canEditActive);
+    //  • Existing employee's active period — fields go through ECR by adding
+    //    a new revision. The only in-place edits allowed are Department,
+    //    Designation, and Role (handled via `disOrg` below) — those don't
+    //    affect salary snapshots, so they don't need approval.
+    var isEditable=_hrmsEmpEditMode&&(isDraft||isProposed||(_isNewEmp&&isActive));
     var dis=isEditable?'':'disabled style="opacity:'+(isActive?'0.8':(isProposed?'0.8':'0.5'))+'"';
     var _canEditOrgInPlace=isActive&&!_isNewEmp&&_hrmsEmpEditMode;
     var disOrg=(isEditable||_canEditOrgInPlace)?'':'disabled style="opacity:'+(isActive?'0.8':(isProposed?'0.8':'0.5'))+'"';
@@ -1496,7 +1488,7 @@ function _hrmsBuildPeriodTable(){
         var deptVal=deptIsStaff?(p.subDepartment||''):(p.department||'');
         return '<td style="padding:4px 3px"><select class="'+_chk(deptField)+'" onchange="_hrmsPeriodFieldChange('+i+',\''+deptField+'\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+disOrg+'>'+_selOpts(deptTbl,deptVal)+'</select></td>';
       })()
-      +'<td style="padding:4px 3px"><select class="'+_chk('designation')+'" onchange="_hrmsPeriodFieldChange('+i+',\'designation\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsDesignations',p.designation)+'</select></td>'
+      +'<td style="padding:4px 3px"><select class="'+_chk('designation')+'" onchange="_hrmsPeriodFieldChange('+i+',\'designation\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+disOrg+'>'+_selOpts('hrmsDesignations',p.designation)+'</select></td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('roll')+'" onfocus="_hrmsRollSelectExpand(this)" onblur="_hrmsRollSelectCollapse(this)" onchange="_hrmsRollSelectCollapse(this);_hrmsPeriodFieldChange('+i+',\'roll\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+disOrg+'>'+_rollOpts(p.roll)+'</select></td>'
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('salaryDay')+'" value="'+(p.salaryDay||'')+'" step="5" min="0" onchange="_hrmsSnapSalary(this,5);_hrmsPeriodFieldChange('+i+',\'salaryDay\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disSalDay+'></td>'
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('salaryMonth')+'" value="'+(p.salaryMonth||'')+'" step="50" min="0" onchange="_hrmsSnapSalary(this,50);_hrmsPeriodFieldChange('+i+',\'salaryMonth\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disSalMon+'></td>'
@@ -5033,34 +5025,38 @@ function _hrmsDasRender(){
     });
   });
 
-  // Sticky two-row header: row 1 at top:0, row 2 stacked just below. Using
-  // position:sticky on individual <th> cells (works with border-collapse:
-  // separate — so we use borders + border-spacing:0 to keep the grid look).
-  var _stickyBase='position:sticky;background-clip:padding-box;box-shadow:inset 0 -1px 0 #cbd5e1,inset 0 1px 0 #cbd5e1';
-  var _th='padding:5px 6px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;'+_stickyBase+';top:0;z-index:4';
-  var _thSub='padding:3px 4px;font-size:10px;font-weight:800;background:#f8fafc;border:1px solid #e2e8f0;text-align:center;color:var(--text2);white-space:nowrap;width:42px;min-width:42px;max-width:60px;'+_stickyBase+';top:27px;z-index:3';
-  var _thSubTot='padding:3px 4px;font-size:10px;font-weight:900;background:#e2e8f0;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;width:48px;min-width:48px;'+_stickyBase+';top:27px;z-index:3';
-  var _td='padding:5px 6px;font-size:13px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700';
-  var _tdL='padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;text-align:left;font-weight:700;white-space:nowrap';
-  var _tdSub='padding:4px 4px;font-size:12px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700;width:42px;min-width:42px';
-  var _tdTot='padding:5px 6px;font-size:13px;border:1px solid #94a3b8;text-align:right;font-family:var(--mono);font-weight:800;background:#f1f5f9;width:60px;min-width:60px';
+  // Sticky cells: header rows pin to top, Total row pins to bottom, first
+  // column pins to left. background-clip:padding-box keeps borders crisp.
+  var _stickyBase='position:sticky;background-clip:padding-box';
+  var _th='padding:4px 4px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;'+_stickyBase+';top:0;z-index:4';
+  var _thSub='padding:3px 2px;font-size:10px;font-weight:800;background:#f8fafc;border:1px solid #e2e8f0;text-align:center;color:var(--text2);white-space:nowrap;width:32px;min-width:32px;max-width:42px;'+_stickyBase+';top:24px;z-index:3';
+  var _thSubTot='padding:3px 2px;font-size:10px;font-weight:900;background:#e2e8f0;border:1px solid #cbd5e1;text-align:center;color:var(--text);white-space:nowrap;width:38px;min-width:38px;'+_stickyBase+';top:24px;z-index:3';
+  var _td='padding:4px 4px;font-size:13px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700';
+  var _tdL='padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;text-align:left;font-weight:700;white-space:nowrap';
+  var _tdSub='padding:3px 2px;font-size:12px;border:1px solid #e2e8f0;text-align:right;font-family:var(--mono);font-weight:700;width:32px;min-width:32px;max-width:42px';
+  var _tdTot='padding:4px 4px;font-size:13px;border:1px solid #94a3b8;text-align:right;font-family:var(--mono);font-weight:800;background:#f1f5f9;width:48px;min-width:48px';
+  // Total row cells stay pinned to the bottom of the scroll container.
+  var _totSticky=';'+_stickyBase+';bottom:0;z-index:4';
 
   // ── Build the Summary table HTML ──
-  var summaryHtml='<div style="overflow:auto;max-height:calc(100vh - 290px);position:relative"><table style="border-collapse:separate;border-spacing:0;min-width:100%">';
+  // Wrapper is the SOLE vertical scroller. flex:1 + min-height:0 fills the
+  // remaining height when the parent flex chain works; max-height is a hard
+  // fallback so the table is still scrollable even if the chain breaks.
+  var summaryHtml='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);overflow:auto;position:relative"><table style="border-collapse:separate;border-spacing:0;width:auto">';
   // Header row 1: Department + Plant (colspan=bucketKeys.length+1 for subtotal) + Grand Total
   summaryHtml+='<thead><tr>';
-  summaryHtml+='<th rowspan="2" style="'+_th+';left:0;z-index:5;text-align:left;min-width:160px">Department</th>';
+  summaryHtml+='<th rowspan="2" style="'+_th+';left:0;z-index:6;text-align:left;min-width:130px">Department</th>';
   plants.forEach(function(pl){
     var plClr=(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(pl):'#e2e8f0');
     summaryHtml+='<th colspan="'+(bucketKeys.length+1)+'" style="'+_th+';background:'+plClr+'">'+pl+'</th>';
   });
-  summaryHtml+='<th rowspan="2" style="'+_th+';background:#1e293b;color:#fff;min-width:72px">GT</th>';
+  summaryHtml+='<th rowspan="2" style="'+_th+';background:#1e293b;color:#fff;min-width:48px">GT</th>';
   summaryHtml+='</tr>';
   // Header row 2: sub-columns per plant. Short labels with `title` tooltips.
   summaryHtml+='<tr>';
   plants.forEach(function(pl){
     bucketKeys.forEach(function(bk){summaryHtml+='<th style="'+_thSub+'" title="'+_hrmsDasBucketLabel(bk)+'">'+_hrmsDasBucketShort(bk)+'</th>';});
-    summaryHtml+='<th style="'+_thSubTot+'" title="Plant Sub-total">Σ</th>';
+    summaryHtml+='<th style="'+_thSubTot+'" title="Plant Sub-total">TOT</th>';
   });
   summaryHtml+='</tr></thead><tbody>';
 
@@ -5078,19 +5074,20 @@ function _hrmsDasRender(){
         else summaryHtml+='<td style="'+_tdSub+';color:var(--text3)">—</td>';
       });
       rowTot+=plantRowSub;
-      summaryHtml+='<td style="'+_td+';background:#f8fafc;width:48px;min-width:48px">'+(plantRowSub||'—')+'</td>';
+      summaryHtml+='<td style="'+_td+';background:#f8fafc;width:38px;min-width:38px">'+(plantRowSub||'—')+'</td>';
     });
     summaryHtml+='<td style="'+_tdTot+'">'+rowTot+'</td></tr>';
   });
-  // Totals row
-  summaryHtml+='<tr><td style="'+_tdL+';position:sticky;left:0;z-index:1;background:#1e293b;color:#fff">Total</td>';
+  // Totals row — pinned to the bottom of the scroll container so it's always
+  // visible even when scrolling through many departments.
+  summaryHtml+='<tr><td style="'+_tdL+';position:sticky;left:0;bottom:0;background:#1e293b;color:#fff;z-index:5">Total</td>';
   plants.forEach(function(pl){
     bucketKeys.forEach(function(bk){
-      summaryHtml+='<td style="'+_tdSub+';background:#334155;color:#fff">'+(cellTot[pl+'|'+bk]||0)+'</td>';
+      summaryHtml+='<td style="'+_tdSub+';background:#334155;color:#fff'+_totSticky+'">'+(cellTot[pl+'|'+bk]||0)+'</td>';
     });
-    summaryHtml+='<td style="'+_tdTot+';background:#1e293b;color:#fff">'+(plTot[pl]||0)+'</td>';
+    summaryHtml+='<td style="'+_tdTot+';background:#1e293b;color:#fff'+_totSticky+'">'+(plTot[pl]||0)+'</td>';
   });
-  summaryHtml+='<td style="'+_tdTot+';background:#16a34a;color:#fff">'+grand+'</td></tr>';
+  summaryHtml+='<td style="'+_tdTot+';background:#16a34a;color:#fff'+_totSticky+'">'+grand+'</td></tr>';
   summaryHtml+='</tbody></table></div>';
 
   // ── Build per-plant Allocation Comparison HTML ──
@@ -5107,7 +5104,7 @@ function _hrmsDasRender(){
   } else {
     compPlants.forEach(function(plant){
       var ph='<div style="font-size:11px;color:var(--text3);margin:0 0 10px">Cells show <b>Present / Allocated</b>. Red = below allocated · Amber = exact match · Green = at or above allocated.</div>';
-      ph+='<div style="overflow:auto;max-height:calc(100vh - 290px);border:1.5px solid var(--border);border-radius:8px"><table style="width:auto;border-collapse:collapse;font-size:12px">';
+      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);overflow:auto;border:1.5px solid var(--border);border-radius:8px"><table style="width:auto;border-collapse:collapse;font-size:12px">';
       ph+='<thead><tr style="background:#1e293b;color:#fff"><th style="padding:5px 10px;text-align:left;min-width:140px;position:sticky;top:0;background:#1e293b">Department</th>';
       compGroups.forEach(function(g){ph+='<th style="padding:5px 10px;text-align:center;min-width:90px;position:sticky;top:0;background:#1e293b">'+g.name+'</th>';});
       ph+='<th style="padding:5px 10px;text-align:center;background:#0f172a;min-width:90px;position:sticky;top:0">Total</th></tr></thead><tbody>';

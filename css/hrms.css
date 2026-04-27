@@ -22,6 +22,10 @@
 #pageHrmsEmployees .table-wrap{flex:1;min-height:0;overflow:auto}
 #pageHrmsEmployees thead tr:first-child th{top:0;z-index:3;background:#fff}
 #pageHrmsEmployees thead tr:nth-child(2) th{top:30px;z-index:2}
+#pageHrmsUtilDailyAtt.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsUtilDailyAtt > .card{min-height:0}
+#pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
+#pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
 #pageHrmsEmpEdit input,#pageHrmsEmpEdit select,#pageHrmsEmpEdit label,#pageHrmsEmpEdit .form-group{font-size:14px!important}
 #pageHrmsEmpEdit #hrmsEmpPeriodBody input,#pageHrmsEmpEdit #hrmsEmpPeriodBody select{font-size:13px!important}
 #hrmsEmpPeriodBody input[type="month"]{font-size:11px!important;padding:1px 0!important;min-width:0!important;width:100%!important;text-align:left!important}
