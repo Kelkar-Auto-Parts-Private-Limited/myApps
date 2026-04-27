@@ -4590,11 +4590,13 @@ function _hrmsAttConvRender(){
   var summary=document.getElementById('hrmsAttConvSummary');
   var dlBtn=document.getElementById('hrmsAttConvDlBtn');
   var clrBtn=document.getElementById('hrmsAttConvClearBtn');
+  var impBtn=document.getElementById('hrmsAttConvImpBtn');
   if(!_hrmsAttConvData||!_hrmsAttConvData.rows.length){
     body.innerHTML='<div class="empty-state" style="padding:30px 20px">Upload a workbook to see the consolidated attendance table here.</div>';
     if(summary) summary.textContent='';
     if(dlBtn) dlBtn.style.display='none';
     if(clrBtn) clrBtn.style.display='none';
+    if(impBtn) impBtn.style.display='none';
     return;
   }
   var d=_hrmsAttConvData;
@@ -4608,6 +4610,7 @@ function _hrmsAttConvRender(){
   }
   if(dlBtn) dlBtn.style.display='';
   if(clrBtn) clrBtn.style.display='';
+  if(impBtn) impBtn.style.display=_hrmsHasAccess('action.importEssl')?'':'none';
   var _th='padding:6px 8px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;color:#000;text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
   var _td='padding:4px 8px;font-size:13px;border:1px solid #e2e8f0;white-space:nowrap';
   var h='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;max-height:calc(100vh - 290px)">';
@@ -4648,6 +4651,46 @@ function _hrmsAttConvDownload(){
 function _hrmsAttConvClear(){
   _hrmsAttConvData=null;
   _hrmsAttConvRender();
+}
+
+// One-click import: feed the converted rows straight into the ESSL Data
+// merge pipeline used by Attendance & Salary → Settings → ESSL Data.
+async function _hrmsAttConvImportToEssl(){
+  if(!_hrmsAttConvData||!_hrmsAttConvData.rows.length){notify('Upload an Excel file first',true);return;}
+  if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
+  // If a month is selected in Attendance & Salary, restrict to its rows so
+  // the importer's single-month rule never trips on stray dates.
+  var mk=_hrmsMonth||'';
+  var src=_hrmsAttConvData.rows;
+  var rows=src.filter(function(r){
+    if(!r.date) return false;
+    if(!mk) return true;
+    var m=String(r.date).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(!m) return false;
+    return (m[3]+'-'+m[2].padStart(2,'0'))===mk;
+  });
+  if(!rows.length){
+    notify('No rows match '+(mk?(_hrmsMonthLabel?_hrmsMonthLabel(mk):mk):'the current month'),true);
+    return;
+  }
+  var dropped=src.length-rows.length;
+  var label=mk?(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk):'this dataset';
+  var msg='Import '+rows.length+' row(s) into ESSL Data for '+label+'?';
+  if(dropped) msg+='\n\n('+dropped+' row(s) outside this month will be skipped.)';
+  if(!confirm(msg)) return;
+  // Map converter rows → header-keyed dicts the importer understands.
+  var dictRows=rows.map(function(r){
+    return {
+      'Emp Code':r.code||'',
+      'Employee Name':r.name||'',
+      'Date':r.date||'',
+      'Time IN':r.timeIn||'',
+      'Time Out':r.timeOut||''
+    };
+  });
+  var name='AttendanceConverter_'+(mk||'all')+'.xlsx';
+  showSpinner('Importing to ESSL Data…');
+  await _hrmsImportAttendanceFromRows(dictRows,name,0,null);
 }
 
 // ═══ DAILY ATTENDANCE SUMMARY (Utilities) ═══════════════════════════════════
@@ -6748,6 +6791,21 @@ async function _hrmsImportAttendance(inputEl){
         console.log('Attendance Import: parsed '+rows.length+' rows');
         if(rows.length) console.log('Attendance Import: columns=',Object.keys(rows[0]));
         if(!rows.length){hideSpinner();notify('No data in file',true);return;}
+        await _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf);
+      }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
+    };
+    reader.readAsArrayBuffer(file);
+  }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
+}
+
+// Shared post-parse pipeline: takes an array of header-keyed row dicts
+// (the same shape `_parseXLSX` returns) and merges them into the month's
+// hrms_attendance records. `fileBuf` is optional — when omitted (e.g.
+// from the in-memory converter button), the file-copy log is skipped.
+async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
+  if(!_hrmsHasAccess('action.importEssl')){hideSpinner();notify('Access denied',true);return;}
+  if(!rows||!rows.length){hideSpinner();notify('No data to import',true);return;}
+  try{
         var _fd=function(v){
           var s=(v||'').toString().trim();if(!s)return'';
           if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;
@@ -6814,6 +6872,9 @@ async function _hrmsImportAttendance(inputEl){
         if(!parsedRows.length){hideSpinner();notify('No valid data rows found',true);return;}
 
         var mk=monthKeys[0];
+        if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+          hideSpinner();notify('⚠ '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk)+' is locked. Unlock to import.',true);return;
+        }
         // Group by empCode → days. Use the same normalized header lookup
         // so "Time IN (HH:MM)" etc. still resolve.
         var grouped={};
@@ -6894,11 +6955,14 @@ async function _hrmsImportAttendance(inputEl){
           // Keep only most recent 100 log entries in metadata
           if(logRec.data.imports.length>100) logRec.data.imports.length=100;
           await _dbSave('hrmsSettings',logRec);
-          // Save file content separately
-          var b64=_hrmsAb2b64(_fileBuf);
-          var fileRec={id:'hs_attImpFile_'+logId,key:'attImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
-          if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
-          await _dbSave('hrmsSettings',fileRec);
+          // Save file content separately — only if we have a real file buffer
+          // (in-memory imports from the converter button skip this).
+          if(_fileBuf){
+            var b64=_hrmsAb2b64(_fileBuf);
+            var fileRec={id:'hs_attImpFile_'+logId,key:'attImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
+            if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
+            await _dbSave('hrmsSettings',fileRec);
+          }
         }catch(logErr){console.warn('Import log save failed:',logErr);}
 
         hideSpinner();
@@ -6913,10 +6977,7 @@ async function _hrmsImportAttendance(inputEl){
         // Refresh the ESSL import history if visible
         if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
         notify('✅ Imported '+parsedRows.length+' rows: '+addedCount+' added, '+updatedCount+' updated'+(errors?', '+errors+' failed':''));
-      }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
-    };
-    reader.readAsArrayBuffer(file);
-  }catch(ex){hideSpinner();notify('⚠ '+ex.message,true);}
+  }catch(ex){hideSpinner();notify('⚠ Import error: '+ex.message,true);console.error(ex);}
 }
 
 // ═══ PRINT FORMATS / PDF GENERATION ═════════════════════════════════════

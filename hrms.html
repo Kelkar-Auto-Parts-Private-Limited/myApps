@@ -251,6 +251,7 @@
         <div style="font-size:18px;font-weight:900">📗 Attendance Excel Converter</div>
         <div style="display:flex;gap:8px;align-items:center">
           <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsAttConvUpload(this)" style="display:none"></label>
+          <button id="hrmsAttConvImpBtn" onclick="_hrmsAttConvImportToEssl()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#2a9aa0;color:#fff;border:none;border-radius:6px;cursor:pointer">📥 Import / Update ESSL Data (Current Month)</button>
           <button id="hrmsAttConvDlBtn" onclick="_hrmsAttConvDownload()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Download Consolidated XLSX</button>
           <button id="hrmsAttConvClearBtn" onclick="_hrmsAttConvClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
         </div>
