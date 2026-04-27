@@ -2411,7 +2411,7 @@ function _hrmsInitialBlurTime(idx,field,input){
   _hrmsInitialRefreshRowCalc(idx);
 }
 
-function _hrmsInitialConfirm(idx){
+async function _hrmsInitialConfirm(idx){
   var r=_hrmsEmpInitialDays[idx];if(!r) return;
   if(!r.in&&!r.out){notify('Enter Time IN or Time OUT first',true);return;}
   // Re-validate in case user typed via paste / programmatic input.
@@ -2425,8 +2425,67 @@ function _hrmsInitialConfirm(idx){
     if(no===null){alert('Invalid Time OUT: "'+r.out+'". Use HH:MM.');return;}
     r.out=no;
   }
-  r.confirmed=true;r.editing=false;
-  _hrmsRenderInitialAttendance();
+  // Need an empCode to write attendance — bail out cleanly if the form
+  // hasn't been filled in yet.
+  var empCode=(document.getElementById('hrmsEmpCode')||{}).value.trim();
+  if(!empCode){alert('Please enter Employee Code on the Details tab before confirming initial attendance.');return;}
+  // Resolve the month-key + day-of-month from r.date (YYYY-MM-DD).
+  var dp=String(r.date||'').split('-');if(dp.length!==3){notify('Invalid row date',true);return;}
+  var mk=dp[0]+'-'+dp[1];var dk=String(+dp[2]);
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+    notify('⚠ '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk)+' is locked',true);
+    return;
+  }
+  showSpinner('Saving…');
+  try{
+    if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
+    var recs=_hrmsAttCache[mk]||[];
+    var rec=recs.find(function(a){return a.empCode===empCode;});
+    if(!rec){
+      rec={id:'ha'+uid(),empCode:empCode,monthKey:mk,days:{}};
+      if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
+      _hrmsAttCache[mk].push(rec);
+    }
+    rec.days=rec.days||{};
+    // If an ESSL entry currently lives on this day, snapshot it under
+    // `_prev` so a later Reset can restore the original biometric data.
+    // If we're overwriting an earlier Initial entry, carry forward the
+    // original ESSL snapshot it already preserved.
+    var existing=rec.days[dk];
+    var prevSnap=null;
+    if(existing){
+      if(!existing.initial) prevSnap={'in':existing['in']||'','out':existing['out']||''};
+      else if(existing._prev) prevSnap=existing._prev;
+    }
+    var newDay={'in':r.in||'','out':r.out||'',initial:true};
+    if(prevSnap) newDay._prev=prevSnap;
+    rec.days[dk]=newDay;
+    var ok=await _dbSave('hrmsAttendance',rec);
+    hideSpinner();
+    if(!ok){
+      notify('⚠ Save failed — check console',true);
+      return;
+    }
+    r.confirmed=true;r.editing=false;
+    _hrmsRenderInitialAttendance();
+    // Refresh the muster / DAS / dashboard so the new day shows up live
+    // — the user typically has one of these in the background and expects
+    // to see the cell change without re-navigating.
+    _hrmsInitialRefreshDependentViews();
+    notify('✅ Day '+dk+' saved');
+  }catch(e){
+    hideSpinner();console.error('Initial confirm save error:',e);
+    notify('⚠ Save error: '+(e.message||e),true);
+  }
+}
+
+// Refresh any HRMS view that consumes hrms_attendance — called after a
+// per-row Confirm or Reset from the Initial tab so the change is visible
+// immediately without re-navigating.
+function _hrmsInitialRefreshDependentViews(){
+  try{ if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab(); }catch(_){}
+  try{ if(typeof _hrmsDasState!=='undefined'&&_hrmsDasState&&typeof _hrmsDasRender==='function') _hrmsDasRender(); }catch(_){}
+  try{ if(typeof renderHrmsDashboard==='function') renderHrmsDashboard(); }catch(_){}
 }
 
 function _hrmsInitialEdit(idx){
@@ -2437,61 +2496,121 @@ function _hrmsInitialEdit(idx){
   setTimeout(function(){var el=document.getElementById('_hrmsInitialIn_'+idx);if(el) el.focus();},0);
 }
 
-function _hrmsInitialReset(idx){
+async function _hrmsInitialReset(idx){
   var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  // If this row was previously confirmed (i.e., saved to DB as initial:true),
+  // remove that day from the attendance record too. ESSL data on the same
+  // day is left alone — Reset only undoes Initial entries.
+  var empCode=(document.getElementById('hrmsEmpCode')||{}).value.trim();
+  if(r.confirmed&&empCode){
+    var dp=String(r.date||'').split('-');
+    if(dp.length===3){
+      var mk=dp[0]+'-'+dp[1];var dk=String(+dp[2]);
+      if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+        notify('⚠ '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk)+' is locked',true);
+        return;
+      }
+      showSpinner('Removing…');
+      try{
+        if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
+        var recs=_hrmsAttCache[mk]||[];
+        var rec=recs.find(function(a){return a.empCode===empCode;});
+        if(rec&&rec.days&&rec.days[dk]&&rec.days[dk].initial){
+          var snap=rec.days[dk]._prev;
+          if(snap&&((snap['in']||'').trim()||(snap['out']||'').trim())){
+            // Restore the original ESSL day that was overwritten on Confirm.
+            rec.days[dk]={'in':snap['in']||'','out':snap['out']||''};
+            await _dbSave('hrmsAttendance',rec);
+          } else {
+            // No prior ESSL data — drop the day entirely.
+            delete rec.days[dk];
+            if(Object.keys(rec.days).length===0){
+              await _dbDel('hrmsAttendance',rec.id);
+              _hrmsAttCache[mk]=_hrmsAttCache[mk].filter(function(x){return x.id!==rec.id;});
+            } else {
+              await _dbSave('hrmsAttendance',rec);
+            }
+          }
+        }
+      }catch(e){console.warn('initial reset DB error',e);}
+      hideSpinner();
+    }
+  }
   r.in='';r.out='';r.confirmed=false;r.editing=false;
   _hrmsRenderInitialAttendance();
+  _hrmsInitialRefreshDependentViews();
 }
 
 // Persist initial-attendance rows to hrms_attendance after the employee has
 // been saved. Any row with a valid IN or OUT is persisted (Confirm is a UX
 // affordance only — not a save gate). Each day record gets `initial:true`
-// so the muster roll paints it distinctly. ESSL data always wins: days
-// that already exist WITHOUT the initial flag are preserved and the staged
-// value is discarded.
+// so the muster roll paints it distinctly. Latest save wins: an Initial
+// entry overwrites pre-existing ESSL data, and a later ESSL import will
+// overwrite the Initial entry — that matches "current truth" on the
+// muster.
 async function _hrmsPersistInitialAttendance(empCode){
-  if(!empCode||!_hrmsEmpInitialDays||!_hrmsEmpInitialDays.length) return;
+  console.log('Initial persist: empCode='+empCode+', rows='+(_hrmsEmpInitialDays||[]).length);
+  if(!empCode){console.warn('Initial persist: aborted — no empCode');return;}
+  if(!_hrmsEmpInitialDays||!_hrmsEmpInitialDays.length){console.warn('Initial persist: aborted — _hrmsEmpInitialDays is empty (Initial tab was never opened?)');return;}
   var byMonth={};
-  var staged=0;
+  var staged=0,skippedInvalid=0,skippedEmpty=0;
   _hrmsEmpInitialDays.forEach(function(r){
     var inV=_hrmsInitialNormalizeTime(r.in||'');
     var outV=_hrmsInitialNormalizeTime(r.out||'');
-    if(inV===null||outV===null) return;// skip invalid rows silently
-    if(!inV&&!outV) return;// nothing to write
+    if(inV===null||outV===null){skippedInvalid++;return;}
+    if(!inV&&!outV){skippedEmpty++;return;}
     var p=String(r.date||'').split('-');if(p.length!==3) return;
     var mk=p[0]+'-'+p[1];var dk=String(+p[2]);
     (byMonth[mk]=byMonth[mk]||{})[dk]={'in':inV||'','out':outV||'',initial:true};
     staged++;
   });
-  if(!staged) return;
+  console.log('Initial persist: staged='+staged+', skippedInvalid='+skippedInvalid+', skippedEmpty='+skippedEmpty,
+    ' byMonth=',byMonth);
+  if(!staged){
+    if(skippedInvalid) notify('⚠ Initial rows had invalid times — none saved',true);
+    else notify('ℹ No Initial IN/OUT rows to save',false);
+    return;
+  }
   var months=Object.keys(byMonth);
+  console.log('Initial persist: months to write =',months);
   var written=0,skippedEssl=0,saveErrors=0;
   for(var mi=0;mi<months.length;mi++){
     var mk=months[mi];
-    try{ if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk); }catch(e){console.warn('initial: fetchMonth',mk,e);}
+    console.log('Initial persist: processing month',mk);
+    try{
+      if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
+      console.log('Initial persist: fetched month',mk,'cache size=',(_hrmsAttCache[mk]||[]).length);
+    }catch(e){console.warn('initial: fetchMonth',mk,e);}
     var recs=_hrmsAttCache[mk]||[];
     var rec=recs.find(function(a){return a.empCode===empCode;});
     if(!rec){
+      console.log('Initial persist: no existing rec, creating new for',empCode,mk);
       rec={id:'ha'+uid(),empCode:empCode,monthKey:mk,days:{}};
       if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
       _hrmsAttCache[mk].push(rec);
+    } else {
+      console.log('Initial persist: found existing rec',{id:rec.id,days:Object.keys(rec.days||{})});
     }
     rec.days=rec.days||{};
     var wrote=false;
     Object.keys(byMonth[mk]).forEach(function(dk){
-      var existing=rec.days[dk];
-      if(existing&&!existing.initial){skippedEssl++;return;}
+      // Latest save wins — Initial entries are allowed to overwrite any
+      // existing day (including ESSL data). A subsequent ESSL import will
+      // re-overwrite this entry, restoring biometric truth.
       rec.days[dk]=byMonth[mk][dk];wrote=true;written++;
     });
+    console.log('Initial persist: wrote='+wrote+', written='+written);
     if(wrote){
       try{
+        console.log('Initial persist: calling _dbSave',{id:rec.id,empCode:rec.empCode,mk:mk,days:Object.keys(rec.days)});
         var ok=await _dbSave('hrmsAttendance',rec);
         if(!ok){saveErrors++;console.warn('initial: _dbSave returned false for',mk,empCode);}
-      }catch(e){saveErrors++;console.warn('initial: _dbSave error',mk,e);}
+        else console.log('Initial persist: _dbSave OK for',mk,empCode);
+      }catch(e){saveErrors++;console.error('initial: _dbSave error',mk,e);}
     }
   }
-  if(written) notify('✅ Saved '+written+' initial day(s) for '+empCode+(skippedEssl?' · '+skippedEssl+' skipped (ESSL exists)':''));
-  else if(skippedEssl) notify('ℹ All '+skippedEssl+' day(s) skipped — ESSL data already imported');
+  console.log('Initial persist: done — written='+written+', saveErrors='+saveErrors);
+  if(written) notify('✅ Saved '+written+' initial day(s) for '+empCode);
   if(saveErrors) notify('⚠ '+saveErrors+' day(s) failed to save — check console',true);
 }
 
@@ -3107,12 +3226,8 @@ async function saveHrmsEmp(){
     // _dbSave already inserts into DB.hrmsEmployees on success — no extra push.
     if(!await _dbSave('hrmsEmployees',e2)) return;
   }
-  // Persist any staged Initial IN/OUT data into hrms_attendance with the
-  // initial:true marker so the muster roll can highlight those days.
-  try{
-    var _persistCode=(id?(byId(DB.hrmsEmployees,id)||{}).empCode:code);
-    if(typeof _hrmsPersistInitialAttendance==='function') await _hrmsPersistInitialAttendance(_persistCode);
-  }catch(_initErr){console.warn('Initial attendance save failed:',_initErr);}
+  // Initial IN/OUT data is now saved per-row directly via the Confirm
+  // button on the Initial tab — no employee-level persist required here.
   // Invalidate contract salary cache so revised salary/ESI/period data shows on next render
   if(typeof _hrmsContractCache!=='undefined') _hrmsContractCache={};
   renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
