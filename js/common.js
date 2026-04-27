@@ -682,6 +682,25 @@ function _rtRefreshFor(tbl){
       if(tbl==='vehicleTypes'&& pid==='pageVTypes')    _try(()=>{ if(typeof renderVTypes==='function')    renderVTypes(); });
       if(tbl==='locations'   && pid==='pageLocations') _try(()=>{ if(typeof renderLocations==='function') renderLocations(); });
       if(tbl==='tripRates'   && pid==='pageTripRates') _try(()=>{ if(typeof renderRates==='function')     renderRates(); });
+      // ── HRMS employee changes (ECR approvals, edits) ──
+      // Refresh badge always; refresh whichever HRMS view is currently active
+      // so other users see ECR approvals/rejections without a manual refresh.
+      if(tbl==='hrmsEmployees'){
+        _try(()=>{ if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge(); });
+        if(pid==='pageHrmsEmployees'){
+          _try(()=>{ if(typeof renderHrmsEmployees==='function') renderHrmsEmployees(); });
+          _try(()=>{ if(typeof _hrmsRenderChangeReq==='function') _hrmsRenderChangeReq(); });
+        }
+        if(pid==='pageHrmsAttSal'){
+          _try(()=>{ if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab(); });
+        }
+        if(pid==='pageHrmsUtilDailyAtt'){
+          _try(()=>{ if(typeof _hrmsDasRender==='function') _hrmsDasRender(); });
+        }
+        if(pid==='pageHrmsDashboard'){
+          _try(()=>{ if(typeof renderHrmsDashboard==='function') renderHrmsDashboard(); });
+        }
+      }
     }catch(e){ console.warn('_rtRefreshFor error ['+tbl+']:', e.message); }
   }, 200);
 }
@@ -1181,7 +1200,7 @@ async function bootDB(){
 
 // Background sync: fetch hot tables FIRST (fast), then cold tables
 var _bgSyncDone=false;
-var _HOT_TABLES=['trips','segments','spotTrips'];
+var _HOT_TABLES=['trips','segments','spotTrips','hrmsEmployees'];
 function _getHotTables(){
   var active=_getActiveTables();
   return _HOT_TABLES.filter(function(t){return active.indexOf(t)>=0;});

@@ -361,6 +361,7 @@
           </div>
           <div style="flex:1"></div>
           <label class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0;font-weight:800">📥 Import/Update<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAttendance(this)" style="display:none"></label>
+          <button onclick="_hrmsWipeMonthAttendance()" style="font-size:12px;padding:8px 14px;font-weight:800;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🗑 Clear All Attendance for Month</button>
         </div>
         <div style="padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.6">
           <b>Excel columns:</b> <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Employee Name</code> (optional) · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Date</code> (DD/MM/YYYY or YYYY-MM-DD) · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time IN</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time Out</code><br>

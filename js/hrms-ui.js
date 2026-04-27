@@ -1703,7 +1703,7 @@ function _hrmsRenderChangeReq(){
     h+='<div><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+_ecEsc+'\')" style="font-family:var(--mono);font-weight:900;font-size:16px;color:var(--accent);text-decoration:underline;cursor:pointer" title="View / edit employee">'+e.empCode+'</a> <span style="font-weight:700;font-size:15px">'+e.name+'</span> <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">⏳ Pending</span>'+(_isNewEcr?' <span style="background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">NEW EMPLOYEE</span>':'')+'</div>';
     h+='<div style="font-size:11px;color:var(--text3)">Proposed from <b>'+_hrmsMonthLabel(p.from)+'</b>'+(p.submittedBy?' by '+p.submittedBy:'')+'</div></div>';
     // Unified timeline table: all periods + proposed row with changes highlighted
-    var _ecrCols=['location','employmentType','category','teamName','department','designation','roll','salaryDay','salaryMonth','specialAllowance','esiApplicable'];
+    var _ecrCols=['location','employmentType','category','teamName','roll','department','designation','salaryDay','salaryMonth','specialAllowance','esiApplicable'];
     var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',designation:'Designation',roll:'Role',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
     var _th2='padding:5px 6px;font-size:10px;font-weight:700;white-space:nowrap';
     h+='<div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:6px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff"><th style="'+_th2+'">Period</th><th style="'+_th2+'">Status</th>';
@@ -1744,7 +1744,7 @@ function _hrmsRenderChangeReq(){
     h+='<div style="margin-top:16px;border-top:2px solid var(--border);padding-top:12px"><div style="font-size:16px;font-weight:900;margin-bottom:10px">📜 ECR History ('+historyReqs.length+')</div>';
     h+='<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff">'
       +'<th style="padding:6px 8px;font-size:11px;text-align:left">Emp Code</th><th style="padding:6px 8px;font-size:11px;text-align:left">Name</th><th style="padding:6px 8px;font-size:11px">Period</th><th style="padding:6px 8px;font-size:11px">Status</th><th style="padding:6px 8px;font-size:11px">By</th><th style="padding:6px 8px;font-size:11px">Date</th>'
-      +'<th style="padding:6px 8px;font-size:11px">Plant</th><th style="padding:6px 8px;font-size:11px">Type</th><th style="padding:6px 8px;font-size:11px">Category</th><th style="padding:6px 8px;font-size:11px">Team</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sal/Day</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sal/Mon</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sp.Allow</th>'
+      +'<th style="padding:6px 8px;font-size:11px">Plant</th><th style="padding:6px 8px;font-size:11px">Type</th><th style="padding:6px 8px;font-size:11px">Category</th><th style="padding:6px 8px;font-size:11px">Team</th><th style="padding:6px 8px;font-size:11px">Role</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sal/Day</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sal/Mon</th><th style="padding:6px 8px;font-size:11px;text-align:right">Sp.Allow</th>'
       +(isSA?'<th style="padding:6px 8px;font-size:11px"></th>':'')+'</tr></thead><tbody>';
     historyReqs.forEach(function(r){
       var hp=r.period,e=r.emp,cur=r.current||{};
@@ -1766,6 +1766,7 @@ function _hrmsRenderChangeReq(){
         +'<td style="padding:5px 8px;'+_hi('employmentType')+'">'+(hp.employmentType||'—')+'</td>'
         +'<td style="padding:5px 8px;'+_hi('category')+'">'+(hp.category||'—')+'</td>'
         +'<td style="padding:5px 8px;'+_hi('teamName')+'">'+(hp.teamName||'—')+'</td>'
+        +'<td style="padding:5px 8px;'+_hi('roll')+'">'+(hp.roll||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryDay')+'">'+(hp.salaryDay||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryMonth')+'">'+(hp.salaryMonth||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('specialAllowance')+'">'+(hp.specialAllowance||'—')+'</td>'
@@ -2098,7 +2099,7 @@ function _hrmsEmpModalTab(tab){
   // Backward compat: 'basic' and 'org' both route to the combined 'details' tab.
   if(!tab||tab==='basic'||tab==='org') tab='details';
   _hrmsEmpActiveTab=tab;
-  ['details','history'].forEach(function(t){
+  ['details','history','initial'].forEach(function(t){
     var panel=document.getElementById('hrmsEmpTabPanel_'+t);
     var btn=document.getElementById('hrmsEmpTabBtn_'+t);
     if(panel) panel.style.display=(t===tab)?'':'none';
@@ -2112,6 +2113,350 @@ function _hrmsEmpModalTab(tab){
     var id=document.getElementById('hrmsEmpId')?.value;
     if(id&&_hrmsEmpHistoryLoadedFor!==id) _hrmsShowEmpHistory();
   }
+  if(tab==='initial') _hrmsRenderInitialAttendance();
+}
+
+// ═══ INITIAL IN/OUT DATA (employee modal) ═══════════════════════════════
+// 7-day staging area for entering attendance for the days BEFORE an employee
+// was registered in the system. Rows are kept in memory while the modal is
+// open; on save, confirmed rows with non-empty IN/OUT are persisted to
+// hrms_attendance with `initial:true` so the muster roll renders them with a
+// distinct background.
+var _hrmsEmpInitialDays=[];
+
+function _hrmsInitialDaysFromDoj(){
+  var dojRaw=(document.getElementById('hrmsEmpDOJ')||{}).value||'';
+  if(!dojRaw) return [];
+  // dojRaw is YYYY-MM-DD (input type=date). Build 7 consecutive dates.
+  var p=dojRaw.split('-');var y=+p[0],m=+p[1],d=+p[2];
+  if(!(y&&m&&d)) return [];
+  var start=new Date(y,m-1,d);
+  if(isNaN(start)) return [];
+  var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var out=[];
+  for(var i=0;i<7;i++){
+    var dt=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+    var iso=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+    out.push({date:iso,day:dn[dt.getDay()],in:'',out:'',confirmed:false,editing:false});
+  }
+  return out;
+}
+
+// Pre-populate the staging rows from any `initial:true` days already saved.
+function _hrmsLoadInitialFromDB(){
+  var rows=_hrmsInitialDaysFromDoj();
+  var empCode=(document.getElementById('hrmsEmpCode')||{}).value||'';
+  if(!empCode||!rows.length){_hrmsEmpInitialDays=rows;return;}
+  rows.forEach(function(r){
+    var p=r.date.split('-');var mk=p[0]+'-'+p[1];var dk=String(+p[2]);
+    var rec=(_hrmsAttCache[mk]||[]).find(function(a){return a.empCode===empCode;});
+    var dd=rec&&rec.days&&rec.days[dk];
+    if(dd&&dd.initial){r.in=dd['in']||'';r.out=dd['out']||'';r.confirmed=!!(r.in||r.out);r.editing=false;}
+  });
+  _hrmsEmpInitialDays=rows;
+}
+
+// Status badge / hour formatter — reused by the row render and the
+// per-row live recalc so we don't have to duplicate styling.
+function _hrmsInitialStatusBadge(s){
+  if(s==='P') return '<span style="background:#dcfce7;color:#15803d;font-weight:900;padding:2px 8px;border-radius:4px;font-size:11px">P</span>';
+  if(s==='P/2') return '<span style="background:#fef3c7;color:#92400e;font-weight:900;padding:2px 8px;border-radius:4px;font-size:11px">P/2</span>';
+  if(s==='EL') return '<span style="background:#dbeafe;color:#1d4ed8;font-weight:900;padding:2px 8px;border-radius:4px;font-size:11px">EL</span>';
+  if(s==='A') return '<span style="background:#fee2e2;color:#dc2626;font-weight:900;padding:2px 8px;border-radius:4px;font-size:11px">A</span>';
+  if(s==='H') return '<span style="background:#e0e7ff;color:#4338ca;font-weight:900;padding:2px 8px;border-radius:4px;font-size:11px">H/P</span>';
+  return '<span style="color:var(--text3)">—</span>';
+}
+function _hrmsInitialFmtHr(h){if(!h) return '—';return (Math.round(h*100)/100).toFixed(2);}
+
+// Recalculate just one row's P/A, OT, OT@S cells in place — avoids a full
+// table re-render so focus / Tab navigation between inputs survives.
+function _hrmsInitialRefreshRowCalc(idx){
+  var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  var ap=(_hrmsEmpPeriods&&_hrmsEmpPeriods[0])||{};
+  var cat=(ap.category||'').toLowerCase();
+  var et=(ap.employmentType||'').toLowerCase();
+  var isStaff=(cat==='staff')&&et!=='contract';
+  var location=ap.location||'';
+  // EL count for this row's month from earlier rows in the array.
+  var monthPrefix=String(r.date||'').slice(0,7);
+  var elCount=0;
+  for(var j=0;j<idx;j++){
+    var rp=_hrmsEmpInitialDays[j];if(!rp) continue;
+    if(String(rp.date||'').slice(0,7)!==monthPrefix) continue;
+    var c0=_hrmsInitialCalcDay(rp.date,rp.in,rp.out,isStaff,location,elCount);
+    if(c0.status==='EL') elCount++;
+  }
+  var calc=_hrmsInitialCalcDay(r.date,r.in,r.out,isStaff,location,elCount);
+  var sEl=document.getElementById('_hrmsInitStatus_'+idx);
+  var oEl=document.getElementById('_hrmsInitOt_'+idx);
+  var osEl=document.getElementById('_hrmsInitOts_'+idx);
+  if(sEl) sEl.innerHTML=_hrmsInitialStatusBadge(calc.status);
+  if(oEl){
+    oEl.textContent=_hrmsInitialFmtHr(calc.ot);
+    oEl.style.color=calc.ot?'#7c3aed':'var(--text3)';
+  }
+  if(osEl){
+    osEl.textContent=_hrmsInitialFmtHr(calc.otS);
+    osEl.style.color=calc.otS?'#c2410c':'var(--text3)';
+  }
+}
+
+// Parse loose user input into a strict HH:MM string, or return null when
+// the value is not a valid time. Accepts: '9', '09', '930', '0930', '9:30',
+// '09:30'. Rejects letters or out-of-range values.
+function _hrmsInitialNormalizeTime(raw){
+  var s=String(raw||'').trim();if(!s) return '';
+  if(/[^\d:]/.test(s)) return null;
+  var hh,mm;
+  if(s.indexOf(':')>=0){
+    var parts=s.split(':');
+    hh=parseInt(parts[0],10);mm=parseInt(parts[1]||'0',10);
+  } else {
+    if(s.length<=2){hh=parseInt(s,10);mm=0;}
+    else if(s.length===3){hh=parseInt(s.slice(0,1),10);mm=parseInt(s.slice(1),10);}
+    else if(s.length===4){hh=parseInt(s.slice(0,2),10);mm=parseInt(s.slice(2),10);}
+    else return null;
+  }
+  if(isNaN(hh)||isNaN(mm)) return null;
+  if(hh<0||hh>23||mm<0||mm>59) return null;
+  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+}
+
+// Per-day status / OT / OT@S calc for the Initial tab — mirrors the muster
+// roll's logic but operates on a single day. `elCountSoFar` is needed so
+// the staff EL cap (2/month) is respected across the 7 displayed rows.
+function _hrmsInitialCalcDay(date,ti,to,isStaff,location,elCountSoFar){
+  var p=String(date||'').split('-');var y=+p[0],m=+p[1],d=+p[2];
+  var monthKey=p[0]+'-'+p[1];
+  var _otR=(typeof _hrmsGetOtRules==='function')?_hrmsGetOtRules(monthKey):null;
+  if(!_otR) return {status:'',worked:0,ot:0,otS:0,dayType:'WD',isOff:false};
+  var dType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(monthKey,d,y,m,location):'WD';
+  var isOff=(dType==='WO'||dType==='PH');
+  var worked=0;
+  if(ti&&to){
+    var t1=_hrmsParseTime(ti),t2=_hrmsParseTime(to);
+    t1=_hrmsRoundIn(t1);t2=_hrmsRoundOut(t2);
+    if(t1!==null&&t2!==null){
+      if(t2<t1) t2+=1440;// night shift
+      worked=(t2-t1)/60;
+    }
+  }
+  var hasTime=!!(ti||to);
+  var status='';
+  if(isOff){status=hasTime?'P':'H';}
+  else if(!hasTime){status='A';}
+  else if(worked>=_otR.fullDay){status='P';}
+  else if(isStaff&&worked>=_otR.elMin&&worked<_otR.fullDay&&(elCountSoFar||0)<_otR.elMaxPerMonth){status='EL';}
+  else if(worked>=_otR.halfDay){status='P/2';}
+  else{status='A';}
+  var ot=0,otS=0;
+  if(worked>0&&!isStaff){
+    if(isOff){
+      otS=worked;
+      if(otS>_otR.otsTier2Threshold) otS-=_otR.otsTier2Deduct;
+      else if(otS>=_otR.otsTier1Threshold) otS-=_otR.otsTier1Deduct;
+      if(otS<0) otS=0;
+      otS=Math.min(otS,_otR.otsMaxPerDay);
+    } else {
+      if(worked>_otR.otTier2Threshold) ot=worked-_otR.otTier2Subtract;
+      else if(worked>=_otR.otTier1Threshold) ot=worked-_otR.otTier1Subtract;
+      if(ot>0) ot=Math.min(ot,_otR.otMaxPerDay);else ot=0;
+    }
+  }
+  return {status:status,worked:worked,ot:ot,otS:otS,dayType:dType,isOff:isOff};
+}
+
+function _hrmsRenderInitialAttendance(){
+  var body=document.getElementById('hrmsEmpInitialBody');if(!body) return;
+  var doj=(document.getElementById('hrmsEmpDOJ')||{}).value||'';
+  if(!doj){
+    body.innerHTML='<div class="empty-state" style="padding:30px 20px">Set <b>Date of Joining</b> on the Employee Details tab first — the 7-day window starts from that date.</div>';
+    _hrmsEmpInitialDays=[];return;
+  }
+  // (Re-)build rows when DOJ changes or first open. Keeps prior in-memory
+  // entries when DOJ unchanged.
+  var freshDates=_hrmsInitialDaysFromDoj();
+  var firstFresh=(freshDates[0]||{}).date||'';
+  var firstCur=((_hrmsEmpInitialDays[0])||{}).date||'';
+  if(firstFresh!==firstCur) _hrmsLoadInitialFromDB();
+  var locked=function(date){
+    if(typeof _hrmsIsMonthLocked!=='function') return false;
+    var p=String(date||'').split('-');return _hrmsIsMonthLocked(p[0]+'-'+p[1]);
+  };
+  // Pull category / employmentType / location from the active period for
+  // attendance / OT calculation.
+  var ap=(_hrmsEmpPeriods&&_hrmsEmpPeriods[0])||{};
+  var cat=(ap.category||'').toLowerCase();
+  var et=(ap.employmentType||'').toLowerCase();
+  var isStaff=(cat==='staff')&&et!=='contract';
+  var location=ap.location||'';
+  // Track EL count across the 7 rows by month (resets at month boundary).
+  var elByMonth={};
+  var h=''
+    +'<div style="font-size:12px;color:var(--text2);background:#eff6ff;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:4px;margin-bottom:12px;line-height:1.5">'
+    +'Enter Time IN / Time Out for up to 7 days from the date of joining. Times accept <b>HH:MM</b> or compact digits (e.g. <code>0930</code> → 09:30). These rows appear in the Muster Roll with a <b style="background:#bae6fd;padding:1px 6px;border-radius:3px;color:#075985">distinct background</b>. <b>If ESSL data is later imported for a date, the imported data wins</b> — initial values are only kept until then.'
+    +'</div>'
+    +'<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+    +'<thead><tr style="background:#f1f5f9"><th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:800">#</th><th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:800">Date</th><th style="padding:8px 8px;text-align:left;font-size:11px;font-weight:800">Day</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">Time IN</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">Time OUT</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">P/A</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">OT</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">OT@S</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">State</th><th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800">Actions</th></tr></thead><tbody>';
+  _hrmsEmpInitialDays.forEach(function(r,i){
+    var dp=r.date.split('-');
+    var dispDate=dp[2]+'/'+dp[1]+'/'+dp[0];
+    var mk=dp[0]+'-'+dp[1];
+    var isLocked=locked(r.date);
+    // Inputs are read-only by default. Only the per-row Edit button puts
+    // the row into editing mode; Confirm/Reset take it back out.
+    var rowDisabled=isLocked||!r.editing;
+    var rowBg=r.editing?'#fffbeb':(r.confirmed?'#dcfce7':(isLocked?'#fee2e2':'#fff'));
+    // Build the IN/OUT input attributes — explicit background+color in both
+    // states so an editable cell never inherits a faded look from the row.
+    var _inpBase='font-size:13px;padding:4px 6px;border:1.5px solid var(--border);border-radius:5px;width:78px;text-align:center;font-family:var(--mono);box-sizing:border-box';
+    var disAttr=rowDisabled
+      ?'disabled style="'+_inpBase+';background:#f1f5f9;color:#64748b;cursor:'+(isLocked?'not-allowed':'default')+'"'
+      :'style="'+_inpBase+';background:#fff;color:var(--text);cursor:text"';
+    // Live calc — runs on every render and is also refreshed in-place by
+    // _hrmsInitialRefreshRowCalc on each blur (without a full re-render so
+    // Tab navigation between inputs survives).
+    var calc=_hrmsInitialCalcDay(r.date,r.in,r.out,isStaff,location,elByMonth[mk]||0);
+    if(calc.status==='EL') elByMonth[mk]=(elByMonth[mk]||0)+1;
+    var stateTxt=isLocked?'<span style="color:#dc2626;font-weight:800">🔒 Locked</span>'
+      :(r.editing?'<span style="color:#b45309;font-weight:800">✎ Editing</span>'
+      :(r.confirmed?'<span style="color:#15803d;font-weight:800">✓ Staged</span>'
+      :'<span style="color:var(--text3)">—</span>'));
+    var actions='';
+    if(isLocked){
+      actions='<span style="font-size:11px;color:var(--text3)">No action</span>';
+    } else if(r.editing){
+      actions=''
+        +'<button type="button" onclick="_hrmsInitialConfirm('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">✓ Confirm</button>'
+        +'<button type="button" onclick="_hrmsInitialReset('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer">↺ Reset</button>';
+    } else {
+      actions=''
+        +'<button type="button" onclick="_hrmsInitialEdit('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:5px;cursor:pointer;margin-right:4px">✎ Edit</button>'
+        +'<button type="button" onclick="_hrmsInitialReset('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:5px;cursor:pointer">↺ Reset</button>';
+    }
+    h+='<tr style="background:'+rowBg+';border-top:1px solid var(--border)">'
+      +'<td style="padding:6px 8px;font-weight:700;color:var(--text3)">'+(i+1)+'</td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+dispDate+'</td>'
+      +'<td style="padding:6px 8px;font-weight:700;color:'+(r.day==='Sun'?'#dc2626':'var(--text)')+'">'+r.day+'</td>'
+      +'<td style="padding:4px 6px;text-align:center"><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="_hrmsInitialIn_'+i+'" value="'+(r.in||'')+'" onkeypress="return event.key.length>1||/^[\\d:]$/.test(event.key)" oninput="_hrmsInitialFieldChange('+i+',\'in\',this.value)" onblur="_hrmsInitialBlurTime('+i+',\'in\',this)" '+disAttr+'></td>'
+      +'<td style="padding:4px 6px;text-align:center"><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="_hrmsInitialOut_'+i+'" value="'+(r.out||'')+'" onkeypress="return event.key.length>1||/^[\\d:]$/.test(event.key)" oninput="_hrmsInitialFieldChange('+i+',\'out\',this.value)" onblur="_hrmsInitialBlurTime('+i+',\'out\',this)" '+disAttr+'></td>'
+      +'<td id="_hrmsInitStatus_'+i+'" style="padding:6px 8px;text-align:center">'+_hrmsInitialStatusBadge(calc.status)+'</td>'
+      +'<td id="_hrmsInitOt_'+i+'" style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:700;color:'+(calc.ot?'#7c3aed':'var(--text3)')+'">'+_hrmsInitialFmtHr(calc.ot)+'</td>'
+      +'<td id="_hrmsInitOts_'+i+'" style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:700;color:'+(calc.otS?'#c2410c':'var(--text3)')+'">'+_hrmsInitialFmtHr(calc.otS)+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;font-size:11px">'+stateTxt+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;white-space:nowrap">'+actions+'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div>';
+  body.innerHTML=h;
+}
+
+function _hrmsInitialFieldChange(idx,field,val){
+  var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  r[field]=val||'';
+}
+
+// Validates / normalises the entered time on blur. Empty = OK. Anything
+// non-numeric or out-of-range raises an alert and reverts the field. We
+// deliberately do NOT re-render the table here — that would destroy the
+// next focus target and break Tab navigation between rows. Instead, just
+// the row's P/A / OT / OT@S cells are refreshed in place.
+function _hrmsInitialBlurTime(idx,field,input){
+  var r=_hrmsEmpInitialDays[idx];if(!r||!input) return;
+  var raw=input.value||'';
+  if(!raw){r[field]='';_hrmsInitialRefreshRowCalc(idx);return;}
+  var norm=_hrmsInitialNormalizeTime(raw);
+  if(norm===null){
+    alert('Invalid time: "'+raw+'"\nUse 24-hour HH:MM (or compact digits like 0930).');
+    input.value=r[field]||'';
+    return;
+  }
+  r[field]=norm;input.value=norm;
+  _hrmsInitialRefreshRowCalc(idx);
+}
+
+function _hrmsInitialConfirm(idx){
+  var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  if(!r.in&&!r.out){notify('Enter Time IN or Time OUT first',true);return;}
+  // Re-validate in case user typed via paste / programmatic input.
+  if(r.in){
+    var ni=_hrmsInitialNormalizeTime(r.in);
+    if(ni===null){alert('Invalid Time IN: "'+r.in+'". Use HH:MM.');return;}
+    r.in=ni;
+  }
+  if(r.out){
+    var no=_hrmsInitialNormalizeTime(r.out);
+    if(no===null){alert('Invalid Time OUT: "'+r.out+'". Use HH:MM.');return;}
+    r.out=no;
+  }
+  r.confirmed=true;r.editing=false;
+  _hrmsRenderInitialAttendance();
+}
+
+function _hrmsInitialEdit(idx){
+  var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  r.editing=true;
+  _hrmsRenderInitialAttendance();
+  // Auto-focus the Time IN input so the user can start typing right away.
+  setTimeout(function(){var el=document.getElementById('_hrmsInitialIn_'+idx);if(el) el.focus();},0);
+}
+
+function _hrmsInitialReset(idx){
+  var r=_hrmsEmpInitialDays[idx];if(!r) return;
+  r.in='';r.out='';r.confirmed=false;r.editing=false;
+  _hrmsRenderInitialAttendance();
+}
+
+// Persist initial-attendance rows to hrms_attendance after the employee has
+// been saved. Any row with a valid IN or OUT is persisted (Confirm is a UX
+// affordance only — not a save gate). Each day record gets `initial:true`
+// so the muster roll paints it distinctly. ESSL data always wins: days
+// that already exist WITHOUT the initial flag are preserved and the staged
+// value is discarded.
+async function _hrmsPersistInitialAttendance(empCode){
+  if(!empCode||!_hrmsEmpInitialDays||!_hrmsEmpInitialDays.length) return;
+  var byMonth={};
+  var staged=0;
+  _hrmsEmpInitialDays.forEach(function(r){
+    var inV=_hrmsInitialNormalizeTime(r.in||'');
+    var outV=_hrmsInitialNormalizeTime(r.out||'');
+    if(inV===null||outV===null) return;// skip invalid rows silently
+    if(!inV&&!outV) return;// nothing to write
+    var p=String(r.date||'').split('-');if(p.length!==3) return;
+    var mk=p[0]+'-'+p[1];var dk=String(+p[2]);
+    (byMonth[mk]=byMonth[mk]||{})[dk]={'in':inV||'','out':outV||'',initial:true};
+    staged++;
+  });
+  if(!staged) return;
+  var months=Object.keys(byMonth);
+  var written=0,skippedEssl=0,saveErrors=0;
+  for(var mi=0;mi<months.length;mi++){
+    var mk=months[mi];
+    try{ if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk); }catch(e){console.warn('initial: fetchMonth',mk,e);}
+    var recs=_hrmsAttCache[mk]||[];
+    var rec=recs.find(function(a){return a.empCode===empCode;});
+    if(!rec){
+      rec={id:'ha'+uid(),empCode:empCode,monthKey:mk,days:{}};
+      if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
+      _hrmsAttCache[mk].push(rec);
+    }
+    rec.days=rec.days||{};
+    var wrote=false;
+    Object.keys(byMonth[mk]).forEach(function(dk){
+      var existing=rec.days[dk];
+      if(existing&&!existing.initial){skippedEssl++;return;}
+      rec.days[dk]=byMonth[mk][dk];wrote=true;written++;
+    });
+    if(wrote){
+      try{
+        var ok=await _dbSave('hrmsAttendance',rec);
+        if(!ok){saveErrors++;console.warn('initial: _dbSave returned false for',mk,empCode);}
+      }catch(e){saveErrors++;console.warn('initial: _dbSave error',mk,e);}
+    }
+  }
+  if(written) notify('✅ Saved '+written+' initial day(s) for '+empCode+(skippedEssl?' · '+skippedEssl+' skipped (ESSL exists)':''));
+  else if(skippedEssl) notify('ℹ All '+skippedEssl+' day(s) skipped — ESSL data already imported');
+  if(saveErrors) notify('⚠ '+saveErrors+' day(s) failed to save — check console',true);
 }
 
 // Live duplicate-check on the Employee Code input. Runs on every keystroke
@@ -2450,6 +2795,7 @@ function openHrmsEmpModal(id){
     +'<div style="display:flex;gap:0;margin:6px 0 12px;border-bottom:2px solid var(--border)">'
     +'<div id="hrmsEmpTabBtn_details" onclick="_hrmsEmpModalTab(\'details\')" style="padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent)">👤 Employee Details</div>'
     +'<div id="hrmsEmpTabBtn_history" onclick="_hrmsEmpModalTab(\'history\')" style="padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">📊 History</div>'
+    +'<div id="hrmsEmpTabBtn_initial" onclick="_hrmsEmpModalTab(\'initial\')" style="padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">🕘 Initial IN/OUT data</div>'
     +'</div>'
     // ── DETAILS PANEL: 2-col layout (Personal | Statutory + Banking),
     //    then Organization & Salary full-width below.
@@ -2486,6 +2832,10 @@ function openHrmsEmpModal(id){
     // ── HISTORY PANEL ─────────────────────────────────────────
     +'<div id="hrmsEmpTabPanel_history" style="display:none">'
     +'<div id="hrmsEmpHistoryBody"><div class="empty-state" style="padding:40px 20px;color:var(--text3)">Click the History tab to load…</div></div>'
+    +'</div>'
+    // ── INITIAL IN/OUT DATA PANEL ─────────────────────────────
+    +'<div id="hrmsEmpTabPanel_initial" style="display:none">'
+    +'<div id="hrmsEmpInitialBody"></div>'
     +'</div>'
     +'</div>';
   // Open as modal popup
@@ -2558,6 +2908,25 @@ function openHrmsEmpModal(id){
   // Reset to Details tab on each open; invalidate history cache so the
   // employee's history is re-fetched when that tab is next opened.
   _hrmsEmpHistoryLoadedFor=null;
+  _hrmsEmpInitialDays=[];// re-populated on first Initial-tab open
+  // Initial IN/OUT tab visibility: any employee whose joining month is not
+  // yet Save-&-Locked. Brand-new employees (no id) always qualify. Existing
+  // employees with a locked joining month are blocked because adding initial
+  // entries there would change records that are already snapshotted.
+  var _initBtn=document.getElementById('hrmsEmpTabBtn_initial');
+  if(_initBtn){
+    var _showInitial=true;
+    if(id&&e){
+      var _doj=e.dateOfJoining||'';
+      if(!_doj){
+        _showInitial=false;
+      } else {
+        var _dojMk=String(_doj).slice(0,7);
+        if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(_dojMk)) _showInitial=false;
+      }
+    }
+    _initBtn.style.display=_showInitial?'':'none';
+  }
   _hrmsEmpModalTab('details');
 }
 
@@ -2717,6 +3086,12 @@ async function saveHrmsEmp(){
     // _dbSave already inserts into DB.hrmsEmployees on success — no extra push.
     if(!await _dbSave('hrmsEmployees',e2)) return;
   }
+  // Persist any staged Initial IN/OUT data into hrms_attendance with the
+  // initial:true marker so the muster roll can highlight those days.
+  try{
+    var _persistCode=(id?(byId(DB.hrmsEmployees,id)||{}).empCode:code);
+    if(typeof _hrmsPersistInitialAttendance==='function') await _hrmsPersistInitialAttendance(_persistCode);
+  }catch(_initErr){console.warn('Initial attendance save failed:',_initErr);}
   // Invalidate contract salary cache so revised salary/ESI/period data shows on next render
   if(typeof _hrmsContractCache!=='undefined') _hrmsContractCache={};
   renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
@@ -6258,8 +6633,11 @@ function _hrmsRenderAttGrid(yr,mo){
         var rowBg=isUnmatched?'#fef2f2':'#fff';
         h+='<td rowspan="4" style="position:sticky;left:'+L0+'px;z-index:2;background:'+rowBg+';font-weight:700;color:var(--text3);border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;text-align:center;font-size:9px;'+borderTop+'">'+(ei+1)+'</td>';
         h+='<td rowspan="4" style="position:sticky;left:'+L1+'px;z-index:2;background:'+pClr+';font-weight:800;color:#1e293b;border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:9px;text-align:center;'+borderTop+'">'+(isUnmatched?'—':plt)+'</td>';
-        h+='<td rowspan="4" style="position:sticky;left:'+L2+'px;z-index:2;background:'+rowBg+';font-weight:800;color:'+(isUnmatched?'#dc2626':'var(--accent)')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:12px;'+(isUnmatched?'':'cursor:pointer;text-decoration:underline')+';'+borderTop+'"'+(isUnmatched?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+emp.empCode+'</td>';
-        h+='<td rowspan="4" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;color:'+(isUnmatched?'#dc2626':'')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;'+(isUnmatched?'':'cursor:pointer')+';'+borderTop+'"'+(isUnmatched?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+(isUnmatched?'Employee NA':_hrmsDispName(emp))+'</td>';
+        var _ecEsc=String(emp.empCode||'').replace(/'/g,"\\'");
+        var _unkClick=' onclick="_hrmsAddEmpWithCode(\''+_ecEsc+'\')" title="Add new employee with code '+_ecEsc+'"';
+        var _knownClick=' data-emp-code="'+emp.empCode+'" title="Click to view employee"';
+        h+='<td rowspan="4" style="position:sticky;left:'+L2+'px;z-index:2;background:'+rowBg+';font-weight:800;color:'+(isUnmatched?'#dc2626':'var(--accent)')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;font-size:12px;cursor:pointer;text-decoration:underline;'+borderTop+'"'+(isUnmatched?_unkClick:_knownClick)+'>'+emp.empCode+'</td>';
+        h+='<td rowspan="4" style="position:sticky;left:'+L3+'px;z-index:2;background:'+rowBg+';font-weight:700;color:'+(isUnmatched?'#dc2626':'')+';border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;white-space:normal;word-wrap:break-word;font-size:10px;cursor:pointer;'+borderTop+'"'+(isUnmatched?_unkClick:_knownClick)+'>'+(isUnmatched?'+ Add Employee':_hrmsDispName(emp))+'</td>';
       }
       var cBdr=ri===3?cBdrLast:cBdrInner;
       h+='<td style="position:sticky;left:'+L4+'px;z-index:2;background:'+rowColors[ri]+';font-weight:700;font-size:9px;'+cBdr+'padding:2px 3px;color:#475569;'+(ri===0?borderTop:'')+'">'+rowLabels[ri]+'</td>';
@@ -6274,9 +6652,12 @@ function _hrmsRenderAttGrid(yr,mo){
         if(_hrmsAttAccounted&&tInRaw){var rm=_hrmsRoundIn(_hrmsParseTime(tInRaw));if(rm!==null)tIn=_hrmsMinToTime(rm);}
         if(_hrmsAttAccounted&&tOutRaw){var rm2=_hrmsRoundOut(_hrmsParseTime(tOutRaw));if(rm2!==null)tOut=_hrmsMinToTime(rm2);}
         var isAltered=ds.altered;
+        var isInitial=!!(dayData&&dayData.initial);
         var _dtp=ds.dayType;
         var cellBg=_dtp==='WO'?'rgba(59,130,246,.08)':_dtp==='PH'?'rgba(34,197,94,.08)':'';
-        // Purple background for altered time cells
+        // Sky-blue background for initial pre-registration entries
+        if(isInitial&&(ri===0||ri===1)) cellBg='#bae6fd';
+        // Purple background for altered time cells (overrides initial)
         if(isAltered&&(ri===0||ri===1)) cellBg='#f9a8d4';
         // Red background for missing in or out (one present, other missing) on non-off days
         var hasIn=!!tInRaw,hasOut=!!tOutRaw;
@@ -6578,13 +6959,40 @@ async function _hrmsDeleteEsslImport(logId){
         var hMap={};
         if(rows.length) Object.keys(rows[0]).forEach(function(k){var n=_norm(k);if(!hMap[n])hMap[n]=k;});
         var _pick=function(r,keys){for(var i=0;i<keys.length;i++){var w=_norm(keys[i]);if(hMap[w]&&r[hMap[w]]!==undefined&&r[hMap[w]]!=='') return r[hMap[w]];}return '';};
-        var _fdDay=function(v){
+        // Mirror _fd from _hrmsImportAttendanceFromRows so the day extracted
+        // here matches the day the import originally wrote. Anything less
+        // robust risks returning a different day, which would leave the
+        // imported data un-trimmed in the delete.
+        var _fdLegacy=function(v){
           var s=(v||'').toString().trim();if(!s) return '';
-          var m1=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-          if(m1) return String(+m1[1]);
-          var m2=s.match(/^\d{4}-\d{2}-(\d{2})$/);
-          if(m2) return String(+m2[1]);
-          var d=new Date(s);return isNaN(d)?'':String(d.getDate());
+          if(/^\d+(\.\d+)?$/.test(s)){
+            var n=+s;
+            if(n>30000&&n<60000){
+              var ed=new Date(Math.round((n-25569)*86400000));
+              if(!isNaN(ed)) return ed.getUTCFullYear()+'-'+String(ed.getUTCMonth()+1).padStart(2,'0')+'-'+String(ed.getUTCDate()).padStart(2,'0');
+            }
+          }
+          var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+          if(iso) return iso[1]+'-'+String(+iso[2]).padStart(2,'0')+'-'+String(+iso[3]).padStart(2,'0');
+          var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT,].*)?$/);
+          if(dmy){
+            var dd=+dmy[1],mm=+dmy[2],yy=+dmy[3];if(yy<100) yy+=2000;
+            if(mm>12&&dd<=12){var tmp=dd;dd=mm;mm=tmp;}
+            if(dd>=1&&dd<=31&&mm>=1&&mm<=12) return yy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+          }
+          var dmm=s.match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3,})[\s\-\/,]+(\d{2,4})(?:[\sT,].*)?$/);
+          if(dmm){
+            var mons={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+            var dM=+dmm[1],mM=mons[dmm[2].slice(0,3).toLowerCase()],yM=+dmm[3];
+            if(yM<100) yM+=2000;
+            if(dM>=1&&dM<=31&&mM) return yM+'-'+String(mM).padStart(2,'0')+'-'+String(dM).padStart(2,'0');
+          }
+          var dd2=new Date(s);if(isNaN(dd2)) return '';
+          return dd2.getFullYear()+'-'+String(dd2.getMonth()+1).padStart(2,'0')+'-'+String(dd2.getDate()).padStart(2,'0');
+        };
+        var _fdDay=function(v){
+          var iso=_fdLegacy(v);if(!iso) return '';
+          var pp=iso.split('-');return pp.length===3?String(+pp[2]):'';
         };
         affectedDays={};
         rows.forEach(function(r){
@@ -6652,6 +7060,12 @@ async function _hrmsDeleteEsslImport(logId){
       await _dbDel('hrmsSettings',fRec.id);
       DB.hrmsSettings.splice(fileRecIdx,1);
     }
+    // Drop the cached attendance for this month so the next render pulls
+    // fresh records from the DB. Avoids any stale in-memory days re-appearing
+    // in the muster roll.
+    delete _hrmsAttCache[mk];
+    delete _hrmsAltCache[mk];
+    if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
     hideSpinner();
     var msg='🗑 Removed import';
     if(trimmed) msg+=' · trimmed '+trimmed+' record(s)';
@@ -6660,6 +7074,47 @@ async function _hrmsDeleteEsslImport(logId){
     _hrmsRenderEsslImportLog();
     if(_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
   }catch(e){hideSpinner();notify('⚠ Delete failed: '+e.message,true);console.error(e);}
+}
+
+// Wipe ALL hrms_attendance records for the currently selected month —
+// last-resort clean-up when import logs no longer line up with the data
+// (orphaned records, deleted-but-residual entries, manual-entry leftovers).
+async function _hrmsWipeMonthAttendance(){
+  if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+    notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to clear.',true);return;
+  }
+  showSpinner('Loading attendance for '+_hrmsMonthLabel(mk)+'…');
+  try{ await _hrmsAttFetchMonth(mk); }catch(e){console.warn('fetchMonth:',e);}
+  hideSpinner();
+  var recs=_hrmsAttCache[mk]||[];
+  if(!recs.length){notify('No attendance records to clear for '+_hrmsMonthLabel(mk));return;}
+  var dayCells=recs.reduce(function(s,r){return s+Object.keys(r.days||{}).length;},0);
+  var msg='⚠ DELETE ALL ATTENDANCE for '+_hrmsMonthLabel(mk)+'?\n\n'+
+    '• '+recs.length+' employee record(s)\n'+
+    '• '+dayCells+' day-cell entry(s)\n\n'+
+    'This wipes everything in hrms_attendance for the month — including any\n'+
+    'leftover days from prior imports or initial-attendance entries. Manual\n'+
+    'alterations are NOT affected.\n\nThis cannot be undone. Proceed?';
+  if(!confirm(msg)) return;
+  if(!confirm('Are you really sure? Type confirm by clicking OK once more.')) return;
+  showSpinner('Clearing attendance for '+_hrmsMonthLabel(mk)+'…');
+  var deleted=0,errors=0;
+  for(var i=0;i<recs.length;i++){
+    try{
+      if(await _dbDel('hrmsAttendance',recs[i].id)) deleted++; else errors++;
+    }catch(e){errors++;console.warn('wipe error',recs[i].empCode,e);}
+  }
+  // Drop and re-fetch the cache so subsequent renders see the empty state.
+  delete _hrmsAttCache[mk];
+  delete _hrmsAltCache[mk];
+  try{ await _hrmsAttFetchMonth(mk); }catch(_){}
+  hideSpinner();
+  if(errors) notify('⚠ Cleared '+deleted+' record(s); '+errors+' failed — check console',true);
+  else notify('🗑 Cleared '+deleted+' attendance record(s) for '+_hrmsMonthLabel(mk));
+  if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
+  if(_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
 }
 
 // Render alteration import history
@@ -6878,11 +7333,12 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
   if(!_hrmsHasAccess('action.importEssl')){hideSpinner();notify('Access denied',true);return;}
   if(!rows||!rows.length){hideSpinner();notify('No data to import',true);return;}
   try{
-        // Robust date → 'YYYY-MM-DD'. Tolerates trailing time portions and
-        // avoids the timezone trap of `new Date().toISOString()` which shifts
-        // local-midnight strings back a day in positive-offset zones (IST).
+        // Robust date → 'YYYY-MM-DD'. The date portion of any string is
+        // taken LITERALLY — no timezone shifting. The file's recorded date
+        // is what we store, regardless of any trailing time / Z / offset.
         var _fd=function(v){
           var s=(v||'').toString().trim();if(!s) return '';
+          // Excel serial (naive) — UTC components match the naive calendar day.
           if(/^\d+(\.\d+)?$/.test(s)){
             var n=+s;
             if(n>30000&&n<60000){
@@ -6890,6 +7346,7 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
               if(!isNaN(ed)) return ed.getUTCFullYear()+'-'+String(ed.getUTCMonth()+1).padStart(2,'0')+'-'+String(ed.getUTCDate()).padStart(2,'0');
             }
           }
+          // ISO YYYY-MM-DD with optional time / Z / offset — date portion only.
           var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
           if(iso) return iso[1]+'-'+String(+iso[2]).padStart(2,'0')+'-'+String(+iso[3]).padStart(2,'0');
           var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT,].*)?$/);
@@ -6942,17 +7399,26 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
           }
           return '';
         };
+        // Diagnostic — sample the first 5 rows so we can see EXACTLY what
+        // the file contains vs. how the parser interpreted it. If the user
+        // reports a wrong-day mapping, this is the first thing to check.
+        var _diagSample=[];
         for(var i=0;i<rows.length;i++){
           var r=rows[i];
           var empCode=(_getRow(r,['Emp Code','Employee Code','EmpCode','Code'])||'').toString().trim();
           if(!empCode)continue;
-          var attDate=_fd(_getRow(r,['Date','Att Date','AttDate'])||'');
+          var rawDate=_getRow(r,['Date','Att Date','AttDate'])||'';
+          var attDate=_fd(rawDate);
+          if(_diagSample.length<5) _diagSample.push({empCode:empCode,rawDate:String(rawDate),attDate:attDate});
           if(!attDate){badRows.push('Row '+(i+2)+': Invalid or missing date for '+empCode);continue;}
           var dp=attDate.split('-');
           var monthKey=dp[0]+'-'+dp[1];
           importedMonths[monthKey]=true;
           parsedRows.push({empCode:empCode,attDate:attDate,monthKey:monthKey,day:+dp[2],r:r});
         }
+        console.log('Attendance Import: date parser sample →',_diagSample);
+        console.log('Attendance Import: example day keys generated →',
+          parsedRows.slice(0,5).map(function(p){return p.empCode+' → day '+p.day+' ('+p.attDate+')';}));
         // Check: must be single month
         var monthKeys=Object.keys(importedMonths);
         if(monthKeys.length>1){
@@ -6981,6 +7447,15 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
           if(!grouped[pr.empCode]) grouped[pr.empCode]={};
           grouped[pr.empCode][String(pr.day)]={'in':timeIn,'out':timeOut};
         }
+        // Diagnostic — first 3 employees with their day map. If the user
+        // reports "day N data also on day N-1", check this log: each emp's
+        // day map should contain ONLY the days that appear in the file.
+        var _diagGrouped=Object.keys(grouped).slice(0,3).map(function(ec){
+          return ec+' → days {'+Object.keys(grouped[ec]).sort(function(a,b){return +a-+b;}).join(', ')+'}';
+        });
+        console.log('Attendance Import: grouped sample →',_diagGrouped);
+        console.log('Attendance Import: total emps='+Object.keys(grouped).length+', total day-cells='+
+          Object.keys(grouped).reduce(function(s,ec){return s+Object.keys(grouped[ec]).length;},0));
 
         // Load existing records for the month and build a by-code index.
         // Import is ALWAYS a merge: only employees present in the file are
@@ -7011,11 +7486,18 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
 
         // Save / merge records
         var saved=0,errors=0,addedCount=0,updatedCount=0;
+        var _diagFirstEcLogged=false;
         for(var ec in grouped){
           var existing=existingByCode[ec];
           if(existing){
             existing.days=existing.days||{};
             Object.keys(grouped[ec]).forEach(function(dk){existing.days[dk]=grouped[ec][dk];});
+            if(!_diagFirstEcLogged){
+              console.log('Attendance Import: post-merge days for '+ec+' →',
+                Object.keys(existing.days).sort(function(a,b){return +a-+b;}).join(', '),
+                ' | written by this import:',Object.keys(grouped[ec]).sort(function(a,b){return +a-+b;}).join(', '));
+              _diagFirstEcLogged=true;
+            }
             if(await _dbSave('hrmsAttendance',existing)){saved++;updatedCount++;} else errors++;
           } else {
             var rec={id:'ha'+uid(),empCode:ec,monthKey:mk,days:grouped[ec]};
@@ -13056,7 +13538,7 @@ async function _hrmsImportAlteration(inputEl){
         var _fileBuf=ev.target.result;
         var rows=await _parseXLSX(_fileBuf);
         if(!rows.length){hideSpinner();notify('No data in file',true);return;}
-        // Robust date parser — see notes in _hrmsImportAttendanceFromRows.
+        // Robust date parser — date portion taken literally, no TZ shift.
         var _fd=function(v){
           var s=(v||'').toString().trim();if(!s) return '';
           if(/^\d+(\.\d+)?$/.test(s)){
