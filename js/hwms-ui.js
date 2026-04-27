@@ -5422,7 +5422,7 @@ function _hwmsSiBuildPrintHtml(id){
     _pi+=_span-1;
   }
   var liRows='';
-  for(var i=0;i<15;i++){
+  for(var i=0;i<20;i++){
     var li=lis[i];
     if(li){
       var part=byId(DB.hwmsParts||[],li.partId);
@@ -13629,7 +13629,7 @@ let _hwmsLiEditIdx=-1; // -1 = add mode, >=0 = editing that index
 
 function _hwmsNextPallet(){
   const used=_hwmsLiItems.map(li=>li.palletNumber);
-  for(let i=1;i<=15;i++){const pn='P'+i;if(!used.includes(pn))return pn;}
+  for(let i=1;i<=20;i++){const pn='P'+i;if(!used.includes(pn))return pn;}
   return 'P'+((_hwmsLiItems.length||0)+1);
 }
 
@@ -14196,7 +14196,7 @@ function _hwmsLiAdd(){
     pkgL:pkgL,pkgW:pkgW,pkgH:pkgH,
     netWeight:netWt,pkgWeight:pkgWt,grossWeight:grossWt,hsnCode:document.getElementById('hwmsLiAddHsn')?.value||part?.hsnCode||''};
   if(_hwmsLiEditIdx>=0){ _hwmsLiItems[_hwmsLiEditIdx]=item; }
-  else { if(_hwmsLiItems.length>=50){notify('Maximum 50 line items',true);return;} _hwmsLiItems.push(item); }
+  else { if(_hwmsLiItems.length>=20){notify('Maximum 20 line items',true);return;} _hwmsLiItems.push(item); }
   // After save, sync common pallet fields across every sibling on the same
   // pallet so the merged-cell display always shows one consistent value.
   if(item.palletNumber){
