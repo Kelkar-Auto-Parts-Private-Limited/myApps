@@ -15496,7 +15496,10 @@ function _hrmsAltReqOpen(empId,dateStr){
   document.getElementById('altReqOut').value='';
   document.getElementById('altReqReason').value='';
   var err=document.getElementById('altReqErr');if(err){err.style.display='none';err.textContent='';}
-  modal.classList.add('open');
+  // Use om() which sets style.display='flex' AND adds .open. Plain
+  // classList.add('open') doesn't work after cm(), because cm leaves
+  // inline display:none which beats the class rule.
+  if(typeof om==='function') om('mAltReq'); else { modal.style.display='flex'; modal.classList.add('open'); }
 }
 
 async function _hrmsAltReqSubmit(){
