@@ -436,6 +436,58 @@ async function _loadPhotos(localTbl,recordId){
   }catch(e){return rec;}
 }
 
+// Batch loader for spot-trip photos — mirrors _ensureTripChallans. The
+// boot select on vms_spot_trips excludes the 4 photo columns (challan,
+// driver, entry-vehicle, exit-vehicle) to keep the fetch small; this
+// helper fetches them on-demand in chunks for a list of spot IDs and
+// merges into DB.spotTrips so any subsequent popup open finds photos
+// already cached. Deduped via _loadedSpotPhotosIds + inflight set so
+// repeat calls (re-renders) don't re-request.
+var _loadedSpotPhotosIds={};
+var _inflightSpotPhotosLoad={};
+function _ensureSpotPhotos(spotIds){
+  if(!_sbReady||!_sb||!spotIds||!spotIds.length) return;
+  var fields=_PHOTO_PRESERVE['spotTrips']||[];
+  var todo=spotIds.filter(function(id){
+    if(!id||_loadedSpotPhotosIds[id]||_inflightSpotPhotosLoad[id]) return false;
+    var rec=byId(DB.spotTrips||[],id);
+    if(!rec) return false;
+    if(fields.length&&fields.every(function(f){return !!rec[f];})){
+      _loadedSpotPhotosIds[id]=true;
+      return false;
+    }
+    return true;
+  });
+  if(!todo.length) return;
+  todo.forEach(function(id){_inflightSpotPhotosLoad[id]=true;});
+  return (async function(){
+    try{
+      var CHUNK=25;
+      for(var i=0;i<todo.length;i+=CHUNK){
+        var batch=todo.slice(i,i+CHUNK);
+        try{
+          var res=await _sb.from(SB_TABLES['spotTrips'])
+            .select('code,challan_photo,driver_photo,entry_vehicle_photo,exit_vehicle_photo')
+            .in('code',batch);
+          if(res.error){console.warn('_ensureSpotPhotos error:',res.error.message);continue;}
+          (res.data||[]).forEach(function(row){
+            var rec=byId(DB.spotTrips||[],row.code);
+            if(!rec) return;
+            if(row.challan_photo) rec.challanPhoto=row.challan_photo;
+            if(row.driver_photo) rec.driverPhoto=row.driver_photo;
+            if(row.entry_vehicle_photo) rec.entryVehiclePhoto=row.entry_vehicle_photo;
+            if(row.exit_vehicle_photo) rec.exitVehiclePhoto=row.exit_vehicle_photo;
+            _loadedSpotPhotosIds[row.code]=true;
+          });
+        }catch(e){console.warn('_ensureSpotPhotos chunk exception:',e.message);}
+        batch.forEach(function(id){delete _inflightSpotPhotosLoad[id];});
+      }
+    }finally{
+      todo.forEach(function(id){delete _inflightSpotPhotosLoad[id];});
+    }
+  })();
+}
+
 // ═══ INCREMENTAL SYNC OPTIMIZATION ═══════════════════════════════════════
 var _vmsIncr={lastTs:{},mode:'unknown',skipCount:0,lastSaveAt:0,probed:false};
 
@@ -1697,6 +1749,11 @@ function tripOverallBadge(trip){
 // ═══ CAMERA / PHOTO CAPTURE ══════════════════════════════════════════════
 let _kapStream = null;
 let _kapPhotoData = null; // base64 data URL of captured/chosen photo
+// Inflight compression tracker for the KAP modal capture path. Save handlers
+// MUST await this before reading _kapPhotoData — otherwise the variable can
+// still hold the raw multi-MB dataURL and the row save silently drops the
+// photo column when it exceeds the JSONB row-size threshold.
+let _kapPhotoCompress = null;
 
 // Open camera stream — single getUserMedia call, handles all permission errors
 function _openCamStream(constraints){
@@ -1747,13 +1804,18 @@ function snapPhoto(){
   _kapPhotoData = canvas.toDataURL('image/jpeg', 0.82);
   stopCamera();
   showPreview(_kapPhotoData);
-  // Compress asynchronously — compressImage will further reduce to 900px/100KB
-  canvas.toBlob(blob=>{
-    if(!blob)return;
-    compressImage(blob instanceof File?blob:new File([blob],'snap.jpg',{type:'image/jpeg'}))
-      .then(c=>{_kapPhotoData=c;})
-      .catch(()=>{}); // keep fullQ preview on compress failure
-  },'image/jpeg',0.82);
+  // Compress asynchronously — compressImage will further reduce to 900px/100KB.
+  // Track the inflight promise so doKapStep() / KAP modal save can await it
+  // before reading _kapPhotoData; without that, a fast-clicker would persist
+  // the raw multi-MB dataURL and Supabase silently drops the photo column.
+  _kapPhotoCompress=new Promise(function(resolve){
+    canvas.toBlob(function(blob){
+      if(!blob){resolve();return;}
+      compressImage(blob instanceof File?blob:new File([blob],'snap.jpg',{type:'image/jpeg'}))
+        .then(function(c){if(c) _kapPhotoData=c;resolve();})
+        .catch(function(){resolve();});
+    },'image/jpeg',0.82);
+  });
 }
 
 function onFileChosen(input){
@@ -1761,9 +1823,11 @@ function onFileChosen(input){
   if(!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    _kapPhotoData = e.target.result; // set immediately for preview
+    _kapPhotoData = e.target.result; // raw dataURL — preview only; compression overwrites below
     showPreview(_kapPhotoData);
-    compressImage(file).then(c=>{_kapPhotoData=c;}).catch(()=>{});
+    _kapPhotoCompress=compressImage(file)
+      .then(function(c){if(c) _kapPhotoData=c;})
+      .catch(function(){});
   };
   reader.readAsDataURL(file);
 }
@@ -1776,6 +1840,7 @@ function showPreview(src){
 
 function clearPhoto(){
   _kapPhotoData = null;
+  _kapPhotoCompress = null;
   const pi=document.getElementById('kapPreviewImg');if(pi)pi.src='';
   const pp=document.getElementById('kapPhotoPreview');if(pp)pp.style.display='none';
   const pb=document.getElementById('kapPhotoButtons');if(pb)pb.style.display='flex';
@@ -5107,6 +5172,10 @@ function _renderKapInner(){
 let _kapActiveTab=1; // kept for legacy; use _kapMode for primary routing
 const _inlineStreams={};
 const _inlinePhotos={};
+// Inflight compression promises keyed by segment-id-scrubbed (sid). The save
+// handler awaits these before reading _inlinePhotos[sid] so the raw multi-MB
+// dataURL never ends up in the segment row.
+const _inlinePhotosCompress={};
 
 function toggleKapHistCard(hid){
   const el=document.getElementById(hid);if(!el)return;
@@ -5169,7 +5238,11 @@ function onSpotPhoto(input, thumbId){
         parent.appendChild(xBtn);
       }
     }
-    compressImage(f).then(c=>{input._compressedData=c;}).catch(()=>{});
+    // Track inflight compression so the spot save handlers can await it —
+    // otherwise a fast click persists the raw multi-MB dataURL.
+    input._compressPromise=compressImage(f)
+      .then(function(c){if(c) input._compressedData=c;})
+      .catch(function(){});
   };
   reader.readAsDataURL(f);
 }
@@ -5207,6 +5280,10 @@ async function submitSpotEntry(){
       s.supplier=document.getElementById('spotSupplier').value.trim();
       const _sChs=_spotGetChallans();s.challans=_sChs;s.challan=_sChs[0]?.no||'';s.challanPhoto=_sChs[0]?.photo||'';
       s.entryRemarks=document.getElementById('spotEntryRemarks').value.trim();
+      // Wait for any in-flight compression on the three file slots before reading.
+      const _seInputs=['spotVehFile','spotChallanFile','spotDriverFile'].map(id=>document.getElementById(id)).filter(Boolean);
+      const _sePromises=_seInputs.map(i=>i._compressPromise).filter(Boolean);
+      if(_sePromises.length){showSpinner&&showSpinner('Compressing photos…');try{await Promise.all(_sePromises);}catch(e){}hideSpinner&&hideSpinner();}
       if(document.getElementById('spotVehFile')?._compressedData) s.entryVehiclePhoto=document.getElementById('spotVehFile')._compressedData;
       if(document.getElementById('spotChallanFile')?._compressedData) s.challanPhoto=document.getElementById('spotChallanFile')._compressedData;
       if(document.getElementById('spotDriverFile')?._compressedData) s.driverPhoto=document.getElementById('spotDriverFile')._compressedData;
@@ -5215,7 +5292,10 @@ async function submitSpotEntry(){
     }
     return;
   }
-  // New entry
+  // New entry — await any compression first so we never persist raw uncompressed dataURLs.
+  const _newInputs=['spotVehFile','spotChallanFile','spotDriverFile'].map(id=>document.getElementById(id)).filter(Boolean);
+  const _newPromises=_newInputs.map(i=>i._compressPromise).filter(Boolean);
+  if(_newPromises.length){showSpinner&&showSpinner('Compressing photos…');try{await Promise.all(_newPromises);}catch(e){}hideSpinner&&hideSpinner();}
   const vehPhoto=document.getElementById('spotVehFile')?._compressedData||'';
   if(!vehPhoto){notify('📷 Vehicle photo is mandatory for Spot Entry',true);return;}
   const now=new Date();
@@ -5276,8 +5356,17 @@ async function doSpotExit(){
   }
   const spotId=document.getElementById('spotExitId').value;
   if(!spotId){notify('No spot trip selected',true);return;}
+  // Await any in-flight compression so we never persist the raw multi-MB
+  // dataURL — Supabase silently drops oversized JSONB rows.
+  const _exFile=document.getElementById('spotExitVehFile');
+  if(_exFile&&_exFile._compressPromise){
+    showSpinner&&showSpinner('Compressing photo…');
+    try{await _exFile._compressPromise;}catch(e){}
+    hideSpinner&&hideSpinner();
+  }
   const exitPhoto=document.getElementById('spotExitVehFile')?._compressedData||'';
   if(!exitPhoto){notify('📷 Vehicle exit photo is mandatory',true);return;}
+  if(exitPhoto.length>800*1024){notify('⚠ Photo too large after compression — please retake.',true);return;}
   const s=(DB.spotTrips||[]).find(x=>x&&x.id===spotId);
   if(!s){notify('Spot trip not found',true);return;}
   const _sBak={...s};
@@ -5286,6 +5375,15 @@ async function doSpotExit(){
   s.exitVehiclePhoto=exitPhoto;
   s.exitRemarks=document.getElementById('spotExitRemarks').value.trim();
   if(!await _dbSave('spotTrips',s)){Object.assign(s,_sBak);return;}
+  // Verify the photo persisted to the server.
+  try{
+    if(_sbReady&&_sb){
+      const _vc=await _sb.from(SB_TABLES['spotTrips']).select('code,exit_vehicle_photo').eq('code',s.id).limit(1);
+      if(_vc&&_vc.data&&_vc.data[0]&&!_vc.data[0].exit_vehicle_photo){
+        notify('⚠ Exit photo did not persist to the server. Please re-record.',true);
+      }
+    }
+  }catch(e){}
   _kapCloseSpotPopup();
   notify(`${spotId} — vehicle exit recorded!`);
   renderSpotTab();renderSpotHistory();renderDash();updBadges();
@@ -5351,6 +5449,9 @@ function renderSpotHistory(){
     list.innerHTML='<div class="empty-state">No spot entries in the last 30 days'+(myLoc?` for ${myLoc.name}`:'')+'</div>';
     return;
   }
+  // Eager photo preload — kick off a batched fetch for the visible rows so
+  // any popup-open lands with photos already cached (no thumbnail flicker).
+  try{ if(typeof _ensureSpotPhotos==='function') _ensureSpotPhotos(filtered.map(function(s){return s.id;})); }catch(e){}
   const now=new Date();
   const hrs24=24*60*60*1000;
   const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
@@ -5470,21 +5571,25 @@ function snapInline(sid){
   _inlinePhotos[sid]=c.toDataURL('image/jpeg',0.82);
   stopInlineCam(sid);
   showInlinePreview(sid);
-  // Compress to <200KB in background
-  c.toBlob(blob=>{
-    if(!blob)return;
-    compressImage(new File([blob],'snap.jpg',{type:'image/jpeg'}))
-      .then(comp=>{_inlinePhotos[sid]=comp;})
-      .catch(()=>{});
-  },'image/jpeg',0.82);
+  // Track the compression promise so doKapInline() can await it before save.
+  _inlinePhotosCompress[sid]=new Promise(function(resolve){
+    c.toBlob(function(blob){
+      if(!blob){resolve();return;}
+      compressImage(new File([blob],'snap.jpg',{type:'image/jpeg'}))
+        .then(function(comp){if(comp) _inlinePhotos[sid]=comp;resolve();})
+        .catch(function(){resolve();});
+    },'image/jpeg',0.82);
+  });
 }
 function onInlineFile(input,sid){
   const f=input.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=e=>{
-    _inlinePhotos[sid]=e.target.result; // set immediately for preview
+    _inlinePhotos[sid]=e.target.result; // raw — preview only; compression overwrites below
     showInlinePreview(sid);
-    compressImage(f).then(c=>{_inlinePhotos[sid]=c;}).catch(()=>{});
+    _inlinePhotosCompress[sid]=compressImage(f)
+      .then(function(c){if(c) _inlinePhotos[sid]=c;})
+      .catch(function(){});
   };
   r.readAsDataURL(f);
 }
@@ -5609,13 +5714,40 @@ async function doKapInline(segId,step){
     notify(`📷 Vehicle photo is mandatory for ${stepName}. Please capture a photo.`,true);
     return;
   }
+  // Wait for any in-flight compression so we never persist the raw multi-MB
+  // dataURL — Supabase silently drops oversized JSONB rows and that's exactly
+  // what produced the historic photo-missing audit (510 segments).
+  if(_inlinePhotosCompress[sid]){
+    showSpinner&&showSpinner('Compressing photo…');
+    try{ await _inlinePhotosCompress[sid]; }catch(e){}
+    delete _inlinePhotosCompress[sid];
+    hideSpinner&&hideSpinner();
+  }
+  if(_inlinePhotos[sid]&&_inlinePhotos[sid].length>800*1024){
+    notify('⚠ Photo too large after compression — please retake / pick a smaller image.',true);
+    return;
+  }
   seg.steps[step].done=true;
   seg.steps[step].time=new Date().toISOString();
   seg.steps[step].by=CU.id;
   seg.steps[step].remarks=rem;
-  if(_inlinePhotos[sid]){seg.steps[step].photo=_inlinePhotos[sid];delete _inlinePhotos[sid];}
+  const _capturedPhoto=_inlinePhotos[sid];
+  if(_capturedPhoto){seg.steps[step].photo=_capturedPhoto;delete _inlinePhotos[sid];}
   if(_inlineStreams[sid]){_inlineStreams[sid].getTracks().forEach(t=>t.stop());delete _inlineStreams[sid];}
   await advance(seg);if(!await _dbSave('segments',seg)) return;
+  // Post-save verification — confirm the photo column actually persisted.
+  // If it dropped (size limit / RLS rewrite), restore the captured photo to
+  // the in-memory cache and surface a loud warning so the user re-saves.
+  try{
+    if(_sbReady&&_sb&&_capturedPhoto){
+      const _vc=await _sb.from(SB_TABLES['segments']).select('code,steps').eq('code',seg.id).limit(1);
+      const _vph=_vc&&_vc.data&&_vc.data[0]&&_vc.data[0].steps&&_vc.data[0].steps[step]&&_vc.data[0].steps[step].photo;
+      if(!_vph){
+        _inlinePhotos[sid]=_capturedPhoto;// restore for retry
+        notify('⚠ Photo did not persist to the server. Please re-save.',true);
+      }
+    }
+  }catch(e){}
   // Remember which trip comes next so we can auto-expand it
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
   const _pendingSegsAfter=DB.segments.filter(s=>{
@@ -5698,6 +5830,20 @@ async function doKapAction(){
     notify(`📷 Vehicle photo is mandatory for ${stepName}. Please capture a photo.`,true);
     return;
   }
+  // Wait for any in-flight compression to finish so we never persist the raw
+  // multi-MB dataURL — that's what's been causing silent column drops on the
+  // 510 broken segments we audited.
+  if(_kapPhotoCompress){
+    showSpinner&&showSpinner('Compressing photo…');
+    try{ await _kapPhotoCompress; }catch(e){}
+    hideSpinner&&hideSpinner();
+  }
+  // Sanity-check: the compressed dataURL should be well under Supabase's
+  // JSONB-row practical ceiling. If somehow it's still huge, refuse to save.
+  if(_kapPhotoData&&_kapPhotoData.length>800*1024){
+    notify('⚠ Photo too large after compression — please retake / pick a smaller image.',true);
+    return;
+  }
   const _segBak=JSON.parse(JSON.stringify(seg));
   seg.steps[step].done=true;
   seg.steps[step].time=new Date().toISOString();
@@ -5705,6 +5851,18 @@ async function doKapAction(){
   seg.steps[step].remarks=rem;
   if(_kapPhotoData) seg.steps[step].photo=_kapPhotoData;
   await advance(seg);if(!await _dbSave('segments',seg)){ Object.assign(seg,_segBak); return; }
+  // Post-save verification: re-read the row and confirm the photo column
+  // actually persisted. If Supabase silently dropped it (size limit, RLS
+  // rewrite, etc.), surface a loud warning instead of pretending it saved.
+  try{
+    if(_sbReady&&_sb){
+      const _vc=await _sb.from(SB_TABLES['segments']).select('code,steps').eq('code',seg.id).limit(1);
+      const _vph=_vc&&_vc.data&&_vc.data[0]&&_vc.data[0].steps&&_vc.data[0].steps[step]&&_vc.data[0].steps[step].photo;
+      if(!_vph){
+        notify('⚠ Photo did not persist to the server. Please retake & re-save.',true);
+      }
+    }
+  }catch(e){}
   closeKapModal();
   renderKap();renderDash();renderTripBooking();updBadges();
   // Stay on current kap tab — scroll page into view
@@ -6043,8 +6201,10 @@ async function doMRInline(segId, receiptType){
   const seg=byId(DB.segments,segId);if(!seg)return;
   const trip=byId(DB.trips,seg.tripId);
   if(trip) await _loadTripChallans(trip.id);
-  // Check vehicle details
-  if(!trip?.vehicleId||!byId(DB.vehicles,trip.vehicleId)){
+  // Check vehicle is assigned. We test the vehicleId only — non-admin users
+  // may not have the vehicle record itself in DB.vehicles (RLS / scoped sync),
+  // but the ID being present is enough to prove an admin has assigned one.
+  if(!trip?.vehicleId){
     notify('⚠ Vehicle details are required before acknowledging material receipt. Please assign a vehicle to this trip first.',true);
     return;
   }
@@ -6070,7 +6230,9 @@ async function doMRInline(segId, receiptType){
   seg.steps[3].remarks=prefix+rem;
   seg.steps[3].discrepancy=(receiptType==='discrepancy');
   seg.steps[3].notReceived=(receiptType==='not_received');
-  await advance(seg);if(!await _dbSave('segments',seg)) return;renderMR();renderTripBooking();updBadges();
+  await advance(seg);if(!await _dbSave('segments',seg)) return;
+  if(typeof cm==='function') cm('mMR');// auto-close the MR popup after success
+  renderMR();renderTripBooking();updBadges();
   const msgs={received:'✅ Material receipt acknowledged!',not_received:'Material Not Received recorded.',discrepancy:'⚠ Receipt with discrepancy recorded.'};
   notify(msgs[receiptType]||'Material receipt acknowledged!');
 }
@@ -6389,6 +6551,11 @@ function renderApprove(){
   if(fromVal)comp=comp.filter(s=>(s.steps[4]?.time||'').slice(0,10)>=fromVal);
   if(toVal)comp=comp.filter(s=>(s.steps[4]?.time||'').slice(0,10)<=toVal);
   if(apSearch) comp=comp.filter(s=>s.tripId.toLowerCase().includes(apSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(apSearch));
+
+  // Eager-load step photos for the completed list too — without this the
+  // gate-exit/entry thumbnails on closed cards stay empty until each card
+  // is opened individually (the pending list above already does this).
+  try{ _ensureStepPhotosForList(comp); }catch(e){}
 
   // Group by base trip ID (strip -R1, -R2 suffix for grouping)
   const baseTripId=tid=>tid.replace(/-R\d+$/,'');
