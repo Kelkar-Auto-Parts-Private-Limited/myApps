@@ -35,6 +35,18 @@
 @keyframes hrmsFlash{0%,100%{border-color:#f59e0b}50%{border-color:#dc2626}}
 .hrms-changed{border:2px solid #f59e0b!important;animation:hrmsFlash 1s infinite!important;background:#fefce8!important}
 .hrms-att-tab.active{color:var(--accent)!important;border-bottom-color:var(--accent)!important}
+/* When the selected month is locked, grey-out and click-block any
+   mutating controls inside Settings and the Attendance sub-tabs.
+   Sub-tab navigation, filter selects, search inputs and the lock /
+   unlock buttons themselves remain enabled (allow-list below). */
+#pageHrmsAttSal.hrms-month-locked button:not(.hrms-att-tab):not(.hrms-settings-tab):not(.hrms-allow-locked):not([id="btnUnlock"]):not([id="btnSaveLock"]):not([id^="hrmsAttEtf"]):not([id="hrmsMainTabSettings"]):not([id="hrmsMainTabAttendance"]):not([id="hrmsMainTabSalary"]):not([id="hrmsMainTabPayments"]):not([id="hrmsMainTabEsipf"]):not([id="hrmsMainTabPt"]):not([id="hrmsMainTabContract"]),
+#pageHrmsAttSal.hrms-month-locked input:not([type="search"]):not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked select:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked textarea:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked label.btn:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked label[for]:has(input[type="file"]):not(.hrms-allow-locked){
+  opacity:0.5!important;pointer-events:none!important;cursor:not-allowed!important;
+}
 .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .no-spin{-moz-appearance:textfield}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}

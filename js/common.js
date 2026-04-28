@@ -692,6 +692,9 @@ function _rtRefreshFor(tbl){
           _try(()=>{ if(typeof _hrmsRenderChangeReq==='function') _hrmsRenderChangeReq(); });
         }
         if(pid==='pageHrmsAttSal'){
+          // Re-renders the active main tab — when user is on Settings →
+          // C-Off Taken / Manual Overrides, this picks up new C-Off
+          // approvals/rejections/revocations from other users.
           _try(()=>{ if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab(); });
         }
         if(pid==='pageHrmsUtilDailyAtt'){
@@ -699,6 +702,13 @@ function _rtRefreshFor(tbl){
         }
         if(pid==='pageHrmsDashboard'){
           _try(()=>{ if(typeof renderHrmsDashboard==='function') renderHrmsDashboard(); });
+        }
+        if(pid==='pageHrmsMyAtt'){
+          // C-Off claims / approvals / revocations are stored on emp.extra.
+          // Re-render the My Attendance calendar + side panel so the
+          // employee sees status changes (pending → used / rejected) and
+          // newly-claimed entries from any other session immediately.
+          _try(()=>{ if(typeof _hrmsMyAttRender==='function') _hrmsMyAttRender(); });
         }
       }
     }catch(e){ console.warn('_rtRefreshFor error ['+tbl+']:', e.message); }
@@ -1442,6 +1452,9 @@ var _PERM_KEYS={
     {key:'att.exit',label:'Absent Employees FTM',group:'📋 Attendance & Sub-tabs'},
     {key:'att.printformats',label:'Print Muster',group:'📋 Attendance & Sub-tabs'},
     {key:'action.addPrintFormat',label:'Add/Edit Print Muster',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.coff',label:'C-Off Requests Tab',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.altRequest',label:'Submit Alteration Request',group:'📋 Attendance & Sub-tabs'},
+    {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📋 Attendance & Sub-tabs'},
     {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},
     {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
     {key:'action.exportWorkerSlip',label:"Worker's Salary Slip PDF",group:'💰 Salary Tab'},
@@ -1456,6 +1469,7 @@ var _PERM_KEYS={
     {key:'page.contractRev',label:'Contract Salary Revision Page',group:'💵 Contract Salary Revision'},
     {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
+    {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
     {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},
     {key:'page.masterCategory',label:'Category',group:'📂 Masters'},

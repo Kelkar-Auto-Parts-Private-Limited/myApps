@@ -30,6 +30,7 @@
   <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
   <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span></div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
+  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
@@ -140,6 +141,30 @@
       <div style="font-size:18px;font-weight:900;margin-bottom:12px">📋 Employee Change Requests</div>
       <div id="hrmsChangeReqContent"></div>
     </div>
+    </div>
+  </div>
+
+  <!-- MY ATTENDANCE -->
+  <div class="page" id="pageHrmsMyAtt" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:900">🗓 My Attendance</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">Employee:</span>
+            <input type="search" id="hrmsMyAttEmpSearch" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttFilterEmp()" onfocus="_hrmsMyAttShowEmpDropdown()" autocomplete="off" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans);width:240px">
+            <input type="hidden" id="hrmsMyAttEmpId">
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">Year:</span>
+            <select id="hrmsMyAttYear" onchange="_hrmsMyAttRender()" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px"></select>
+          </span>
+          <button id="hrmsMyAttRefreshBtn" onclick="_hrmsMyAttRefresh()" title="Reload attendance & alterations from the database" style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="hrmsMyAttEmpDropdown" style="position:absolute;display:none;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow:auto;width:280px;z-index:10"></div>
+      <div id="hrmsMyAttSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
+      <div id="hrmsMyAttBody" style="flex:1;min-height:0;overflow:auto"></div>
     </div>
   </div>
 
@@ -313,8 +338,8 @@
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <button onclick="_hrmsPickMonth()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">📅 Select Month</button>
-      <button id="btnAddMonth" onclick="_hrmsAddMonthOpen()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--success,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer">➕ Add Month</button>
+      <button id="btnSelMonth" class="hrms-allow-locked" onclick="_hrmsPickMonth()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">📅 Select Month</button>
+      <button id="btnAddMonth" class="hrms-allow-locked" onclick="_hrmsAddMonthOpen()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--success,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer">➕ Add Month</button>
       <span id="hrmsMonthLabel" style="display:none"></span>
       <div style="flex:1"></div>
       <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">💾 Save & Lock</button>
@@ -338,7 +363,10 @@
       <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
         <div class="hrms-settings-tab active" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent)">Calendar</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">ESSL Data</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration &amp; Overrides</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Alterations</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Attendance</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('coff')" id="hrmsSetTabCoff" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">C-Off Requests</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('altreq')" id="hrmsSetTabAltreq" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration Requests</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Advances</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">TDS</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Salary Revisions</div>
@@ -393,9 +421,8 @@
         <div id="hrmsSalImpPreview_onroll"></div>
       </div>
 
-      <!-- Sub-tab: Alteration & Overrides (combined) -->
-      <div id="hrmsSetPanelManual" style="display:none">
-        <!-- ALTERATION IMPORT (top half) -->
+      <!-- Sub-tab: Alteration (import + manual add) -->
+      <div id="hrmsSetPanelAlteration" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;flex-wrap:wrap">
           <div>
             <div style="font-size:14px;font-weight:900;color:var(--text)">📋 Import Alteration</div>
@@ -410,11 +437,60 @@
         </div>
         <div id="hrmsAltImportLog"></div>
 
-        <!-- MANUAL OVERRIDES (bottom half) -->
+        <!-- ── Manual Add Alteration ── -->
         <div style="border-top:2px dashed var(--border);margin:18px 0 12px"></div>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:900;color:var(--text)">Add Alteration Manually</span>
+          <span style="font-size:11px;color:var(--text3)">Single-row entry — overrides ESSL punch for that employee on that day.</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px;background:var(--surface2);border-radius:8px">
+          <div style="position:relative">
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code</label>
+            <input type="text" id="hrmsAltAddCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAltAddOnCode()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAltAddCode');_hrmsAltAddOnCode();},200)" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px">
+            <div id="ac_hrmsAltAddCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Employee Name</label>
+            <div id="hrmsAltAddName" style="font-size:12px;padding:6px 8px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-height:14px">—</div>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Date</label>
+            <input type="date" id="hrmsAltAddDate" onchange="_hrmsAltAddOnDate()" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Day</label>
+            <div id="hrmsAltAddDay" style="font-size:12px;padding:6px 10px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-width:54px;text-align:center">—</div>
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Time IN</label>
+            <input type="time" id="hrmsAltAddIn" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px">
+          </div>
+          <div>
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Time OUT</label>
+            <input type="time" id="hrmsAltAddOut" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px">
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label>
+            <input type="text" id="hrmsAltAddReason" placeholder="Reason…" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box">
+          </div>
+          <button id="hrmsAltAddBtn" onclick="_hrmsAddManualAlteration()" style="padding:6px 16px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add Alteration</button>
+          <button id="hrmsAltCancelBtn" onclick="_hrmsAltAddCancel()" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">Cancel</button>
+        </div>
+        <!-- ── Manual Alteration list (current month) ── -->
+        <div style="margin-top:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <span style="font-size:13px;font-weight:900;color:var(--text)">Alterations — Current Month</span>
+            <span style="font-size:11px;color:var(--text3)">Manual entries for the selected month</span>
+          </div>
+          <div id="hrmsAltManualList"></div>
+        </div>
+      </div>
+
+      <!-- Sub-tab: Manual Overrides -->
+      <div id="hrmsSetPanelManual" style="display:none">
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <span style="font-size:14px;font-weight:900;color:var(--text)">Manual Overrides</span>
-          <span style="font-size:11px;color:var(--text3)">Override present days and PL given for specific employees (applies to selected month only)</span>
+          <span style="font-size:11px;color:var(--text3)">Override present days, PL, OT, OT@S for specific employees (applies to selected month only)</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
           <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsManualPCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsManualPCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsManualPCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
@@ -422,11 +498,20 @@
           <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">PL Given</label><input type="number" id="hrmsManualPL" step="0.5" min="0" placeholder="e.g. 2" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
           <div><label style="font-size:10px;font-weight:700;color:#7c3aed;display:block;margin-bottom:2px">OT</label><input type="number" id="hrmsManualOT" step="0.5" min="0" placeholder="e.g. 5" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
           <div><label style="font-size:10px;font-weight:700;color:#c2410c;display:block;margin-bottom:2px">OT@S</label><input type="number" id="hrmsManualOTS" step="0.5" min="0" placeholder="e.g. 8" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
+          <div style="flex:1;min-width:160px"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label><input type="text" id="hrmsManualRemarks" placeholder="e.g. Sick leave, Family emergency…" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box"></div>
           <button onclick="_hrmsAddManualP()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
-          <label style="padding:5px 14px;font-size:12px;font-weight:700;background:#dbeafe;color:#1d4ed8;border:1.5px solid #93c5fd;border-radius:4px;cursor:pointer;margin-left:auto">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportManualP(this)" style="display:none"></label>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:6px">Import Excel: <b>Emp Code</b>, <b>Present Days</b>, <b>PL Given</b>, <b>OT</b>, <b>OT@S</b> (all optional except Emp Code)</div>
         <div id="hrmsManualPList" style="max-height:calc(100vh - 280px);overflow-y:auto"></div>
+      </div>
+
+      <!-- Sub-tab: C-Off Requests -->
+      <div id="hrmsSetPanelCoff" style="display:none">
+        <div id="hrmsAttTabCoff"></div>
+      </div>
+
+      <!-- Sub-tab: Alteration Requests -->
+      <div id="hrmsSetPanelAltreq" style="display:none">
+        <div id="hrmsAltReqTabBody"></div>
       </div>
 
       <!-- Sub-tab: Statutory -->
@@ -706,6 +791,47 @@
 <div class="modal-overlay" id="mMonthPicker"><div class="modal" style="max-width:450px">
   <div class="modal-header"><div class="modal-title">📅 Select Month</div><div class="modal-close" onclick="cm('mMonthPicker')">×</div></div>
   <div id="monthPickerList" style="max-height:400px;overflow-y:auto"></div>
+</div></div>
+
+<!-- ALTERATION REQUEST MODAL -->
+<div class="modal-overlay" id="mAltReq"><div class="modal" style="max-width:480px">
+  <div class="modal-header"><div class="modal-title">🛠 Request Alteration</div><div class="modal-close" onclick="cm('mAltReq')">×</div></div>
+  <input type="hidden" id="altReqEmpId">
+  <input type="hidden" id="altReqEditId">
+  <div class="form-group">
+    <label>Employee</label>
+    <input id="altReqEmpDisp" readonly style="background:#f8f9fb">
+  </div>
+  <div class="form-group">
+    <label>Date</label>
+    <input id="altReqDate" type="text" readonly style="background:#f8f9fb;cursor:not-allowed">
+  </div>
+  <div class="form-group">
+    <label>Type</label>
+    <select id="altReqType">
+      <option value="missed_punch">Missed Punch</option>
+      <option value="outdoor_duty">Outdoor Duty</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:8px">
+    <div class="form-group" style="flex:1">
+      <label>IN (HH:MM, 24h)</label>
+      <input id="altReqIn" type="text" inputmode="numeric" maxlength="5" placeholder="09:00" pattern="^([01]\d|2[0-3]):[0-5]\d$">
+    </div>
+    <div class="form-group" style="flex:1">
+      <label>OUT (HH:MM, 24h)</label>
+      <input id="altReqOut" type="text" inputmode="numeric" maxlength="5" placeholder="18:00" pattern="^([01]\d|2[0-3]):[0-5]\d$">
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Reason</label>
+    <textarea id="altReqReason" rows="2" placeholder="e.g. Forgot to punch in / Client visit at ABC Corp"></textarea>
+  </div>
+  <div class="modal-error" id="altReqErr"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-secondary" onclick="cm('mAltReq')">Cancel</button>
+    <button class="btn btn-primary" onclick="_hrmsAltReqSubmit()">Submit Request</button>
+  </div>
 </div></div>
 
 <!-- ADD MONTH MODAL -->
