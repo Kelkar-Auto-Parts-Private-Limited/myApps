@@ -31,6 +31,7 @@
   <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span></div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
   <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
+  <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')">🌳 Org Structure</div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
@@ -165,6 +166,44 @@
       <div id="hrmsMyAttEmpDropdown" style="position:absolute;display:none;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow:auto;width:280px;z-index:10"></div>
       <div id="hrmsMyAttSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
       <div id="hrmsMyAttBody" style="flex:1;min-height:0;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- ORG STRUCTURE -->
+  <div class="page" id="pageHrmsOrgStructure" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px">
+          🌳 Org Structure
+          <span id="hrmsOrgViewToggle" style="display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;font-size:12px;font-weight:700">
+            <button id="hrmsOrgViewTree" onclick="_hrmsOrgSetView('tree')" style="padding:5px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">🌲 Tree</button>
+            <button id="hrmsOrgViewBulk" onclick="_hrmsOrgSetView('bulk')" style="padding:5px 10px;border:none;background:var(--surface2);color:var(--text2);cursor:pointer">📋 Bulk Edit</button>
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">HO Plant:</span>
+            <select id="hrmsOrgHoLoc" onchange="_hrmsOrgSaveHoLoc()" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans);min-width:180px"></select>
+          </span>
+          <button id="hrmsOrgApplyDefaultsBtn" onclick="_hrmsOrgApplyDefaultsBulk()" title="Auto-fill blank reporting links using plant-head / HO / super-admin rules" style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid #f59e0b;background:#fef3c7;color:#92400e;cursor:pointer">⚙ Apply Defaults</button>
+        </div>
+      </div>
+      <div id="hrmsOrgFilters" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <input type="search" id="hrmsOrgSearch" placeholder="🔍 Code / Name…" oninput="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:var(--sans);min-width:160px;flex:1">
+        <select id="hrmsOrgFilterPlant" onchange="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"></select>
+        <select id="hrmsOrgFilterRole" onchange="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px">
+          <option value="">All roles</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="plant_head">Plant Head</option>
+          <option value="manager">Manager</option>
+          <option value="employee">Employee</option>
+        </select>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="hrmsOrgFilterUnmapped" onchange="_hrmsOrgRender()" style="cursor:pointer"> Only unmapped
+        </label>
+      </div>
+      <div id="hrmsOrgSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
+      <div id="hrmsOrgBody" style="flex:1;min-height:0;overflow:auto"></div>
     </div>
   </div>
 
@@ -794,6 +833,36 @@
 </div></div>
 
 <!-- ALTERATION REQUEST MODAL -->
+<!-- ORG STRUCTURE EDIT MODAL -->
+<div class="modal-overlay" id="mOrgEdit"><div class="modal" style="max-width:480px">
+  <div class="modal-header"><div class="modal-title">🌳 Edit Reporting</div><div class="modal-close" onclick="cm('mOrgEdit')">×</div></div>
+  <input type="hidden" id="orgEditEmpId">
+  <div class="form-group">
+    <label>Employee</label>
+    <input id="orgEditEmpDisp" readonly style="background:#f8f9fb">
+  </div>
+  <div class="form-group">
+    <label>Org Role</label>
+    <select id="orgEditRole">
+      <option value="employee">Employee</option>
+      <option value="manager">Manager</option>
+      <option value="plant_head">Plant Head</option>
+      <option value="super_admin">Super Admin</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label>Reports To</label>
+    <select id="orgEditReportsTo">
+      <option value="">— None (top of tree) —</option>
+    </select>
+  </div>
+  <div class="modal-error" id="orgEditErr"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-secondary" onclick="cm('mOrgEdit')">Cancel</button>
+    <button class="btn btn-primary" onclick="_hrmsOrgEditSave()">Save</button>
+  </div>
+</div></div>
+
 <div class="modal-overlay" id="mAltReq"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title">🛠 Request Alteration</div><div class="modal-close" onclick="cm('mAltReq')">×</div></div>
   <input type="hidden" id="altReqEmpId">

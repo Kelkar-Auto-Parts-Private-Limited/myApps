@@ -842,6 +842,63 @@ function _hwmsAuthArgs(){
   return {u:u, t:t};
 }
 
+// ── Re-auth modal — invoked when an HWMS RPC returns "Invalid session" so
+// the user can refresh their token without logging out & losing context.
+// Resolves to true on success, false if the user cancels.
+var _reauthInflight=null;
+function _promptReauth(){
+  if(_reauthInflight) return _reauthInflight.promise;// dedupe parallel calls
+  if(!document.getElementById('mReauth')){
+    var modalHtml=
+      '<div class="modal-overlay" id="mReauth"><div class="modal" style="max-width:380px">'+
+        '<div class="modal-header"><div class="modal-title">🔒 Session Expired</div></div>'+
+        '<div style="font-size:13px;color:var(--text2);margin-bottom:12px">Your session has expired. Re-enter your password to continue — your work in progress will be retried automatically.</div>'+
+        '<div class="form-group"><label>Username</label><input id="reauthUser" readonly style="background:#f8f9fb"></div>'+
+        '<div class="form-group"><label>Password</label><input id="reauthPass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\') _reauthSubmit();"></div>'+
+        '<div class="modal-error" id="reauthErr" style="color:#dc2626;font-size:12px;font-weight:700;margin-bottom:8px;display:none"></div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">'+
+          '<button class="btn btn-secondary" onclick="_reauthCancel()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="_reauthSubmit()">Re-login</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',modalHtml);
+  }
+  document.getElementById('reauthUser').value=_sessionGet('kap_session_user')||'';
+  document.getElementById('reauthPass').value='';
+  var err=document.getElementById('reauthErr');if(err){err.style.display='none';err.textContent='';}
+  var modal=document.getElementById('mReauth');
+  if(modal){modal.style.display='flex';modal.classList.add('open');}
+  setTimeout(function(){var p=document.getElementById('reauthPass');if(p) p.focus();},80);
+  var promise=new Promise(function(resolve){_reauthInflight={resolve:resolve};});
+  _reauthInflight.promise=promise;
+  return promise;
+}
+async function _reauthSubmit(){
+  var errEl=document.getElementById('reauthErr');
+  var showErr=function(msg){if(errEl){errEl.textContent=msg;errEl.style.display='block';}};
+  var u=document.getElementById('reauthUser').value;
+  var p=document.getElementById('reauthPass').value;
+  if(!p){showErr('Password is required');return;}
+  if(typeof showSpinner==='function') showSpinner('Re-authenticating…');
+  var res=null;
+  try{ res=await _authLogin(u,p); }catch(e){ console.warn('reauth login err:',e); }
+  if(typeof hideSpinner==='function') hideSpinner();
+  if(!res){showErr('Login failed — check your password and try again.');return;}
+  _sessionSet('kap_session_token',res.token);
+  _sessionSet('kap_session_user',u);
+  if(typeof cm==='function') cm('mReauth'); else { var m=document.getElementById('mReauth'); if(m){m.style.display='none';m.classList.remove('open');} }
+  if(_reauthInflight){var r=_reauthInflight.resolve;_reauthInflight=null;r(true);}
+}
+function _reauthCancel(){
+  if(typeof cm==='function') cm('mReauth'); else { var m=document.getElementById('mReauth'); if(m){m.style.display='none';m.classList.remove('open');} }
+  if(_reauthInflight){var r=_reauthInflight.resolve;_reauthInflight=null;r(false);}
+}
+function _isInvalidSessionErr(err){
+  if(!err) return false;
+  var msg=(err.message||'').toLowerCase();
+  return msg.indexOf('invalid session')>=0||err.code==='28000';
+}
+
 // ═══ CORE DB OPERATIONS ═══════════════════════════════════════════════════
 async function _dbSave(tbl, record){
   showSpinner('Saving…');
@@ -858,10 +915,16 @@ async function _dbSave(tbl, record){
   let _rpcAuth = null;
   if(_useRpc){
     _rpcAuth=_hwmsAuthArgs();
-    if(!_rpcAuth){console.error('❌ _dbSave('+tbl+'): no session — cannot call HWMS RPC');notify('⚠ Session expired — please log in again.',true);return false;}
+    if(!_rpcAuth){
+      // No token in localStorage at all — prompt re-auth before giving up.
+      var _ok0=await _promptReauth();
+      if(!_ok0){return false;}
+      _rpcAuth=_hwmsAuthArgs();
+      if(!_rpcAuth){console.error('❌ _dbSave('+tbl+'): no session after re-auth');return false;}
+    }
   }
   console.log('💾 _dbSave('+tbl+') id='+record.id+' →', _sbTbl, _useRpc?'(rpc)':'');
-  for(var _attempt=0;_attempt<2;_attempt++){
+  for(var _attempt=0;_attempt<3;_attempt++){
     try{
       let _res;
       if(_useRpc){
@@ -871,6 +934,18 @@ async function _dbSave(tbl, record){
       }
       const error=_res&&_res.error;
       if(error){
+        // "Invalid session" → prompt re-auth, refresh token, retry once.
+        if(_useRpc&&_isInvalidSessionErr(error)&&_attempt<2){
+          console.warn('_dbSave: invalid session, prompting re-auth');
+          var _ok=await _promptReauth();
+          if(!_ok){
+            notify('⚠ Re-login cancelled — save aborted.',true);
+            return false;
+          }
+          _rpcAuth=_hwmsAuthArgs();
+          if(!_rpcAuth) return false;
+          continue;// retry with new token
+        }
         if(_attempt===0){ console.warn('_dbSave retry after error:', error.message); continue; }
         console.error('❌ Supabase upsert error ['+tbl+']:', error.code, error.message, error.details, error.hint);
         notify('⚠ Save failed: ' + error.message, true);
@@ -979,20 +1054,41 @@ async function _dbSaveBulk(tbl, records){
   if(!rows.length)return 0;
   var useRpc=_isHwmsSbTbl(sbTbl);
   var auth=useRpc?_hwmsAuthArgs():null;
-  if(useRpc&&!auth){notify('⚠ Session expired — please log in again.',true);return 0;}
+  if(useRpc&&!auth){
+    var _ok0=await _promptReauth();
+    if(!_ok0) return 0;
+    auth=_hwmsAuthArgs();
+    if(!auth) return 0;
+  }
   var saved=0,batchSize=50;
   for(var i=0;i<rows.length;i+=batchSize){
     var batch=rows.slice(i,i+batchSize);
-    try{
-      var res;
-      if(useRpc){
-        res=await _sb.rpc('hwms_upsert_bulk',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_rows:batch});
-      } else {
-        res=await _sb.from(sbTbl).upsert(batch,{onConflict:'code'});
-      }
-      if(res.error){console.error('Bulk save error ['+tbl+']:',res.error.message);continue;}
-      saved+=batch.length;
-    }catch(e){console.error('Bulk save exception ['+tbl+']:',e.message);}
+    var _bulkAttempts=0;
+    while(_bulkAttempts<2){
+      try{
+        var res;
+        if(useRpc){
+          res=await _sb.rpc('hwms_upsert_bulk',{p_username:auth.u,p_token:auth.t,p_table:sbTbl,p_rows:batch});
+        } else {
+          res=await _sb.from(sbTbl).upsert(batch,{onConflict:'code'});
+        }
+        if(res.error){
+          // Invalid session → prompt re-auth, refresh token, retry this batch.
+          if(useRpc&&_isInvalidSessionErr(res.error)&&_bulkAttempts===0){
+            var _ok1=await _promptReauth();
+            if(!_ok1){console.warn('Bulk save: re-auth cancelled at batch',i);break;}
+            auth=_hwmsAuthArgs();
+            if(!auth){break;}
+            _bulkAttempts++;
+            continue;
+          }
+          console.error('Bulk save error ['+tbl+']:',res.error.message);
+          break;
+        }
+        saved+=batch.length;
+        break;
+      }catch(e){console.error('Bulk save exception ['+tbl+']:',e.message);break;}
+    }
   }
   // Update in-memory DB
   if(!DB[tbl])DB[tbl]=[];
@@ -1018,9 +1114,14 @@ async function _dbDel(tbl, id){
   let _authDel=null;
   if(_useRpcDel){
     _authDel=_hwmsAuthArgs();
-    if(!_authDel){console.error('❌ _dbDel('+tbl+'): no session');notify('⚠ Session expired — please log in again.',true);return false;}
+    if(!_authDel){
+      var _delOk0=await _promptReauth();
+      if(!_delOk0){return false;}
+      _authDel=_hwmsAuthArgs();
+      if(!_authDel) return false;
+    }
   }
-  for(var _attempt=0;_attempt<2;_attempt++){
+  for(var _attempt=0;_attempt<3;_attempt++){
     try{
       let _resDel;
       if(_useRpcDel){
@@ -1030,6 +1131,13 @@ async function _dbDel(tbl, id){
       }
       const error=_resDel&&_resDel.error;
       if(error){
+        if(_useRpcDel&&_isInvalidSessionErr(error)&&_attempt<2){
+          var _delOk=await _promptReauth();
+          if(!_delOk){notify('⚠ Re-login cancelled — delete aborted.',true);return false;}
+          _authDel=_hwmsAuthArgs();
+          if(!_authDel) return false;
+          continue;
+        }
         if(_attempt===0){ console.warn('_dbDel retry after error:', error.message); continue; }
         console.error('❌ Supabase delete error ['+tbl+']:', error.code, error.message);
         notify('⚠ Delete failed: ' + error.message, true);
@@ -1470,6 +1578,8 @@ var _PERM_KEYS={
     {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
     {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
+    {key:'page.orgStructure',label:'Org Structure Page',group:'🌳 Org Structure'},
+    {key:'org.edit',label:'Edit Reporting Hierarchy',group:'🌳 Org Structure'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
     {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},
     {key:'page.masterCategory',label:'Category',group:'📂 Masters'},
