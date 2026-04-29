@@ -75,8 +75,10 @@ function _hrmsHasAccess(featureKey){
   if(typeof permConfigured==='function'&&permConfigured('HRMS')){
     // Action keys AND edit-level keys require Full (not View). View-level on
     // an action-like key means "no action allowed". e.g. masters.edit set
-    // to View by admin should not permit editing masters.
-    if(/^action\./.test(featureKey)||featureKey==='masters.edit'){
+    // to View by admin should not permit editing masters; org.edit follows
+    // the same pattern — admin can grant View on the Org Structure page
+    // (so the user can see the tree) without granting editability.
+    if(/^action\./.test(featureKey)||featureKey==='masters.edit'||featureKey==='org.edit'){
       return typeof permCanAct==='function'&&permCanAct('HRMS',featureKey);
     }
     return typeof permCanView==='function'&&permCanView('HRMS',featureKey);

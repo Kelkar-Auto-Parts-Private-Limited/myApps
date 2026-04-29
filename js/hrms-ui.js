@@ -15427,6 +15427,11 @@ async function _hrmsCoffApprove(empId,earnedDate){
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp) return;
   var entry=((emp.extra&&emp.extra.coffBank)||[]).find(function(c){return c&&c.earnedDate===earnedDate;});
   if(!entry||entry.status!=='pending'){notify('Not a pending C-Off',true);return;}
+  // Self-approval guard — nobody (not even Super Admin / HR Manager) is
+  // allowed to approve their own submission.
+  if(_hrmsIsMyOwnRequest(entry)){
+    notify('⚠ You cannot approve your own C-Off request',true);return;
+  }
   // Multi-level approval — current user must be the chain[level] approver
   // OR have admin override.
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
@@ -15436,6 +15441,12 @@ async function _hrmsCoffApprove(empId,earnedDate){
   var isCurrentApprover=me&&chain[lvl]&&chain[lvl]===me.id;
   if(!isAdmin&&!isCurrentApprover){
     notify('⚠ Only the current-level approver can act on this C-Off',true);return;
+  }
+  // HR Manager submissions route exclusively to the system Super Admin —
+  // an HR Manager (without the system Super Admin role) cannot approve
+  // another HR Manager's request.
+  if(_hrmsCurStepIsSysSA(entry)&&!_hrmsIsSuperAdmin()){
+    notify('⚠ Only a system Super Admin can approve this request',true);return;
   }
   var levelsRemaining=Math.max(chain.length-lvl-1,0);
   var nextLvlName='';
@@ -16424,10 +16435,18 @@ function _hrmsFindSystemSuperAdminEmp(){
 
 // Walk up the reportingTo chain. Returns array of empIds — immediate manager
 // first, hr_manager last. Caps at 10 levels to defend against accidental
-// cycles. For requesters whose own role is HR Manager (top of org tree —
-// no manager above them), the chain falls through to a system-level Super
-// Admin so their requests still have a valid approver.
+// cycles.
+//
+// Special case for HR Manager submissions: HR Manager's *own* c-off /
+// alteration requests bypass the org-tree walk entirely and route directly
+// to the system-level Super Admin user. They sit at the top of the org
+// tree, so no one inside the tree (themselves or any other HR Manager)
+// is allowed to approve their submissions — only the HRMS Super Admin can.
 function _hrmsOrgManagerChain(emp){
+  if(_hrmsOrgRoleOf(emp)==='hr_manager'){
+    var saEmp=_hrmsFindSystemSuperAdminEmp();
+    return (saEmp&&saEmp.id!==emp.id)?[saEmp.id]:[];
+  }
   var chain=[],seen={};
   var cur=emp;
   for(var i=0;i<10;i++){
@@ -16438,13 +16457,6 @@ function _hrmsOrgManagerChain(emp){
     if(!mgr) break;
     chain.push(mgr.id);
     cur=mgr;
-  }
-  // HR Manager-specific: their own requests must be approved by Super Admin.
-  if(_hrmsOrgRoleOf(emp)==='hr_manager'){
-    var saEmp=_hrmsFindSystemSuperAdminEmp();
-    if(saEmp&&saEmp.id!==emp.id&&chain.indexOf(saEmp.id)<0){
-      chain.push(saEmp.id);
-    }
   }
   return chain;
 }
@@ -16626,6 +16638,16 @@ function _hrmsOrgRender(){
     var rBorder=roleBorder[role]||'#e2e8f0';
     var directReports=children.length?(' · <span style="color:'+rClr+';font-weight:700">'+children.length+' direct report'+(children.length===1?'':'s')+'</span>'):'';
     var editBtn=canEdit?'<button onclick="event.stopPropagation();_hrmsOrgEditOpen(\''+ecEsc+'\')" title="Edit role / reports-to" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'';
+    // Star marker: shown beside HR Manager (top of org tree) and beside
+    // any other top-level node where there's no continuous arrow line
+    // above it — i.e. tree roots without an incoming connector. Tells the
+    // reader at a glance "this person has no manager above them in the
+    // rendered chart".
+    var isHrMgr=(role==='hr_manager');
+    var isOrphanRoot=(depth===0&&!isHrMgr);
+    var starBadge=(isHrMgr||isOrphanRoot)?
+      '<span title="'+(isHrMgr?'HR Manager — top of the org tree':'No manager above this employee in the chart')+'" style="font-size:13px;line-height:1;color:#f59e0b;flex-shrink:0">★</span>':
+      '';
     var card=
       '<div class="hrms-org-card" style="display:inline-flex;align-items:center;gap:10px;padding:8px 12px;background:'+rBg+';border:2px solid '+rBorder+';border-left:5px solid '+rClr+';border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);min-width:280px">'+
         '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:'+rClr+';color:#fff;font-weight:900;font-size:13px;flex-shrink:0">'+
@@ -16633,6 +16655,7 @@ function _hrmsOrgRender(){
         '</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
+            starBadge+
             '<span style="font-size:13px;font-weight:800;color:var(--text)">'+dn+'</span>'+
             '<span style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:#fff;color:'+rClr+';border:1px solid '+rClr+'">'+(_ORG_ROLE_LABELS[role]||role)+'</span>'+
           '</div>'+
@@ -16647,44 +16670,29 @@ function _hrmsOrgRender(){
     var childrenHtml='';
     if(children.length){
       // Layout strategy:
-      //   • HR Manager → 3-column grid for direct reports (typically plant
-      //     heads). Each column is its own subtree that descends vertically.
-      //     Wraps to fewer columns on narrow viewports.
+      //   • HR Manager → vertical trunk drop + horizontal bar + multi-
+      //     column grid of direct reports (typically plant heads). Each
+      //     column has its own arrow tip pointing into its child card.
       //   • Anywhere else → traditional vertical list with L-shaped
       //     connectors hooking each child back to the parent's trunk.
       var role=_hrmsOrgRoleOf(emp);
       if(role==='hr_manager'&&children.length>1){
-        // Continuous trunk-and-branch arrows. A single thick coloured trunk
-        // drops from the HR Manager card into a left-side rail; each direct
-        // report (plant head / manager / employee) hangs off the rail with a
-        // horizontal stub + arrow tip pointing into the card. This reads as
-        // ONE flowing arrow path — easier to follow than a T-split that
-        // visually fragments at the elbow.
         var trunkClr=rClr;
+        var dropH=20;
+        var stubH=22;
         var trunkW=4;
-        var stubLen=28;// horizontal arrow length from trunk to each card
         var arrowSize=8;
-        // Reports laid out as vertical rows, identical pattern to deeper
-        // levels so the chart reads consistently top-to-bottom.
-        childrenHtml='<div class="hrms-org-children-trunk" style="position:relative;margin-top:0;padding-top:18px;padding-left:'+(stubLen+10)+'px">';
-        // Vertical trunk that runs continuously through every child row.
-        // Bottom is anchored to the last row's centerline so it doesn\'t
-        // overshoot past the final report.
-        children.forEach(function(c,i){
-          var isLast=(i===children.length-1);
-          // Each row: horizontal stub + arrow tip + the child subtree.
-          childrenHtml+=
-            '<div class="hrms-org-row-major" style="position:relative;padding:8px 0;display:flex;align-items:center">'+
-              // Vertical trunk segment for this row — full height except
-              // the last row, which stops at center so the trunk terminates
-              // cleanly into the elbow.
-              '<span style="position:absolute;left:0;top:'+(i===0?'-18px':'0')+';bottom:'+(isLast?'50%':'0')+';width:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></span>'+
-              // Horizontal arrow shaft from trunk to card.
-              '<span style="position:absolute;left:0;top:50%;width:'+stubLen+'px;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px;transform:translateY(-50%)"></span>'+
-              // Arrow tip pointing right into the card.
-              '<span style="position:absolute;left:'+stubLen+'px;top:50%;width:0;height:0;border-top:'+arrowSize+'px solid transparent;border-bottom:'+arrowSize+'px solid transparent;border-left:'+(arrowSize+2)+'px solid '+trunkClr+';transform:translateY(-50%)"></span>'+
-              '<div style="flex:1;min-width:0;margin-left:'+(arrowSize+4)+'px">'+nodeHtml(c,depth+1)+'</div>'+
-            '</div>';
+        childrenHtml='<div class="hrms-org-trunk-drop" style="display:flex;justify-content:center;margin-top:6px">'+
+          '<div style="width:'+trunkW+'px;height:'+dropH+'px;background:'+trunkClr+';border-radius:2px"></div>'+
+        '</div>';
+        childrenHtml+='<div class="hrms-org-children-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:'+(stubH+12)+'px 22px;padding-top:0;position:relative;max-width:1200px;width:100%">';
+        childrenHtml+='<div style="position:absolute;left:0;right:0;top:0;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></div>';
+        children.forEach(function(c){
+          childrenHtml+='<div class="hrms-org-col" style="display:flex;flex-direction:column;align-items:center;min-width:0;position:relative;padding-top:'+stubH+'px">'+
+            '<div style="position:absolute;left:50%;top:0;width:'+trunkW+'px;height:'+(stubH-arrowSize-2)+'px;background:'+trunkClr+';border-radius:2px;transform:translateX(-50%)"></div>'+
+            '<div style="position:absolute;left:50%;top:'+(stubH-arrowSize-2)+'px;width:0;height:0;border-left:'+arrowSize+'px solid transparent;border-right:'+arrowSize+'px solid transparent;border-top:'+(arrowSize+2)+'px solid '+trunkClr+';transform:translateX(-50%)"></div>'+
+            nodeHtml(c,depth+1)+
+          '</div>';
         });
         childrenHtml+='</div>';
       } else {
@@ -16702,7 +16710,13 @@ function _hrmsOrgRender(){
         childrenHtml+='</div>';
       }
     }
-    return '<div class="hrms-org-node" style="position:relative">'+card+childrenHtml+'</div>';
+    // For the HR Manager root with a multi-column grid below, center the
+    // card horizontally so the trunk drop lands directly under it.
+    var nodeStyle='position:relative';
+    if(_hrmsOrgRoleOf(emp)==='hr_manager'&&children.length>1){
+      nodeStyle+=';display:flex;flex-direction:column;align-items:center';
+    }
+    return '<div class="hrms-org-node" style="'+nodeStyle+'">'+card+childrenHtml+'</div>';
   }
   // Roots: super admins first; then any staff whose reportingTo is empty or
   // points to a missing/non-staff employee (orphans).
@@ -16717,13 +16731,14 @@ function _hrmsOrgRender(){
     return(a.name||'').localeCompare(b.name||'');
   });
   if(_hrmsOrgViewMode==='tree'){
-    // Layout: top-down org chart with a single continuous left-trunk arrow
-    // path flowing from each root through every reporting level. Multiple
-    // roots stack vertically; the whole pane scrolls horizontally if any
-    // branch is too wide for the viewport.
-    var bodyHtml='<div style="background:#fafafa;border:1.5px solid var(--border);border-radius:8px;padding:18px 14px;overflow:auto">';
+    // Layout: top-down org chart. HR Manager root sits centered at the
+    // top with a horizontal trunk + multi-column grid of direct reports.
+    // Each column then descends vertically with L-connectors. Multiple
+    // roots stack vertically; pane scrolls horizontally if a branch is
+    // too wide for the viewport.
+    var bodyHtml='<div style="background:#fafafa;border:1.5px solid var(--border);border-radius:8px;padding:18px 14px;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:24px">';
     roots.forEach(function(r){
-      bodyHtml+='<div style="margin-bottom:18px">'+nodeHtml(r,0)+'</div>';
+      bodyHtml+='<div style="display:flex;flex-direction:column;align-items:center;width:100%">'+nodeHtml(r,0)+'</div>';
     });
     bodyHtml+='</div>';
     body.innerHTML=bodyHtml;
@@ -17008,14 +17023,44 @@ function _hrmsIsHrManagerUser(){
   return (typeof _hrmsOrgRoleOf==='function')&&_hrmsOrgRoleOf(me)==='hr_manager';
 }
 
-// Returns true if the current user can act on this request right now —
-// either they are the chain[level] approver, or they're a Super Admin /
-// org-structure HR Manager (both override the chain since they sit above
-// every level of the reporting tree).
+// True when this request was submitted by the currently-logged-in user.
+// Used as a self-approval guard so nobody (not even Super Admin or HR
+// Manager) can approve / reject their own submissions.
+function _hrmsIsMyOwnRequest(req){
+  if(!req||!req.requestedBy) return false;
+  var keys=(typeof _hrmsMyApprovalsActorKeys==='function')?_hrmsMyApprovalsActorKeys():[];
+  return keys.indexOf(String(req.requestedBy))>=0;
+}
+
+// True when this request's CURRENT approver step is the system Super Admin
+// emp record. HR Manager submissions route exclusively to the SA, and this
+// flag lets us prevent the HR Manager-as-Super-Admin-equivalent bypass from
+// allowing HR Manager to approve another HR Manager's submission.
+function _hrmsCurStepIsSysSA(req){
+  var chain=(req&&req.approvalChain)||[];
+  var lvl=(req&&req.approvalLevel)||0;
+  var curId=chain[lvl];if(!curId) return false;
+  var emp=byId(DB.hrmsEmployees||[],curId);
+  if(!emp) return false;
+  return (typeof _hrmsIsSystemSuperAdminEmp==='function')&&_hrmsIsSystemSuperAdminEmp(emp);
+}
+
+// Returns true if the current user can act on this request right now.
+// Rules:
+//   • Never act on your own submission (self-approval guard).
+//   • Super Admin can act on anything (system-level override).
+//   • HR Manager can act on anything EXCEPT requests whose current step is
+//     the system Super Admin — those (HR Manager submissions) require an
+//     actual Super Admin user.
+//   • Otherwise: must be the exact chain[level] employee.
 function _hrmsMyApprovalsCanAct(req){
   if(!req||req.status!=='pending') return false;
+  if(_hrmsIsMyOwnRequest(req)) return false;
   if(_hrmsIsSuperAdmin()) return true;
-  if(_hrmsIsHrManagerUser()) return true;
+  if(_hrmsIsHrManagerUser()){
+    if(_hrmsCurStepIsSysSA(req)) return false;
+    return true;
+  }
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   if(!me) return false;
   var chain=req.approvalChain||[],lvl=req.approvalLevel||0;

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260429-V18">
+<meta name="app-build" content="260430-V2">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260429-V18">
+<link rel="stylesheet" href="css/hrms.css?v=260430-V2">
 </head>
 <body>
 
@@ -199,28 +199,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div style="font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px">
           🌳 Org Structure
-          <span id="hrmsOrgViewToggle" style="display:inline-flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;font-size:12px;font-weight:700">
-            <button id="hrmsOrgViewTree" onclick="_hrmsOrgSetView('tree')" style="padding:5px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">🌲 Tree</button>
-            <button id="hrmsOrgViewBulk" onclick="_hrmsOrgSetView('bulk')" style="padding:5px 10px;border:none;background:var(--surface2);color:var(--text2);cursor:pointer">📋 Bulk Edit</button>
-          </span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button id="hrmsOrgApplyDefaultsBtn" onclick="_hrmsOrgApplyDefaultsBulk()" title="Auto-fill blank reporting links using plant-head / HO / super-admin rules" style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid #f59e0b;background:#fef3c7;color:#92400e;cursor:pointer">⚙ Apply Defaults</button>
-        </div>
-      </div>
-      <div id="hrmsOrgFilters" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <input type="search" id="hrmsOrgSearch" placeholder="🔍 Code / Name…" oninput="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-family:var(--sans);min-width:160px;flex:1">
-        <select id="hrmsOrgFilterPlant" onchange="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"></select>
-        <select id="hrmsOrgFilterRole" onchange="_hrmsOrgRender()" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px">
-          <option value="">All roles</option>
-          <option value="hr_manager">HR Manager</option>
-          <option value="plant_head">Plant Head</option>
-          <option value="manager">Manager</option>
-          <option value="employee">Employee</option>
-        </select>
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer">
-          <input type="checkbox" id="hrmsOrgFilterUnmapped" onchange="_hrmsOrgRender()" style="cursor:pointer"> Only unmapped
-        </label>
       </div>
       <div id="hrmsOrgSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
       <div id="hrmsOrgBody" style="flex:1;min-height:0;overflow:auto"></div>
@@ -984,8 +963,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260429-V18"></script>
-<script src="js/hrms-logic.js?v=260429-V18"></script>
-<script src="js/hrms-ui.js?v=260429-V18"></script>
+<script src="js/common.js?v=260430-V2"></script>
+<script src="js/hrms-logic.js?v=260430-V2"></script>
+<script src="js/hrms-ui.js?v=260430-V2"></script>
 </body>
 </html>
