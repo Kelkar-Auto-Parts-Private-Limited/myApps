@@ -747,6 +747,7 @@ function _rtRefreshFor(tbl){
       // so other users see ECR approvals/rejections without a manual refresh.
       if(tbl==='hrmsEmployees'){
         _try(()=>{ if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge(); });
+        _try(()=>{ if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge(); });
         if(pid==='pageHrmsEmployees'){
           _try(()=>{ if(typeof renderHrmsEmployees==='function') renderHrmsEmployees(); });
           _try(()=>{ if(typeof _hrmsRenderChangeReq==='function') _hrmsRenderChangeReq(); });
@@ -1645,6 +1646,7 @@ var _PERM_KEYS={
     {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
     {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
+    {key:'page.myApprovals',label:'My Approvals Page (managers/plant heads)',group:'✅ My Approvals'},
     {key:'page.orgStructure',label:'Org Structure Page',group:'🌳 Org Structure'},
     {key:'org.edit',label:'Edit Reporting Hierarchy',group:'🌳 Org Structure'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
@@ -2179,10 +2181,27 @@ function _navigateTo(url){
   // The destination page reads this cache in bootDB() and boots instantly
   // without re-fetching from Supabase — eliminating the "connecting" splash
   // on every page transition in both directions (Portal→App and App→Portal).
+  // PRESERVE entries from any prior cache for tables we don't currently
+  // have data for (the source app may use a smaller table set than the
+  // destination needs — e.g. Portal has no HWMS tables in DB).
   try{
     if(typeof DB!=='undefined' && typeof DB_TABLES!=='undefined' && DB.users && DB.users.length){
-      var cache={ts:Date.now()};
-      _getActiveTables().forEach(function(t){ cache[t]=DB[t]||[]; });
+      var cache={};
+      try{
+        var raw=localStorage.getItem('kap_db_cache');
+        if(raw){
+          var ec=JSON.parse(raw)||{};
+          Object.keys(ec).forEach(function(k){
+            if(k==='ts') return;
+            if(Array.isArray(ec[k])&&ec[k].length) cache[k]=ec[k];
+          });
+        }
+      }catch(e){}
+      _getActiveTables().forEach(function(t){
+        if(DB[t]&&DB[t].length) cache[t]=DB[t];
+        else if(!cache[t]) cache[t]=[];
+      });
+      cache.ts=Date.now();
       localStorage.setItem('kap_db_cache', JSON.stringify(cache));
     }
   }catch(e){ console.warn('_navigateTo: cache write failed', e.message); }

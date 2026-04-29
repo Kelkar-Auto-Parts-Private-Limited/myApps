@@ -54,6 +54,7 @@ function _hrmsLaunch(){
   renderHrmsDashboard();
   renderHrmsEmployees();
   _hrmsUpdateChangeReqBadge();
+  _hrmsUpdateMyApprovalsBadge();
   _hrmsLoadStatutory();
   _hrmsLoadRolls();
   // Build the empCodes-with-records index in the background. Once it
@@ -80,6 +81,22 @@ function _hrmsLaunch(){
   hrmsGo(_startPage);
 }
 
+// Sidebar Sign Out — clears session + remember-me state and bounces back to
+// the portal so the user can re-authenticate. Mirrors hwmsLogout / vms
+// doLogout but lives here so HRMS doesn't depend on portal-ui.js.
+function hrmsLogout(){
+  try{CU=null;}catch(e){}
+  try{_sessionDel('kap_session_user');_sessionDel('kap_session_token');}catch(e){}
+  try{
+    localStorage.removeItem('kap_rm_user');
+    localStorage.removeItem('kap_rm_token');
+    localStorage.removeItem('kap_current_user');
+    localStorage.removeItem('kap_db_cache');
+  }catch(e){}
+  try{window.location.href='index.html';}
+  catch(e){try{window.location.replace('index.html');}catch(e2){}}
+}
+
 async function _hrmsManualRefresh(){
   notify('🔄 Refreshing data…');
   showSpinner('Fetching latest data…');
@@ -95,6 +112,7 @@ async function _hrmsManualRefresh(){
     renderHrmsDashboard();
     renderHrmsEmployees();
     _hrmsUpdateChangeReqBadge();
+    _hrmsUpdateMyApprovalsBadge();
     hideSpinner();
     notify('✅ Data refreshed — '+((DB.hrmsEmployees||[]).length)+' employees loaded');
   }catch(e){hideSpinner();notify('⚠ Refresh failed: '+e.message,true);}
@@ -105,6 +123,7 @@ var _hrmsPageTitles={
   pageHrmsEmpEdit:'Employees',
   pageHrmsAttSal:'Attendance & Salary',
   pageHrmsMyAtt:'My Attendance',
+  pageHrmsMyApprovals:'My Approvals',
   pageHrmsOrgStructure:'Org Structure',
   pageHrmsAttRules:'Attendance Rules',
   pageHrmsMCompany:'Masters — Plant',
@@ -138,6 +157,7 @@ function _hrmsUpdateTopTitle(){
 var _HRMS_PAGE_PERMS={
   pageHrmsDashboard:'page.dashboard',pageHrmsEmployees:'page.employees',pageHrmsAttSal:'page.attSal',
   pageHrmsMyAtt:'page.myAttendance',
+  pageHrmsMyApprovals:'page.myApprovals',
   pageHrmsOrgStructure:'page.orgStructure',
   pageHrmsAttRules:'page.attRules',pageHrmsMCompany:'page.masterPlant',pageHrmsMCategory:'page.masterCategory',
   pageHrmsMEmpType:'page.masterEmpType',pageHrmsMTeam:'page.masterTeam',pageHrmsMDept:'page.masterDept',
@@ -154,6 +174,19 @@ function _hrmsEnforcePermissions(){
     var el=document.getElementById(navId);
     if(el) el.style.display=_hrmsHasAccess(navPerms[navId])?'':'none';
   });
+  // My Approvals nav — only meaningful for staff who actually approve
+  // requests (Manager / Plant Head / Super Admin orgRole, OR a system-level
+  // Super Admin, OR anyone holding the page.myApprovals permission).
+  (function(){
+    var el=document.getElementById('navMyApprovals');
+    if(!el) return;
+    var hasPerm=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals');
+    var isSA=(typeof _hrmsIsSuperAdmin==='function')&&_hrmsIsSuperAdmin();
+    var me=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+    var role=me&&typeof _hrmsOrgRoleOf==='function'?_hrmsOrgRoleOf(me):'employee';
+    var isApproverRole=(role==='manager'||role==='plant_head'||role==='hr_manager');
+    el.style.display=(hasPerm||isSA||isApproverRole)?'':'none';
+  })();
   // Masters menu
   var mastersNav=document.querySelector('[onclick*="_hrmsToggleMasters"]');
   if(mastersNav) mastersNav.style.display=_hrmsHasAccess('page.masters')?'':'none';
@@ -187,13 +220,25 @@ function _hrmsEnforcePermissions(){
 }
 
 function hrmsGo(pid){
-  // Permission check — block access to denied pages
-  var permKey=_HRMS_PAGE_PERMS[pid];
-  if(permKey&&!_hrmsHasAccess(permKey)){notify('Access denied',true);return;}
+  // Permission check — block access to denied pages.
+  // Special-case My Approvals: Manager / Plant Head / Super Admin orgRole
+  // implicitly get access (no explicit perm flip needed). System Super
+  // Admin always passes too.
+  if(pid==='pageHrmsMyApprovals'){
+    var _meAccess=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+    var _roleAccess=_meAccess&&typeof _hrmsOrgRoleOf==='function'?_hrmsOrgRoleOf(_meAccess):'employee';
+    var _allowApprovals=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())||
+                       ['manager','plant_head','hr_manager'].indexOf(_roleAccess)>=0||
+                       ((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals'));
+    if(!_allowApprovals){notify('Access denied',true);return;}
+  } else {
+    var permKey=_HRMS_PAGE_PERMS[pid];
+    if(permKey&&!_hrmsHasAccess(permKey)){notify('Access denied',true);return;}
+  }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   var pg=document.getElementById(pid);if(pg)pg.classList.add('active');
-  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsMyAtt:'navMyAtt',pageHrmsOrgStructure:'navOrgStructure',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsMAllocation:'navMAllocation',pageHrmsUtilAttConv:'navUtilAttConv',pageHrmsUtilDailyAtt:'navUtilDailyAtt',pageHrmsUtilMonthlyHc:'navUtilMonthlyHc'};
+  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsMyAtt:'navMyAtt',pageHrmsMyApprovals:'navMyApprovals',pageHrmsOrgStructure:'navOrgStructure',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsMAllocation:'navMAllocation',pageHrmsUtilAttConv:'navUtilAttConv',pageHrmsUtilDailyAtt:'navUtilDailyAtt',pageHrmsUtilMonthlyHc:'navUtilMonthlyHc'};
   var nid=navMap[pid];if(nid){var ne=document.getElementById(nid);if(ne)ne.classList.add('active');}
   _hrmsUpdateTopTitle();
   // Re-render the employee list whenever the user lands on the page — the
@@ -247,6 +292,7 @@ function hrmsGo(pid){
     if(pid==='pageHrmsUtilMonthlyHc'&&typeof _hrmsMhgInit==='function') _hrmsMhgInit();
   }
   if(pid==='pageHrmsMyAtt'&&typeof _hrmsMyAttInit==='function') _hrmsMyAttInit();
+  if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
   if(pid==='pageHrmsOrgStructure'&&typeof _hrmsOrgRender==='function') _hrmsOrgRender();
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelector('.sidebar-overlay').classList.remove('show');
@@ -1676,6 +1722,21 @@ function _hrmsUpdateChangeReqBadge(){
   (DB.hrmsEmployees||[]).forEach(function(e){(e.periods||[]).forEach(function(p){if(p._wfStatus==='proposed')count++;});});
   var el=document.getElementById('cChangeReqTab');
   if(el){el.textContent=count;el.style.display=count?'':'none';}
+}
+// Sidebar pending-approvals badge — runs on app init and after every data
+// refresh so the count is correct without the user having to open the page.
+// Lighter than _hrmsMyApprovalsRender (no DOM render of the queue itself).
+function _hrmsUpdateMyApprovalsBadge(){
+  var nav=document.getElementById('cMyApprovals');
+  if(!nav) return;
+  if(typeof _hrmsMyApprovalsCanAct!=='function'){nav.style.display='none';return;}
+  var n=0;
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||!e.extra) return;
+    (e.extra.altRequests||[]).forEach(function(r){if(_hrmsMyApprovalsCanAct(r)) n++;});
+    (e.extra.coffBank||[]).forEach(function(c){if(_hrmsMyApprovalsCanAct(c)) n++;});
+  });
+  nav.textContent=n;nav.style.display=n?'':'none';
 }
 function _hrmsEmpSetTab(tab){
   var listSec=document.getElementById('hrmsEmpListSection');
@@ -14149,6 +14210,216 @@ function _hrmsIsSuperAdmin(){
   return CU.roles.indexOf('Super Admin')>=0;
 }
 
+// Heuristic — true when a string looks like an internal HRMS row id (the
+// `'he' + 9-char base36` shape produced by uid()). We use this to avoid
+// surfacing a synthetic empCode as if it were a person's name; in that
+// case the chain renderer prefers the linked user's fullName instead.
+function _hrmsLooksLikeEmpId(s){
+  if(!s) return false;
+  var x=String(s);
+  return /^he[0-9a-z]{9}$/.test(x);
+}
+
+// Approval-flow header for the My Attendance page — shows the requester's
+// reportingTo chain as a horizontal arrow pill row, so they can see at a
+// glance who their alteration / C-Off requests will route through.
+//   You → Manager → Plant Head → HR Manager (→ Super Admin)
+// HR Manager-themselves submissions automatically include the system
+// Super Admin as the final step (mirrors _hrmsOrgManagerChain logic).
+function _hrmsRenderApprovalFlowHTML(emp){
+  if(!emp) return '';
+  var chain=(typeof _hrmsOrgManagerChain==='function')?_hrmsOrgManagerChain(emp):[];
+  if(!chain.length){
+    return '<div style="background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e">'+
+      '<b>⚠ No approval chain set up.</b> Requests will fall back to admin approval until a reporting manager is assigned in the Org Structure.'+
+    '</div>';
+  }
+  var roleAbbr={hr_manager:'HR Manager',plant_head:'Plant Head',manager:'Manager',employee:'Employee'};
+  var roleClr={hr_manager:'#7c3aed',plant_head:'#dc2626',manager:'#0ea5e9',employee:'#16a34a'};
+  var pill=function(label,sub,clr){
+    return '<span style="display:inline-flex;flex-direction:column;align-items:flex-start;padding:5px 10px;background:#fff;border:1.5px solid '+clr+';border-left:4px solid '+clr+';border-radius:6px;line-height:1.2">'+
+      '<span style="font-size:12px;font-weight:800;color:var(--text)">'+label+'</span>'+
+      (sub?'<span style="font-size:9px;color:'+clr+';font-weight:700">'+sub+'</span>':'')+
+    '</span>';
+  };
+  var arrow='<span style="color:var(--text3);font-size:14px;font-weight:800;margin:0 2px">→</span>';
+  // Pill 0 = the requester themselves.
+  var meDn=_hrmsEmpDisplayName(emp);
+  var html='<div style="background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px">'+
+    '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">📋 Approval Flow</div>'+
+    '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
+  html+=pill('You',meDn||emp.empCode||'','#94a3b8');
+  chain.forEach(function(empId){
+    html+=arrow;
+    var aEmp=byId(DB.hrmsEmployees||[],empId);
+    if(!aEmp){
+      var keyU=String(empId||'').toUpperCase().trim();
+      aEmp=(DB.hrmsEmployees||[]).find(function(e){return e&&(String(e._dbId||'')===empId||String(e.empCode||'').toUpperCase().trim()===keyU);})||null;
+    }
+    var linkedUser=null;
+    if(aEmp){
+      var ec=String(aEmp.empCode||'').toUpperCase().trim();
+      if(ec) linkedUser=(DB.users||[]).find(function(u){return u&&u.name&&String(u.name).toUpperCase().trim()===ec;})||null;
+    } else {
+      linkedUser=(DB.users||[]).find(function(u){return u&&(String(u.id||'')===empId||String(u.name||'').toUpperCase().trim()===String(empId||'').toUpperCase().trim());})||null;
+    }
+    var role=aEmp?_hrmsOrgRoleOf(aEmp):'employee';
+    var isSysSA=linkedUser?(linkedUser.roles||[]).indexOf('Super Admin')>=0:false;
+    var roleLbl=isSysSA?'Super Admin':(roleAbbr[role]||'Approver');
+    var clr=isSysSA?'#7c3aed':(roleClr[role]||'#94a3b8');
+    var dn=aEmp?_hrmsEmpDisplayName(aEmp):'';
+    var userDn=linkedUser?(linkedUser.fullName||linkedUser.name||''):'';
+    var name=(dn&&!_hrmsLooksLikeEmpId(dn))?dn:(userDn||dn||'(missing)');
+    html+=pill(name,roleLbl,clr);
+  });
+  html+='</div></div>';
+  return html;
+}
+
+// "Friendly" name for an employee record — first + last (falling back to
+// emp.name, then matching user.fullName, then empCode). Used wherever we
+// display an approver / requester in the UI so users see human names
+// instead of cryptic empCodes.
+function _hrmsEmpDisplayName(emp){
+  if(!emp) return '';
+  var fn=(emp.firstName||'').trim();
+  var ln=(emp.lastName||'').trim();
+  var combined=(fn+' '+ln).trim();
+  if(combined) return combined;
+  if(emp.name&&String(emp.name).trim()) return emp.name;
+  // Last-resort: look up the matching user record (some employees only get
+  // names set on the user side, with the HRMS row sparse).
+  var ec=String(emp.empCode||'').toUpperCase().trim();
+  if(ec){
+    var user=(DB.users||[]).find(function(u){return u&&u.name&&String(u.name).toUpperCase().trim()===ec;});
+    if(user&&user.fullName) return user.fullName;
+  }
+  return emp.empCode||'';
+}
+
+// Resolve a stored approver/requester value (CU.name was persisted at action
+// time — typically the user's username, which equals empCode in this system)
+// to a friendly first+last display name. Falls back to the raw stored value
+// when no match is found (so legacy / external entries don't render blank).
+function _hrmsApproverName(stored){
+  if(!stored) return '';
+  var u=String(stored).toUpperCase().trim();
+  // Look up by empCode (most common case — CU.name stores the empCode).
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase().trim()===u;});
+  if(emp){
+    var dn=_hrmsEmpDisplayName(emp);
+    if(dn) return dn;
+  }
+  // Fall back to the user record's full name.
+  var user=(DB.users||[]).find(function(usr){return usr&&usr.name&&String(usr.name).toUpperCase().trim()===u;});
+  if(user) return user.fullName||user.name||stored;
+  return stored;
+}
+
+// Render a compact horizontal approval-chain pill row for a request entry
+// (works for both alteration requests and C-Off bank entries — both share
+// the approvalChain / approvalLevel / approvalLog / status shape).
+//   ✓ MGR 234 › ⏳ PH 102 › — SA 001
+// Variant `compact` skips the role abbreviation to fit narrow side-panel
+// cards; full mode shows MGR/PH/SA labels.
+function _hrmsRenderApprovalChainHTML(req,opts){
+  if(!req) return '';
+  var compact=!!(opts&&opts.compact);
+  var chain=Array.isArray(req.approvalChain)?req.approvalChain:[];
+  if(!chain.length){
+    return '<div style="font-size:9px;color:var(--text3);font-style:italic">No chain — admin approval only</div>';
+  }
+  var status=req.status||'pending';
+  var level=req.approvalLevel||0;
+  var log=Array.isArray(req.approvalLog)?req.approvalLog:[];
+  var roleAbbr={hr_manager:'HR',plant_head:'PH',manager:'MGR',employee:'EMP'};
+  var fmtDate=function(iso){if(!iso) return '';var d=new Date(iso);if(isNaN(d.getTime())) return '';var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+'-'+m[d.getMonth()];};
+  var html='<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;font-size:9px;line-height:1.4">';
+  chain.forEach(function(empId,i){
+    // Lookup the chain entry across every plausible identifier the value
+    // could be. Legacy data has stored the app-id (most common), the DB
+    // primary key (_dbId), and even the empCode here, so we try all three
+    // before giving up. A bare byId() miss used to surface as the raw id.
+    var emp=byId(DB.hrmsEmployees||[],empId);
+    if(!emp){
+      var keyU=String(empId||'').toUpperCase().trim();
+      emp=(DB.hrmsEmployees||[]).find(function(e){
+        if(!e) return false;
+        if(String(e._dbId||'')===empId) return true;
+        if(String(e.empCode||'').toUpperCase().trim()===keyU) return true;
+        return false;
+      })||null;
+    }
+    // Stale-chain self-heal at render time: when the entry can't be resolved
+    // AND it's at the final chain position (where the org tree puts the HR
+    // Manager — re-creates / id changes leave dangling pointers here), fall
+    // back to the current HR Manager record so the UI keeps showing a real
+    // person while the underlying chain is migrated. Only fires when there's
+    // exactly one HR Manager so we don't substitute ambiguously.
+    var staleSub=false;
+    if(!emp&&i===chain.length-1){
+      var hrMgrs=(DB.hrmsEmployees||[]).filter(function(e){return _hrmsOrgRoleOf(e)==='hr_manager';});
+      if(hrMgrs.length===1){emp=hrMgrs[0];staleSub=true;}
+    }
+    // Locate the linked user record. Two paths are used in this codebase:
+    //   1) emp.empCode === user.name  (the conventional username/empCode link)
+    //   2) chain entry IS a user.id / user.name (legacy data, or a Super Admin
+    //      user without a matching HRMS employee row).
+    // Falling through to the user record lets us show the operator's full
+    // name and SA badge even when the HRMS row is sparse / missing.
+    var linkedUser=null;
+    var keyId=String(empId||'').toUpperCase().trim();
+    if(emp){
+      var ec=String(emp.empCode||'').toUpperCase().trim();
+      if(ec) linkedUser=(DB.users||[]).find(function(u){return u&&u.name&&String(u.name).toUpperCase().trim()===ec;})||null;
+    }
+    if(!linkedUser){
+      linkedUser=(DB.users||[]).find(function(u){return u&&(String(u.id||'')===empId||String(u.name||'').toUpperCase().trim()===keyId);})||null;
+    }
+    // Display name preference: emp first/last/name → linked user's fullName
+    // → user.name → empCode. When even that fails the chain entry is a stale
+    // pointer (deleted employee or id changed) — surface a clear "missing"
+    // marker rather than dumping the raw id, so the user knows the chain
+    // needs migration.
+    var empDn=emp?_hrmsEmpDisplayName(emp):'';
+    var userDn=linkedUser?(linkedUser.fullName||linkedUser.name||''):'';
+    var resolved=(empDn&&!_hrmsLooksLikeEmpId(empDn))?empDn:(userDn||empDn||'');
+    var displayName=resolved||('(missing) '+empId);
+    var empCode=emp?(emp.empCode||emp.id):(linkedUser?(linkedUser.name||empId):empId);
+    var label=displayName;
+    var fullName=displayName;
+    var role=emp?_hrmsOrgRoleOf(emp):'employee';
+    // System Super Admin gets an SA badge regardless of their org role —
+    // they're the final approver for HR Manager requests, sitting outside
+    // the org tree. Detect via either the HRMS-linked user OR a directly-
+    // referenced user (when the HRMS row is missing).
+    var isSysSA=linkedUser?(linkedUser.roles||[]).indexOf('Super Admin')>=0:false;
+    var ra=isSysSA?'SA':(roleAbbr[role]||'EMP');
+    var icon='—',bg='transparent',clr='var(--text3)',border='1px dashed var(--border)';
+    var logEntry=log.filter(function(l){return l.level===i;}).pop();
+    if(status==='rejected'&&i===level){
+      icon='✕';bg='#fee2e2';clr='#7f1d1d';border='1px solid #fca5a5';
+    } else if(i<level){
+      icon='✓';bg='#dcfce7';clr='#15803d';border='1px solid #86efac';
+    } else if(i===level&&(status==='approved'||status==='used')){
+      icon='✓';bg='#dcfce7';clr='#15803d';border='1px solid #86efac';
+    } else if(i===level&&status==='pending'){
+      icon='⏳';bg='#fef3c7';clr='#92400e';border='1.5px dashed #f59e0b';
+    }
+    var when=logEntry&&logEntry.at?fmtDate(logEntry.at):'';
+    var tip=ra+(empCode?' — '+empCode:'')+(when?' · '+when:'')+(staleSub?' · stale chain link auto-resolved to current HR Manager':'');
+    var content=compact?(icon+' '+label):(icon+' '+ra+' '+label);
+    if(staleSub) content+=' <span style="font-size:8px;color:#92400e">⚠</span>';
+    html+='<span title="'+tip.replace(/"/g,'&quot;')+'" style="background:'+bg+';color:'+clr+';border:'+border+';padding:1px 5px;border-radius:3px;font-weight:700;white-space:nowrap">'+content+'</span>';
+    if(i<chain.length-1){html+='<span style="color:var(--text3);font-size:10px">›</span>';}
+  });
+  html+='</div>';
+  if(status==='rejected'&&req.rejectReason){
+    html+='<div style="font-size:9px;color:#dc2626;font-style:italic;margin-top:2px">Rejected: '+String(req.rejectReason).replace(/</g,'&lt;')+'</div>';
+  }
+  return html;
+}
+
 function _hrmsMyAttInit(){
   // Populate year dropdown — financial year (Apr-Mar). Value stored is the
   // FY-start year (e.g. value='2026' = FY 2026-27 = Apr 2026 to Mar 2027).
@@ -14365,6 +14636,18 @@ async function _hrmsMyAttRender(){
       ' &middot; Type: <b>'+(emp.employmentType||'—')+'</b>'+
       ' &middot; <b>FY '+st.year+'-'+String(st.year+1).slice(-2)+'</b> (Apr '+st.year+' – Mar '+(st.year+1)+')';
   }
+  // Approval flow header — shows the user the reportingTo chain that any
+  // alteration / C-Off request they submit will walk through. Helps them
+  // anticipate who will see the request before they hit submit.
+  var flowEl=document.getElementById('hrmsMyAttApprovalFlow');
+  if(!flowEl){
+    flowEl=document.createElement('div');
+    flowEl.id='hrmsMyAttApprovalFlow';
+    flowEl.style.cssText='margin-bottom:8px';
+    if(sumEl&&sumEl.parentNode) sumEl.parentNode.insertBefore(flowEl,sumEl.nextSibling);
+    else if(body&&body.parentNode) body.parentNode.insertBefore(flowEl,body);
+  }
+  flowEl.innerHTML=_hrmsRenderApprovalFlowHTML(emp);
   var fyLabel='FY '+st.year+'-'+String(st.year+1).slice(-2);
   body.innerHTML='<div class="empty-state" style="padding:40px 20px">Loading attendance for '+fyLabel+'…</div>';
   // FY months in DESCENDING order — Mar (yr+1), Feb (yr+1), ..., May (yr),
@@ -14857,14 +15140,33 @@ async function _hrmsMyAttRender(){
       if(st2==='used'&&c.usedForDate) usedFor='<div style="font-size:9px;color:#64748b;margin-top:2px">Used for: <b>'+c.usedForDate+'</b></div>';
       else if(st2==='pending'&&c.usedForDate) usedFor='<div style="font-size:9px;color:#92400e;margin-top:2px">Pending for: <b>'+c.usedForDate+'</b></div>';
       var prevFyTag=fromPrevFy?'<span title="Earned in a prior FY but still relevant this FY" style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:#fef3c7;color:#92400e;margin-left:4px">PREV FY</span>':'';
+      // Approval chain only meaningful for entries that went through the
+      // pending → approval flow (status==='pending' or 'used'); not for
+      // 'available' (not yet applied) or 'expired'.
+      var coffChainHtml=(st2==='pending'||st2==='used'||(st2==='rejected'))
+        ? '<div style="margin-top:4px">'+_hrmsRenderApprovalChainHTML(c,{compact:true})+'</div>'
+        : '';
+      // Rejection helper — when a C-Off application was rejected the entry
+      // is reset to 'available' but rejectReason / rejectedBy / rejectedAt
+      // remain on the row. Surface that history under the date so the user
+      // doesn't have to remember why it bounced back.
+      var coffRejHtml='';
+      if(c.rejectReason){
+        var _rejByName=c.rejectedBy?_hrmsApproverName(c.rejectedBy):'admin';
+        var _rejAt=c.rejectedAt?c.rejectedAt.slice(0,10):'';
+        var _rejTip=('Rejected'+(_rejByName?' by '+_rejByName:'')+(_rejAt?' on '+_rejAt:'')).replace(/"/g,'&quot;');
+        coffRejHtml='<div title="'+_rejTip+'" style="font-size:9px;color:#dc2626;margin-top:2px;font-style:italic;background:#fef2f2;border-left:3px solid #fca5a5;padding:2px 6px;border-radius:0 3px 3px 0">❌ Previously rejected'+(_rejByName?' by <b>'+_rejByName+'</b>':'')+(_rejAt?' on '+_rejAt:'')+': '+String(c.rejectReason).replace(/</g,'&lt;')+'</div>';
+      }
       rowsHtml+='<div style="padding:8px 10px;border-bottom:1px solid var(--border);background:#fff">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px">'+
           '<div style="font-size:12px;font-weight:800;color:var(--text)">'+c.earnedDate+prevFyTag+'</div>'+
           '<div style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:3px;background:'+sc.bg+';color:'+sc.clr+';text-transform:uppercase">'+st2+'</div>'+
         '</div>'+
+        coffRejHtml+
         '<div style="font-size:10px;color:var(--text3);margin-top:1px">From '+sourceTxt+'</div>'+
         '<div style="font-size:10px;color:var(--text3)">Expires <b style="color:'+(st2==='expired'?'#dc2626':'var(--text2)')+'">'+(c.expiryDate||'—')+'</b></div>'+
         usedFor+
+        coffChainHtml+
         actionBtn+
       '</div>';
     });
@@ -14913,14 +15215,22 @@ async function _hrmsMyAttRender(){
         if(!rLocked&&(r.status==='pending'||r.status==='approved'||r.status==='rejected')){
           actBtn='<button onclick="_hrmsAltReqRevoke(\''+idEsc+'\',\''+rqEsc+'\')" title="'+(r.status==='approved'?'Revoke approval — alteration row will be removed':'Revoke this request')+'" style="font-size:10px;padding:3px 10px;font-weight:700;background:#fff;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;width:100%;margin-top:4px">↺ Revoke</button>';
         }
+        var altRejHtml='';
+        if(r.rejectReason){
+          var _arByName=r.rejectedBy?_hrmsApproverName(r.rejectedBy):'admin';
+          var _arAt=r.rejectedAt?r.rejectedAt.slice(0,10):'';
+          var _arTip=('Rejected'+(_arByName?' by '+_arByName:'')+(_arAt?' on '+_arAt:'')).replace(/"/g,'&quot;');
+          altRejHtml='<div title="'+_arTip+'" style="font-size:9px;color:#dc2626;margin-top:2px;font-style:italic;background:#fef2f2;border-left:3px solid #fca5a5;padding:2px 6px;border-radius:0 3px 3px 0">❌ Rejected'+(_arByName?' by <b>'+_arByName+'</b>':'')+(_arAt?' on '+_arAt:'')+': '+String(r.rejectReason).replace(/</g,'&lt;')+'</div>';
+        }
         _altRows+='<div style="padding:8px 10px;border-bottom:1px solid var(--border);background:#fff">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px">'+
             '<div style="font-size:12px;font-weight:800;color:var(--text)">'+r.date+'</div>'+
             '<div style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:3px;background:'+sc.bg+';color:'+sc.clr+';text-transform:uppercase">'+r.status+'</div>'+
           '</div>'+
+          altRejHtml+
           '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+typeLbl+' · IN '+(r['in']||'—')+' · OUT '+(r['out']||'—')+'</div>'+
           (r.reason?'<div style="font-size:10px;color:var(--text2);margin-top:2px;font-style:italic">'+String(r.reason).replace(/</g,'&lt;')+'</div>':'')+
-          (r.rejectReason?'<div style="font-size:9px;color:#dc2626;margin-top:2px">Rejected: '+String(r.rejectReason).replace(/</g,'&lt;')+'</div>':'')+
+          '<div style="margin-top:4px">'+_hrmsRenderApprovalChainHTML(r,{compact:true})+'</div>'+
           actBtn+
         '</div>';
       });
@@ -15017,8 +15327,24 @@ function _hrmsCoffApplyOpen(empId,earnedDate){
   var mc=months.find(function(m){return m.monthKey===curMk;});
   var afterCalc=function(monthCalc){
     var absentDays=(monthCalc.days||[]).filter(function(d){return d.status==='A'&&!d.isOff;});
+    // Skip dates that already have a pending or approved alteration request —
+    // user shouldn't be able to use a C-Off against a day they're separately
+    // trying to convert via Missed Punch / Outdoor Duty.
+    var altReqDates={};
+    ((emp.extra&&emp.extra.altRequests)||[]).forEach(function(r){
+      if(r&&(r.status==='pending'||r.status==='approved')&&r.date) altReqDates[r.date]=r.status;
+    });
+    var blocked=0;
+    absentDays=absentDays.filter(function(d){
+      var dateStr=monthCalc.monthKey+'-'+String(d.day).padStart(2,'0');
+      if(altReqDates[dateStr]){blocked++;return false;}
+      return true;
+    });
     if(!absentDays.length){
-      notify('No absent working days in '+curMk+' to apply against',true);
+      var msg=blocked
+        ?('All absent days in '+curMk+' are already covered by an alteration request. Revoke the request first if you want to use a C-Off instead.')
+        :('No absent working days in '+curMk+' to apply against');
+      notify(msg,true);
       return;
     }
     // Build overlay
@@ -15140,6 +15466,7 @@ async function _hrmsCoffApprove(empId,earnedDate){
   if(typeof _hrmsRenderManualPList==='function') _hrmsRenderManualPList();
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
+  if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge();
 }
 
 // Create the synthetic alteration record for an approved C-Off. Default
@@ -15315,6 +15642,7 @@ async function _hrmsCoffReject(empId,earnedDate){
   if(typeof _hrmsRenderCoffTakenTab==='function'&&_hrmsAttSelectedMonth){var p=_hrmsAttSelectedMonth.split('-');_hrmsRenderCoffTakenTab(+p[0],+p[1]);}
   if(typeof _hrmsRenderManualPList==='function') _hrmsRenderManualPList();
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
+  if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge();
 }
 
 // Revoke a C-Off claim. Authorisation:
@@ -15544,7 +15872,7 @@ async function _hrmsRenderCoffTakenTab(yr,mo){
     } else {
       actions='<span style="color:var(--text3);font-size:10px">—</span>';
     }
-    var requested=c.requestedAt?c.requestedAt.slice(0,10)+(c.requestedBy?' by '+c.requestedBy:''):(c.usedAt?c.usedAt.slice(0,10):'—');
+    var requested=c.requestedAt?c.requestedAt.slice(0,10)+(c.requestedBy?' by '+_hrmsApproverName(c.requestedBy):''):(c.usedAt?c.usedAt.slice(0,10):'—');
     html+='<tr style="'+rowBg+'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-weight:800"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+ecEsc+'\')" style="color:var(--accent);text-decoration:underline">'+(r.emp.empCode||'')+'</a></td>'+
@@ -15563,12 +15891,13 @@ async function _hrmsRenderCoffTakenTab(yr,mo){
       '<td style="'+td+'">'+src+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(c.expiryDate||'—')+'</td>'+
       '<td style="'+td+'"><span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:3px;background:'+sc.bg+';color:'+sc.clr+';text-transform:uppercase">'+st2+'</span>'+
-        (function(){
-          if(st2!=='pending'||!coffChain.length) return '';
-          var nextEmp=byId(DB.hrmsEmployees||[],coffChain[coffLvl]);
-          var nm=nextEmp?(nextEmp.empCode+' — '+nextEmp.name):coffChain[coffLvl];
-          return '<div style="font-size:9px;color:var(--text3);font-weight:600;margin-top:2px">L'+(coffLvl+1)+'/'+coffChain.length+' · '+nm+'</div>';
-        })()+
+        '<div style="margin-top:3px">'+_hrmsRenderApprovalChainHTML(c)+'</div>'+
+        // Rejection helper — shown for any C-Off entry that has rejectReason
+        // set (status reverts to 'available' after a rejection but the reject
+        // metadata stays on the row).
+        (c.rejectReason
+          ?(function(){var _n=c.rejectedBy?_hrmsApproverName(c.rejectedBy):'';var _a=c.rejectedAt?c.rejectedAt.slice(0,10):'';return '<div style="font-size:9px;color:#dc2626;font-style:italic;background:#fef2f2;border-left:3px solid #fca5a5;padding:2px 6px;border-radius:0 3px 3px 0;margin-top:3px">❌ Rejected'+(_n?' by <b>'+_n+'</b>':'')+(_a?' on '+_a:'')+': '+String(c.rejectReason).replace(/</g,'&lt;')+'</div>';})()
+          :'')+
       '</td>'+
       '<td style="'+td+';font-family:var(--mono);color:'+(c.usedForDate?(st2==='pending'?'#92400e':'#1d4ed8'):'var(--text3)')+';font-weight:'+(c.usedForDate?'800':'400')+'">'+(c.usedForDate||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+requested+'</td>'+
@@ -15797,6 +16126,7 @@ async function _hrmsAltReqApprove(empId,reqId){
   if(typeof _hrmsRenderAltReqTab==='function'&&_hrmsAttSelectedMonth){var p=_hrmsAttSelectedMonth.split('-');_hrmsRenderAltReqTab(+p[0],+p[1]);}
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
+  if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge();
 }
 
 async function _hrmsAltReqReject(empId,reqId){
@@ -15825,6 +16155,7 @@ async function _hrmsAltReqReject(empId,reqId){
   notify('🚫 Request rejected');
   if(typeof _hrmsRenderAltReqTab==='function'&&_hrmsAttSelectedMonth){var p=_hrmsAttSelectedMonth.split('-');_hrmsRenderAltReqTab(+p[0],+p[1]);}
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
+  if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge();
 }
 
 async function _hrmsAltReqRevokeApproval(empId,reqId){
@@ -15960,7 +16291,7 @@ function _hrmsRenderAltReqTab(yr,mo){
       actions+='<button onclick="_hrmsAltReqRevoke(\''+idEsc+'\',\''+rqEsc+'\')" title="'+revTip+'" style="font-size:10px;padding:3px 10px;font-weight:700;background:#fff;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">↺ Revoke</button>';
     }
     if(!actions) actions='<span style="color:var(--text3);font-size:10px">—</span>';
-    var requested=req.requestedAt?req.requestedAt.slice(0,10)+(req.requestedBy?' by '+req.requestedBy:''):'—';
+    var requested=req.requestedAt?req.requestedAt.slice(0,10)+(req.requestedBy?' by '+_hrmsApproverName(req.requestedBy):''):'—';
     html+='<tr style="'+rowBg+'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-weight:800">'+(r.emp.empCode||'')+'</td>'+
@@ -15969,14 +16300,13 @@ function _hrmsRenderAltReqTab(yr,mo){
       '<td style="'+td+'">'+typeLbl+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(req['in']||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(req['out']||'—')+'</td>'+
-      '<td style="'+td+';max-width:240px;font-size:11px">'+(req.reason||'').replace(/</g,'&lt;')+(req.rejectReason?'<div style="color:#dc2626;font-style:italic;margin-top:2px">Rejected: '+req.rejectReason.replace(/</g,'&lt;')+'</div>':'')+'</td>'+
+      '<td style="'+td+';max-width:260px;font-size:11px">'+(req.reason||'').replace(/</g,'&lt;')+
+        (req.rejectReason
+          ?(function(){var _n=req.rejectedBy?_hrmsApproverName(req.rejectedBy):'';var _a=req.rejectedAt?req.rejectedAt.slice(0,10):'';return '<div style="font-size:10px;color:#dc2626;font-style:italic;background:#fef2f2;border-left:3px solid #fca5a5;padding:2px 6px;border-radius:0 3px 3px 0;margin-top:3px">❌ Rejected'+(_n?' by <b>'+_n+'</b>':'')+(_a?' on '+_a:'')+': '+req.rejectReason.replace(/</g,'&lt;')+'</div>';})()
+          :'')+
+      '</td>'+
       '<td style="'+td+'"><span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:3px;background:'+sc.bg+';color:'+sc.clr+';text-transform:uppercase">'+st2+'</span>'+
-        (function(){
-          if(st2!=='pending'||!chain.length) return '';
-          var nextEmp=byId(DB.hrmsEmployees||[],chain[lvl]);
-          var nm=nextEmp?(nextEmp.empCode+' — '+nextEmp.name):chain[lvl];
-          return '<div style="font-size:9px;color:var(--text3);font-weight:600;margin-top:2px">L'+(lvl+1)+'/'+chain.length+' · '+nm+'</div>';
-        })()+
+        '<div style="margin-top:3px">'+_hrmsRenderApprovalChainHTML(req)+'</div>'+
       '</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+requested+'</td>'+
       '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
@@ -15988,17 +16318,22 @@ function _hrmsRenderAltReqTab(yr,mo){
 
 // ═══ ORG STRUCTURE ═════════════════════════════════════════════════════════
 // Each staff employee carries `reportingTo` (existing column) for the direct
-// manager link and `extra.orgRole` for one of: super_admin / plant_head /
+// manager link and `extra.orgRole` for one of: hr_manager / plant_head /
 // manager / employee. The HO plant id is stored in hrmsSettings under the
 // 'orgConfig' key. Helpers below derive the chain used by the alteration /
 // C-Off approval flows.
 
-var _ORG_ROLE_RANK={super_admin:4,plant_head:3,manager:2,employee:1};
-var _ORG_ROLE_LABELS={super_admin:'Super Admin',plant_head:'Plant Head',manager:'Manager',employee:'Employee'};
+var _ORG_ROLE_RANK={hr_manager:4,plant_head:3,manager:2,employee:1};
+var _ORG_ROLE_LABELS={hr_manager:'HR Manager',plant_head:'Plant Head',manager:'Manager',employee:'Employee'};
 
 function _hrmsOrgRoleOf(emp){
   if(!emp) return 'employee';
   var r=emp.extra&&emp.extra.orgRole;
+  // Legacy alias: 'super_admin' was the previous top-of-tree role name.
+  // Treat any persisted value transparently as 'hr_manager' so existing
+  // employee records keep rendering correctly until they're next saved
+  // (which will rewrite the value to 'hr_manager').
+  if(r==='super_admin') r='hr_manager';
   return r&&_ORG_ROLE_RANK[r]?r:'employee';
 }
 
@@ -16035,8 +16370,8 @@ async function _hrmsOrgSaveConfig(patch){
   return await _dbSave('hrmsSettings',rec);
 }
 
-function _hrmsOrgGetSuperAdmins(){
-  return(DB.hrmsEmployees||[]).filter(function(e){return _hrmsOrgIsStaff(e)&&_hrmsOrgRoleOf(e)==='super_admin';});
+function _hrmsOrgGetHrManagers(){
+  return(DB.hrmsEmployees||[]).filter(function(e){return _hrmsOrgIsStaff(e)&&_hrmsOrgRoleOf(e)==='hr_manager';});
 }
 
 function _hrmsOrgGetPlantHead(plantId){
@@ -16044,8 +16379,41 @@ function _hrmsOrgGetPlantHead(plantId){
   return(DB.hrmsEmployees||[]).find(function(e){return _hrmsOrgIsStaff(e)&&_hrmsOrgRoleOf(e)==='plant_head'&&e.location===plantId;})||null;
 }
 
+// True when this HRMS employee record corresponds to a user with the
+// system-level 'Super Admin' role. Used in chain pills so the topmost
+// approver for HR Manager requests labels as SA (rather than whatever
+// org role they happen to have, which is usually 'employee').
+function _hrmsIsSystemSuperAdminEmp(emp){
+  if(!emp) return false;
+  var key=String(emp.empCode||'').toUpperCase().trim();
+  if(!key) return false;
+  return (DB.users||[]).some(function(u){
+    return u&&(u.roles||[]).indexOf('Super Admin')>=0&&String(u.name||u.id||'').toUpperCase().trim()===key;
+  });
+}
+
+// Find the HRMS employee for the first system-level Super Admin user.
+// HR Managers' OWN requests route here (they have nobody in their org chain
+// above them), and the Super Admin is the only role allowed to approve
+// HR Manager submissions. Returns null when no Super Admin user has a
+// matching HRMS employee row.
+function _hrmsFindSystemSuperAdminEmp(){
+  var saUsers=(DB.users||[]).filter(function(u){return u&&(u.roles||[]).indexOf('Super Admin')>=0;});
+  for(var i=0;i<saUsers.length;i++){
+    var u=saUsers[i];
+    var key=String(u.name||u.id||'').toUpperCase().trim();
+    if(!key) continue;
+    var emp=(DB.hrmsEmployees||[]).find(function(e){return e&&(e.empCode||'').toUpperCase().trim()===key;});
+    if(emp) return emp;
+  }
+  return null;
+}
+
 // Walk up the reportingTo chain. Returns array of empIds — immediate manager
-// first, super_admin last. Caps at 10 levels to defend against accidental cycles.
+// first, hr_manager last. Caps at 10 levels to defend against accidental
+// cycles. For requesters whose own role is HR Manager (top of org tree —
+// no manager above them), the chain falls through to a system-level Super
+// Admin so their requests still have a valid approver.
 function _hrmsOrgManagerChain(emp){
   var chain=[],seen={};
   var cur=emp;
@@ -16058,19 +16426,26 @@ function _hrmsOrgManagerChain(emp){
     chain.push(mgr.id);
     cur=mgr;
   }
+  // HR Manager-specific: their own requests must be approved by Super Admin.
+  if(_hrmsOrgRoleOf(emp)==='hr_manager'){
+    var saEmp=_hrmsFindSystemSuperAdminEmp();
+    if(saEmp&&saEmp.id!==emp.id&&chain.indexOf(saEmp.id)<0){
+      chain.push(saEmp.id);
+    }
+  }
   return chain;
 }
 
 // Default reporting-to per the configured rules:
-//   super_admin → null
-//   plant_head  → first super_admin
-//   HO-plant staff → first super_admin
-//   other staff → their plant's plant_head; fall back to super_admin
+//   hr_manager → null
+//   plant_head  → first hr_manager
+//   HO-plant staff → first hr_manager
+//   other staff → their plant's plant_head; fall back to hr_manager
 function _hrmsOrgDefaultReportsTo(emp){
   if(!_hrmsOrgIsStaff(emp)) return '';
   var role=_hrmsOrgRoleOf(emp);
-  if(role==='super_admin') return '';
-  var supers=_hrmsOrgGetSuperAdmins();
+  if(role==='hr_manager') return '';
+  var supers=_hrmsOrgGetHrManagers();
   var firstSuper=supers[0];
   var hoLoc=(_hrmsOrgGetConfig().hoLocationId)||'';
   if(role==='plant_head') return firstSuper?firstSuper.id:'';
@@ -16084,7 +16459,7 @@ async function _hrmsOrgApplyDefaultsBulk(){
   if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('org.edit')){notify('Access denied',true);return;}
   var staff=(DB.hrmsEmployees||[]).filter(_hrmsOrgIsStaff);
   if(!staff.length){notify('No staff employees',true);return;}
-  if(!confirm('Auto-fill blank reporting links for '+staff.length+' staff employee(s)?\n\n• Fills blank "Reports To" using plant-head / HO / super-admin rules.\n• Existing assignments are not touched.\n• Pending alteration / C-Off requests without an approval chain are migrated to the new flow.')) return;
+  if(!confirm('Auto-fill blank reporting links for '+staff.length+' staff employee(s)?\n\n• Fills blank "Reports To" using plant-head / HO / super-admin rules.\n• Existing assignments are not touched.\n• Pending alteration / C-Off requests are migrated:\n   – missing chain → built fresh from current org tree\n   – stale chain (any entry pointing at a deleted / re-id\'d employee) → rebuilt')) return;
   showSpinner('Applying defaults…');
   // Pass 1 — fill blank reportingTo.
   var dirty=new Set(),filled=0;
@@ -16097,28 +16472,56 @@ async function _hrmsOrgApplyDefaultsBulk(){
       filled++;
     }
   });
-  // Pass 2 — migrate legacy pending alterations / C-Offs (no approvalChain).
-  // Compute the chain for each requester (post-pass-1, so newly-filled
-  // managers are picked up) and stamp approvalLevel:0.
-  var migAlt=0,migCoff=0;
+  // Stale-chain detector: any chain entry that doesn't resolve to an HRMS
+  // employee row by id / _dbId / empCode is dangling. Triggered when
+  // employees get re-created (new id) or removed without chain cleanup.
+  function _chainHasStale(chain){
+    if(!Array.isArray(chain)) return false;
+    return chain.some(function(empId){
+      if(!empId) return true;
+      var keyU=String(empId).toUpperCase().trim();
+      return !(DB.hrmsEmployees||[]).some(function(e){
+        return e&&(e.id===empId||String(e._dbId||'')===empId||String(e.empCode||'').toUpperCase().trim()===keyU);
+      });
+    });
+  }
+  // Pass 2 — migrate pending alterations / C-Offs:
+  //   • missing approvalChain → build fresh
+  //   • stale approvalChain (any unresolvable entry) → rebuild
+  // Compute chain for each requester after pass-1 so newly-filled managers
+  // are picked up. approvalLevel is reset to 0 only on a full rebuild —
+  // otherwise we preserve progress through the existing chain.
+  var migAlt=0,migCoff=0,fixAlt=0,fixCoff=0;
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||!e.extra) return;
     var chain=_hrmsOrgManagerChain(e);
     (e.extra.altRequests||[]).forEach(function(r){
       if(!r||r.status!=='pending') return;
-      if(Array.isArray(r.approvalChain)) return;
-      r.approvalChain=chain.slice();
-      r.approvalLevel=0;
-      r.approvalLog=r.approvalLog||[];
-      dirty.add(e);migAlt++;
+      if(!Array.isArray(r.approvalChain)){
+        r.approvalChain=chain.slice();
+        r.approvalLevel=0;
+        r.approvalLog=r.approvalLog||[];
+        dirty.add(e);migAlt++;
+      } else if(_chainHasStale(r.approvalChain)){
+        r.approvalChain=chain.slice();
+        r.approvalLevel=0;
+        r.approvalLog=r.approvalLog||[];
+        dirty.add(e);fixAlt++;
+      }
     });
     (e.extra.coffBank||[]).forEach(function(c){
       if(!c||c.status!=='pending') return;
-      if(Array.isArray(c.approvalChain)) return;
-      c.approvalChain=chain.slice();
-      c.approvalLevel=0;
-      c.approvalLog=c.approvalLog||[];
-      dirty.add(e);migCoff++;
+      if(!Array.isArray(c.approvalChain)){
+        c.approvalChain=chain.slice();
+        c.approvalLevel=0;
+        c.approvalLog=c.approvalLog||[];
+        dirty.add(e);migCoff++;
+      } else if(_chainHasStale(c.approvalChain)){
+        c.approvalChain=chain.slice();
+        c.approvalLevel=0;
+        c.approvalLog=c.approvalLog||[];
+        dirty.add(e);fixCoff++;
+      }
     });
   });
   var dirtyArr=Array.from(dirty);
@@ -16128,8 +16531,10 @@ async function _hrmsOrgApplyDefaultsBulk(){
   var ok=saves.filter(Boolean).length;
   var bits=[];
   if(filled) bits.push('filled '+filled+' manager link(s)');
-  if(migAlt) bits.push('migrated '+migAlt+' alteration request(s)');
-  if(migCoff) bits.push('migrated '+migCoff+' C-Off request(s)');
+  if(migAlt) bits.push('initialised '+migAlt+' alteration chain(s)');
+  if(migCoff) bits.push('initialised '+migCoff+' C-Off chain(s)');
+  if(fixAlt) bits.push('repaired '+fixAlt+' stale alteration chain(s)');
+  if(fixCoff) bits.push('repaired '+fixCoff+' stale C-Off chain(s)');
   notify('🌳 Applied defaults — '+(bits.join(' · ')||'no changes')+' ('+ok+'/'+dirtyArr.length+' saved)');
   if(typeof _hrmsOrgRender==='function') _hrmsOrgRender();
 }
@@ -16171,12 +16576,12 @@ function _hrmsOrgRender(){
   }
   var staff=(DB.hrmsEmployees||[]).filter(_hrmsOrgIsStaff);
   var byMgr={};staff.forEach(function(e){var k=e.reportingTo||'__root__';if(!byMgr[k]) byMgr[k]=[];byMgr[k].push(e);});
-  var counts={super_admin:0,plant_head:0,manager:0,employee:0,unmapped:0};
-  staff.forEach(function(e){counts[_hrmsOrgRoleOf(e)]++;if(!e.reportingTo&&_hrmsOrgRoleOf(e)!=='super_admin') counts.unmapped++;});
+  var counts={hr_manager:0,plant_head:0,manager:0,employee:0,unmapped:0};
+  staff.forEach(function(e){counts[_hrmsOrgRoleOf(e)]++;if(!e.reportingTo&&_hrmsOrgRoleOf(e)!=='hr_manager') counts.unmapped++;});
   var sumEl=document.getElementById('hrmsOrgSummary');
   if(sumEl){
     sumEl.innerHTML='Total staff: <b>'+staff.length+'</b> · '+
-      '<span style="color:#7c3aed;font-weight:700">Super Admin '+counts.super_admin+'</span> · '+
+      '<span style="color:#7c3aed;font-weight:700">HR Manager '+counts.hr_manager+'</span> · '+
       '<span style="color:#dc2626;font-weight:700">Plant Head '+counts.plant_head+'</span> · '+
       '<span style="color:#0ea5e9;font-weight:700">Manager '+counts.manager+'</span> · '+
       '<span style="color:#16a34a;font-weight:700">Employee '+counts.employee+'</span>'+
@@ -16184,8 +16589,14 @@ function _hrmsOrgRender(){
   }
   if(!staff.length){body.innerHTML='<div class="empty-state" style="padding:30px 20px">No active staff employees.</div>';return;}
   var canEdit=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('org.edit');
-  var roleClr={super_admin:'#7c3aed',plant_head:'#dc2626',manager:'#0ea5e9',employee:'#16a34a'};
-  var roleBg={super_admin:'#ede9fe',plant_head:'#fee2e2',manager:'#e0f2fe',employee:'#dcfce7'};
+  var roleClr={hr_manager:'#7c3aed',plant_head:'#dc2626',manager:'#0ea5e9',employee:'#16a34a'};
+  var roleBg={hr_manager:'#ede9fe',plant_head:'#fee2e2',manager:'#e0f2fe',employee:'#dcfce7'};
+  var roleBorder={hr_manager:'#a78bfa',plant_head:'#fca5a5',manager:'#7dd3fc',employee:'#86efac'};
+  // Visual tree node — proper card with role accent + children indented
+  // under a vertical connecting line. Each child has a horizontal stub
+  // hooking back to the parent's vertical, so the hierarchy is obvious at
+  // a glance. Card content is identical at every level (empCode, name,
+  // role pill, plant, edit), so reading is consistent.
   function nodeHtml(emp,depth){
     var role=_hrmsOrgRoleOf(emp);
     var loc=byId(DB.locations||[],emp.location);
@@ -16196,23 +16607,94 @@ function _hrmsOrgRender(){
       return(a.name||'').localeCompare(b.name||'');
     });
     var ecEsc=String(emp.id).replace(/'/g,"\\'");
-    var indent=depth*22;
-    var editBtn=canEdit?'<button onclick="_hrmsOrgEditOpen(\''+ecEsc+'\')" style="font-size:10px;padding:2px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎ Edit</button>':'';
-    var html='<div style="display:flex;align-items:center;gap:8px;padding:5px 8px 5px '+(8+indent)+'px;border-bottom:1px solid var(--border);background:'+(depth===0?'rgba(0,0,0,0.02)':'#fff')+'">'+
-      (children.length?'<span style="color:var(--text3);font-family:var(--mono);font-size:12px">└─</span>':'<span style="width:14px;display:inline-block"></span>')+
-      '<span style="font-family:var(--mono);font-size:11px;font-weight:800;color:var(--accent);min-width:60px">'+(emp.empCode||'')+'</span>'+
-      '<span style="font-size:13px;font-weight:700;flex:1">'+(emp.name||'—')+'</span>'+
-      '<span style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:'+(roleBg[role]||'#f1f5f9')+';color:'+(roleClr[role]||'var(--text3)')+'">'+(_ORG_ROLE_LABELS[role]||role)+'</span>'+
-      '<span style="font-size:11px;color:var(--text3);min-width:80px">'+locName+'</span>'+
-      editBtn+
-    '</div>';
-    children.forEach(function(c){html+=nodeHtml(c,depth+1);});
-    return html;
+    var dn=_hrmsEmpDisplayName(emp);
+    var rClr=roleClr[role]||'var(--text3)';
+    var rBg=roleBg[role]||'#f1f5f9';
+    var rBorder=roleBorder[role]||'#e2e8f0';
+    var directReports=children.length?(' · <span style="color:'+rClr+';font-weight:700">'+children.length+' direct report'+(children.length===1?'':'s')+'</span>'):'';
+    var editBtn=canEdit?'<button onclick="event.stopPropagation();_hrmsOrgEditOpen(\''+ecEsc+'\')" title="Edit role / reports-to" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'';
+    var card=
+      '<div class="hrms-org-card" style="display:inline-flex;align-items:center;gap:10px;padding:8px 12px;background:'+rBg+';border:2px solid '+rBorder+';border-left:5px solid '+rClr+';border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);min-width:280px">'+
+        '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:'+rClr+';color:#fff;font-weight:900;font-size:13px;flex-shrink:0">'+
+          (dn?dn.split(/\s+/).map(function(p){return p.charAt(0);}).slice(0,2).join('').toUpperCase():'?')+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
+            '<span style="font-size:13px;font-weight:800;color:var(--text)">'+dn+'</span>'+
+            '<span style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:#fff;color:'+rClr+';border:1px solid '+rClr+'">'+(_ORG_ROLE_LABELS[role]||role)+'</span>'+
+          '</div>'+
+          '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+
+            '<span style="font-family:var(--mono);font-weight:700;color:'+rClr+'">'+(emp.empCode||'')+'</span>'+
+            (locName?(' · 🏭 '+locName):'')+
+            directReports+
+          '</div>'+
+        '</div>'+
+        editBtn+
+      '</div>';
+    var childrenHtml='';
+    if(children.length){
+      // Layout strategy:
+      //   • HR Manager → 3-column grid for direct reports (typically plant
+      //     heads). Each column is its own subtree that descends vertically.
+      //     Wraps to fewer columns on narrow viewports.
+      //   • Anywhere else → traditional vertical list with L-shaped
+      //     connectors hooking each child back to the parent's trunk.
+      var role=_hrmsOrgRoleOf(emp);
+      if(role==='hr_manager'&&children.length>1){
+        // Continuous trunk-and-branch arrows. A single thick coloured trunk
+        // drops from the HR Manager card into a left-side rail; each direct
+        // report (plant head / manager / employee) hangs off the rail with a
+        // horizontal stub + arrow tip pointing into the card. This reads as
+        // ONE flowing arrow path — easier to follow than a T-split that
+        // visually fragments at the elbow.
+        var trunkClr=rClr;
+        var trunkW=4;
+        var stubLen=28;// horizontal arrow length from trunk to each card
+        var arrowSize=8;
+        // Reports laid out as vertical rows, identical pattern to deeper
+        // levels so the chart reads consistently top-to-bottom.
+        childrenHtml='<div class="hrms-org-children-trunk" style="position:relative;margin-top:0;padding-top:18px;padding-left:'+(stubLen+10)+'px">';
+        // Vertical trunk that runs continuously through every child row.
+        // Bottom is anchored to the last row's centerline so it doesn\'t
+        // overshoot past the final report.
+        children.forEach(function(c,i){
+          var isLast=(i===children.length-1);
+          // Each row: horizontal stub + arrow tip + the child subtree.
+          childrenHtml+=
+            '<div class="hrms-org-row-major" style="position:relative;padding:8px 0;display:flex;align-items:center">'+
+              // Vertical trunk segment for this row — full height except
+              // the last row, which stops at center so the trunk terminates
+              // cleanly into the elbow.
+              '<span style="position:absolute;left:0;top:'+(i===0?'-18px':'0')+';bottom:'+(isLast?'50%':'0')+';width:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></span>'+
+              // Horizontal arrow shaft from trunk to card.
+              '<span style="position:absolute;left:0;top:50%;width:'+stubLen+'px;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px;transform:translateY(-50%)"></span>'+
+              // Arrow tip pointing right into the card.
+              '<span style="position:absolute;left:'+stubLen+'px;top:50%;width:0;height:0;border-top:'+arrowSize+'px solid transparent;border-bottom:'+arrowSize+'px solid transparent;border-left:'+(arrowSize+2)+'px solid '+trunkClr+';transform:translateY(-50%)"></span>'+
+              '<div style="flex:1;min-width:0;margin-left:'+(arrowSize+4)+'px">'+nodeHtml(c,depth+1)+'</div>'+
+            '</div>';
+        });
+        childrenHtml+='</div>';
+      } else {
+        childrenHtml='<div class="hrms-org-children" style="position:relative;margin-left:30px;padding-left:24px;padding-top:6px">';
+        children.forEach(function(c,i){
+          var isLast=(i===children.length-1);
+          childrenHtml+=
+            '<div class="hrms-org-row" style="position:relative;padding:6px 0">'+
+              '<span style="position:absolute;left:-24px;top:0;bottom:'+(isLast?'50%':'0')+';width:2px;background:'+rBorder+'"></span>'+
+              '<span style="position:absolute;left:-24px;top:50%;width:24px;height:2px;background:'+rBorder+'"></span>'+
+              '<span style="position:absolute;left:-3px;top:50%;width:8px;height:8px;border-radius:50%;background:'+rClr+';transform:translateY(-50%)"></span>'+
+              nodeHtml(c,depth+1)+
+            '</div>';
+        });
+        childrenHtml+='</div>';
+      }
+    }
+    return '<div class="hrms-org-node" style="position:relative">'+card+childrenHtml+'</div>';
   }
   // Roots: super admins first; then any staff whose reportingTo is empty or
   // points to a missing/non-staff employee (orphans).
   var roots=staff.filter(function(e){
-    if(_hrmsOrgRoleOf(e)==='super_admin') return true;
+    if(_hrmsOrgRoleOf(e)==='hr_manager') return true;
     if(!e.reportingTo) return true;
     var mgr=byId(DB.hrmsEmployees||[],e.reportingTo);
     return !mgr||!_hrmsOrgIsStaff(mgr);
@@ -16222,8 +16704,14 @@ function _hrmsOrgRender(){
     return(a.name||'').localeCompare(b.name||'');
   });
   if(_hrmsOrgViewMode==='tree'){
-    var bodyHtml='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">';
-    roots.forEach(function(r){bodyHtml+=nodeHtml(r,0);});
+    // Layout: top-down org chart with a single continuous left-trunk arrow
+    // path flowing from each root through every reporting level. Multiple
+    // roots stack vertically; the whole pane scrolls horizontally if any
+    // branch is too wide for the viewport.
+    var bodyHtml='<div style="background:#fafafa;border:1.5px solid var(--border);border-radius:8px;padding:18px 14px;overflow:auto">';
+    roots.forEach(function(r){
+      bodyHtml+='<div style="margin-bottom:18px">'+nodeHtml(r,0)+'</div>';
+    });
     bodyHtml+='</div>';
     body.innerHTML=bodyHtml;
     return;
@@ -16239,7 +16727,7 @@ function _hrmsOrgRender(){
   if(fSearch) bulk=bulk.filter(function(e){return((e.empCode||'').toLowerCase().indexOf(fSearch)>=0)||((e.name||'').toLowerCase().indexOf(fSearch)>=0);});
   if(fPlant) bulk=bulk.filter(function(e){return e.location===fPlant;});
   if(fRole) bulk=bulk.filter(function(e){return _hrmsOrgRoleOf(e)===fRole;});
-  if(fUnmapped) bulk=bulk.filter(function(e){return !e.reportingTo&&_hrmsOrgRoleOf(e)!=='super_admin';});
+  if(fUnmapped) bulk=bulk.filter(function(e){return !e.reportingTo&&_hrmsOrgRoleOf(e)!=='hr_manager';});
   bulk.sort(function(a,b){
     var ra=_ORG_ROLE_RANK[_hrmsOrgRoleOf(a)]||0,rb=_ORG_ROLE_RANK[_hrmsOrgRoleOf(b)]||0;
     if(ra!==rb) return rb-ra;
@@ -16269,13 +16757,13 @@ function _hrmsOrgRender(){
     var loc=byId(DB.locations||[],e.location);
     var locName=loc?(loc.name||e.location):(e.location||'');
     var ecEsc=String(e.id).replace(/'/g,"\\'");
-    var rowBg=(!e.reportingTo&&role!=='super_admin')?'background:#fefce8':'';
+    var rowBg=(!e.reportingTo&&role!=='hr_manager')?'background:#fefce8':'';
     var roleSel='<select onchange="_hrmsOrgInlineSet(\''+ecEsc+'\',\'role\',this.value,this)" '+(canEdit?'':'disabled')+' style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-family:var(--sans);background:'+(roleBg[role]||'#fff')+';color:'+(roleClr[role]||'var(--text)')+';font-weight:700">'+
       Object.keys(_ORG_ROLE_LABELS).map(function(k){return '<option value="'+k+'"'+(k===role?' selected':'')+'>'+_ORG_ROLE_LABELS[k]+'</option>';}).join('')+
     '</select>';
     // Build reports-to dropdown excluding self and descendants of this emp.
     var descendants=_hrmsOrgDescendantSet(e.id);
-    var rtSel='<select onchange="_hrmsOrgInlineSet(\''+ecEsc+'\',\'reportsTo\',this.value,this)" '+(canEdit&&role!=='super_admin'?'':'disabled')+' style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-family:var(--sans);min-width:200px">';
+    var rtSel='<select onchange="_hrmsOrgInlineSet(\''+ecEsc+'\',\'reportsTo\',this.value,this)" '+(canEdit&&role!=='hr_manager'?'':'disabled')+' style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-family:var(--sans);min-width:200px">';
     rtSel+='<option value="">— None —</option>';
     rtOptionsAll.forEach(function(s){
       if(s.id===e.id||descendants[s.id]) return;
@@ -16298,7 +16786,7 @@ function _hrmsOrgRender(){
 
 // Inline-save from Bulk Edit. Field is 'role' or 'reportsTo'. Validates
 // against cycles for reportsTo and clears the manager when role becomes
-// super_admin. Flashes a ✓ / ⚠ icon in the right-most cell.
+// hr_manager. Flashes a ✓ / ⚠ icon in the right-most cell.
 async function _hrmsOrgInlineSet(empId,field,value,selEl){
   if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('org.edit')){notify('Access denied',true);return;}
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp){notify('Employee not found',true);return;}
@@ -16309,13 +16797,13 @@ async function _hrmsOrgInlineSet(empId,field,value,selEl){
     if(!_ORG_ROLE_RANK[value]){setFlag('⚠','#dc2626');return;}
     emp.extra=emp.extra||{};
     emp.extra.orgRole=value;
-    if(value==='super_admin') emp.reportingTo='';// auto-clear chain root
+    if(value==='hr_manager') emp.reportingTo='';// auto-clear chain root
   } else if(field==='reportsTo'){
     if(value){
       if(value===empId){setFlag('⚠','#dc2626');notify('⚠ Cannot report to self',true);return;}
       var descendants=_hrmsOrgDescendantSet(empId);
       if(descendants[value]){setFlag('⚠','#dc2626');notify('⚠ Would create a cycle',true);if(selEl) selEl.value=emp.reportingTo||'';return;}
-      if(_hrmsOrgRoleOf(emp)==='super_admin'){setFlag('⚠','#dc2626');notify('⚠ Super Admin cannot have a manager',true);if(selEl) selEl.value='';return;}
+      if(_hrmsOrgRoleOf(emp)==='hr_manager'){setFlag('⚠','#dc2626');notify('⚠ Super Admin cannot have a manager',true);if(selEl) selEl.value='';return;}
     }
     emp.reportingTo=value||'';
   } else {
@@ -16338,8 +16826,8 @@ async function _hrmsOrgInlineSet(empId,field,value,selEl){
   // saves the user's scroll position and any open dropdown.
   if(field==='role'&&selEl){
     var r=_hrmsOrgRoleOf(emp);
-    var roleClr={super_admin:'#7c3aed',plant_head:'#dc2626',manager:'#0ea5e9',employee:'#16a34a'};
-    var roleBg={super_admin:'#ede9fe',plant_head:'#fee2e2',manager:'#e0f2fe',employee:'#dcfce7'};
+    var roleClr={hr_manager:'#7c3aed',plant_head:'#dc2626',manager:'#0ea5e9',employee:'#16a34a'};
+    var roleBg={hr_manager:'#ede9fe',plant_head:'#fee2e2',manager:'#e0f2fe',employee:'#dcfce7'};
     selEl.style.background=roleBg[r]||'#fff';selEl.style.color=roleClr[r]||'var(--text)';
   }
 }
@@ -16391,7 +16879,7 @@ async function _hrmsOrgEditSave(){
   if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('org.edit')){_showErr('Access denied');return;}
   var role=document.getElementById('orgEditRole').value;
   var reportsTo=document.getElementById('orgEditReportsTo').value;
-  if(role==='super_admin'&&reportsTo){_showErr('A Super Admin cannot have a manager');return;}
+  if(role==='hr_manager'&&reportsTo){_showErr('A Super Admin cannot have a manager');return;}
   if(reportsTo){
     var descendants=_hrmsOrgDescendantSet(empId);
     if(descendants[reportsTo]){_showErr('That would create a cycle (manager is a current report)');return;}
@@ -16407,5 +16895,292 @@ async function _hrmsOrgEditSave(){
   cm('mOrgEdit');
   notify('🌳 Org structure updated');
   if(typeof _hrmsOrgRender==='function') _hrmsOrgRender();
+}
+
+// ═══ MY APPROVALS ════════════════════════════════════════════════════════
+// Personal queue for Managers / Plant Heads / Super Admins. Surfaces every
+// pending alteration request and C-Off request across all employees where
+// the logged-in user is the *current* chain step (req.approvalChain[level])
+// — plus a Super Admin override that shows them every pending request
+// regardless of chain position. Two sub-tabs: 🛠 Alteration · 🏦 C-Off.
+
+var _hrmsApprActiveTab='altreq';
+
+function _hrmsMyApprovalsSubTab(tab){
+  _hrmsApprActiveTab=(tab==='coff')?'coff':'altreq';
+  var bAlt=document.getElementById('hrmsApprTabAltreq'),bCo=document.getElementById('hrmsApprTabCoff');
+  var pAlt=document.getElementById('hrmsApprPanelAltreq'),pCo=document.getElementById('hrmsApprPanelCoff');
+  var act='padding:8px 18px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent)';
+  var idle='padding:8px 18px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid transparent;background:transparent;color:var(--text3)';
+  if(bAlt) bAlt.style.cssText=(_hrmsApprActiveTab==='altreq'?act:idle);
+  if(bCo) bCo.style.cssText=(_hrmsApprActiveTab==='coff'?act:idle);
+  if(pAlt) pAlt.style.display=(_hrmsApprActiveTab==='altreq')?'':'none';
+  if(pCo) pCo.style.display=(_hrmsApprActiveTab==='coff')?'':'none';
+  _hrmsMyApprovalsRender();// refresh content
+}
+
+// Identifiers under which the current user is recorded in approvalLog.by /
+// rejectedBy. Approvals push CU.name (typically the empCode/username) or
+// CU.id; rejections do likewise. We also include the HRMS emp.id for older
+// records that stamped me.id directly. Used to detect history entries.
+function _hrmsMyApprovalsActorKeys(){
+  var keys=[];
+  if(typeof CU!=='undefined'&&CU){
+    if(CU.name) keys.push(String(CU.name));
+    if(CU.id) keys.push(String(CU.id));
+  }
+  var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
+  if(me&&me.id) keys.push(String(me.id));
+  // Dedup
+  var seen={},out=[];
+  keys.forEach(function(k){if(k&&!seen[k]){seen[k]=1;out.push(k);}});
+  return out;
+}
+
+// Most-recent action this user took on a request. Returns
+//   { action:'approved'|'rejected', at:iso, level:n }
+// or null if they never acted on it. Used to populate the History view's
+// "My Action" column and to filter / sort the history list.
+function _hrmsMyApprovalsMyAction(req){
+  if(!req) return null;
+  var keys=_hrmsMyApprovalsActorKeys();
+  if(!keys.length) return null;
+  var best=null;
+  var log=Array.isArray(req.approvalLog)?req.approvalLog:[];
+  log.forEach(function(l){
+    if(!l||keys.indexOf(String(l.by||''))<0) return;
+    if(!best||(l.at||'')>(best.at||'')) best={action:l.action||'approved',at:l.at||'',level:(typeof l.level==='number'?l.level:-1)};
+  });
+  if(req.rejectedBy&&keys.indexOf(String(req.rejectedBy))>=0){
+    var rAt=req.rejectedAt||'';
+    if(!best||rAt>(best.at||'')) best={action:'rejected',at:rAt,level:-1};
+  }
+  return best;
+}
+
+// Most-recent action ANYONE took on a request — used by the Super Admin
+// history view so an SA sees every approved / rejected / used request in
+// the system, not just the ones they personally acted on. Returns the same
+// shape as _hrmsMyApprovalsMyAction so the renderer can stay generic.
+function _hrmsMyApprovalsAnyAction(req){
+  if(!req) return null;
+  var best=null;
+  var log=Array.isArray(req.approvalLog)?req.approvalLog:[];
+  log.forEach(function(l){
+    if(!l) return;
+    if(!best||(l.at||'')>(best.at||'')) best={action:l.action||'approved',at:l.at||'',level:(typeof l.level==='number'?l.level:-1)};
+  });
+  if(req.rejectedBy){
+    var rAt=req.rejectedAt||'';
+    if(!best||rAt>(best.at||'')) best={action:'rejected',at:rAt,level:-1};
+  }
+  // C-Off "used" finalisations don't always land in approvalLog (legacy
+  // single-step approvals took the fast path). Fall back to usedAt so they
+  // still surface in the SA history view.
+  if(req.status==='used'&&req.usedAt){
+    if(!best||(req.usedAt||'')>(best.at||'')) best={action:'approved',at:req.usedAt||'',level:-1};
+  }
+  return best;
+}
+
+// Returns true if the current user can act on this request right now —
+// either they are the chain[level] approver, or they're a Super Admin
+// (override).
+function _hrmsMyApprovalsCanAct(req){
+  if(!req||req.status!=='pending') return false;
+  if(_hrmsIsSuperAdmin()) return true;
+  var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
+  if(!me) return false;
+  var chain=req.approvalChain||[],lvl=req.approvalLevel||0;
+  return chain[lvl]&&chain[lvl]===me.id;
+}
+
+// Aggregate entries across ALL employees relevant to the current user — both
+// the *pending* queue (requests waiting on me right now, or any pending row
+// when I'm Super Admin) AND the *historical* queue (requests I've previously
+// approved or rejected). Each row is tagged with `pending` so the renderer
+// can show action buttons on pending rows and a status badge on historical
+// rows. Order: pending at the top (oldest first — burn the queue down
+// chronologically), historical below in descending recency.
+function _hrmsMyApprovalsCollect(){
+  var altP=[],altH=[],coffP=[],coffH=[];
+  // Super Admin gets a system-wide history view: every completed request
+  // (approved / used / rejected) is included regardless of who acted.
+  // Regular users only see their own historical actions.
+  var isSA=_hrmsIsSuperAdmin();
+  var pickAction=function(req){
+    var a=_hrmsMyApprovalsMyAction(req);
+    if(a) return a;
+    return isSA?_hrmsMyApprovalsAnyAction(req):null;
+  };
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||!e.extra) return;
+    (e.extra.altRequests||[]).forEach(function(r){
+      if(_hrmsMyApprovalsCanAct(r)){
+        altP.push({emp:e,req:r,pending:true});
+      } else {
+        var act=pickAction(r);
+        if(act) altH.push({emp:e,req:r,pending:false,myAction:act});
+      }
+    });
+    (e.extra.coffBank||[]).forEach(function(c){
+      if(_hrmsMyApprovalsCanAct(c)){
+        coffP.push({emp:e,coff:c,pending:true});
+      } else {
+        var act=pickAction(c);
+        if(act) coffH.push({emp:e,coff:c,pending:false,myAction:act});
+      }
+    });
+  });
+  altP.sort(function(a,b){return(a.req.requestedAt||'').localeCompare(b.req.requestedAt||'');});
+  coffP.sort(function(a,b){return(a.coff.requestedAt||'').localeCompare(b.coff.requestedAt||'');});
+  altH.sort(function(a,b){return(b.myAction.at||'').localeCompare(a.myAction.at||'');});
+  coffH.sort(function(a,b){return(b.myAction.at||'').localeCompare(a.myAction.at||'');});
+  return {
+    altRows:altP.concat(altH),
+    coffRows:coffP.concat(coffH),
+    altPendingCount:altP.length,
+    coffPendingCount:coffP.length
+  };
+}
+
+function _hrmsMyApprovalsRender(){
+  if(!document.getElementById('hrmsApprPanelAltreq')) return;
+  var data=_hrmsMyApprovalsCollect();
+  var sum=document.getElementById('hrmsApprovalsSummary');
+  if(sum){
+    var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
+    var who=me?(me.empCode+' — '+me.name):'(not mapped)';
+    var mode=_hrmsIsSuperAdmin()?'<span style="color:#7c3aed;font-weight:700">Super Admin (sees all)</span>':'pending + historical';
+    sum.innerHTML='Approver: <b>'+who+'</b> · '+mode;
+  }
+  // Sub-tab badges show only the PENDING count — history items aren't urgent.
+  var bAlt=document.getElementById('hrmsApprBadgeAlt'),bCo=document.getElementById('hrmsApprBadgeCoff');
+  if(bAlt){bAlt.textContent=data.altPendingCount;bAlt.style.display=data.altPendingCount?'':'none';}
+  if(bCo){bCo.textContent=data.coffPendingCount;bCo.style.display=data.coffPendingCount?'':'none';}
+  var nav=document.getElementById('cMyApprovals');
+  if(nav){
+    var pending=data.altPendingCount+data.coffPendingCount;
+    nav.textContent=pending;nav.style.display=pending?'':'none';
+  }
+  _hrmsMyApprovalsRenderAlt(data.altRows,data.altPendingCount);
+  _hrmsMyApprovalsRenderCoff(data.coffRows,data.coffPendingCount);
+}
+
+function _hrmsMyApprovalsRenderAlt(rows,pendCount){
+  var el=document.getElementById('hrmsApprPanelAltreq');if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px 20px">📭 No alteration requests pending or in your history yet.</div>';
+    return;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp</th>'+
+      '<th style="'+th+'">Date</th>'+
+      '<th style="'+th+'">Type</th>'+
+      '<th style="'+th+'">IN</th>'+
+      '<th style="'+th+'">OUT</th>'+
+      '<th style="'+th+'">Reason</th>'+
+      '<th style="'+th+'">Approval Chain</th>'+
+      '<th style="'+th+'">Submitted</th>'+
+      '<th style="'+th+';text-align:center">Status / Action</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var req=r.req,emp=r.emp;
+    var typeLbl=req.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch';
+    var idEsc=String(emp.id||'').replace(/'/g,"\\'");
+    var rqEsc=String(req.id||'').replace(/'/g,"\\'");
+    var requested=req.requestedAt?req.requestedAt.slice(0,10):'—';
+    // Visual divider between pending block and history block.
+    var firstHist=(!r.pending&&i===pendCount&&pendCount>0);
+    var rowBg=r.pending?'#fffbeb':'#fff';
+    var topBorder=firstHist?'border-top:3px double #cbd5e1;':'';
+    var actCell;
+    if(r.pending){
+      actCell='<button onclick="_hrmsAltReqApprove(\''+idEsc+'\',\''+rqEsc+'\').then(_hrmsMyApprovalsRender)" style="font-size:10px;padding:3px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px">✓ Approve</button>'+
+              '<button onclick="_hrmsAltReqReject(\''+idEsc+'\',\''+rqEsc+'\').then(_hrmsMyApprovalsRender)" style="font-size:10px;padding:3px 10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">✕ Reject</button>';
+    } else {
+      var act=r.myAction||{action:'?',at:''};
+      var actDate=act.at?act.at.slice(0,10):'—';
+      var actBg=act.action==='rejected'?'#fee2e2':'#dcfce7';
+      var actClr=act.action==='rejected'?'#7f1d1d':'#15803d';
+      var actIcon=act.action==='rejected'?'✕':'✓';
+      actCell='<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:'+actBg+';color:'+actClr+';font-size:10px;font-weight:800">'+actIcon+' '+(act.action||'').toUpperCase()+'</span>'+
+              '<div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px">'+actDate+'</div>';
+    }
+    html+='<tr style="background:'+rowBg+';'+topBorder+'">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+'"><div style="font-family:var(--mono);font-weight:800;color:var(--accent)">'+(emp.empCode||'')+'</div><div style="font-size:11px">'+(emp.name||'—')+'</div></td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(req.date||'—')+'</td>'+
+      '<td style="'+td+'">'+typeLbl+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(req['in']||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(req['out']||'—')+'</td>'+
+      '<td style="'+td+';max-width:240px;font-size:11px">'+(req.reason||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+'">'+_hrmsRenderApprovalChainHTML(req)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+requested+'</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actCell+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function _hrmsMyApprovalsRenderCoff(rows,pendCount){
+  var el=document.getElementById('hrmsApprPanelCoff');if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px 20px">📭 No C-Off requests pending or in your history yet.</div>';
+    return;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp</th>'+
+      '<th style="'+th+'">Earned</th>'+
+      '<th style="'+th+'">Source</th>'+
+      '<th style="'+th+'">Used For</th>'+
+      '<th style="'+th+'">Approval Chain</th>'+
+      '<th style="'+th+'">Submitted</th>'+
+      '<th style="'+th+';text-align:center">Status / Action</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var c=r.coff,emp=r.emp;
+    var src=c.source==='PH'?'Paid Holiday':c.source==='WO'?'Weekly Off':(c.source||'—');
+    var idEsc=String(emp.id||'').replace(/'/g,"\\'");
+    var dEsc=String(c.earnedDate||'').replace(/'/g,"\\'");
+    var requested=c.requestedAt?c.requestedAt.slice(0,10):'—';
+    var firstHist=(!r.pending&&i===pendCount&&pendCount>0);
+    var rowBg=r.pending?'#fffbeb':'#fff';
+    var topBorder=firstHist?'border-top:3px double #cbd5e1;':'';
+    var actCell;
+    if(r.pending){
+      actCell='<button onclick="_hrmsCoffApprove(\''+idEsc+'\',\''+dEsc+'\').then(_hrmsMyApprovalsRender)" style="font-size:10px;padding:3px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px">✓ Approve</button>'+
+              '<button onclick="_hrmsCoffReject(\''+idEsc+'\',\''+dEsc+'\').then(_hrmsMyApprovalsRender)" style="font-size:10px;padding:3px 10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">✕ Reject</button>';
+    } else {
+      var act=r.myAction||{action:'?',at:''};
+      var actDate=act.at?act.at.slice(0,10):'—';
+      var actBg=act.action==='rejected'?'#fee2e2':'#dcfce7';
+      var actClr=act.action==='rejected'?'#7f1d1d':'#15803d';
+      var actIcon=act.action==='rejected'?'✕':'✓';
+      actCell='<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:'+actBg+';color:'+actClr+';font-size:10px;font-weight:800">'+actIcon+' '+(act.action||'').toUpperCase()+'</span>'+
+              '<div style="font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px">'+actDate+'</div>';
+    }
+    html+='<tr style="background:'+rowBg+';'+topBorder+'">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+'"><div style="font-family:var(--mono);font-weight:800;color:var(--accent)">'+(emp.empCode||'')+'</div><div style="font-size:11px">'+(emp.name||'—')+'</div></td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(c.earnedDate||'—')+'</td>'+
+      '<td style="'+td+'">'+src+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:#92400e;font-weight:800">'+(c.usedForDate||'—')+'</td>'+
+      '<td style="'+td+'">'+_hrmsRenderApprovalChainHTML(c)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+requested+'</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actCell+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
 }
 

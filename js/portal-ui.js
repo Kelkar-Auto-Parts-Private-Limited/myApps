@@ -50,13 +50,33 @@ bootDB=async function(){
   }finally{hideSpinner();}
 };
 
-// Override _navigateTo to cache ALL tables (not just portal's 2 tables)
+// Override _navigateTo to cache ALL tables (not just portal's 2 tables).
+// Critical: PRESERVE entries from any existing cache that we don't currently
+// have in DB. Without this, navigating Portal → HWMS overwrites the previous
+// HWMS cache (containers, invoices, etc.) with empty arrays — because those
+// tables aren't in Portal's DB — forcing the next HWMS boot to cold-fetch
+// every table from Supabase, which is what produced the minute-long load.
 var _origNavigateTo=_navigateTo;
 _navigateTo=function(url){
   try{
     if(typeof DB!=='undefined'&&typeof DB_TABLES!=='undefined'&&DB.users&&DB.users.length){
-      var cache={ts:Date.now()};
-      DB_TABLES.forEach(function(t){cache[t]=DB[t]||[];});
+      var cache={};
+      try{
+        var raw=localStorage.getItem('kap_db_cache');
+        if(raw){
+          var ec=JSON.parse(raw)||{};
+          // Carry forward every previously-cached table.
+          Object.keys(ec).forEach(function(k){
+            if(k==='ts') return;
+            if(Array.isArray(ec[k])&&ec[k].length) cache[k]=ec[k];
+          });
+        }
+      }catch(e){}
+      // Overlay with current DB data (fresher than what's in cache).
+      DB_TABLES.forEach(function(t){
+        if(DB[t]&&DB[t].length) cache[t]=DB[t];
+      });
+      cache.ts=Date.now();
       localStorage.setItem('kap_db_cache',JSON.stringify(cache));
     }
   }catch(e){}
