@@ -10,11 +10,15 @@ if(typeof _bgSyncDone==='undefined') window._bgSyncDone=false;
 if(typeof _dateFilterLoaded==='undefined') window._dateFilterLoaded={};
 
 // ── Last Sync Time Tracking ──────────────────────────────────────────────────
+// The on-screen indicator was removed in favour of an explicit Refresh button
+// in the topbar. _hwmsLastSyncTs stays available for any internal callers
+// that timestamp activity; the DOM update is a no-op when the element is
+// absent.
 window._hwmsLastSyncTs=0;
 function _hwmsUpdateSyncTime(){
   window._hwmsLastSyncTs=Date.now();
   var el=document.getElementById('hwmsLastSync');
-  if(!el) return;
+  if(!el) return;// indicator removed — silent
   var d=new Date();
   var h=d.getHours(),m=d.getMinutes();
   var ampm=h>=12?'PM':'AM';
@@ -25,6 +29,27 @@ function _hwmsUpdateSyncTime(){
   el.textContent='⟳ '+dateStr+' '+timeStr;
   el.style.display='block';
   el.title='Last synced: '+d.toLocaleString();
+}
+
+// Topbar refresh: force a true-full sync regardless of incremental state.
+// Disables the button + spins the icon while the fetch is in flight. After
+// the sync lands, _onRefreshViews repaints whichever HWMS page is active.
+async function _hwmsTopbarRefresh(){
+  var btn=document.getElementById('hwmsTopbarRefresh');
+  if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.innerHTML='↻ <span style="font-size:12px">Refreshing…</span>';}
+  try{
+    // Force the next bg sync to be a true-full so all rows are pulled, not
+    // just incremental deltas (which return ~nothing on cold open).
+    if(window._hwmsFullIncr) _hwmsFullIncr.callCount=4;
+    if(window._hwmsIncr){_hwmsIncr.mode='unknown';_hwmsIncr.probed=false;}
+    if(typeof _bgSyncFromSupabase==='function') await _bgSyncFromSupabase();
+    if(typeof notify==='function') notify('↻ Refreshed');
+  }catch(e){
+    console.warn('refresh err:',e);
+    if(typeof notify==='function') notify('⚠ Refresh failed: '+(e.message||e),true);
+  }finally{
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.innerHTML='↻ <span style="font-size:12px">Refresh</span>';}
+  }
 }
 
 // ═══ NAVIGATION / SIDEBAR ════════════════════════════════════════════════
@@ -1233,16 +1258,20 @@ bootDB=async function(){
   }
 
   // ── Step 0: localStorage handoff from Portal ────────────
+  // Cache window widened to 24h so returning users see an instant first
+  // paint from cache. A trueFull background sync fires immediately after,
+  // refreshing the screen via _onRefreshViews when fresh rows arrive — so
+  // stale data is only visible for the first second or two.
   try{
     var _cached=localStorage.getItem('kap_db_cache');
     if(_cached){
       var _cObj=JSON.parse(_cached);
       var _age=Date.now()-(_cObj.ts||0);
-      if(_age<60000){
+      if(_age<86400000){// 24h window — was 60s, which forced cold path far too often
         Object.keys(_cObj).forEach(function(t){if(t!=='ts'&&Array.isArray(_cObj[t]))DB[t]=_cObj[t];});
-        localStorage.removeItem('kap_db_cache');
+        // Don't remove the cache — keep it for the *next* boot too.
         if((DB.users||[]).length>0){
-          console.log('bootDB(HWMS): instant from cache — users='+(DB.users||[]).length);
+          console.log('bootDB(HWMS): instant from cache — users='+(DB.users||[]).length+' age='+Math.round(_age/1000)+'s');
           if(typeof _hwmsUpdateSyncTime==='function')_hwmsUpdateSyncTime();
           if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
           // Sync-refetch hrmsSettings if cached empty (Portal's 4s pre-fetch
@@ -1259,11 +1288,13 @@ bootDB=async function(){
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
-            // Force first bgSync to do a TRUE FULL fetch (not incremental).
-            // Incremental skips rows with no recent changes → empty result.
+            // Force first bgSync to be a TRUE FULL fetch (not incremental) —
+            // incremental misses rows that haven't been touched recently.
             _hwmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
             _hwmsIncr.mode='unknown'; _hwmsIncr.probed=false;
-            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},3000);
+            // Fire immediately (was 3000ms) so the cache→fresh transition is
+            // imperceptible for fast networks.
+            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},200);
           } else {
             if(typeof _startBgReconnect==='function') _startBgReconnect(true);
           }
@@ -1425,26 +1456,32 @@ async function _hwmsBoot(){
         if(typeof _bgSyncFromSupabase==='function'&&_sbReady) _bgSyncFromSupabase();
       },2000);
       
-      // Refresh hook
+      // Refresh hook — debounced (300ms) so the burst of progressive boot
+      // calls from common.js (one per table) collapses into a single render.
+      var _hwmsRvTimer=null;
       _onRefreshViews = function(){
-        try{
-          var ap=document.querySelector('.page.active');
-          if(ap){
-            var pid=ap.id;
-            if(!document.querySelector('.modal-overlay.open')){
-              if(pid==='pageHwmsPayments'){
-                // Skip auto-refresh for payments — preserves scroll, checkboxes, expanded state
-              } else if(pid==='pageHwmsInvoices'&&document.querySelectorAll('.hwmsInvChk:checked').length>0){
-                // Skip — checkboxes selected on MI page
-              } else if(pid==='pageHwmsSubInvoices'&&document.querySelectorAll('.hwmsSiCb:checked').length>0){
-                // Skip — checkboxes selected on SI page
-              } else if(pid==='pageHwmsInvoices'||pid==='pageHwmsContainers'||pid==='pageHwmsSubInvoices'||pid==='pageHwmsMR'||pid==='pageHwmsInventory'||pid==='pageHwmsParts'||pid==='pageHwmsDashboard'){
-                hwmsGo(pid);
+        if(_hwmsRvTimer) clearTimeout(_hwmsRvTimer);
+        _hwmsRvTimer=setTimeout(function(){
+          _hwmsRvTimer=null;
+          try{
+            var ap=document.querySelector('.page.active');
+            if(ap){
+              var pid=ap.id;
+              if(!document.querySelector('.modal-overlay.open')){
+                if(pid==='pageHwmsPayments'){
+                  // Skip auto-refresh for payments — preserves scroll, checkboxes, expanded state
+                } else if(pid==='pageHwmsInvoices'&&document.querySelectorAll('.hwmsInvChk:checked').length>0){
+                  // Skip — checkboxes selected on MI page
+                } else if(pid==='pageHwmsSubInvoices'&&document.querySelectorAll('.hwmsSiCb:checked').length>0){
+                  // Skip — checkboxes selected on SI page
+                } else if(pid==='pageHwmsInvoices'||pid==='pageHwmsContainers'||pid==='pageHwmsSubInvoices'||pid==='pageHwmsMR'||pid==='pageHwmsInventory'||pid==='pageHwmsParts'||pid==='pageHwmsDashboard'){
+                  hwmsGo(pid);
+                }
               }
             }
-          }
-          if(typeof _hwmsUpdCounts==='function')_hwmsUpdCounts();
-        }catch(e){}
+            if(typeof _hwmsUpdCounts==='function')_hwmsUpdCounts();
+          }catch(e){}
+        },300);
       };
       
       _hwmsBootDone=true;

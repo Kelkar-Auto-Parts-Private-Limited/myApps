@@ -16,7 +16,7 @@
   <button class="ham" onclick="toggleHwmsNav()" title="Toggle sidebar menu">☰</button>
   <div class="title" id="hwmsPageTitle">HWMS</div>
   <div style="flex:1"></div>
-  <div id="hwmsLastSync" style="font-size:9px;color:#94a3b8;margin-right:10px;white-space:nowrap;font-family:var(--mono)" title="Last database sync">⟳ --:--</div>
+  <button id="hwmsTopbarRefresh" onclick="_hwmsTopbarRefresh()" title="Refresh — pull the latest data from the database" style="font-size:13px;font-weight:700;padding:5px 10px;margin-right:10px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:4px">↻ <span style="font-size:12px">Refresh</span></button>
   <div class="user-info"><span id="hwmsUserName"></span> <span style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block" id="sbStatusDot" title="DB"></span></div>
 </div>
 <!-- Sidebar -->

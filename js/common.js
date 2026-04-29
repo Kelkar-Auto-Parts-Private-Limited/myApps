@@ -666,12 +666,17 @@ function _rtRefreshFor(tbl){
       if(tbl==='trips'||tbl==='segments'||tbl==='spotTrips'){
         if(pid==='pageDashboard')   _try(()=>{ if(typeof renderDash==='function') renderDash(); });
         if(pid==='pageTripBooking') _try(()=>{ if(typeof renderTripBooking==='function') renderTripBooking(); });
-        if(pid==='pageKapSecurity') _try(()=>{ if(typeof renderKapPage==='function') renderKapPage(); if(typeof renderKap==='function') renderKap(); });
+        // CRITICAL: skip KAP re-render while a popup is open. Without this,
+        // a stray realtime event from another user's edit would rebuild the
+        // inline KAP card mid-capture, destroying the photo preview and the
+        // associated _inlinePhotos[sid] state — letting the user submit
+        // without realising the photo is gone.
+        if(pid==='pageKapSecurity'&&!_kapPopupOpen) _try(()=>{ if(typeof renderKapPage==='function') renderKapPage(); if(typeof renderKap==='function') renderKap(); });
         if(pid==='pageMR')          _try(()=>{ if(typeof renderMR==='function') renderMR(); });
         if(pid==='pageApprove')     _try(()=>{ if(typeof renderApprove==='function') renderApprove(); });
       }
       if(tbl==='spotTrips'){
-        if(pid==='pageKapSecurity') _try(()=>{ if(typeof renderSpotHistory==='function') renderSpotHistory(); if(typeof renderSpotEntry==='function') renderSpotEntry(); });
+        if(pid==='pageKapSecurity'&&!_kapPopupOpen) _try(()=>{ if(typeof renderSpotHistory==='function') renderSpotHistory(); if(typeof renderSpotEntry==='function') renderSpotEntry(); });
       }
       if(tbl==='users'){
         if(pid==='pageUsers') _try(()=>{ if(typeof renderUsers==='function') renderUsers(); if(typeof psRenderUsers==='function') psRenderUsers(); });
@@ -1276,6 +1281,13 @@ async function bootDB(){
           if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
           if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
           else DB[tbl]=_parsed;
+          // Progressive render — fire view refresh as each table arrives so
+          // the user sees data trickle in instead of staring at an empty
+          // page until the slowest table finishes. _onRefreshViews is a
+          // no-op until the app installs its hook; downstream apps debounce
+          // internally so the burst of N table fetches collapses into one
+          // render. Skipped while a modal is open (handled inside the hook).
+          if(typeof _onRefreshViews==='function') try{_onRefreshViews();}catch(e){}
           return {tbl, rows: data||[]};
         }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));

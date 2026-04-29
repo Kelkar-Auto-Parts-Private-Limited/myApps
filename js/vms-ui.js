@@ -5723,7 +5723,21 @@ async function doKapInline(segId,step){
     delete _inlinePhotosCompress[sid];
     hideSpinner&&hideSpinner();
   }
-  if(_inlinePhotos[sid]&&_inlinePhotos[sid].length>800*1024){
+  // Re-check after the await — a stray realtime/render or clearInlinePhoto
+  // call during compression could have wiped the entry.
+  if(!_inlinePhotos[sid]){
+    const stepName2={1:'Gate Exit',2:'Gate Entry',5:'Empty Vehicle Exit'}[step]||'this action';
+    notify(`📷 Photo state was lost — please re-capture for ${stepName2}.`,true);
+    return;
+  }
+  // Sanity-check the size: too small (<1 KB) almost certainly means a
+  // truncated dataURL or a corrupted state, not a real photo. Block.
+  if(_inlinePhotos[sid].length<1024){
+    notify('⚠ Captured photo looks invalid (too small). Please retake.',true);
+    delete _inlinePhotos[sid];
+    return;
+  }
+  if(_inlinePhotos[sid].length>800*1024){
     notify('⚠ Photo too large after compression — please retake / pick a smaller image.',true);
     return;
   }
