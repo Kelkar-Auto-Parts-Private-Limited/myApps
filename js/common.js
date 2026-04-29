@@ -422,7 +422,11 @@ function _sbSetStatus(state, msg) {
     connecting:  {dot:'#d1d5db', label:'Connecting…', bg:'#f1f5f9',             border:'#e2e8f0'},
   };
   const c = cfg[state] || cfg.connecting;
-  const lbl = msg || c.label;
+  // Append the running build version so users / support can spot a stale
+  // tab at a glance (e.g. "Connected · v260429-V1"). Falls back gracefully
+  // if APP_BUILD wasn't initialised yet.
+  const _bv=(typeof APP_BUILD!=='undefined'&&APP_BUILD&&APP_BUILD!=='dev')?(' · v'+APP_BUILD):'';
+  const lbl = (msg || c.label)+_bv;
   // Mobile topbar dot only
   const pulse = state==='connecting' ? 'sbPulse 1.2s ease-in-out infinite' : 'none';
   const d1=document.getElementById('ptConnDot');
