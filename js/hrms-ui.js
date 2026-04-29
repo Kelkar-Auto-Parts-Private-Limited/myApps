@@ -61,15 +61,23 @@ function _hrmsLaunch(){
   // resolves, the employee list re-renders so trash icons disappear from
   // rows whose linked attendance/advances/etc. weren't in the boot payload.
   if(typeof _hrmsLoadEmpsWithRecordsIndex==='function') _hrmsLoadEmpsWithRecordsIndex();
-  // ── TESTING: auto-open My Attendance with emp 284 pre-selected ──
-  // Remove this block (or set _hrmsTestAutoOpenMyAtt = false) for production.
-  var _testEmp=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').trim()==='284';});
-  if(_testEmp){
-    _hrmsMyAttState.empId=_testEmp.id;
+  // Role-based default landing:
+  //   HR Manager → My Approvals (page merges pending + history descending)
+  //   Employee-only user → My Attendance with their own emp pre-selected
+  //                         (empCode = login username links to the row)
+  //   Anyone else → first allowed page from the standard precedence list
+  var _meEmp=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+  var _meRole=_meEmp?_hrmsOrgRoleOf(_meEmp):'';
+  if(_meEmp&&_meRole==='hr_manager'){
+    hrmsGo('pageHrmsMyApprovals');
+    return;
+  }
+  if(_meEmp&&_hrmsIsEmployeeOnlyUser()){
+    _hrmsMyAttState.empId=_meEmp.id;
     hrmsGo('pageHrmsMyAtt');
     setTimeout(function(){
       var inp=document.getElementById('hrmsMyAttEmpSearch');
-      if(inp) inp.value='284 — '+(_testEmp.name||'');
+      if(inp) inp.value=(_meEmp.empCode||'')+' — '+(_meEmp.name||'');
     },50);
     return;
   }
@@ -130,8 +138,8 @@ var _hrmsPageTitles={
   pageHrmsMCategory:'Masters — Category',
   pageHrmsMEmpType:'Masters — Employment Type',
   pageHrmsMTeam:'Masters — Team',
-  pageHrmsMDept:'Masters — Department',
-  pageHrmsMSubDept:'Masters — Department-Staff',
+  pageHrmsMDept:'Masters — Departments (Worker)',
+  pageHrmsMSubDept:'Masters — Departments (Staff)',
   pageHrmsMDesig:'Masters — Designation',
   pageHrmsMRoll:'Masters — Role',
   pageHrmsMAllocation:'Masters — Allocation',
@@ -336,8 +344,8 @@ var HRMS_MASTERS={
   pageHrmsMCategory:{tbl:'hrmsCategories',label:'Category',icon:'🏷',empField:'category'},
   pageHrmsMEmpType:{tbl:'hrmsEmpTypes',label:'Employment Type',icon:'📋',empField:'employmentType'},
   pageHrmsMTeam:{tbl:'hrmsTeams',label:'Team',icon:'👥',empField:'teamName',extra:'empType',extraLabel:'Employment Type'},
-  pageHrmsMDept:{tbl:'hrmsDepartments',label:'Department',icon:'🏛',empField:'department'},
-  pageHrmsMSubDept:{tbl:'hrmsSubDepartments',label:'Department-Staff',icon:'📁',empField:'subDepartment'},
+  pageHrmsMDept:{tbl:'hrmsDepartments',label:'Departments (Worker)',icon:'🏛',empField:'department'},
+  pageHrmsMSubDept:{tbl:'hrmsSubDepartments',label:'Departments (Staff)',icon:'📁',empField:'subDepartment'},
   pageHrmsMDesig:{tbl:'hrmsDesignations',label:'Designation',icon:'🎖',empField:'designation'}
 };
 
@@ -14478,6 +14486,11 @@ function _hrmsMyAttShowEmpDropdown(){
   var q=(inp.value||'').toLowerCase().trim();
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     if(e._isNewEcr) return false;
+    // On-roll staff only — contract / piece-rate / visitor employees and
+    // worker-category records are excluded from the My Attendance search.
+    if((e.category||'').toLowerCase()!=='staff') return false;
+    var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et!=='onroll') return false;
     if(!q) return true;
     return((e.empCode||'')+' '+(e.name||'')).toLowerCase().indexOf(q)>=0;
   }).sort(function(a,b){return(a.empCode||'').localeCompare(b.empCode||'');}).slice(0,50);
@@ -16075,7 +16088,7 @@ async function _hrmsAltReqApprove(empId,reqId){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=req.approvalChain||[];
   var lvl=req.approvalLevel||0;
-  var isAdmin=_hrmsIsSuperAdmin()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
+  var isAdmin=_hrmsIsSuperAdmin()||_hrmsIsHrManagerUser()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
   var isCurrentApprover=me&&chain[lvl]&&chain[lvl]===me.id;
   if(!isAdmin&&!isCurrentApprover){
     notify('⚠ Only the current-level approver can act on this request',true);return;
@@ -16137,7 +16150,7 @@ async function _hrmsAltReqReject(empId,reqId){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=req.approvalChain||[];
   var lvl=req.approvalLevel||0;
-  var isAdmin=_hrmsIsSuperAdmin()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
+  var isAdmin=_hrmsIsSuperAdmin()||_hrmsIsHrManagerUser()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
   if(!isAdmin&&!(me&&chain[lvl]&&chain[lvl]===me.id)){
     notify('⚠ Only the current-level approver can act on this request',true);return;
   }
@@ -16983,12 +16996,26 @@ function _hrmsMyApprovalsAnyAction(req){
   return best;
 }
 
+// Returns true if the current user is the org-structure HR Manager. They
+// sit at the top of the org tree, so for approval/visibility purposes they
+// are treated identically to a system Super Admin (see-all + can-act-on-all)
+// — even when an individual chain entry references a stale id from before
+// they took over.
+function _hrmsIsHrManagerUser(){
+  if(typeof _hrmsLoggedInEmp!=='function') return false;
+  var me=_hrmsLoggedInEmp();
+  if(!me) return false;
+  return (typeof _hrmsOrgRoleOf==='function')&&_hrmsOrgRoleOf(me)==='hr_manager';
+}
+
 // Returns true if the current user can act on this request right now —
-// either they are the chain[level] approver, or they're a Super Admin
-// (override).
+// either they are the chain[level] approver, or they're a Super Admin /
+// org-structure HR Manager (both override the chain since they sit above
+// every level of the reporting tree).
 function _hrmsMyApprovalsCanAct(req){
   if(!req||req.status!=='pending') return false;
   if(_hrmsIsSuperAdmin()) return true;
+  if(_hrmsIsHrManagerUser()) return true;
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   if(!me) return false;
   var chain=req.approvalChain||[],lvl=req.approvalLevel||0;
@@ -17004,14 +17031,16 @@ function _hrmsMyApprovalsCanAct(req){
 // chronologically), historical below in descending recency.
 function _hrmsMyApprovalsCollect(){
   var altP=[],altH=[],coffP=[],coffH=[];
-  // Super Admin gets a system-wide history view: every completed request
-  // (approved / used / rejected) is included regardless of who acted.
-  // Regular users only see their own historical actions.
-  var isSA=_hrmsIsSuperAdmin();
+  // Super Admin and the org-structure HR Manager both get the system-wide
+  // history view: every completed request (approved / used / rejected) is
+  // included regardless of who acted. Other users only see their own
+  // historical actions. The HR Manager also sees every pending request
+  // (handled inside _hrmsMyApprovalsCanAct).
+  var isElevated=_hrmsIsSuperAdmin()||_hrmsIsHrManagerUser();
   var pickAction=function(req){
     var a=_hrmsMyApprovalsMyAction(req);
     if(a) return a;
-    return isSA?_hrmsMyApprovalsAnyAction(req):null;
+    return isElevated?_hrmsMyApprovalsAnyAction(req):null;
   };
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||!e.extra) return;
