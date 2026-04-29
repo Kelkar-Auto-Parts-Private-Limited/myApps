@@ -14141,6 +14141,14 @@ function _hrmsLoggedInEmp(){
   return (DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase().trim()===u;});
 }
 
+// Super Admin always wins — independent of HRMS module-permission settings.
+// Used by alteration / C-Off approve flows to bypass the multi-level chain
+// and finalise immediately, regardless of where the request currently sits.
+function _hrmsIsSuperAdmin(){
+  if(typeof CU==='undefined'||!CU||!CU.roles) return false;
+  return CU.roles.indexOf('Super Admin')>=0;
+}
+
 function _hrmsMyAttInit(){
   // Populate year dropdown — financial year (Apr-Mar). Value stored is the
   // FY-start year (e.g. value='2026' = FY 2026-27 = Apr 2026 to Mar 2027).
@@ -14592,6 +14600,17 @@ async function _hrmsMyAttRender(){
         var ds=mc.days[dayNum-1]||{status:''};
         var bg=cellBg(ds);
         if(ds.initial&&(ds.status==='P'||ds.status==='P/2'||ds.status==='EL')) bg='#bae6fd';
+        // Pending/approved alteration request — tint the cell so the
+        // requested time/reason in the body is clearly grouped with the
+        // status pill in the corner. Approved is also reflected via
+        // ds.altered (pink-purple) once the synthetic alt row is written;
+        // this branch only catches the in-flight pending state.
+        if(!ds.hasTime&&!ds.altered&&!ds.coffApplied){
+          var _bgARDate=mc.monthKey+'-'+String(ds.day).padStart(2,'0');
+          var _bgARBank=(emp.extra&&emp.extra.altRequests)||[];
+          var _bgARLive=_bgARBank.filter(function(r){return r&&r.date===_bgARDate&&r.status==='pending';})[0];
+          if(_bgARLive) bg='#fef3c7';// soft amber for pending requests
+        }
         var bl=bigLetter(ds);
         var hasOt=(ds.ot>0||ds.otS>0);
         var tip=ds.day+' '+monNames[mo]+' '+yr+' ('+(ds.dayType==='PH'?'Paid Holiday':ds.dayType==='WO'?'Weekly Off':'Working Day')+')'+(ds.inTime?' · IN '+ds.inTime:'')+(ds.outTime?' · OUT '+ds.outTime:'')+(ds.worked?' · '+ds.worked.toFixed(2)+'h':'')+(ds.ot?' · OT '+ds.ot.toFixed(2):'')+(ds.otS?' · OT@S '+ds.otS.toFixed(2):'')+(ds.coffApplied?' · C-Off applied (earned '+(ds.coffEarnedDate||'—')+')':'')+(ds.altered&&ds.altReason&&!ds.coffApplied?' · Alteration: '+ds.altReason:'');
@@ -14616,6 +14635,26 @@ async function _hrmsMyAttRender(){
             '<span style="font-size:14px;font-weight:900;color:'+dayNumClr+';line-height:1">'+ds.day+'</span>'+
             (bl.text?'<span style="font-size:12px;font-weight:900;color:'+bl.color+';padding:0 4px;border-radius:3px;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.06);line-height:1.3">'+bl.text+'</span>':'')+
           '</div>'+
+          (function(){
+            // Pending/approved alteration request — show the REQUESTED
+            // IN/OUT and reason directly in the cell so the user sees
+            // exactly what they asked for without opening a popup.
+            // Suppressed if existing time / alteration / C-Off already
+            // occupies the slot.
+            if(ds.hasTime||ds.altered||ds.coffApplied) return '';
+            var _ardStr=mc.monthKey+'-'+String(ds.day).padStart(2,'0');
+            var _arBank=(emp.extra&&emp.extra.altRequests)||[];
+            var _arLive=_arBank.filter(function(r){return r&&r.date===_ardStr&&(r.status==='pending'||r.status==='approved');})[0];
+            if(!_arLive) return '';
+            var _arClr=_arLive.status==='approved'?'#15803d':'#92400e';
+            var _arBg=_arLive.status==='approved'?'rgba(220,252,231,.85)':'rgba(254,243,199,.85)';
+            var _arBorder=_arLive.status==='approved'?'#86efac':'#fcd34d';
+            var _arReason=String(_arLive.reason||'').replace(/"/g,'&quot;');
+            return '<div style="margin-top:1px;background:'+_arBg+';border:1px dashed '+_arBorder+';border-radius:3px;padding:1px 3px">'+
+              '<div style="font-family:var(--mono);font-size:10px;color:'+_arClr+';font-weight:700;line-height:1.2">'+(_arLive['in']||'—')+'<br>'+(_arLive['out']||'—')+'</div>'+
+              (_arLive.reason?'<div title="'+_arReason+'" style="font-size:8px;font-weight:600;font-style:italic;color:'+_arClr+';line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+_arLive.reason+'</div>':'')+
+            '</div>';
+          })()+
           (ds.coffApplied
             ?'<div style="margin-top:1px;font-size:9px;font-weight:800;color:'+(ds.coffPending?'#a16207':'#0369a1')+';line-height:1.25;background:rgba(255,255,255,.7);padding:1px 4px;border-radius:3px">'+(ds.coffPending?'C-Off pending':'C-Off ←')+'<br>'+(ds.coffEarnedDate||'—')+'</div>'
             :(ds.inTime||ds.outTime
@@ -14634,6 +14673,11 @@ async function _hrmsMyAttRender(){
           (function(){
             if(ds.hasTime||ds.altered||ds.coffApplied) return '';
             if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mc.monthKey)) return '';
+            // Alteration request feature is only meaningful from Jan-2026
+            // onwards — earlier months pre-date the system rollout, so the
+            // + button is suppressed (and any pre-existing request shows
+            // read-only status if the data exists, but no new ones).
+            if(mc.monthKey<'2026-01') return '';
             var _dStr=mc.monthKey+'-'+String(ds.day).padStart(2,'0');
             var _bank=(emp.extra&&emp.extra.altRequests)||[];
             var _matches=_bank.filter(function(r){return r&&r.date===_dStr;});
@@ -15049,7 +15093,7 @@ async function _hrmsCoffApprove(empId,earnedDate){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=entry.approvalChain||[];
   var lvl=entry.approvalLevel||0;
-  var isAdmin=!_hrmsIsEmployeeOnlyUser();
+  var isAdmin=_hrmsIsSuperAdmin()||!_hrmsIsEmployeeOnlyUser();
   var isCurrentApprover=me&&chain[lvl]&&chain[lvl]===me.id;
   if(!isAdmin&&!isCurrentApprover){
     notify('⚠ Only the current-level approver can act on this C-Off',true);return;
@@ -15247,7 +15291,7 @@ async function _hrmsCoffReject(empId,earnedDate){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=entry.approvalChain||[];
   var lvl=entry.approvalLevel||0;
-  var isAdmin=!_hrmsIsEmployeeOnlyUser();
+  var isAdmin=_hrmsIsSuperAdmin()||!_hrmsIsEmployeeOnlyUser();
   if(!isAdmin&&!(me&&chain[lvl]&&chain[lvl]===me.id)){
     notify('⚠ Only the current-level approver can act on this C-Off',true);return;
   }
@@ -15423,7 +15467,7 @@ async function _hrmsRenderCoffTakenTab(yr,mo){
   var pendingCount=rows.filter(function(r){return(r.coff.status||'')==='pending';}).length;
   var usedCount=rows.filter(function(r){return(r.coff.status||'')==='used'&&r.usedInMonth;}).length;
   var todayStr=(new Date()).toISOString().slice(0,10);
-  var isAdmin=!_hrmsIsEmployeeOnlyUser();
+  var isAdmin=_hrmsIsSuperAdmin()||!_hrmsIsEmployeeOnlyUser();
   // Chain-aware "current approver" check used to surface action buttons.
   var meCoffEmp=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var myMgrCoffPending=rows.filter(function(r){
@@ -15549,6 +15593,7 @@ function _hrmsAltReqOpen(empId,dateStr){
   // Lock guard — block requests for already-locked months.
   if(dateStr&&dateStr.length>=7){
     var mk=dateStr.slice(0,7);
+    if(mk<'2026-01'){notify('⚠ Alteration requests are not available for months before Jan-2026 (no data).',true);return;}
     if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)){notify('⚠ '+mk+' is locked. Alteration requests not allowed.',true);return;}
   }
   document.getElementById('altReqEmpId').value=empId;
@@ -15596,6 +15641,7 @@ async function _hrmsAltReqSubmit(){
   ti=tiN;to=toN;
   if(!reason){_showErr('Reason is required');return;}
   var mk=date.slice(0,7);
+  if(mk<'2026-01'){_showErr('Alteration requests are not available for months before Jan-2026 (no data).');return;}
   if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)){_showErr(mk+' is locked — request not allowed');return;}
   emp.extra=emp.extra||{};
   emp.extra.altRequests=emp.extra.altRequests||[];
@@ -15700,7 +15746,7 @@ async function _hrmsAltReqApprove(empId,reqId){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=req.approvalChain||[];
   var lvl=req.approvalLevel||0;
-  var isAdmin=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove');
+  var isAdmin=_hrmsIsSuperAdmin()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
   var isCurrentApprover=me&&chain[lvl]&&chain[lvl]===me.id;
   if(!isAdmin&&!isCurrentApprover){
     notify('⚠ Only the current-level approver can act on this request',true);return;
@@ -15761,7 +15807,7 @@ async function _hrmsAltReqReject(empId,reqId){
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=req.approvalChain||[];
   var lvl=req.approvalLevel||0;
-  var isAdmin=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove');
+  var isAdmin=_hrmsIsSuperAdmin()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
   if(!isAdmin&&!(me&&chain[lvl]&&chain[lvl]===me.id)){
     notify('⚠ Only the current-level approver can act on this request',true);return;
   }
@@ -15844,7 +15890,7 @@ function _hrmsRenderAltReqTab(yr,mo){
   var pendingCount=rows.filter(function(r){return r.req.status==='pending';}).length;
   var apprCount=rows.filter(function(r){return r.req.status==='approved';}).length;
   var rejCount=rows.filter(function(r){return r.req.status==='rejected';}).length;
-  var isAdminApprover=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove');
+  var isAdminApprover=_hrmsIsSuperAdmin()||((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('att.altApprove'));
   // Multi-level approval — current user can act on a pending request when
   // they are the chain step indicated by approvalLevel, OR when they hold
   // the att.altApprove admin override.
