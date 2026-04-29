@@ -45,6 +45,57 @@ let _onPostBoot = function(){};           // called after bootDB completes
 let _onRefreshViews = function(){};
 let _kapPopupOpen = false; // set true when KAP popup is open — pauses bg refresh       // called to refresh module views
 
+// ── App build / live-update detector ────────────────────────────────────────
+// Sourced from <meta name="app-build" content="..."> in each HTML page.
+// We poll version.txt every 5 minutes; if it's newer than what the page is
+// running, we surface a non-dismissable "Update available" banner so users
+// don't keep working on stale JS for hours.
+const APP_BUILD = (function(){
+  try{ var m=document.querySelector('meta[name="app-build"]'); return (m&&m.content)||'dev'; }catch(e){ return 'dev'; }
+})();
+let _appBuildBannerShown=false;
+function _appBuildShowBanner(serverBuild){
+  if(_appBuildBannerShown) return;
+  _appBuildBannerShown=true;
+  try{
+    var bar=document.createElement('div');
+    bar.id='_appUpdateBar';
+    bar.style.cssText='position:fixed;left:0;right:0;top:0;z-index:2147483646;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(91,33,182,.35)';
+    bar.innerHTML=
+      '<span>🔄 New version available ('+(serverBuild||'?')+') — please reload to pick up the latest fixes.</span>'+
+      '<button onclick="_appBuildReload()" style="font-size:13px;font-weight:800;padding:6px 14px;border-radius:6px;border:1.5px solid rgba(255,255,255,.7);background:rgba(255,255,255,.18);color:#fff;cursor:pointer">Reload now</button>';
+    (document.body||document.documentElement).appendChild(bar);
+    // Push the rest of the page down so the banner doesn't cover the topbar.
+    try{ document.documentElement.style.marginTop='44px'; }catch(e){}
+  }catch(e){console.warn('appBuild banner err:',e);}
+}
+function _appBuildReload(){
+  // Hard reload — bust browser cache for this navigation.
+  try{ location.reload(true); }catch(e){ location.reload(); }
+}
+async function _appBuildCheck(){
+  // Skip on file:// — fetch is blocked by CORS there. Local-files users
+  // already have fresh JS whenever they reopen the file.
+  if(location&&location.protocol==='file:') return;
+  try{
+    var url='version.txt?_='+Date.now();// cache-bust the version file itself
+    var res=await fetch(url,{cache:'no-store'});
+    if(!res.ok) return;
+    var server=(await res.text()).trim();
+    if(server&&server!==APP_BUILD&&server!=='dev'){
+      console.log('app-build: server='+server+' running='+APP_BUILD+' → reload prompted');
+      _appBuildShowBanner(server);
+    }
+  }catch(e){ /* offline or version.txt absent — silent */ }
+}
+// Kick off after DOM is ready so the banner can attach to body.
+function _appBuildStart(){
+  _appBuildCheck();
+  setInterval(_appBuildCheck, 5*60*1000); // every 5 min
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_appBuildStart);
+else _appBuildStart();
+
 // ═══ SUPABASE CONFIG ═══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════════
 // SUPABASE CONFIGURATION
