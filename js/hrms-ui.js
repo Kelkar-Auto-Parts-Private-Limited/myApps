@@ -61,6 +61,12 @@ function _hrmsLaunch(){
   // resolves, the employee list re-renders so trash icons disappear from
   // rows whose linked attendance/advances/etc. weren't in the boot payload.
   if(typeof _hrmsLoadEmpsWithRecordsIndex==='function') _hrmsLoadEmpsWithRecordsIndex();
+  // Strip the HTML-default `class="page active"` on Dashboard before any
+  // navigation runs — otherwise a user without page.dashboard access who
+  // also can't navigate elsewhere ends up staring at the Dashboard
+  // because the active class never got cleared.
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   // Role-based default landing:
   //   HR Manager → My Approvals (page merges pending + history descending)
   //   Employee-only user → My Attendance with their own emp pre-selected
@@ -68,11 +74,11 @@ function _hrmsLaunch(){
   //   Anyone else → first allowed page from the standard precedence list
   var _meEmp=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
   var _meRole=_meEmp?_hrmsOrgRoleOf(_meEmp):'';
-  if(_meEmp&&_meRole==='hr_manager'){
+  if(_meEmp&&_meRole==='hr_manager'&&_hrmsHasAccess('page.myApprovals')){
     hrmsGo('pageHrmsMyApprovals');
     return;
   }
-  if(_meEmp&&_hrmsIsEmployeeOnlyUser()){
+  if(_meEmp&&_hrmsIsEmployeeOnlyUser()&&_hrmsHasAccess('page.myAttendance')){
     _hrmsMyAttState.empId=_meEmp.id;
     hrmsGo('pageHrmsMyAtt');
     setTimeout(function(){
@@ -81,12 +87,28 @@ function _hrmsLaunch(){
     },50);
     return;
   }
-  // Navigate to first allowed page
-  var _firstPage=['pageHrmsDashboard','pageHrmsEmployees','pageHrmsAttSal','pageHrmsAttRules'];
-  var _pagePerms={'pageHrmsDashboard':'page.dashboard','pageHrmsEmployees':'page.employees','pageHrmsAttSal':'page.attSal','pageHrmsAttRules':'page.attRules'};
-  var _startPage='pageHrmsAttSal';
+  // Navigate to first allowed page — every HRMS page is a candidate so a
+  // user whose only access is e.g. My Attendance still lands somewhere.
+  var _firstPage=['pageHrmsDashboard','pageHrmsEmployees','pageHrmsAttSal','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules'];
+  var _pagePerms={'pageHrmsDashboard':'page.dashboard','pageHrmsEmployees':'page.employees','pageHrmsAttSal':'page.attSal','pageHrmsMyAtt':'page.myAttendance','pageHrmsMyApprovals':'page.myApprovals','pageHrmsOrgStructure':'page.orgStructure','pageHrmsAttRules':'page.attRules'};
+  var _startPage=null;
   for(var _pi=0;_pi<_firstPage.length;_pi++){if(_hrmsHasAccess(_pagePerms[_firstPage[_pi]])){_startPage=_firstPage[_pi];break;}}
-  hrmsGo(_startPage);
+  if(_startPage){hrmsGo(_startPage);return;}
+  // No HRMS access at all — render a friendly empty state in place of any
+  // page so the user sees something explanatory instead of a blank shell.
+  _hrmsRenderNoAccessShell();
+}
+
+// Empty-state shell shown to users whose admin hasn't granted them access
+// to any HRMS page. Kept in pageHrmsDashboard's slot so the existing
+// layout (sidebar / topbar) remains intact.
+function _hrmsRenderNoAccessShell(){
+  var dash=document.getElementById('pageHrmsDashboard');
+  if(!dash) return;
+  dash.innerHTML='<div class="card" style="padding:48px 32px;text-align:center;max-width:560px;margin:48px auto"><div style="font-size:48px;margin-bottom:16px">🔒</div>'+
+    '<div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">No HRMS access yet</div>'+
+    '<div style="font-size:13px;color:var(--text2);line-height:1.6">You\'re signed in as <b>'+(CU&&CU.fullName||CU&&CU.name||'')+'</b>, but no HRMS pages have been enabled for your role. Please ask an administrator to grant access via <b>Configure Access</b>.</div></div>';
+  dash.classList.add('active');
 }
 
 // Sidebar Sign Out — clears session + remember-me state and bounces back to
@@ -177,23 +199,21 @@ var _HRMS_PAGE_PERMS={
 
 function _hrmsEnforcePermissions(){
   // Hide sidebar nav items the user can't access
-  var navPerms={navDashboard:'page.dashboard',navEmployees:'page.employees',navAttSal:'page.attSal',navAttRules:'page.attRules',navOrgStructure:'page.orgStructure',navUtilAttConv:'page.utilAttConv',navUtilDailyAtt:'page.utilDailyAttSum',navUtilMonthlyHc:'page.utilMonthlyHc'};
+  var navPerms={navDashboard:'page.dashboard',navEmployees:'page.employees',navAttSal:'page.attSal',navMyAtt:'page.myAttendance',navAttRules:'page.attRules',navOrgStructure:'page.orgStructure',navUtilAttConv:'page.utilAttConv',navUtilDailyAtt:'page.utilDailyAttSum',navUtilMonthlyHc:'page.utilMonthlyHc'};
   Object.keys(navPerms).forEach(function(navId){
     var el=document.getElementById(navId);
     if(el) el.style.display=_hrmsHasAccess(navPerms[navId])?'':'none';
   });
-  // My Approvals nav — only meaningful for staff who actually approve
-  // requests (Manager / Plant Head / Super Admin orgRole, OR a system-level
-  // Super Admin, OR anyone holding the page.myApprovals permission).
+  // My Approvals nav. Strict: visible only when System Super Admin OR
+  // the user has page.myApprovals explicitly. Org-structure role no
+  // longer auto-reveals it — admin must grant access via Configure
+  // Access for Manager / Plant Head / HR Manager users to see it.
   (function(){
     var el=document.getElementById('navMyApprovals');
     if(!el) return;
-    var hasPerm=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals');
     var isSA=(typeof _hrmsIsSuperAdmin==='function')&&_hrmsIsSuperAdmin();
-    var me=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
-    var role=me&&typeof _hrmsOrgRoleOf==='function'?_hrmsOrgRoleOf(me):'employee';
-    var isApproverRole=(role==='manager'||role==='plant_head'||role==='hr_manager');
-    el.style.display=(hasPerm||isSA||isApproverRole)?'':'none';
+    var hasPerm=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals');
+    el.style.display=(isSA||hasPerm)?'':'none';
   })();
   // Masters menu
   var mastersNav=document.querySelector('[onclick*="_hrmsToggleMasters"]');
@@ -229,14 +249,10 @@ function _hrmsEnforcePermissions(){
 
 function hrmsGo(pid){
   // Permission check — block access to denied pages.
-  // Special-case My Approvals: Manager / Plant Head / Super Admin orgRole
-  // implicitly get access (no explicit perm flip needed). System Super
-  // Admin always passes too.
+  // My Approvals: System Super Admin or explicit page.myApprovals only.
+  // No org-structure auto-pass — admin must grant access explicitly.
   if(pid==='pageHrmsMyApprovals'){
-    var _meAccess=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
-    var _roleAccess=_meAccess&&typeof _hrmsOrgRoleOf==='function'?_hrmsOrgRoleOf(_meAccess):'employee';
     var _allowApprovals=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())||
-                       ['manager','plant_head','hr_manager'].indexOf(_roleAccess)>=0||
                        ((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals'));
     if(!_allowApprovals){notify('Access denied',true);return;}
   } else {
