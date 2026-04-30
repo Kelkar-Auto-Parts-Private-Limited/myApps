@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260430-V2">
+<meta name="app-build" content="260430-V5">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260430-V2">
+<link rel="stylesheet" href="css/hrms.css?v=260430-V5">
 </head>
 <body>
 
@@ -29,7 +29,7 @@
   <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
   <div class="nav-section">HRMS</div>
   <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
-  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span></div>
+  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
   <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
   <div class="nav-item" id="navMyApprovals" onclick="hrmsGo('pageHrmsMyApprovals')" style="display:none">✅ My Approvals <span id="cMyApprovals" style="margin-left:auto;font-size:11px;background:#f59e0b;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
@@ -963,8 +963,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260430-V2"></script>
-<script src="js/hrms-logic.js?v=260430-V2"></script>
-<script src="js/hrms-ui.js?v=260430-V2"></script>
+<script src="js/common.js?v=260430-V5"></script>
+<script src="js/hrms-logic.js?v=260430-V5"></script>
+<script src="js/hrms-ui.js?v=260430-V5"></script>
 </body>
 </html>

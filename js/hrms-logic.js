@@ -90,7 +90,17 @@ function _hrmsHasAccess(featureKey){
   var roles=CU.hrmsRoles||[];
   if(roles.indexOf('HR Manager')>=0||roles.indexOf('HR Admin')>=0) return true;
   if(roles.indexOf('Employee')>=0){
-    return !/^action\./.test(featureKey);
+    // Employee users get a minimal default surface — only what they
+    // need to track their own attendance. Everything else (Dashboard,
+    // Employees, Att/Sal, Masters, Org Structure, Utilities, etc.)
+    // requires admin to grant access explicitly via Configure Access.
+    // My Approvals isn't whitelisted here because the sidebar auto-
+    // reveals it for users whose org-structure role is manager / plant
+    // head / hr_manager (handled in _hrmsEnforcePermissions).
+    var _EMP_DEFAULT_VIEW={
+      'page.myAttendance':1
+    };
+    return !!_EMP_DEFAULT_VIEW[featureKey];
   }
   // Any other custom role: honour the legacy boolean store if populated.
   if(!_hrmsPermissions) return false;

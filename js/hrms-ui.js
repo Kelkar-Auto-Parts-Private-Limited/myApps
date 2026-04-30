@@ -1728,8 +1728,15 @@ var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Categor
 function _hrmsUpdateChangeReqBadge(){
   var count=0;
   (DB.hrmsEmployees||[]).forEach(function(e){(e.periods||[]).forEach(function(p){if(p._wfStatus==='proposed')count++;});});
+  // Tab badge — shown on the "📋 Change Requests" sub-tab inside the
+  // Employees page.
   var el=document.getElementById('cChangeReqTab');
   if(el){el.textContent=count;el.style.display=count?'':'none';}
+  // Sidebar badge — shown on the "👤 Employees" nav item beside the
+  // total employee count, so the pending ECR count is visible without
+  // having to open the page.
+  var nav=document.getElementById('cEmployeesEcr');
+  if(nav){nav.textContent=count;nav.style.display=count?'':'none';}
 }
 // Sidebar pending-approvals badge — runs on app init and after every data
 // refresh so the count is correct without the user having to open the page.
@@ -1873,6 +1880,7 @@ async function _hrmsDeleteEcr(empId,periodIdx){
   if(await _dbSave('hrmsEmployees',e)){
     notify('ECR record deleted');
     _hrmsRenderChangeReq();
+    if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge();
   }
 }
 
@@ -1905,6 +1913,7 @@ async function _hrmsApproveChange(empId,periodIdx){
   if(await _dbSave('hrmsEmployees',e)){
     notify('✓ Change approved for '+e.empCode);
     _hrmsRenderChangeReq();renderHrmsEmployees();
+    if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge();
   }
 }
 
@@ -1920,6 +1929,7 @@ async function _hrmsRejectChange(empId,periodIdx){
       if(idx>=0) DB.hrmsEmployees.splice(idx,1);
       notify('✕ New employee rejected and removed: '+e.empCode);
       _hrmsRenderChangeReq();renderHrmsEmployees();
+      if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge();
     }
     return;
   }
@@ -1939,6 +1949,7 @@ async function _hrmsRejectChange(empId,periodIdx){
   if(await _dbSave('hrmsEmployees',e)){
     notify('✕ Change rejected for '+e.empCode);
     _hrmsRenderChangeReq();renderHrmsEmployees();
+    if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge();
   }
 }
 
