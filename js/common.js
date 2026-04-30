@@ -132,6 +132,7 @@ const SB_TABLES = {
   mttsPlants:'mtts_plants',
   mttsAssetTypes:'mtts_asset_types',
   mttsAssetPrimaryNames:'mtts_asset_primary_names',
+  mttsAgencies:'mtts_agencies',
   mttsAssets:'mtts_assets',
   mttsTickets:'mtts_tickets'
 };
@@ -294,6 +295,13 @@ function _toRow(tbl, rec) {
   if(tbl==='mttsAssetPrimaryNames') return {
     code:r.id,name:r.name||'',asset_type:r.assetType||'',color:r.color||'',inactive:!!r.inactive
   };
+  if(tbl==='mttsAgencies') return {
+    code:r.id,name:r.name||'',address:r.address||'',
+    contact_name:r.contactName||'',email:r.email||'',
+    contact1:r.contact1||'',contact2:r.contact2||'',
+    primary_names:r.primaryNames||[],
+    inactive:!!r.inactive
+  };
   if(tbl==='mttsAssets') return {
     code:r.id,plant:r.plant||'',asset_type:r.assetType||'',
     primary_name:r.primaryName||'',name_extension:r.nameExtension||'',
@@ -406,6 +414,13 @@ function _fromRow(tbl, row) {
   };
   if(tbl==='mttsAssetPrimaryNames') return {
     id:row.code,_dbId:row.id,name:row.name||'',assetType:row.asset_type||'',color:row.color||'',inactive:!!row.inactive
+  };
+  if(tbl==='mttsAgencies') return {
+    id:row.code,_dbId:row.id,name:row.name||'',address:row.address||'',
+    contactName:row.contact_name||'',email:row.email||'',
+    contact1:row.contact1||'',contact2:row.contact2||'',
+    primaryNames:row.primary_names||[],
+    inactive:!!row.inactive
   };
   if(tbl==='mttsAssets') return {
     id:row.code,_dbId:row.id,plant:row.plant||'',assetType:row.asset_type||'',
@@ -542,6 +557,13 @@ function _sbSetStatus(state, msg) {
   if(dp){ dp.style.background=c.dot; dp.style.animation=pulse; }
   if(lp2){ lp2.textContent=lbl; lp2.style.color=state==='ok'?'#15803d':state==='error'?'#dc2626':state==='offline'?'#92400e':'#475569'; }
   if(wp){ wp.style.background=c.bg; wp.style.borderColor=c.border; }
+  // MTTS sidebar connection widget + topbar dot.
+  const dm=document.getElementById('mttsConnDot'), lm=document.getElementById('mttsConnLabel'), wm=document.getElementById('mttsConnWidget');
+  if(dm){ dm.style.background=c.dot; dm.style.animation=pulse; }
+  if(lm){ lm.textContent=lbl; lm.style.color=state==='ok'?'#15803d':state==='error'?'#dc2626':state==='offline'?'#92400e':'#475569'; }
+  if(wm){ wm.style.background=c.bg; wm.style.borderColor=c.border; }
+  const dmt=document.getElementById('mttsStatusDot');
+  if(dmt){ dmt.style.background=c.dot; dmt.style.animation=pulse; dmt.title='Supabase: '+lbl; }
 }
 
 // Seed Supabase tables with default data
@@ -1853,6 +1875,8 @@ var _PERM_KEYS={
     {key:'action.editAssetType',label:'Add / Edit / Delete Asset Type',group:'🏷 Asset Types'},
     {key:'page.assetPrimaryNames',label:'Asset Primary Name Master Page',group:'🏷 Primary Names'},
     {key:'action.editAssetPrimaryName',label:'Add / Edit / Delete Primary Name',group:'🏷 Primary Names'},
+    {key:'page.agencies',label:'Agency / Vendor Page',group:'🤝 Agencies'},
+    {key:'action.editAgency',label:'Add / Edit / Delete Agency',group:'🤝 Agencies'},
     {key:'page.assets',label:'Asset Master Page',group:'🛠 Assets'},
     {key:'action.editAsset',label:'Add / Edit / Transfer Asset',group:'🛠 Assets'},
     {key:'page.tickets',label:'Tickets Page',group:'🎫 Tickets'},

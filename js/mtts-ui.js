@@ -6,7 +6,7 @@
 // Tables this app needs at boot. hrmsSettings is included because the
 // shared rolePermissions blob lives there (used by permCanView /
 // permCanAct against MTTS keys).
-if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAssets','mttsTickets'];
+if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets'];
 
 // ── Boot: re-auth from session, then launch ────────────────────────────────
 (function(){
@@ -37,6 +37,9 @@ function _mttsLaunch(){
   if(av) av.textContent=(CU.fullName||CU.name||'?').slice(0,1).toUpperCase();
   if(nm) nm.textContent=CU.fullName||CU.name||'';
   if(rl) rl.textContent=((CU.mttsRoles||[]).join(' · '))||((CU.roles||[]).indexOf('Super Admin')>=0?'Super Admin':'—');
+  // Mirror name to the topbar so it stays visible when the sidebar is hidden.
+  var tbu=document.getElementById('mttsTopbarUser');
+  if(tbu) tbu.textContent=CU.fullName||CU.name||'';
   _mttsEnforcePermissions();
   // First-run seed: populate the Plant Master from the legacy PLANTS
   // constant so existing assets / tickets (created before the master
@@ -48,26 +51,42 @@ function _mttsLaunch(){
   _mttsSeedAssetPrimaryNamesIfEmpty().then(function(){_mttsPopulateAssetPrimaryNameOptions();}).catch(function(e){console.warn('seed primary names',e);_mttsPopulateAssetPrimaryNameOptions();});
   _mttsPopulateAssetPrimaryNameOptions();
   if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge();
-  // Role-based default landing:
-  //   Technician → My queue (their assigned tickets)
-  //   Ticket Raiser → Tickets with "raised by me" scope
-  //   Manager / Super Admin → Tickets (all, sorted with open first)
-  //   Anyone else with assets-only access → Asset Master
-  var roles=(CU&&CU.mttsRoles)||[];
-  if(_mttsHasAccess('page.tickets')&&(roles.indexOf('Technician')>=0||roles.indexOf('Ticket Raiser')>=0||_mttsIsSA()||_mttsIsManager())){
-    mttsGo('pageMttsTickets');
-    setTimeout(function(){
-      var sc=document.getElementById('mttsTicketScope');
-      if(!sc) return;
-      if(roles.indexOf('Technician')>=0&&!_mttsIsSA()&&!_mttsIsManager()) sc.value='mine';
-      else if(roles.indexOf('Ticket Raiser')>=0&&!_mttsIsSA()&&!_mttsIsManager()) sc.value='raised';
-      _mttsRenderTickets();
-    },50);
-    return;
-  }
-  if(_mttsHasAccess('page.assets')) mttsGo('pageMttsAssets');
-  else if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
+  // Default landing — Dashboard for everyone with access, with sensible
+  // fallbacks (assets, tickets) for users who don't have dashboard view.
+  if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
+  else if(_mttsHasAccess('page.tickets')) mttsGo('pageMttsTickets');
+  else if(_mttsHasAccess('page.assets')) mttsGo('pageMttsAssets');
   else _mttsRenderNoAccessShell();
+}
+
+// Pull every MTTS table fresh from Supabase and re-render whichever page
+// is active. Mirrors _hrmsManualRefresh — single button on the topbar.
+async function _mttsManualRefresh(){
+  var btn=document.querySelector('.mtts-topbar-refresh');
+  if(btn){btn.disabled=true;}
+  notify('🔄 Refreshing data…');
+  try{
+    if(_sb&&_sbReady){
+      await Promise.all((_APP_TABLES||[]).map(async function(tbl){
+        var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
+        var sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
+        var res=await _sb.from(sbTbl).select(sel).limit(10000);
+        if(!res.error&&res.data) DB[tbl]=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+      }));
+    }
+    var active=document.querySelector('.page.active');
+    var pid=active?active.id:'';
+    if(pid==='pageMttsDashboard') _mttsDashboardRender();
+    else if(pid==='pageMttsPlants') _mttsRenderPlants();
+    else if(pid==='pageMttsAssetTypes') _mttsRenderAssetTypes();
+    else if(pid==='pageMttsAssetPrimaryNames') _mttsRenderAssetPrimaryNames();
+    else if(pid==='pageMttsAgencies') _mttsRenderAgencies();
+    else if(pid==='pageMttsAssets') _mttsRenderAssets();
+    else if(pid==='pageMttsTickets') _mttsRenderTickets();
+    if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge();
+    notify('✅ Data refreshed');
+  }catch(e){notify('⚠ Refresh failed: '+(e.message||e),true);}
+  if(btn) btn.disabled=false;
 }
 
 function mttsLogout(){
@@ -121,6 +140,7 @@ function _mttsEnforcePermissions(){
     nMttsPlants:'page.plants',
     nMttsAssetTypes:'page.assetTypes',
     nMttsAssetPrimaryNames:'page.assetPrimaryNames',
+    nMttsAgencies:'page.agencies',
     nMttsAssets:'page.assets',
     nMttsTickets:'page.tickets'
   };
@@ -132,18 +152,19 @@ function _mttsEnforcePermissions(){
 
 // ── Page navigation ────────────────────────────────────────────────────────
 function mttsGo(pid){
-  var permKey={pageMttsDashboard:'page.dashboard',pageMttsPlants:'page.plants',pageMttsAssetTypes:'page.assetTypes',pageMttsAssetPrimaryNames:'page.assetPrimaryNames',pageMttsAssets:'page.assets',pageMttsTickets:'page.tickets'}[pid];
+  var permKey={pageMttsDashboard:'page.dashboard',pageMttsPlants:'page.plants',pageMttsAssetTypes:'page.assetTypes',pageMttsAssetPrimaryNames:'page.assetPrimaryNames',pageMttsAgencies:'page.agencies',pageMttsAssets:'page.assets',pageMttsTickets:'page.tickets'}[pid];
   if(permKey&&!_mttsHasAccess(permKey)){notify('Access denied',true);return;}
   document.querySelectorAll('.page').forEach(function(p){p.style.display='none';p.classList.remove('active');});
   document.querySelectorAll('.mtts-nav-item').forEach(function(n){n.classList.remove('active');});
   var pg=document.getElementById(pid);if(pg){pg.style.display='block';pg.classList.add('active');}
-  var navMap={pageMttsDashboard:'nMttsDashboard',pageMttsPlants:'nMttsPlants',pageMttsAssetTypes:'nMttsAssetTypes',pageMttsAssetPrimaryNames:'nMttsAssetPrimaryNames',pageMttsAssets:'nMttsAssets',pageMttsTickets:'nMttsTickets'};
+  var navMap={pageMttsDashboard:'nMttsDashboard',pageMttsPlants:'nMttsPlants',pageMttsAssetTypes:'nMttsAssetTypes',pageMttsAssetPrimaryNames:'nMttsAssetPrimaryNames',pageMttsAgencies:'nMttsAgencies',pageMttsAssets:'nMttsAssets',pageMttsTickets:'nMttsTickets'};
   var nav=document.getElementById(navMap[pid]);if(nav) nav.classList.add('active');
-  var titleMap={pageMttsDashboard:'Dashboard',pageMttsPlants:'Plant Master',pageMttsAssetTypes:'Asset Type Master',pageMttsAssetPrimaryNames:'Asset Primary Name',pageMttsAssets:'Asset Master',pageMttsTickets:'Tickets'};
+  var titleMap={pageMttsDashboard:'Dashboard',pageMttsPlants:'Plant Master',pageMttsAssetTypes:'Asset Type Master',pageMttsAssetPrimaryNames:'Asset Primary Name',pageMttsAgencies:'Agency / Vendor',pageMttsAssets:'Asset Master',pageMttsTickets:'Tickets'};
   var t=document.getElementById('mttsPageTitle');if(t) t.textContent=titleMap[pid]||'MTTS';
   if(pid==='pageMttsPlants') _mttsRenderPlants();
   if(pid==='pageMttsAssetTypes') _mttsRenderAssetTypes();
   if(pid==='pageMttsAssetPrimaryNames') _mttsRenderAssetPrimaryNames();
+  if(pid==='pageMttsAgencies') _mttsRenderAgencies();
   if(pid==='pageMttsAssets') _mttsRenderAssets();
   if(pid==='pageMttsTickets') _mttsRenderTickets();
   if(pid==='pageMttsDashboard') _mttsDashboardRender();
@@ -229,8 +250,9 @@ function _mttsPopulatePlantOptions(){
   if(e) e.innerHTML='<option value="">— Select —</option>'+opts;
   var t=document.getElementById('mttsTransferTo');
   if(t) t.innerHTML='<option value="">— Select —</option>'+opts;
-  var r=document.getElementById('mttsRaisePlant');
-  if(r) r.innerHTML='<option value="">— Select —</option>'+opts;
+  // mttsRaisePlant is now a hidden input driven by chip buttons — re-render
+  // those when the master changes so newly-added plants appear.
+  if(document.getElementById('mttsRaisePlantBtns')&&typeof _mttsRaiseRenderPlantBtns==='function') _mttsRaiseRenderPlantBtns();
 }
 
 // ── Asset Master ──────────────────────────────────────────────────────────
@@ -283,10 +305,10 @@ function _mttsRenderAssets(){
     sumEl.innerHTML='Total: <b>'+(DB.mttsAssets||[]).length+'</b> · Showing: <b>'+assets.length+'</b> · '+
       Object.keys(counts).map(function(k){return k+': <b>'+counts[k]+'</b>';}).join(' · ');
   }
-  if(!assets.length){
-    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">No assets match the current filters. Click <b>+ Add Asset</b> to create one.</div>';
-    return;
-  }
+  // Note: we no longer early-return on empty results — losing the table
+  // would also lose the filter / search inputs and trap the user. Instead
+  // we render the filter + header rows as usual and inject a single
+  // "no matches" row inside tbody.
   var critClr={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
   var statusClr={Active:'#16a34a',Inactive:'#94a3b8',Scrap:'#dc2626'};
   var plantLbl=function(v){return _mttsPlantLabel(v);};
@@ -344,7 +366,8 @@ function _mttsRenderAssets(){
         '<th style="'+th+'">Status</th>'+
         '<th style="'+th+';text-align:center">Edit</th>'+
       '</tr>'+
-    '</thead><tbody>';
+    '</thead><tbody>'+
+    (rows.length?'':'<tr><td colspan="9" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>');
   rows.forEach(function(a,i){
     var idEsc=String(a.id||'').replace(/'/g,"\\'");
     var sm=a.serialNo?'SN: '+a.serialNo:'';
@@ -797,11 +820,17 @@ function _mttsRenderTickets(){
     } else if(t.status==='repair_done'&&_mttsCanApprove()){
       act='<button onclick="_mttsTicketApproveOpen(\''+idEsc+'\')" style="font-size:12px;padding:4px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer">✓ Approve</button>';
     }
-    // Manager can reassign technicians on any open / assigned / waiting /
-    // repair_done ticket. Opens the same allocation modal which now also
-    // exposes a Revoke (return to open) action.
-    if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency'||t.status==='repair_done')&&_mttsCanAllocate()){
+    // Manager can reassign technicians on any non-scrapped ticket — even
+    // closed ones — which lets them re-open work after approval. Opens
+    // the allocation modal which also exposes a Revoke (back to open)
+    // action.
+    if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency'||t.status==='repair_done'||t.status==='closed')&&_mttsCanAllocate()){
       act+='<button onclick="_mttsTicketAllocateOpen(\''+idEsc+'\')" title="Reassign technicians" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid #0ea5e9;color:#0369a1;border-radius:4px;cursor:pointer;margin-left:3px">👥 Reassign</button>';
+    }
+    // Closed tickets — manager can revoke the approval, dropping the
+    // status back to repair_done so it can be edited / costs revised.
+    if(t.status==='closed'&&_mttsCanApprove()){
+      act+='<button onclick="_mttsTicketRevokeApproval(\''+idEsc+'\')" title="Revoke approval — back to Repair done" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid #f59e0b;color:#92400e;border-radius:4px;cursor:pointer;margin-left:3px">↩ Revoke ✓</button>';
     }
     act+='<button onclick="_mttsTicketDetail(\''+idEsc+'\')" title="View details" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;margin-left:3px">👁</button>';
     html+='<tr>'+
@@ -880,25 +909,32 @@ async function _mttsCompressFiles(files,maxKB){
   return out;
 }
 
-// Photo-tile renderer for the Raise Ticket form: 3 fixed slots — empty
-// slots act as a "take photo" button (one tap → camera), filled slots
-// show the thumbnail with a remove (×) corner button.
-function _mttsRenderRaisePhotoTiles(){
-  var el=document.getElementById('mttsRaisePhotoPreview');if(!el) return;
+// Generic photo-tile renderer: 3 fixed square slots. Empty slots act as a
+// "Take photo" button (taps the underlying file input → opens camera);
+// filled slots show the thumbnail with a × remove button. All callers keep
+// the buffer at ≤3 entries and compress every captured file to ~100KB
+// before storing the data URL — see _mttsCompressFiles below.
+function _mttsRenderPhotoTiles(targetId,buf,removeFnName,fileInputId){
+  var el=document.getElementById(targetId);if(!el) return;
+  el.classList.add('mtts-photo-thumbs');
   var slots=[];
   for(var i=0;i<3;i++){
-    if(_mttsRaisePhotosBuf[i]){
+    if(buf[i]){
       slots.push('<div class="mtts-photo-tile has-img">'+
-        '<img src="'+_mttsRaisePhotosBuf[i]+'">'+
-        '<button type="button" class="mtts-photo-rm" onclick="_mttsRaiseRemovePhoto('+i+')" title="Remove">×</button>'+
+        '<img src="'+buf[i]+'">'+
+        '<button type="button" class="mtts-photo-rm" onclick="'+removeFnName+'('+i+')" title="Remove">×</button>'+
       '</div>');
     } else {
-      slots.push('<div class="mtts-photo-tile" onclick="document.getElementById(\'mttsRaisePhotos\').click()">'+
+      slots.push('<div class="mtts-photo-tile" onclick="document.getElementById(\''+fileInputId+'\').click()">'+
         '<span class="mtts-photo-cam">📷</span><span>Take photo</span>'+
       '</div>');
     }
   }
   el.innerHTML=slots.join('');
+}
+
+function _mttsRenderRaisePhotoTiles(){
+  _mttsRenderPhotoTiles('mttsRaisePhotoPreview',_mttsRaisePhotosBuf,'_mttsRaiseRemovePhoto','mttsRaisePhotos');
 }
 function _mttsRaisePickPhotos(ev){
   var files=Array.from(ev.target.files||[]);
@@ -912,6 +948,9 @@ function _mttsRaisePickPhotos(ev){
 }
 function _mttsRaiseRemovePhoto(i){_mttsRaisePhotosBuf.splice(i,1);_mttsRenderRaisePhotoTiles();}
 
+function _mttsRenderTechActPhotoTiles(){
+  _mttsRenderPhotoTiles('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto','mttsTechActPhotos');
+}
 function _mttsTechActPickPhotos(ev){
   var files=Array.from(ev.target.files||[]);
   ev.target.value='';
@@ -919,21 +958,25 @@ function _mttsTechActPickPhotos(ev){
   _mttsCompressFiles(files,100).then(function(arr){
     arr.forEach(function(d){if(_mttsTechActPhotosBuf.length<3) _mttsTechActPhotosBuf.push(d);});
     if(_mttsTechActPhotosBuf.length>3) _mttsTechActPhotosBuf=_mttsTechActPhotosBuf.slice(0,3);
-    _mttsRenderPhotoStrip('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto');
+    _mttsRenderTechActPhotoTiles();
   });
 }
-function _mttsTechActRemovePhoto(i){_mttsTechActPhotosBuf.splice(i,1);_mttsRenderPhotoStrip('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto');}
+function _mttsTechActRemovePhoto(i){_mttsTechActPhotosBuf.splice(i,1);_mttsRenderTechActPhotoTiles();}
 
+function _mttsRenderApprovePhotoTiles(){
+  _mttsRenderPhotoTiles('mttsApprovePhotoPreview',_mttsApprovePhotosBuf,'_mttsApproveRemovePhoto','mttsApprovePhotos');
+}
 function _mttsApprovePickPhotos(ev){
   var files=Array.from(ev.target.files||[]);
   ev.target.value='';
   if(!files.length) return;
-  _mttsCompressFiles(files,120).then(function(arr){
-    arr.forEach(function(d){_mttsApprovePhotosBuf.push(d);});
-    _mttsRenderPhotoStrip('mttsApprovePhotoPreview',_mttsApprovePhotosBuf,'_mttsApproveRemovePhoto');
+  _mttsCompressFiles(files,100).then(function(arr){
+    arr.forEach(function(d){if(_mttsApprovePhotosBuf.length<3) _mttsApprovePhotosBuf.push(d);});
+    if(_mttsApprovePhotosBuf.length>3) _mttsApprovePhotosBuf=_mttsApprovePhotosBuf.slice(0,3);
+    _mttsRenderApprovePhotoTiles();
   });
 }
-function _mttsApproveRemovePhoto(i){_mttsApprovePhotosBuf.splice(i,1);_mttsRenderPhotoStrip('mttsApprovePhotoPreview',_mttsApprovePhotosBuf,'_mttsApproveRemovePhoto');}
+function _mttsApproveRemovePhoto(i){_mttsApprovePhotosBuf.splice(i,1);_mttsRenderApprovePhotoTiles();}
 
 // ── Raise ticket flow ─────────────────────────────────────────────────────
 // Snap any HH:MM string to the nearest 30-minute multiple (rounds down).
@@ -954,18 +997,79 @@ function _mttsTodayStr(){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 }
 
-// Build 48 options (00:00 → 23:30) for the breakdown-time select.
+// Build 96 options (00:00 → 23:45) at 15-minute intervals for the
+// breakdown-time select. Slots in the future (when the date is today)
+// are disabled so the user can't pick a time after now.
 function _mttsPopulateBdTimeOptions(){
   var sel=document.getElementById('mttsRaiseBdTime');if(!sel) return;
   var pad=function(n){return n<10?'0'+n:''+n;};
+  var dateEl=document.getElementById('mttsRaiseBdDate');
+  var dateStr=dateEl?dateEl.value:'';
+  var isToday=(dateStr===_mttsTodayStr());
+  var nowMins=isToday?(new Date().getHours()*60+new Date().getMinutes()):null;
+  var prev=sel.value;
   var html='';
   for(var h=0;h<24;h++){
-    for(var m=0;m<60;m+=30){
+    for(var m=0;m<60;m+=15){
       var v=pad(h)+':'+pad(m);
-      html+='<option value="'+v+'">'+v+'</option>';
+      var disabled=(isToday&&(h*60+m)>nowMins)?' disabled':'';
+      html+='<option value="'+v+'"'+disabled+'>'+v+'</option>';
     }
   }
   sel.innerHTML=html;
+  // Re-apply prior selection if still valid.
+  if(prev) sel.value=prev;
+}
+
+// Move the breakdown time by ±15 minutes. If the underlying date is
+// today, refuses to step into the future. Wraps midnight by stepping
+// the date as well (forward or back) so the user can scrub freely.
+function _mttsRaiseShiftTime(deltaMin){
+  var sel=document.getElementById('mttsRaiseBdTime');
+  var dateEl=document.getElementById('mttsRaiseBdDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value) return;
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  d.setMinutes(d.getMinutes()+deltaMin);
+  if(d.getTime()>Date.now()) return;
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var newDate=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  var newTime=pad(d.getHours())+':'+pad(d.getMinutes());
+  if(newDate!==dateEl.value){
+    dateEl.value=newDate;
+    _mttsRaiseRefreshDateNextBtn();
+  }
+  _mttsPopulateBdTimeOptions();
+  sel.value=newTime;
+  _mttsRaiseRefreshTimeNextBtn();
+}
+
+// Disable the › time button when the current selection is at "now"
+// (no future slot available). Always-enabled when the date is in the past.
+function _mttsRaiseRefreshTimeNextBtn(){
+  var btn=document.getElementById('mttsRaiseTimeNextBtn');if(!btn) return;
+  var sel=document.getElementById('mttsRaiseBdTime');
+  var dateEl=document.getElementById('mttsRaiseBdDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value){btn.disabled=false;return;}
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  d.setMinutes(d.getMinutes()+15);
+  btn.disabled=(d.getTime()>Date.now());
+}
+
+// Called when the user picks a time from the select directly. Clamps to
+// the past if somehow set into the future, then refreshes the › button.
+function _mttsRaiseTimeChanged(){
+  var sel=document.getElementById('mttsRaiseBdTime');
+  var dateEl=document.getElementById('mttsRaiseBdDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value) return;
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  if(d.getTime()>Date.now()){
+    // Snap to nearest past 15-min boundary.
+    var now=new Date();
+    now.setMinutes(Math.floor(now.getMinutes()/15)*15,0,0);
+    var pad=function(n){return n<10?'0'+n:''+n;};
+    sel.value=pad(now.getHours())+':'+pad(now.getMinutes());
+  }
+  _mttsRaiseRefreshTimeNextBtn();
 }
 
 // Shift the breakdown date by N days, clamped to today (no future dates).
@@ -995,27 +1099,28 @@ function _mttsTicketRaiseOpen(){
   _mttsRenderRaisePhotoTiles();
   // Reset form. Default plant = the user's home plant when set, so a
   // technician on the floor can raise without picking from the list.
-  var plantSel=document.getElementById('mttsRaisePlant');
-  plantSel.value='';
-  if(CU&&CU.plant){
-    var hasOpt=Array.prototype.some.call(plantSel.options||[],function(o){return o.value===CU.plant;});
-    if(hasOpt) plantSel.value=CU.plant;
+  var plantHidden=document.getElementById('mttsRaisePlant');
+  plantHidden.value='';
+  var plants=_mttsPlantList(false);
+  if(CU&&CU.plant&&plants.some(function(p){return p.value===CU.plant;})){
+    plantHidden.value=CU.plant;
   }
-  // Default Asset Type to "Machinery" when the option exists (it's part
-  // of the legacy seed); falls back to "All" if not present.
-  var typeSel=document.getElementById('mttsRaiseType');
-  typeSel.value='';
-  var hasMach=Array.prototype.some.call(typeSel.options||[],function(o){return o.value==='Machinery';});
-  if(hasMach) typeSel.value='Machinery';
+  _mttsRaiseRenderPlantBtns();
+  // Default Asset Type to "Machinery" when present (legacy seed).
+  var typeHidden=document.getElementById('mttsRaiseType');
+  typeHidden.value='';
+  var typesArr=_mttsAssetTypeList(false);
+  if(typesArr.some(function(t){return t.value==='Machinery';})) typeHidden.value='Machinery';
+  _mttsRaiseRenderTypeBtns();
   // If we defaulted a plant, refresh the asset list for it immediately.
-  if(plantSel.value){_mttsRaiseRefreshAssets();}
+  if(plantHidden.value){_mttsRaiseRefreshAssets();}
   else {document.getElementById('mttsRaiseAsset').innerHTML='<option value="">— Select plant first —</option>';}
   // Clear breakdown radio selection.
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=false;});
   // Default Breakdown Since to current local date and time, rounded down
-  // to the nearest 30-minute multiple (matches the time-select's options).
+  // to the nearest 15-minute multiple (matches the time-select's options).
   var _now=new Date();
-  _now.setMinutes(Math.floor(_now.getMinutes()/30)*30,0,0);
+  _now.setMinutes(Math.floor(_now.getMinutes()/15)*15,0,0);
   var _pad=function(n){return n<10?'0'+n:''+n;};
   var _dStr=_now.getFullYear()+'-'+_pad(_now.getMonth()+1)+'-'+_pad(_now.getDate());
   var _tStr=_pad(_now.getHours())+':'+_pad(_now.getMinutes());
@@ -1030,15 +1135,20 @@ function _mttsTicketRaiseOpen(){
         // Clamp typed values that fell into the future back to today.
         if(_bdDate.value&&_bdDate.value>_mttsTodayStr()) _bdDate.value=_mttsTodayStr();
         _mttsRaiseRefreshDateNextBtn();
+        // Re-populate time slots so future slots get re-disabled when
+        // jumping back to today's date.
+        _mttsPopulateBdTimeOptions();
+        _mttsRaiseRefreshTimeNextBtn();
       };
       _bdDate.addEventListener('change',_bdDate._mttsDateChange);
     }
   }
-  // (Re)populate the 30-min time slots and select the rounded current value.
+  // (Re)populate the 15-min time slots and select the rounded current value.
   _mttsPopulateBdTimeOptions();
   var _bdTime=document.getElementById('mttsRaiseBdTime');
   if(_bdTime) _bdTime.value=_tStr;
   _mttsRaiseRefreshDateNextBtn();
+  _mttsRaiseRefreshTimeNextBtn();
   document.getElementById('mttsRaiseDesc').value='';
   document.getElementById('mttsRaisePhotos').value='';
   var err=document.getElementById('mttsRaiseErr');if(err){err.style.display='none';err.textContent='';}
@@ -1061,6 +1171,54 @@ function _mttsTicketRaiseOpen(){
     modalEl.addEventListener('keydown',modalEl._mttsKeyHandler);
   }
 }
+// Render the Plant chip row from the master list. Each chip is a tap
+// target that sets the hidden input + refreshes the asset dropdown.
+function _mttsRaiseRenderPlantBtns(){
+  var wrap=document.getElementById('mttsRaisePlantBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsRaisePlant');
+  var current=hidden?hidden.value:'';
+  var plants=_mttsPlantList(false);
+  if(!plants.length){
+    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No plants — add one in Plant Master first</div>';
+    return;
+  }
+  wrap.innerHTML=plants.map(function(p){
+    var idEsc=String(p.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var lblEsc=String(p.label).replace(/</g,'&lt;');
+    var swatch=p.color?'<span class="mtts-chip-swatch" style="background:'+p.color+'"></span>':'';
+    var act=p.value===current?' is-active':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')" title="'+lblEsc+'">'+swatch+'<span>'+(p.value||'?')+'</span></button>';
+  }).join('');
+}
+function _mttsRaisePickPlant(code){
+  var hidden=document.getElementById('mttsRaisePlant');
+  if(hidden) hidden.value=code;
+  _mttsRaiseRenderPlantBtns();
+  _mttsRaiseRefreshAssets();
+}
+
+// Render the Asset Type chip row. "All" comes first (clears type filter).
+function _mttsRaiseRenderTypeBtns(){
+  var wrap=document.getElementById('mttsRaiseTypeBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsRaiseType');
+  var current=hidden?hidden.value:'';
+  var typesArr=_mttsAssetTypeList(false);
+  var html='<button type="button" class="mtts-chip'+(current===''?' is-active':'')+'" onclick="_mttsRaisePickType(\'\')">All</button>';
+  html+=typesArr.map(function(t){
+    var idEsc=String(t.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var lblEsc=String(t.label).replace(/</g,'&lt;');
+    var act=t.value===current?' is-active':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickType(\''+idEsc+'\')">'+lblEsc+'</button>';
+  }).join('');
+  wrap.innerHTML=html;
+}
+function _mttsRaisePickType(code){
+  var hidden=document.getElementById('mttsRaiseType');
+  if(hidden) hidden.value=code;
+  _mttsRaiseRenderTypeBtns();
+  _mttsRaiseRefreshAssets();
+}
+
 function _mttsRaiseRefreshAssets(){
   var plant=document.getElementById('mttsRaisePlant').value;
   var type=document.getElementById('mttsRaiseType').value;
@@ -1145,7 +1303,7 @@ function _mttsTicketAllocateOpen(id){
     listEl.innerHTML=techs.map(function(u){
       var key=u.name||u.id;
       var checked=pre.indexOf(key)>=0?'checked':'';
-      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px"><input type="checkbox" class="mtts-alloc-cb" value="'+key+'" '+checked+'><span style="flex:1">'+(u.fullName||u.name)+(u.plant?' <span style="color:var(--text3)">· '+u.plant+'</span>':'')+'</span></label>';
+      return '<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px"><input type="checkbox" class="mtts-alloc-cb" value="'+key+'" '+checked+' style="width:auto!important;height:auto!important;flex:0 0 auto;margin:0"><span style="flex:1">'+(u.fullName||u.name)+(u.plant?' <span style="color:var(--text3)">· '+u.plant+'</span>':'')+'</span></label>';
     }).join('');
   }
   document.getElementById('mttsAllocNote').value='';
@@ -1188,12 +1346,21 @@ async function _mttsTicketAllocateConfirm(){
   var bak=Object.assign({},t);
   var prevTechs=(t.assignedTo||[]).slice();
   var isReassign=prevTechs.length>0;
+  var wasClosed=(t.status==='closed');
   t.assignedTo=picked;
   t.assignedAt=new Date().toISOString();
   t.assignedBy=CU?(CU.name||CU.id||''):'';
-  // Keep existing in-progress status when reassigning (don't reset to
-  // 'assigned' if tech is already mid-repair / awaiting spares).
-  if(!isReassign||t.status==='open') t.status='assigned';
+  if(wasClosed){
+    // Reassigning a previously-closed ticket re-opens it from scratch:
+    // status=open, approval cleared, so manager + tech step through the
+    // full lifecycle again.
+    t.status='open';
+    t.approvedBy='';t.approvedAt='';
+  } else if(!isReassign||t.status==='open'){
+    // First-time allocation, or re-allocation of an open ticket.
+    t.status='assigned';
+  }
+  // Otherwise keep existing in-progress status (assigned / awaiting_*).
   t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
   t.techActions.push({action:isReassign?'reassigned':'allocated',by:t.assignedBy,at:t.assignedAt,note:note,techs:picked,prevTechs:isReassign?prevTechs:undefined});
   var ok=await _dbSave('mttsTickets',t);
@@ -1203,22 +1370,196 @@ async function _mttsTicketAllocateConfirm(){
   _mttsRenderTickets();
 }
 
-// ── Technician action flow ────────────────────────────────────────────────
-function _mttsTicketActionOpen(id){
+// 96 slots at 15-min intervals for the Update Ticket time picker.
+// Future slots are disabled when the date is today.
+function _mttsPopulateTechActTimeOptions(){
+  var sel=document.getElementById('mttsTechActTime');if(!sel) return;
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var dateEl=document.getElementById('mttsTechActDate');
+  var dateStr=dateEl?dateEl.value:'';
+  var isToday=(dateStr===_mttsTodayStr());
+  var nowMins=isToday?(new Date().getHours()*60+new Date().getMinutes()):null;
+  var prev=sel.value;
+  var html='';
+  for(var h=0;h<24;h++){
+    for(var m=0;m<60;m+=15){
+      var v=pad(h)+':'+pad(m);
+      var disabled=(isToday&&(h*60+m)>nowMins)?' disabled':'';
+      html+='<option value="'+v+'"'+disabled+'>'+v+'</option>';
+    }
+  }
+  sel.innerHTML=html;
+  if(prev) sel.value=prev;
+}
+
+function _mttsTechActShiftDate(delta){
+  var dateEl=document.getElementById('mttsTechActDate');if(!dateEl) return;
+  var cur=dateEl.value||_mttsTodayStr();
+  var d=new Date(cur+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var nextStr=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  if(nextStr>_mttsTodayStr()) return;
+  dateEl.value=nextStr;
+  _mttsPopulateTechActTimeOptions();
+  _mttsTechActRefreshDateNextBtn();
+  _mttsTechActRefreshTimeNextBtn();
+}
+
+function _mttsTechActRefreshDateNextBtn(){
+  var btn=document.getElementById('mttsTechActDateNextBtn');if(!btn) return;
+  var dateEl=document.getElementById('mttsTechActDate');if(!dateEl) return;
+  btn.disabled=(dateEl.value>=_mttsTodayStr());
+}
+
+function _mttsTechActShiftTime(deltaMin){
+  var sel=document.getElementById('mttsTechActTime');
+  var dateEl=document.getElementById('mttsTechActDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value) return;
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  d.setMinutes(d.getMinutes()+deltaMin);
+  if(d.getTime()>Date.now()) return;
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var newDate=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  var newTime=pad(d.getHours())+':'+pad(d.getMinutes());
+  if(newDate!==dateEl.value){
+    dateEl.value=newDate;
+    _mttsTechActRefreshDateNextBtn();
+  }
+  _mttsPopulateTechActTimeOptions();
+  sel.value=newTime;
+  _mttsTechActRefreshTimeNextBtn();
+}
+
+function _mttsTechActRefreshTimeNextBtn(){
+  var btn=document.getElementById('mttsTechActTimeNextBtn');if(!btn) return;
+  var sel=document.getElementById('mttsTechActTime');
+  var dateEl=document.getElementById('mttsTechActDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value){btn.disabled=false;return;}
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  d.setMinutes(d.getMinutes()+15);
+  btn.disabled=(d.getTime()>Date.now());
+}
+
+function _mttsTechActTimeChanged(){
+  var sel=document.getElementById('mttsTechActTime');
+  var dateEl=document.getElementById('mttsTechActDate');
+  if(!sel||!dateEl||!sel.value||!dateEl.value) return;
+  var d=new Date(dateEl.value+'T'+sel.value+':00');
+  if(d.getTime()>Date.now()){
+    var now=new Date();
+    now.setMinutes(Math.floor(now.getMinutes()/15)*15,0,0);
+    var pad=function(n){return n<10?'0'+n:''+n;};
+    sel.value=pad(now.getHours())+':'+pad(now.getMinutes());
+  }
+  _mttsTechActRefreshTimeNextBtn();
+}
+
+// Render the in-modal history panel showing every existing techAction
+// for the current ticket (who / when / what / photos), with an inline
+// Edit link on each editable entry. Highlights the entry currently being
+// edited (if editIdx is set) so the user knows which row the form maps to.
+function _mttsRenderTechActHistory(t,currentEditIdx){
+  var wrap=document.getElementById('mttsTechActHistory');if(!wrap) return;
+  var entries=Array.isArray(t.techActions)?t.techActions:[];
+  if(!entries.length){
+    wrap.innerHTML='<div style="padding:8px 10px;font-size:11px;color:var(--text3);font-style:italic">No previous updates yet.</div>';
+    return;
+  }
+  var idEsc=String(t.id||'').replace(/'/g,"\\'");
+  var actLbls={raised:'🎫 Raised',allocated:'👥 Allocated',reassigned:'👥 Reassigned',revoked:'↩ Revoked',assigned:'👥 Assigned',awaiting_spares:'🔩 Awaiting spares',awaiting_agency:'🔧 Awaiting agency',repair_done:'✓ Repair done',scrapped:'🚫 Scrapped',closed:'✅ Closed'};
+  var canEditEntry=function(a){
+    if(!a) return false;
+    var locked={raised:1,allocated:1,reassigned:1,revoked:1};
+    if(locked[a.action]) return false;
+    // Closed (approved) tickets are frozen — to edit, manager must revoke
+    // approval first via the ↩ Revoke ✓ action on the tickets list.
+    if(t.status==='closed') return false;
+    if(_mttsIsSA()||_mttsIsManager()) return true;
+    if(_mttsIsTechnicianOnTicket(t)){
+      var me=CU?(CU.name||CU.id||''):'';
+      return a.by===me;
+    }
+    return false;
+  };
+  // Sort chronologically (newest first for in-modal scan).
+  var sorted=entries.map(function(a,i){return {a:a,i:i};});
+  sorted.sort(function(x,y){return String(y.a.at||'').localeCompare(String(x.a.at||''));});
+  wrap.innerHTML=sorted.map(function(p){
+    var a=p.a,i=p.i;
+    var ts=a.at?(a.at.slice(0,10)+' '+a.at.slice(11,16)):'—';
+    var who=a.by?_mttsUserDisp(a.by):'—';
+    var noteBlock=a.note?'<div style="color:var(--text2);font-size:11px;margin-top:2px">'+String(a.note).replace(/</g,'&lt;')+'</div>':'';
+    var etaBlock=a.eta?'<div style="font-size:10px;color:#92400e;margin-top:1px">ETA: '+a.eta+'</div>':'';
+    var photos=(a.photos&&a.photos.length)?'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">'+a.photos.map(function(src){return '<a href="'+src+'" target="_blank" onclick="event.stopPropagation()"><img src="'+src+'" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border)"></a>';}).join('')+'</div>':'';
+    var edited=a.editedAt?' <span style="font-size:9px;color:var(--text3);font-style:italic">(edited '+a.editedAt.slice(0,10)+')</span>':'';
+    var editBtn=canEditEntry(a)?'<button onclick="event.stopPropagation();_mttsTicketActionOpen(\''+idEsc+'\','+i+')" title="Edit this update" style="float:right;font-size:10px;padding:2px 7px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'';
+    var isCurrent=(currentEditIdx!=null&&currentEditIdx===i);
+    var bg=isCurrent?'#fef3c7':'#f8fafc';
+    var border=isCurrent?'2px solid #f59e0b':'2px solid var(--accent)';
+    return '<div style="font-size:11px;border-left:'+border+';padding:5px 8px;margin-bottom:3px;background:'+bg+';border-radius:0 4px 4px 0">'+editBtn+
+      '<b>'+(actLbls[a.action]||a.action)+'</b>'+(isCurrent?' <span style="color:#92400e;font-weight:800">· editing</span>':'')+
+      '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ts+' · by '+who+edited+'</div>'+
+      noteBlock+etaBlock+photos+
+    '</div>';
+  }).join('');
+}
+
+// ── Technician action flow — supports both "add new update" and "edit
+// existing update" modes. editIdx, when supplied, points at an existing
+// techActions[] entry; the form pre-fills with that entry and submit
+// patches it instead of appending.
+function _mttsTicketActionOpen(id,editIdx){
   var t=byId(DB.mttsTickets||[],id);if(!t){notify('Ticket not found',true);return;}
   if(!(_mttsIsTechnicianOnTicket(t)||_mttsIsSA()||_mttsIsManager())){notify('You are not assigned to this ticket',true);return;}
   document.getElementById('mttsTechActTicketId').value=id;
+  document.getElementById('mttsTechActEditIdx').value=(editIdx==null?'':String(editIdx));
   var asset=byId(DB.mttsAssets||[],t.assetCode);
+
+  var titleEl=document.querySelector('#mMttsTechAct .modal-title');
+  if(titleEl) titleEl.textContent=(editIdx==null)?'🔧 Add Update':'🔧 Edit Update';
 
   document.getElementById('mttsTechActTicketLbl').innerHTML=
     '<b>'+(asset?asset.name:'(missing)')+'</b> at '+_mttsPlantLabel(t.plant)+' · '+_MTTS_STATUS_LABEL[t.status]+
     ' · down for <b style="color:#dc2626">'+_mttsTimerSince(t.raisedAt)+'</b>';
-  document.getElementById('mttsTechActStatus').value='awaiting_spares';
-  document.getElementById('mttsTechActNote').value='';
-  document.getElementById('mttsTechActEta').value='';
-  document.getElementById('mttsTechActRoot').value='';
-  _mttsTechActPhotosBuf=[];
-  _mttsRenderPhotoStrip('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto');
+
+  // Inline history of every prior update — who/when/what/photos — with
+  // ✎ Edit links. Highlights the entry currently being edited (if any).
+  _mttsRenderTechActHistory(t,(editIdx==null?null:Number(editIdx)));
+
+  var existing=null;
+  if(editIdx!=null) existing=(t.techActions||[])[editIdx]||null;
+
+  // Status — pre-fill from edited entry or default.
+  document.getElementById('mttsTechActStatus').value=existing?(existing.action||'awaiting_spares'):'awaiting_spares';
+  document.getElementById('mttsTechActNote').value=existing?(existing.note||''):'';
+  document.getElementById('mttsTechActEta').value=existing?(existing.eta||''):'';
+  document.getElementById('mttsTechActRoot').value=existing?'':'';
+
+  // Date / time: from existing entry's `at` (ISO) or current local time.
+  var d=existing&&existing.at?new Date(existing.at):new Date();
+  // Snap minutes down to 15-min boundary so the value matches a select option.
+  d.setMinutes(Math.floor(d.getMinutes()/15)*15,0,0);
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  var dateEl=document.getElementById('mttsTechActDate');
+  dateEl.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  dateEl.max=_mttsTodayStr();
+  if(!dateEl._mttsDateChange){
+    dateEl._mttsDateChange=function(){
+      if(dateEl.value&&dateEl.value>_mttsTodayStr()) dateEl.value=_mttsTodayStr();
+      _mttsPopulateTechActTimeOptions();
+      _mttsTechActRefreshDateNextBtn();
+      _mttsTechActRefreshTimeNextBtn();
+    };
+    dateEl.addEventListener('change',dateEl._mttsDateChange);
+  }
+  _mttsPopulateTechActTimeOptions();
+  document.getElementById('mttsTechActTime').value=pad(d.getHours())+':'+pad(d.getMinutes());
+  _mttsTechActRefreshDateNextBtn();
+  _mttsTechActRefreshTimeNextBtn();
+
+  _mttsTechActPhotosBuf=existing&&Array.isArray(existing.photos)?existing.photos.slice(0,3):[];
+  _mttsRenderTechActPhotoTiles();
   document.getElementById('mttsTechActPhotos').value='';
   _mttsTechActRefreshFields();
   var err=document.getElementById('mttsTechActErr');if(err){err.style.display='none';err.textContent='';}
@@ -1226,16 +1567,16 @@ function _mttsTicketActionOpen(id){
 }
 function _mttsTechActRefreshFields(){
   var st=document.getElementById('mttsTechActStatus').value;
-  var photoWrap=document.getElementById('mttsTechActPhotoWrap');
   var rootWrap=document.getElementById('mttsTechActRootWrap');
   var etaWrap=document.getElementById('mttsTechActEtaWrap');
-  // Photos required for repair_done; root cause optional.
-  var showPhoto=(st==='repair_done');
+  // Photos are always available on the Update Ticket form (up to 3).
+  // Required only when closing the ticket as repair_done.
   var showRoot=(st==='repair_done'||st==='scrapped');
   var showEta=(st==='awaiting_spares'||st==='awaiting_agency');
-  if(photoWrap) photoWrap.style.display=showPhoto?'':'none';
   if(rootWrap) rootWrap.style.display=showRoot?'':'none';
   if(etaWrap) etaWrap.style.display=showEta?'':'none';
+  var photoLbl=document.getElementById('mttsTechActPhotoLbl');
+  if(photoLbl) photoLbl.textContent=(st==='repair_done')?'Closure photos (max 3) *':'Photos (max 3)';
 }
 async function _mttsTicketActionSubmit(){
   var err=document.getElementById('mttsTechActErr');
@@ -1247,23 +1588,52 @@ async function _mttsTicketActionSubmit(){
   var note=document.getElementById('mttsTechActNote').value.trim();
   var eta=document.getElementById('mttsTechActEta').value;
   var root=document.getElementById('mttsTechActRoot').value.trim();
+  var dateStr=document.getElementById('mttsTechActDate').value;
+  var timeStr=document.getElementById('mttsTechActTime').value;
+  var editIdxRaw=document.getElementById('mttsTechActEditIdx').value;
+  var editIdx=editIdxRaw===''?null:parseInt(editIdxRaw,10);
+  if(!dateStr){_showErr('Update date is required');return;}
+  if(!timeStr){_showErr('Update time is required');return;}
+  var atIso=new Date(dateStr+'T'+timeStr).toISOString();
+  if(new Date(atIso).getTime()>Date.now()+60000){_showErr('Update date/time cannot be in the future');return;}
   if(newStatus==='repair_done'&&_mttsTechActPhotosBuf.length===0){_showErr('At least one closure photo is required for "Repair done"');return;}
   var bak=Object.assign({},t);
-  t.status=newStatus;
   t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
-  t.techActions.push({
-    action:newStatus,by:CU?(CU.name||CU.id||''):'',at:new Date().toISOString(),
-    note:note,eta:eta||''
-  });
+  var stepPhotos=_mttsTechActPhotosBuf.slice(0,3);
+  var entry={
+    action:newStatus,by:CU?(CU.name||CU.id||''):'',at:atIso,
+    note:note,eta:eta||'',photos:stepPhotos
+  };
+  if(editIdx!=null&&editIdx>=0&&editIdx<t.techActions.length){
+    // Edit existing update — preserve original author + add edit metadata.
+    var orig=t.techActions[editIdx]||{};
+    entry.by=orig.by||entry.by;
+    entry.editedBy=CU?(CU.name||CU.id||''):'';
+    entry.editedAt=new Date().toISOString();
+    t.techActions[editIdx]=entry;
+  } else {
+    t.techActions.push(entry);
+  }
+  // Sort techActions chronologically by their stored `at` so out-of-order
+  // backdated entries still appear in the right place on the timeline.
+  t.techActions.sort(function(x,y){return String(x.at||'').localeCompare(String(y.at||''));});
+  // The latest non-historical action sets the ticket's current status.
+  var last=t.techActions[t.techActions.length-1]||entry;
+  if(last.action&&last.action!=='raised'&&last.action!=='allocated'&&last.action!=='reassigned'&&last.action!=='revoked'){
+    t.status=last.action;
+  }
   if(newStatus==='repair_done'||newStatus==='scrapped'){
-    if(_mttsTechActPhotosBuf.length) t.closePhotos=(t.closePhotos||[]).concat(_mttsTechActPhotosBuf.slice());
+    if(stepPhotos.length) t.closePhotos=(t.closePhotos||[]).concat(stepPhotos);
     if(root) t.rootCause=root;
   }
   var ok=await _dbSave('mttsTickets',t);
   if(!ok){Object.assign(t,bak);_showErr('Save failed');return;}
   cm('mMttsTechAct');
-  notify('🔧 Status updated to '+_MTTS_STATUS_LABEL[newStatus]);
+  notify((editIdx!=null?'✓ Update edited':'🔧 Status updated to ')+(editIdx!=null?'':_MTTS_STATUS_LABEL[newStatus]));
   _mttsRenderTickets();
+  // If the detail overlay is open for this ticket, refresh it to show the change.
+  var ov=document.getElementById('mttsTicketDetailOverlay');
+  if(ov&&ov.style.display!=='none') _mttsTicketDetail(id);
 }
 
 // ── Manager approval flow ─────────────────────────────────────────────────
@@ -1279,8 +1649,8 @@ function _mttsTicketApproveOpen(id){
     ' · down for '+_mttsTimerSince(t.raisedAt);
   document.getElementById('mttsApproveCostSvc').value=t.costService||'';
   document.getElementById('mttsApproveCostSpr').value=t.costSpares||'';
-  _mttsApprovePhotosBuf=(t.invoicePhotos||[]).slice();
-  _mttsRenderPhotoStrip('mttsApprovePhotoPreview',_mttsApprovePhotosBuf,'_mttsApproveRemovePhoto');
+  _mttsApprovePhotosBuf=(t.invoicePhotos||[]).slice(0,3);
+  _mttsRenderApprovePhotoTiles();
   document.getElementById('mttsApprovePhotos').value='';
   document.getElementById('mttsApproveNote').value='';
   var err=document.getElementById('mttsApproveErr');if(err){err.style.display='none';err.textContent='';}
@@ -1310,6 +1680,28 @@ async function _mttsTicketApproveConfirm(){
   notify('✓ Ticket closed · ₹'+(costSvc+costSpr).toFixed(2)+' total');
   _mttsRenderTickets();
 }
+// Manager can undo their own approval — drops the ticket back to 'open'
+// so the lifecycle re-runs from allocation onward. Logs the revoke
+// action with an optional reason.
+async function _mttsTicketRevokeApproval(id){
+  if(!_mttsCanApprove()){notify('Only Maintenance Manager can revoke approval',true);return;}
+  var t=byId(DB.mttsTickets||[],id);if(!t){notify('Ticket not found',true);return;}
+  if(t.status!=='closed'){notify('Only closed tickets can have approval revoked',true);return;}
+  var note=prompt('Revoke approval for this ticket?\n\nThe ticket will go back to Open and need re-allocation.\n\nReason (optional):','');
+  if(note===null) return;
+  var bak=Object.assign({},t);
+  t.status='open';
+  t.approvedBy='';t.approvedAt='';
+  t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
+  t.techActions.push({action:'approval_revoked',by:CU?(CU.name||CU.id||''):'',at:new Date().toISOString(),note:note||''});
+  var ok=await _dbSave('mttsTickets',t);
+  if(!ok){Object.assign(t,bak);notify('Save failed',true);return;}
+  notify('↩ Approval revoked — ticket re-opened');
+  _mttsRenderTickets();
+  var ov=document.getElementById('mttsTicketDetailOverlay');
+  if(ov&&ov.style.display!=='none') _mttsTicketDetail(id);
+}
+
 async function _mttsTicketApproveReject(){
   if(!_mttsCanApprove()){notify('Access denied',true);return;}
   var id=document.getElementById('mttsApproveTicketId').value;
@@ -1328,36 +1720,113 @@ async function _mttsTicketApproveReject(){
 }
 
 // ── Detail viewer (read-only quick look) ──────────────────────────────────
+// Image lightbox — full-screen overlay with the clicked image scaled to
+// fit. Click anywhere or press Escape to dismiss.
+function _mttsLightbox(src){
+  var existing=document.getElementById('mttsLightbox');if(existing) existing.remove();
+  var ov=document.createElement('div');
+  ov.id='mttsLightbox';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200001;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px';
+  ov.innerHTML='<button onclick="event.stopPropagation();var e=document.getElementById(\'mttsLightbox\');if(e)e.remove();" style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:none;font-size:24px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+    '<img src="'+String(src).replace(/"/g,'&quot;')+'" style="max-width:96vw;max-height:92vh;object-fit:contain;border-radius:8px;box-shadow:0 30px 80px rgba(0,0,0,.6)">';
+  ov.onclick=function(){ov.remove();document.removeEventListener('keydown',escHandler);};
+  var escHandler=function(ev){if(ev.key==='Escape'){ov.remove();document.removeEventListener('keydown',escHandler);}};
+  document.addEventListener('keydown',escHandler);
+  document.body.appendChild(ov);
+}
+
 function _mttsTicketDetail(id){
   var t=byId(DB.mttsTickets||[],id);if(!t) return;
   var asset=byId(DB.mttsAssets||[],t.assetCode);
 
-  var photoBlock=function(arr,lbl){
-    if(!arr||!arr.length) return '';
-    return '<div style="margin-top:8px"><div style="font-size:10px;font-weight:800;color:var(--text3);margin-bottom:4px">'+lbl+'</div>'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+arr.map(function(src){return '<a href="'+src+'" target="_blank"><img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"></a>';}).join('')+'</div></div>';
+  var actLbls={raised:'🎫 Raised',allocated:'👥 Allocated',reassigned:'👥 Reassigned',revoked:'↩ Revoked',assigned:'👥 Assigned',awaiting_spares:'🔩 Awaiting spares',awaiting_agency:'🔧 Awaiting agency',repair_done:'✓ Repair done',scrapped:'🚫 Scrapped',closed:'✅ Closed',approval_revoked:'↩ Approval revoked',rework_requested:'↩ Rework requested'};
+  // Stitch each row's photo source: the entry's own photos win; fall
+  // back to the ticket-level buckets so older records — where photos
+  // weren't stored on the entry — still appear in the right row.
+  var resolveRowPhotos=function(a){
+    if(a.photos&&a.photos.length) return a.photos.slice();
+    if(a.action==='raised'&&t.photosRaise&&t.photosRaise.length) return t.photosRaise.slice();
+    if((a.action==='repair_done'||a.action==='scrapped')&&t.closePhotos&&t.closePhotos.length) return t.closePhotos.slice();
+    if(a.action==='closed'&&t.invoicePhotos&&t.invoicePhotos.length) return t.invoicePhotos.slice();
+    return [];
   };
-  var actLbls={raised:'🎫 Raised',allocated:'👥 Allocated',assigned:'👥 Assigned',awaiting_spares:'🔩 Awaiting spares',awaiting_agency:'🔧 Awaiting agency',repair_done:'✓ Repair done',scrapped:'🚫 Scrapped',closed:'✅ Closed',rework_requested:'↩ Rework requested'};
-  var actHtml=(t.techActions||[]).map(function(a){
-    var ts=a.at?a.at.slice(0,10)+' '+a.at.slice(11,16):'—';
-    return '<div style="font-size:11px;border-left:2px solid var(--accent);padding:4px 8px;margin-bottom:4px;background:#f8fafc"><b>'+(actLbls[a.action]||a.action)+'</b> · '+ts+(a.by?' · '+_mttsUserDisp(a.by):'')+(a.note?'<div style="color:var(--text3);font-size:10px;margin-top:1px">'+String(a.note).replace(/</g,'&lt;')+'</div>':'')+(a.eta?'<div style="font-size:10px;color:#92400e">ETA: '+a.eta+'</div>':'')+'</div>';
+  var idEsc=String(t.id||'').replace(/'/g,"\\'");
+  // Editable entries: any techAction with an action that came from the
+  // Update Ticket form (not raise/allocate/reassign/revoke). Manager / SA
+  // can edit any; assigned techs can edit their own.
+  var canEditEntry=function(a){
+    if(!a) return false;
+    var locked={raised:1,allocated:1,reassigned:1,revoked:1};
+    if(locked[a.action]) return false;
+    // Closed (approved) tickets are frozen — to edit, manager must revoke
+    // approval first via the ↩ Revoke ✓ action on the tickets list.
+    if(t.status==='closed') return false;
+    if(_mttsIsSA()||_mttsIsManager()) return true;
+    if(_mttsIsTechnicianOnTicket(t)){
+      var me=CU?(CU.name||CU.id||''):'';
+      return a.by===me;
+    }
+    return false;
+  };
+  // Activity is shown as a proper table: SR# | Date / Time | Action |
+  // By | Notes / ETA | Photos | Edit. Sort newest-first so the latest
+  // update is at the top.
+  var actEntries=(t.techActions||[]).map(function(a,i){return {a:a,i:i};});
+  actEntries.sort(function(x,y){return String(y.a.at||'').localeCompare(String(x.a.at||''));});
+  var actTh='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)';
+  var actTd='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var actBodyRows=actEntries.map(function(p,n){
+    var a=p.a,i=p.i;
+    var dateStr=a.at?a.at.slice(0,10):'—';
+    var timeStr=a.at?a.at.slice(11,16):'';
+    var rowPhotos=resolveRowPhotos(a);
+    var photos=rowPhotos.length
+      ?'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rowPhotos.map(function(src){return '<img src="'+src+'" onclick="event.stopPropagation();_mttsLightbox(\''+String(src).replace(/'/g,"\\'")+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer">';}).join('')+'</div>'
+      :'<span style="color:var(--text3)">—</span>';
+    var editBtn=canEditEntry(a)?'<button onclick="_mttsTicketActionOpen(\''+idEsc+'\','+i+')" title="Edit this update" style="font-size:10px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎ Edit</button>':'<span style="color:var(--text3);font-size:11px">—</span>';
+    var editedBadge=a.editedAt?'<div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:2px">edited '+a.editedAt.slice(0,10)+'</div>':'';
+    var notesCell='';
+    if(a.note) notesCell+='<div style="color:var(--text);font-size:13px;line-height:1.4;white-space:pre-wrap">'+String(a.note).replace(/</g,'&lt;')+'</div>';
+    if(a.eta) notesCell+='<div style="font-size:10px;color:#92400e;margin-top:3px;font-weight:700">ETA: '+a.eta+'</div>';
+    if(a.techs&&a.techs.length) notesCell+='<div style="font-size:10px;color:var(--text3);margin-top:3px">Techs: <b>'+a.techs.map(function(u){return _mttsUserDisp(u);}).join(', ')+'</b></div>';
+    if(!notesCell) notesCell='<span style="color:var(--text3)">—</span>';
+    return '<tr>'+
+      '<td style="'+actTd+';font-family:var(--mono);color:var(--text3);text-align:center">'+(actEntries.length-n)+'</td>'+
+      '<td style="'+actTd+';white-space:nowrap"><div style="font-size:13px;font-weight:800;color:var(--text);font-family:var(--mono)">'+dateStr+'</div><div style="font-size:13px;font-weight:700;color:var(--accent);font-family:var(--mono)">'+timeStr+'</div></td>'+
+      '<td style="'+actTd+';font-weight:700">'+(actLbls[a.action]||a.action)+'</td>'+
+      '<td style="'+actTd+';font-size:11px">'+(a.by?_mttsUserDisp(a.by):'—')+editedBadge+'</td>'+
+      '<td style="'+actTd+'">'+notesCell+'</td>'+
+      '<td style="'+actTd+'">'+photos+'</td>'+
+      '<td style="'+actTd+';text-align:center">'+editBtn+'</td>'+
+    '</tr>';
   }).join('');
+  var actHtml=actEntries.length
+    ? '<div style="overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+        '<th style="'+actTh+';width:40px;text-align:center">#</th>'+
+        '<th style="'+actTh+'">Date / Time</th>'+
+        '<th style="'+actTh+'">Action</th>'+
+        '<th style="'+actTh+'">By</th>'+
+        '<th style="'+actTh+'">Notes / ETA</th>'+
+        '<th style="'+actTh+'">Photos</th>'+
+        '<th style="'+actTh+';text-align:center;width:70px"></th>'+
+      '</tr></thead><tbody>'+actBodyRows+'</tbody></table></div>'
+    : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">No activity yet.</div>';
   var html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000" onclick="if(event.target===this)document.getElementById(\'mttsTicketDetailOverlay\').style.display=\'none\'">'+
-    '<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(560px,94vw);max-height:90vh;overflow:auto;padding:18px 20px">'+
+    '<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(900px,96vw);max-height:90vh;overflow:auto;padding:18px 20px">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px">'+
         '<div><div style="font-size:16px;font-weight:900">🎫 Ticket Details</div>'+
         '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">ID '+(t.id||'').slice(-10)+'</div></div>'+
         '<button onclick="document.getElementById(\'mttsTicketDetailOverlay\').style.display=\'none\'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0 4px">×</button>'+
       '</div>'+
-      '<div style="font-size:13px"><b>'+(asset?asset.name:'(missing)')+'</b> · '+_mttsPlantLabel(t.plant)+'</div>'+
+      '<div style="font-size:14px"><b>'+(asset?asset.name:'(missing)')+'</b> · '+_mttsPlantLabel(t.plant)+'</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType)+' · '+_mttsStatusBadge(t.status)+' · down for '+_mttsTimerSince(t.raisedAt)+'</div>'+
-      '<div style="font-size:11px;color:var(--text3);margin-top:4px">Raised by '+_mttsUserDisp(t.raisedBy)+' on '+(t.raisedAt?t.raisedAt.slice(0,10):'—')+'</div>'+
-      ((t.assignedTo||[]).length?'<div style="font-size:11px;margin-top:2px">Assigned: <b>'+(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ')+'</b></div>':'')+
+      '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'+
+        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Raised by</div><div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">'+_mttsUserDisp(t.raisedBy)+'</div><div style="font-size:10px;color:var(--text3)">'+(t.raisedAt?t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16):'—')+'</div></div>'+
+        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Assigned to</div><div style="font-size:13px;font-weight:700;color:'+((t.assignedTo||[]).length?'var(--accent)':'var(--text3)')+';margin-top:2px">'+((t.assignedTo||[]).length?(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', '):'— Not assigned —')+'</div>'+(t.assignedAt?'<div style="font-size:10px;color:var(--text3)">since '+t.assignedAt.slice(0,10)+'</div>':'')+'</div>'+
+        ((t.approvedBy||t.approvedAt)?'<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Approved by</div><div style="font-size:13px;font-weight:700;color:#16a34a;margin-top:2px">'+_mttsUserDisp(t.approvedBy||'—')+'</div><div style="font-size:10px;color:var(--text3)">'+(t.approvedAt?t.approvedAt.slice(0,10)+' '+t.approvedAt.slice(11,16):'—')+'</div></div>':'')+
+      '</div>'+
       (t.rootCause?'<div style="font-size:11px;margin-top:6px;padding:6px 10px;background:#fef3c7;border-left:3px solid #fbbf24;border-radius:0 6px 6px 0"><b>Root cause:</b> '+String(t.rootCause).replace(/</g,'&lt;')+'</div>':'')+
       ((t.costService||t.costSpares)?'<div style="font-size:12px;margin-top:6px;padding:6px 10px;background:#dcfce7;border-radius:6px"><b>Cost:</b> Service ₹'+(t.costService||0)+' · Spares ₹'+(t.costSpares||0)+' · Total ₹'+((t.costService||0)+(t.costSpares||0)).toFixed(2)+'</div>':'')+
-      photoBlock(t.photosRaise,'📷 Raise photos')+
-      photoBlock(t.closePhotos,'📷 Closure photos')+
-      photoBlock(t.invoicePhotos,'🧾 Invoice photos')+
       '<div style="margin-top:12px;font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Activity</div>'+
       '<div style="margin-top:6px">'+actHtml+'</div>'+
     '</div>'+
@@ -1402,9 +1871,10 @@ function _mttsDashboardRender(){
 
   body.innerHTML=
     _mttsDashTiles(tickets)+
-    _mttsDashPlantTable(tickets)+
-    _mttsDashTrend(tickets,win)+
     _mttsDashTechLoad(tickets)+
+    _mttsDashPlantTable(tickets)+
+    _mttsDashTicketTable(tickets)+
+    _mttsDashTrend(tickets,win)+
     _mttsDashCosts(tickets)+
     _mttsDashUpkeep(assets);
 }
@@ -1421,12 +1891,23 @@ function _mttsDashWindow(period){
 
 function _mttsDashTiles(tickets){
   var c={raised:tickets.length,open:0,inprog:0,awaitingApp:0,closed:0,scrapped:0};
+  // Priority breakdown — only counts tickets that are still in the
+  // active pipeline (open / in-progress / awaiting approval), not the
+  // ones already closed or scrapped.
+  var pri={High:0,Medium:0,Low:0,Unset:0};
   tickets.forEach(function(t){
     if(t.status==='open') c.open++;
     else if(t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency') c.inprog++;
     else if(t.status==='repair_done') c.awaitingApp++;
     else if(t.status==='closed') c.closed++;
     else if(t.status==='scrapped') c.scrapped++;
+    var isActive=(t.status!=='closed'&&t.status!=='scrapped');
+    if(isActive){
+      var asset=byId(DB.mttsAssets||[],t.assetCode);
+      var p=asset&&asset.criticality?asset.criticality:'Unset';
+      if(pri[p]==null) p='Unset';
+      pri[p]++;
+    }
   });
   var totalCost=0;
   tickets.forEach(function(t){if(t.status==='closed') totalCost+=(+t.costService||0)+(+t.costSpares||0);});
@@ -1435,6 +1916,17 @@ function _mttsDashTiles(tickets){
       '<div style="font-size:11px;font-weight:800;color:'+clr+';text-transform:uppercase;letter-spacing:0.5px">'+lbl+'</div>'+
       '<div style="font-size:24px;font-weight:900;color:var(--text);margin-top:2px">'+val+'</div></div>';
   };
+  // Compact priority chip strip — sits beside the top-line tiles so the
+  // open vs. priority breakdown is visible at a glance.
+  var priTile='<div style="flex:1;min-width:200px;padding:10px 14px;background:#fff;border:1px solid var(--border);border-radius:8px">'+
+    '<div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Active by Priority</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca"><span style="font-size:10px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.5px">High</span><b style="font-size:16px;color:#7f1d1d">'+pri.High+'</b></span>'+
+      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a"><span style="font-size:10px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.5px">Medium</span><b style="font-size:16px;color:#78350f">'+pri.Medium+'</b></span>'+
+      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0"><span style="font-size:10px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.5px">Low</span><b style="font-size:16px;color:#14532d">'+pri.Low+'</b></span>'+
+      (pri.Unset?'<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#f8fafc;border:1px solid var(--border)"><span style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Unset</span><b style="font-size:16px;color:var(--text2)">'+pri.Unset+'</b></span>':'')+
+    '</div>'+
+  '</div>';
   return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
     tile('Raised',c.raised,'#0ea5e9','#f0f9ff')+
     tile('Open',c.open,'#dc2626','#fef2f2')+
@@ -1443,7 +1935,49 @@ function _mttsDashTiles(tickets){
     tile('Closed',c.closed,'#64748b','#f8fafc')+
     tile('Scrapped',c.scrapped,'#7f1d1d','#fef2f2')+
     tile('Total Cost (₹)',totalCost.toLocaleString('en-IN',{maximumFractionDigits:0}),'#7c3aed','#faf5ff')+
+    priTile+
   '</div>';
+}
+
+function _mttsDashTicketTable(tickets){
+  if(!tickets||!tickets.length) return _mttsDashCard('Tickets in period','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No tickets in this period.</div>');
+  // Sort by raisedAt descending — newest first.
+  var rows=tickets.slice().sort(function(a,b){return String(b.raisedAt||'').localeCompare(String(a.raisedAt||''));});
+  var statusClr={open:'#0ea5e9',assigned:'#0ea5e9',awaiting_spares:'#f59e0b',awaiting_agency:'#f59e0b',repair_done:'#16a34a',closed:'#16a34a',scrapped:'#dc2626'};
+  var bdLbl=_MTTS_BREAKDOWN_LABEL||{};
+  var statusLbl=_MTTS_STATUS_LABEL||{};
+  var th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var rowsHtml=rows.map(function(t){
+    var asset=byId(DB.mttsAssets||[],t.assetCode);
+    var assetName=asset?asset.name:(t.assetCode||'(missing)');
+    var raised=t.raisedAt?(t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16)):'—';
+    var techs=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ')||'—';
+    var clr=statusClr[t.status]||'#64748b';
+    var stLbl=statusLbl[t.status]||t.status;
+    var bd=bdLbl[t.breakdownType]||t.breakdownType||'';
+    var idEsc=String(t.id||'').replace(/'/g,"\\'");
+    return '<tr onclick="_mttsTicketDetail(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+      '<td style="'+td+';font-family:var(--mono);font-size:11px;color:var(--text3)">'+raised+'</td>'+
+      '<td style="'+td+'">'+_mttsPlantBadge(t.plant)+'</td>'+
+      '<td style="'+td+';font-weight:700">'+String(assetName).replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+bd+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(t.raisedBy?_mttsUserDisp(t.raisedBy):'—')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+techs+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;background:'+clr+'18;color:'+clr+';text-transform:uppercase;letter-spacing:.3px">'+stLbl+'</span></td>'+
+    '</tr>';
+  }).join('');
+  return _mttsDashCard('Tickets raised — '+rows.length,
+    '<div style="overflow:auto;max-height:420px"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+      '<th style="'+th+'">Raised</th>'+
+      '<th style="'+th+'">Plant</th>'+
+      '<th style="'+th+'">Asset</th>'+
+      '<th style="'+th+'">Breakdown</th>'+
+      '<th style="'+th+'">Raised by</th>'+
+      '<th style="'+th+'">Assigned to</th>'+
+      '<th style="'+th+'">Status</th>'+
+    '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+  );
 }
 
 function _mttsDashPlantTable(tickets){
@@ -1533,36 +2067,78 @@ function _mttsDashTrend(tickets,win){
 }
 
 function _mttsDashTechLoad(tickets){
-  // Technician = each user.id/name listed in any t.assignedTo.
+  // Group every ticket by each technician it's assigned to. A ticket
+  // assigned to multiple technicians appears under each one (with a
+  // "Shared" tag) so each card shows that tech's full plate.
   var byTech={};
   tickets.forEach(function(t){
-    (t.assignedTo||[]).forEach(function(u){
+    var assignees=t.assignedTo||[];
+    assignees.forEach(function(u){
       if(!u) return;
-      if(!byTech[u]) byTech[u]={open:0,closed:0,total:0};
-      byTech[u].total++;
-      if(t.status==='closed') byTech[u].closed++;
-      else if(t.status!=='scrapped') byTech[u].open++;
+      if(!byTech[u]) byTech[u]={open:[],closed:[]};
+      var bucket=(t.status==='closed'||t.status==='scrapped')?'closed':'open';
+      byTech[u][bucket].push(t);
     });
   });
-  var keys=Object.keys(byTech).sort(function(a,b){return byTech[b].open-byTech[a].open;});
-  if(!keys.length) return _mttsDashCard('Technician load','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No allocated tickets in this period.</div>');
-  var th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left';
-  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var rowsHtml=keys.map(function(k){
+  var keys=Object.keys(byTech).sort(function(a,b){
+    var ad=(byTech[a].open.length)-(byTech[b].open.length);
+    if(ad) return -ad;
+    return _mttsUserDisp(a).localeCompare(_mttsUserDisp(b));
+  });
+  if(!keys.length) return _mttsDashCard('Technician allocations','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No allocated tickets in this period.</div>');
+
+  var statusClr={open:'#0ea5e9',assigned:'#0ea5e9',awaiting_spares:'#f59e0b',awaiting_agency:'#f59e0b',repair_done:'#16a34a',closed:'#16a34a',scrapped:'#dc2626'};
+  var bdLbl=_MTTS_BREAKDOWN_LABEL||{};
+  var statusLbl=_MTTS_STATUS_LABEL||{};
+
+  var renderTicketRow=function(t){
+    var asset=byId(DB.mttsAssets||[],t.assetCode);
+    var assetName=asset?asset.name:(t.assetCode||'(missing)');
+    var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
+    var shared=(t.assignedTo||[]).length>1;
+    var sharedTag=shared?'<span title="Allocated to '+(t.assignedTo||[]).length+' technicians" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">Shared</span>':'';
+    var clr=statusClr[t.status]||'#64748b';
+    var stLbl=statusLbl[t.status]||t.status;
+    var bd=bdLbl[t.breakdownType]||t.breakdownType||'';
+    var idEsc=String(t.id||'').replace(/'/g,"\\'");
+    return '<div onclick="_mttsTicketDetail(\''+idEsc+'\')" style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:11px" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+      '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+clr+';flex-shrink:0;margin-top:5px"></span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:700;color:var(--text)">'+String(assetName).replace(/</g,'&lt;')+sharedTag+'</div>'+
+        '<div style="color:var(--text3);font-size:10px;margin-top:1px">'+_mttsPlantLabel(t.plant)+(bd?' · '+bd:'')+' · raised '+raised+'</div>'+
+      '</div>'+
+      '<span style="font-size:9px;font-weight:800;color:'+clr+';background:'+clr+'18;padding:2px 8px;border-radius:8px;flex-shrink:0;text-transform:uppercase;letter-spacing:.3px">'+stLbl+'</span>'+
+    '</div>';
+  };
+
+  var cardsHtml=keys.map(function(k){
     var c=byTech[k];
-    return '<tr><td style="'+td+';font-weight:700">'+_mttsUserDisp(k)+'</td>'+
-      '<td style="'+td+';text-align:right;color:#dc2626;font-weight:800">'+c.open+'</td>'+
-      '<td style="'+td+';text-align:right;color:#16a34a;font-weight:700">'+c.closed+'</td>'+
-      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+c.total+'</td>'+
-    '</tr>';
+    // Each technician: their tickets sorted by raisedAt desc (newest first).
+    // Open tickets come first, then a small "Closed" section underneath.
+    var sortByRaisedDesc=function(a,b){return String(b.raisedAt||'').localeCompare(String(a.raisedAt||''));};
+    var openTickets=c.open.slice().sort(sortByRaisedDesc);
+    var closedTickets=c.closed.slice().sort(sortByRaisedDesc);
+    var openHtml=openTickets.length?openTickets.map(renderTicketRow).join(''):'<div style="padding:8px;font-size:11px;color:var(--text3);font-style:italic;text-align:center">No open tickets</div>';
+    var closedHtml='';
+    if(closedTickets.length){
+      closedHtml='<div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:6px 8px 3px;background:#fafafa;border-top:1px solid var(--border)">Closed in period · '+closedTickets.length+'</div>'+
+        closedTickets.map(renderTicketRow).join('');
+    }
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)">'+
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(to right,rgba(42,154,160,.08),#fff);border-bottom:1px solid var(--border)">'+
+        '<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:13px;flex-shrink:0">'+(_mttsUserDisp(k)||'?').slice(0,1).toUpperCase()+'</span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:800;font-size:13px;color:var(--text)">'+_mttsUserDisp(k)+'</div>'+
+          '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+openTickets.length+' open · '+closedTickets.length+' closed in period</div>'+
+        '</div>'+
+        (openTickets.length?'<span style="font-family:var(--mono);font-size:14px;font-weight:800;color:#dc2626;background:#fee2e2;padding:3px 10px;border-radius:8px">'+openTickets.length+'</span>':'')+
+      '</div>'+
+      '<div style="max-height:240px;overflow-y:auto">'+openHtml+closedHtml+'</div>'+
+    '</div>';
   }).join('');
-  return _mttsDashCard('Technician load',
-    '<div style="overflow:auto;max-height:280px"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
-      '<th style="'+th+'">Technician</th>'+
-      '<th style="'+th+';text-align:right">Open / In Progress</th>'+
-      '<th style="'+th+';text-align:right">Closed</th>'+
-      '<th style="'+th+';text-align:right">Total</th>'+
-    '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+
+  return _mttsDashCard('Technician allocations',
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">'+cardsHtml+'</div>'
   );
 }
 
@@ -2241,15 +2817,8 @@ function _mttsPopulateAssetTypeOptions(){
     }).join('');
     sel.value=cur;
   }
-  // Raise-ticket asset-type filter
-  var rt=document.getElementById('mttsRaiseType');
-  if(rt){
-    var curR=rt.value;
-    rt.innerHTML='<option value="">— All —</option>'+types.map(function(t){
-      return '<option value="'+t.value+'">'+t.label+'</option>';
-    }).join('');
-    rt.value=curR;
-  }
+  // Raise-ticket asset-type chips — re-render so newly-added types appear.
+  if(document.getElementById('mttsRaiseTypeBtns')&&typeof _mttsRaiseRenderTypeBtns==='function') _mttsRaiseRenderTypeBtns();
 }
 
 // One-time legacy seed: populate from the historical hard-coded list when
@@ -2303,7 +2872,7 @@ function _mttsRenderAssetPrimaryNames(){
   var hideInactive=!!(document.getElementById('mttsAprimHideInactive')||{}).checked;
   var rows=(DB.mttsAssetPrimaryNames||[]).slice().filter(function(p){return p&&(!hideInactive||!p.inactive);});
   rows.sort(function(a,b){
-    var t=String(a.assetType||'').localeCompare(String(b.assetType||''));
+    var t=String(_mttsAssetTypeLabel(a.assetType)||'').localeCompare(String(_mttsAssetTypeLabel(b.assetType)||''));
     if(t) return t;
     return(a.name||'').localeCompare(b.name||'');
   });
@@ -2341,7 +2910,7 @@ function _mttsRenderAssetPrimaryNames(){
       : '<button disabled title="In use ('+aRef+' asset(s)) — cannot delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
     html+='<tr onclick="_mttsAprimOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-weight:600;color:var(--text2)">'+(p.assetType||'—')+'</td>'+
+      '<td style="'+td+';font-weight:600;color:var(--text2)">'+(p.assetType?_mttsAssetTypeLabel(p.assetType):'—')+'</td>'+
       '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
       '<td style="'+td+'">'+(p.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
@@ -2546,5 +3115,221 @@ async function _mttsSeedAssetPrimaryNamesIfEmpty(){
     try{await _dbSave('mttsAssetPrimaryNames',seed[i]);}catch(e){console.warn('seed primary name',e);}
   }
   console.log('mtts: seeded '+seed.length+' primary names from existing asset names');
+}
+
+
+// ═══ AGENCY / VENDOR MASTER ════════════════════════════════════════════════
+// External service vendors (electricals, fabricators, agencies). Each row
+// captures contact details + a multi-select list of primary asset names
+// the agency handles, so a manager allocating a job can find candidates.
+
+function _mttsRenderAgencies(){
+  var wrap=document.getElementById('mttsAgencyTableWrap');if(!wrap) return;
+  var hideInactive=!!(document.getElementById('mttsAgencyHideInactive')||{}).checked;
+  var searchEl=document.getElementById('mttsAgencySearch');
+  var search=String((searchEl&&searchEl.value)||'').toLowerCase().trim();
+  // Hide "+ Add" when the user can't edit.
+  var addBtn=document.getElementById('btnMttsAddAgency');
+  if(addBtn) addBtn.style.display=_mttsHasAccess('action.editAgency')?'':'none';
+
+  var rows=(DB.mttsAgencies||[]).slice().filter(function(a){return a&&(!hideInactive||!a.inactive);});
+  if(search){
+    rows=rows.filter(function(a){
+      var prims=(a.primaryNames||[]).join(' ');
+      var hay=(a.name||'')+' '+(a.contactName||'')+' '+(a.email||'')+' '+(a.contact1||'')+' '+(a.contact2||'')+' '+(a.address||'')+' '+prims;
+      return hay.toLowerCase().indexOf(search)>=0;
+    });
+  }
+  rows.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+
+  var sumEl=document.getElementById('mttsAgencySummary');
+  if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAgencies||[]).length+'</b> · Active: <b>'+(DB.mttsAgencies||[]).filter(function(a){return a&&!a.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
+  if(!rows.length){
+    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">'+(search?'No agencies match the search.':'No agencies yet. Click <b>+ Add Agency</b> to create one.')+'</div>';
+    return;
+  }
+  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Agency / Vendor</th>'+
+      '<th style="'+th+'">Contact</th>'+
+      '<th style="'+th+'">Email / Phone</th>'+
+      '<th style="'+th+'">Primary Names</th>'+
+      '<th style="'+th+'">Status</th>'+
+      '<th style="'+th+';text-align:center;width:100px">Actions</th>'+
+    '</tr></thead><tbody>';
+  var canEdit=_mttsHasAccess('action.editAgency');
+  rows.forEach(function(a,i){
+    var idEsc=String(a.id||'').replace(/'/g,"\\'");
+    var prims=(a.primaryNames||[]);
+    var primChips=prims.length?prims.map(function(p){return '<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;margin:1px 2px">'+String(p).replace(/</g,'&lt;')+'</span>';}).join(''):'<span style="color:var(--text3);font-style:italic">—</span>';
+    var phones=[a.contact1,a.contact2].filter(Boolean).join(' · ');
+    var deleteBtn=canEdit
+      ? '<button onclick="event.stopPropagation();_mttsAgencyDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
+      : '';
+    html+='<tr onclick="_mttsAgencyOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-weight:800">'+(a.name||'—')+
+        (a.address?'<div style="font-size:11px;color:var(--text3);font-weight:500;margin-top:2px">'+String(a.address).replace(/</g,'&lt;').replace(/\n/g,', ')+'</div>':'')+'</td>'+
+      '<td style="'+td+';font-size:13px">'+(a.contactName||'—')+'</td>'+
+      '<td style="'+td+';font-size:12px">'+
+        (a.email?'<div>📧 '+a.email+'</div>':'')+
+        (phones?'<div>📞 '+phones+'</div>':'')+
+        (!a.email&&!phones?'<span style="color:var(--text3)">—</span>':'')+'</td>'+
+      '<td style="'+td+'">'+primChips+'</td>'+
+      '<td style="'+td+'">'+(a.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+
+        (canEdit?'<button onclick="event.stopPropagation();_mttsAgencyOpen(\''+idEsc+'\')" title="Edit" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'<span style="color:var(--text3)">—</span>')+
+        deleteBtn+
+      '</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  wrap.innerHTML=html;
+}
+
+// Selected primary-name set carried across the modal lifecycle. Stored as
+// an array on the modal element so it survives re-renders of the list.
+function _mttsAgencyRefreshPrimList(){
+  var listEl=document.getElementById('mttsAgencyPrimList');if(!listEl) return;
+  var modal=document.getElementById('mMttsAgency');
+  var picked=(modal&&modal._mttsPrim)||[];
+  var filterEl=document.getElementById('mttsAgencyPrimFilter');
+  var filter=String((filterEl&&filterEl.value)||'').toLowerCase().trim();
+  var groups={};
+  (DB.mttsAssetPrimaryNames||[]).forEach(function(p){
+    if(!p||p.inactive) return;
+    if(filter&&String(p.name||'').toLowerCase().indexOf(filter)<0) return;
+    var t=p.assetType||'(Unspecified)';
+    if(!groups[t]) groups[t]=[];
+    groups[t].push(p);
+  });
+  var keys=Object.keys(groups).sort();
+  if(!keys.length){
+    listEl.innerHTML='<div style="padding:10px;font-size:11px;color:var(--text3)">No primary names match.</div>';
+  } else {
+    listEl.innerHTML=keys.map(function(t){
+      var items=groups[t].sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+      return '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:6px 8px 3px">'+t+'</div>'+
+        items.map(function(p){
+          var checked=picked.indexOf(p.id)>=0?'checked':'';
+          var idAttr=String(p.id||'').replace(/"/g,'&quot;');
+          return '<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px"><input type="checkbox" class="mtts-agency-prim-cb" data-pid="'+idAttr+'" onchange="_mttsAgencyTogglePrim(this)" '+checked+' style="width:auto!important;height:auto!important;flex:0 0 auto;margin:0;cursor:pointer"><span>'+(p.name||p.id)+'</span></label>';
+        }).join('');
+    }).join('');
+  }
+  var selEl=document.getElementById('mttsAgencyPrimSel');
+  if(selEl) selEl.innerHTML='Selected: <b>'+picked.length+'</b>'+(picked.length?' — '+picked.map(function(x){return String(x).replace(/</g,'&lt;');}).join(', '):'');
+}
+function _mttsAgencyTogglePrim(cb){
+  var modal=document.getElementById('mMttsAgency');if(!modal) return;
+  if(!modal._mttsPrim) modal._mttsPrim=[];
+  var pid=cb.getAttribute('data-pid');
+  var idx=modal._mttsPrim.indexOf(pid);
+  if(cb.checked){if(idx<0) modal._mttsPrim.push(pid);}
+  else if(idx>=0){modal._mttsPrim.splice(idx,1);}
+  // Just refresh the summary line — no need to re-render the whole list.
+  var selEl=document.getElementById('mttsAgencyPrimSel');
+  if(selEl) selEl.innerHTML='Selected: <b>'+modal._mttsPrim.length+'</b>'+(modal._mttsPrim.length?' — '+modal._mttsPrim.map(function(x){return String(x).replace(/</g,'&lt;');}).join(', '):'');
+}
+
+function _mttsAgencyOpen(id){
+  if(!_mttsHasAccess('action.editAgency')&&id===''){notify('You do not have permission to add agencies',true);return;}
+  var a=id?(byId(DB.mttsAgencies||[],id)||null):null;
+  document.getElementById('mttsAgencyTitle').textContent=a?'🤝 Edit Agency':'🤝 Add Agency';
+  document.getElementById('mttsAgencyIdHidden').value=a?a.id:'';
+  document.getElementById('mttsAgencyName').value=a?(a.name||''):'';
+  document.getElementById('mttsAgencyAddress').value=a?(a.address||''):'';
+  document.getElementById('mttsAgencyContact').value=a?(a.contactName||''):'';
+  document.getElementById('mttsAgencyEmail').value=a?(a.email||''):'';
+  document.getElementById('mttsAgencyPhone1').value=a?(a.contact1||''):'';
+  document.getElementById('mttsAgencyPhone2').value=a?(a.contact2||''):'';
+  document.getElementById('mttsAgencyInactive').checked=!!(a&&a.inactive);
+  document.getElementById('mttsAgencyPrimFilter').value='';
+  var modal=document.getElementById('mMttsAgency');
+  modal._mttsPrim=(a&&Array.isArray(a.primaryNames))?a.primaryNames.slice():[];
+  _mttsAgencyRefreshPrimList();
+  var err=document.getElementById('mttsAgencyErr');if(err){err.style.display='none';err.textContent='';}
+  if(typeof om==='function') om('mMttsAgency'); else { document.getElementById('mMttsAgency').classList.add('open'); }
+  if(modal){
+    if(modal._mttsKeyHandler) modal.removeEventListener('keydown',modal._mttsKeyHandler);
+    modal._mttsKeyHandler=function(ev){
+      if(modal.style.display==='none'||!modal.classList.contains('open')) return;
+      if(ev.key==='Escape'){ev.preventDefault();cm('mMttsAgency');return;}
+      if(ev.key==='Enter'){
+        var tag=ev.target&&ev.target.tagName;
+        if(tag==='TEXTAREA') return;
+        ev.preventDefault();_mttsAgencySave();
+      }
+    };
+    modal.addEventListener('keydown',modal._mttsKeyHandler);
+  }
+  setTimeout(function(){
+    var first=document.getElementById('mttsAgencyName');
+    if(first&&typeof first.focus==='function') first.focus();
+  },50);
+}
+
+async function _mttsAgencySave(){
+  if(!_mttsHasAccess('action.editAgency')){notify('Access denied',true);return;}
+  var err=document.getElementById('mttsAgencyErr');
+  var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
+  var _t=function(elId){var el=document.getElementById(elId);if(!el) return '';var v=String(el.value||'').replace(/^[\s ]+|[\s ]+$/g,'');el.value=v;return v;};
+  var existingId=document.getElementById('mttsAgencyIdHidden').value;
+  var name=_t('mttsAgencyName');
+  var address=_t('mttsAgencyAddress');
+  var contactName=_t('mttsAgencyContact');
+  var email=_t('mttsAgencyEmail');
+  var contact1=_t('mttsAgencyPhone1');
+  var contact2=_t('mttsAgencyPhone2');
+  var inactive=document.getElementById('mttsAgencyInactive').checked;
+  var modal=document.getElementById('mMttsAgency');
+  var prims=(modal&&Array.isArray(modal._mttsPrim))?modal._mttsPrim.slice():[];
+  if(!name){_showErr('Agency name is required');return;}
+  // Name uniqueness (case-insensitive) across all agencies.
+  var nameKey=name.toLowerCase();
+  var dup=(DB.mttsAgencies||[]).find(function(x){
+    if(!x||x.id===existingId) return false;
+    return String(x.name||'').toLowerCase()===nameKey;
+  });
+  if(dup){_showErr('"'+name+'" already exists');return;}
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){_showErr('Email looks invalid');return;}
+  if(existingId){
+    var ag=byId(DB.mttsAgencies||[],existingId);
+    if(!ag){_showErr('Agency not found');return;}
+    var bak=Object.assign({},ag);
+    ag.name=name;ag.address=address;ag.contactName=contactName;ag.email=email;
+    ag.contact1=contact1;ag.contact2=contact2;ag.primaryNames=prims;ag.inactive=inactive;
+    var ok=await _dbSave('mttsAgencies',ag);
+    if(!ok){Object.assign(ag,bak);_showErr('Save failed');return;}
+    notify('✓ Agency updated');
+  } else {
+    var newAg={id:'ag'+uid(),name:name,address:address,contactName:contactName,email:email,
+      contact1:contact1,contact2:contact2,primaryNames:prims,inactive:inactive};
+    if(!DB.mttsAgencies) DB.mttsAgencies=[];
+    DB.mttsAgencies.push(newAg);
+    var ok2=await _dbSave('mttsAgencies',newAg);
+    if(!ok2){
+      DB.mttsAgencies=DB.mttsAgencies.filter(function(x){return x!==newAg;});
+      _showErr('Save failed');return;
+    }
+    notify('✓ Agency added');
+  }
+  cm('mMttsAgency');
+  _mttsRenderAgencies();
+}
+
+async function _mttsAgencyDeleteFromTable(id){
+  if(!_mttsHasAccess('action.editAgency')){notify('Access denied',true);return;}
+  var ag=byId(DB.mttsAgencies||[],id);if(!ag) return;
+  if(!confirm('Delete agency "'+(ag.name||ag.id)+'"? This cannot be undone.')) return;
+  var idx=(DB.mttsAgencies||[]).indexOf(ag);
+  var ok=await _dbDel('mttsAgencies',ag.id);
+  if(!ok){notify('Delete failed',true);return;}
+  if(idx>=0) DB.mttsAgencies.splice(idx,1);
+  notify('🗑 Agency deleted');
+  _mttsRenderAgencies();
 }
 
