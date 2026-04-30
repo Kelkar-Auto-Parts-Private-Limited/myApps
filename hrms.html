@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260430-V8">
+<meta name="app-build" content="260430-V50">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260430-V8">
+<link rel="stylesheet" href="css/hrms.css?v=260430-V50">
 </head>
 <body>
 
@@ -33,7 +33,7 @@
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
   <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
   <div class="nav-item" id="navMyApprovals" onclick="hrmsGo('pageHrmsMyApprovals')" style="display:none">✅ My Approvals <span id="cMyApprovals" style="margin-left:auto;font-size:11px;background:#f59e0b;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
-  <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')">🌳 Org Structure</div>
+  <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')">🌳 HR Organisation Structure</div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
@@ -198,7 +198,7 @@
     <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div style="font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px">
-          🌳 Org Structure
+          🌳 HR Organisation Structure
         </div>
       </div>
       <div id="hrmsOrgSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
@@ -403,8 +403,7 @@
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">ESSL Data</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Alterations</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Attendance</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('coff')" id="hrmsSetTabCoff" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">C-Off Requests</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('altreq')" id="hrmsSetTabAltreq" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Alteration Requests</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('coffalt')" id="hrmsSetTabCoffalt" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">C-Off &amp; Alteration Requests</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Advances</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">TDS</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Salary Revisions</div>
@@ -542,14 +541,9 @@
         <div id="hrmsManualPList" style="max-height:calc(100vh - 280px);overflow-y:auto"></div>
       </div>
 
-      <!-- Sub-tab: C-Off Requests -->
-      <div id="hrmsSetPanelCoff" style="display:none">
-        <div id="hrmsAttTabCoff"></div>
-      </div>
-
-      <!-- Sub-tab: Alteration Requests -->
-      <div id="hrmsSetPanelAltreq" style="display:none">
-        <div id="hrmsAltReqTabBody"></div>
+      <!-- Sub-tab: C-Off & Alteration Requests (combined view) -->
+      <div id="hrmsSetPanelCoffalt" style="display:none">
+        <div id="hrmsCoffAltReqBody"></div>
       </div>
 
       <!-- Sub-tab: Statutory -->
@@ -884,11 +878,11 @@
   <div style="display:flex;gap:8px">
     <div class="form-group" style="flex:1">
       <label>IN (HH:MM, 24h)</label>
-      <input id="altReqIn" type="text" inputmode="numeric" maxlength="5" placeholder="09:00" pattern="^([01]\d|2[0-3]):[0-5]\d$">
+      <input id="altReqIn" type="text" inputmode="numeric" maxlength="5" placeholder="09:00 (or 9, 900, 0900)" onblur="_hrmsFmtTimeInput(this)">
     </div>
     <div class="form-group" style="flex:1">
       <label>OUT (HH:MM, 24h)</label>
-      <input id="altReqOut" type="text" inputmode="numeric" maxlength="5" placeholder="18:00" pattern="^([01]\d|2[0-3]):[0-5]\d$">
+      <input id="altReqOut" type="text" inputmode="numeric" maxlength="5" placeholder="18:00 (or 18, 1800)" onblur="_hrmsFmtTimeInput(this)">
     </div>
   </div>
   <div class="form-group">
@@ -963,8 +957,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260430-V8"></script>
-<script src="js/hrms-logic.js?v=260430-V8"></script>
-<script src="js/hrms-ui.js?v=260430-V8"></script>
+<script src="js/common.js?v=260430-V50"></script>
+<script src="js/hrms-logic.js?v=260430-V50"></script>
+<script src="js/hrms-ui.js?v=260430-V50"></script>
 </body>
 </html>

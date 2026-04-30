@@ -154,7 +154,7 @@ var _hrmsPageTitles={
   pageHrmsAttSal:'Attendance & Salary',
   pageHrmsMyAtt:'My Attendance',
   pageHrmsMyApprovals:'My Approvals',
-  pageHrmsOrgStructure:'Org Structure',
+  pageHrmsOrgStructure:'HR Organisation Structure',
   pageHrmsAttRules:'Attendance Rules',
   pageHrmsMCompany:'Masters — Plant',
   pageHrmsMCategory:'Masters — Category',
@@ -1364,8 +1364,13 @@ function _hrmsShowAge(){
 // ═══ PERIOD-BASED ORG/SALARY TRACKING ═══════════════════════════════════
 var _hrmsEmpPeriods=[];// current employee's periods array
 var _hrmsActivePeriodIdx=0;
-var _PERIOD_FIELDS=['location','department','subDepartment','designation','employmentType','teamName','category','roll','reportingTo','salaryDay','salaryMonth','specialAllowance','esiApplicable','status','dateOfLeft'];
-var _PERIOD_FORM_MAP={location:'hrmsEmpLocation',department:'hrmsEmpDept',subDepartment:'hrmsEmpSubDept',designation:'hrmsEmpDesig',employmentType:'hrmsEmpType',teamName:'hrmsEmpTeam',category:'hrmsEmpCategory',roll:'hrmsEmpRoll',reportingTo:'hrmsEmpReporting',salaryDay:'hrmsEmpSalDay',salaryMonth:'hrmsEmpSalMonth',specialAllowance:'hrmsEmpSpAllow',status:'hrmsEmpStatus',dateOfLeft:'hrmsEmpDOL'};
+// reportingTo is owned by the Org Structure page (edits via _hrmsOrgEditSave)
+// — NOT part of the ECR period sync. Including it here would let an
+// approved ECR overwrite the org-tree link, since the new period was
+// stamped with the prev period's reportingTo at creation and never
+// updated after. Keep it strictly flat so org-structure changes survive.
+var _PERIOD_FIELDS=['location','department','subDepartment','designation','employmentType','teamName','category','roll','salaryDay','salaryMonth','specialAllowance','esiApplicable','status','dateOfLeft'];
+var _PERIOD_FORM_MAP={location:'hrmsEmpLocation',department:'hrmsEmpDept',subDepartment:'hrmsEmpSubDept',designation:'hrmsEmpDesig',employmentType:'hrmsEmpType',teamName:'hrmsEmpTeam',category:'hrmsEmpCategory',roll:'hrmsEmpRoll',salaryDay:'hrmsEmpSalDay',salaryMonth:'hrmsEmpSalMonth',specialAllowance:'hrmsEmpSpAllow',status:'hrmsEmpStatus',dateOfLeft:'hrmsEmpDOL'};
 
 // _hrmsMonthLabel is in hrms-logic.js
 // _hrmsCurMonth is in hrms-logic.js
@@ -1740,7 +1745,7 @@ function _hrmsSavePeriodToMemory(){
 }
 
 // ═══ CHANGE REQUEST APPROVAL PAGE ═══════════════════════════════════════
-var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Dept-Staff',designation:'Designation',roll:'Role',reportingTo:'Reporting To',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
+var _PERIOD_LABELS={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',subDepartment:'Dept-Staff',designation:'Designation',roll:'Role',salaryDay:'Sal/Day',salaryMonth:'Sal/Month',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
 function _hrmsUpdateChangeReqBadge(){
   var count=0;
   (DB.hrmsEmployees||[]).forEach(function(e){(e.periods||[]).forEach(function(p){if(p._wfStatus==='proposed')count++;});});
@@ -3345,6 +3350,10 @@ async function saveHrmsEmp(){
   // Invalidate contract salary cache so revised salary/ESI/period data shows on next render
   if(typeof _hrmsContractCache!=='undefined') _hrmsContractCache={};
   renderHrmsEmployees();renderHrmsDashboard();_hrmsUpdateChangeReqBadge();
+  // Re-render the org chart too — department / role / reporting changes
+  // may shift the tree shape, and the chart wasn't being refreshed in the
+  // post-save flow before.
+  if(typeof _hrmsOrgRender==='function') _hrmsOrgRender();
   // Re-render the active HRMS tab so changes (salary revisions, ESI, etc.) reflect immediately
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
   // If the Daily Attendance Summary is loaded, re-render it so live edits to
@@ -9217,14 +9226,20 @@ var _hrmsSettingsApplyAll=false;
 // ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
 var _hrmsActiveSettingsTab='calendar';
 function _hrmsSettingsSubTab(tab){
-  // Permission check for settings sub-tabs
-  var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',coff:'att.coff',altreq:'att.altApprove',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
-  if(_setTabPerm[tab]&&!_hrmsHasAccess(_setTabPerm[tab])){notify('Access denied',true);return;}
+  // Permission check for settings sub-tabs. The merged "coffalt" tab is
+  // gated by either att.coff OR att.altApprove — admins who can see
+  // either request type can see the combined view.
+  var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',coffalt:'att.coff',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
+  if(tab==='coffalt'){
+    if(!(_hrmsHasAccess('att.coff')||_hrmsHasAccess('att.altApprove'))){notify('Access denied',true);return;}
+  } else if(_setTabPerm[tab]&&!_hrmsHasAccess(_setTabPerm[tab])){
+    notify('Access denied',true);return;
+  }
   _hrmsActiveSettingsTab=tab;
-  ['calendar','esslatt','altimport','alteration','advances','manual','coff','altreq','tds','salrevision','contractrev','otrules','statutory'].forEach(function(t){
+  ['calendar','esslatt','altimport','alteration','advances','manual','coffalt','tds','salrevision','contractrev','otrules','statutory'].forEach(function(t){
     var panel=document.getElementById('hrmsSetPanel'+t.charAt(0).toUpperCase()+t.slice(1));
     var btn=document.getElementById('hrmsSetTab'+t.charAt(0).toUpperCase()+t.slice(1));
-    var allowed=_hrmsHasAccess(_setTabPerm[t]);
+    var allowed=(t==='coffalt')?(_hrmsHasAccess('att.coff')||_hrmsHasAccess('att.altApprove')):_hrmsHasAccess(_setTabPerm[t]);
     if(panel) panel.style.display=t===tab?'':'none';
     if(btn){btn.style.display=allowed?'':'none';btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
   });
@@ -9242,8 +9257,7 @@ function _hrmsSettingsSubTab(tab){
   if(tab==='contractrev') _hrmsSalImpRenderPreview('contract');
   if(tab==='tds') _hrmsTdsRender();
   if(tab==='advances') _hrmsRenderAdvances();
-  if(tab==='coff'&&_hrmsAttSelectedMonth){var _cp=_hrmsAttSelectedMonth.split('-');_hrmsRenderCoffTakenTab(+_cp[0],+_cp[1]);}
-  if(tab==='altreq'&&_hrmsAttSelectedMonth){var _ap=_hrmsAttSelectedMonth.split('-');_hrmsRenderAltReqTab(+_ap[0],+_ap[1]);}
+  if(tab==='coffalt') _hrmsRenderCoffAltReqTab();
 }
 
 
@@ -14241,8 +14255,16 @@ function _hrmsLoggedInEmp(){
 // Used by alteration / C-Off approve flows to bypass the multi-level chain
 // and finalise immediately, regardless of where the request currently sits.
 function _hrmsIsSuperAdmin(){
-  if(typeof CU==='undefined'||!CU||!CU.roles) return false;
-  return CU.roles.indexOf('Super Admin')>=0;
+  if(typeof CU==='undefined'||!CU) return false;
+  // Honour both the system-level Super Admin role and the HRMS-module
+  // Super Admin role. Without the hrmsRoles check, a user assigned only
+  // the HRMS Super Admin role (no system-level Super Admin) was treated
+  // as a regular user — couldn't see other people's pending or system-
+  // wide approval history in My Approvals, even though they hold the
+  // top HRMS authority.
+  if((CU.roles||[]).indexOf('Super Admin')>=0) return true;
+  if((CU.hrmsRoles||[]).indexOf('Super Admin')>=0) return true;
+  return false;
 }
 
 // Heuristic — true when a string looks like an internal HRMS row id (the
@@ -14458,18 +14480,21 @@ function _hrmsRenderApprovalChainHTML(req,opts){
 function _hrmsMyAttInit(){
   // Populate year dropdown — financial year (Apr-Mar). Value stored is the
   // FY-start year (e.g. value='2026' = FY 2026-27 = Apr 2026 to Mar 2027).
+  // Real attendance data starts Jan-2026 (= FY 2025-26), so we cap the
+  // oldest FY at 2025; anything earlier would render an empty calendar.
   var yEl=document.getElementById('hrmsMyAttYear');if(!yEl) return;
   if(!yEl.options.length){
     var now=new Date();
     var curFY=(now.getMonth()>=3?now.getFullYear():now.getFullYear()-1);// Apr-onwards = current calendar year
+    var MIN_FY=2025;
     var opts='';
-    for(var y=curFY;y>=curFY-4;y--){
+    for(var y=curFY;y>=MIN_FY;y--){
       var lbl='FY '+y+'-'+String(y+1).slice(-2);
       opts+='<option value="'+y+'">'+lbl+'</option>';
     }
     yEl.innerHTML=opts;
-    yEl.value=String(curFY);
-    _hrmsMyAttState.year=curFY;
+    yEl.value=String(Math.max(curFY,MIN_FY));
+    _hrmsMyAttState.year=Math.max(curFY,MIN_FY);
   }
   // Hide dropdown when clicking outside.
   if(!window._hrmsMyAttDocBound){
@@ -14513,14 +14538,18 @@ function _hrmsMyAttShowEmpDropdown(){
   var q=(inp.value||'').toLowerCase().trim();
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
     if(e._isNewEcr) return false;
-    // On-roll staff only — contract / piece-rate / visitor employees and
-    // worker-category records are excluded from the My Attendance search.
+    // Active on-roll Staff only — contract / piece-rate / visitor records,
+    // worker-category records, and any inactive / resigned period are
+    // excluded from the My Attendance search. Mirrors _hrmsOrgIsStaff.
     if((e.category||'').toLowerCase()!=='staff') return false;
     var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
     if(et!=='onroll') return false;
+    if((e.status||'Active')!=='Active') return false;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    if(ap&&(ap.status||'Active')!=='Active') return false;
     if(!q) return true;
     return((e.empCode||'')+' '+(e.name||'')).toLowerCase().indexOf(q)>=0;
-  }).sort(function(a,b){return(a.empCode||'').localeCompare(b.empCode||'');}).slice(0,50);
+  }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');}).slice(0,50);
   if(!emps.length){dd.innerHTML='<div style="padding:10px 12px;color:var(--text3);font-size:12px">No matches</div>';}
   else {
     dd.innerHTML=emps.map(function(e){
@@ -14701,6 +14730,9 @@ async function _hrmsMyAttRender(){
     {y:st.year,m:12},{y:st.year,m:11},{y:st.year,m:10},{y:st.year,m:9},
     {y:st.year,m:8},{y:st.year,m:7},{y:st.year,m:6},{y:st.year,m:5},{y:st.year,m:4}
   ].filter(function(fm){
+    // Earliest available data is Jan-2026 — months prior have no real
+    // attendance, so they're hidden even within the FY 2025-26 view.
+    if(fm.y*100+fm.m<202601) return false;
     if(fm.y<_todayY) return true;
     if(fm.y===_todayY&&fm.m<=_todayM) return true;
     return false;
@@ -14959,23 +14991,23 @@ async function _hrmsMyAttRender(){
             (bl.text?'<span style="font-size:12px;font-weight:900;color:'+bl.color+';padding:0 4px;border-radius:3px;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.06);line-height:1.3">'+bl.text+'</span>':'')+
           '</div>'+
           (function(){
-            // Pending/approved alteration request — show the REQUESTED
-            // IN/OUT and reason directly in the cell so the user sees
-            // exactly what they asked for without opening a popup.
-            // Suppressed if existing time / alteration / C-Off already
-            // occupies the slot.
-            if(ds.hasTime||ds.altered||ds.coffApplied) return '';
+            // Pending alteration request — show the REQUESTED IN/OUT and
+            // reason directly in the cell so the user sees exactly what
+            // they asked for without opening a popup. Visible on Absent,
+            // Earned Leave, Half-Day (P/2) etc.; suppressed only when the
+            // day is fully Present, an actual alteration is already
+            // written, or a C-Off claim already occupies the slot.
+            if(ds.altered||ds.coffApplied) return '';
+            if(ds.status==='P'&&ds.hasTime) return '';
             var _ardStr=mc.monthKey+'-'+String(ds.day).padStart(2,'0');
             var _arBank=(emp.extra&&emp.extra.altRequests)||[];
-            var _arLive=_arBank.filter(function(r){return r&&r.date===_ardStr&&(r.status==='pending'||r.status==='approved');})[0];
-            if(!_arLive) return '';
-            var _arClr=_arLive.status==='approved'?'#15803d':'#92400e';
-            var _arBg=_arLive.status==='approved'?'rgba(220,252,231,.85)':'rgba(254,243,199,.85)';
-            var _arBorder=_arLive.status==='approved'?'#86efac':'#fcd34d';
-            var _arReason=String(_arLive.reason||'').replace(/"/g,'&quot;');
-            return '<div style="margin-top:1px;background:'+_arBg+';border:1px dashed '+_arBorder+';border-radius:3px;padding:1px 3px">'+
-              '<div style="font-family:var(--mono);font-size:10px;color:'+_arClr+';font-weight:700;line-height:1.2">'+(_arLive['in']||'—')+'<br>'+(_arLive['out']||'—')+'</div>'+
-              (_arLive.reason?'<div title="'+_arReason+'" style="font-size:8px;font-weight:600;font-style:italic;color:'+_arClr+';line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+_arLive.reason+'</div>':'')+
+            var _arPending=_arBank.filter(function(r){return r&&r.date===_ardStr&&r.status==='pending';})[0];
+            if(!_arPending) return '';
+            var _arReason=String(_arPending.reason||'').replace(/"/g,'&quot;');
+            return '<div title="Pending alteration request" style="margin-top:1px;background:rgba(254,243,199,.85);border:1px dashed #fcd34d;border-radius:3px;padding:1px 3px">'+
+              '<div style="font-size:8px;font-weight:800;color:#92400e;letter-spacing:0.3px;line-height:1.1;text-transform:uppercase">⏳ Pending</div>'+
+              '<div style="font-family:var(--mono);font-size:10px;color:#92400e;font-weight:700;line-height:1.2">'+(_arPending['in']||'—')+'<br>'+(_arPending['out']||'—')+'</div>'+
+              (_arPending.reason?'<div title="'+_arReason+'" style="font-size:8px;font-weight:600;font-style:italic;color:#92400e;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+_arPending.reason+'</div>':'')+
             '</div>';
           })()+
           (ds.coffApplied
@@ -14988,13 +15020,32 @@ async function _hrmsMyAttRender(){
             :'')+
           (hasOt?'<div style="font-size:8px;font-weight:700;color:#7c3aed;line-height:1.2">'+(ds.ot?'OT '+_hrmsFmtOT(ds.ot):'')+(ds.otS&&ds.ot?' ':'')+(ds.otS?'OTS '+_hrmsFmtOT(ds.otS):'')+'</div>':'')+
           coffBadge+
-          // Alteration-request mini square — pinned to the bottom-right
-          // corner of the cell. Shown only when the user is NOT present
-          // (no IN/OUT, no manual alteration, no C-Off applied) and the
-          // month is unlocked. Pending/approved → status pill; rejected
-          // (and no live pending) → + button so the user can request again.
           (function(){
-            if(ds.hasTime||ds.altered||ds.coffApplied) return '';
+            // "Request Approved" green stamp — surfaces clearly when an
+            // alteration request was approved for this day OR a C-Off
+            // claim has been finalised (used). The cell's regular IN/OUT
+            // / C-Off cyan tag stays alongside; this label gives the user
+            // an unambiguous human-readable status that their submission
+            // went through.
+            var _dStrA=mc.monthKey+'-'+String(ds.day).padStart(2,'0');
+            var _altApproved=((emp.extra&&emp.extra.altRequests)||[]).some(function(r){
+              return r&&r.date===_dStrA&&r.status==='approved';
+            });
+            var _coffApproved=ds.coffApplied&&!ds.coffPending;
+            if(!_altApproved&&!_coffApproved) return '';
+            return '<div title="Request approved" style="margin-top:1px;font-size:8px;font-weight:800;color:#15803d;background:rgba(220,252,231,.9);border:1px solid #86efac;border-radius:3px;padding:1px 4px;line-height:1.2;letter-spacing:0.2px;text-transform:uppercase">✓ Request Approved</div>';
+          })()+
+          // Alteration-request mini square — pinned to the bottom-right
+          // corner of the cell. Suppressed only when the cell is FULL
+          // Present (status === 'P' with punches) or already covered by a
+          // manual alteration / C-Off claim. Otherwise allowed: Absent,
+          // Earned Leave (EL), Half-Day (P/2), Holiday with partial work,
+          // etc. — anywhere the user may legitimately want to fix punches.
+          // Pending/approved → status pill; rejected (and no live pending)
+          // → + button so the user can request again.
+          (function(){
+            if(ds.altered||ds.coffApplied) return '';
+            if(ds.status==='P'&&ds.hasTime) return '';
             if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mc.monthKey)) return '';
             // Alteration request feature is only meaningful from Jan-2026
             // onwards — earlier months pre-date the system rollout, so the
@@ -15135,6 +15186,14 @@ async function _hrmsMyAttRender(){
     var todayStr=(new Date()).toISOString().slice(0,10);
     var fyStart=st.year+'-04-01';
     var fyEnd=(st.year+1)+'-03-31';
+    // Disable bank actions when the user's CURRENT month is locked —
+    // every action button on this panel ultimately needs to write into
+    // the current month (Apply targets today's absent days, Revoke
+    // touches the existing claim's month, Remove deletes a stale
+    // entry). Once the salary for the current month is finalised, none
+    // of these are valid moves.
+    var _bankCurMk=(new Date()).getFullYear()+'-'+String((new Date()).getMonth()+1).padStart(2,'0');
+    var _bankLocked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(_bankCurMk);
     var sorted=coffBank.slice().sort(function(a,b){return(b.earnedDate||'').localeCompare(a.earnedDate||'');});
     // Filter to FY relevance.
     sorted=sorted.filter(function(c){
@@ -15169,8 +15228,24 @@ async function _hrmsMyAttRender(){
       var actionBtn='';
       var ecEsc=String(emp.id).replace(/'/g,"\\'");
       var dEsc=String(c.earnedDate).replace(/'/g,"\\'");
+      // Per-action lock rules — only Apply is gated, because only Apply
+      // writes into the CURRENT calendar month (a new pending claim and
+      // an alteration there). Revoke on a pending entry is safe even
+      // when the originally-targeted month is locked: pending claims
+      // never sync an hrmsAlterations row (that only happens at final
+      // approval), so revoking touches nothing inside the locked month
+      // — it just clears usedForDate on the bank entry. Remove on an
+      // expired entry is also a bank-only delete. So:
+      //   • Apply  → disabled iff current month is locked.
+      //   • Revoke → always enabled (lets the user free up a stuck
+      //              pending claim and re-apply to the current month).
+      //   • Remove → always enabled.
       if(st2==='available'){
-        actionBtn='<button onclick="_hrmsCoffApplyOpen(\''+ecEsc+'\',\''+dEsc+'\')" style="font-size:10px;padding:3px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:4px;cursor:pointer;width:100%;margin-top:4px">Apply →</button>';
+        if(_bankLocked){
+          actionBtn='<button disabled title="Current month is locked — apply disabled" style="font-size:10px;padding:3px 10px;font-weight:700;background:#e2e8f0;color:#94a3b8;border:1px solid #cbd5e1;border-radius:4px;cursor:not-allowed;width:100%;margin-top:4px">Apply →</button>';
+        } else {
+          actionBtn='<button onclick="_hrmsCoffApplyOpen(\''+ecEsc+'\',\''+dEsc+'\')" style="font-size:10px;padding:3px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:4px;cursor:pointer;width:100%;margin-top:4px">Apply →</button>';
+        }
       } else if(st2==='pending'){
         actionBtn='<button onclick="_hrmsCoffRevoke(\''+ecEsc+'\',\''+dEsc+'\')" style="font-size:10px;padding:3px 10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;width:100%;margin-top:4px">↺ Revoke</button>';
       } else if(st2==='expired'){
@@ -15220,6 +15295,7 @@ async function _hrmsMyAttRender(){
           '<span style="background:#7f1d1d;padding:2px 6px;border-radius:3px" title="Expired">'+expired+'</span>'+
         '</div>'+
       '</div>'+
+      (_bankLocked?'<div style="background:#fef3c7;color:#92400e;border-bottom:1px solid #fcd34d;padding:6px 10px;font-size:10px;font-weight:700;line-height:1.3">🔒 Current month ('+_bankCurMk+') is locked — bank actions disabled.</div>':'')+
       '<div style="background:#fff;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;max-height:560px;overflow:auto">'+
         rowsHtml+
       '</div>';
@@ -15317,6 +15393,15 @@ async function _hrmsCoffClaim(empId,dateStr,source){
   if(!emp){notify('Employee not found',true);return;}
   var isStaff=(emp.category||'').toLowerCase()==='staff'&&(emp.employmentType||'').toLowerCase()!=='contract';
   if(!isStaff){notify('C-Off is available only for Staff category employees',true);return;}
+  // Window guard — C-Off can be claimed only for a worked day in the
+  // current month or next month, and only while that month is unlocked.
+  var _earnedMk=(dateStr||'').slice(0,7);
+  if(!_hrmsCanRequestForMonth(_earnedMk)){
+    var _wC=_hrmsRequestWindow();
+    var _lockedC=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(_earnedMk);
+    notify(_lockedC?('⚠ '+_earnedMk+' is locked. C-Off claim not allowed.'):('⚠ C-Off can be claimed only for '+_wC.curMk+' or '+_wC.nextMk+'.'),true);
+    return;
+  }
   emp.extra=emp.extra||{};
   emp.extra.coffBank=emp.extra.coffBank||[];
   var existing=emp.extra.coffBank.find(function(c){return c&&c.earnedDate===dateStr;});
@@ -15665,6 +15750,7 @@ async function _hrmsCoffReject(empId,earnedDate){
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp) return;
   var entry=((emp.extra&&emp.extra.coffBank)||[]).find(function(c){return c&&c.earnedDate===earnedDate;});
   if(!entry||entry.status!=='pending'){notify('Not a pending C-Off',true);return;}
+  if(_hrmsIsMyOwnRequest(entry)){notify('⚠ You cannot reject your own C-Off request',true);return;}
   // Authorise — current chain step OR admin override.
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=entry.approvalChain||[];
@@ -15967,14 +16053,73 @@ async function _hrmsRenderCoffTakenTab(yr,mo){
 // and My Attendance calendar reflect the corrected times. The synthetic
 // alteration is read-only — only revoke-approval can remove it.
 
+// Lenient HH:MM parser for the alteration-request inputs. Accepts any of
+// the user-friendly shorthands typed in the IN / OUT boxes:
+//   "9"       → "09:00"
+//   "09"      → "09:00"
+//   "900"     → "09:00"   (3 digits = HMM)
+//   "0900"    → "09:00"   (4 digits = HHMM)
+//   "9:00", "09:00", "9:5" → also handled (digits stripped, then padded)
+//   "17:30", "1730"        → "17:30"
+// Returns the canonical "HH:MM" form or null when the input can't be made
+// to fit a valid 24-hour time.
+function _hrmsParseTimeFlex(v){
+  var s=String(v||'').trim();
+  if(!s) return null;
+  var d=s.replace(/\D/g,'');
+  if(!d) return null;
+  var h,mn;
+  if(d.length===1){h=+d;mn=0;}
+  else if(d.length===2){h=+d;mn=0;}
+  else if(d.length===3){h=+d.slice(0,1);mn=+d.slice(1);}
+  else if(d.length===4){h=+d.slice(0,2);mn=+d.slice(2);}
+  else return null;
+  if(h<0||h>23||mn<0||mn>59) return null;
+  return String(h).padStart(2,'0')+':'+String(mn).padStart(2,'0');
+}
+
+// Wired as onblur on the alteration-request IN/OUT inputs — rewrites the
+// field with the canonical HH:MM form when the user has typed a valid
+// shorthand, leaves it untouched (so the existing pattern check can fire)
+// otherwise.
+function _hrmsFmtTimeInput(el){
+  if(!el) return;
+  var t=_hrmsParseTimeFlex(el.value);
+  if(t) el.value=t;
+}
+
+// Window of months in which a user is allowed to file a C-Off claim or
+// alteration request. Returns the canonical { curMk, nextMk } pair so
+// callers can also use them to compose error messages. Per policy: only
+// the current calendar month and the next calendar month — and only when
+// that month is not yet locked.
+function _hrmsRequestWindow(){
+  var now=new Date();
+  var curMk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  var nm=new Date(now.getFullYear(),now.getMonth()+1,1);
+  var nextMk=nm.getFullYear()+'-'+String(nm.getMonth()+1).padStart(2,'0');
+  return {curMk:curMk,nextMk:nextMk};
+}
+function _hrmsCanRequestForMonth(mk){
+  if(!mk||mk.length<7) return false;
+  var w=_hrmsRequestWindow();
+  if(mk!==w.curMk&&mk!==w.nextMk) return false;
+  if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)) return false;
+  return true;
+}
+
 function _hrmsAltReqOpen(empId,dateStr){
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp){notify('Employee not found',true);return;}
   var modal=document.getElementById('mAltReq');if(!modal) return;
-  // Lock guard — block requests for already-locked months.
   if(dateStr&&dateStr.length>=7){
     var mk=dateStr.slice(0,7);
     if(mk<'2026-01'){notify('⚠ Alteration requests are not available for months before Jan-2026 (no data).',true);return;}
-    if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)){notify('⚠ '+mk+' is locked. Alteration requests not allowed.',true);return;}
+    if(!_hrmsCanRequestForMonth(mk)){
+      var w=_hrmsRequestWindow();
+      var locked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk);
+      notify(locked?('⚠ '+mk+' is locked. Alteration requests not allowed.'):('⚠ Alteration requests are allowed only for '+w.curMk+' or '+w.nextMk+'.'),true);
+      return;
+    }
   }
   document.getElementById('altReqEmpId').value=empId;
   document.getElementById('altReqEditId').value='';
@@ -16003,15 +16148,10 @@ async function _hrmsAltReqSubmit(){
   var reason=(document.getElementById('altReqReason').value||'').trim();
   if(!date){_showErr('Date missing — close and click + on the day cell');return;}
   if(!ti||!to){_showErr('IN and OUT times are required');return;}
-  // Validate HH:MM 24-hour format. Accept "9:00" by zero-padding.
-  var _normTime=function(v){
-    var m=String(v||'').match(/^(\d{1,2}):(\d{1,2})$/);
-    if(!m) return null;
-    var h=+m[1],mn=+m[2];
-    if(h<0||h>23||mn<0||mn>59) return null;
-    return String(h).padStart(2,'0')+':'+String(mn).padStart(2,'0');
-  };
-  var tiN=_normTime(ti),toN=_normTime(to);
+  // Use the lenient parser — accepts HH:MM, HHMM, HMM, HH, H so the user
+  // can type "9", "900", "0900" etc. and we'll canonicalise to "09:00".
+  var tiN=(typeof _hrmsParseTimeFlex==='function')?_hrmsParseTimeFlex(ti):null;
+  var toN=(typeof _hrmsParseTimeFlex==='function')?_hrmsParseTimeFlex(to):null;
   if(!tiN){_showErr('IN time must be HH:MM (24h, e.g. 09:00)');return;}
   if(!toN){_showErr('OUT time must be HH:MM (24h, e.g. 18:00)');return;}
   // Cross-check: IN should be earlier than OUT (or wrap to next day, but
@@ -16022,7 +16162,12 @@ async function _hrmsAltReqSubmit(){
   if(!reason){_showErr('Reason is required');return;}
   var mk=date.slice(0,7);
   if(mk<'2026-01'){_showErr('Alteration requests are not available for months before Jan-2026 (no data).');return;}
-  if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)){_showErr(mk+' is locked — request not allowed');return;}
+  if(!_hrmsCanRequestForMonth(mk)){
+    var _wA=_hrmsRequestWindow();
+    var _lockedA=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk);
+    _showErr(_lockedA?(mk+' is locked — request not allowed'):('Alteration requests are allowed only for '+_wA.curMk+' or '+_wA.nextMk+'.'));
+    return;
+  }
   emp.extra=emp.extra||{};
   emp.extra.altRequests=emp.extra.altRequests||[];
   // Block duplicate pending/approved requests for the same date.
@@ -16120,6 +16265,7 @@ async function _hrmsAltReqApprove(empId,reqId){
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp) return;
   var req=((emp.extra&&emp.extra.altRequests)||[]).find(function(r){return r&&r.id===reqId;});
   if(!req||req.status!=='pending'){notify('Not a pending request',true);return;}
+  if(_hrmsIsMyOwnRequest(req)){notify('⚠ You cannot approve your own alteration request',true);return;}
   var mk=req.date.slice(0,7),dayKey=String(+req.date.slice(8,10));
   if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)){notify('⚠ '+mk+' is locked',true);return;}
   // Authorise — current chain step OR admin override.
@@ -16184,6 +16330,7 @@ async function _hrmsAltReqReject(empId,reqId){
   var emp=byId(DB.hrmsEmployees||[],empId);if(!emp) return;
   var req=((emp.extra&&emp.extra.altRequests)||[]).find(function(r){return r&&r.id===reqId;});
   if(!req||req.status!=='pending'){notify('Not a pending request',true);return;}
+  if(_hrmsIsMyOwnRequest(req)){notify('⚠ You cannot reject your own alteration request',true);return;}
   // Authorise — current chain step OR admin override.
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
   var chain=req.approvalChain||[];
@@ -16367,6 +16514,107 @@ function _hrmsRenderAltReqTab(yr,mo){
   el.innerHTML=html;
 }
 
+// Combined C-Off + Alteration Request listing for the Settings sub-tab.
+// Read-only view: every c-off claim and every alteration request across
+// the company, in one table, sorted most-recent action first. Action
+// buttons live on the dedicated My Approvals page now — this tab is for
+// historical / oversight reading only.
+function _hrmsRenderCoffAltReqTab(){
+  var el=document.getElementById('hrmsCoffAltReqBody');if(!el) return;
+  var rows=[];
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||!e.extra) return;
+    (e.extra.coffBank||[]).forEach(function(c){
+      if(!c) return;
+      // Skip pristine entries — c-offs that were earned but never claimed
+      // (no request, no approval, no rejection) aren't a "request" yet.
+      if(c.status==='available'&&!c.rejectedAt&&!c.requestedAt&&!c.usedAt) return;
+      var ts=c.usedAt||c.approvedAt||c.rejectedAt||c.requestedAt||c.earnedDate||'';
+      // Reject sets c-off status back to 'available' but stamps rejectedBy;
+      // we surface that as 'rejected' for clarity.
+      var st=c.rejectedBy?'rejected':(c.status||'available');
+      rows.push({
+        emp:e,type:'coff',entry:c,
+        subject:c.usedForDate||c.earnedDate||'—',
+        details:'Earned '+(c.earnedDate||'—')+' · '+(c.source==='PH'?'Paid Holiday':c.source==='WO'?'Weekly Off':(c.source||'—')),
+        status:st,
+        actedBy:c.usedBy||c.approvedBy||c.rejectedBy||'',
+        actedAt:c.usedAt||c.approvedAt||c.rejectedAt||'',
+        reason:c.rejectReason||'',
+        ts:ts
+      });
+    });
+    (e.extra.altRequests||[]).forEach(function(r){
+      if(!r) return;
+      var ts=r.approvedAt||r.rejectedAt||r.requestedAt||r.date||'';
+      rows.push({
+        emp:e,type:'alt',entry:r,
+        subject:r.date||'—',
+        details:(r.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch')+' · '+(r['in']||'—')+'–'+(r['out']||'—'),
+        status:r.status||'pending',
+        actedBy:r.approvedBy||r.rejectedBy||'',
+        actedAt:r.approvedAt||r.rejectedAt||'',
+        reason:r.rejectReason||r.reason||'',
+        ts:ts
+      });
+    });
+  });
+  rows.sort(function(a,b){return(b.ts||'').localeCompare(a.ts||'');});
+  if(!rows.length){el.innerHTML='<div class="empty-state" style="padding:30px 20px">No C-Off or Alteration requests yet.</div>';return;}
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var statusStyle=function(s){
+    if(s==='approved'||s==='used') return 'background:#dcfce7;color:#15803d;border:1px solid #86efac';
+    if(s==='rejected') return 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5';
+    if(s==='pending') return 'background:#fef3c7;color:#92400e;border:1px solid #fde68a';
+    return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+  };
+  var typeStyle=function(t){
+    if(t==='coff') return 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd';
+    return 'background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd';
+  };
+  var pendCount=rows.filter(function(x){return x.status==='pending';}).length;
+  var sumHtml='<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+
+    '<b>'+rows.length+'</b> entries · '+
+    '<span style="color:#92400e;font-weight:700">'+pendCount+' pending</span> · '+
+    'sorted most-recent first. Approve / Reject actions are now in <b>My Approvals</b>.'+
+  '</div>';
+  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 240px)">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Type</th>'+
+      '<th style="'+th+'">Employee</th>'+
+      '<th style="'+th+'">Subject</th>'+
+      '<th style="'+th+'">Details</th>'+
+      '<th style="'+th+'">Status</th>'+
+      '<th style="'+th+'">Reason</th>'+
+      '<th style="'+th+'">Submitted</th>'+
+      '<th style="'+th+'">Acted By</th>'+
+      '<th style="'+th+'">Acted At</th>'+
+      '<th style="'+th+'">Approval Chain</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var emp=r.emp,e=r.entry;
+    var actorName=r.actedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(r.actedBy):r.actedBy):'';
+    var requestedAt=e.requestedAt?e.requestedAt.slice(0,10):'—';
+    html+='<tr>'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;'+typeStyle(r.type)+'">'+(r.type==='coff'?'C-Off':'Alteration')+'</span></td>'+
+      '<td style="'+td+'"><div style="font-family:var(--mono);font-weight:800;color:var(--accent)">'+(emp.empCode||'')+'</div><div style="font-size:11px">'+(emp.name||'—')+'</div></td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(r.subject||'—')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(r.details||'—')+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;'+statusStyle(r.status)+'">'+r.status+'</span></td>'+
+      '<td style="'+td+';max-width:220px;font-size:11px;color:var(--text2)">'+String(r.reason||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+requestedAt+'</td>'+
+      '<td style="'+td+';font-size:11px">'+actorName+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+(r.actedAt?r.actedAt.slice(0,10):'—')+'</td>'+
+      '<td style="'+td+'">'+((typeof _hrmsRenderApprovalChainHTML==='function')?_hrmsRenderApprovalChainHTML(e,{compact:true}):'')+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=sumHtml+html;
+}
+
 // ═══ ORG STRUCTURE ═════════════════════════════════════════════════════════
 // Each staff employee carries `reportingTo` (existing column) for the direct
 // manager link and `extra.orgRole` for one of: hr_manager / plant_head /
@@ -16390,7 +16638,10 @@ function _hrmsOrgRoleOf(emp){
 
 function _hrmsOrgIsStaff(emp){
   if(!emp) return false;
-  if((emp.category||'').toLowerCase()!=='staff') return false;
+  // Trim + lowercase BOTH category and employment-type so trailing spaces
+  // ("Staff ") or capitalisation differences don't cause an active staff
+  // employee to vanish from the org tree after an edit.
+  if((emp.category||'').toLowerCase().trim()!=='staff') return false;
   // Org structure scope is on-roll staff only — contract / piece-rate /
   // visitor employees aren't part of the reporting hierarchy.
   var et=(emp.employmentType||'').toLowerCase().replace(/\s/g,'');
@@ -16398,9 +16649,9 @@ function _hrmsOrgIsStaff(emp){
   // Active gate: hide if EITHER the flat status OR the current active period
   // says Inactive/Resigned — matches the project-wide convention used by the
   // employee-list filter (avoids stale flat fields leaking resigned staff).
-  if((emp.status||'Active')!=='Active') return false;
+  if((emp.status||'Active').trim()!=='Active') return false;
   var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
-  if(ap&&(ap.status||'Active')!=='Active') return false;
+  if(ap&&(ap.status||'Active').trim()!=='Active') return false;
   return true;
 }
 
@@ -16651,8 +16902,12 @@ function _hrmsOrgRender(){
   // role pill, plant, edit), so reading is consistent.
   function nodeHtml(emp,depth){
     var role=_hrmsOrgRoleOf(emp);
-    var loc=byId(DB.locations||[],emp.location);
-    var locName=loc?(loc.name||emp.location):(emp.location||'');
+    // emp.location IS the plant name in HRMS (matches hrmsCompanies.name).
+    // Plant master colour comes from DB.hrmsCompanies via the existing
+    // _hrmsGetPlantColor helper — that's the same colour used in the
+    // employee list / muster, so the org chart stays visually consistent.
+    var locName=emp.location||'';
+    var plantClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(locName):'#e2e8f0';
     var children=(byMgr[emp.id]||[]).slice().sort(function(a,b){
       var ra=_ORG_ROLE_RANK[_hrmsOrgRoleOf(a)]||0,rb=_ORG_ROLE_RANK[_hrmsOrgRoleOf(b)]||0;
       if(ra!==rb) return rb-ra;
@@ -16665,11 +16920,10 @@ function _hrmsOrgRender(){
     var rBorder=roleBorder[role]||'#e2e8f0';
     var directReports=children.length?(' · <span style="color:'+rClr+';font-weight:700">'+children.length+' direct report'+(children.length===1?'':'s')+'</span>'):'';
     var editBtn=canEdit?'<button onclick="event.stopPropagation();_hrmsOrgEditOpen(\''+ecEsc+'\')" title="Edit role / reports-to" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'';
-    // Star marker: shown beside HR Manager (top of org tree) and beside
-    // any other top-level node where there's no continuous arrow line
-    // above it — i.e. tree roots without an incoming connector. Tells the
-    // reader at a glance "this person has no manager above them in the
-    // rendered chart".
+    // Star marker — shown beside HR Manager (top of org tree) and
+    // beside any orphan root (depth 0 with no rendered parent). Other
+    // cards get a Star at the left of the horizontal trunk bar
+    // connecting their row, not on the card itself.
     var isHrMgr=(role==='hr_manager');
     var isOrphanRoot=(depth===0&&!isHrMgr);
     var starBadge=(isHrMgr||isOrphanRoot)?
@@ -16685,10 +16939,14 @@ function _hrmsOrgRender(){
             starBadge+
             '<span style="font-size:13px;font-weight:800;color:var(--text)">'+dn+'</span>'+
             '<span style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:#fff;color:'+rClr+';border:1px solid '+rClr+'">'+(_ORG_ROLE_LABELS[role]||role)+'</span>'+
+            (locName?'<span title="Plant" style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:'+plantClr+';color:#1e293b;letter-spacing:0.3px;border:1px solid rgba(0,0,0,.08)">🏭 '+locName+'</span>':'')+
           '</div>'+
-          '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+
-            '<span style="font-family:var(--mono);font-weight:700;color:'+rClr+'">'+(emp.empCode||'')+'</span>'+
-            (locName?(' · 🏭 '+locName):'')+
+          '<div style="font-size:11px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
+            // Larger emp-code, clickable — opens the employee record popup
+            // via _hrmsOpenEmpByCode. Followed by the staff department
+            // (sub-department on the employee record), if assigned.
+            '<a href="javascript:void(0)" onclick="event.stopPropagation();_hrmsOpenEmpByCode(\''+String(emp.empCode||'').replace(/'/g,"\\'")+'\')" title="View employee" style="font-family:var(--mono);font-weight:800;color:'+rClr+';font-size:14px;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer">'+(emp.empCode||'')+'</a>'+
+            (emp.subDepartment?'<span title="Department" style="font-size:11px;font-weight:700;color:var(--text2)">· '+emp.subDepartment+'</span>':'')+
             directReports+
           '</div>'+
         '</div>'+
@@ -16697,9 +16955,9 @@ function _hrmsOrgRender(){
     var childrenHtml='';
     if(children.length){
       // Layout strategy:
-      //   • HR Manager → vertical trunk drop + horizontal bar + multi-
-      //     column grid of direct reports (typically plant heads). Each
-      //     column has its own arrow tip pointing into its child card.
+      //   • HR Manager → vertical drop + horizontal trunk bar + multi-
+      //     column grid of direct reports (typically plant heads), with
+      //     a ★ at the left end of the trunk bar.
       //   • Anywhere else → traditional vertical list with L-shaped
       //     connectors hooking each child back to the parent's trunk.
       var role=_hrmsOrgRoleOf(emp);
@@ -16709,18 +16967,55 @@ function _hrmsOrgRender(){
         var stubH=22;
         var trunkW=4;
         var arrowSize=8;
+        var COLS=3;// children per row — matches the existing visual
         childrenHtml='<div class="hrms-org-trunk-drop" style="display:flex;justify-content:center;margin-top:6px">'+
           '<div style="width:'+trunkW+'px;height:'+dropH+'px;background:'+trunkClr+';border-radius:2px"></div>'+
         '</div>';
-        childrenHtml+='<div class="hrms-org-children-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:'+(stubH+12)+'px 22px;padding-top:0;position:relative;max-width:1200px;width:100%">';
-        childrenHtml+='<div style="position:absolute;left:0;right:0;top:0;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></div>';
-        children.forEach(function(c){
-          childrenHtml+='<div class="hrms-org-col" style="display:flex;flex-direction:column;align-items:center;min-width:0;position:relative;padding-top:'+stubH+'px">'+
-            '<div style="position:absolute;left:50%;top:0;width:'+trunkW+'px;height:'+(stubH-arrowSize-2)+'px;background:'+trunkClr+';border-radius:2px;transform:translateX(-50%)"></div>'+
-            '<div style="position:absolute;left:50%;top:'+(stubH-arrowSize-2)+'px;width:0;height:0;border-left:'+arrowSize+'px solid transparent;border-right:'+arrowSize+'px solid transparent;border-top:'+(arrowSize+2)+'px solid '+trunkClr+';transform:translateX(-50%)"></div>'+
-            nodeHtml(c,depth+1)+
-          '</div>';
-        });
+        // Stack of row-grids. Each holds up to COLS children with its own
+        // horizontal trunk bar; a continuous vertical line on the LEFT
+        // (in the same trunk colour) joins each row's trunk bar to the
+        // next row's trunk bar, so every wrapped row of direct reports
+        // reads as one connected branch under the HR Manager.
+        childrenHtml+='<div style="display:flex;flex-direction:column;gap:'+(stubH+12)+'px;width:100%;max-width:1200px">';
+        var _rowCount=Math.ceil(children.length/COLS);
+        for(var _ci=0,_ri=0;_ci<children.length;_ci+=COLS,_ri++){
+          var _rowChildren=children.slice(_ci,_ci+COLS);
+          var _thisCols=_rowChildren.length;
+          var _isLastRow=(_ri===_rowCount-1);
+          childrenHtml+='<div class="hrms-org-row-grid" style="display:grid;grid-template-columns:repeat('+_thisCols+',minmax(0,1fr));gap:0 22px;padding-top:0;position:relative">';
+          // Horizontal trunk bar — ends exactly at the last column's drop
+          // centre. With column gap g and width W, drop_N is at
+          //   (1 - 0.5/N)·W + (N-1)·g / (2N)
+          // which means the right inset (W − drop_N) equals col_w/2 =
+          //   50/N %  −  (N-1)·g / (2N) px
+          // Subtracting the px term via calc() closes the small gap that
+          // a pure-percentage inset leaves between bar end and drop.
+          var _gapPx=22;
+          var _rightInset='calc('+(50/_thisCols)+'% - '+((_thisCols-1)*_gapPx/(2*_thisCols))+'px)';
+          childrenHtml+='<div style="position:absolute;left:0;right:'+_rightInset+';top:0;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></div>';
+          // Vertical connector line on the LEFT — runs from this row's
+          // trunk bar down through its body and through the gap below,
+          // ending at the top of the next row's trunk bar. Last row
+          // skips this since there's no next row to reach.
+          if(!_isLastRow){
+            childrenHtml+='<div style="position:absolute;left:-16px;top:0;bottom:-'+(stubH+12)+'px;width:'+trunkW+'px;background:'+trunkClr+';border-radius:2px"></div>';
+          }
+          // Short horizontal stub from the left vertical line into the
+          // start of this row's trunk bar — without it, the trunk bar
+          // floats free of the left rail. First row only needs this if
+          // there's a left rail at all; render it for every row that
+          // sits beside the rail (i.e. row 2+ for sure, and row 1 since
+          // its rail extends downward from there).
+          childrenHtml+='<div style="position:absolute;left:-16px;top:'+(trunkW/2)+'px;width:16px;height:'+trunkW+'px;background:'+trunkClr+';border-radius:2px;transform:translateY(-50%)"></div>';
+          _rowChildren.forEach(function(c){
+            childrenHtml+='<div class="hrms-org-col" style="display:flex;flex-direction:column;align-items:center;min-width:0;position:relative;padding-top:'+stubH+'px">'+
+              '<div style="position:absolute;left:50%;top:0;width:'+trunkW+'px;height:'+(stubH-arrowSize-2)+'px;background:'+trunkClr+';border-radius:2px;transform:translateX(-50%)"></div>'+
+              '<div style="position:absolute;left:50%;top:'+(stubH-arrowSize-2)+'px;width:0;height:0;border-left:'+arrowSize+'px solid transparent;border-right:'+arrowSize+'px solid transparent;border-top:'+(arrowSize+2)+'px solid '+trunkClr+';transform:translateX(-50%)"></div>'+
+              nodeHtml(c,depth+1)+
+            '</div>';
+          });
+          childrenHtml+='</div>';
+        }
         childrenHtml+='</div>';
       } else {
         childrenHtml='<div class="hrms-org-children" style="position:relative;margin-left:30px;padding-left:24px;padding-top:6px">';
@@ -17072,17 +17367,17 @@ function _hrmsCurStepIsSysSA(req){
   return (typeof _hrmsIsSystemSuperAdminEmp==='function')&&_hrmsIsSystemSuperAdminEmp(emp);
 }
 
-// Returns true if the current user can act on this request right now.
-// Rules:
-//   • Never act on your own submission (self-approval guard).
-//   • Super Admin can act on anything (system-level override).
-//   • HR Manager can act on anything EXCEPT requests whose current step is
-//     the system Super Admin — those (HR Manager submissions) require an
-//     actual Super Admin user.
-//   • Otherwise: must be the exact chain[level] employee.
+// Returns true if this pending request belongs in the user's queue.
+// Visibility-only — does NOT enforce self-approval (the action functions
+// _hrmsCoffApprove / _hrmsAltReqApprove / etc. reject self-approval at
+// their own gate). Rules:
+//   • Super Admin sees every pending request, including their own.
+//   • HR Manager sees every pending EXCEPT requests whose current step is
+//     the system Super Admin (HR Manager submissions — those need an
+//     actual Super Admin user to approve).
+//   • Other users: only when they are the chain[level] approver.
 function _hrmsMyApprovalsCanAct(req){
   if(!req||req.status!=='pending') return false;
-  if(_hrmsIsMyOwnRequest(req)) return false;
   if(_hrmsIsSuperAdmin()) return true;
   if(_hrmsIsHrManagerUser()){
     if(_hrmsCurStepIsSysSA(req)) return false;

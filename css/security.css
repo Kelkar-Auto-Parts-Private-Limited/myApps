@@ -156,8 +156,8 @@
   .filter-row input[type=text]{min-width:100px;width:auto}
   .action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:14px;transition:background .15s}.action-btn:hover{background:var(--surface2)}
   tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.06)!important}tr.clickable-row:active{background:rgba(42,154,160,.12)!important}
-  .notification{position:fixed;top:12px;left:50%;transform:translate(-50%,-120px);background:var(--green);color:#000;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:700;z-index:200000;opacity:0;pointer-events:none;transition:transform .3s,opacity .3s;max-width:80%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.25);white-space:pre-line}
-  .notification.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}.notification.error{background:var(--red);color:#fff;font-size:14px}
+  .notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);background:var(--red);color:#fff;padding:18px 36px;border-radius:12px;font-size:15px;font-weight:800;z-index:200000;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;max-width:88%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.35);white-space:pre-line;border:2px solid rgba(255,255,255,.15)}
+  .notification.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}.notification.error{background:var(--red);color:#fff;font-size:15px}
   .trip-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;transition:border-color .2s,box-shadow .2s}
   .trip-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
   .trip-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px}
@@ -339,7 +339,8 @@
     #pageDashboard .card-header .filter-row{width:100%}
 
     /* Notification */
-    .notification{top:8px;bottom:auto;left:50%;right:auto;text-align:center;transform:translate(-50%,-120px);z-index:200000;max-width:92%}
+    .notification{top:50%;bottom:auto;left:50%;right:auto;text-align:center;transform:translate(-50%,-50%) scale(.92);z-index:200000;max-width:92%}
+    .notification.show{transform:translate(-50%,-50%) scale(1)}
   }
 
   @media(min-width:769px) and (max-width:1024px){

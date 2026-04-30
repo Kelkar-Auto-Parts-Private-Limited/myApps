@@ -128,7 +128,12 @@ const SB_TABLES = {
   hrmsPrintFormats:'hrms_print_formats',
   hrmsSettings:'hrms_settings',
   hrmsAdvances:'hrms_advances',
-  hrmsMonthData:'hrms_month_data'
+  hrmsMonthData:'hrms_month_data',
+  mttsPlants:'mtts_plants',
+  mttsAssetTypes:'mtts_asset_types',
+  mttsAssetPrimaryNames:'mtts_asset_primary_names',
+  mttsAssets:'mtts_assets',
+  mttsTickets:'mtts_tickets'
 };
 
 // Initialize Supabase client — with CDN fallback + retry
@@ -210,7 +215,7 @@ function _hwmsNormContStatus(s){
 // ═══ SUPABASE ROW MAPPING ══════════════════════════════════════════════════
 function _toRow(tbl, rec) {
   const r = rec;
-  if(tbl==='users')        return {code:r.id,name:r.name||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],hrms_roles:r.hrmsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
+  if(tbl==='users')        return {code:r.id,name:r.name||'',full_name:r.fullName||'',mobile:r.mobile||'',email:r.email||'',roles:r.roles||[],hwms_roles:r.hwmsRoles||[],hrms_roles:r.hrmsRoles||[],mtts_roles:r.mttsRoles||[],plant:r.plant||'',apps:r.apps||[],photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='vehicleTypes') return {code:r.id,name:r.name||'',capacity:r.capacity||0,inactive:r.inactive||false};
   if(tbl==='vendors')      return {code:r.id,name:r.name||'',owner:r.owner||'',contact:r.contact||'',address:r.address||'',user_id:r.userId||'',inactive:r.inactive||false};
   if(tbl==='drivers')      return {code:r.id,name:r.name||'',mobile:r.mobile||'',vendor_id:r.vendorId||'',dl_expiry:r.dlExpiry||'',photo:r.photo||'',inactive:r.inactive||false};
@@ -280,13 +285,50 @@ function _toRow(tbl, rec) {
     ded_pt:r.dedPT||0,ded_pf:r.dedPF||0,ded_esi:r.dedESI||0,ded_adv:r.dedAdv||0,
     ded_tds:r.dedTDS||0,ded_other:r.dedOther||0,ded_total:r.dedTotal||0,
     net:r.net||0,meta:r.meta||{}};
+  if(tbl==='mttsPlants') return {
+    code:r.id,name:r.name||'',address:r.address||'',color:r.color||'',inactive:!!r.inactive
+  };
+  if(tbl==='mttsAssetTypes') return {
+    code:r.id,name:r.name||'',color:r.color||'',inactive:!!r.inactive
+  };
+  if(tbl==='mttsAssetPrimaryNames') return {
+    code:r.id,name:r.name||'',asset_type:r.assetType||'',color:r.color||'',inactive:!!r.inactive
+  };
+  if(tbl==='mttsAssets') return {
+    code:r.id,plant:r.plant||'',asset_type:r.assetType||'',
+    primary_name:r.primaryName||'',name_extension:r.nameExtension||'',
+    name:r.name||'',
+    description:r.description||'',serial_no:r.serialNo||'',
+    // Postgres date / timestamptz columns reject empty strings — coalesce
+    // to null so an unset field saves cleanly. Asset install_date defaults
+    // to 2020-01-01 (per spec) when neither persisted nor entered.
+    install_date:r.installDate||'2020-01-01',
+    make:r.make||'',model:r.model||'',
+    warranty:r.warranty||{},amc:r.amc||{},pm_schedule:r.pmSchedule||{},
+    spare_parts:r.spareParts||[],criticality:r.criticality||'Medium',
+    status:r.status||'Active',transfer_history:r.transferHistory||[]
+  };
+  if(tbl==='mttsTickets') return {
+    code:r.id,asset_code:r.assetCode||'',plant:r.plant||'',breakdown_type:r.breakdownType||'',
+    breakdown_since:r.breakdownSince||null,
+    status:r.status||'open',raised_by:r.raisedBy||'',
+    // timestamptz columns: null for unset values (empty string fails the
+    // Postgres parser).
+    raised_at:r.raisedAt||null,
+    photos_raise:r.photosRaise||[],assigned_to:r.assignedTo||[],
+    assigned_at:r.assignedAt||null,assigned_by:r.assignedBy||'',
+    tech_actions:r.techActions||[],close_photos:r.closePhotos||[],root_cause:r.rootCause||'',
+    cost_service:r.costService||0,cost_spares:r.costSpares||0,
+    invoice_photos:r.invoicePhotos||[],approved_by:r.approvedBy||'',
+    approved_at:r.approvedAt||null
+  };
   return null;
 }
 
 // Convert Supabase row → JS record
 function _fromRow(tbl, row) {
   if(!row) return null;
-  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],mttsRoles:row.mtts_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
   if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
@@ -356,6 +398,34 @@ function _fromRow(tbl, row) {
     dedPT:row.ded_pt||0,dedPF:row.ded_pf||0,dedESI:row.ded_esi||0,dedAdv:row.ded_adv||0,
     dedTDS:row.ded_tds||0,dedOther:row.ded_other||0,dedTotal:row.ded_total||0,
     net:row.net||0,meta:row.meta||{}};
+  if(tbl==='mttsPlants') return {
+    id:row.code,_dbId:row.id,name:row.name||'',address:row.address||'',color:row.color||'',inactive:!!row.inactive
+  };
+  if(tbl==='mttsAssetTypes') return {
+    id:row.code,_dbId:row.id,name:row.name||'',color:row.color||'',inactive:!!row.inactive
+  };
+  if(tbl==='mttsAssetPrimaryNames') return {
+    id:row.code,_dbId:row.id,name:row.name||'',assetType:row.asset_type||'',color:row.color||'',inactive:!!row.inactive
+  };
+  if(tbl==='mttsAssets') return {
+    id:row.code,_dbId:row.id,plant:row.plant||'',assetType:row.asset_type||'',
+    primaryName:row.primary_name||'',nameExtension:row.name_extension||'',
+    name:row.name||'',description:row.description||'',serialNo:row.serial_no||'',
+    installDate:row.install_date||'2020-01-01',make:row.make||'',model:row.model||'',
+    warranty:row.warranty||{},amc:row.amc||{},pmSchedule:row.pm_schedule||{},
+    spareParts:row.spare_parts||[],criticality:row.criticality||'Medium',
+    status:row.status||'Active',transferHistory:row.transfer_history||[]
+  };
+  if(tbl==='mttsTickets') return {
+    id:row.code,_dbId:row.id,assetCode:row.asset_code||'',plant:row.plant||'',
+    breakdownType:row.breakdown_type||'',breakdownSince:row.breakdown_since||'',
+    status:row.status||'open',
+    raisedBy:row.raised_by||'',raisedAt:row.raised_at||'',photosRaise:row.photos_raise||[],
+    assignedTo:row.assigned_to||[],assignedAt:row.assigned_at||'',assignedBy:row.assigned_by||'',
+    techActions:row.tech_actions||[],closePhotos:row.close_photos||[],rootCause:row.root_cause||'',
+    costService:row.cost_service||0,costSpares:row.cost_spares||0,
+    invoicePhotos:row.invoice_photos||[],approvedBy:row.approved_by||'',approvedAt:row.approved_at||''
+  };
   return null;
 }
 
@@ -748,6 +818,12 @@ function _rtRefreshFor(tbl){
       if(tbl==='hrmsEmployees'){
         _try(()=>{ if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge(); });
         _try(()=>{ if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge(); });
+        if(pid==='pageHrmsOrgStructure'){
+          // Department / role / reporting changes on any employee can
+          // shift the org tree — re-render so the user sees the live
+          // shape, not a stale snapshot.
+          _try(()=>{ if(typeof _hrmsOrgRender==='function') _hrmsOrgRender(); });
+        }
         if(pid==='pageHrmsEmployees'){
           _try(()=>{ if(typeof renderHrmsEmployees==='function') renderHrmsEmployees(); });
           _try(()=>{ if(typeof _hrmsRenderChangeReq==='function') _hrmsRenderChangeReq(); });
@@ -1188,7 +1264,10 @@ async function _dbDel(tbl, id){
       if(_useRpcDel){
         _resDel=await _sb.rpc('hwms_delete',{p_username:_authDel.u,p_token:_authDel.t,p_table:_sbTblDel,p_code:id});
       } else {
-        _resDel=await _sb.from(_sbTblDel).delete().eq('code', id);
+        // .select() returns the deleted rows so we can verify a row was
+        // actually removed (RLS can silently drop the DELETE without an
+        // error when a policy filters out the target row).
+        _resDel=await _sb.from(_sbTblDel).delete().eq('code', id).select();
       }
       const error=_resDel&&_resDel.error;
       if(error){
@@ -1204,6 +1283,15 @@ async function _dbDel(tbl, id){
         notify('⚠ Delete failed: ' + error.message, true);
         _sbSetStatus('error', 'Delete error');
         return false;
+      }
+      // For non-RPC deletes, confirm at least one row came back.
+      if(!_useRpcDel){
+        var deletedRows=(_resDel&&_resDel.data)||[];
+        if(!deletedRows.length){
+          console.error('❌ _dbDel('+tbl+') id='+id+' — 0 rows deleted (likely RLS policy or stale id)');
+          notify('⚠ Delete blocked — row not found or denied by RLS policy',true);
+          return false;
+        }
       }
       console.log('✅ Deleted ['+tbl+'] id='+id);
       break;
@@ -1556,12 +1644,13 @@ let CU=null; // current user — declared here so boot sequence can access it
 const ROLES=['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
 const HWMS_ROLES=['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
 const HRMS_ROLES=['Super Admin','HR Manager','HR Admin','Employee'];
+const MTTS_ROLES=['Super Admin','Maintenance Manager','Technician','Ticket Raiser'];
 
 // ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
 // Defined here (not portal-ui.js) so every app bundle (VMS, HWMS, HRMS,
 // Security, Portal) can call permCanView / permCanAct during render.
 // The Role Settings editor in portal-ui.js writes into the same data store.
-var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'roles'};
+var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'roles',MTTS:'mttsRoles'};
 // VMS and Security share user.roles. To keep them decoupled, each module
 // declares which role names actually belong to it — permLevel/permCanAct
 // and the Role Settings role picker ignore roles outside this set.
@@ -1571,7 +1660,8 @@ var _PERM_MODULE_ROLES={
   VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],
   HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'],
   HRMS:['Super Admin','HR Admin','HR Manager','Employee'],
-  Security:['Super Admin','Guard','Viewer']
+  Security:['Super Admin','Guard','Viewer'],
+  MTTS:['Super Admin','Maintenance Manager','Technician','Ticket Raiser']
 };
 function _permModuleUserRoles(mod){
   if(typeof CU==='undefined'||!CU) return [];
@@ -1647,8 +1737,8 @@ var _PERM_KEYS={
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
     {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
     {key:'page.myApprovals',label:'My Approvals Page (managers/plant heads)',group:'✅ My Approvals'},
-    {key:'page.orgStructure',label:'Org Structure Page',group:'🌳 Org Structure'},
-    {key:'org.edit',label:'Edit Reporting Hierarchy',group:'🌳 Org Structure'},
+    {key:'page.orgStructure',label:'HR Organisation Structure Page',group:'🌳 HR Organisation Structure'},
+    {key:'org.edit',label:'Edit Reporting Hierarchy',group:'🌳 HR Organisation Structure'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
     {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},
     {key:'page.masterCategory',label:'Category',group:'📂 Masters'},
@@ -1754,6 +1844,22 @@ var _PERM_KEYS={
     {key:'masters.checkpoints',label:'Checkpoints',group:'📂 Masters'},
     {key:'masters.guards',label:'Guards',group:'📂 Masters'},
     {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+  ],
+  MTTS:[
+    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
+    {key:'page.plants',label:'Plant Master Page',group:'🏭 Plants'},
+    {key:'action.editPlant',label:'Add / Edit / Delete Plant',group:'🏭 Plants'},
+    {key:'page.assetTypes',label:'Asset Type Master Page',group:'🏷 Asset Types'},
+    {key:'action.editAssetType',label:'Add / Edit / Delete Asset Type',group:'🏷 Asset Types'},
+    {key:'page.assetPrimaryNames',label:'Asset Primary Name Master Page',group:'🏷 Primary Names'},
+    {key:'action.editAssetPrimaryName',label:'Add / Edit / Delete Primary Name',group:'🏷 Primary Names'},
+    {key:'page.assets',label:'Asset Master Page',group:'🛠 Assets'},
+    {key:'action.editAsset',label:'Add / Edit / Transfer Asset',group:'🛠 Assets'},
+    {key:'page.tickets',label:'Tickets Page',group:'🎫 Tickets'},
+    {key:'action.raiseTicket',label:'Raise New Ticket',group:'🎫 Tickets'},
+    {key:'action.allocateTicket',label:'Allocate Ticket to Technician',group:'🎫 Tickets'},
+    {key:'action.actOnTicket',label:'Act on Assigned Ticket',group:'🎫 Tickets'},
+    {key:'action.approveTicket',label:'Approve Ticket Closure',group:'🎫 Tickets'}
   ]
 };
 function _permKeyKind(key){ return /^(page|tab)\./.test(key)?'pageTab':'action'; }
@@ -1791,7 +1897,7 @@ function _permLoadData(){
 // Module-admin roles that bypass granular permission checks and get full
 // access to their module. Super Admin is global and handled separately.
 // "Admin" is VMS-scoped (not cross-module); HWMS/HRMS have their own.
-var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[]};
+var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[],MTTS:['Maintenance Manager']};
 // Per-key default-full role grants. Applied only when no explicit role
 // permission is configured — admins can still revoke via Configure Access.
 var _PERM_DEFAULTS_FULL={
@@ -1905,7 +2011,7 @@ const PORTAL_APPS=[
   {id:'vms',    label:'VMS',        icon:'🚚', full:'Vehicle Management System'},
   {id:'hwms',   label:'HWMS',       icon:'📦', full:'HGAP Warehouse Management System'},
   {id:'security',label:'Security',  icon:'📹', full:'Security Surveillance'},
-  {id:'maintenance',label:'Maint.', icon:'🔧', full:'Maintenance'},
+  {id:'maintenance',label:'MTTS', icon:'🔧', full:'Maintenance Ticket Tracking System (MTTS)'},
   {id:'review', label:'Review',     icon:'⭐', full:'Employee Review'},
   {id:'hrms',   label:'HRMS',       icon:'👥', full:'HRMS'},
 ];

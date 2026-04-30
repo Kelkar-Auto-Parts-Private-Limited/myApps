@@ -307,8 +307,8 @@ async function doLogin(){
 }
 
 const _LOGO="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iIzJhOWFhMCIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTAuNSI+S0FQPC90ZXh0Pjwvc3ZnPg==";
-const APP_FILES={vms:'vms.html',hwms:'hwms.html',security:'security.html',maintenance:null,review:null,hrms:'hrms.html'};
-const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:false,review:false,hrms:true};
+const APP_FILES={vms:'vms.html',hwms:'hwms.html',security:'security.html',maintenance:'maintenance.html',review:null,hrms:'hrms.html'};
+const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:true,review:false,hrms:true};
 
 // ═══ PORTAL VIEW / APP GRID ══════════════════════════════════════════════
 function showPortal(){
@@ -769,7 +769,8 @@ function renderAppGrid(){
   // it shouldn't grant HWMS/HRMS/Security tile visibility.
   const isSuperAdmin=(CU.roles||[]).some(r=>r==='Super Admin')
     ||(CU.hwmsRoles||[]).some(r=>r==='Super Admin')
-    ||(CU.hrmsRoles||[]).some(r=>r==='Super Admin');
+    ||(CU.hrmsRoles||[]).some(r=>r==='Super Admin')
+    ||(CU.mttsRoles||[]).some(r=>r==='Super Admin');
   const VMS_ONLY_ROLES=(typeof ROLES!=='undefined'?ROLES:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor']);
   const SEC_ROLES=['Guard','Viewer'];
   function _hasAnyRoleFor(appId){
@@ -778,7 +779,8 @@ function renderAppGrid(){
     if(appId==='security') return (CU.roles||[]).some(r=>SEC_ROLES.indexOf(r)>=0);
     if(appId==='hwms') return ((CU.hwmsRoles)||[]).length>0;
     if(appId==='hrms') return ((CU.hrmsRoles)||[]).length>0;
-    return false; // Apps without a role model (maintenance/review) hidden unless Super Admin.
+    if(appId==='maintenance') return ((CU.mttsRoles)||[]).length>0;
+    return false; // Apps without a role model (review) hidden unless Super Admin.
   }
   // Role-based visibility is authoritative. If the user also has an explicit
   // user.apps list, it acts as an extra restriction; but a missing/empty
@@ -898,9 +900,11 @@ function puOpenModal(id){
   // HWMS roles
   document.getElementById('muHwmsBoxes').innerHTML=HWMS_ROLES.map(r=>{const c=(u?.hwmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(139,92,246,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--purple)':'rgba(139,92,246,.25)'}"><input type="checkbox" class="muHwmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   document.getElementById('muHrmsBoxes').innerHTML=(typeof HRMS_ROLES!=='undefined'?HRMS_ROLES:[]).map(r=>{const c=(u?.hrmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(34,197,94,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#16a34a':'rgba(34,197,94,.25)'}"><input type="checkbox" class="muHrmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
+  document.getElementById('muMttsBoxes').innerHTML=(typeof MTTS_ROLES!=='undefined'?MTTS_ROLES:[]).map(r=>{const c=(u?.mttsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(245,158,11,.07);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#d97706':'rgba(245,158,11,.25)'}"><input type="checkbox" class="muMttsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   document.getElementById('muVmsRoles').style.display=ua.includes('vms')?'block':'none';
   document.getElementById('muHwmsRoles').style.display=ua.includes('hwms')?'block':'none';
   document.getElementById('muHrmsRoles').style.display=ua.includes('hrms')?'block':'none';
+  document.getElementById('muMttsRoles').style.display=ua.includes('maintenance')?'block':'none';
   document.getElementById('muInactive').checked=u?.inactive===true;
   om('mUser');
 }
@@ -911,6 +915,7 @@ function puAppChange(cb){
   document.getElementById('muVmsRoles').style.display=sel.includes('vms')?'block':'none';
   document.getElementById('muHwmsRoles').style.display=sel.includes('hwms')?'block':'none';
   document.getElementById('muHrmsRoles').style.display=sel.includes('hrms')?'block':'none';
+  document.getElementById('muMttsRoles').style.display=sel.includes('maintenance')?'block':'none';
 }
 
 // ── Save user ───────────────────────────────────────────────────────────────
@@ -924,6 +929,7 @@ async function puSaveUser(){
   const roles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
   const hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
   const hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
+  const mttsRoles=[...document.querySelectorAll('.muMttsCb:checked')].map(i=>i.value);
   const inactive=document.getElementById('muInactive')?.checked===true;
   if(!name){modalErr('mUser','Username required');return}
   if(!plant){modalErr('mUser','Location required');return}
@@ -932,6 +938,7 @@ async function puSaveUser(){
   if(apps.includes('vms')&&!roles.length){modalErr('mUser','Select at least one VMS role');return}
   if(apps.includes('hwms')&&!hwmsRoles.length){modalErr('mUser','Select at least one HWMS role');return}
   if(apps.includes('hrms')&&!hrmsRoles.length){modalErr('mUser','Select at least one HRMS role');return}
+  if(apps.includes('maintenance')&&!mttsRoles.length){modalErr('mUser','Select at least one MTTS role');return}
   if(roles.includes('KAP Security')&&roles.length>1){modalErr('mUser','KAP Security cannot combine with other roles');return}
   if(mobile&&mobile.length!==10){modalErr('mUser','Mobile must be 10 digits');return}
   // Guard last Super Admin
@@ -945,12 +952,12 @@ async function puSaveUser(){
   if(id){
     // Edit: never touch password from this form. Password changes go
     // through Reset (Super Admin 🔑 button) or self-service login flow.
-    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive});
+    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
   } else {
     // New user: always assign the default password. User must change it
     // on first login (forced via password-strength check).
-    const nu={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,apps,inactive,photo:'',email:''};
+    const nu={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive,photo:'',email:''};
     if(!await _dbSave('users',nu)) return;
     await _authSetPassword(nu.id,_PORTAL_RESET_PWD);
   }
