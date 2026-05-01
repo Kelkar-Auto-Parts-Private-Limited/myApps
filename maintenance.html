@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260430-V64">
+<meta name="app-build" content="260501-V4">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260430-V64">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V4">
 </head>
 <body style="display:none">
 
@@ -43,11 +43,11 @@
   <div class="mtts-nav-item" onclick="_navigateTo('index.html')" style="background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.15);margin:8px 10px;border-radius:8px;font-weight:700;color:var(--accent)">🏠 My Apps</div>
   <div class="mtts-nav-sec">OVERVIEW</div>
   <div class="mtts-nav-item" id="nMttsDashboard" onclick="mttsGo('pageMttsDashboard')">📊 Dashboard</div>
+  <div class="mtts-nav-item" id="nMttsAgencies" onclick="mttsGo('pageMttsAgencies')">🤝 Agency / Vendor</div>
   <div class="mtts-nav-sec">MASTERS</div>
   <div class="mtts-nav-item" id="nMttsPlants" onclick="mttsGo('pageMttsPlants')">🏭 Plant Master</div>
   <div class="mtts-nav-item" id="nMttsAssetTypes" onclick="mttsGo('pageMttsAssetTypes')">🏷 Asset Type Master</div>
   <div class="mtts-nav-item" id="nMttsAssetPrimaryNames" onclick="mttsGo('pageMttsAssetPrimaryNames')">🔤 Asset Primary Name</div>
-  <div class="mtts-nav-item" id="nMttsAgencies" onclick="mttsGo('pageMttsAgencies')">🤝 Agency / Vendor</div>
   <div class="mtts-nav-item" id="nMttsAssets" onclick="mttsGo('pageMttsAssets')">🛠 Asset Master</div>
   <div class="mtts-nav-sec">TICKETS</div>
   <div class="mtts-nav-item" id="nMttsTickets" onclick="mttsGo('pageMttsTickets')">🎫 Tickets <span id="cMttsTickets" style="margin-left:auto;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;display:none">0</span></div>
@@ -520,18 +520,17 @@
   <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsAssetTitle">🛠 Add Asset</div><div class="modal-close" onclick="cm('mMttsAsset')">×</div></div>
   <input type="hidden" id="mttsAssetId">
   <div class="mtts-asset-grid">
-    <div class="form-group"><label>Plant *</label>
-      <select id="mttsAssetPlant"></select>
+    <div class="form-group mtts-asset-full"><label>Plant *</label>
+      <input type="hidden" id="mttsAssetPlant">
+      <div id="mttsAssetPlantBtns" class="mtts-chip-row"></div>
     </div>
-    <div class="form-group"><label>Asset Type *</label>
-      <select id="mttsAssetType" onchange="_mttsPopulateAssetPrimaryNameOptions()"><option value="">— Select —</option></select>
+    <div class="form-group mtts-asset-full"><label>Asset Type *</label>
+      <input type="hidden" id="mttsAssetType">
+      <div id="mttsAssetTypeBtns" class="mtts-chip-row"></div>
     </div>
-    <div class="form-group"><label>Priority *</label>
-      <select id="mttsAssetCrit">
-        <option value="High">High</option>
-        <option value="Medium" selected>Medium</option>
-        <option value="Low">Low</option>
-      </select>
+    <div class="form-group mtts-asset-full"><label>Priority *</label>
+      <input type="hidden" id="mttsAssetCrit" value="Medium">
+      <div id="mttsAssetCritBtns" class="mtts-chip-row"></div>
     </div>
     <div class="form-group"><label>Primary Name *</label>
       <select id="mttsAssetPrimary"><option value="">— Select —</option></select>
@@ -567,15 +566,6 @@
     </div>
     <div class="form-group"><label>AMC Until</label>
       <input type="date" id="mttsAssetAmc">
-    </div>
-    <div class="form-group"><label>PM Schedule (months)</label>
-      <input type="number" id="mttsAssetPm" min="0" step="1" placeholder="e.g. 6">
-    </div>
-    <div class="form-group mtts-asset-span2"><label>PM Last Done</label>
-      <input type="date" id="mttsAssetPmLast">
-    </div>
-    <div class="form-group mtts-asset-full"><label>Spare Parts (comma-separated)</label>
-      <input type="text" id="mttsAssetSpares" placeholder="Optional · e.g. Belt 12mm, Filter cartridge">
     </div>
   </div>
   <div id="mttsAssetTransferWrap" style="display:none;margin-top:8px;padding:6px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px">
@@ -614,7 +604,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260430-V64"></script>
-<script src="js/mtts-ui.js?v=260430-V64"></script>
+<script src="js/common.js?v=260501-V4"></script>
+<script src="js/mtts-ui.js?v=260501-V4"></script>
 </body>
 </html>

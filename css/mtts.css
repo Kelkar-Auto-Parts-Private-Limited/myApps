@@ -595,6 +595,12 @@
   .mtts-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:190}
   .mtts-overlay.show{display:block}
   .mtts-content{margin-left:260px;padding:68px 24px 24px;height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg)}
+  /* Desktop sidebar collapse — hamburger toggles body.mtts-nav-collapsed
+     so the sidebar slides off-screen and the topbar / main content
+     reclaim the freed width. */
+  body.mtts-nav-collapsed .mtts-sidebar{left:-270px}
+  body.mtts-nav-collapsed .mtts-topbar{left:0}
+  body.mtts-nav-collapsed .mtts-content{margin-left:0}
   @media(max-width:900px){
     .mtts-topbar-refresh-lbl{display:none}
   }
@@ -645,6 +651,11 @@
   .mtts-chip:hover{border-color:var(--accent);color:var(--accent)}
   .mtts-chip.is-active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 2px rgba(42,154,160,.15)}
   .mtts-chip-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
+  /* Raise-ticket Plant chips: ~75% larger tap targets so they're easy to
+     hit on a phone. Asset Type chips keep their default size. */
+  #mttsRaisePlantBtns{gap:10px}
+  #mttsRaisePlantBtns .mtts-chip{padding:13px 22px;font-size:18px;min-height:60px;border-width:2px;border-radius:11px;gap:8px}
+  #mttsRaisePlantBtns .mtts-chip-swatch{width:16px;height:16px;border-radius:3px}
   /* Breakdown radio chips — one tap-target per option, fits 3 across on phones. */
   .mtts-bd-radios{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
   .mtts-bd-opt{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 6px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);text-transform:none;letter-spacing:0;margin-bottom:0}

@@ -312,8 +312,8 @@ function _toRow(tbl, rec) {
     // to 2020-01-01 (per spec) when neither persisted nor entered.
     install_date:r.installDate||'2020-01-01',
     make:r.make||'',model:r.model||'',
-    warranty:r.warranty||{},amc:r.amc||{},pm_schedule:r.pmSchedule||{},
-    spare_parts:r.spareParts||[],criticality:r.criticality||'Medium',
+    warranty:r.warranty||{},amc:r.amc||{},
+    criticality:r.criticality||'Medium',
     status:r.status||'Active',transfer_history:r.transferHistory||[]
   };
   if(tbl==='mttsTickets') return {
@@ -427,8 +427,8 @@ function _fromRow(tbl, row) {
     primaryName:row.primary_name||'',nameExtension:row.name_extension||'',
     name:row.name||'',description:row.description||'',serialNo:row.serial_no||'',
     installDate:row.install_date||'2020-01-01',make:row.make||'',model:row.model||'',
-    warranty:row.warranty||{},amc:row.amc||{},pmSchedule:row.pm_schedule||{},
-    spareParts:row.spare_parts||[],criticality:row.criticality||'Medium',
+    warranty:row.warranty||{},amc:row.amc||{},
+    criticality:row.criticality||'Medium',
     status:row.status||'Active',transferHistory:row.transfer_history||[]
   };
   if(tbl==='mttsTickets') return {

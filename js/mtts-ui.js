@@ -171,14 +171,29 @@ function mttsGo(pid){
   if(window.innerWidth<=900) closeMttsNav();
 }
 
+// Hamburger behaviour:
+//   - Mobile (≤700px): the sidebar is hidden by default. Toggle 'open' on
+//     the sidebar (and 'show' on the dim overlay) to slide it in.
+//   - Desktop (>700px): the sidebar is visible by default. Toggle a
+//     'mtts-nav-collapsed' class on <body> so the sidebar slides off and
+//     the topbar / main content reclaim the freed width.
 function toggleMttsNav(){
-  var sb=document.getElementById('mttsSidebar');var ov=document.getElementById('mttsOverlay');
-  if(sb&&sb.classList.contains('nav-open')){sb.classList.remove('nav-open');if(ov) ov.classList.remove('show');}
-  else {if(sb) sb.classList.add('nav-open');if(ov) ov.classList.add('show');}
+  var sb=document.getElementById('mttsSidebar');
+  var ov=document.getElementById('mttsOverlay');
+  var isMobile=window.innerWidth<=700;
+  if(isMobile){
+    if(sb) sb.classList.toggle('open');
+    if(ov) ov.classList.toggle('show',sb&&sb.classList.contains('open'));
+  } else {
+    document.body.classList.toggle('mtts-nav-collapsed');
+  }
 }
 function closeMttsNav(){
-  var sb=document.getElementById('mttsSidebar');var ov=document.getElementById('mttsOverlay');
-  if(sb) sb.classList.remove('nav-open');if(ov) ov.classList.remove('show');
+  var sb=document.getElementById('mttsSidebar');
+  var ov=document.getElementById('mttsOverlay');
+  if(sb) sb.classList.remove('open');
+  if(ov) ov.classList.remove('show');
+  // Desktop collapse stays sticky — only the mobile drawer auto-closes.
 }
 
 function _mttsRenderNoAccessShell(){
@@ -245,14 +260,12 @@ function _mttsPopulatePlantOptions(){
   if(f2){f2.innerHTML='<option value="">All plants</option>'+opts;f2._populated=true;}
   var f3=document.getElementById('mttsDashPlantFilter');
   if(f3) f3.innerHTML='<option value="">All plants</option>'+opts;
-  // Edit modals
-  var e=document.getElementById('mttsAssetPlant');
-  if(e) e.innerHTML='<option value="">— Select —</option>'+opts;
+  // Edit modals — Transfer modal still uses a select; asset edit modal
+  // is now chip-driven and re-renders on demand.
   var t=document.getElementById('mttsTransferTo');
   if(t) t.innerHTML='<option value="">— Select —</option>'+opts;
-  // mttsRaisePlant is now a hidden input driven by chip buttons — re-render
-  // those when the master changes so newly-added plants appear.
   if(document.getElementById('mttsRaisePlantBtns')&&typeof _mttsRaiseRenderPlantBtns==='function') _mttsRaiseRenderPlantBtns();
+  if(document.getElementById('mttsAssetPlantBtns')&&typeof _mttsAssetRenderPlantBtns==='function') _mttsAssetRenderPlantBtns();
 }
 
 // ── Asset Master ──────────────────────────────────────────────────────────
@@ -364,7 +377,7 @@ function _mttsRenderAssets(){
         '<th style="'+th+'">Installed</th>'+
         '<th style="'+th+'">Priority</th>'+
         '<th style="'+th+'">Status</th>'+
-        '<th style="'+th+';text-align:center">Edit</th>'+
+        '<th style="'+th+';text-align:center;width:100px">Actions</th>'+
       '</tr>'+
     '</thead><tbody>'+
     (rows.length?'':'<tr><td colspan="9" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>');
@@ -382,7 +395,16 @@ function _mttsRenderAssets(){
       '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
       '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+critClr[a.criticality]+'22;color:'+critClr[a.criticality]+'">'+(a.criticality||'Medium')+'</span></td>'+
       '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+statusClr[a.status]+'22;color:'+statusClr[a.status]+'">'+(a.status||'Active')+'</span></td>'+
-      '<td style="'+td+';text-align:center"><button onclick="event.stopPropagation();_mttsAssetOpen(\''+idEsc+'\')" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button></td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+
+        '<button onclick="event.stopPropagation();_mttsAssetOpen(\''+idEsc+'\')" title="Edit asset" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
+        (function(){
+          var canEd=_mttsHasAccess('action.editAsset');
+          var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
+          if(canEd&&refs===0) return '<button onclick="event.stopPropagation();_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+          if(canEd&&refs>0) return '<button disabled title="In use — '+refs+' ticket(s) reference this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+          return '';
+        })()+
+      '</td>'+
     '</tr>';
   });
   html+='</tbody></table></div>';
@@ -409,6 +431,11 @@ function _mttsAssetOpen(id){
   document.getElementById('mttsAssetId').value=a?a.id:'';
   document.getElementById('mttsAssetPlant').value=a?(a.plant||''):'';
   document.getElementById('mttsAssetType').value=a?(a.assetType||''):'';
+  document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):'Medium';
+  // Render the three chip rows (plant, asset type, priority).
+  _mttsAssetRenderPlantBtns();
+  _mttsAssetRenderTypeBtns();
+  _mttsAssetRenderCritBtns();
   // Primary name select — refreshed every open so newly-added master rows
   // are immediately pickable. Falls back to the legacy `name` field when an
   // imported/old asset has no primaryName set yet.
@@ -432,9 +459,6 @@ function _mttsAssetOpen(id){
   document.getElementById('mttsAssetModel').value=a?(a.model||''):'';
   document.getElementById('mttsAssetWarranty').value=a&&a.warranty?(a.warranty.until||''):'';
   document.getElementById('mttsAssetAmc').value=a&&a.amc?(a.amc.until||''):'';
-  document.getElementById('mttsAssetPm').value=a&&a.pmSchedule?(a.pmSchedule.frequencyMonths||''):'';
-  document.getElementById('mttsAssetPmLast').value=a&&a.pmSchedule?(a.pmSchedule.lastDone||''):'';
-  document.getElementById('mttsAssetSpares').value=a&&Array.isArray(a.spareParts)?a.spareParts.join(', '):'';
   document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):'Medium';
   document.getElementById('mttsAssetStatus').value=a?(a.status||'Active'):'Active';
   // Transfer history + button visibility (edit-only).
@@ -481,6 +505,20 @@ function _mttsAssetOpen(id){
   if(typeof om==='function') om('mMttsAsset'); else { document.getElementById('mMttsAsset').classList.add('open'); }
 }
 
+async function _mttsAssetDeleteFromTable(id){
+  if(!_mttsHasAccess('action.editAsset')){notify('Access denied',true);return;}
+  var a=byId(DB.mttsAssets||[],id);if(!a) return;
+  var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
+  if(refs){notify('⚠ Cannot delete — '+refs+' ticket(s) reference this asset',true);return;}
+  if(!confirm('Delete asset "'+(a.name||a.id)+'"? This cannot be undone.')) return;
+  var idx=(DB.mttsAssets||[]).indexOf(a);
+  var ok=await _dbDel('mttsAssets',a.id);
+  if(!ok){notify('Delete failed',true);return;}
+  if(idx>=0) DB.mttsAssets.splice(idx,1);
+  notify('🗑 Asset deleted');
+  _mttsRenderAssets();
+}
+
 async function _mttsAssetSave(){
   if(!_mttsHasAccess('action.editAsset')){notify('Access denied',true);return;}
   var err=document.getElementById('mttsAssetErr');
@@ -525,8 +563,6 @@ async function _mttsAssetSave(){
     _showErr('"'+name+'" already exists at '+_mttsPlantLabel(plant)+' — primary name + extension must be unique within a plant');
     return;
   }
-  var spares=document.getElementById('mttsAssetSpares').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
-  var pmFreq=parseInt(document.getElementById('mttsAssetPm').value,10);
   var data={
     plant:plant,
     assetType:type,
@@ -540,8 +576,6 @@ async function _mttsAssetSave(){
     model:_t('mttsAssetModel'),
     warranty:{until:document.getElementById('mttsAssetWarranty').value||''},
     amc:{until:document.getElementById('mttsAssetAmc').value||''},
-    pmSchedule:{frequencyMonths:pmFreq>0?pmFreq:null,lastDone:document.getElementById('mttsAssetPmLast').value||''},
-    spareParts:spares,
     criticality:document.getElementById('mttsAssetCrit').value||'Medium',
     status:document.getElementById('mttsAssetStatus').value||'Active'
   };
@@ -1217,6 +1251,71 @@ function _mttsRaisePickType(code){
   if(hidden) hidden.value=code;
   _mttsRaiseRenderTypeBtns();
   _mttsRaiseRefreshAssets();
+}
+
+// ── Asset edit modal — chip pickers for Plant / Asset Type / Priority ───
+function _mttsAssetRenderPlantBtns(){
+  var wrap=document.getElementById('mttsAssetPlantBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsAssetPlant');
+  var current=hidden?hidden.value:'';
+  var plants=_mttsPlantList(true);
+  if(!plants.length){
+    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No plants — add one in Plant Master first</div>';
+    return;
+  }
+  wrap.innerHTML=plants.map(function(p){
+    var idEsc=String(p.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var lblEsc=String(p.label).replace(/</g,'&lt;');
+    var swatch=p.color?'<span class="mtts-chip-swatch" style="background:'+p.color+'"></span>':'';
+    var act=p.value===current?' is-active':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsAssetPickPlant(\''+idEsc+'\')" title="'+lblEsc+'">'+swatch+'<span>'+(p.value||'?')+'</span></button>';
+  }).join('');
+}
+function _mttsAssetPickPlant(code){
+  var hidden=document.getElementById('mttsAssetPlant');
+  if(hidden) hidden.value=code;
+  _mttsAssetRenderPlantBtns();
+}
+
+function _mttsAssetRenderTypeBtns(){
+  var wrap=document.getElementById('mttsAssetTypeBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsAssetType');
+  var current=hidden?hidden.value:'';
+  var typesArr=_mttsAssetTypeList(true);
+  if(!typesArr.length){
+    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No asset types — add one in Asset Type Master first</div>';
+    return;
+  }
+  wrap.innerHTML=typesArr.map(function(t){
+    var idEsc=String(t.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var lblEsc=String(t.label).replace(/</g,'&lt;');
+    var act=t.value===current?' is-active':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsAssetPickType(\''+idEsc+'\')">'+lblEsc+'</button>';
+  }).join('');
+}
+function _mttsAssetPickType(code){
+  var hidden=document.getElementById('mttsAssetType');
+  if(hidden) hidden.value=code;
+  _mttsAssetRenderTypeBtns();
+  // Primary name list is type-scoped — refresh when type changes.
+  _mttsPopulateAssetPrimaryNameOptions();
+}
+
+function _mttsAssetRenderCritBtns(){
+  var wrap=document.getElementById('mttsAssetCritBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsAssetCrit');
+  var current=(hidden&&hidden.value)||'Medium';
+  var opts=[{v:'High',c:'#dc2626'},{v:'Medium',c:'#f59e0b'},{v:'Low',c:'#16a34a'}];
+  wrap.innerHTML=opts.map(function(o){
+    var act=o.v===current?' is-active':'';
+    var style=o.v===current?'background:'+o.c+';border-color:'+o.c+';color:#fff':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsAssetPickCrit(\''+o.v+'\')" style="'+style+'">'+o.v+'</button>';
+  }).join('');
+}
+function _mttsAssetPickCrit(v){
+  var hidden=document.getElementById('mttsAssetCrit');
+  if(hidden) hidden.value=v;
+  _mttsAssetRenderCritBtns();
 }
 
 function _mttsRaiseRefreshAssets(){
@@ -2226,15 +2325,6 @@ function _mttsDashUpkeep(assets){
   var rows=[];
   assets.forEach(function(a){
     if(a.status==='Scrap') return;
-    // PM next-due = pmSchedule.lastDone + frequencyMonths.
-    var pm=a.pmSchedule||{};
-    if(pm.frequencyMonths&&+pm.frequencyMonths>0){
-      var pmDue=addMonths(pm.lastDone||a.installDate,+pm.frequencyMonths);
-      var pmState=null;
-      if(pmDue<todayStr) pmState='overdue';
-      else if(pmDue<=in30Str) pmState='due';
-      if(pmState) rows.push({asset:a,kind:'PM',due:pmDue,state:pmState});
-    }
     // Warranty
     if(a.warranty&&a.warranty.until){
       var w=a.warranty.until;
@@ -2252,7 +2342,7 @@ function _mttsDashUpkeep(assets){
       if(mState) rows.push({asset:a,kind:'AMC',due:m,state:mState});
     }
   });
-  if(!rows.length) return _mttsDashCard('Upkeep alerts (PM / Warranty / AMC)','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No PM / warranty / AMC items due or overdue. ✅</div>');
+  if(!rows.length) return _mttsDashCard('Upkeep alerts (Warranty / AMC)','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No warranty / AMC items due or overdue. ✅</div>');
   rows.sort(function(a,b){
     var rk={overdue:0,expired:0,due:1};
     var ra=rk[a.state],rb=rk[b.state];
@@ -2281,7 +2371,7 @@ function _mttsDashUpkeep(assets){
         '<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:'+stateClr[r.state]+'22;color:'+stateClr[r.state]+'">'+stateLbl[r.state]+'</span></td></tr>';
     }).join('')+
     '</tbody></table></div>';
-  return _mttsDashCard('Upkeep alerts (PM / Warranty / AMC)',html);
+  return _mttsDashCard('Upkeep alerts (Warranty / AMC)',html);
 }
 
 function _mttsDashCard(title,inner){
@@ -2621,9 +2711,12 @@ function _mttsRenderAssetTypes(){
   var rows=(DB.mttsAssetTypes||[]).slice().filter(function(t){return t&&(!hideInactive||!t.inactive);});
   rows.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
 
-  // Reference count: how many assets use each type code.
+  // Reference counts: assets that use each type code AND primary names
+  // that are tagged to it. Either being non-zero blocks delete.
   var refsAsset={};
   (DB.mttsAssets||[]).forEach(function(a){if(a&&a.assetType) refsAsset[a.assetType]=(refsAsset[a.assetType]||0)+1;});
+  var refsPrim={};
+  (DB.mttsAssetPrimaryNames||[]).forEach(function(p){if(p&&p.assetType) refsPrim[p.assetType]=(refsPrim[p.assetType]||0)+1;});
 
   var sumEl=document.getElementById('mttsAtypeSummary');
   if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAssetTypes||[]).length+'</b> · Active: <b>'+(DB.mttsAssetTypes||[]).filter(function(t){return t&&!t.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
@@ -2639,6 +2732,7 @@ function _mttsRenderAssetTypes(){
       '<th style="'+th+'">Code</th>'+
       '<th style="'+th+'">Name</th>'+
       '<th style="'+th+';text-align:right">Assets</th>'+
+      '<th style="'+th+';text-align:right">Primary Names</th>'+
       '<th style="'+th+'">Status</th>'+
       '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
     '</tr></thead><tbody>';
@@ -2647,15 +2741,20 @@ function _mttsRenderAssetTypes(){
     var idEsc=String(t.id||'').replace(/'/g,"\\'");
     var swatch=t.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+t.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
     var aRef=refsAsset[t.id]||0;
-    var canDelete=canEdit&&aRef===0;
+    var pRef=refsPrim[t.id]||0;
+    var canDelete=canEdit&&aRef===0&&pRef===0;
+    var blockMsg=[];
+    if(aRef) blockMsg.push(aRef+' asset(s)');
+    if(pRef) blockMsg.push(pRef+' primary name(s)');
     var deleteBtn=canDelete
       ? '<button onclick="event.stopPropagation();_mttsAtypeDeleteFromTable(\''+idEsc+'\')" title="Delete asset type" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '<button disabled title="In use — cannot delete (referenced by '+aRef+' asset(s))" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+      : '<button disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
     html+='<tr onclick="_mttsAtypeOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+swatch+(t.id||'')+'</td>'+
       '<td style="'+td+';font-weight:700">'+(t.name||'—')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+pRef+'</td>'+
       '<td style="'+td+'">'+(t.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
       '<td style="'+td+';text-align:center;white-space:nowrap">'+
         '<button onclick="event.stopPropagation();_mttsAtypeOpen(\''+idEsc+'\')" title="Edit asset type" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
@@ -2704,8 +2803,15 @@ function _mttsAtypeColorPopupClose(){
 async function _mttsAtypeDeleteFromTable(id){
   if(!_mttsHasAccess('action.editAssetType')){notify('Access denied',true);return;}
   var t=byId(DB.mttsAssetTypes||[],id);if(!t) return;
-  var refs=(DB.mttsAssets||[]).filter(function(a){return a&&a.assetType===t.id;}).length;
-  if(refs){notify('⚠ Cannot delete — '+refs+' asset(s) reference this type',true);return;}
+  var aRef=(DB.mttsAssets||[]).filter(function(a){return a&&a.assetType===t.id;}).length;
+  var pRef=(DB.mttsAssetPrimaryNames||[]).filter(function(p){return p&&p.assetType===t.id;}).length;
+  if(aRef||pRef){
+    var msgs=[];
+    if(aRef) msgs.push(aRef+' asset(s)');
+    if(pRef) msgs.push(pRef+' primary name(s)');
+    notify('⚠ Cannot delete — referenced by '+msgs.join(' + '),true);
+    return;
+  }
   if(!confirm('Delete asset type "'+(t.name||t.id)+'"? This cannot be undone.')) return;
   var idx=(DB.mttsAssetTypes||[]).indexOf(t);
   var ok=await _dbDel('mttsAssetTypes',t.id);
@@ -2807,17 +2913,9 @@ async function _mttsAtypeSave(){
 
 // Refresh any open Asset Type <select> dropdowns elsewhere in the app.
 function _mttsPopulateAssetTypeOptions(){
-  var types=_mttsAssetTypeList(false);
-  // Asset edit modal
-  var sel=document.getElementById('mttsAssetType');
-  if(sel){
-    var cur=sel.value;
-    sel.innerHTML='<option value="">— Select —</option>'+types.map(function(t){
-      return '<option value="'+t.value+'">'+t.label+'</option>';
-    }).join('');
-    sel.value=cur;
-  }
-  // Raise-ticket asset-type chips — re-render so newly-added types appear.
+  // Asset edit modal + Raise-ticket form both use chip pickers now —
+  // re-render them so newly-added types appear immediately.
+  if(document.getElementById('mttsAssetTypeBtns')&&typeof _mttsAssetRenderTypeBtns==='function') _mttsAssetRenderTypeBtns();
   if(document.getElementById('mttsRaiseTypeBtns')&&typeof _mttsRaiseRenderTypeBtns==='function') _mttsRaiseRenderTypeBtns();
 }
 
@@ -2876,9 +2974,15 @@ function _mttsRenderAssetPrimaryNames(){
     if(t) return t;
     return(a.name||'').localeCompare(b.name||'');
   });
-  // Reference count: how many assets use each primary name code.
+  // Reference counts: assets that use each primary name AND agencies
+  // that tag this primary name in their handled-list. Either blocks delete.
   var refsAsset={};
   (DB.mttsAssets||[]).forEach(function(a){if(a&&a.primaryName) refsAsset[a.primaryName]=(refsAsset[a.primaryName]||0)+1;});
+  var refsAgency={};
+  (DB.mttsAgencies||[]).forEach(function(ag){
+    if(!ag||!Array.isArray(ag.primaryNames)) return;
+    ag.primaryNames.forEach(function(pn){if(pn) refsAgency[pn]=(refsAgency[pn]||0)+1;});
+  });
   var sumEl=document.getElementById('mttsAprimSummary');
   if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAssetPrimaryNames||[]).length+'</b> · Active: <b>'+(DB.mttsAssetPrimaryNames||[]).filter(function(p){return p&&!p.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
   // Hide "+ Add" when the user can't edit.
@@ -2896,6 +3000,7 @@ function _mttsRenderAssetPrimaryNames(){
       '<th style="'+th+'">Asset Type</th>'+
       '<th style="'+th+'">Name</th>'+
       '<th style="'+th+';text-align:right">Assets</th>'+
+      '<th style="'+th+';text-align:right">Agencies</th>'+
       '<th style="'+th+'">Status</th>'+
       '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
     '</tr></thead><tbody>';
@@ -2904,15 +3009,20 @@ function _mttsRenderAssetPrimaryNames(){
     var idEsc=String(p.id||'').replace(/'/g,"\\'");
     var swatch=p.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
     var aRef=refsAsset[p.id]||0;
-    var canDelete=canEdit&&aRef===0;
+    var gRef=refsAgency[p.id]||0;
+    var canDelete=canEdit&&aRef===0&&gRef===0;
+    var blockMsg=[];
+    if(aRef) blockMsg.push(aRef+' asset(s)');
+    if(gRef) blockMsg.push(gRef+' agency(s)');
     var deleteBtn=canDelete
       ? '<button onclick="event.stopPropagation();_mttsAprimDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '<button disabled title="In use ('+aRef+' asset(s)) — cannot delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+      : '<button disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
     html+='<tr onclick="_mttsAprimOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-weight:600;color:var(--text2)">'+(p.assetType?_mttsAssetTypeLabel(p.assetType):'—')+'</td>'+
       '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+gRef+'</td>'+
       '<td style="'+td+'">'+(p.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
       '<td style="'+td+';text-align:center;white-space:nowrap">'+
         '<button onclick="event.stopPropagation();_mttsAprimOpen(\''+idEsc+'\')" title="Edit" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
@@ -2961,8 +3071,15 @@ function _mttsAprimColorPopupClose(){
 async function _mttsAprimDeleteFromTable(id){
   if(!_mttsHasAccess('action.editAssetPrimaryName')){notify('Access denied',true);return;}
   var p=byId(DB.mttsAssetPrimaryNames||[],id);if(!p) return;
-  var refs=(DB.mttsAssets||[]).filter(function(a){return a&&a.primaryName===p.id;}).length;
-  if(refs){notify('⚠ Cannot delete — '+refs+' asset(s) use this primary name',true);return;}
+  var aRef=(DB.mttsAssets||[]).filter(function(a){return a&&a.primaryName===p.id;}).length;
+  var gRef=(DB.mttsAgencies||[]).filter(function(ag){return ag&&Array.isArray(ag.primaryNames)&&ag.primaryNames.indexOf(p.id)>=0;}).length;
+  if(aRef||gRef){
+    var msgs=[];
+    if(aRef) msgs.push(aRef+' asset(s)');
+    if(gRef) msgs.push(gRef+' agency(s)');
+    notify('⚠ Cannot delete — referenced by '+msgs.join(' + '),true);
+    return;
+  }
   if(!confirm('Delete primary name "'+(p.name||p.id)+'"? This cannot be undone.')) return;
   var idx=(DB.mttsAssetPrimaryNames||[]).indexOf(p);
   var ok=await _dbDel('mttsAssetPrimaryNames',p.id);
