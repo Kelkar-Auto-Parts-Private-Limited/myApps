@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V4">
+<meta name="app-build" content="260501-V10">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V4">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V10">
 </head>
 <body style="display:none">
 
@@ -198,22 +198,23 @@
     <div class="form-group mtts-raise-full"><label>Breakdown Type *</label>
       <div class="mtts-bd-radios" id="mttsRaiseBreakdownRadios">
         <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="stopped"><span>🛑 Stopped</span></label>
-        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="partial"><span>⚠ Partial</span></label>
-        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="pm"><span>🔧 PM</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="partial"><span>⚠ Partially</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="pm"><span>🔧 PM Required</span></label>
       </div>
     </div>
-    <div class="form-group"><label>Breakdown Since (Date) *</label>
-      <div class="mtts-date-stepper">
-        <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftDate(-1)" title="Previous day">‹</button>
-        <input type="date" id="mttsRaiseBdDate">
-        <button type="button" class="mtts-date-step-btn" id="mttsRaiseDateNextBtn" onclick="_mttsRaiseShiftDate(1)" title="Next day">›</button>
-      </div>
-    </div>
-    <div class="form-group"><label>Breakdown Since (Time) *</label>
-      <div class="mtts-date-stepper">
-        <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftTime(-15)" title="−15 min">‹</button>
-        <select id="mttsRaiseBdTime" onchange="_mttsRaiseTimeChanged()"></select>
-        <button type="button" class="mtts-date-step-btn" id="mttsRaiseTimeNextBtn" onclick="_mttsRaiseShiftTime(15)" title="+15 min">›</button>
+    <div class="form-group mtts-raise-full">
+      <label>Breakdown Since *</label>
+      <div class="mtts-bd-when">
+        <div class="mtts-date-stepper" style="flex:1;min-width:0">
+          <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftDate(-1)" title="Previous day">‹</button>
+          <input type="date" id="mttsRaiseBdDate">
+          <button type="button" class="mtts-date-step-btn" id="mttsRaiseDateNextBtn" onclick="_mttsRaiseShiftDate(1)" title="Next day">›</button>
+        </div>
+        <div class="mtts-date-stepper" style="flex:1;min-width:0">
+          <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftTime(-15)" title="−15 min">‹</button>
+          <select id="mttsRaiseBdTime" onchange="_mttsRaiseTimeChanged()"></select>
+          <button type="button" class="mtts-date-step-btn" id="mttsRaiseTimeNextBtn" onclick="_mttsRaiseShiftTime(15)" title="+15 min">›</button>
+        </div>
       </div>
     </div>
     <div class="form-group mtts-raise-full"><label>Description / Symptoms *</label>
@@ -604,7 +605,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V4"></script>
-<script src="js/mtts-ui.js?v=260501-V4"></script>
+<script src="js/common.js?v=260501-V10"></script>
+<script src="js/mtts-ui.js?v=260501-V10"></script>
 </body>
 </html>

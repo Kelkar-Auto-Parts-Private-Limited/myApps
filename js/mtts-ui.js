@@ -235,6 +235,57 @@ function _mttsPlantColor(code){
 // Inline badge (chip) showing plant name on its master-defined background
 // colour. Picks readable text colour by simple luminance check so dark
 // backgrounds get white text.
+// Resolve a master's user-facing `code` (e.g. plant 'P1') to its internal
+// Postgres `id` (uuid or bigint). Used to populate FK columns on assets /
+// tickets so referential integrity is enforced at the DB layer.
+function _mttsResolveDbId(arr,code){
+  if(!code||!Array.isArray(arr)) return null;
+  var hit=arr.find(function(x){return x&&x.id===code;});
+  return hit?(hit._dbId||null):null;
+}
+
+// In-place rename of a master row's `code` column. Single Postgres
+// UPDATE — id-FKs don't need cascading (id is stable), and the
+// AFTER-UPDATE-OF-code triggers on each master propagate the new code
+// into referring tables' denormalised text columns automatically.
+async function _mttsRenameMasterCode(tbl,oldCode,newCode,extraFields){
+  if(!_sb||!_sbReady){notify('No DB connection',true);return false;}
+  var sbTbl=SB_TABLES[tbl];if(!sbTbl) return false;
+  var update=Object.assign({code:newCode},extraFields||{});
+  showSpinner('Renaming…');
+  try{
+    var res=await _sb.from(sbTbl).update(update).eq('code',oldCode).select();
+    if(res.error){
+      console.error('rename error',tbl,oldCode,'→',newCode,res.error);
+      notify('Rename failed: '+res.error.message,true);
+      return false;
+    }
+    if(!res.data||!res.data.length){
+      notify('Rename failed: row not found or RLS denied',true);
+      return false;
+    }
+    return true;
+  }catch(e){console.error('rename exception',e);notify('Rename failed: '+e.message,true);return false;}
+  finally{hideSpinner();}
+}
+
+// Re-pull a list of MTTS tables from Supabase and replace the in-memory
+// arrays. Use after operations whose effects span multiple tables (e.g.
+// FK ON UPDATE CASCADE) so the screen always reflects what's actually
+// persisted.
+async function _mttsReloadTables(tables){
+  if(!_sb||!_sbReady) return;
+  for(var i=0;i<tables.length;i++){
+    var tbl=tables[i];
+    var sbTbl=SB_TABLES[tbl];if(!sbTbl) continue;
+    try{
+      var sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
+      var res=await _sb.from(sbTbl).select(sel).limit(10000);
+      if(!res.error&&res.data) DB[tbl]=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+    }catch(e){console.warn('reload',tbl,e);}
+  }
+}
+
 function _mttsPlantBadge(code){
   var lbl=_mttsPlantLabel(code);
   var bg=_mttsPlantColor(code);
@@ -565,8 +616,11 @@ async function _mttsAssetSave(){
   }
   var data={
     plant:plant,
+    plantId:_mttsResolveDbId(DB.mttsPlants,plant),
     assetType:type,
+    assetTypeId:_mttsResolveDbId(DB.mttsAssetTypes,type),
     primaryName:primaryCode,
+    primaryNameId:_mttsResolveDbId(DB.mttsAssetPrimaryNames,primaryCode),
     nameExtension:ext,
     name:name,
     description:_t('mttsAssetDesc'),
@@ -1133,24 +1187,41 @@ function _mttsTicketRaiseOpen(){
   _mttsRenderRaisePhotoTiles();
   // Reset form. Default plant = the user's home plant when set, so a
   // technician on the floor can raise without picking from the list.
+  // Match leniently — exact code, case-insensitive code, then label —
+  // and search active+inactive plants in case the user's home plant
+  // is marked inactive.
   var plantHidden=document.getElementById('mttsRaisePlant');
   plantHidden.value='';
-  var plants=_mttsPlantList(false);
-  if(CU&&CU.plant&&plants.some(function(p){return p.value===CU.plant;})){
-    plantHidden.value=CU.plant;
+  var allPlants=_mttsPlantList(true); // include inactive
+  var meCode=String(CU&&CU.plant||'').trim();
+  console.log('[MTTS] raise default plant — CU.plant=',JSON.stringify(CU&&CU.plant),
+    'allPlants=',allPlants.map(function(p){return p.value;}));
+  if(meCode&&allPlants.length){
+    var meLow=meCode.toLowerCase();
+    var hit=allPlants.find(function(p){return p.value===meCode;})
+        ||allPlants.find(function(p){return String(p.value||'').toLowerCase()===meLow;})
+        ||allPlants.find(function(p){return String(p.label||'').toLowerCase()===meLow;});
+    if(hit) plantHidden.value=hit.value;
+    else console.warn('[MTTS] raise: CU.plant "'+meCode+'" did not match any plant — chip stays empty');
   }
   _mttsRaiseRenderPlantBtns();
-  // Default Asset Type to "Machinery" when present (legacy seed).
+  // Default Asset Type to "Machinery" — match exact code first, then by
+  // any code/label that starts with "machin" so renamed seeds (MCH,
+  // Machine, Machinery, etc.) still resolve.
   var typeHidden=document.getElementById('mttsRaiseType');
   typeHidden.value='';
   var typesArr=_mttsAssetTypeList(false);
-  if(typesArr.some(function(t){return t.value==='Machinery';})) typeHidden.value='Machinery';
+  var mhit=typesArr.find(function(t){return t.value==='Machinery';})
+        ||typesArr.find(function(t){
+            return /^machin/i.test(String(t.value||''))||/^machin/i.test(String(t.label||''));
+          });
+  if(mhit) typeHidden.value=mhit.value;
   _mttsRaiseRenderTypeBtns();
   // If we defaulted a plant, refresh the asset list for it immediately.
   if(plantHidden.value){_mttsRaiseRefreshAssets();}
   else {document.getElementById('mttsRaiseAsset').innerHTML='<option value="">— Select plant first —</option>';}
-  // Clear breakdown radio selection.
-  Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=false;});
+  // Default breakdown radio to "Stopped" — most common case for a fresh ticket.
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=(r.value==='stopped');});
   // Default Breakdown Since to current local date and time, rounded down
   // to the nearest 15-minute multiple (matches the time-select's options).
   var _now=new Date();
@@ -1358,7 +1429,11 @@ async function _mttsTicketRaiseSubmit(){
   if(new Date(bdSinceISO).getTime()>Date.now()){_showErr('Breakdown Since cannot be in the future');return;}
   var ticket={
     id:'t'+uid(),
-    assetCode:assetCode,plant:plant,breakdownType:bd,
+    assetCode:assetCode,
+    assetId:_mttsResolveDbId(DB.mttsAssets,assetCode),
+    plant:plant,
+    plantId:_mttsResolveDbId(DB.mttsPlants,plant),
+    breakdownType:bd,
     breakdownSince:bdSinceISO,
     status:'open',
     raisedBy:CU?(CU.name||CU.id||''):'',
@@ -2594,34 +2669,26 @@ async function _mttsPlantSave(){
     var bak=Object.assign({},p);
     var oldCode=p.id;
     var codeChanged=(code!==oldCode);
-    // Cascade rename: when the Short Code changes and other rows reference
-    // the old code, update each referrer's foreign-key field, then delete
-    // the old master row from the DB. Confirm with the user since this is
-    // a multi-row update that can't be cleanly rolled back if interrupted.
     var refAssets=(DB.mttsAssets||[]).filter(function(a){return a&&a.plant===oldCode;});
     var refTickets=(DB.mttsTickets||[]).filter(function(t){return t&&t.plant===oldCode;});
     if(codeChanged&&(refAssets.length||refTickets.length)){
       if(!confirm('Rename Short Code "'+oldCode+'" → "'+code+'"?\n\n'+refAssets.length+' asset(s) and '+refTickets.length+' ticket(s) will be updated to the new code.\n\nProceed?')) return;
     }
-    p.id=code;p.name=name;p.address=address;p.color=color;p.inactive=inactive;
-    var ok=await _dbSave('mttsPlants',p);
-    if(!ok){Object.assign(p,bak);_showErr('Save failed');return;}
     if(codeChanged){
-      // Cascade-update referencing rows.
-      for(var i=0;i<refAssets.length;i++){
-        refAssets[i].plant=code;
-        try{await _dbSave('mttsAssets',refAssets[i]);}catch(e){console.warn('cascade asset',e);}
-      }
-      for(var j=0;j<refTickets.length;j++){
-        refTickets[j].plant=code;
-        try{await _dbSave('mttsTickets',refTickets[j]);}catch(e){console.warn('cascade ticket',e);}
-      }
-      // Delete the old master row from the DB (in-memory record was
-      // re-id'd in place above, so just drop the stale code from the
-      // server).
-      try{await _dbDel('mttsPlants',oldCode);}catch(e){console.warn('drop old plant',e);}
+      // In-place UPDATE so the row keeps its identity and FK ON UPDATE
+      // CASCADE (when configured) propagates to referring tables atomically.
+      var ok=await _mttsRenameMasterCode('mttsPlants',oldCode,code,
+        {name:name,address:address,color:color,inactive:inactive});
+      if(!ok){_showErr('Save failed — rename rolled back');return;}
+      // Sync in-memory: master + referrers (DB now has cascaded refs).
+      await _mttsReloadTables(['mttsPlants','mttsAssets','mttsTickets']);
+    } else {
+      // Same code — straightforward upsert is sufficient.
+      p.name=name;p.address=address;p.color=color;p.inactive=inactive;
+      var okSimple=await _dbSave('mttsPlants',p);
+      if(!okSimple){Object.assign(p,bak);_showErr('Save failed');return;}
     }
-    notify('✓ Plant updated'+(codeChanged?(' · '+(refAssets.length+refTickets.length)+' reference(s) updated'):''));
+    notify('✓ Plant updated'+(codeChanged?' · '+(refAssets.length+refTickets.length)+' reference(s) cascaded':''));
   } else {
     var newP={id:code,name:name,address:address,color:color,inactive:inactive};
     if(!DB.mttsPlants) DB.mttsPlants=[];
@@ -2881,20 +2948,21 @@ async function _mttsAtypeSave(){
     var oldCode=t.id;
     var codeChanged=(code!==oldCode);
     var refAssets=(DB.mttsAssets||[]).filter(function(a){return a&&a.assetType===oldCode;});
-    if(codeChanged&&refAssets.length){
-      if(!confirm('Rename Short Code "'+oldCode+'" → "'+code+'"?\n\n'+refAssets.length+' asset(s) will be updated to the new code.\n\nProceed?')) return;
+    var refPrim=(DB.mttsAssetPrimaryNames||[]).filter(function(p){return p&&p.assetType===oldCode;});
+    if(codeChanged&&(refAssets.length||refPrim.length)){
+      if(!confirm('Rename Short Code "'+oldCode+'" → "'+code+'"?\n\n'+refAssets.length+' asset(s) and '+refPrim.length+' primary name(s) will be updated to the new code.\n\nProceed?')) return;
     }
-    t.id=code;t.name=name;t.color=color;t.inactive=inactive;
-    var ok=await _dbSave('mttsAssetTypes',t);
-    if(!ok){Object.assign(t,bak);_showErr('Save failed');return;}
     if(codeChanged){
-      for(var i=0;i<refAssets.length;i++){
-        refAssets[i].assetType=code;
-        try{await _dbSave('mttsAssets',refAssets[i]);}catch(e){console.warn('cascade asset',e);}
-      }
-      try{await _dbDel('mttsAssetTypes',oldCode);}catch(e){console.warn('drop old atype',e);}
+      var ok=await _mttsRenameMasterCode('mttsAssetTypes',oldCode,code,
+        {name:name,color:color,inactive:inactive});
+      if(!ok){_showErr('Save failed — rename rolled back');return;}
+      await _mttsReloadTables(['mttsAssetTypes','mttsAssetPrimaryNames','mttsAssets']);
+    } else {
+      t.name=name;t.color=color;t.inactive=inactive;
+      var okSimple=await _dbSave('mttsAssetTypes',t);
+      if(!okSimple){Object.assign(t,bak);_showErr('Save failed');return;}
     }
-    notify('✓ Asset type updated'+(codeChanged?(' · '+refAssets.length+' asset(s) updated'):''));
+    notify('✓ Asset type updated'+(codeChanged?' · '+(refAssets.length+refPrim.length)+' reference(s) cascaded':''));
   } else {
     var newT={id:code,name:name,color:color,inactive:inactive};
     if(!DB.mttsAssetTypes) DB.mttsAssetTypes=[];
@@ -3155,23 +3223,37 @@ async function _mttsAprimSave(){
     var oldCode=p.id;
     var codeChanged=(code!==oldCode);
     var refAssets=(DB.mttsAssets||[]).filter(function(a){return a&&a.primaryName===oldCode;});
-    if(codeChanged&&refAssets.length){
-      if(!confirm('Rename "'+oldCode+'" → "'+name+'"?\n\n'+refAssets.length+' asset(s) will be updated.\n\nProceed?')) return;
+    var refAgencies=(DB.mttsAgencies||[]).filter(function(ag){return ag&&Array.isArray(ag.primaryNames)&&ag.primaryNames.indexOf(oldCode)>=0;});
+    if(codeChanged&&(refAssets.length||refAgencies.length)){
+      if(!confirm('Rename "'+oldCode+'" → "'+name+'"?\n\n'+refAssets.length+' asset(s) and '+refAgencies.length+' agency(s) will be updated.\n\nProceed?')) return;
     }
-    p.id=code;p.name=name;p.assetType=assetType;p.color=color;p.inactive=inactive;
-    var ok=await _dbSave('mttsAssetPrimaryNames',p);
-    if(!ok){Object.assign(p,bak);_showErr('Save failed');return;}
     if(codeChanged){
+      var ok=await _mttsRenameMasterCode('mttsAssetPrimaryNames',oldCode,code,
+        {name:name,asset_type:assetType,color:color,inactive:inactive});
+      if(!ok){_showErr('Save failed — rename rolled back');return;}
+      // Asset.name is composed from primary + extension — recompute on the
+      // server side after rename is impractical, so do a JS pass to refresh
+      // the cached display field. FK ON UPDATE CASCADE has already moved
+      // primary_name pointers; this just keeps the cached name in sync.
       for(var i=0;i<refAssets.length;i++){
-        refAssets[i].primaryName=code;
-        // Recompose the asset's stored name field so display stays in sync.
         var ext=refAssets[i].nameExtension||'';
+        refAssets[i].primaryName=code;
         refAssets[i].name=ext?(name+'-'+ext):name;
-        try{await _dbSave('mttsAssets',refAssets[i]);}catch(e){console.warn('cascade asset',e);}
+        try{await _dbSave('mttsAssets',refAssets[i]);}catch(e){console.warn('refresh asset name',e);}
       }
-      try{await _dbDel('mttsAssetPrimaryNames',oldCode);}catch(e){console.warn('drop old aprim',e);}
+      // Agency.primaryNames is a text[] — FK doesn't reach inside arrays,
+      // so update each agency's array in JS.
+      for(var k=0;k<refAgencies.length;k++){
+        refAgencies[k].primaryNames=(refAgencies[k].primaryNames||[]).map(function(x){return x===oldCode?code:x;});
+        try{await _dbSave('mttsAgencies',refAgencies[k]);}catch(e){console.warn('refresh agency primaryNames',e);}
+      }
+      await _mttsReloadTables(['mttsAssetPrimaryNames','mttsAssets','mttsAgencies']);
+    } else {
+      p.name=name;p.assetType=assetType;p.color=color;p.inactive=inactive;
+      var okSimple=await _dbSave('mttsAssetPrimaryNames',p);
+      if(!okSimple){Object.assign(p,bak);_showErr('Save failed');return;}
     }
-    notify('✓ Primary name updated'+(codeChanged?(' · '+refAssets.length+' asset(s) updated'):''));
+    notify('✓ Primary name updated'+(codeChanged?' · '+(refAssets.length+refAgencies.length)+' reference(s) cascaded':''));
   } else {
     var newP={id:code,name:name,assetType:assetType,color:color,inactive:inactive};
     if(!DB.mttsAssetPrimaryNames) DB.mttsAssetPrimaryNames=[];

@@ -303,8 +303,12 @@ function _toRow(tbl, rec) {
     inactive:!!r.inactive
   };
   if(tbl==='mttsAssets') return {
-    code:r.id,plant:r.plant||'',asset_type:r.assetType||'',
-    primary_name:r.primaryName||'',name_extension:r.nameExtension||'',
+    code:r.id,
+    // Text codes — kept until Phase 3 drops them; the id columns are now
+    // the source of truth (FK-enforced) but JS still keeps both in sync.
+    plant:r.plant||'',asset_type:r.assetType||'',primary_name:r.primaryName||'',
+    plant_id:r.plantId||null,asset_type_id:r.assetTypeId||null,primary_name_id:r.primaryNameId||null,
+    name_extension:r.nameExtension||'',
     name:r.name||'',
     description:r.description||'',serial_no:r.serialNo||'',
     // Postgres date / timestamptz columns reject empty strings — coalesce
@@ -317,7 +321,10 @@ function _toRow(tbl, rec) {
     status:r.status||'Active',transfer_history:r.transferHistory||[]
   };
   if(tbl==='mttsTickets') return {
-    code:r.id,asset_code:r.assetCode||'',plant:r.plant||'',breakdown_type:r.breakdownType||'',
+    code:r.id,
+    asset_code:r.assetCode||'',plant:r.plant||'',
+    asset_id:r.assetId||null,plant_id:r.plantId||null,
+    breakdown_type:r.breakdownType||'',
     breakdown_since:r.breakdownSince||null,
     status:r.status||'open',raised_by:r.raisedBy||'',
     // timestamptz columns: null for unset values (empty string fails the
@@ -423,8 +430,10 @@ function _fromRow(tbl, row) {
     inactive:!!row.inactive
   };
   if(tbl==='mttsAssets') return {
-    id:row.code,_dbId:row.id,plant:row.plant||'',assetType:row.asset_type||'',
-    primaryName:row.primary_name||'',nameExtension:row.name_extension||'',
+    id:row.code,_dbId:row.id,
+    plant:row.plant||'',assetType:row.asset_type||'',primaryName:row.primary_name||'',
+    plantId:row.plant_id||null,assetTypeId:row.asset_type_id||null,primaryNameId:row.primary_name_id||null,
+    nameExtension:row.name_extension||'',
     name:row.name||'',description:row.description||'',serialNo:row.serial_no||'',
     installDate:row.install_date||'2020-01-01',make:row.make||'',model:row.model||'',
     warranty:row.warranty||{},amc:row.amc||{},
@@ -432,7 +441,9 @@ function _fromRow(tbl, row) {
     status:row.status||'Active',transferHistory:row.transfer_history||[]
   };
   if(tbl==='mttsTickets') return {
-    id:row.code,_dbId:row.id,assetCode:row.asset_code||'',plant:row.plant||'',
+    id:row.code,_dbId:row.id,
+    assetCode:row.asset_code||'',plant:row.plant||'',
+    assetId:row.asset_id||null,plantId:row.plant_id||null,
     breakdownType:row.breakdown_type||'',breakdownSince:row.breakdown_since||'',
     status:row.status||'open',
     raisedBy:row.raised_by||'',raisedAt:row.raised_at||'',photosRaise:row.photos_raise||[],

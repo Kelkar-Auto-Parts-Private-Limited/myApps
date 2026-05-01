@@ -636,6 +636,9 @@
   .mtts-raise-modal label{margin-bottom:2px;font-size:10px;letter-spacing:.5px}
   .mtts-raise-modal input,.mtts-raise-modal select,.mtts-raise-modal textarea{padding:7px 10px!important;min-height:36px!important;border-radius:7px}
   .mtts-raise-modal textarea{min-height:54px!important}
+  /* Breakdown Since: keep Date and Time on the same row even on phones
+     so the user sees both anchored to one timestamp. */
+  .mtts-bd-when{display:flex;gap:6px;align-items:stretch}
   /* Breakdown date stepper — < / > buttons flank the native date input.
      The next-day button auto-disables when the current value is today. */
   .mtts-date-stepper{display:flex;gap:6px;align-items:stretch}
@@ -651,11 +654,12 @@
   .mtts-chip:hover{border-color:var(--accent);color:var(--accent)}
   .mtts-chip.is-active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 2px rgba(42,154,160,.15)}
   .mtts-chip-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
-  /* Raise-ticket Plant chips: ~75% larger tap targets so they're easy to
-     hit on a phone. Asset Type chips keep their default size. */
-  #mttsRaisePlantBtns{gap:10px}
-  #mttsRaisePlantBtns .mtts-chip{padding:13px 22px;font-size:18px;min-height:60px;border-width:2px;border-radius:11px;gap:8px}
-  #mttsRaisePlantBtns .mtts-chip-swatch{width:16px;height:16px;border-radius:3px}
+  /* Raise-ticket Plant chips: roughly half the previously-bumped size —
+     still bigger than asset-type chips for thumb tapping but no longer
+     dominating the modal. */
+  #mttsRaisePlantBtns{gap:7px}
+  #mttsRaisePlantBtns .mtts-chip{padding:8px 14px;font-size:14px;min-height:42px;border-width:1.5px;border-radius:9px;gap:6px}
+  #mttsRaisePlantBtns .mtts-chip-swatch{width:12px;height:12px;border-radius:2px}
   /* Breakdown radio chips — one tap-target per option, fits 3 across on phones. */
   .mtts-bd-radios{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
   .mtts-bd-opt{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 6px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);text-transform:none;letter-spacing:0;margin-bottom:0}
