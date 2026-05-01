@@ -1849,6 +1849,20 @@ function _mttsTechActiveTicketCount(techKey){
   });
   return n;
 }
+// Resolve a user.plant value (which is a VMS location code like "l1") to
+// the human-readable location name. Falls back to mtts_plants by id/name,
+// and finally returns the raw code if nothing matches.
+function _mttsResolveUserPlantName(code){
+  if(!code) return '';
+  var s=String(code).trim();
+  if(Array.isArray(DB.locations)){
+    var loc=DB.locations.find(function(l){return l&&l.id===s;});
+    if(loc&&loc.name) return loc.name;
+  }
+  var p=(DB.mttsPlants||[]).find(function(x){return x&&(x.id===s||x.name===s);});
+  if(p) return p.name||s;
+  return s;
+}
 // Toggle a technician button on the allocation modal. Flips the hidden
 // checkbox + the visual selection class so the existing confirm handler
 // (which reads .mtts-alloc-cb:checked) keeps working unchanged.
@@ -1866,9 +1880,26 @@ function _mttsTicketAllocateOpen(id){
   document.getElementById('mttsAllocTicketId').value=id;
   var asset=byId(DB.mttsAssets||[],t.assetCode);
 
+  // Prominent ticket-info block on the allocate modal: id + plant pill on
+  // the top line, asset name big, the raised description quoted below,
+  // breakdown + raised meta as a small footer line.
+  var assetNm=asset?asset.name:'(missing)';
+  var assetTypeLbl=asset?(asset.assetType||''):'';
+  var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
+  var descTxt=raisedAct?(raisedAct.note||''):'';
+  var bdLbl=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'';
+  var raisedDate=t.raisedAt?t.raisedAt.slice(0,10):'—';
+  var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   document.getElementById('mttsAllocTicketLbl').innerHTML=
-    '<b>'+(asset?asset.name:'(missing)')+'</b> at '+_mttsPlantLabel(t.plant)+
-    ' · '+(_MTTS_BREAKDOWN_LABEL[t.breakdownType]||'')+' · raised '+(t.raisedAt?t.raisedAt.slice(0,10):'—');
+    '<div class="mtts-alloc-info">'+
+      '<div class="mtts-alloc-info-head">'+
+        '<span class="mtts-alloc-info-id">'+esc(t.id)+'</span>'+
+        _mttsPlantBadge(t.plant)+
+      '</div>'+
+      '<div class="mtts-alloc-info-asset">'+esc(assetNm)+(assetTypeLbl?' <span class="mtts-alloc-info-atype">'+esc(assetTypeLbl)+'</span>':'')+'</div>'+
+      (descTxt?'<div class="mtts-alloc-info-desc">'+esc(descTxt)+'</div>':'')+
+      '<div class="mtts-alloc-info-meta">'+esc(bdLbl)+' · raised '+esc(raisedDate)+'</div>'+
+    '</div>';
   // Tech picker: tap-target buttons rather than a tight checkbox list, with
   // each button surfacing the technician's current in-progress ticket
   // count so the manager can spread load. The hidden checkbox inside each
@@ -1887,7 +1918,8 @@ function _mttsTicketAllocateOpen(id){
       var n=_mttsTechActiveTicketCount(key);
       var loadCls=n===0?'is-free':(n<=2?'is-busy':'is-overloaded');
       var loadTxt=n===0?'Free':(n+' active');
-      var meta=(u.plant||u.fullName!==u.name)?[(u.fullName&&u.fullName!==u.name)?u.fullName:'',u.plant||''].filter(Boolean).join(' · '):'';
+      var plantNm=_mttsResolveUserPlantName(u.plant);
+      var meta=[(u.fullName&&u.fullName!==u.name)?u.fullName:'',plantNm].filter(Boolean).join(' · ');
       return '<button type="button" class="mtts-alloc-techbtn'+(isOn?' is-selected':'')+'" onclick="_mttsAllocToggleTech(this)" data-key="'+keyEsc+'">'+
         '<input type="checkbox" class="mtts-alloc-cb" value="'+keyEsc+'"'+(isOn?' checked':'')+' tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">'+
         '<span class="mtts-alloc-name">'+(u.name||u.id)+'</span>'+

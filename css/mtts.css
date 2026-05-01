@@ -793,7 +793,7 @@
   .mtts-tcard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .mtts-tcard-headline{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
   .mtts-tcard-headtop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
-  .mtts-tcard-id{font-size:14px;color:var(--text);font-family:var(--mono);font-weight:800;letter-spacing:.5px}
+  .mtts-tcard-id{font-size:17px;color:var(--text);font-family:var(--mono);font-weight:800;letter-spacing:.5px}
   .mtts-tcard-sep{color:var(--text3);font-weight:600}
   .mtts-tcard-asset{font-size:18px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
   .mtts-tcard-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text3)}
@@ -833,6 +833,16 @@
   .mtts-alloc-load.is-free{background:#dcfce7;color:#15803d}
   .mtts-alloc-load.is-busy{background:#fef3c7;color:#92400e}
   .mtts-alloc-load.is-overloaded{background:#fee2e2;color:#dc2626}
+  /* Allocate modal — prominent ticket-info block above the tech picker. */
+  .mtts-alloc-info{background:#f8fafc;border:1.5px solid var(--border);border-left:5px solid var(--accent);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:5px}
+  .mtts-alloc-info-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .mtts-alloc-info-id{font-family:var(--mono);font-size:20px;font-weight:900;color:var(--text);letter-spacing:.5px}
+  .mtts-alloc-info-asset{font-size:18px;font-weight:800;color:var(--text);line-height:1.2}
+  .mtts-alloc-info-atype{font-size:12px;font-weight:700;color:var(--text3);background:#e2e8f0;padding:2px 8px;border-radius:5px;margin-left:4px;letter-spacing:.3px}
+  .mtts-alloc-info-desc{font-size:14px;color:var(--text);font-style:italic;background:#fff;border:1px solid var(--border);border-radius:6px;padding:7px 10px;line-height:1.35;font-weight:500}
+  .mtts-alloc-info-desc::before{content:"\201C";color:var(--text3);font-size:18px;margin-right:2px}
+  .mtts-alloc-info-desc::after{content:"\201D";color:var(--text3);font-size:18px;margin-left:2px}
+  .mtts-alloc-info-meta{font-size:12px;color:var(--text3);font-weight:600}
   @media (max-width:640px){
     .mtts-alloc-techgrid{grid-template-columns:1fr 1fr;gap:6px;padding:4px}
     .mtts-alloc-techbtn{padding:9px 10px}
