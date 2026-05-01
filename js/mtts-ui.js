@@ -44,11 +44,13 @@ function _mttsLaunch(){
   // First-run seed: populate the Plant Master from the legacy PLANTS
   // constant so existing assets / tickets (created before the master
   // existed) keep resolving by code. Re-render dropdowns afterwards.
-  _mttsSeedPlantsIfEmpty().then(function(){_mttsPopulatePlantOptions();}).catch(function(e){console.warn('seed plants',e);_mttsPopulatePlantOptions();});
+  // Auto-seed disabled: masters now reflect exactly what's in the DB.
+  // If a master is empty, it stays empty until the user explicitly adds
+  // a row. (Old behaviour re-seeded legacy plants / asset types from a
+  // hard-coded list whenever the table was empty — that's been the
+  // source of "deleted items reappear" reports.)
   _mttsPopulatePlantOptions();
-  _mttsSeedAssetTypesIfEmpty().then(function(){_mttsPopulateAssetTypeOptions();}).catch(function(e){console.warn('seed asset types',e);_mttsPopulateAssetTypeOptions();});
   _mttsPopulateAssetTypeOptions();
-  _mttsSeedAssetPrimaryNamesIfEmpty().then(function(){_mttsPopulateAssetPrimaryNameOptions();}).catch(function(e){console.warn('seed primary names',e);_mttsPopulateAssetPrimaryNameOptions();});
   _mttsPopulateAssetPrimaryNameOptions();
   if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge();
   // Default landing — Dashboard for everyone with access, with sensible
@@ -1187,24 +1189,46 @@ function _mttsTicketRaiseOpen(){
   _mttsRenderRaisePhotoTiles();
   // Reset form. Default plant = the user's home plant when set, so a
   // technician on the floor can raise without picking from the list.
-  // Match leniently — exact code, case-insensitive code, then label —
-  // and search active+inactive plants in case the user's home plant
-  // is marked inactive.
+  // Match leniently — exact code, case-insensitive code, label, then
+  // _dbId — and search active+inactive plants. Diagnostic banner shown
+  // beneath the chip row so the user can see why no default was picked.
   var plantHidden=document.getElementById('mttsRaisePlant');
   plantHidden.value='';
   var allPlants=_mttsPlantList(true); // include inactive
   var meCode=String(CU&&CU.plant||'').trim();
+  var diag='';
   console.log('[MTTS] raise default plant — CU.plant=',JSON.stringify(CU&&CU.plant),
     'allPlants=',allPlants.map(function(p){return p.value;}));
-  if(meCode&&allPlants.length){
+  if(!meCode){
+    diag='⚠ Your user profile has no plant assigned — pick one below.';
+  } else if(!allPlants.length){
+    diag='⚠ No plants in the master yet.';
+  } else {
     var meLow=meCode.toLowerCase();
     var hit=allPlants.find(function(p){return p.value===meCode;})
         ||allPlants.find(function(p){return String(p.value||'').toLowerCase()===meLow;})
         ||allPlants.find(function(p){return String(p.label||'').toLowerCase()===meLow;});
-    if(hit) plantHidden.value=hit.value;
-    else console.warn('[MTTS] raise: CU.plant "'+meCode+'" did not match any plant — chip stays empty');
+    if(hit){
+      plantHidden.value=hit.value;
+    } else {
+      diag='⚠ Your user profile has plant "'+meCode+'" but it doesn\'t match any plant code or name in master. Pick one below.';
+      console.warn('[MTTS] raise: CU.plant "'+meCode+'" did not match any plant');
+    }
   }
   _mttsRaiseRenderPlantBtns();
+  // Render / hide the diagnostic banner under the plant chip row.
+  var pBtnsWrap=document.getElementById('mttsRaisePlantBtns');
+  if(pBtnsWrap){
+    var existing=document.getElementById('mttsRaisePlantDiag');
+    if(existing) existing.remove();
+    if(diag){
+      var d=document.createElement('div');
+      d.id='mttsRaisePlantDiag';
+      d.style.cssText='font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:5px 8px;border-radius:6px;margin-top:6px';
+      d.textContent=diag;
+      pBtnsWrap.parentNode.insertBefore(d,pBtnsWrap.nextSibling);
+    }
+  }
   // Default Asset Type to "Machinery" — match exact code first, then by
   // any code/label that starts with "machin" so renamed seeds (MCH,
   // Machine, Machinery, etc.) still resolve.
