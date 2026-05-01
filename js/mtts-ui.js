@@ -1239,15 +1239,17 @@ async function _mttsBackfillTicketIds(){
     var newId=y+'T'+maxByYear[y];
     var oldId=t.id;
     try{
-      // .select() so we can detect RLS no-ops (UPDATE returns 0 rows
+      // The user-visible ticket id (t.id in JS) lives in the `code` text
+      // column; the DB's `id` is a real UUID. Update `code`, not `id`.
+      // .select() lets us detect RLS no-ops (UPDATE returns 0 rows
       // without raising an error, which would otherwise look successful).
-      var res=await _sb.from(sbTbl).update({id:newId}).eq('id',oldId).select();
+      var res=await _sb.from(sbTbl).update({code:newId}).eq('code',oldId).select();
       if(res.error){
         console.warn('[MTTS] backfill FAILED',oldId,'→',newId,res.error.message||res.error);
         maxByYear[y]--;failed++;continue;
       }
       if(!res.data||!res.data.length){
-        console.warn('[MTTS] backfill SILENT (0 rows updated — RLS or PK constraint?)',oldId,'→',newId);
+        console.warn('[MTTS] backfill SILENT (0 rows updated — RLS?)',oldId,'→',newId);
         maxByYear[y]--;silent++;continue;
       }
       t.id=newId;
