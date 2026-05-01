@@ -2505,7 +2505,6 @@ function _mttsRenderPlants(){
   var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
     '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Code</th>'+
       '<th style="'+th+'">Name</th>'+
       '<th style="'+th+'">Address</th>'+
       '<th style="'+th+';text-align:right">Assets</th>'+
@@ -2525,8 +2524,7 @@ function _mttsRenderPlants(){
     // Row click anywhere opens view / edit. Buttons inside stop propagation.
     html+='<tr onclick="_mttsPlantOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+swatch+(p.id||'')+'</td>'+
-      '<td style="'+td+';font-weight:700">'+(p.name||'—')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
       '<td style="'+td+';font-size:13px;color:var(--text2);max-width:320px">'+String(p.address||'').replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+tRef+'</td>'+
@@ -2628,13 +2626,11 @@ function _mttsPlantOpen(id){
   var p=id?(byId(DB.mttsPlants||[],id)||null):null;
   document.getElementById('mttsPlantTitle').textContent=p?'🏭 Edit Plant':'🏭 Add Plant';
   document.getElementById('mttsPlantIdHidden').value=p?p.id:'';
-  // Short Code: always editable. If references exist, save() will cascade
-  // the rename to assets/tickets after a confirmation prompt.
+  // Code field is hidden — name doubles as the identifier. Pre-fill the
+  // hidden code input so the rename pipeline still has a value to compare
+  // against on save.
   var codeInput=document.getElementById('mttsPlantCode');
-  codeInput.value=p?p.id:'';
-  codeInput.readOnly=false;
-  codeInput.style.background='';
-  codeInput.title='Short Code — editable. Renaming will update all referencing assets / tickets.';
+  if(codeInput) codeInput.value=p?p.id:'';
   document.getElementById('mttsPlantName').value=p?(p.name||''):'';
   document.getElementById('mttsPlantAddress').value=p?(p.address||''):'';
   var initialColor=(p&&p.color)?p.color:'#fed7aa';
@@ -2676,17 +2672,21 @@ async function _mttsPlantSave(){
   var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
   var _t=function(elId){var el=document.getElementById(elId);if(!el) return '';var v=String(el.value||'').replace(/^[\s ]+|[\s ]+$/g,'');el.value=v;return v;};
   var existingId=document.getElementById('mttsPlantIdHidden').value;
-  var code=_t('mttsPlantCode');
   var name=_t('mttsPlantName');
+  // Plant code is no longer a separate field — name doubles as the
+  // user-facing identifier. Mirror it to the hidden code input so the
+  // rest of the save / rename pipeline keeps working unchanged.
+  var code=name;
+  var codeEl=document.getElementById('mttsPlantCode');if(codeEl) codeEl.value=code;
   var address=_t('mttsPlantAddress');
   var color=document.getElementById('mttsPlantColor').value||'';
   var inactive=document.getElementById('mttsPlantInactive').checked;
-  if(!code){_showErr('Code is required');return;}
-  if(!/^[A-Za-z0-9_-]{1,20}$/.test(code)){_showErr('Code must be alphanumeric (- and _ allowed), max 20 chars');return;}
   if(!name){_showErr('Name is required');return;}
-  // Code uniqueness — check against all plants OTHER than this one.
-  var dup=(DB.mttsPlants||[]).find(function(x){return x&&x.id===code&&x.id!==existingId;});
-  if(dup){_showErr('Code "'+code+'" already exists');return;}
+  if(name.length>60){_showErr('Name max 60 chars');return;}
+  // Name uniqueness — case-insensitive, against all plants OTHER than this one.
+  var nLow=name.toLowerCase();
+  var dup=(DB.mttsPlants||[]).find(function(x){return x&&String(x.id||'').toLowerCase()===nLow&&x.id!==existingId;});
+  if(dup){_showErr('"'+name+'" already exists');return;}
   if(existingId){
     var p=byId(DB.mttsPlants||[],existingId);
     if(!p){_showErr('Plant not found');return;}
@@ -2820,7 +2820,6 @@ function _mttsRenderAssetTypes(){
   var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
     '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Code</th>'+
       '<th style="'+th+'">Name</th>'+
       '<th style="'+th+';text-align:right">Assets</th>'+
       '<th style="'+th+';text-align:right">Primary Names</th>'+
@@ -2842,8 +2841,7 @@ function _mttsRenderAssetTypes(){
       : '<button disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
     html+='<tr onclick="_mttsAtypeOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+swatch+(t.id||'')+'</td>'+
-      '<td style="'+td+';font-weight:700">'+(t.name||'—')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+swatch+(t.name||'—')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+pRef+'</td>'+
       '<td style="'+td+'">'+(t.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
@@ -2918,11 +2916,9 @@ function _mttsAtypeOpen(id){
   var t=id?(byId(DB.mttsAssetTypes||[],id)||null):null;
   document.getElementById('mttsAtypeTitle').textContent=t?'🏷 Edit Asset Type':'🏷 Add Asset Type';
   document.getElementById('mttsAtypeIdHidden').value=t?t.id:'';
+  // Code field is hidden — name is the user-facing identifier.
   var codeInput=document.getElementById('mttsAtypeCode');
-  codeInput.value=t?t.id:'';
-  codeInput.readOnly=false;
-  codeInput.style.background='';
-  codeInput.title='Short Code — editable. Renaming will update all referencing assets.';
+  if(codeInput) codeInput.value=t?t.id:'';
   document.getElementById('mttsAtypeName').value=t?(t.name||''):'';
   var initialColor=(t&&t.color)?t.color:'#dbeafe';
   document.getElementById('mttsAtypeColor').value=initialColor;
@@ -2956,15 +2952,17 @@ async function _mttsAtypeSave(){
   var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
   var _t=function(elId){var el=document.getElementById(elId);if(!el) return '';var v=String(el.value||'').replace(/^[\s ]+|[\s ]+$/g,'');el.value=v;return v;};
   var existingId=document.getElementById('mttsAtypeIdHidden').value;
-  var code=_t('mttsAtypeCode');
   var name=_t('mttsAtypeName');
+  // Asset type code dropped — name doubles as the user-facing identifier.
+  var code=name;
+  var codeEl=document.getElementById('mttsAtypeCode');if(codeEl) codeEl.value=code;
   var color=document.getElementById('mttsAtypeColor').value||'';
   var inactive=document.getElementById('mttsAtypeInactive').checked;
-  if(!code){_showErr('Code is required');return;}
-  if(!/^[A-Za-z0-9 _-]{1,30}$/.test(code)){_showErr('Code must be alphanumeric (- _ space allowed), max 30 chars');return;}
   if(!name){_showErr('Name is required');return;}
-  var dup=(DB.mttsAssetTypes||[]).find(function(x){return x&&x.id===code&&x.id!==existingId;});
-  if(dup){_showErr('Code "'+code+'" already exists');return;}
+  if(name.length>60){_showErr('Name max 60 chars');return;}
+  var nLow=name.toLowerCase();
+  var dup=(DB.mttsAssetTypes||[]).find(function(x){return x&&String(x.id||'').toLowerCase()===nLow&&x.id!==existingId;});
+  if(dup){_showErr('"'+name+'" already exists');return;}
   if(existingId){
     var t=byId(DB.mttsAssetTypes||[],existingId);
     if(!t){_showErr('Asset type not found');return;}

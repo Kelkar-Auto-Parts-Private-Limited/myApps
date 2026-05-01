@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V12">
+<meta name="app-build" content="260501-V13">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V12">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V13">
 </head>
 <body style="display:none">
 
@@ -357,12 +357,10 @@
 <div class="modal-overlay" id="mMttsPlant"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title" id="mttsPlantTitle">🏭 Add Plant</div><div class="modal-close" onclick="cm('mMttsPlant')">×</div></div>
   <input type="hidden" id="mttsPlantIdHidden">
-  <div class="form-group"><label>Short Code *</label>
-    <input type="text" id="mttsPlantCode" placeholder="e.g. P1, KAP-A, FAC-MUM" maxlength="20">
-    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets / tickets.</div>
-  </div>
+  <input type="hidden" id="mttsPlantCode">
   <div class="form-group"><label>Name *</label>
-    <input type="text" id="mttsPlantName" placeholder="e.g. KAP1 — Pune Plant">
+    <input type="text" id="mttsPlantName" placeholder="e.g. KAP1, KAP1 — Pune Plant" maxlength="60">
+    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets / tickets.</div>
   </div>
   <div class="form-group"><label>Address</label>
     <textarea id="mttsPlantAddress" rows="3" placeholder="Plant address (optional)"></textarea>
@@ -403,12 +401,10 @@
 <div class="modal-overlay" id="mMttsAtype"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title" id="mttsAtypeTitle">🏷 Add Asset Type</div><div class="modal-close" onclick="cm('mMttsAtype')">×</div></div>
   <input type="hidden" id="mttsAtypeIdHidden">
-  <div class="form-group"><label>Short Code *</label>
-    <input type="text" id="mttsAtypeCode" placeholder="e.g. MACH, BLDG, IT" maxlength="30">
-    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
-  </div>
+  <input type="hidden" id="mttsAtypeCode">
   <div class="form-group"><label>Name *</label>
-    <input type="text" id="mttsAtypeName" placeholder="e.g. Machinery, Building, IT Devices">
+    <input type="text" id="mttsAtypeName" placeholder="e.g. Machinery, Building, IT Devices" maxlength="60">
+    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
   </div>
   <div class="form-group">
     <label>Color (optional)</label>
@@ -605,7 +601,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V12"></script>
-<script src="js/mtts-ui.js?v=260501-V12"></script>
+<script src="js/common.js?v=260501-V13"></script>
+<script src="js/mtts-ui.js?v=260501-V13"></script>
 </body>
 </html>
