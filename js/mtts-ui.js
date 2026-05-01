@@ -6,7 +6,7 @@
 // Tables this app needs at boot. hrmsSettings is included because the
 // shared rolePermissions blob lives there (used by permCanView /
 // permCanAct against MTTS keys).
-if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets'];
+if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets'];
 
 // ── Boot: re-auth from session, then launch ────────────────────────────────
 (function(){
@@ -53,10 +53,15 @@ function _mttsLaunch(){
   _mttsPopulateAssetTypeOptions();
   _mttsPopulateAssetPrimaryNameOptions();
   if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge();
-  // Default landing — Dashboard for everyone with access, with sensible
-  // fallbacks (assets, tickets) for users who don't have dashboard view.
-  if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
-  else if(_mttsHasAccess('page.tickets')) mttsGo('pageMttsTickets');
+  // Default landing — TEMP: tickets page + auto-open the raise modal so
+  // the form is the first thing the user sees while we iterate on it.
+  if(_mttsHasAccess('page.tickets')){
+    mttsGo('pageMttsTickets');
+    setTimeout(function(){
+      if(typeof _mttsCanRaise==='function'&&_mttsCanRaise()) _mttsTicketRaiseOpen();
+    },120);
+  }
+  else if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
   else if(_mttsHasAccess('page.assets')) mttsGo('pageMttsAssets');
   else _mttsRenderNoAccessShell();
 }
@@ -1111,108 +1116,102 @@ function _mttsPopulateBdTimeOptions(){
   if(prev) sel.value=prev;
 }
 
-// Move the breakdown time by ±15 minutes. If the underlying date is
-// today, refuses to step into the future. Wraps midnight by stepping
-// the date as well (forward or back) so the user can scrub freely.
-function _mttsRaiseShiftTime(deltaMin){
-  var sel=document.getElementById('mttsRaiseBdTime');
-  var dateEl=document.getElementById('mttsRaiseBdDate');
-  if(!sel||!dateEl||!sel.value||!dateEl.value) return;
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  d.setMinutes(d.getMinutes()+deltaMin);
-  if(d.getTime()>Date.now()) return;
-  var pad=function(n){return n<10?'0'+n:''+n;};
-  var newDate=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  var newTime=pad(d.getHours())+':'+pad(d.getMinutes());
-  if(newDate!==dateEl.value){
-    dateEl.value=newDate;
-    _mttsRaiseRefreshDateNextBtn();
-  }
-  _mttsPopulateBdTimeOptions();
-  sel.value=newTime;
-  _mttsRaiseRefreshTimeNextBtn();
-}
-
-// Disable the › time button when the current selection is at "now"
-// (no future slot available). Always-enabled when the date is in the past.
-function _mttsRaiseRefreshTimeNextBtn(){
-  var btn=document.getElementById('mttsRaiseTimeNextBtn');if(!btn) return;
-  var sel=document.getElementById('mttsRaiseBdTime');
-  var dateEl=document.getElementById('mttsRaiseBdDate');
-  if(!sel||!dateEl||!sel.value||!dateEl.value){btn.disabled=false;return;}
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  d.setMinutes(d.getMinutes()+15);
-  btn.disabled=(d.getTime()>Date.now());
-}
-
 // Called when the user picks a time from the select directly. Clamps to
-// the past if somehow set into the future, then refreshes the › button.
+// the nearest past 15-min boundary if somehow set into the future.
 function _mttsRaiseTimeChanged(){
   var sel=document.getElementById('mttsRaiseBdTime');
   var dateEl=document.getElementById('mttsRaiseBdDate');
   if(!sel||!dateEl||!sel.value||!dateEl.value) return;
   var d=new Date(dateEl.value+'T'+sel.value+':00');
   if(d.getTime()>Date.now()){
-    // Snap to nearest past 15-min boundary.
     var now=new Date();
     now.setMinutes(Math.floor(now.getMinutes()/15)*15,0,0);
     var pad=function(n){return n<10?'0'+n:''+n;};
     sel.value=pad(now.getHours())+':'+pad(now.getMinutes());
   }
-  _mttsRaiseRefreshTimeNextBtn();
 }
 
-// Shift the breakdown date by N days, clamped to today (no future dates).
-// Refreshes the next-button enabled state after the change.
-function _mttsRaiseShiftDate(delta){
-  var dateEl=document.getElementById('mttsRaiseBdDate');if(!dateEl) return;
-  var cur=dateEl.value||_mttsTodayStr();
-  var d=new Date(cur+'T00:00:00');
-  d.setDate(d.getDate()+delta);
-  var pad=function(n){return n<10?'0'+n:''+n;};
-  var nextStr=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  // Block any move into the future.
-  if(nextStr>_mttsTodayStr()) return;
-  dateEl.value=nextStr;
-  _mttsRaiseRefreshDateNextBtn();
+// Format a YYYY-MM-DD date string as dd-MMM-yy (e.g. 15-Jan-26) for the
+// breakdown-since visible label. Empty / invalid input → '—'.
+function _mttsFmtDdMmmYy(yyyymmdd){
+  if(!yyyymmdd||!/^\d{4}-\d{2}-\d{2}$/.test(yyyymmdd)) return '—';
+  var p=yyyymmdd.split('-');
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var d=p[2],m=months[parseInt(p[1],10)-1]||'?',y=p[0].slice(2);
+  return d+'-'+m+'-'+y;
 }
 
-function _mttsRaiseRefreshDateNextBtn(){
-  var btn=document.getElementById('mttsRaiseDateNextBtn');if(!btn) return;
+// Update the dd-MMM-yy label after the user picks a date in the OS picker.
+// Clamps any future date back to today, refreshes the time options so
+// future slots stay disabled when the date is today.
+function _mttsRaiseBdDateChanged(){
   var dateEl=document.getElementById('mttsRaiseBdDate');if(!dateEl) return;
-  btn.disabled=(dateEl.value>=_mttsTodayStr());
+  if(dateEl.value&&dateEl.value>_mttsTodayStr()) dateEl.value=_mttsTodayStr();
+  var lbl=document.getElementById('mttsRaiseBdDateLabel');
+  if(lbl) lbl.textContent=_mttsFmtDdMmmYy(dateEl.value);
+  _mttsPopulateBdTimeOptions();
+}
+
+// Force-open the OS date picker when the user clicks the date button.
+// In some browsers the transparent input doesn't auto-open the picker
+// reliably; calling showPicker() (Chrome 99+) or focus() ensures it
+// always opens on tap.
+function _mttsRaiseBdDateOpenPicker(){
+  var dateEl=document.getElementById('mttsRaiseBdDate');if(!dateEl) return;
+  try{
+    if(typeof dateEl.showPicker==='function'){dateEl.showPicker();return;}
+  }catch(e){}
+  dateEl.focus();
+  try{dateEl.click();}catch(e){}
 }
 
 function _mttsTicketRaiseOpen(){
   if(!_mttsCanRaise()){notify('You do not have permission to raise tickets',true);return;}
   _mttsRaisePhotosBuf=[];
   _mttsRenderRaisePhotoTiles();
-  // Reset form. Default plant = the user's home plant when set, so a
-  // technician on the floor can raise without picking from the list.
-  // Match leniently — exact code, case-insensitive code, label, then
-  // _dbId — and search active+inactive plants. Diagnostic banner shown
-  // beneath the chip row so the user can see why no default was picked.
+  // Reset form. Default plant = the user's home plant when set.
+  // CU.plant on a user record is a VMS *location code* (vms_locations.code).
+  // Resolve it through vms_locations.name first, then match that name
+  // against mtts_plants. Match is leniently case/whitespace-insensitive
+  // on code, name, and the resolved location label.
   var plantHidden=document.getElementById('mttsRaisePlant');
   plantHidden.value='';
   var allPlants=_mttsPlantList(true); // include inactive
   var meCode=String(CU&&CU.plant||'').trim();
   var diag='';
+  // Look up the user's location by code in DB.locations to derive the
+  // location name (e.g. CU.plant='l61b88z327' → location.name='KAP1').
+  var locName='';
+  if(meCode&&Array.isArray(DB.locations)){
+    var loc=DB.locations.find(function(l){return l&&l.id===meCode;});
+    if(loc) locName=String(loc.name||'').trim();
+  }
   console.log('[MTTS] raise default plant — CU.plant=',JSON.stringify(CU&&CU.plant),
+    'resolved location name=',JSON.stringify(locName),
     'allPlants=',allPlants.map(function(p){return p.value;}));
   if(!meCode){
     diag='⚠ Your user profile has no plant assigned — pick one below.';
   } else if(!allPlants.length){
     diag='⚠ No plants in the master yet.';
   } else {
-    var meLow=meCode.toLowerCase();
-    var hit=allPlants.find(function(p){return p.value===meCode;})
-        ||allPlants.find(function(p){return String(p.value||'').toLowerCase()===meLow;})
-        ||allPlants.find(function(p){return String(p.label||'').toLowerCase()===meLow;});
+    var hit=null;
+    var tryMatch=function(needle){
+      if(!needle) return null;
+      var n=String(needle).trim();
+      if(!n) return null;
+      var nLow=n.toLowerCase();
+      return allPlants.find(function(p){return p.value===n;})
+        ||allPlants.find(function(p){return String(p.value||'').toLowerCase()===nLow;})
+        ||allPlants.find(function(p){return String(p.label||'').toLowerCase()===nLow;});
+    };
+    // Resolved location name takes precedence (the canonical link).
+    hit=tryMatch(locName)||tryMatch(meCode);
     if(hit){
       plantHidden.value=hit.value;
     } else {
-      diag='⚠ Your user profile has plant "'+meCode+'" but it doesn\'t match any plant code or name in master. Pick one below.';
-      console.warn('[MTTS] raise: CU.plant "'+meCode+'" did not match any plant');
+      var detail=locName?('"'+meCode+'" → location "'+locName+'"'):('"'+meCode+'"');
+      diag='⚠ Your user plant '+detail+' doesn\'t match any MTTS plant. Pick one below — or rename the MTTS plant to match the location name.';
+      console.warn('[MTTS] raise: CU.plant',meCode,'→ locName',locName,'did not match any plant');
     }
   }
   _mttsRaiseRenderPlantBtns();
@@ -1256,28 +1255,14 @@ function _mttsTicketRaiseOpen(){
   var _bdDate=document.getElementById('mttsRaiseBdDate');
   if(_bdDate){
     _bdDate.value=_dStr;
-    // Native date picker: prevent picking a future date.
     _bdDate.max=_mttsTodayStr();
-    // Refresh the next-day button whenever the user types/picks a date.
-    if(!_bdDate._mttsDateChange){
-      _bdDate._mttsDateChange=function(){
-        // Clamp typed values that fell into the future back to today.
-        if(_bdDate.value&&_bdDate.value>_mttsTodayStr()) _bdDate.value=_mttsTodayStr();
-        _mttsRaiseRefreshDateNextBtn();
-        // Re-populate time slots so future slots get re-disabled when
-        // jumping back to today's date.
-        _mttsPopulateBdTimeOptions();
-        _mttsRaiseRefreshTimeNextBtn();
-      };
-      _bdDate.addEventListener('change',_bdDate._mttsDateChange);
-    }
   }
+  var _bdLbl=document.getElementById('mttsRaiseBdDateLabel');
+  if(_bdLbl) _bdLbl.textContent=_mttsFmtDdMmmYy(_dStr);
   // (Re)populate the 15-min time slots and select the rounded current value.
   _mttsPopulateBdTimeOptions();
   var _bdTime=document.getElementById('mttsRaiseBdTime');
   if(_bdTime) _bdTime.value=_tStr;
-  _mttsRaiseRefreshDateNextBtn();
-  _mttsRaiseRefreshTimeNextBtn();
   document.getElementById('mttsRaiseDesc').value='';
   document.getElementById('mttsRaisePhotos').value='';
   var err=document.getElementById('mttsRaiseErr');if(err){err.style.display='none';err.textContent='';}
@@ -1311,12 +1296,34 @@ function _mttsRaiseRenderPlantBtns(){
     wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No plants — add one in Plant Master first</div>';
     return;
   }
+  // Pick black or white text by luminance so the plant code stays
+  // readable on whatever colour is set in the master.
+  var fgFor=function(bg){
+    var hex=String(bg||'').replace('#','').trim();
+    if(!/^[0-9a-f]{6}$/i.test(hex)) return 'var(--text2)';
+    var r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+    var lum=0.299*r+0.587*g+0.114*b;
+    return lum<150?'#fff':'#1a2033';
+  };
   wrap.innerHTML=plants.map(function(p){
     var idEsc=String(p.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lblEsc=String(p.label).replace(/</g,'&lt;');
-    var swatch=p.color?'<span class="mtts-chip-swatch" style="background:'+p.color+'"></span>':'';
-    var act=p.value===current?' is-active':'';
-    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')" title="'+lblEsc+'">'+swatch+'<span>'+(p.value||'?')+'</span></button>';
+    var isActive=p.value===current;
+    var bg=p.color||'';
+    var fg=bg?fgFor(bg):'';
+    var styleParts=[];
+    if(bg){
+      styleParts.push('background:'+bg);
+      styleParts.push('color:'+fg);
+      styleParts.push('border-color:'+bg);
+    }
+    if(isActive){
+      // Inset white ring + outer accent halo so the active plant stands
+      // out regardless of its background colour.
+      styleParts.push('box-shadow:inset 0 0 0 2px #fff, 0 0 0 3px var(--accent)');
+    }
+    var styleAttr=styleParts.length?' style="'+styleParts.join(';')+'"':'';
+    return '<button type="button" class="mtts-chip'+(isActive?' is-active':'')+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')" title="'+lblEsc+'"'+styleAttr+'><span>'+(p.value||'?')+'</span></button>';
   }).join('');
 }
 function _mttsRaisePickPlant(code){
@@ -1327,17 +1334,35 @@ function _mttsRaisePickPlant(code){
 }
 
 // Render the Asset Type chip row. "All" comes first (clears type filter).
+// Pick an emoji for a given asset-type name. Substring match so renamed
+// types (e.g. "Building & Shed", "IT Equipment") still resolve. Falls
+// back to a generic icon if nothing matches.
+function _mttsAssetTypeIcon(name){
+  var n=String(name||'').toLowerCase();
+  if(/machin|cnc|mcn|mch/.test(n)) return '⚙️';
+  if(/build|shed|bld|civil/.test(n)) return '🏭';
+  if(/furniture|chair|table|frn/.test(n)) return '🪑';
+  if(/\bit\b|computer|laptop|server|itd/.test(n)) return '💻';
+  if(/electric|panel|wiring|eld/.test(n)) return '💡';
+  if(/tool|hand|spanner|drill|\bht\b/.test(n)) return '🔧';
+  if(/vehic|car|truck|forklift/.test(n)) return '🚚';
+  if(/pump|motor|compress/.test(n)) return '🔄';
+  if(/safety|fire|extinguish/.test(n)) return '🧯';
+  return '🏷';
+}
+
 function _mttsRaiseRenderTypeBtns(){
   var wrap=document.getElementById('mttsRaiseTypeBtns');if(!wrap) return;
   var hidden=document.getElementById('mttsRaiseType');
   var current=hidden?hidden.value:'';
   var typesArr=_mttsAssetTypeList(false);
-  var html='<button type="button" class="mtts-chip'+(current===''?' is-active':'')+'" onclick="_mttsRaisePickType(\'\')">All</button>';
+  var html='<button type="button" class="mtts-chip'+(current===''?' is-active':'')+'" onclick="_mttsRaisePickType(\'\')"><span class="mtts-chip-icon">📋</span><span>All</span></button>';
   html+=typesArr.map(function(t){
     var idEsc=String(t.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lblEsc=String(t.label).replace(/</g,'&lt;');
+    var icon=_mttsAssetTypeIcon(t.label);
     var act=t.value===current?' is-active':'';
-    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickType(\''+idEsc+'\')">'+lblEsc+'</button>';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickType(\''+idEsc+'\')"><span class="mtts-chip-icon">'+icon+'</span><span>'+lblEsc+'</span></button>';
   }).join('');
   wrap.innerHTML=html;
 }

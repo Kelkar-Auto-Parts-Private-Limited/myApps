@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V13">
+<meta name="app-build" content="260501-V23">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V13">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V23">
 </head>
 <body style="display:none">
 
@@ -182,19 +182,20 @@
 
 <!-- RAISE TICKET MODAL — mobile-first layout -->
 <div class="modal-overlay" id="mMttsRaise"><div class="modal mtts-raise-modal" style="max-width:420px;padding:12px 14px">
-  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="font-size:16px">🎫 Raise Ticket</div><div class="modal-close" onclick="cm('mMttsRaise')" style="font-size:24px;padding:0 6px;cursor:pointer">×</div></div>
+  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="font-size:16px">🎫 Raise Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
   <div class="mtts-raise-grid">
-    <div class="form-group mtts-raise-full"><label>Plant *</label>
+    <div class="form-group mtts-raise-full"><label>Select Plant *</label>
       <input type="hidden" id="mttsRaisePlant">
       <div id="mttsRaisePlantBtns" class="mtts-chip-row"></div>
     </div>
-    <div class="form-group mtts-raise-full"><label>Asset Type *</label>
+    <div class="form-group mtts-raise-full"><label>Select Asset Type *</label>
       <input type="hidden" id="mttsRaiseType">
       <div id="mttsRaiseTypeBtns" class="mtts-chip-row"></div>
     </div>
-    <div class="form-group mtts-raise-full"><label>Asset *</label>
+    <div class="form-group mtts-raise-full"><label>Select Asset from List *</label>
       <select id="mttsRaiseAsset"><option value="">— Select plant first —</option></select>
     </div>
+    <div class="form-group mtts-raise-full mtts-raise-divider"></div>
     <div class="form-group mtts-raise-full"><label>Breakdown Type *</label>
       <div class="mtts-bd-radios" id="mttsRaiseBreakdownRadios">
         <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="stopped"><span>🛑 Stopped</span></label>
@@ -205,16 +206,12 @@
     <div class="form-group mtts-raise-full">
       <label>Breakdown Since *</label>
       <div class="mtts-bd-when">
-        <div class="mtts-date-stepper" style="flex:1;min-width:0">
-          <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftDate(-1)" title="Previous day">‹</button>
-          <input type="date" id="mttsRaiseBdDate">
-          <button type="button" class="mtts-date-step-btn" id="mttsRaiseDateNextBtn" onclick="_mttsRaiseShiftDate(1)" title="Next day">›</button>
+        <div class="mtts-bd-date-btn" style="flex:1;min-width:0" onclick="_mttsRaiseBdDateOpenPicker()">
+          <span class="mtts-bd-date-icon">📅</span>
+          <span class="mtts-bd-date-label" id="mttsRaiseBdDateLabel">—</span>
+          <input type="date" id="mttsRaiseBdDate" onchange="_mttsRaiseBdDateChanged()">
         </div>
-        <div class="mtts-date-stepper" style="flex:1;min-width:0">
-          <button type="button" class="mtts-date-step-btn" onclick="_mttsRaiseShiftTime(-15)" title="−15 min">‹</button>
-          <select id="mttsRaiseBdTime" onchange="_mttsRaiseTimeChanged()"></select>
-          <button type="button" class="mtts-date-step-btn" id="mttsRaiseTimeNextBtn" onclick="_mttsRaiseShiftTime(15)" title="+15 min">›</button>
-        </div>
+        <select id="mttsRaiseBdTime" onchange="_mttsRaiseTimeChanged()" style="flex:1;min-width:0"></select>
       </div>
     </div>
     <div class="form-group mtts-raise-full"><label>Description / Symptoms *</label>
@@ -227,9 +224,8 @@
     </div>
   </div>
   <div class="modal-error" id="mttsRaiseErr"></div>
-  <div class="mtts-raise-actions" style="display:flex;gap:8px;margin-top:8px">
-    <button class="btn btn-secondary" onclick="cm('mMttsRaise')" style="flex:1;padding:10px;font-size:14px">Cancel</button>
-    <button class="btn btn-primary" onclick="_mttsTicketRaiseSubmit()" style="flex:2;padding:10px;font-size:14px;font-weight:800">Submit Ticket</button>
+  <div class="mtts-raise-actions" style="display:flex;justify-content:center;margin-top:10px">
+    <button class="btn btn-primary" onclick="_mttsTicketRaiseSubmit()" style="padding:11px 36px;font-size:15px;font-weight:800">Submit Ticket</button>
   </div>
 </div></div>
 
@@ -601,7 +597,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V13"></script>
-<script src="js/mtts-ui.js?v=260501-V13"></script>
+<script src="js/common.js?v=260501-V23"></script>
+<script src="js/mtts-ui.js?v=260501-V23"></script>
 </body>
 </html>
