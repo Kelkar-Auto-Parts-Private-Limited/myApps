@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V23">
+<meta name="app-build" content="260501-V29">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V23">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V29">
 </head>
 <body style="display:none">
 
@@ -184,16 +184,22 @@
 <div class="modal-overlay" id="mMttsRaise"><div class="modal mtts-raise-modal" style="max-width:420px;padding:12px 14px">
   <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="font-size:16px">🎫 Raise Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
   <div class="mtts-raise-grid">
-    <div class="form-group mtts-raise-full"><label>Select Plant *</label>
-      <input type="hidden" id="mttsRaisePlant">
-      <div id="mttsRaisePlantBtns" class="mtts-chip-row"></div>
-    </div>
-    <div class="form-group mtts-raise-full"><label>Select Asset Type *</label>
-      <input type="hidden" id="mttsRaiseType">
-      <div id="mttsRaiseTypeBtns" class="mtts-chip-row"></div>
-    </div>
-    <div class="form-group mtts-raise-full"><label>Select Asset from List *</label>
-      <select id="mttsRaiseAsset"><option value="">— Select plant first —</option></select>
+    <div class="mtts-raise-full mtts-raise-picks">
+      <div class="mtts-raise-pickblock">
+        <input type="hidden" id="mttsRaisePlant">
+        <button type="button" id="mttsRaisePlantSummary" class="mtts-raise-pick" onclick="_mttsRaiseTogglePlantBtns()">Select Plant</button>
+        <div id="mttsRaisePlantBtns" class="mtts-chip-row" style="display:none"></div>
+      </div>
+      <div class="mtts-raise-pickblock">
+        <input type="hidden" id="mttsRaiseType">
+        <button type="button" id="mttsRaiseTypeSummary" class="mtts-raise-pick" onclick="_mttsRaiseToggleTypeBtns()">Select Asset Type</button>
+        <div id="mttsRaiseTypeBtns" class="mtts-chip-row" style="display:none"></div>
+      </div>
+      <div class="mtts-raise-pickblock">
+        <input type="hidden" id="mttsRaiseAsset">
+        <button type="button" id="mttsRaiseAssetSummary" class="mtts-raise-pick" onclick="_mttsRaiseToggleAssetBtns()">Select Asset</button>
+        <div id="mttsRaiseAssetBtns" class="mtts-chip-row" style="display:none"></div>
+      </div>
     </div>
     <div class="form-group mtts-raise-full mtts-raise-divider"></div>
     <div class="form-group mtts-raise-full"><label>Breakdown Type *</label>
@@ -597,7 +603,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V23"></script>
-<script src="js/mtts-ui.js?v=260501-V23"></script>
+<script src="js/common.js?v=260501-V29"></script>
+<script src="js/mtts-ui.js?v=260501-V29"></script>
 </body>
 </html>

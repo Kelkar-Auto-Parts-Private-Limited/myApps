@@ -1240,9 +1240,19 @@ function _mttsTicketRaiseOpen(){
           });
   if(mhit) typeHidden.value=mhit.value;
   _mttsRaiseRenderTypeBtns();
-  // If we defaulted a plant, refresh the asset list for it immediately.
-  if(plantHidden.value){_mttsRaiseRefreshAssets();}
-  else {document.getElementById('mttsRaiseAsset').innerHTML='<option value="">— Select plant first —</option>';}
+  // Reset asset pick — defaulting plant doesn't pre-pick an asset.
+  var assetHidden=document.getElementById('mttsRaiseAsset');
+  if(assetHidden) assetHidden.value='';
+  // Build (or clear) the asset chip row scoped to current plant + type.
+  _mttsRaiseRefreshAssets();
+  // Refresh the three collapsed summary buttons so they reflect defaults.
+  _mttsRaiseRefreshPlantSummary();
+  _mttsRaiseRefreshTypeSummary();
+  _mttsRaiseRefreshAssetSummary();
+  // Form opens with all three chip rows collapsed; user taps a summary to expand.
+  var _pRow=document.getElementById('mttsRaisePlantBtns'); if(_pRow) _pRow.style.display='none';
+  var _tRow=document.getElementById('mttsRaiseTypeBtns');  if(_tRow) _tRow.style.display='none';
+  var _aRow=document.getElementById('mttsRaiseAssetBtns'); if(_aRow) _aRow.style.display='none';
   // Default breakdown radio to "Stopped" — most common case for a fresh ticket.
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=(r.value==='stopped');});
   // Default Breakdown Since to current local date and time, rounded down
@@ -1287,6 +1297,16 @@ function _mttsTicketRaiseOpen(){
 }
 // Render the Plant chip row from the master list. Each chip is a tap
 // target that sets the hidden input + refreshes the asset dropdown.
+// Pick black or white text by luminance so the plant code stays readable
+// on whatever colour is set in the master.
+function _mttsBgToFg(bg){
+  var hex=String(bg||'').replace('#','').trim();
+  if(!/^[0-9a-f]{6}$/i.test(hex)) return 'var(--text2)';
+  var r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  var lum=0.299*r+0.587*g+0.114*b;
+  return lum<150?'#fff':'#1a2033';
+}
+
 function _mttsRaiseRenderPlantBtns(){
   var wrap=document.getElementById('mttsRaisePlantBtns');if(!wrap) return;
   var hidden=document.getElementById('mttsRaisePlant');
@@ -1296,41 +1316,67 @@ function _mttsRaiseRenderPlantBtns(){
     wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No plants — add one in Plant Master first</div>';
     return;
   }
-  // Pick black or white text by luminance so the plant code stays
-  // readable on whatever colour is set in the master.
-  var fgFor=function(bg){
-    var hex=String(bg||'').replace('#','').trim();
-    if(!/^[0-9a-f]{6}$/i.test(hex)) return 'var(--text2)';
-    var r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
-    var lum=0.299*r+0.587*g+0.114*b;
-    return lum<150?'#fff':'#1a2033';
-  };
   wrap.innerHTML=plants.map(function(p){
     var idEsc=String(p.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lblEsc=String(p.label).replace(/</g,'&lt;');
     var isActive=p.value===current;
     var bg=p.color||'';
-    var fg=bg?fgFor(bg):'';
+    var fg=bg?_mttsBgToFg(bg):'';
     var styleParts=[];
     if(bg){
       styleParts.push('background:'+bg);
       styleParts.push('color:'+fg);
       styleParts.push('border-color:'+bg);
     }
-    if(isActive){
-      // Inset white ring + outer accent halo so the active plant stands
-      // out regardless of its background colour.
-      styleParts.push('box-shadow:inset 0 0 0 2px #fff, 0 0 0 3px var(--accent)');
-    }
+    if(isActive) styleParts.push('box-shadow:inset 0 0 0 2px #fff, 0 0 0 3px var(--accent)');
     var styleAttr=styleParts.length?' style="'+styleParts.join(';')+'"':'';
     return '<button type="button" class="mtts-chip'+(isActive?' is-active':'')+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')" title="'+lblEsc+'"'+styleAttr+'><span>'+(p.value||'?')+'</span></button>';
   }).join('');
 }
+
+// Refresh the collapsed summary button for the plant pick. Empty state
+// shows "Select Plant" in placeholder style; selected state shows the
+// plant's name with its master colour as background.
+function _mttsRaiseRefreshPlantSummary(){
+  var btn=document.getElementById('mttsRaisePlantSummary');if(!btn) return;
+  var hidden=document.getElementById('mttsRaisePlant');
+  var code=hidden?hidden.value:'';
+  if(!code){
+    btn.classList.add('is-empty');
+    btn.removeAttribute('style');
+    btn.innerHTML='Select Plant';
+    return;
+  }
+  btn.classList.remove('is-empty');
+  var label=_mttsPlantLabel(code);
+  var bg=_mttsPlantColor(code);
+  if(bg){
+    var fg=_mttsBgToFg(bg);
+    btn.setAttribute('style','background:'+bg+';color:'+fg+';border-color:'+bg);
+  } else {
+    btn.removeAttribute('style');
+  }
+  btn.innerHTML='<span class="mtts-pick-prefix">Selected Plant</span><span class="mtts-pick-value">'+String(label).replace(/</g,'&lt;')+'</span>';
+}
+
+function _mttsRaiseTogglePlantBtns(){
+  var row=document.getElementById('mttsRaisePlantBtns');if(!row) return;
+  row.style.display=(row.style.display==='none')?'flex':'none';
+}
+
 function _mttsRaisePickPlant(code){
   var hidden=document.getElementById('mttsRaisePlant');
   if(hidden) hidden.value=code;
   _mttsRaiseRenderPlantBtns();
+  _mttsRaiseRefreshPlantSummary();
+  // Plant change invalidates any prior asset pick — asset list is plant-scoped.
+  var aHidden=document.getElementById('mttsRaiseAsset');
+  if(aHidden) aHidden.value='';
+  // Collapse the chip row after pick so the form stays compact.
+  var row=document.getElementById('mttsRaisePlantBtns');
+  if(row) row.style.display='none';
   _mttsRaiseRefreshAssets();
+  if(typeof _mttsRaiseRefreshAssetSummary==='function') _mttsRaiseRefreshAssetSummary();
 }
 
 // Render the Asset Type chip row. "All" comes first (clears type filter).
@@ -1366,11 +1412,40 @@ function _mttsRaiseRenderTypeBtns(){
   }).join('');
   wrap.innerHTML=html;
 }
+function _mttsRaiseRefreshTypeSummary(){
+  var btn=document.getElementById('mttsRaiseTypeSummary');if(!btn) return;
+  var hidden=document.getElementById('mttsRaiseType');
+  var code=hidden?hidden.value:'';
+  if(!code){
+    btn.classList.add('is-empty');
+    btn.innerHTML='Select Asset Type';
+    return;
+  }
+  btn.classList.remove('is-empty');
+  var label=_mttsAssetTypeLabel(code);
+  var icon=_mttsAssetTypeIcon(label);
+  btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset Type</span><span class="mtts-pick-value"><span class="mtts-chip-icon">'+icon+'</span>'+String(label).replace(/</g,'&lt;')+'</span>';
+}
+function _mttsRaiseToggleTypeBtns(){
+  var row=document.getElementById('mttsRaiseTypeBtns');if(!row) return;
+  row.style.display=(row.style.display==='none')?'flex':'none';
+}
 function _mttsRaisePickType(code){
   var hidden=document.getElementById('mttsRaiseType');
   if(hidden) hidden.value=code;
   _mttsRaiseRenderTypeBtns();
+  _mttsRaiseRefreshTypeSummary();
+  // If the currently-picked asset doesn't match the new type filter, clear it.
+  var aHidden=document.getElementById('mttsRaiseAsset');
+  if(aHidden&&aHidden.value&&code){
+    var a=(DB.mttsAssets||[]).find(function(x){return x&&x.id===aHidden.value;});
+    if(!a||a.assetType!==code){aHidden.value='';}
+  }
+  // Collapse the chip row after pick.
+  var row=document.getElementById('mttsRaiseTypeBtns');
+  if(row) row.style.display='none';
   _mttsRaiseRefreshAssets();
+  if(typeof _mttsRaiseRefreshAssetSummary==='function') _mttsRaiseRefreshAssetSummary();
 }
 
 // ── Asset edit modal — chip pickers for Plant / Asset Type / Priority ───
@@ -1438,21 +1513,67 @@ function _mttsAssetPickCrit(v){
   _mttsAssetRenderCritBtns();
 }
 
+// Render the Asset chip row scoped to the selected plant + (optional) type.
+// Each chip sets the hidden #mttsRaiseAsset to the asset id and collapses
+// the row. Empty/disabled states show inline guidance instead of chips.
 function _mttsRaiseRefreshAssets(){
   var plant=document.getElementById('mttsRaisePlant').value;
   var type=document.getElementById('mttsRaiseType').value;
-  var sel=document.getElementById('mttsRaiseAsset');
-  if(!plant){sel.innerHTML='<option value="">— Select plant first —</option>';return;}
+  var wrap=document.getElementById('mttsRaiseAssetBtns');if(!wrap) return;
+  var hidden=document.getElementById('mttsRaiseAsset');
+  var current=hidden?hidden.value:'';
+  if(!plant){
+    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">Select a plant first</div>';
+    return;
+  }
   var assets=(DB.mttsAssets||[]).filter(function(a){
     if(!a||a.status==='Scrap') return false;
     if(a.plant!==plant) return false;
     if(type&&a.assetType!==type) return false;
     return true;
   }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
-  if(!assets.length){sel.innerHTML='<option value="">No assets at this plant</option>';return;}
-  sel.innerHTML='<option value="">— Select asset —</option>'+assets.map(function(a){
-    return '<option value="'+a.id+'">'+(a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')+'</option>';
+  if(!assets.length){
+    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No assets at this plant</div>';
+    return;
+  }
+  wrap.innerHTML=assets.map(function(a){
+    var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    var lbl=String((a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+    var act=a.id===current?' is-active':'';
+    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')" title="'+lbl+'"><span>'+lbl+'</span></button>';
   }).join('');
+}
+function _mttsRaiseRefreshAssetSummary(){
+  var btn=document.getElementById('mttsRaiseAssetSummary');if(!btn) return;
+  var hidden=document.getElementById('mttsRaiseAsset');
+  var id=hidden?hidden.value:'';
+  if(!id){
+    btn.classList.add('is-empty');
+    btn.innerHTML='Select Asset';
+    return;
+  }
+  var a=(DB.mttsAssets||[]).find(function(x){return x&&x.id===id;});
+  if(!a){
+    btn.classList.add('is-empty');
+    btn.innerHTML='Select Asset';
+    return;
+  }
+  btn.classList.remove('is-empty');
+  var lbl=String((a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+  btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset</span><span class="mtts-pick-value">'+lbl+'</span>';
+}
+function _mttsRaiseToggleAssetBtns(){
+  var row=document.getElementById('mttsRaiseAssetBtns');if(!row) return;
+  row.style.display=(row.style.display==='none')?'flex':'none';
+}
+function _mttsRaisePickAsset(id){
+  var hidden=document.getElementById('mttsRaiseAsset');
+  if(hidden) hidden.value=id;
+  _mttsRaiseRefreshAssets();
+  _mttsRaiseRefreshAssetSummary();
+  // Collapse the chip row after pick.
+  var row=document.getElementById('mttsRaiseAssetBtns');
+  if(row) row.style.display='none';
 }
 async function _mttsTicketRaiseSubmit(){
   if(!_mttsCanRaise()){notify('Access denied',true);return;}

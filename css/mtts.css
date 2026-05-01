@@ -639,6 +639,26 @@
   /* Hairline divider between the asset-pick section and the breakdown
      section so the form reads as two stages. */
   .mtts-raise-divider{height:1px;background:var(--border);margin:6px 0 2px;padding:0;border:none}
+  /* Collapsed-picker summary button. Tap to expand the chip row below;
+     after a chip is picked, this button collapses back and shows the
+     chosen value (with the master colour as background for plants). */
+  .mtts-raise-pick{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:69px;padding:15px 14px;border:3px solid var(--accent);border-radius:11px;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:var(--text);transition:border-color .15s,filter .15s,box-shadow .15s;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .mtts-raise-pick:hover{box-shadow:0 4px 12px rgba(0,0,0,.14);filter:brightness(.97)}
+  .mtts-raise-pick.is-empty{color:var(--text3);font-weight:700;font-style:italic;border-style:dashed}
+  .mtts-raise-pick.is-empty:hover{color:var(--accent)}
+  /* Two-tone summary: small uppercase label on the left, larger serif
+     value on the right, divided by a hairline running down the centre.
+     Empty state stays a single centred label (no divider). */
+  .mtts-pick-prefix{font-size:12px;font-weight:600;opacity:.65;letter-spacing:.8px;text-transform:uppercase;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  .mtts-pick-value{font-size:20px;font-weight:800;font-family:Georgia,'Times New Roman',serif;letter-spacing:.3px}
+  .mtts-raise-pick:not(.is-empty){display:grid;grid-template-columns:1fr 1fr;padding:0;gap:0}
+  .mtts-raise-pick:not(.is-empty) .mtts-pick-prefix{display:flex;align-items:center;justify-content:flex-end;padding:14px 14px;border-right:1px solid currentColor;text-align:right;line-height:1.15}
+  .mtts-raise-pick:not(.is-empty) .mtts-pick-value{display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:14px 14px;text-align:left;line-height:1.15}
+  .mtts-raise-pick:not(.is-empty) .mtts-chip-icon{font-size:18px;line-height:1}
+  /* Stack the three pickers tight so Plant / Asset Type / Asset read as
+     one related group rather than three separated form fields. */
+  .mtts-raise-picks{display:flex;flex-direction:column;gap:4px}
+  .mtts-raise-pickblock{display:flex;flex-direction:column;gap:6px}
   /* Prominent close button — top-right corner, red circle so users can
      bail out of the form fast on a phone without hunting for Cancel. */
   .mtts-raise-close{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;transition:background .15s,color .15s}
