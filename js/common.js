@@ -70,8 +70,17 @@ function _appBuildShowBanner(serverBuild){
   }catch(e){console.warn('appBuild banner err:',e);}
 }
 function _appBuildReload(){
-  // Hard reload — bust browser cache for this navigation.
-  try{ location.reload(true); }catch(e){ location.reload(); }
+  // location.reload(true) is silently ignored by modern Chrome/Edge/Firefox,
+  // so it serves the same cached HTML and the stale meta tag re-triggers
+  // the banner. Navigate to a fresh URL with a cache-bust query string
+  // instead — that forces the browser to fetch the HTML and pulls in the
+  // new ?v= references for every script + stylesheet on the page.
+  try{
+    var sp=new URLSearchParams(location.search||'');
+    sp.set('cb',String(Date.now()));
+    var url=location.pathname+'?'+sp.toString()+(location.hash||'');
+    location.replace(url);
+  }catch(e){ try{ location.reload(); }catch(_){} }
 }
 async function _appBuildCheck(){
   // Skip on file:// — fetch is blocked by CORS there. Local-files users
