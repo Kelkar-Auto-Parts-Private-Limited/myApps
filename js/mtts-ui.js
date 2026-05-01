@@ -53,17 +53,17 @@ function _mttsLaunch(){
   _mttsPopulateAssetTypeOptions();
   _mttsPopulateAssetPrimaryNameOptions();
   if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge();
-  // Default landing — TEMP: tickets page + auto-open the raise modal so
-  // the form is the first thing the user sees while we iterate on it.
-  if(_mttsHasAccess('page.tickets')){
-    mttsGo('pageMttsTickets');
-    setTimeout(function(){
-      if(typeof _mttsCanRaise==='function'&&_mttsCanRaise()) _mttsTicketRaiseOpen();
-    },120);
-  }
+  // Default landing — tickets page first if the user has access.
+  if(_mttsHasAccess('page.tickets')) mttsGo('pageMttsTickets');
   else if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
   else if(_mttsHasAccess('page.assets')) mttsGo('pageMttsAssets');
   else _mttsRenderNoAccessShell();
+  // Backfill any legacy ticket ids ("tabc12345") to the new <year>T<seq>
+  // format. Idempotent: tickets already in the new format are left alone.
+  // Runs in the background so it doesn't block the first paint.
+  setTimeout(function(){
+    if(typeof _mttsBackfillTicketIds==='function') _mttsBackfillTicketIds();
+  },800);
 }
 
 // Pull every MTTS table fresh from Supabase and re-render whichever page
@@ -891,50 +891,63 @@ function _mttsRenderTickets(){
       var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
       var isTerminal=(t.status==='closed'||t.status==='scrapped');
       var downFor=isTerminal?'—':_mttsTimerSince(t.breakdownSince||t.raisedAt);
-      // Action buttons — same logic as before, just rendered into a
-      // bottom action row rather than a table cell.
-      var act='';
+      // Actions split: primary status-driven buttons on the left, edit /
+      // delete icons pinned to the bottom-right. The whole card is
+      // clickable to open detail view, so each button calls
+      // event.stopPropagation() to avoid double-firing the card handler.
+      var stop="event.stopPropagation();";
+      var primaryAct='';
+      var sideAct='';
       if(t.status==='open'){
         if(_mttsCanAllocate()){
-          act+='<button onclick="_mttsTicketAllocateOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:5px;cursor:pointer">👥 Allocate</button>';
+          primaryAct+='<button onclick="'+stop+'_mttsTicketAllocateOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:5px;cursor:pointer">👥 Allocate</button>';
         }
         if(_mttsCanEditTicket(t)){
-          act+='<button onclick="_mttsTicketEditOpen(\''+idEsc+'\')" title="Edit ticket" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #f59e0b;color:#b45309;border-radius:5px;cursor:pointer">✏ Edit</button>';
-          act+='<button onclick="_mttsTicketDelete(\''+idEsc+'\')" title="Delete ticket" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #dc2626;color:#dc2626;border-radius:5px;cursor:pointer">🗑</button>';
+          sideAct+='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsTicketEditOpen(\''+idEsc+'\')" title="Edit ticket" aria-label="Edit ticket">✏</button>';
+          sideAct+='<button class="mtts-tcard-iconbtn is-del"  onclick="'+stop+'_mttsTicketDelete(\''+idEsc+'\')" title="Delete ticket" aria-label="Delete ticket">🗑</button>';
         }
       } else if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency')&&(_mttsIsTechnicianOnTicket(t)||_mttsIsSA()||_mttsIsManager())){
-        act+='<button onclick="_mttsTicketActionOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">🔧 Update</button>';
+        primaryAct+='<button onclick="'+stop+'_mttsTicketActionOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">🔧 Update</button>';
       } else if(t.status==='repair_done'&&_mttsCanApprove()){
-        act+='<button onclick="_mttsTicketApproveOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">✓ Approve</button>';
+        primaryAct+='<button onclick="'+stop+'_mttsTicketApproveOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">✓ Approve</button>';
       }
       if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency'||t.status==='repair_done'||t.status==='closed')&&_mttsCanAllocate()){
-        act+='<button onclick="_mttsTicketAllocateOpen(\''+idEsc+'\')" title="Reassign technicians" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #0ea5e9;color:#0369a1;border-radius:5px;cursor:pointer">👥 Reassign</button>';
+        primaryAct+='<button onclick="'+stop+'_mttsTicketAllocateOpen(\''+idEsc+'\')" title="Reassign technicians" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #0ea5e9;color:#0369a1;border-radius:5px;cursor:pointer">👥 Reassign</button>';
       }
       if(t.status==='closed'&&_mttsCanApprove()){
-        act+='<button onclick="_mttsTicketRevokeApproval(\''+idEsc+'\')" title="Revoke approval — back to Repair done" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #f59e0b;color:#92400e;border-radius:5px;cursor:pointer">↩ Revoke ✓</button>';
+        primaryAct+='<button onclick="'+stop+'_mttsTicketRevokeApproval(\''+idEsc+'\')" title="Revoke approval — back to Repair done" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #f59e0b;color:#92400e;border-radius:5px;cursor:pointer">↩ Revoke ✓</button>';
       }
-      act+='<button onclick="_mttsTicketDetail(\''+idEsc+'\')" title="View details" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:5px;cursor:pointer">👁 View</button>';
-      // Build the card itself.
-      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+'">'+
+      var hasActions=!!(primaryAct||sideAct);
+      // Build the card itself. Header line carries id + plant pill + asset
+      // name (the three identifiers in reading order); priority chip is
+      // pinned to the top-right corner. Status badge sits in the meta row.
+      var idDisp=String(t.id||'');
+      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+'" onclick="_mttsTicketDetail(\''+idEsc+'\')" role="button" tabindex="0">'+
         '<div class="mtts-tcard-head">'+
-          '<span class="mtts-tcard-id">#'+(t.id||'').slice(-6)+'</span>'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-headtop">'+
+              '<span class="mtts-tcard-id">'+idDisp+'</span>'+
+              '<span class="mtts-tcard-sep">·</span>'+
+              _mttsPlantBadge(t.plant)+
+            '</div>'+
+            '<div class="mtts-tcard-asset">'+assetName+'</div>'+
+          '</div>'+
+          '<span class="mtts-tcard-prio '+crit+'">'+crit+'</span>'+
+        '</div>'+
+        '<div class="mtts-tcard-meta">'+
+          (assetType?'<span class="mtts-tcard-type">'+assetType+'</span>':'')+
           _mttsStatusBadge(t.status)+
         '</div>'+
-        '<div>'+
-          '<div class="mtts-tcard-asset">'+assetName+'</div>'+
-          '<div class="mtts-tcard-asset-meta">'+
-            (assetType?'<span>'+assetType+'</span>':'')+
-            '<span class="mtts-tcard-prio '+crit+'">'+crit+'</span>'+
-          '</div>'+
-        '</div>'+
         '<div class="mtts-tcard-rows">'+
-          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Plant</span><span class="mtts-tcard-val">'+_mttsPlantBadge(t.plant)+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Breakdown</span><span class="mtts-tcard-val">'+bdLabel+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Down for</span><span class="mtts-tcard-val'+(isTerminal?' is-muted':' mtts-tcard-down')+'">'+downFor+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Raised</span><span class="mtts-tcard-val">'+raised+(raiser?' · <span style="color:var(--text3);font-weight:600">'+raiser+'</span>':'')+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Assigned</span><span class="mtts-tcard-val'+(techList?'':' is-muted')+'">'+(techList||'—')+'</span></div>'+
         '</div>'+
-        (act?'<div class="mtts-tcard-actions">'+act+'</div>':'')+
+        (hasActions?'<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left">'+primaryAct+'</div>'+
+          (sideAct?'<div class="mtts-tcard-actions-right">'+sideAct+'</div>':'')+
+        '</div>':'')+
       '</div>';
     });
     html+='</div>';
@@ -1161,6 +1174,92 @@ function _mttsRaiseBdDateOpenPicker(){
   }catch(e){}
   dateEl.focus();
   try{dateEl.click();}catch(e){}
+}
+
+// Ticket id format: <yearDigit>T<seq>. Year digit = the last digit of the
+// current year (2026 → "6"), so 2026's first ticket is "6T1", second "6T2",
+// etc. The sequence resets automatically when the year rolls over because
+// the prefix changes (Jan 1 2027 → "7T1"). Per-year scan of DB.mttsTickets
+// finds the max seq for the current prefix and increments it. Existing
+// legacy ids ("tabc12345") are ignored by the prefix filter.
+//
+// Concurrency caveat: two raisers clicking submit in the same instant
+// could both compute the same next seq and produce a duplicate. For a
+// single-team install this is acceptable; if it ever bites, move the
+// counter to a Postgres sequence.
+function _mttsNextTicketId(){
+  var yearDigit=String(new Date().getFullYear()%10);
+  var prefix=yearDigit+'T';
+  var max=0;
+  (DB.mttsTickets||[]).forEach(function(t){
+    if(!t||!t.id) return;
+    var s=String(t.id);
+    if(s.indexOf(prefix)!==0) return;
+    var n=parseInt(s.substring(prefix.length),10);
+    if(!isNaN(n)&&n>max) max=n;
+  });
+  return prefix+(max+1);
+}
+
+// One-time / per-launch backfill: rename any ticket whose id doesn't match
+// <yearDigit>T<seq> (e.g. legacy 'tabc12345') to the new format. Numbers
+// are assigned in raisedAt-ascending order within each year, and the
+// counter respects ids already in the new format so re-runs are
+// idempotent and safe. Gated to SA / Manager because RLS will block
+// updates from other roles.
+async function _mttsBackfillTicketIds(){
+  if(!_sb||!_sbReady){console.warn('[MTTS] backfill skip — supabase not ready');return;}
+  if(!(_mttsIsSA()||_mttsIsManager())){console.log('[MTTS] backfill skip — only Super Admin / Manager can rename ticket ids');return;}
+  var all=Array.isArray(DB.mttsTickets)?DB.mttsTickets:[];
+  if(!all.length){console.log('[MTTS] backfill skip — no tickets in memory');return;}
+  var legacy=all.filter(function(t){return t&&t.id&&!/^[0-9]T[0-9]+$/.test(String(t.id));});
+  if(!legacy.length){console.log('[MTTS] backfill — all ticket ids already in new format');return;}
+  // Seed per-year max from already-new-format ids so the seq picks up
+  // where natural assignment left off.
+  var maxByYear={};
+  all.forEach(function(t){
+    if(!t||!t.id) return;
+    var m=/^([0-9])T([0-9]+)$/.exec(String(t.id));
+    if(!m) return;
+    var n=parseInt(m[2],10);
+    if(!isNaN(n)&&(maxByYear[m[1]]==null||n>maxByYear[m[1]])) maxByYear[m[1]]=n;
+  });
+  // Walk legacy tickets in chronological order so seq numbering is monotonic.
+  legacy.sort(function(a,b){return String(a.raisedAt||'').localeCompare(String(b.raisedAt||''));});
+  var sbTbl=SB_TABLES.mttsTickets;
+  if(!sbTbl){console.warn('[MTTS] backfill skip — no SB_TABLES.mttsTickets mapping');return;}
+  console.log('[MTTS] backfill — '+legacy.length+' legacy ticket id(s) to rename →',legacy.map(function(t){return t.id;}));
+  var renamed=0,failed=0,silent=0;
+  for(var i=0;i<legacy.length;i++){
+    var t=legacy[i];
+    var year=new Date(t.raisedAt||Date.now()).getFullYear();
+    if(isNaN(year)) year=new Date().getFullYear();
+    var y=String(year%10);
+    maxByYear[y]=(maxByYear[y]||0)+1;
+    var newId=y+'T'+maxByYear[y];
+    var oldId=t.id;
+    try{
+      // .select() so we can detect RLS no-ops (UPDATE returns 0 rows
+      // without raising an error, which would otherwise look successful).
+      var res=await _sb.from(sbTbl).update({id:newId}).eq('id',oldId).select();
+      if(res.error){
+        console.warn('[MTTS] backfill FAILED',oldId,'→',newId,res.error.message||res.error);
+        maxByYear[y]--;failed++;continue;
+      }
+      if(!res.data||!res.data.length){
+        console.warn('[MTTS] backfill SILENT (0 rows updated — RLS or PK constraint?)',oldId,'→',newId);
+        maxByYear[y]--;silent++;continue;
+      }
+      t.id=newId;
+      renamed++;
+      console.log('[MTTS] backfilled',oldId,'→',newId);
+    }catch(e){
+      console.warn('[MTTS] backfill EXCEPTION',oldId,'→',newId,e.message||e);
+      maxByYear[y]--;failed++;
+    }
+  }
+  console.log('[MTTS] backfill done — '+renamed+' renamed, '+failed+' failed, '+silent+' silent (RLS)');
+  if(renamed>0&&typeof _mttsRenderTickets==='function') _mttsRenderTickets();
 }
 
 function _mttsTicketRaiseOpen(editId){
@@ -1680,7 +1779,7 @@ async function _mttsTicketRaiseSubmit(){
     return;
   }
   var ticket={
-    id:'t'+uid(),
+    id:_mttsNextTicketId(),
     assetCode:assetCode,
     assetId:_mttsResolveDbId(DB.mttsAssets,assetCode),
     plant:plant,
@@ -1734,6 +1833,31 @@ async function _mttsTicketDelete(id){
 }
 
 // ── Allocate flow (manager) ────────────────────────────────────────────────
+// Count the tickets currently assigned to a technician that are still in
+// flight. Excludes 'open' (not yet allocated), 'closed' and 'scrapped'.
+// 'repair_done' is included — work isn't sealed until the manager
+// approves, and a technician's plate isn't actually clear yet.
+function _mttsTechActiveTicketCount(techKey){
+  if(!techKey) return 0;
+  var n=0;
+  (DB.mttsTickets||[]).forEach(function(t){
+    if(!t||!Array.isArray(t.assignedTo)) return;
+    if(t.status==='open'||t.status==='closed'||t.status==='scrapped') return;
+    if(t.assignedTo.indexOf(techKey)>=0) n++;
+  });
+  return n;
+}
+// Toggle a technician button on the allocation modal. Flips the hidden
+// checkbox + the visual selection class so the existing confirm handler
+// (which reads .mtts-alloc-cb:checked) keeps working unchanged.
+function _mttsAllocToggleTech(btnEl){
+  if(!btnEl) return;
+  var cb=btnEl.querySelector('input.mtts-alloc-cb');
+  if(!cb) return;
+  cb.checked=!cb.checked;
+  btnEl.classList.toggle('is-selected',cb.checked);
+}
+
 function _mttsTicketAllocateOpen(id){
   if(!_mttsCanAllocate()){notify('Only Maintenance Manager can allocate',true);return;}
   var t=byId(DB.mttsTickets||[],id);if(!t){notify('Ticket not found',true);return;}
@@ -1743,18 +1867,32 @@ function _mttsTicketAllocateOpen(id){
   document.getElementById('mttsAllocTicketLbl').innerHTML=
     '<b>'+(asset?asset.name:'(missing)')+'</b> at '+_mttsPlantLabel(t.plant)+
     ' · '+(_MTTS_BREAKDOWN_LABEL[t.breakdownType]||'')+' · raised '+(t.raisedAt?t.raisedAt.slice(0,10):'—');
-  // Tech checkbox list
+  // Tech picker: tap-target buttons rather than a tight checkbox list, with
+  // each button surfacing the technician's current in-progress ticket
+  // count so the manager can spread load. The hidden checkbox inside each
+  // button keeps the existing confirm-handler (which reads
+  // .mtts-alloc-cb:checked) working unchanged.
   var techs=_mttsTechnicians();
   var pre=t.assignedTo||[];
   var listEl=document.getElementById('mttsAllocTechList');
   if(!techs.length){
     listEl.innerHTML='<div style="padding:10px;font-size:11px;color:var(--text3)">No users with Technician role found. Assign the role to users first via the portal.</div>';
   } else {
-    listEl.innerHTML=techs.map(function(u){
+    listEl.innerHTML='<div class="mtts-alloc-techgrid">'+techs.map(function(u){
       var key=u.name||u.id;
-      var checked=pre.indexOf(key)>=0?'checked':'';
-      return '<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px"><input type="checkbox" class="mtts-alloc-cb" value="'+key+'" '+checked+' style="width:auto!important;height:auto!important;flex:0 0 auto;margin:0"><span style="flex:1">'+(u.fullName||u.name)+(u.plant?' <span style="color:var(--text3)">· '+u.plant+'</span>':'')+'</span></label>';
-    }).join('');
+      var keyEsc=String(key).replace(/"/g,'&quot;');
+      var isOn=pre.indexOf(key)>=0;
+      var n=_mttsTechActiveTicketCount(key);
+      var loadCls=n===0?'is-free':(n<=2?'is-busy':'is-overloaded');
+      var loadTxt=n===0?'Free':(n+' active');
+      var meta=(u.plant||u.fullName!==u.name)?[(u.fullName&&u.fullName!==u.name)?u.fullName:'',u.plant||''].filter(Boolean).join(' · '):'';
+      return '<button type="button" class="mtts-alloc-techbtn'+(isOn?' is-selected':'')+'" onclick="_mttsAllocToggleTech(this)" data-key="'+keyEsc+'">'+
+        '<input type="checkbox" class="mtts-alloc-cb" value="'+keyEsc+'"'+(isOn?' checked':'')+' tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">'+
+        '<span class="mtts-alloc-name">'+(u.name||u.id)+'</span>'+
+        (meta?'<span class="mtts-alloc-meta">'+meta+'</span>':'')+
+        '<span class="mtts-alloc-load '+loadCls+'">'+loadTxt+'</span>'+
+      '</button>';
+    }).join('')+'</div>';
   }
   document.getElementById('mttsAllocNote').value='';
   // Revoke is only meaningful when the ticket is already assigned to
