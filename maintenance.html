@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V29">
+<meta name="app-build" content="260501-V32">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V29">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V32">
 </head>
 <body style="display:none">
 
@@ -182,7 +182,7 @@
 
 <!-- RAISE TICKET MODAL — mobile-first layout -->
 <div class="modal-overlay" id="mMttsRaise"><div class="modal mtts-raise-modal" style="max-width:420px;padding:12px 14px">
-  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="font-size:16px">🎫 Raise Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
+  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsRaiseTitle" style="font-size:16px">🎫 Raise Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
   <div class="mtts-raise-grid">
     <div class="mtts-raise-full mtts-raise-picks">
       <div class="mtts-raise-pickblock">
@@ -231,7 +231,7 @@
   </div>
   <div class="modal-error" id="mttsRaiseErr"></div>
   <div class="mtts-raise-actions" style="display:flex;justify-content:center;margin-top:10px">
-    <button class="btn btn-primary" onclick="_mttsTicketRaiseSubmit()" style="padding:11px 36px;font-size:15px;font-weight:800">Submit Ticket</button>
+    <button class="btn btn-primary" id="mttsRaiseSubmitBtn" onclick="_mttsTicketRaiseSubmit()" style="padding:11px 36px;font-size:15px;font-weight:800">Submit Ticket</button>
   </div>
 </div></div>
 
@@ -603,7 +603,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V29"></script>
-<script src="js/mtts-ui.js?v=260501-V29"></script>
+<script src="js/common.js?v=260501-V32"></script>
+<script src="js/mtts-ui.js?v=260501-V32"></script>
 </body>
 </html>

@@ -745,15 +745,71 @@
     .mtts-raise-modal{
       width:100vw!important;max-width:100vw!important;
       max-height:100vh!important;height:100vh;
-      border-radius:0!important;padding:14px!important;
+      /* dvh tracks iOS Safari's collapsing URL bar; vh would let the form
+         spill below the visible area and bury the sticky footer. The 100vh
+         lines stay as fallback for older browsers — duplicate declarations
+         are tolerated; the later valid one wins. */
+      max-height:100dvh!important;height:100dvh;
+      border-radius:0!important;
+      padding:max(14px,env(safe-area-inset-top)) 14px 0!important;
       transform:none!important;
       display:flex;flex-direction:column;
     }
+    /* Bigger, safe-area-aware close target so the X never sits under the
+       notch / status bar on phones with display cutouts. */
+    .mtts-raise-modal .mtts-raise-close{
+      top:max(8px,env(safe-area-inset-top))!important;
+      right:max(8px,env(safe-area-inset-right,8px))!important;
+      width:42px;height:42px;font-size:26px;
+    }
     .mtts-raise-grid{grid-template-columns:1fr;gap:10px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-    .mtts-raise-actions{position:sticky;bottom:0;background:var(--surface);padding-top:8px;border-top:1px solid var(--border);margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px}
+    /* Sticky footer with safe-area padding so the Submit button sits above
+       the home indicator / iOS bottom chrome / app bottom-nav. */
+    .mtts-raise-actions{
+      position:sticky;bottom:0;background:var(--surface);
+      padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+      border-top:1px solid var(--border);
+      margin-left:-14px;margin-right:-14px;
+      z-index:1;
+    }
     /* Block iOS Safari zoom-on-focus by ensuring 16px+ font on inputs. */
     .mtts-raise-modal input,
     .mtts-raise-modal select,
     .mtts-raise-modal textarea{font-size:16px!important}
     .mtts-raise-modal .modal-title{font-size:17px}
+  }
+  /* ── Ticket cards ───────────────────────────────────────────────────────
+     Card grid replaces the wide-table list so each ticket reads as a
+     self-contained block — fits a phone screen without horizontal scroll
+     and shows every column inline. */
+  .mtts-tcard-filters{display:flex;flex-wrap:wrap;gap:8px;padding:8px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;margin-bottom:10px}
+  .mtts-tcard-filters>*{flex:1 1 150px;min-width:0;font-size:13px;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text)}
+  .mtts-tcard-filters>input[type=search]{flex:2 1 220px}
+  .mtts-tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-content:start}
+  .mtts-tcard-empty{padding:30px 20px;text-align:center;color:var(--text3);font-size:15px;background:#fff;border:1.5px dashed var(--border);border-radius:10px;grid-column:1/-1}
+  .mtts-tcard{position:relative;background:#fff;border:1.5px solid var(--border);border-left:6px solid var(--plant-color,#94a3b8);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .15s,transform .15s}
+  .mtts-tcard:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .mtts-tcard-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .mtts-tcard-id{font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:.5px}
+  .mtts-tcard-asset{font-size:18px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
+  .mtts-tcard-asset-meta{display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap;font-size:12px;color:var(--text3)}
+  .mtts-tcard-prio{display:inline-block;padding:2px 9px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:.3px}
+  .mtts-tcard-prio.High{background:#fee2e2;color:#dc2626}
+  .mtts-tcard-prio.Medium{background:#fef3c7;color:#b45309}
+  .mtts-tcard-prio.Low{background:#dcfce7;color:#15803d}
+  .mtts-tcard-rows{display:flex;flex-direction:column;gap:5px;font-size:13px}
+  .mtts-tcard-row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-bottom:1px dashed #e2e8f0;padding-bottom:4px}
+  .mtts-tcard-row:last-of-type{border-bottom:none;padding-bottom:0}
+  .mtts-tcard-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:600;min-width:78px;flex-shrink:0}
+  .mtts-tcard-val{font-weight:700;text-align:right;flex:1;color:var(--text);word-break:break-word}
+  .mtts-tcard-val.mtts-tcard-down{color:#dc2626;font-family:var(--mono)}
+  .mtts-tcard-val.is-muted{color:var(--text3);font-weight:600}
+  .mtts-tcard-actions{display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid #f1f5f9;padding-top:9px;margin-top:auto}
+  .mtts-tcard-actions>button{flex:1 1 auto;min-width:0}
+  @media (max-width:640px){
+    .mtts-tcards{grid-template-columns:1fr;gap:10px}
+    .mtts-tcard{padding:11px 12px}
+    .mtts-tcard-asset{font-size:17px}
+    .mtts-tcard-filters>*{flex:1 1 calc(50% - 4px)}
+    .mtts-tcard-filters>input[type=search]{flex:1 1 100%}
   }
