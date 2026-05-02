@@ -1611,7 +1611,7 @@ function _hrmsBuildPeriodTable(){
         return '<td style="padding:4px 3px;text-align:center"><select class="'+_chk('status')+'" onchange="_hrmsPeriodFieldChange('+i+',\'status\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1.5px solid '+clr+';border-radius:4px;width:100%;font-weight:800;background:'+bg+';color:'+clr+'" '+statusDis+'>'+opts+'</select></td>';
       })()
       +'<td style="padding:4px 3px"><input type="text" value="'+(p.remarks||'')+'" onchange="_hrmsPeriodFieldChange('+i+',\'remarks\',this.value)" placeholder="'+(isEditable?'Add remarks…':'')+'" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+(isEditable?'':'disabled style="opacity:0.6"')+'></td>'
-      +'<td style="padding:4px 3px;white-space:nowrap">'+(isDraft?'<button onclick="_hrmsSavePeriodRow()" style="font-size:12px;padding:3px 10px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px" title="Submit for approval">📤 Submit</button><button onclick="_hrmsDeleteNewPeriod()" style="font-size:12px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Delete</button>':(isProposed?'<span style="font-size:11px;font-weight:800;color:#f59e0b;background:#fefce8;border:1px solid #fde047;padding:2px 6px;border-radius:3px">Awaiting</span>':'')+((!isDraft&&!isActive&&_hrmsIsSA()&&!_hrmsPeriodOverlapsLock(p.from,p.to))?'<button onclick="_hrmsDeletePeriodRow('+i+')" style="font-size:11px;padding:2px 6px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer;margin-left:3px" title="Delete period">🗑</button>':''))+'</td>'
+      +'<td style="padding:4px 3px;white-space:nowrap">'+(isDraft?'<button onclick="_hrmsSavePeriodRow()" style="font-size:12px;padding:3px 10px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px" title="Submit for approval">📤 Submit</button><button onclick="_hrmsDeleteNewPeriod()" style="font-size:12px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Delete</button>':(isProposed?'<span style="font-size:11px;font-weight:800;color:#f59e0b;background:#fefce8;border:1px solid #fde047;padding:2px 6px;border-radius:3px">Awaiting</span>':'')+((!isDraft&&!isActive&&_hrmsIsSA())?'<button onclick="_hrmsDeletePeriodRow('+i+')" style="font-size:11px;padding:2px 6px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer;margin-left:3px" title="Delete this revision (Super Admin only)">🗑</button>':''))+'</td>'
       +'</tr>';
   }).join('');
 }
@@ -1625,11 +1625,15 @@ function _hrmsSnapSalary(el,step){
 // _hrmsIsSA is in hrms-logic.js
 function _hrmsDeletePeriodRow(idx){
   var p=_hrmsEmpPeriods[idx];if(!p) return;
-  if(_hrmsPeriodOverlapsLock(p.from,p.to)){
-    notify('Cannot delete — salary has been generated (month locked) within this period.',true);
-    return;
-  }
-  if(!confirm('Delete this period record?')) return;
+  // Only Super Admin can use this. Lock-overlap is allowed but warned —
+  // saved-month snapshots already carry frozen P/A/Salary data, so
+  // deleting an old revision is a metadata-only change.
+  if(!_hrmsIsSA()){notify('Only Super Admin can delete revisions',true);return;}
+  var overlapsLock=typeof _hrmsPeriodOverlapsLock==='function'&&_hrmsPeriodOverlapsLock(p.from,p.to);
+  var msg=overlapsLock
+    ? '⚠ This revision overlaps month(s) where salary has already been locked.\n\nDeleting will remove the metadata row but does NOT change any saved salary snapshot. Proceed?'
+    : 'Delete this revision record?';
+  if(!confirm(msg)) return;
   _hrmsEmpPeriods.splice(idx,1);
   _hrmsBuildPeriodTable();
   notify('Period deleted — click Save to persist');
@@ -2002,19 +2006,41 @@ function _hrmsShowRejoinBtn(){
 }
 function _hrmsNewPeriod(){
   if(!_hrmsEmpEditMode){notify('Click Edit to make changes',true);return;}
-  if(!_hrmsEmpPeriods.length){notify('No periods exist — save the employee first',true);return;}
-  // Check if there's already an unsaved or proposed period
-  if(_hrmsEmpPeriods[0]._wfStatus==='draft'){notify('A draft revision already exists — submit or delete it first',true);return;}
-  if(_hrmsEmpPeriods[0]._wfStatus==='proposed'){notify('A proposed revision is already pending approval',true);return;}
+  // First revision for a brand-new employee (no periods yet) is allowed:
+  // the row starts blank and the user fills plant / salary / etc. before
+  // saving. Subsequent revisions copy fields from the most recent active
+  // open period.
+  var isFirst=!_hrmsEmpPeriods.length;
+  if(!isFirst){
+    if(_hrmsEmpPeriods[0]._wfStatus==='draft'){notify('A draft revision already exists — submit or delete it first',true);return;}
+    if(_hrmsEmpPeriods[0]._wfStatus==='proposed'){
+      // The proposed first period IS the user's edit target — drop it
+      // back to draft so salary / plant / etc. can be adjusted before
+      // resubmission. The previous block message was confusing because
+      // there's no other path to "edit a pending proposal" (the
+      // `_isNewEcr` flag is session-only, so on reload we couldn't even
+      // detect the newly-added case). Always allow the drop. Submitting
+      // the draft sends it back to proposed for ECR.
+      _hrmsEmpPeriods[0]._wfStatus='draft';
+      _hrmsBuildPeriodTable();
+      notify('Edit the highlighted draft row, then Save & Submit');
+      return;
+    }
+  }
   var curMonth=_hrmsCurMonth();
-  var prev=_hrmsEmpPeriods.find(function(p){return !p.to&&p._wfStatus!=='proposed'&&p._wfStatus!=='rejected'&&p._wfStatus!=='draft';})||_hrmsEmpPeriods[0];
-  var np={from:curMonth,to:null,_wfStatus:'draft'};
-  _PERIOD_FIELDS.forEach(function(f){np[f]=prev[f];});
-  np.status='Active';
-  np.dateOfLeft='';
+  var np={from:curMonth,to:null,_wfStatus:'draft',status:'Active',dateOfLeft:''};
+  if(!isFirst){
+    var prev=_hrmsEmpPeriods.find(function(p){return !p.to&&p._wfStatus!=='proposed'&&p._wfStatus!=='rejected'&&p._wfStatus!=='draft';})||_hrmsEmpPeriods[0];
+    _PERIOD_FIELDS.forEach(function(f){np[f]=prev[f];});
+    np.status='Active';
+    np.dateOfLeft='';
+  } else {
+    // Brand-new employee — leave editable fields blank for the user.
+    _PERIOD_FIELDS.forEach(function(f){np[f]='';});
+  }
   _hrmsEmpPeriods.unshift(np);
   _hrmsBuildPeriodTable();
-  notify('New revision created from '+_hrmsMonthLabel(curMonth)+' — make changes and click Submit');
+  notify(isFirst?'First revision added for '+_hrmsMonthLabel(curMonth)+' — fill in plant, salary etc., then save':'New revision created from '+_hrmsMonthLabel(curMonth)+' — make changes and click Submit');
 }
 
 var _hrmsEmpNavList=[];// cached filtered employee IDs for prev/next
@@ -2154,29 +2180,20 @@ function _hrmsApplyEmpEditModeToForm(){
   if(editBtns) editBtns.style.display=editing?'flex':'none';
   // Delete button is only relevant in view mode; refresh its visibility too.
   if(!editing&&typeof _hrmsEmpRefreshDeleteBtn==='function') _hrmsEmpRefreshDeleteBtn();
-  // New Revision: enabled only in edit mode AND only for already-saved
-  // (approved) employees. Disabled when:
-  //  • Adding a new employee (no id) — no record to revise yet.
-  //  • Employee still pending its first ECR (`_isNewEcr`) — approve that first.
-  //  • Active period is fully unlocked — user can edit the row in place
-  //    (Plant / Emp Type / Salary / etc.), so a separate revision would
-  //    just create unnecessary clutter. Once any month in the active
-  //    period's range is locked, the button re-enables so changes can
-  //    flow through ECR.
-  var _empId=(document.getElementById('hrmsEmpId')||{}).value||'';
-  var _emp=_empId?byId(DB.hrmsEmployees||[],_empId):null;
-  var _isPending=!!(_emp&&_emp._isNewEcr);
-  var _activeP=_emp&&_emp.periods?_emp.periods.find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');}):null;
-  var _activeUnlocked=!!_activeP&&typeof _hrmsPeriodOverlapsLock==='function'
-    &&!_hrmsPeriodOverlapsLock(_activeP.from,_activeP.to);
-  var _nrEnabled=editing&&!!_empId&&!_isPending&&!_activeUnlocked;
-  var _nrTitle=_nrEnabled?'':(
-    !_empId?'Save the new employee first':
-    _isPending?'Approve the pending creation first before adding revisions':
-    _activeUnlocked?'Active period is unlocked — edit the row directly. Lock the month first if you want an ECR-tracked revision.':
-    '');
-  var nrBtn=document.querySelector('#hrmsEmpModalContent button[onclick="_hrmsNewPeriod()"]');
-  if(nrBtn){nrBtn.disabled=!_nrEnabled;nrBtn.style.opacity=_nrEnabled?'1':'0.4';nrBtn.style.cursor=_nrEnabled?'pointer':'not-allowed';nrBtn.title=_nrTitle;}
+  // New Revision: enabled whenever the form is in edit mode. All earlier
+  // gating (_empId, _isPending, _activeUnlocked) was making the button
+  // unreachable for legitimate cases — most painfully for newly-added
+  // employees that the user explicitly wants to edit. _hrmsNewPeriod
+  // handles the rest of the logic (seeding first revision, dropping
+  // proposed → draft, copying from active period etc.).
+  var nrBtn=document.querySelector('#hrmsEmpModalContent button[onclick="_hrmsNewPeriod()"]')
+         ||document.querySelector('#hrmsEmpEditContent button[onclick="_hrmsNewPeriod()"]');
+  if(nrBtn){
+    nrBtn.disabled=!editing;
+    nrBtn.style.opacity=editing?'1':'0.4';
+    nrBtn.style.cursor=editing?'pointer':'not-allowed';
+    nrBtn.title=editing?'':'Click Edit to make changes';
+  }
   var rjBtn=document.getElementById('hrmsRejoinBtn');
   if(rjBtn&&rjBtn.style.display!=='none'){rjBtn.disabled=!editing;rjBtn.style.opacity=editing?'1':'0.4';rjBtn.style.cursor=editing?'pointer':'not-allowed';}
   // Rebuild periods table so period inputs also disable
@@ -2999,7 +3016,12 @@ async function _hrmsShowEmpHistory(){
 }
 
 function _hrmsQuickOpenEmp(q){
+  // The input may carry a labelled value from the shared emp autocomplete
+  // (`EMP01 · John Doe · KAP-1`). Peel the leading code off so the lookup
+  // matches by Emp Code, not by the whole labelled string.
   q=(q||'').trim();if(!q){notify('Enter an Emp Code or name',true);return;}
+  if(typeof _hrmsExtractEmpCode==='function') q=_hrmsExtractEmpCode(q);
+  if(!q){notify('Enter an Emp Code or name',true);return;}
   var emps=DB.hrmsEmployees||[];
   // 1. Exact emp code match (case-insensitive)
   var ql=q.toLowerCase();
@@ -3046,7 +3068,7 @@ function openHrmsEmpModal(id){
   // Render form into the modal body
   var el=document.getElementById('hrmsEmpModalContent')||document.getElementById('hrmsEmpEditContent');
   if(el) el.innerHTML='<div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;position:relative"><div style="position:relative"><input type="text" id="hrmsEmpQuickSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose(\'hrmsEmpQuickSearch\')},200)" onchange="_hrmsQuickOpenEmp(this.value)" onkeydown="if(event.key===\'Enter\'){_hrmsEmpACClose(\'hrmsEmpQuickSearch\');_hrmsQuickOpenEmp(this.value);}" style="font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px"><div id="ac_hrmsEmpQuickSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div><button onclick="_hrmsQuickOpenEmp(document.getElementById(\'hrmsEmpQuickSearch\').value)" style="padding:6px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Go</button></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;position:relative"><div style="position:relative"><input type="search" id="hrmsEmpQuickSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose(\'hrmsEmpQuickSearch\')},200)" onchange="_hrmsQuickOpenEmp(this.value)" onsearch="if(!this.value){_hrmsEmpACClose(\'hrmsEmpQuickSearch\');}else{_hrmsQuickOpenEmp(this.value);}" onkeydown="if(event.key===\'Enter\'){_hrmsEmpACClose(\'hrmsEmpQuickSearch\');_hrmsQuickOpenEmp(this.value);}" style="font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px"><div id="ac_hrmsEmpQuickSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div><button onclick="_hrmsQuickOpenEmp(document.getElementById(\'hrmsEmpQuickSearch\').value)" style="padding:6px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Go</button></div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:2px solid var(--accent);padding-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div><div style="font-size:18px;font-weight:900;color:var(--accent)" id="mHrmsEmpTitle">Add Employee</div><div id="hrmsEmpSubHeader" style="display:none;margin-top:4px;font-size:11px;color:var(--text2);display:flex;gap:6px;flex-wrap:wrap"></div></div></div><div style="display:flex;gap:6px;align-items:center">'
     +'<button id="hrmsEmpPrevBtn" onclick="_hrmsEmpNav(-1)" style="padding:6px 12px;font-size:16px;font-weight:900;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text)">‹</button>'
     +'<span id="hrmsEmpNavPos" style="font-size:11px;font-weight:700;color:var(--text3);min-width:50px;text-align:center"></span>'
@@ -4584,6 +4606,17 @@ function _hrmsRenderSummaryTab(yr,mo){
   el.innerHTML=h;
 }
 
+// Reset every search box and dropdown filter on the P&OT tab back to
+// empty / "All", then re-render so the user sees the full list again.
+function _hrmsPotClearFilters(){
+  window._hrmsPotSearch={code:'',name:'',type:'',plant:'',cat:'',team:'',dept:''};
+  window._hrmsPotFocus='';
+  // Re-render against the currently selected month.
+  var mk=_hrmsMonth||_hrmsAttSelectedMonth||'';
+  if(!mk) return;
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  if(yr&&mo) _hrmsRenderPotTab(yr,mo);
+}
 function _hrmsRenderPotTab(yr,mo){
   var el=document.getElementById('hrmsAttTabPotContent');if(!el)return;
   var mk=yr+'-'+String(mo).padStart(2,'0');
@@ -4597,11 +4630,40 @@ function _hrmsRenderPotTab(yr,mo){
   var _otR=_hrmsGetOtRules(mk);
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
 
-  // Build list of all emp codes with attendance
-  var allCodes={};attRecords.forEach(function(a){allCodes[a.empCode]=true;});
+  // Build list of all emp codes with attendance OR manual overrides for
+  // this month. Manual-only employees (no attendance record at all) are
+  // surfaced too because manual overrides drive the displayed totals.
+  var hasManualP_ot=function(emp){
+    var ex=emp.extra||{};
+    return (ex.manualP&&ex.manualP[mk]!==undefined)
+      ||(ex.manualOT&&ex.manualOT[mk]!==undefined)
+      ||(ex.manualOTS&&ex.manualOTS[mk]!==undefined);
+  };
+  var allCodes={};
+  attRecords.forEach(function(a){allCodes[a.empCode]=true;});
+  (DB.hrmsEmployees||[]).forEach(function(e){if(e&&hasManualP_ot(e)) allCodes[e.empCode]=true;});
   var emps=Object.keys(allCodes).map(function(ec){
     return empMap[ec]||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',department:'',_unmatched:true};
-  }).sort(function(a,b){
+  });
+  // Restrict to active + (actually present OR has a manual override).
+  // Filters out:
+  //   - stale codes that have no master record (_unmatched)
+  //   - inactive / resigned employees (status !== 'Active')
+  //   - employees with only the blank stub row from Add Month (no punch
+  //     and no manual override). Manual overrides + alterations still
+  //     surface those employees on the Manual / Alteration tabs.
+  emps=emps.filter(function(e){
+    if(e._unmatched) return false;
+    var st=e.status||'Active';
+    if(st!=='Active') return false;
+    var days=lookup[e.empCode]||{};
+    var anyPunch=Object.keys(days).some(function(d){
+      var v=days[d];
+      return v&&(v['in']||v['out']);
+    });
+    return anyPunch||hasManualP_ot(e);
+  });
+  emps.sort(function(a,b){
     var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
     var catOrder={'staff':0,'worker':1,'security':2};
     var at=(a.employmentType||'').toLowerCase().replace(/\s/g,''),bt=(b.employmentType||'').toLowerCase().replace(/\s/g,'');
@@ -4618,7 +4680,7 @@ function _hrmsRenderPotTab(yr,mo){
   if(!window._hrmsPotSearch) window._hrmsPotSearch={code:'',name:'',type:'',plant:'',cat:'',team:'',dept:''};
   if(!window._hrmsPotSort) window._hrmsPotSort={key:'',asc:true};
   var _ps=window._hrmsPotSearch;
-  var _psI=function(id,field){return '<input type="search" id="potSrch_'+field+'" value="'+(_ps[field]||'')+'" oninput="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" onsearch="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" placeholder="🔍" style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;width:100%">';};
+  var _psI=function(id,field){return '<input type="search" id="potSrch_'+field+'" value="'+(_ps[field]||'')+'" oninput="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" onsearch="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" placeholder="🔍" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%">';};
   var _psSrt=function(key){return ' onclick="var s=window._hrmsPotSort;if(s.key===\''+key+'\')s.asc=!s.asc;else{s.key=\''+key+'\';s.asc=true;}_hrmsRenderPotTab('+yr+','+mo+')" style="cursor:pointer"';};
   var _psSI=function(key){var s=window._hrmsPotSort;return s.key===key?(s.asc?' ▲':' ▼'):' ⇅';};
   var _thS='padding:6px 4px;font-size:11px;font-weight:800;white-space:nowrap;border-bottom:1px solid var(--border)';
@@ -4629,7 +4691,7 @@ function _hrmsRenderPotTab(yr,mo){
   var _potVals=function(field){var v={};emps.forEach(function(e){if(e[field])v[e[field]]=1;});return Object.keys(v).sort();};
   var _potSel=function(field,psField){
     var vals=_potVals(field);
-    return '<select id="potSrch_'+psField+'" onchange="window._hrmsPotSearch.'+psField+'=this.value;_hrmsRenderPotTab('+yr+','+mo+')" style="font-size:10px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option>'+vals.map(function(v){return '<option value="'+v+'"'+(v===_ps[psField]?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
+    return '<select id="potSrch_'+psField+'" onchange="window._hrmsPotSearch.'+psField+'=this.value;_hrmsRenderPotTab('+yr+','+mo+')" style="font-size:12px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option>'+vals.map(function(v){return '<option value="'+v+'"'+(v===_ps[psField]?' selected':'')+'>'+v+'</option>';}).join('')+'</select>';
   };
   // Row 1: Search / Filter inputs (above column headers)
   h+='<tr style="background:#fff">';
@@ -4641,7 +4703,10 @@ function _hrmsRenderPotTab(yr,mo){
   h+='<th style="padding:3px">'+_potSel('category','cat')+'</th>';
   h+='<th style="padding:3px">'+_potSel('teamName','team')+'</th>';
   h+='<th style="padding:3px">'+_potSel('department','dept')+'</th>';
-  h+='<th colspan="4"></th>';
+  // Clear filters — wipes every search input + dropdown selection in
+  // window._hrmsPotSearch and re-renders so the table shows the full
+  // employee list again.
+  h+='<th colspan="4" style="padding:3px;text-align:right"><button type="button" onclick="_hrmsPotClearFilters()" title="Clear all search and filter selections" style="font-size:11px;padding:3px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">↻ Clear</button></th>';
   h+='</tr>';
   // Row 2: Column headers (below search)
   h+='<tr style="background:#f1f5f9;color:var(--text)">';
@@ -4696,7 +4761,27 @@ function _hrmsRenderPotTab(yr,mo){
         }
       }
     }
+    // Manual overrides win over the attendance-derived totals (per-field
+    // — admin may override only OT and leave the rest as calculated).
+    // Working-days snapshot = totalP + totalA from the natural flow;
+    // each working day contributes exactly 1 to the sum (P=1, EL=1,
+    // P/2=0.5+0.5, A=1) and off days contribute nothing. So when a
+    // manual P is provided, A = working_days - P, NOT calendar_days - P.
+    var _workingDays=totalP+totalA;
+    var _ex=emp.extra||{};
+    var _mP=(_ex.manualP&&_ex.manualP[mk]!==undefined)?+_ex.manualP[mk]:undefined;
+    var _mOT=(_ex.manualOT&&_ex.manualOT[mk]!==undefined)?+_ex.manualOT[mk]:undefined;
+    var _mOTS=(_ex.manualOTS&&_ex.manualOTS[mk]!==undefined)?+_ex.manualOTS[mk]:undefined;
+    if(_mP!==undefined&&!isNaN(_mP)){
+      totalP=_mP;
+      totalA=Math.max(0,_workingDays-_mP);
+    }
+    if(_mOT!==undefined&&!isNaN(_mOT)) totalOT=_mOT;
+    if(_mOTS!==undefined&&!isNaN(_mOTS)) totalOTS=_mOTS;
     emp._totalP=totalP;emp._totalA=totalA;emp._totalOT=totalOT;emp._totalOTS=totalOTS;
+    emp._totalPManual=(_mP!==undefined&&!isNaN(_mP));
+    emp._totalOTManual=(_mOT!==undefined&&!isNaN(_mOT));
+    emp._totalOTSManual=(_mOTS!==undefined&&!isNaN(_mOTS));
   });
   // Filter by search
   if(_ps.code) emps=emps.filter(function(e){return(e.empCode||'').toLowerCase().indexOf(_ps.code.toLowerCase())>=0;});
@@ -7167,8 +7252,25 @@ function _hrmsAttExportSummary(){
 
   var _otR=_hrmsGetOtRules(mk);
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
+  // Mirror the on-screen P&OT filter exactly: active AND actually present
+  // at least once this month. Manual overrides flow through after the
+  // attendance-derived totals so an emp with no punches but a manual
+  // override entry still surfaces here.
+  var hasManual=function(emp,mk){
+    var ex=emp.extra||{};
+    return (ex.manualP&&ex.manualP[mk]!==undefined)
+      ||(ex.manualPL&&ex.manualPL[mk]!==undefined)
+      ||(ex.manualOT&&ex.manualOT[mk]!==undefined)
+      ||(ex.manualOTS&&ex.manualOTS[mk]!==undefined);
+  };
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
-    return lookup[e.empCode]||e.status==='Active';
+    if((e.status||'Active')!=='Active') return false;
+    var days=lookup[e.empCode]||{};
+    var anyPunch=Object.keys(days).some(function(d){
+      var v=days[d];
+      return v&&(v['in']||v['out']);
+    });
+    return anyPunch||hasManual(e,mk);
   }).sort(function(a,b){
     var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
     var catOrder={'staff':0,'worker':1,'security':2};
@@ -7229,6 +7331,24 @@ function _hrmsAttExportSummary(){
         }
       }
     }
+    // Manual overrides win over the attendance-derived totals. Each
+    // manual* field is checked independently — admin may want to override
+    // only OT (e.g.) and leave the calculated P/A/OTS as-is.
+    // workingDays = totalP + totalA from the natural-flow loop (each
+    // working day adds exactly 1, off days add 0). Manual A is then
+    // workingDays - manP, NOT calendar days - manP, so weekly-offs and
+    // paid holidays don't get counted as Absent.
+    var workingDays=totalP+totalA;
+    var ex=emp.extra||{};
+    var manP=(ex.manualP&&ex.manualP[mk]!==undefined)?+ex.manualP[mk]:undefined;
+    var manOT=(ex.manualOT&&ex.manualOT[mk]!==undefined)?+ex.manualOT[mk]:undefined;
+    var manOTS=(ex.manualOTS&&ex.manualOTS[mk]!==undefined)?+ex.manualOTS[mk]:undefined;
+    if(manP!==undefined&&!isNaN(manP)){
+      totalP=manP;
+      totalA=Math.max(0,workingDays-manP);
+    }
+    if(manOT!==undefined&&!isNaN(manOT)) totalOT=manOT;
+    if(manOTS!==undefined&&!isNaN(manOTS)) totalOTS=manOTS;
     var pDisp=totalP%1===0?totalP:+totalP.toFixed(1);
     var aDisp=totalA%1===0?totalA:+totalA.toFixed(1);
     rows.push([emp.empCode,emp.name,emp.employmentType||'',emp.location||'',emp.category||'',emp.teamName||'',emp.department||'',pDisp,aDisp,totalOT>0?Math.round(totalOT*4)/4:0,totalOTS>0?Math.round(totalOTS*4)/4:0]);
@@ -9533,6 +9653,27 @@ function _hrmsRenderActiveTab(){
 
 // ═══ SALARY SETTINGS — Per-Plant Working Days & Paid Holidays ═══════════
 var _hrmsSettingsApplyAll=false;
+// Hydrated from hrms_settings (key='calApplyAll') the first time the
+// Calendar tab renders in this session. Toggle saves back to DB so the
+// preference survives reload.
+var _hrmsSettingsApplyAllHydrated=false;
+function _hrmsCalApplyAllLoad(){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
+  return !!(rec&&rec.data&&rec.data.value);
+}
+async function _hrmsCalApplyAllSave(val){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
+  if(!rec){
+    rec={id:'hs_calApplyAll',key:'calApplyAll',data:{value:!!val}};
+    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    DB.hrmsSettings.push(rec);
+  } else {
+    rec.data=rec.data||{};
+    rec.data.value=!!val;
+  }
+  try{await _dbSave('hrmsSettings',rec);}
+  catch(e){console.warn('save calApplyAll failed:',e);}
+}
 
 // ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
 var _hrmsActiveSettingsTab='calendar';
@@ -9574,6 +9715,13 @@ function _hrmsSettingsSubTab(tab){
 
 function _hrmsSalSettingsRender(){
   var body=document.getElementById('hrmsSalSettingsBody');if(!body)return;
+  // First render of the session — pull the persisted Apply-All preference
+  // from hrmsSettings before rendering so the checkbox reflects the saved
+  // state on reload.
+  if(!_hrmsSettingsApplyAllHydrated){
+    _hrmsSettingsApplyAll=_hrmsCalApplyAllLoad();
+    _hrmsSettingsApplyAllHydrated=true;
+  }
   var mk=_hrmsMonth;
   if(!mk){
     body.innerHTML='<div class="empty-state">Select a month above to configure working days and paid holidays</div>';
@@ -9615,13 +9763,25 @@ function _hrmsSalSettingsRender(){
     var disabled=_hrmsSettingsApplyAll&&pi>0;
     var opacity=disabled?'opacity:.45;pointer-events:none':'';
 
-    h+='<div style="border:1.5px solid var(--border);border-radius:8px;padding:10px;background:var(--surface);min-width:220px;flex:1;max-width:320px;'+opacity+'">';
-    // Plant header + counts inline
+    h+='<div style="border:1.5px solid var(--border);border-radius:8px;padding:10px;background:var(--surface);min-width:240px;flex:1;max-width:340px;'+opacity+'">';
+    // Plant header
     h+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">';
-    h+='<span style="font-size:12px;font-weight:900;padding:2px 8px;border-radius:4px;background:'+pClr+'">'+plant+'</span>';
-    h+='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:#fef3c7;color:#92400e">'+counts.WD+'</span>';
-    h+='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:#dbeafe;color:#1e40af">'+counts.WO+'</span>';
-    h+='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;background:#dcfce7;color:#166534">'+counts.PH+'</span>';
+    h+='<span style="font-size:13px;font-weight:900;padding:3px 10px;border-radius:5px;background:'+pClr+'">'+plant+'</span>';
+    h+='</div>';
+    // Prominent stat row — three big number cards with labels.
+    h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">';
+    h+='<div style="padding:6px 4px;border-radius:6px;background:#fef3c7;border:1px solid #fcd34d;text-align:center">'
+      +'<div style="font-size:22px;font-weight:900;color:#b45309;line-height:1;font-family:var(--mono)">'+counts.WD+'</div>'
+      +'<div style="font-size:9px;font-weight:800;color:#92400e;letter-spacing:.4px;text-transform:uppercase;margin-top:2px">Working</div>'
+    +'</div>';
+    h+='<div style="padding:6px 4px;border-radius:6px;background:#dbeafe;border:1px solid #93c5fd;text-align:center">'
+      +'<div style="font-size:22px;font-weight:900;color:#1d4ed8;line-height:1;font-family:var(--mono)">'+counts.WO+'</div>'
+      +'<div style="font-size:9px;font-weight:800;color:#1e40af;letter-spacing:.4px;text-transform:uppercase;margin-top:2px">Holidays</div>'
+    +'</div>';
+    h+='<div style="padding:6px 4px;border-radius:6px;background:#dcfce7;border:1px solid #86efac;text-align:center">'
+      +'<div style="font-size:22px;font-weight:900;color:#15803d;line-height:1;font-family:var(--mono)">'+counts.PH+'</div>'
+      +'<div style="font-size:9px;font-weight:800;color:#166534;letter-spacing:.4px;text-transform:uppercase;margin-top:2px">Paid Holidays</div>'
+    +'</div>';
     h+='</div>';
 
     // Compact calendar grid
@@ -9648,7 +9808,10 @@ function _hrmsSalSettingsRender(){
 
 function _hrmsToggleApplyAll(checked){
   _hrmsSettingsApplyAll=checked;
+  _hrmsSettingsApplyAllHydrated=true;
   _hrmsSalSettingsRender();
+  // Fire-and-forget DB save; render already reflects the new state.
+  _hrmsCalApplyAllSave(checked);
 }
 
 async function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
@@ -13648,7 +13811,11 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     var advTotal=advOB+advMonth;
     var advCB=advTotal-advDed;
     // Deductions — from statutory settings
-    var dedPT=0,dedPF=0,dedESI=0,dedAdv=advDed,dedTDS=mo===4?0:Math.round(_hrmsGetTdsForMonth(emp,mk)),dedOther=0;
+    // TDS is read from emp.extra.tdsByMonth[mk] (set via Settings & Data
+     // → TDS tab) and deducted in every month it's saved for. The earlier
+     // April-only skip was unjustified — TDS is a monthly salary
+     // deduction regardless of where the month falls in the FY.
+    var dedPT=0,dedPF=0,dedESI=0,dedAdv=advDed,dedTDS=Math.round(_hrmsGetTdsForMonth(emp,mk)),dedOther=0;
     // PF: BV based on gross. GS>19000→BV=15000, GS<15000→BV=GS, 15000-19000→BV=15000/(WD+PH)*(P+totalPL)
     var pfBV=0;
     if(gross>19000) pfBV=15000;

@@ -1630,8 +1630,11 @@ function _mttsRaiseRefreshTypeSummary(){
   btn.classList.remove('is-empty');
   // Sentinel "__ALL__" → show "Selected Asset Type: All" so the user
   // sees their explicit pick (vs. the placeholder when nothing chosen).
+  // Icon nested inside the value span to keep the same prefix|value grid
+  // layout the labelled types use (otherwise it breaks the two-column
+  // split and the prefix lands in the wrong cell).
   if(code===_MTTS_TYPE_ALL){
-    btn.innerHTML='<span class="mtts-chip-icon">📋</span><span class="mtts-pick-prefix">Selected Asset Type</span><span class="mtts-pick-value">All</span>';
+    btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset Type</span><span class="mtts-pick-value"><span class="mtts-chip-icon">📋</span>All</span>';
     return;
   }
   var label=_mttsAssetTypeLabel(code);
