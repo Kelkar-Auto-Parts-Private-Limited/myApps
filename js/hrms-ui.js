@@ -6907,7 +6907,11 @@ function _hrmsRenderAttGrid(yr,mo){
   var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // Filters
-  var fSearch=(document.getElementById('hrmsAttFSearch')?.value||'').toLowerCase();
+  // Pull the leading code off labelled autocomplete picks (e.g.
+  // "EMP01 · John · Plant1") so the substring match below still hits;
+  // raw typed strings pass through unchanged.
+  var _fsRaw=document.getElementById('hrmsAttFSearch')?.value||'';
+  var fSearch=(typeof _hrmsExtractEmpCode==='function'?_hrmsExtractEmpCode(_fsRaw):_fsRaw).toLowerCase();
   var fPlant=(document.getElementById('hrmsAttFPlant')||{}).value||'';
   var fCat=(document.getElementById('hrmsAttFCategory')||{}).value||'';
   var fTeam=(document.getElementById('hrmsAttFTeam')||{}).value||'';
@@ -13517,6 +13521,14 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     var p=(a.d.location||'').localeCompare(b.d.location||'');if(p!==0)return p;
     return(parseInt(a.empCode)||0)-(parseInt(b.empCode)||0);
   });
+  // Apply the salary tab's emp-code/name search (locked-month path too).
+  if(_hrmsOrSalEmpQ){
+    var _qLowS=_hrmsOrSalEmpQ.toLowerCase();
+    emps=emps.filter(function(it){
+      var nm=(it.d&&it.d.name)||'';
+      return (it.empCode||'').toLowerCase().indexOf(_qLowS)>=0||String(nm).toLowerCase().indexOf(_qLowS)>=0;
+    });
+  }
 
   // Match Contract Salary table density (5px 4px th / 4px 5px td)
   var _th='padding:5px 4px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b;text-align:center';
@@ -13611,6 +13623,18 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
   }
 }
 
+// Search query for the on-roll Salary tab. Applied as a substring filter
+// on emp code + name. Uses _hrmsExtractEmpCode so labelled autocomplete
+// picks ("EMP01 · Name · Plant") still match.
+var _hrmsOrSalEmpQ='';
+function _hrmsOrSalSearchInput(el){
+  var raw=el?(el.value||''):'';
+  _hrmsOrSalEmpQ=(typeof _hrmsExtractEmpCode==='function'?_hrmsExtractEmpCode(raw):raw).trim();
+  var mk=_hrmsMonth||'';if(!mk) return;
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  if(yr&&mo) _hrmsRenderOrSalary(yr,mo,'all');
+}
+
 async function _hrmsRenderOrSalary(yr,mo,catFilter){
   var _mk=yr+'-'+String(mo).padStart(2,'0');
   // ── LOCKED MONTH: render from saved data (no master dependency) ──
@@ -13668,6 +13692,15 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     var p=_getPLoc(a).localeCompare(_getPLoc(b));if(p!==0)return p;
     return (parseInt(a.empCode)||0)-(parseInt(b.empCode)||0);
   });
+  // Apply the salary tab's emp-code/name search.
+  if(_hrmsOrSalEmpQ){
+    var _qLow=_hrmsOrSalEmpQ.toLowerCase();
+    emps=emps.filter(function(e){
+      return (e.empCode||'').toLowerCase().indexOf(_qLow)>=0
+        ||(e.name||'').toLowerCase().indexOf(_qLow)>=0
+        ||((typeof _hrmsDispName==='function'?_hrmsDispName(e):'')||'').toLowerCase().indexOf(_qLow)>=0;
+    });
+  }
 
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX=_otR.elMaxPerMonth;
   var _salBalances=[];// collect {empCode,plOB,plCB,advOB,advCB} for saving
@@ -17059,12 +17092,37 @@ function _hrmsRenderAltReqTab(yr,mo){
 // the company, in one table, sorted most-recent action first. Action
 // buttons live on the dedicated My Approvals page now — this tab is for
 // historical / oversight reading only.
+// Super Admin can delete any C-Off or Alteration request entry — even
+// already-approved ones. Removes only the request metadata; salary
+// snapshots / muster cells already produced from an earlier approval are
+// not reverted (admin should regenerate the affected month if needed).
+async function _hrmsSADeleteCoffAltReq(empId,type,idx){
+  if(!_hrmsIsSA()){notify('Only Super Admin can delete approved requests',true);return;}
+  var emp=byId(DB.hrmsEmployees||[],empId);
+  if(!emp||!emp.extra){notify('Employee not found',true);return;}
+  var arr=type==='coff'?emp.extra.coffBank:emp.extra.altRequests;
+  if(!Array.isArray(arr)||idx<0||idx>=arr.length){notify('Request entry not found',true);return;}
+  var item=arr[idx];
+  var label=type==='coff'
+    ? 'C-Off (earned '+(item.earnedDate||'—')+', status '+(item.status||'—')+')'
+    : 'Alteration ('+(item.date||'—')+', status '+(item.status||'—')+')';
+  var msg='Delete this '+label+'?\n\nThis removes the request entry only. Any salary snapshot or muster cell already produced from a prior approval will not be reverted automatically.';
+  if(!confirm(msg)) return;
+  arr.splice(idx,1);
+  showSpinner('Deleting…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✕ '+(type==='coff'?'C-Off':'Alteration')+' request deleted');
+  _hrmsRenderCoffAltReqTab();
+}
+
 function _hrmsRenderCoffAltReqTab(){
   var el=document.getElementById('hrmsCoffAltReqBody');if(!el) return;
   var rows=[];
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||!e.extra) return;
-    (e.extra.coffBank||[]).forEach(function(c){
+    (e.extra.coffBank||[]).forEach(function(c,_idx){
       if(!c) return;
       // Skip pristine entries — c-offs that were earned but never claimed
       // (no request, no approval, no rejection) aren't a "request" yet.
@@ -17074,7 +17132,7 @@ function _hrmsRenderCoffAltReqTab(){
       // we surface that as 'rejected' for clarity.
       var st=c.rejectedBy?'rejected':(c.status||'available');
       rows.push({
-        emp:e,type:'coff',entry:c,
+        emp:e,type:'coff',entry:c,srcIdx:_idx,
         subject:c.usedForDate||c.earnedDate||'—',
         details:'Earned '+(c.earnedDate||'—')+' · '+(c.source==='PH'?'Paid Holiday':c.source==='WO'?'Weekly Off':(c.source||'—')),
         status:st,
@@ -17084,11 +17142,11 @@ function _hrmsRenderCoffAltReqTab(){
         ts:ts
       });
     });
-    (e.extra.altRequests||[]).forEach(function(r){
+    (e.extra.altRequests||[]).forEach(function(r,_idx){
       if(!r) return;
       var ts=r.approvedAt||r.rejectedAt||r.requestedAt||r.date||'';
       rows.push({
-        emp:e,type:'alt',entry:r,
+        emp:e,type:'alt',entry:r,srcIdx:_idx,
         subject:r.date||'—',
         details:(r.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch')+' · '+(r['in']||'—')+'–'+(r['out']||'—'),
         status:r.status||'pending',
@@ -17132,6 +17190,7 @@ function _hrmsRenderCoffAltReqTab(){
       '<th style="'+th+'">Acted By</th>'+
       '<th style="'+th+'">Acted At</th>'+
       '<th style="'+th+'">Approval Chain</th>'+
+      (_hrmsIsSA()?'<th style="'+th+';text-align:center">Action</th>':'')+
     '</tr></thead><tbody>';
   rows.forEach(function(r,i){
     var emp=r.emp,e=r.entry;
@@ -17149,6 +17208,9 @@ function _hrmsRenderCoffAltReqTab(){
       '<td style="'+td+';font-size:11px">'+actorName+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+(r.actedAt?r.actedAt.slice(0,10):'—')+'</td>'+
       '<td style="'+td+'">'+((typeof _hrmsRenderApprovalChainHTML==='function')?_hrmsRenderApprovalChainHTML(e,{compact:true}):'')+'</td>'+
+      (_hrmsIsSA()
+        ? '<td style="'+td+';text-align:center"><button onclick="_hrmsSADeleteCoffAltReq(\''+r.emp.id+'\',\''+r.type+'\','+r.srcIdx+')" title="Delete this request (Super Admin only)" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑</button></td>'
+        : '')+
     '</tr>';
   });
   html+='</tbody></table></div>';
