@@ -13,11 +13,38 @@ function _spinnerEnsureDOM(){
   var ov=document.createElement('div');ov.id='kapSpinnerOverlay';
   ov.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)';
   ov.innerHTML='<div style="width:44px;height:44px;border:4px solid rgba(42,154,160,.2);border-top-color:#2a9aa0;border-radius:50%;animation:kapSpin .7s linear infinite"></div>'
-    +'<div id="kapSpinnerMsg" style="color:#fff;font-size:14px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 4px rgba(0,0,0,.4)">Loading…</div>';
+    +'<div id="kapSpinnerMsg" style="color:#fff;font-size:14px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 4px rgba(0,0,0,.4)">Loading…</div>'
+    +'<div id="kapSpinnerProgress" style="display:none;width:300px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 4px rgba(0,0,0,.4)">'
+    +'  <div id="kapSpinnerProgressLabel" style="text-align:center;margin-bottom:6px;font-size:12px;font-weight:600">0 / 0</div>'
+    +'  <div style="background:rgba(255,255,255,.2);height:10px;border-radius:5px;overflow:hidden">'
+    +'    <div id="kapSpinnerProgressBar" style="background:linear-gradient(90deg,#2a9aa0,#5cd1d6);height:100%;width:0%;border-radius:5px;transition:width .15s ease-out"></div>'
+    +'  </div>'
+    +'</div>';
   var style=document.createElement('style');
   style.textContent='@keyframes kapSpin{to{transform:rotate(360deg)}}';
   document.head.appendChild(style);
   document.body.appendChild(ov);
+}
+// Update the spinner's progress bar. Pass total<=0 (or omit) to hide it.
+// Callers should set the message via showSpinner first; this only drives
+// the bar/label below the spinner. Callers doing tight loops should
+// `await new Promise(r=>setTimeout(r,0))` after each update so the browser
+// can paint between iterations.
+function setSpinnerProgress(done,total,label){
+  _spinnerEnsureDOM();
+  var wrap=document.getElementById('kapSpinnerProgress');
+  var bar=document.getElementById('kapSpinnerProgressBar');
+  var lbl=document.getElementById('kapSpinnerProgressLabel');
+  if(!wrap||!bar||!lbl) return;
+  if(!total||total<=0){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  var pct=Math.min(100,Math.max(0,Math.round(done/total*100)));
+  bar.style.width=pct+'%';
+  lbl.textContent=(label?label+' — ':'')+done+' / '+total+'  ('+pct+'%)';
+}
+function clearSpinnerProgress(){
+  var wrap=document.getElementById('kapSpinnerProgress');
+  if(wrap) wrap.style.display='none';
 }
 function showSpinner(msg){
   _spinnerEnsureDOM();
@@ -32,6 +59,8 @@ function hideSpinner(){
   if(_spinDepth===0){
     var ov=document.getElementById('kapSpinnerOverlay');
     if(ov) ov.style.display='none';
+    // Reset the progress bar so the next showSpinner starts clean.
+    if(typeof clearSpinnerProgress==='function') clearSpinnerProgress();
   }
 }
 function _spinnerMsg(msg){
@@ -1226,7 +1255,10 @@ async function _authSetPassword(userCode,plainPassword){
 }
 
 // Bulk upsert — saves array of records in batches of 50
-async function _dbSaveBulk(tbl, records){
+// Optional 3rd arg: progressLabel — when provided, the spinner's progress
+// bar ticks per batch (50 rows). Pass null/undefined to keep the spinner
+// in indeterminate mode for callers that don't want a bar.
+async function _dbSaveBulk(tbl, records, progressLabel){
   if(!_sbReady||!_sb){notify('⚠ No database connection.',true);return 0;}
   var sbTbl=SB_TABLES[tbl];if(!sbTbl)return 0;
   var rows=records.map(function(r){return _toRow(tbl,r);}).filter(Boolean);
@@ -1240,6 +1272,7 @@ async function _dbSaveBulk(tbl, records){
     if(!auth) return 0;
   }
   var saved=0,batchSize=50;
+  if(progressLabel&&typeof setSpinnerProgress==='function') setSpinnerProgress(0,rows.length,progressLabel);
   for(var i=0;i<rows.length;i+=batchSize){
     var batch=rows.slice(i,i+batchSize);
     var _bulkAttempts=0;
@@ -1268,6 +1301,11 @@ async function _dbSaveBulk(tbl, records){
         break;
       }catch(e){console.error('Bulk save exception ['+tbl+']:',e.message);break;}
     }
+    if(progressLabel&&typeof setSpinnerProgress==='function'){
+      setSpinnerProgress(saved,rows.length,progressLabel);
+      // Yield so the browser repaints the bar between batches.
+      await new Promise(function(r){setTimeout(r,0);});
+    }
   }
   // Update in-memory DB
   if(!DB[tbl])DB[tbl]=[];
@@ -1276,6 +1314,7 @@ async function _dbSaveBulk(tbl, records){
     if(idx>=0)DB[tbl][idx]=r;else DB[tbl].push(r);
   });
   if(saved)_sbSetStatus('ok');
+  if(progressLabel&&typeof clearSpinnerProgress==='function') clearSpinnerProgress();
   return saved;
 }
 
@@ -1683,10 +1722,19 @@ function _startBgReconnect(silentMode){
 let CU=null; // current user — declared here so boot sequence can access it
 
 // ═══ CONSTANTS ════════════════════════════════════════════════════════════
-const ROLES=['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
-const HWMS_ROLES=['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
-const HRMS_ROLES=['Super Admin','HR Manager','HR Admin','Employee'];
-const MTTS_ROLES=['Super Admin','Maintenance Manager','Technician','Ticket Raiser'];
+// Platform-level roles — granted only by Super Admin. Drive portal-wide
+// concerns (user management, app provisioning) above any single app.
+// Read Only is also offered per-app for app-scoped read-only access.
+const PLATFORM_ROLES=['Super Admin','Admin','Read Only'];
+// App-level roles. Super Admin no longer appears here — it's a platform
+// role only. Each app has its own Admin (VMS Admin / HWMS Admin /
+// HRMS Admin / MTTS Admin) plus a Read Only.
+const ROLES=['VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'];
+const HWMS_ROLES=['HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'];
+// HR Admin retained alongside HRMS Admin so existing assignments keep
+// working until users are migrated to the new HRMS Admin label.
+const HRMS_ROLES=['HRMS Admin','HR Manager','HR Admin','Employee','Read Only'];
+const MTTS_ROLES=['MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only'];
 
 // ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
 // Defined here (not portal-ui.js) so every app bundle (VMS, HWMS, HRMS,
@@ -1699,11 +1747,11 @@ var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'r
 // A user with role 'KAP Security' (VMS-only) therefore can't accidentally
 // inherit permissions saved under the Security module.
 var _PERM_MODULE_ROLES={
-  VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'],
-  HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'],
-  HRMS:['Super Admin','HR Admin','HR Manager','Employee'],
-  Security:['Super Admin','Guard','Viewer'],
-  MTTS:['Super Admin','Maintenance Manager','Technician','Ticket Raiser']
+  VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'],
+  HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'],
+  HRMS:['Super Admin','HRMS Admin','HR Admin','HR Manager','Employee','Read Only'],
+  Security:['Super Admin','Guard','Viewer','Read Only'],
+  MTTS:['Super Admin','MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only']
 };
 function _permModuleUserRoles(mod){
   if(typeof CU==='undefined'||!CU) return [];
@@ -1941,7 +1989,11 @@ function _permLoadData(){
 // Module-admin roles that bypass granular permission checks and get full
 // access to their module. Super Admin is global and handled separately.
 // "Admin" is VMS-scoped (not cross-module); HWMS/HRMS have their own.
-var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HR Admin'],Security:[],MTTS:['Maintenance Manager']};
+// New per-app Admin role (HRMS Admin / MTTS Admin) listed alongside the
+// legacy admin role so both labels grant module-admin access during the
+// rollout. 'Admin' here means the platform-level Admin and is NOT a
+// per-module admin — it's added to canManageUsers separately.
+var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin','HR Admin'],Security:[],MTTS:['MTTS Admin','Maintenance Manager']};
 // Per-key default-full role grants. Applied only when no explicit role
 // permission is configured — admins can still revoke via Configure Access.
 var _PERM_DEFAULTS_FULL={

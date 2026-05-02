@@ -843,6 +843,29 @@
   .mtts-alloc-info-desc::before{content:"\201C";color:var(--text3);font-size:18px;margin-right:2px}
   .mtts-alloc-info-desc::after{content:"\201D";color:var(--text3);font-size:18px;margin-left:2px}
   .mtts-alloc-info-meta{font-size:12px;color:var(--text3);font-weight:600}
+  /* Raise Ticket — shared compact radio list used by Plant / Asset Type /
+     Asset pickers. Vertical, sorted alphabetically, scrollable when long
+     so the rest of the form stays usable. Font bumped from the chip-row
+     baseline (+2px) for easier reading on phone. */
+  .mtts-raise-asset-list{display:flex;flex-direction:column;width:100%;max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff}
+  .mtts-raise-asset-row{display:flex;align-items:center;gap:10px;padding:5px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:18px;font-weight:600;color:var(--text);transition:background .15s;line-height:1.25}
+  .mtts-raise-asset-row:last-child{border-bottom:none}
+  .mtts-raise-asset-row:hover{background:#f8fafc}
+  .mtts-raise-asset-row.is-selected{background:#eff6ff;color:var(--accent)}
+  .mtts-raise-asset-row input[type=radio]{width:auto;margin:0;flex:0 0 auto;cursor:pointer;accent-color:var(--accent)}
+  .mtts-raise-asset-row .mtts-chip-icon{font-size:18px;line-height:1}
+  .mtts-raise-asset-row .mtts-chip-swatch{flex-shrink:0}
+  /* ── Tickets page tab strip ────────────────────────────────────────────
+     Three-up tab row (All / Raised by me / Allocated to me) above the
+     filter bar. Active tab carries an accent underline. */
+  .mtts-ticket-tabs{display:flex;gap:2px;padding:0 12px 0;flex-wrap:wrap;border-bottom:1.5px solid var(--border);margin-bottom:10px}
+  .mtts-ticket-tab{padding:9px 18px;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;font-size:14px;font-weight:700;color:var(--text2);transition:color .15s,border-color .15s,background .15s;margin-bottom:-1.5px;font-family:inherit;border-radius:6px 6px 0 0}
+  .mtts-ticket-tab:hover{color:var(--accent);background:#f8fafc}
+  .mtts-ticket-tab.is-active{color:var(--accent);border-bottom-color:var(--accent);background:#fff}
+  @media (max-width:640px){
+    .mtts-ticket-tabs{padding:0 6px;gap:0}
+    .mtts-ticket-tab{flex:1 1 33%;padding:9px 6px;font-size:12px;text-align:center;border-radius:0}
+  }
   @media (max-width:640px){
     .mtts-alloc-techgrid{grid-template-columns:1fr 1fr;gap:6px;padding:4px}
     .mtts-alloc-techbtn{padding:9px 10px}

@@ -4284,12 +4284,31 @@ function _hrmsEmpAC(inp){
 }
 
 function _hrmsEmpACPick(inpId,code){
-  var inp=document.getElementById(inpId);if(inp){inp.value=code;inp.dispatchEvent(new Event('change'));}
+  var inp=document.getElementById(inpId);
+  if(inp){
+    // Surface the picked employee's name + location alongside the code so
+    // the user sees who they're acting on without re-checking the master.
+    // Save handlers should call _hrmsExtractEmpCode() to peel off the code.
+    var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
+    var nm=emp?(_hrmsDispName(emp)||emp.name||''):'';
+    var loc=emp?(emp.location||''):'';
+    var label=code+(nm?' · '+nm:'')+(loc?' · '+loc:'');
+    inp.value=label;
+    inp.dispatchEvent(new Event('change'));
+  }
   _hrmsEmpACClose(inpId);
   inp&&inp.focus();
   // Auto-advance focus to next input for speed
   var nextId={hrmsManualPCode:'hrmsManualPDays',hrmsTdsCode:'hrmsTdsAmount',hrmsAdvCode:'hrmsAdvAmount'}[inpId];
   if(nextId){var n=document.getElementById(nextId);if(n)n.focus();}
+}
+// Extract just the empCode from an emp-picker input value. Tolerates
+// raw typed codes ("E001") and labelled picks ("E001 · John · Plant1").
+function _hrmsExtractEmpCode(s){
+  s=String(s||'').trim();
+  if(!s) return '';
+  var i=s.indexOf(' · ');
+  return i>=0?s.substring(0,i).trim():s;
 }
 
 function _hrmsEmpACClose(inpId){
@@ -5121,52 +5140,191 @@ async function _hrmsAttConvParseAll(arrayBuffer){
       ss.push(parts.join(''));
     }
   }
-  // Enumerate sheets via workbook.xml + workbook.xml.rels
+  // Enumerate sheets via workbook.xml + workbook.xml.rels. Both regexes
+  // are attribute-order tolerant — production XLSX writers put Id/Target
+  // and name/r:id in inconsistent orders, and the original strict regex
+  // silently dropped sheets that didn't match the expected order.
   var wbXml=await readEntry('xl/workbook.xml')||'';
   var wbRels=await readEntry('xl/_rels/workbook.xml.rels')||'';
   var relsMap={};
-  var rlRe=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g, rm;
-  while((rm=rlRe.exec(wbRels))!==null){ relsMap[rm[1]]=rm[2]; }
+  var rlRe=/<Relationship\b([^>]*)\/?>/g, rm;
+  while((rm=rlRe.exec(wbRels))!==null){
+    var rAttrs=rm[1]||'';
+    var rId=(rAttrs.match(/\bId="([^"]+)"/)||[])[1];
+    var rTgt=(rAttrs.match(/\bTarget="([^"]+)"/)||[])[1];
+    if(rId&&rTgt) relsMap[rId]=rTgt;
+  }
   var sheets=[];
-  var shRe=/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g, sm2;
+  var shRe=/<sheet\b([^>]*)\/?>/g, sm2;
   while((sm2=shRe.exec(wbXml))!==null){
-    var target=relsMap[sm2[2]]; if(!target) continue;
+    var sAttrs=sm2[1]||'';
+    var sName=(sAttrs.match(/\bname="([^"]+)"/)||[])[1];
+    // r:id is the standard, but some writers emit just id="" or rId="";
+    // try them all in order of preference.
+    var sRid=(sAttrs.match(/\br:id="([^"]+)"/)||sAttrs.match(/\brId="([^"]+)"/)||sAttrs.match(/\bid="([^"]+)"/)||[])[1];
+    if(!sName||!sRid) continue;
+    var target=relsMap[sRid]; if(!target) continue;
     var path='xl/'+target.replace(/^.*xl\//,'');
-    sheets.push({name:sm2[1],path:path});
+    sheets.push({name:sName,path:path});
   }
   if(!sheets.length) sheets.push({name:'Sheet1',path:'xl/worksheets/sheet1.xml'});
+  console.log('[ESSL Parse] enumerated '+sheets.length+' sheet(s) from workbook.xml');
   function colIdx(ref){var n=0;for(var i=0;i<ref.length;i++) n=n*26+(ref.charCodeAt(i)-64);return n-1;}
   var out=[];
   for(var si=0;si<sheets.length;si++){
     var shXml=await readEntry(sheets[si].path);
     if(!shXml){ out.push({name:sheets[si].name,rows:[]}); continue; }
-    var rows=[];
-    var rowRe=/<row[^>]*>([\s\S]*?)<\/row>/g, rowM;
+    // Parse rows keyed by their actual sheet-row number (the r="N" attr)
+    // so we can later propagate merged-cell values across rows that may
+    // not have their own <row> element.
+    var rowsByNum={};
+    var rowOrder=[];
+    // Permissive cell regex — matches <c .../> or <c ...>...</c> with or
+    // without an `r=` reference. Some XLSX writers (including some eSSL
+    // exports) omit `r` and rely on positional ordering.
+    var rowRe=/<row([^>]*)>([\s\S]*?)<\/row>/g, rowM;
     while((rowM=rowRe.exec(shXml))!==null){
+      var rAttr=(rowM[1].match(/\br="(\d+)"/)||[])[1];
+      var rowNum=rAttr?parseInt(rAttr,10):(rowOrder.length+1);
       var cells={};
-      var cellRe=/<c\s+r="([A-Z]+)\d+"([^>\/]*)(?:\/>|>([\s\S]*?)<\/c>)/g, cm;
-      while((cm=cellRe.exec(rowM[1]))!==null){
-        var colRef=cm[1], attrs=cm[2]||'', inner=cm[3]||'';
-        var vm=inner.match(/<v>([^<]*)<\/v>/);
-        var rawVal=vm?vm[1]:'';
+      var posCol=0;
+      var cellRe=/<c\b([^>\/]*)(?:\/>|>([\s\S]*?)<\/c>)/g, cm;
+      while((cm=cellRe.exec(rowM[2]))!==null){
+        var attrs=cm[1]||'', inner=cm[2]||'';
+        // r="A1" → col index from letters, else positional fallback.
+        var rRef=(attrs.match(/\br="([A-Z]+)\d+"/)||[])[1];
+        var col=rRef?colIdx(rRef):posCol;
+        posCol=col+1;
         var tAttr=(attrs.match(/\bt="([^"]+)"/)||[])[1]||'';
+        // Pull the cached numeric/text value (formulas land here too).
+        var vm=inner.match(/<v>([\s\S]*?)<\/v>/);
+        var rawVal=vm?vm[1]:'';
+        // Pull inline-string text whether or not the t attr declared it.
+        var isM=inner.match(/<is\b[^>]*>([\s\S]*?)<\/is>/);
+        var inlineTxt='';
+        if(isM){
+          var tParts=[],tIt=/<t[^>]*>([\s\S]*?)<\/t>/g,tm0;
+          while((tm0=tIt.exec(isM[1]))!==null) tParts.push(unesc(tm0[1]));
+          inlineTxt=tParts.join('');
+        }
         var val='';
         if(tAttr==='s') val=ss[+rawVal]||'';
-        else if(tAttr==='inlineStr'){var im=inner.match(/<t[^>]*>([^<]*)<\/t>/);val=im?unesc(im[1]):'';}
+        else if(tAttr==='inlineStr') val=inlineTxt;
         else if(tAttr==='b') val=rawVal==='1'?'TRUE':'FALSE';
         else if(tAttr==='str'||tAttr==='e') val=unesc(rawVal);
         else val=rawVal;
+        // Final fallback: if t was missing but the cell contains an <is>,
+        // use that. Some writers emit inline strings without the t attr.
+        if(!val&&inlineTxt) val=inlineTxt;
         if(typeof val==='string'&&val.charAt(0)==="'") val=val.substring(1);
-        cells[colIdx(colRef)]=val;
+        cells[col]=val;
       }
-      rows.push(cells);
+      if(!rowsByNum[rowNum]) rowOrder.push(rowNum);
+      rowsByNum[rowNum]=cells;
     }
-    // Convert sparse {col→value} to dense arrays
+    // Diagnostic: if every row is empty, dump a head of the raw sheet
+    // XML so we can see what tag shape the writer used.
+    if(si===0&&rowOrder.length>0&&rowOrder.every(function(n){return !Object.keys(rowsByNum[n]||{}).length;})){
+      console.warn('[ESSL Parse] sheet "'+sheets[si].name+'" parsed '+rowOrder.length+' row(s) but found 0 cells. First 1500 chars of sheet XML:');
+      console.warn(shXml.substring(0,1500));
+    }
+    // Merged cells: in XLSX the value of a merged range is stored only
+    // in the top-left cell. Without propagation, raw eSSL files with
+    // merged date / employee columns parse as mostly-empty rows and the
+    // converter drops them. Walk every <mergeCell ref="A1:G3"/> and copy
+    // the top-left value into every other cell of the range.
+    var mergeRe=/<mergeCell\s+ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, mm;
+    while((mm=mergeRe.exec(shXml))!==null){
+      var c1=colIdx(mm[1]), r1=parseInt(mm[2],10);
+      var c2=colIdx(mm[3]), r2=parseInt(mm[4],10);
+      var srcRow=rowsByNum[r1];
+      var srcVal=srcRow?srcRow[c1]:undefined;
+      if(srcVal===undefined||srcVal==='') continue;
+      for(var rr=r1;rr<=r2;rr++){
+        if(!rowsByNum[rr]){ rowsByNum[rr]={}; rowOrder.push(rr); }
+        for(var cc=c1;cc<=c2;cc++){
+          if(rowsByNum[rr][cc]===undefined||rowsByNum[rr][cc]==='') rowsByNum[rr][cc]=srcVal;
+        }
+      }
+    }
+    // Materialise rows in their original sheet order, then convert sparse
+    // {col→value} maps to dense arrays.
+    rowOrder.sort(function(a,b){return a-b;});
+    var rows=rowOrder.map(function(n){return rowsByNum[n]||{};});
     var maxCol=rows.reduce(function(m,r){var ks=Object.keys(r);return ks.length?Math.max.apply(Math,[m].concat(ks.map(Number))):m;},0);
     var dense=rows.map(function(r){var a=[];for(var i=0;i<=maxCol;i++) a.push(r[i]===undefined?'':r[i]);return a;});
     out.push({name:sheets[si].name,rows:dense});
   }
   return out;
+}
+
+// Pure transform: takes the parsed multi-sheet workbook from
+// _hrmsAttConvParseAll and returns the converter's flattened rows plus
+// skip counts. Auto-detects the column layout per sheet by scanning up
+// to the first 10 rows for header labels — handles both raw eSSL (A/C/D/F/G)
+// and already-converted (A/B/C/D/E) workbooks. Factored out so the eSSL
+// import path can call it directly. No UI side effects, no DB writes.
+function _hrmsAttConvBuildRows(sheets){
+  var rows=[];
+  var skipped={bothTimesBlank:0,placeholderCode:0,blankRow:0};
+  console.log('[ESSL Convert] sheets:',(sheets||[]).length,(sheets||[]).map(function(s){return s.name;}));
+  var _normHdr=function(v){return String(v==null?'':v).toLowerCase().replace(/\([^)]*\)/g,'').replace(/[^a-z0-9]/g,'');};
+  (sheets||[]).forEach(function(s,si){
+    if(si===0){
+      console.log('[ESSL Convert] sheet[0] "'+s.name+'" rows=',s.rows.length,'first 12 rows:');
+      for(var k=0;k<Math.min(12,s.rows.length);k++){
+        console.log('  row '+k+':',JSON.stringify(s.rows[k]));
+      }
+    }
+    // Find a header row in the first ~10 rows. A row qualifies when at
+    // least Emp Code + Date + one of Time IN/Out can be matched. Common
+    // synonyms covered for different machine vendors.
+    var hdr=null,hdrRow=-1;
+    for(var hr=0;hr<Math.min(10,s.rows.length);hr++){
+      var rr=s.rows[hr]||[];
+      var col={code:-1,name:-1,date:-1,tin:-1,tout:-1};
+      for(var ci=0;ci<rr.length;ci++){
+        var n=_normHdr(rr[ci]);
+        if(!n) continue;
+        if(col.code<0&&(n==='empcode'||n==='employeecode'||n==='empid'||n==='userid'||n==='userno'||n==='personnelid'||n==='attid')) col.code=ci;
+        else if(col.name<0&&(n==='employeename'||n==='empname'||n==='name'||n==='username'||n==='personnelname')) col.name=ci;
+        else if(col.date<0&&(n==='date'||n==='atndate'||n==='attendancedate'||n==='punchdate')) col.date=ci;
+        else if(col.tin<0&&(n==='timein'||n==='intime'||n==='clockin'||n==='checkin'||n==='firstin'||n==='in')) col.tin=ci;
+        else if(col.tout<0&&(n==='timeout'||n==='outtime'||n==='clockout'||n==='checkout'||n==='lastout'||n==='out')) col.tout=ci;
+      }
+      if(col.code>=0&&col.date>=0&&(col.tin>=0||col.tout>=0)){ hdr=col; hdrRow=hr; break; }
+    }
+    if(!hdr){
+      // No detectable header — fall back to the original eSSL positional
+      // layout (A=0, C=2, D=3, F=5, G=6) and assume row 0 is the header.
+      hdr={code:0,name:2,date:3,tin:5,tout:6};
+      hdrRow=0;
+      console.warn('[ESSL Convert] sheet "'+s.name+'": no header detected, using legacy positional layout (A/C/D/F/G)');
+    } else if(si===0){
+      console.log('[ESSL Convert] sheet "'+s.name+'": header at row '+hdrRow,hdr);
+    }
+    var sheetIn=0,sheetOut=0;
+    for(var i=hdrRow+1;i<s.rows.length;i++){
+      sheetIn++;
+      var r=s.rows[i]||[];
+      var code=((r[hdr.code]==null?'':r[hdr.code])+'').trim();
+      var name=hdr.name>=0?((r[hdr.name]==null?'':r[hdr.name])+'').trim():'';
+      var date=_hrmsAttConvFmtDate(r[hdr.date]);
+      var tin=hdr.tin>=0?_hrmsAttConvFmtTime(r[hdr.tin]):'';
+      var tout=hdr.tout>=0?_hrmsAttConvFmtTime(r[hdr.tout]):'';
+      if(!code&&!name&&!date&&!tin&&!tout){ skipped.blankRow++; continue; }
+      if(!tin&&!tout){ skipped.bothTimesBlank++; continue; }
+      var codeLc=code.toLowerCase().replace(/\s+/g,'');
+      var isHeaderish=(codeLc==='empcode');
+      var isTestNum=/^\d+$/.test(code)&&(+code)>=1&&(+code)<=99;
+      if(isHeaderish||isTestNum){ skipped.placeholderCode++; continue; }
+      rows.push({code:code,name:name,date:date,timeIn:tin,timeOut:tout,_sheet:s.name});
+      sheetOut++;
+    }
+    if(si<3) console.log('[ESSL Convert] sheet "'+s.name+'": '+sheetIn+' data rows → '+sheetOut+' converted');
+  });
+  console.log('[ESSL Convert] total: rows='+rows.length+', skipped=',skipped);
+  return {rows:rows,skipped:skipped};
 }
 
 async function _hrmsAttConvUpload(inputEl){
@@ -5176,30 +5334,9 @@ async function _hrmsAttConvUpload(inputEl){
   try{
     var buf=await file.arrayBuffer();
     var sheets=await _hrmsAttConvParseAll(buf);
-    var rows=[];
-    var skipped={bothTimesBlank:0,placeholderCode:0};
-    sheets.forEach(function(s){
-      // Skip row 0 (header). A=0, C=2, D=3, F=5, G=6.
-      for(var i=1;i<s.rows.length;i++){
-        var r=s.rows[i];
-        var code=((r[0]==null?'':r[0])+'').trim();
-        var name=((r[2]==null?'':r[2])+'').trim();
-        var date=_hrmsAttConvFmtDate(r[3]);
-        var tin=_hrmsAttConvFmtTime(r[5]);
-        var tout=_hrmsAttConvFmtTime(r[6]);
-        if(!code&&!name&&!date&&!tin&&!tout) continue;// blank row
-        // Filter: Both In AND Out blank → skip (nothing to record).
-        if(!tin&&!tout){ skipped.bothTimesBlank++; continue; }
-        // Filter: placeholder emp codes.
-        //  - literal header text ("Emp Code" / "EmpCode")
-        //  - purely numeric codes 1..99 (biometric test entries like 01, 2, 099)
-        var codeLc=code.toLowerCase().replace(/\s+/g,'');
-        var isHeaderish=(codeLc==='empcode');
-        var isTestNum=/^\d+$/.test(code)&&(+code)>=1&&(+code)<=99;
-        if(isHeaderish||isTestNum){ skipped.placeholderCode++; continue; }
-        rows.push({code:code,name:name,date:date,timeIn:tin,timeOut:tout,_sheet:s.name});
-      }
-    });
+    var built=_hrmsAttConvBuildRows(sheets);
+    var rows=built.rows;
+    var skipped=built.skipped;
     _hrmsAttConvData={rows:rows, sheets:sheets.map(function(s){return s.name;}), skipped:skipped};
     hideSpinner();
     _hrmsAttConvRender();
@@ -7137,14 +7274,99 @@ function _hrmsRenderEsslImportLog(){
   var mk=_hrmsMonth;
   if(mk) imports=imports.filter(function(e){return(e.monthKey||'')===mk;});
   var monthLabel=mk?_hrmsMonthLabel(mk):'';
-  if(!imports.length){el.innerHTML='<div class="empty-state" style="padding:12px;font-size:12px">No imports for '+monthLabel+' yet. Upload a file to get started.</div>';return;}
+  // If the attendance cache for this month isn't loaded yet, fetch it
+  // in the background and re-render once it's populated. Daywise
+  // coverage counts come from the cache, so this is what makes the
+  // top table accurate. Idempotent — once cache is set, the condition
+  // is falsy and no further fetches fire.
+  if(mk&&!_hrmsAttCache[mk]&&typeof _hrmsAttFetchMonth==='function'){
+    _hrmsAttFetchMonth(mk).then(function(){
+      if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
+    }).catch(function(e){console.warn('essl coverage fetch:',e);});
+  }
 
   var _fmtBytes=function(n){if(!n) return '';if(n<1024) return n+' B';if(n<1048576) return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(2)+' MB';};
   var _fmtTime=function(iso){if(!iso) return '';var d=new Date(iso);if(isNaN(d.getTime())) return iso;return d.getDate()+'-'+_MON3[d.getMonth()+1]+'-'+String(d.getFullYear()).slice(-2)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   var _th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:1px solid var(--border);text-align:left';
   var _td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
 
-  var h='<div style="font-size:13px;font-weight:900;color:var(--text);margin:14px 0 6px">📋 Import History — '+monthLabel+' ('+imports.length+')</div>';
+  // ── Daywise coverage table — one row per day of the selected month.
+  // For each day we compute (a) count of unique employees that have a
+  // non-empty {in,out} cell on that day in the attendance cache, and
+  // (b) the latest import that touched that day per affectedDays
+  // attribution. Days with zero coverage get a red row so missed days
+  // jump out at a glance.
+  var dailyHtml='';
+  if(mk){
+    var yr=parseInt(mk.split('-')[0],10);
+    var mo=parseInt(mk.split('-')[1],10);
+    var dim=new Date(yr,mo,0).getDate();
+    var DOWS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var recs=_hrmsAttCache[mk]||[];
+    var empCountPerDay={};
+    recs.forEach(function(r){
+      if(!r||!r.days) return;
+      Object.keys(r.days).forEach(function(d){
+        var v=r.days[d];
+        if(v&&(v['in']||v['out'])){
+          var di=parseInt(d,10);
+          if(isNaN(di)) return;
+          empCountPerDay[di]=(empCountPerDay[di]||0)+1;
+        }
+      });
+    });
+    // imports[] is unshifted on save (newest first). For each day, the
+    // first import found in iteration order whose affectedDays contains
+    // that day is the latest one — store and skip if already attributed.
+    var importByDay={};
+    imports.forEach(function(imp){
+      if(!imp||!imp.affectedDays) return;
+      var seen={};
+      Object.keys(imp.affectedDays).forEach(function(ec){
+        var arr=imp.affectedDays[ec]||[];
+        for(var ai=0;ai<arr.length;ai++){
+          var di2=parseInt(arr[ai],10);
+          if(!isNaN(di2)) seen[di2]=true;
+        }
+      });
+      Object.keys(seen).forEach(function(d){
+        var dn=parseInt(d,10);
+        if(!importByDay[dn]) importByDay[dn]=imp;
+      });
+    });
+    var coveredDays=0;
+    for(var dx=1;dx<=dim;dx++){ if((empCountPerDay[dx]||0)>0) coveredDays++; }
+    dailyHtml='<div style="font-size:13px;font-weight:900;color:var(--text);margin:0 0 6px">📅 Daywise Coverage — '+monthLabel+' ('+coveredDays+'/'+dim+' days)</div>';
+    dailyHtml+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">';
+    dailyHtml+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
+    dailyHtml+='<th style="'+_th+'">Date</th>';
+    dailyHtml+='<th style="'+_th+';text-align:right">Employees</th>';
+    dailyHtml+='<th style="'+_th+'">Imported By</th>';
+    dailyHtml+='<th style="'+_th+'">Imported At</th>';
+    dailyHtml+='<th style="'+_th+'">File</th>';
+    dailyHtml+='</tr></thead><tbody>';
+    for(var di3=1;di3<=dim;di3++){
+      var dObj=new Date(yr,mo-1,di3);
+      var dow=DOWS[dObj.getDay()];
+      var dateLbl=String(di3).padStart(2,'0')+'-'+_MON3[mo]+'-'+String(yr).slice(-2)+', '+dow;
+      var cnt=empCountPerDay[di3]||0;
+      var imp=importByDay[di3];
+      var noData=cnt===0;
+      var rowBg=noData?'background:#fee2e2':'';
+      dailyHtml+='<tr style="'+rowBg+'">';
+      dailyHtml+='<td style="'+_td+';font-family:var(--mono);font-weight:700'+(noData?';color:#b91c1c':'')+'">'+dateLbl+'</td>';
+      dailyHtml+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:800;color:'+(noData?'#b91c1c':'#15803d')+'">'+(noData?'No Data Imported':cnt+' Emp Data Available')+'</td>';
+      dailyHtml+='<td style="'+_td+';color:var(--text2);font-weight:600">'+(imp?(imp.importedBy||'—'):'—')+'</td>';
+      dailyHtml+='<td style="'+_td+';font-family:var(--mono);font-size:11px">'+(imp?_fmtTime(imp.timestamp):'—')+'</td>';
+      dailyHtml+='<td style="'+_td+';font-size:11px;font-weight:600;color:var(--text2)" title="'+(imp&&imp.fileName?String(imp.fileName).replace(/"/g,'&quot;'):'')+'">'+(imp?(imp.fileName||'—'):'—')+'</td>';
+      dailyHtml+='</tr>';
+    }
+    dailyHtml+='</tbody></table></div>';
+  }
+
+  if(!imports.length){el.innerHTML=dailyHtml+'<div class="empty-state" style="padding:12px;font-size:12px">No imports for '+monthLabel+' yet. Upload a file to get started.</div>';return;}
+
+  var h=dailyHtml+'<div style="font-size:13px;font-weight:900;color:var(--text);margin:14px 0 6px">📋 Import History — '+monthLabel+' ('+imports.length+')</div>';
   h+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
   h+='<th style="'+_th+'">Date/Time</th>';
@@ -7288,26 +7510,28 @@ async function _hrmsDeleteEsslImport(logId){
       for(var ec in affectedDays){
         var r=byCode[ec];if(!r||!r.days) continue;
         affectedDays[ec].forEach(function(dk){delete r.days[dk];});
-        if(Object.keys(r.days).length===0){
-          if(await _dbDel('hrmsAttendance',r.id)){
-            wiped++;
-            _hrmsAttCache[mk]=_hrmsAttCache[mk].filter(function(x){return x.id!==r.id;});
-          }
-        } else {
-          if(await _dbSave('hrmsAttendance',r)) trimmed++;
+        // Save the row even when days becomes empty — deleting the row
+        // would drop the month from the picker index (the month's
+        // identity is the presence of hrms_attendance rows for the
+        // month_key). Keep the empty stub so calendar / advances /
+        // c-off / alterations stay reachable.
+        if(await _dbSave('hrmsAttendance',r)){
+          if(Object.keys(r.days).length===0) wiped++; else trimmed++;
         }
       }
     } else {
-      // Legacy fallback — whole-record wipe (user explicitly confirmed).
+      // Legacy fallback — clear days for each affected employee but keep
+      // the row so the month doesn't vanish from the index.
       var ecs=(entry.affectedEmps||[]).slice();
       await _hrmsAttFetchMonth(mk);
       var recs=_hrmsAttCache[mk]||[];
       var byCode={};recs.forEach(function(r){byCode[r.empCode]=r;});
       for(var i=0;i<ecs.length;i++){
         var r=byCode[ecs[i]];
-        if(r&&await _dbDel('hrmsAttendance',r.id)) wiped++;
+        if(!r) continue;
+        r.days={};
+        if(await _dbSave('hrmsAttendance',r)) wiped++;
       }
-      _hrmsAttCache[mk]=(recs||[]).filter(function(r){return ecs.indexOf(r.empCode)<0;});
     }
     // Remove log entry
     imports.splice(idx,1);
@@ -7360,9 +7584,17 @@ async function _hrmsWipeMonthAttendance(){
   if(!confirm('Are you really sure? Type confirm by clicking OK once more.')) return;
   showSpinner('Clearing attendance for '+_hrmsMonthLabel(mk)+'…');
   var deleted=0,errors=0;
+  // Clear the days map but KEEP the row. The month's existence in the
+  // picker is derived from the presence of hrms_attendance rows for this
+  // month_key — deleting the rows would also drop the month from the
+  // index and orphan the calendar / advances / c-off / alteration data
+  // (which lives in their own tables but is reached via the month picker).
+  // Add Month seeds blank rows ({days:{}}) for the same reason.
   for(var i=0;i<recs.length;i++){
     try{
-      if(await _dbDel('hrmsAttendance',recs[i].id)) deleted++; else errors++;
+      var r=recs[i];
+      r.days={};
+      if(await _dbSave('hrmsAttendance',r)) deleted++; else errors++;
     }catch(e){errors++;console.warn('wipe error',recs[i].empCode,e);}
   }
   // Drop and re-fetch the cache so subsequent renders see the empty state.
@@ -7797,6 +8029,29 @@ function _hrmsAb2b64(buf){
   for(var i=0;i<len;i++) bin+=String.fromCharCode(bytes[i]);
   return btoa(bin);
 }
+// Async base64 with progress feedback. Uses FileReader.readAsDataURL so
+// the encoding runs off the main thread and emits real onprogress events
+// — drives setSpinnerProgress during multi-MB attendance file imports
+// where the synchronous version would freeze the UI for several seconds.
+function _hrmsAb2b64WithProgress(buf,label){
+  return new Promise(function(resolve,reject){
+    try{
+      var blob=new Blob([buf]);
+      var reader=new FileReader();
+      reader.onload=function(){
+        var dataUrl=String(reader.result||'');
+        var idx=dataUrl.indexOf(',');
+        if(typeof setSpinnerProgress==='function'&&blob.size) setSpinnerProgress(blob.size,blob.size,label||'Encoding');
+        resolve(idx>=0?dataUrl.substring(idx+1):'');
+      };
+      reader.onerror=function(){reject(new Error('FileReader failed'));};
+      reader.onprogress=function(e){
+        if(e.lengthComputable&&typeof setSpinnerProgress==='function') setSpinnerProgress(e.loaded,e.total,label||'Encoding');
+      };
+      reader.readAsDataURL(blob);
+    }catch(e){reject(e);}
+  });
+}
 // base64 → Blob
 function _hrmsB642Blob(b64,mime){
   var bin=atob(b64),bytes=new Uint8Array(bin.length);
@@ -7815,7 +8070,38 @@ async function _hrmsImportAttendance(inputEl){
     reader.onload=async function(ev){
       try{
         var _fileBuf=ev.target.result;
-        var rows=await _parseXLSX(_fileBuf);
+        // Sniff the workbook with the multi-sheet aware parser. Raw eSSL
+        // exports have one sheet per date (>1 sheets); the converted
+        // single-sheet file has exactly 1. If raw, run it through the
+        // converter pipeline in-memory so the user can skip the round
+        // trip via the Utilities → Attendance Excel Converter page.
+        var rows;
+        try{
+          var sheets=await _hrmsAttConvParseAll(_fileBuf);
+          console.log('[ESSL Import] sniff: workbook has',(sheets||[]).length,'sheet(s) →',(sheets||[]).map(function(s){return s.name;}));
+          if(sheets&&sheets.length>1){
+            notify('Raw eSSL file detected — converting in memory…');
+            var conv=_hrmsAttConvBuildRows(sheets);
+            rows=conv.rows.map(function(r){
+              return {
+                'Emp Code':r.code||'',
+                'Employee Name':r.name||'',
+                'Date':r.date||'',
+                'Time IN':r.timeIn||'',
+                'Time Out':r.timeOut||''
+              };
+            });
+            // Don't persist the raw multi-sheet bytes as the import-log
+            // file copy — the converter already produced our canonical
+            // shape; logging the raw is misleading.
+            _fileBuf=null;
+          }
+        }catch(convErr){
+          console.warn('Attendance Import: multi-sheet sniff failed, falling back to single-sheet parse',convErr);
+        }
+        if(!rows){
+          rows=await _parseXLSX(_fileBuf);
+        }
         console.log('Attendance Import: parsed '+rows.length+' rows');
         if(rows.length) console.log('Attendance Import: columns=',Object.keys(rows[0]));
         if(!rows.length){hideSpinner();notify('No data in file',true);return;}
@@ -7985,8 +8271,12 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
         }
         var action='merge';
 
-        // Save / merge records
-        var saved=0,errors=0,addedCount=0,updatedCount=0;
+        // Save / merge records — build the to-save array first then push
+        // through _dbSaveBulk so 100 employees become a couple of round
+        // trips instead of 100, and so the spinner's progress bar can
+        // tick per batch (50 rows).
+        var toSave=[];
+        var addedCount=0,updatedCount=0;
         var _diagFirstEcLogged=false;
         for(var ec in grouped){
           var existing=existingByCode[ec];
@@ -7999,16 +8289,19 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
                 ' | written by this import:',Object.keys(grouped[ec]).sort(function(a,b){return +a-+b;}).join(', '));
               _diagFirstEcLogged=true;
             }
-            if(await _dbSave('hrmsAttendance',existing)){saved++;updatedCount++;} else errors++;
+            toSave.push(existing);
+            updatedCount++;
           } else {
             var rec={id:'ha'+uid(),empCode:ec,monthKey:mk,days:grouped[ec]};
-            if(await _dbSave('hrmsAttendance',rec)){
-              saved++;addedCount++;
-              if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
-              _hrmsAttCache[mk].push(rec);
-            } else errors++;
+            toSave.push(rec);
+            addedCount++;
+            if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
+            _hrmsAttCache[mk].push(rec);
           }
         }
+        showSpinner('Saving attendance to database…');
+        var saved=await _dbSaveBulk('hrmsAttendance',toSave,'Saving employee records');
+        var errors=toSave.length-saved;
 
         // ── Save import log + file copy to DB ──
         try{
@@ -8041,11 +8334,21 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
           logRec.data.imports.unshift(logEntry);
           // Keep only most recent 100 log entries in metadata
           if(logRec.data.imports.length>100) logRec.data.imports.length=100;
+          if(typeof _spinnerMsg==='function') _spinnerMsg('Saving import log…');
+          if(typeof clearSpinnerProgress==='function') clearSpinnerProgress();
           await _dbSave('hrmsSettings',logRec);
           // Save file content separately — only if we have a real file buffer
-          // (in-memory imports from the converter button skip this).
+          // (in-memory imports from the converter button skip this). Two
+          // measurable phases here, both surfaced on the spinner so the
+          // user knows the wait is meaningful, not a hang:
+          //   1) Base64 encode (CPU/IO via FileReader, real progress events)
+          //   2) Upload to Supabase (single PUT, indeterminate but labelled)
           if(_fileBuf){
-            var b64=_hrmsAb2b64(_fileBuf);
+            var sizeKb=Math.max(1,Math.round((_fileSize||_fileBuf.byteLength||0)/1024));
+            if(typeof _spinnerMsg==='function') _spinnerMsg('Encoding file ('+sizeKb+' KB)…');
+            var b64=await _hrmsAb2b64WithProgress(_fileBuf,'Encoding file');
+            if(typeof clearSpinnerProgress==='function') clearSpinnerProgress();
+            if(typeof _spinnerMsg==='function') _spinnerMsg('Uploading file copy ('+sizeKb+' KB) to database…');
             var fileRec={id:'hs_attImpFile_'+logId,key:'attImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
             if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
             await _dbSave('hrmsSettings',fileRec);
@@ -8755,19 +9058,26 @@ async function _hrmsAddMonthConfirm(){
   // Load previous month advances for carry-forward
   await _hrmsLoadAdvances(prevMk);
 
-  // Create blank attendance record for each active employee
-  var saved=0,errors=0;
+  // Build the new attendance + updated employee records in memory first,
+  // then persist each set with one bulk-insert call (batches of 50). The
+  // old code did one sequential _dbSave per employee for both arrays, so
+  // 100 employees meant 200 round-trips — typically 30+ seconds. Bulk
+  // saves cut that to a handful of calls.
   _hrmsAttCache[mk]=[];
+  var newAttRecs=[];
   for(var i=0;i<emps.length;i++){
-    var emp=emps[i];
-    var rec={id:'ha'+uid(),empCode:emp.empCode,monthKey:mk,days:{}};
-    if(await _dbSave('hrmsAttendance',rec)){
-      saved++;
-      _hrmsAttCache[mk].push(rec);
-    } else errors++;
+    var rec={id:'ha'+uid(),empCode:emps[i].empCode,monthKey:mk,days:{}};
+    newAttRecs.push(rec);
+    _hrmsAttCache[mk].push(rec);
   }
+  var saved=0,errors=0;
+  try{
+    saved=await _dbSaveBulk('hrmsAttendance',newAttRecs);
+    errors=newAttRecs.length-saved;
+  }catch(e){console.warn('addMonth: bulk attendance save failed',e);errors=newAttRecs.length;}
 
-  // Carry forward balances: set PL OB and Advance OB from previous month CB
+  // Carry forward balances: PL OB and Advance OB from previous month CB.
+  // Mutate in memory then bulk-save the modified employee rows.
   for(var i=0;i<emps.length;i++){
     var emp=emps[i];
     if(!emp.extra) emp.extra={};
@@ -8775,8 +9085,9 @@ async function _hrmsAddMonthConfirm(){
     var ob=_hrmsGetEmpOB(emp,mk);
     var advOB=_hrmsGetAdvOB(emp,mk);
     emp.extra.bal[mk]={plOB:ob.plOB,plCB:ob.plOB,advOB:advOB,advCB:advOB};
-    await _dbSave('hrmsEmployees',emp);
   }
+  try{ await _dbSaveBulk('hrmsEmployees',emps); }
+  catch(e){console.warn('addMonth: bulk employee carry-forward failed',e);}
 
   // Carry forward OT rules from previous month (or default if none)
   var prevOtRules=_hrmsGetOtRules(prevMk);
@@ -9735,8 +10046,8 @@ function _hrmsRenderManualPList(){
   var codes=Object.keys(allCodes).sort();
   if(!codes.length){el.innerHTML='<div style="font-size:11px;color:var(--text3)">No manual entries for this month</div>';return;}
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
-  var _th='padding:3px 8px;border:1px solid var(--border)';
-  var h='<table style="border-collapse:collapse;font-size:11px;width:auto"><thead><tr style="background:#f8fafc"><th style="'+_th+';text-align:left">Code</th><th style="'+_th+';text-align:left">Name</th><th style="'+_th+';text-align:right">P Days</th><th style="'+_th+';text-align:right">PL Given</th><th style="'+_th+';text-align:right;color:#7c3aed">OT</th><th style="'+_th+';text-align:right;color:#c2410c">OT@S</th><th style="'+_th+';text-align:left">Remarks</th><th style="padding:3px 4px;border:1px solid var(--border)"></th></tr></thead><tbody>';
+  var _th='padding:4px 8px;border:1px solid var(--border)';
+  var h='<table style="border-collapse:collapse;font-size:12px;width:auto"><thead><tr style="background:#f8fafc"><th style="'+_th+';text-align:left">Code</th><th style="'+_th+';text-align:left">Name</th><th style="'+_th+';text-align:right">P Days</th><th style="'+_th+';text-align:right">PL Given</th><th style="'+_th+';text-align:right;color:#7c3aed">OT</th><th style="'+_th+';text-align:right;color:#c2410c">OT@S</th><th style="'+_th+';text-align:left">Remarks</th><th style="padding:4px 4px;border:1px solid var(--border)" colspan="2">Actions</th></tr></thead><tbody>';
   codes.forEach(function(ec){
     var emp=empMap[ec];
     var ex=emp&&emp.extra?emp.extra:{};
@@ -9752,7 +10063,8 @@ function _hrmsRenderManualPList(){
     h+='<td style="'+_th+';text-align:right;font-weight:700;color:#7c3aed">'+(ot!==undefined?ot:'—')+'</td>';
     h+='<td style="'+_th+';text-align:right;font-weight:700;color:#c2410c">'+(ots!==undefined?ots:'—')+'</td>';
     h+='<td style="'+_th+';color:var(--text2);font-style:italic;max-width:280px">'+(rem||'—')+'</td>';
-    h+='<td style="padding:3px 4px;border:1px solid var(--border)"><button onclick="_hrmsRemoveManualP(\''+ec+'\')" style="font-size:9px;padding:2px 5px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer">✕</button></td></tr>';
+    h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsEditManualP(\''+ec+'\')" title="Edit — pre-fills the form so you can adjust and re-Add" style="font-size:10px;padding:2px 7px;border:1px solid #fcd34d;border-radius:3px;background:#fef3c7;color:#b45309;cursor:pointer;font-weight:700">✎ Edit</button></td>';
+    h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsRemoveManualP(\''+ec+'\')" title="Remove this employee\'s overrides for the month" style="font-size:10px;padding:2px 6px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer;font-weight:700">✕</button></td></tr>';
   });
   h+='</tbody></table>';
   el.innerHTML=h;
@@ -9761,7 +10073,7 @@ function _hrmsRenderManualPList(){
 async function _hrmsAddManualP(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to make changes.',true);return;}
-  var code=document.getElementById('hrmsManualPCode').value.trim();
+  var code=_hrmsExtractEmpCode(document.getElementById('hrmsManualPCode').value);
   var days=document.getElementById('hrmsManualPDays').value;
   var plVal=document.getElementById('hrmsManualPL').value;
   var otVal=document.getElementById('hrmsManualOT').value;
@@ -9798,10 +10110,58 @@ async function _hrmsAddManualP(){
   document.getElementById('hrmsManualOT').value='';
   document.getElementById('hrmsManualOTS').value='';
   var rEl=document.getElementById('hrmsManualRemarks');if(rEl) rEl.value='';
+  _hrmsManualPSetMode(false);
   _hrmsRenderManualPList();
   notify('Manual override set for '+code);
 }
 
+// Toggle the Add button between "+ Add" (default) and "✓ Update" while
+// the form is in edit mode for a previously-saved override row.
+function _hrmsManualPSetMode(isEdit){
+  var btn=document.getElementById('hrmsManualPAddBtn');
+  if(!btn) return;
+  btn.textContent=isEdit?'✓ Update':'+ Add';
+  btn.title=isEdit?'Update this employee\'s override (overwrites the existing entry)':'';
+}
+// Clear every input on the Manual Overrides form without persisting and
+// drop edit mode.
+function _hrmsClearManualP(){
+  ['hrmsManualPCode','hrmsManualPDays','hrmsManualPL','hrmsManualOT','hrmsManualOTS','hrmsManualRemarks'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.value='';
+  });
+  _hrmsManualPSetMode(false);
+  var first=document.getElementById('hrmsManualPCode');
+  if(first&&typeof first.focus==='function') first.focus();
+}
+// Pre-fill the form with the current month's overrides for the given emp
+// code so the user can tweak and re-Add to update. Add already does an
+// upsert into emp.extra.manualP/PL/OT/OTS/Remarks for the active month.
+function _hrmsEditManualP(code){
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
+  if(!emp){notify('Employee '+code+' not found',true);return;}
+  var ex=emp.extra||{};
+  var pDays=(_hrmsManualPData[mk]||{})[code];
+  if(pDays===undefined&&ex.manualP) pDays=ex.manualP[mk];
+  var plGiven=ex.manualPL?ex.manualPL[mk]:undefined;
+  var ot=ex.manualOT?ex.manualOT[mk]:undefined;
+  var ots=ex.manualOTS?ex.manualOTS[mk]:undefined;
+  var rem=ex.manualRemarks?ex.manualRemarks[mk]:'';
+  // Match _hrmsEmpACPick's labelled format so _hrmsExtractEmpCode round-trips correctly.
+  var nm=_hrmsDispName(emp)||emp.name||'';
+  var loc=emp.location||'';
+  var label=code+(nm?' · '+nm:'')+(loc?' · '+loc:'');
+  var setVal=function(id,v){var el=document.getElementById(id);if(el) el.value=(v===undefined||v===null)?'':v;};
+  setVal('hrmsManualPCode',label);
+  setVal('hrmsManualPDays',pDays);
+  setVal('hrmsManualPL',plGiven);
+  setVal('hrmsManualOT',ot);
+  setVal('hrmsManualOTS',ots);
+  setVal('hrmsManualRemarks',rem);
+  _hrmsManualPSetMode(true);
+  var firstNum=document.getElementById('hrmsManualPDays');
+  if(firstNum&&typeof firstNum.focus==='function'){firstNum.focus();firstNum.select&&firstNum.select();}
+}
 async function _hrmsRemoveManualP(code){
   var mk=_hrmsMonth;if(!mk)return;
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
@@ -9906,7 +10266,7 @@ function _hrmsTdsRender(){
 async function _hrmsTdsAdd(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
-  var code=document.getElementById('hrmsTdsCode').value.trim();
+  var code=_hrmsExtractEmpCode(document.getElementById('hrmsTdsCode').value);
   var amt=parseFloat(document.getElementById('hrmsTdsAmount').value);
   if(!code){notify('Enter employee code',true);return;}
   if(!amt||amt<=0){notify('Enter TDS amount',true);return;}
@@ -12581,7 +12941,7 @@ async function _hrmsAdvDedChange(input){
 async function _hrmsAddAdvance(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to add advances.',true);return;}
-  var code=document.getElementById('hrmsAdvCode').value.trim();
+  var code=_hrmsExtractEmpCode(document.getElementById('hrmsAdvCode').value);
   var adv=parseFloat(document.getElementById('hrmsAdvAmount').value)||0;
   var emi=parseFloat(document.getElementById('hrmsAdvEmi').value)||0;
   if(!code){notify('Enter employee code',true);return;}
@@ -14618,9 +14978,11 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
       if(t1!==null&&t2!==null){if(t2<t1) t2+=1440;worked=(t2-t1)/60;}
     }
     var hasTime=!!(ti||to2);
+    var bothPunches=!!(ti&&to2);
     var status='';
     if(isOff){status=hasTime?'P':'H';}
     else if(!hasTime){status='A';}
+    else if(!bothPunches){status='ERR';}// only one of IN/OUT recorded — incomplete day
     else if(worked>=FULL_DAY){status='P';}
     else if(isStaff&&worked>=EL_MIN&&worked<FULL_DAY&&elCount<EL_MAX){status='EL';elCount++;}
     else if(worked>=HALF_DAY){status='P/2';}
@@ -14758,6 +15120,7 @@ async function _hrmsMyAttRender(){
     if(ds.status==='P/2') return '#fef3c7';
     if(ds.status==='EL') return '#dbeafe';
     if(ds.status==='A') return '#fee2e2';
+    if(ds.status==='ERR') return '#ffedd5';// amber — incomplete punch (only IN or only OUT)
     return '#fff';
   };
   // Big-letter label drawn behind the cell content on off days so H / PH
@@ -14772,6 +15135,7 @@ async function _hrmsMyAttRender(){
     if(ds.status==='P/2') return {text:'½',color:'#92400e'};
     if(ds.status==='EL') return {text:'EL',color:'#1d4ed8'};
     if(ds.status==='A') return {text:'A',color:'#dc2626'};
+    if(ds.status==='ERR') return {text:'!',color:'#c2410c'};// incomplete punch
     return {text:'',color:''};
   };
   // C-Off eligibility — Staff who clocked at least 7 hrs on a Weekly Off /
@@ -15013,8 +15377,17 @@ async function _hrmsMyAttRender(){
           (ds.coffApplied
             ?'<div style="margin-top:1px;font-size:9px;font-weight:800;color:'+(ds.coffPending?'#a16207':'#0369a1')+';line-height:1.25;background:rgba(255,255,255,.7);padding:1px 4px;border-radius:3px">'+(ds.coffPending?'C-Off pending':'C-Off ←')+'<br>'+(ds.coffEarnedDate||'—')+'</div>'
             :(ds.inTime||ds.outTime
-              ?'<div style="margin-top:1px;font-family:var(--mono);font-size:10px;color:var(--text);font-weight:700;line-height:1.2">'+(ds.inTime||'—')+'<br>'+(ds.outTime||'—')+'</div>'
+              ?'<div style="margin-top:1px;font-family:var(--mono);font-size:10px;line-height:1.2;font-weight:700">'+
+                 '<span style="color:'+(ds.inTime?'var(--text)':'#dc2626')+'">'+(ds.inTime||'MISSING')+'</span><br>'+
+                 '<span style="color:'+(ds.outTime?'var(--text)':'#dc2626')+'">'+(ds.outTime||'MISSING')+'</span>'+
+               '</div>'
               :''))+
+          // Error tag — shows when only IN or only OUT was recorded so the
+          // user spots the incomplete day at a glance and can request an
+          // alteration via the + button at the bottom-right of the cell.
+          (ds.status==='ERR'
+            ?'<div title="Click + to request alteration" style="margin-top:1px;font-size:8px;font-weight:800;color:#c2410c;background:rgba(255,237,213,.95);border:1px solid #fdba74;border-radius:3px;padding:1px 3px;text-align:center;letter-spacing:.4px">⚠ ERROR</div>'
+            :'')+
           (ds.altered&&ds.altReason&&!ds.coffApplied
             ?'<div title="'+String(ds.altReason).replace(/"/g,'&quot;')+'" style="margin-top:1px;font-size:9px;font-weight:600;font-style:italic;color:#831843;background:rgba(255,255,255,.7);padding:1px 4px;border-radius:3px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">'+ds.altReason+'</div>'
             :'')+

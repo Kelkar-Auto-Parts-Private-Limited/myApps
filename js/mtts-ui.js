@@ -113,6 +113,9 @@ function mttsLogout(){
 function _mttsIsSA(){
   return CU&&((CU.roles||[]).indexOf('Super Admin')>=0||(CU.mttsRoles||[]).indexOf('Super Admin')>=0);
 }
+function _mttsIsTechnician(){
+  return CU&&(CU.mttsRoles||[]).indexOf('Technician')>=0;
+}
 function _mttsIsManager(){
   return CU&&(CU.mttsRoles||[]).indexOf('Maintenance Manager')>=0;
 }
@@ -481,15 +484,18 @@ function _mttsRenderAssets(){
 }
 
 // ── Asset edit modal ──────────────────────────────────────────────────────
-function _mttsAssetOpen(id){
+// Optional preset: { plant, assetType, criticality } — used by Save & Add
+// Next so the next blank form keeps the previous picks for plant +
+// asset type (and priority) and the user can land on Primary Name.
+function _mttsAssetOpen(id, preset){
   var canEdit=_mttsHasAccess('action.editAsset');
   if(!canEdit&&id===''){notify('You do not have permission to add assets',true);return;}
   var a=id?(byId(DB.mttsAssets||[],id)||null):null;
   document.getElementById('mttsAssetTitle').textContent=a?(canEdit?'🛠 Edit Asset':'🛠 View Asset'):'🛠 Add Asset';
   document.getElementById('mttsAssetId').value=a?a.id:'';
-  document.getElementById('mttsAssetPlant').value=a?(a.plant||''):'';
-  document.getElementById('mttsAssetType').value=a?(a.assetType||''):'';
-  document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):'Medium';
+  document.getElementById('mttsAssetPlant').value=a?(a.plant||''):((preset&&preset.plant)||'');
+  document.getElementById('mttsAssetType').value=a?(a.assetType||''):((preset&&preset.assetType)||'');
+  document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):((preset&&preset.criticality)||'Medium');
   // Render the three chip rows (plant, asset type, priority).
   _mttsAssetRenderPlantBtns();
   _mttsAssetRenderTypeBtns();
@@ -517,8 +523,14 @@ function _mttsAssetOpen(id){
   document.getElementById('mttsAssetModel').value=a?(a.model||''):'';
   document.getElementById('mttsAssetWarranty').value=a&&a.warranty?(a.warranty.until||''):'';
   document.getElementById('mttsAssetAmc').value=a&&a.amc?(a.amc.until||''):'';
-  document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):'Medium';
+  // Re-set criticality after the field-by-field reset above (it shares the
+  // hidden input style as the early-render one but is a no-op duplicate
+  // unless an early-pass cleared it).
+  document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):((preset&&preset.criticality)||'Medium');
   document.getElementById('mttsAssetStatus').value=a?(a.status||'Active'):'Active';
+  // Save button: "Save & Add Next" while adding, plain "Save" while editing.
+  var assetSaveBtn=document.getElementById('mttsAssetSaveBtn');
+  if(assetSaveBtn) assetSaveBtn.textContent=a?'Save':'Save & Add Next';
   // Transfer history + button visibility (edit-only).
   var transferWrap=document.getElementById('mttsAssetTransferWrap');
   var transferBtn=document.getElementById('mttsAssetTransferBtn');
@@ -561,6 +573,14 @@ function _mttsAssetOpen(id){
     modalEl.addEventListener('keydown',modalEl._mttsKeyHandler);
   }
   if(typeof om==='function') om('mMttsAsset'); else { document.getElementById('mMttsAsset').classList.add('open'); }
+  // Save & Add Next: drop focus straight on the Primary Name select so
+  // the user can keep typing without re-picking plant / type / priority.
+  if(!a&&preset){
+    setTimeout(function(){
+      var primFocus=document.getElementById('mttsAssetPrimary');
+      if(primFocus&&typeof primFocus.focus==='function') primFocus.focus();
+    },50);
+  }
 }
 
 async function _mttsAssetDeleteFromTable(id){
@@ -658,6 +678,12 @@ async function _mttsAssetSave(){
       _showErr('Save failed');return;
     }
     notify('✓ Asset added');
+    // Save & Add Next: re-render the table behind, then reopen the form
+    // with plant / asset type / priority pre-selected from the entry that
+    // was just saved. Focus lands on Primary Name (handled in _mttsAssetOpen).
+    _mttsRenderAssets();
+    _mttsAssetOpen('',{plant:plant,assetType:type,criticality:data.criticality});
+    return;
   }
   cm('mMttsAsset');
   _mttsRenderAssets();
@@ -767,7 +793,17 @@ function _mttsIsTechnicianOnTicket(t){
 }
 
 // ── Ticket list render ────────────────────────────────────────────────────
-var _mttsTicketState={plant:'',breakdown:'',status:'',assigned:'',search:''};
+var _mttsTicketState={plant:'',breakdown:'',status:'',assigned:'',search:'',tab:''};
+// Switch the tickets-page tab. Persists on _mttsTicketState so re-renders
+// keep the selection. Updates the active-class on the tab buttons and
+// re-renders the card list.
+function _mttsTicketTabSet(tab){
+  _mttsTicketState.tab=tab;
+  Array.prototype.forEach.call(document.querySelectorAll('.mtts-ticket-tab'),function(b){
+    b.classList.toggle('is-active',b.getAttribute('data-tab')===tab);
+  });
+  _mttsRenderTickets();
+}
 function _mttsRenderTickets(){
   var wrap=document.getElementById('mttsTicketTableWrap');if(!wrap) return;
   // Show / hide "Raise Ticket" based on role.
@@ -791,7 +827,17 @@ function _mttsRenderTickets(){
     try{caretStart=fSearchEl.selectionStart;caretEnd=fSearchEl.selectionEnd;}catch(e){}
   }
 
-  var scope=(document.getElementById('mttsTicketScope')||{}).value||'all';
+  // Initialise the tab once per session — technicians land on their
+  // own queue; everyone else sees All tickets first.
+  if(!_mttsTicketState.tab){
+    _mttsTicketState.tab=_mttsIsTechnician()?'mine':'all';
+  }
+  // Sync active-class on the tab buttons every render (covers the very
+  // first paint where the buttons existed but no class was set).
+  Array.prototype.forEach.call(document.querySelectorAll('.mtts-ticket-tab'),function(b){
+    b.classList.toggle('is-active',b.getAttribute('data-tab')===_mttsTicketState.tab);
+  });
+  var scope=_mttsTicketState.tab||'all';
   var fStatus=_mttsTicketState.status||'';
   var fPlant=_mttsTicketState.plant||'';
   var fBd=_mttsTicketState.breakdown||'';
@@ -830,7 +876,7 @@ function _mttsRenderTickets(){
   // Tab label — reflect scope so the user knows what they're viewing.
   var tabLbl=document.getElementById('mttsTicketTabLbl');
   if(tabLbl){
-    var lblMap={all:'All Tickets',mine:'My Queue (Technician)',raised:'Raised by me',pending_alloc:'Pending Allocation',pending_approval:'Pending Approval'};
+    var lblMap={all:'All Tickets',mine:'Allocated to me',raised:'Raised by me',pending_alloc:'Pending Allocation',pending_approval:'Pending Approval'};
     tabLbl.textContent=lblMap[scope]||'Tickets';
   }
 
@@ -1455,27 +1501,27 @@ function _mttsRaiseRenderPlantBtns(){
   var wrap=document.getElementById('mttsRaisePlantBtns');if(!wrap) return;
   var hidden=document.getElementById('mttsRaisePlant');
   var current=hidden?hidden.value:'';
-  var plants=_mttsPlantList(false);
+  var plants=_mttsPlantList(false).slice().sort(function(a,b){
+    return String(a.label||'').localeCompare(String(b.label||''),undefined,{numeric:true,sensitivity:'base'});
+  });
   if(!plants.length){
     wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No plants — add one in Plant Master first</div>';
     return;
   }
-  wrap.innerHTML=plants.map(function(p){
+  wrap.innerHTML='<div class="mtts-raise-asset-list">'+plants.map(function(p){
     var idEsc=String(p.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lblEsc=String(p.label).replace(/</g,'&lt;');
-    var isActive=p.value===current;
-    var bg=p.color||'';
-    var fg=bg?_mttsBgToFg(bg):'';
-    var styleParts=[];
-    if(bg){
-      styleParts.push('background:'+bg);
-      styleParts.push('color:'+fg);
-      styleParts.push('border-color:'+bg);
-    }
-    if(isActive) styleParts.push('box-shadow:inset 0 0 0 2px #fff, 0 0 0 3px var(--accent)');
-    var styleAttr=styleParts.length?' style="'+styleParts.join(';')+'"':'';
-    return '<button type="button" class="mtts-chip'+(isActive?' is-active':'')+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')" title="'+lblEsc+'"'+styleAttr+'><span>'+(p.value||'?')+'</span></button>';
-  }).join('');
+    var sel=p.value===current;
+    var swatch=p.color?'<span class="mtts-chip-swatch" style="display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.1);background:'+p.color+'"></span>':'';
+    // onclick fires on every row click — including re-clicking the
+    // already-selected radio — which guarantees the list collapses on any
+    // tap. (onchange only fires when the value actually changes.)
+    return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lblEsc+'" onclick="_mttsRaisePickPlant(\''+idEsc+'\')">'+
+      '<input type="radio" name="mttsRaisePlantRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
+      swatch+
+      '<span>'+lblEsc+'</span>'+
+    '</label>';
+  }).join('')+'</div>';
 }
 
 // Refresh the collapsed summary button for the plant pick. Empty state
@@ -1541,19 +1587,35 @@ function _mttsAssetTypeIcon(name){
   return '🏷';
 }
 
+// Sentinel value for the "All" row in the asset-type radio list. Stored
+// in the hidden input when the user explicitly picks All so the summary
+// can distinguish "user picked All" from "user hasn't picked anything".
+// _mttsRaiseRefreshAssets treats __ALL__ the same as empty (no filter).
+var _MTTS_TYPE_ALL='__ALL__';
 function _mttsRaiseRenderTypeBtns(){
   var wrap=document.getElementById('mttsRaiseTypeBtns');if(!wrap) return;
   var hidden=document.getElementById('mttsRaiseType');
   var current=hidden?hidden.value:'';
-  var typesArr=_mttsAssetTypeList(false);
-  var html='<button type="button" class="mtts-chip'+(current===''?' is-active':'')+'" onclick="_mttsRaisePickType(\'\')"><span class="mtts-chip-icon">📋</span><span>All</span></button>';
+  var typesArr=_mttsAssetTypeList(false).slice().sort(function(a,b){
+    return String(a.label||'').localeCompare(String(b.label||''),undefined,{numeric:true,sensitivity:'base'});
+  });
+  var allSel=current===_MTTS_TYPE_ALL;
+  var html='<div class="mtts-raise-asset-list">'+
+    '<label class="mtts-raise-asset-row'+(allSel?' is-selected':'')+'" onclick="_mttsRaisePickType(\''+_MTTS_TYPE_ALL+'\')">'+
+      '<input type="radio" name="mttsRaiseTypeRadio" value="'+_MTTS_TYPE_ALL+'"'+(allSel?' checked':'')+'>'+
+      '<span class="mtts-chip-icon">📋</span><span>All</span>'+
+    '</label>';
   html+=typesArr.map(function(t){
     var idEsc=String(t.value).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lblEsc=String(t.label).replace(/</g,'&lt;');
     var icon=_mttsAssetTypeIcon(t.label);
-    var act=t.value===current?' is-active':'';
-    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickType(\''+idEsc+'\')"><span class="mtts-chip-icon">'+icon+'</span><span>'+lblEsc+'</span></button>';
+    var sel=t.value===current;
+    return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" onclick="_mttsRaisePickType(\''+idEsc+'\')">'+
+      '<input type="radio" name="mttsRaiseTypeRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
+      '<span class="mtts-chip-icon">'+icon+'</span><span>'+lblEsc+'</span>'+
+    '</label>';
   }).join('');
+  html+='</div>';
   wrap.innerHTML=html;
 }
 function _mttsRaiseRefreshTypeSummary(){
@@ -1566,6 +1628,12 @@ function _mttsRaiseRefreshTypeSummary(){
     return;
   }
   btn.classList.remove('is-empty');
+  // Sentinel "__ALL__" → show "Selected Asset Type: All" so the user
+  // sees their explicit pick (vs. the placeholder when nothing chosen).
+  if(code===_MTTS_TYPE_ALL){
+    btn.innerHTML='<span class="mtts-chip-icon">📋</span><span class="mtts-pick-prefix">Selected Asset Type</span><span class="mtts-pick-value">All</span>';
+    return;
+  }
   var label=_mttsAssetTypeLabel(code);
   var icon=_mttsAssetTypeIcon(label);
   btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset Type</span><span class="mtts-pick-value"><span class="mtts-chip-icon">'+icon+'</span>'+String(label).replace(/</g,'&lt;')+'</span>';
@@ -1580,8 +1648,9 @@ function _mttsRaisePickType(code){
   _mttsRaiseRenderTypeBtns();
   _mttsRaiseRefreshTypeSummary();
   // If the currently-picked asset doesn't match the new type filter, clear it.
+  // __ALL__ sentinel = no filter, so any prior asset stays valid.
   var aHidden=document.getElementById('mttsRaiseAsset');
-  if(aHidden&&aHidden.value&&code){
+  if(aHidden&&aHidden.value&&code&&code!==_MTTS_TYPE_ALL){
     var a=(DB.mttsAssets||[]).find(function(x){return x&&x.id===aHidden.value;});
     if(!a||a.assetType!==code){aHidden.value='';}
   }
@@ -1673,19 +1742,30 @@ function _mttsRaiseRefreshAssets(){
   var assets=(DB.mttsAssets||[]).filter(function(a){
     if(!a||a.status==='Scrap') return false;
     if(a.plant!==plant) return false;
-    if(type&&a.assetType!==type) return false;
+    // Empty type or __ALL__ sentinel = no filter (show every asset type).
+    if(type&&type!==_MTTS_TYPE_ALL&&a.assetType!==type) return false;
     return true;
-  }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  }).sort(function(a,b){
+    // Natural, case-insensitive sort by asset name so "Press 2" comes
+    // before "Press 10" and casing doesn't push entries to the bottom.
+    return String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'});
+  });
   if(!assets.length){
     wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No assets at this plant</div>';
     return;
   }
-  wrap.innerHTML=assets.map(function(a){
+  // Radio-list layout (replaces chip buttons): one row per asset, sorted
+  // alphabetically. Easier to scan than chips when the plant has many
+  // assets, and the radio gives a clear single-select affordance.
+  wrap.innerHTML='<div class="mtts-raise-asset-list">'+assets.map(function(a){
     var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var lbl=String((a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
-    var act=a.id===current?' is-active':'';
-    return '<button type="button" class="mtts-chip'+act+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')" title="'+lbl+'"><span>'+lbl+'</span></button>';
-  }).join('');
+    var sel=a.id===current;
+    return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lbl+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')">'+
+      '<input type="radio" name="mttsRaiseAssetRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
+      '<span>'+lbl+'</span>'+
+    '</label>';
+  }).join('')+'</div>';
 }
 function _mttsRaiseRefreshAssetSummary(){
   var btn=document.getElementById('mttsRaiseAssetSummary');if(!btn) return;
@@ -3604,7 +3684,10 @@ async function _mttsAprimDeleteFromTable(id){
   _mttsPopulateAssetPrimaryNameOptions();
 }
 
-function _mttsAprimOpen(id){
+// Optional preset object: { assetType: '<typeCode>' } — used by the
+// Save & Add Next flow to pre-select the previous entry's asset type so
+// the user can rattle off several primary names without re-picking it.
+function _mttsAprimOpen(id, preset){
   if(!_mttsHasAccess('action.editAssetPrimaryName')&&id===''){notify('You do not have permission to add primary names',true);return;}
   var p=id?(byId(DB.mttsAssetPrimaryNames||[],id)||null):null;
   document.getElementById('mttsAprimTitle').textContent=p?'🔤 Edit Primary Name':'🔤 Add Primary Name';
@@ -3614,16 +3697,20 @@ function _mttsAprimOpen(id){
   var typeSel=document.getElementById('mttsAprimAssetType');
   if(typeSel){
     var typesArr=_mttsAssetTypeList(true);
-    typeSel.innerHTML='<option value="">— Select —</option>'+typesArr.map(function(t){
+    typeSel.innerHTML='<option value="">— Select Asset Type first —</option>'+typesArr.map(function(t){
       return '<option value="'+t.value+'">'+t.label+'</option>';
     }).join('');
-    typeSel.value=p?(p.assetType||''):'';
+    typeSel.value=p?(p.assetType||''):((preset&&preset.assetType)||'');
   }
   document.getElementById('mttsAprimName').value=p?(p.name||''):'';
   var initialColor=(p&&p.color)?p.color:'#bbf7d0';
   document.getElementById('mttsAprimColor').value=initialColor;
   _mttsRenderAprimColorGrid(initialColor);
   document.getElementById('mttsAprimInactive').checked=!!(p&&p.inactive);
+  // Save button label: editing keeps "Save"; adding flips to "Save & Add
+  // Next" so the user knows the form will reopen on success.
+  var saveBtn=document.getElementById('mttsAprimSaveBtn');
+  if(saveBtn) saveBtn.textContent=p?'Save':'Save & Add Next';
   var err=document.getElementById('mttsAprimErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsAprim'); else { document.getElementById('mMttsAprim').classList.add('open'); }
   var modalEl=document.getElementById('mMttsAprim');
@@ -3640,8 +3727,10 @@ function _mttsAprimOpen(id){
     };
     modalEl.addEventListener('keydown',modalEl._mttsKeyHandler);
   }
+  // Focus jumps to whichever field still needs input: Asset Type when
+  // empty (the prompt-first behaviour), Name otherwise.
   setTimeout(function(){
-    var first=document.getElementById('mttsAprimName');
+    var first=(typeSel&&!typeSel.value)?typeSel:document.getElementById('mttsAprimName');
     if(first&&typeof first.focus==='function') first.focus();
   },50);
 }
@@ -3710,6 +3799,13 @@ async function _mttsAprimSave(){
       _showErr('Save failed');return;
     }
     notify('✓ Primary name added');
+    // Save & Add Next: refresh the master table behind, then reopen the
+    // form with the same Asset Type pre-selected and Name cleared so the
+    // user can keep typing names without re-picking the type each time.
+    _mttsRenderAssetPrimaryNames();
+    _mttsPopulateAssetPrimaryNameOptions();
+    _mttsAprimOpen('',{assetType:assetType});
+    return;
   }
   cm('mMttsAprim');
   _mttsRenderAssetPrimaryNames();

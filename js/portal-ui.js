@@ -333,14 +333,16 @@ function showPortal(){
   var sn=document.getElementById('pSideName');if(sn)sn.textContent=CU.fullName||CU.name;
   var sr=document.getElementById('pSideRole');if(sr)sr.textContent=(CU.roles||[]).join(', ');
   // Tab visibility:
-  //   Users     — Super Admin, VMS Admin, HWMS Admin, HR Admin (can manage users)
-  //   DB Storage— Super Admin, HWMS Admin
+  //   Users     — Super Admin / Admin (platform), and any app's Admin role
+  //   DB Storage— Super Admin / Admin (platform), HWMS Admin
   //   Permissions (Role Settings) — Super Admin only
   var isSuper=(CU.roles||[]).indexOf('Super Admin')>=0;
+  var isAdmin=(CU.roles||[]).indexOf('Admin')>=0;
   var isVmsAdmin=(CU.roles||[]).indexOf('VMS Admin')>=0;
   var isHwmsAdmin=(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HR Admin')>=0;
-  var canManageUsers=isSuper||isVmsAdmin||isHwmsAdmin||isHrAdmin;
+  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HR Admin')>=0||(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
+  var isMttsAdmin=(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
+  var canManageUsers=isSuper||isAdmin||isVmsAdmin||isHwmsAdmin||isHrAdmin||isMttsAdmin;
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=canManageUsers?'':'none';
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=canManageUsers?'':'none';
   var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isSuper||isHwmsAdmin)?'':'none';
@@ -361,7 +363,10 @@ function showTab(tab){
   document.querySelectorAll('.portal-tab').forEach(t=>t.classList.remove('active'));
   var ptab=document.querySelector(`.portal-tab[onclick*="${tab}"]`);if(ptab)ptab.classList.add('active');
   document.getElementById('appsSection').style.display=tab==='apps'?'block':'none';
-  document.getElementById('usersSection').style.display=tab==='users'?'block':'none';
+  // usersSection uses a flex column layout when active so the table-wrap
+  // can take flex:1 and own the only scrollbar. Setting display:block here
+  // would override the CSS rule and break that layout.
+  document.getElementById('usersSection').style.display=tab==='users'?'flex':'none';
   document.getElementById('profileSection').style.display=tab==='profile'?'block':'none';
   var permSec=document.getElementById('permissionsSection');
   if(permSec) permSec.style.display=tab==='permissions'?'block':'none';
@@ -373,14 +378,38 @@ function showTab(tab){
   if(tab==='apps') renderAppGrid();
   // Guard admin-only tabs — must stay in sync with renderPortal() visibility
   var _isSA=CU&&(CU.roles||[]).indexOf('Super Admin')>=0;
+  var _isAdmin=CU&&(CU.roles||[]).indexOf('Admin')>=0;
   var _isVmsAdmin=CU&&(CU.roles||[]).indexOf('VMS Admin')>=0;
   var _isHwmsAdmin=CU&&(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var _isHrAdmin=CU&&(CU.hrmsRoles||[]).indexOf('HR Admin')>=0;
-  var _canUsers=_isSA||_isVmsAdmin||_isHwmsAdmin||_isHrAdmin;
-  var _canDb=_isSA||_isHwmsAdmin;
+  var _isHrAdmin=CU&&((CU.hrmsRoles||[]).indexOf('HR Admin')>=0||(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0);
+  var _isMttsAdmin=CU&&(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
+  var _canUsers=_isSA||_isAdmin||_isVmsAdmin||_isHwmsAdmin||_isHrAdmin||_isMttsAdmin;
+  var _canDb=_isSA||_isAdmin||_isHwmsAdmin;
   if(tab==='users'&&!_canUsers){showTab('apps');return;}
   if(tab==='permissions'&&!_isSA){showTab('apps');return;}
   if(tab==='dbstorage'&&!_canDb){showTab('apps');return;}
+  // Toggle body.tab-users so the fixed-header layout (CSS) only applies on
+  // the users tab — other tabs keep their normal page-scroll behaviour.
+  // #portalPage carries an inline display:block from the login flow that
+  // would otherwise override the CSS flex layout, so flip it here.
+  document.body.classList.toggle('tab-users',tab==='users');
+  var _pp=document.getElementById('portalPage');
+  if(_pp) _pp.style.display=(tab==='users')?'flex':'block';
+  // Set the welcome heading + subtitle to match the active menu page —
+  // the "Welcome … select an application" line only shows on the Apps
+  // page; every other page shows its own title.
+  var _wm=document.getElementById('welcomeMsg');
+  var _ws=document.getElementById('welcomeSub');
+  var _tabHeads={
+    apps:        {h:CU?('Welcome, '+(CU.fullName||CU.name)):'Welcome', s:'Select an application to get started'},
+    users:       {h:'User Management',  s:'Manage users, app access and roles'},
+    profile:     {h:'My Profile',       s:'Update your account details'},
+    permissions: {h:'Access Management', s:'Role-based permissions per app'},
+    dbstorage:   {h:'DB Storage',       s:'Database tables and storage usage'}
+  };
+  var _th=_tabHeads[tab]||_tabHeads.apps;
+  if(_wm) _wm.textContent=_th.h;
+  if(_ws) _ws.textContent=_th.s;
   if(tab==='users') renderPortalUsers();
   if(tab==='profile') ppLoadProfile();
   if(tab==='permissions') renderPermissions();
@@ -855,27 +884,92 @@ function openApp(id,file){
 }
 
 // ═══ USER MANAGEMENT (table, modal, save, delete, reset) ════════════════
+// Sort state for the users table — clicking a sortable header toggles
+// ASC ↔ DESC; clicking a different column resets to ASC.
+var _puSortKey='fullName';
+var _puSortDir=1; // 1 = asc, -1 = desc
+function puSort(key){
+  if(_puSortKey===key) _puSortDir=-_puSortDir;
+  else { _puSortKey=key; _puSortDir=1; }
+  renderPortalUsers();
+}
+function _puSortVal(u,key){
+  if(key==='fullName') return String(u.fullName||u.name||'').toLowerCase();
+  if(key==='name') return String(u.name||'').toLowerCase();
+  if(key==='location'){
+    var loc=byId(DB.locations||[],u.plant);
+    return String(loc?loc.name:(u.plant||'')).toLowerCase();
+  }
+  return '';
+}
+function _puRenderHeader(){
+  // Render the thead with sortable indicators on Full Name / Username /
+  // Location. Other cells stay plain.
+  var arrow=function(key){
+    if(_puSortKey!==key) return '<span class="puSortIcon">↕</span>';
+    return '<span class="puSortIcon">'+(_puSortDir>0?'↑':'↓')+'</span>';
+  };
+  var sortCls=function(key){return _puSortKey===key?'puSortable is-sorted':'puSortable';};
+  return '<tr>'+
+    '<th></th>'+
+    '<th class="'+sortCls('fullName')+'" onclick="puSort(\'fullName\')">Full Name '+arrow('fullName')+'</th>'+
+    '<th class="'+sortCls('name')+'" onclick="puSort(\'name\')">Username '+arrow('name')+'</th>'+
+    '<th class="'+sortCls('location')+'" onclick="puSort(\'location\')">Location '+arrow('location')+'</th>'+
+    '<th>Apps &amp; Roles</th>'+
+    '<th>Reset Password</th>'+
+  '</tr>';
+}
 function renderPortalUsers(){
   const srch=(document.getElementById('puSearch')?.value||'').toLowerCase();
   const showI=document.getElementById('puShowInactive')?.checked;
   const isSA=CU?.roles?.includes('Super Admin');
-  let rows=[...DB.users].filter(u=>isSA||!(u.roles||[]).includes('Super Admin')).sort((a,b)=>(a.fullName||a.name).localeCompare(b.fullName||b.name));
+  let rows=[...DB.users].filter(u=>isSA||!(u.roles||[]).includes('Super Admin'));
   if(srch) rows=rows.filter(u=>(u.fullName||'').toLowerCase().includes(srch)||(u.name||'').toLowerCase().includes(srch));
   if(!showI) rows=rows.filter(u=>!u.inactive);
+  rows.sort((a,b)=>{
+    // Natural sort — treat embedded digits as numbers so user2 < user10
+    // and "Driver 9" < "Driver 10". Applies to all sortable columns.
+    var av=_puSortVal(a,_puSortKey),bv=_puSortVal(b,_puSortKey);
+    return av.localeCompare(bv,undefined,{numeric:true,sensitivity:'base'})*_puSortDir;
+  });
+  // Re-render the thead so the sort indicators reflect current state.
+  var theadEl=document.querySelector('#usersSection .puTableWrap thead');
+  if(theadEl) theadEl.innerHTML=_puRenderHeader();
   document.getElementById('puBody').innerHTML=rows.length?rows.map(u=>{
     const loc=byId(DB.locations||[],u.plant);
     const locBadge=loc?(loc.colour?`<span style="background:${loc.colour};color:${colourContrast(loc.colour)};padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px">${loc.name}</span>`:loc.name):(u.plant||'—');
     const iBadge=u.inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:5px">Inactive</span>':'';
-    const appBadges=(u.apps||[]).map(id=>{const a=PORTAL_APPS.find(x=>x.id===id);return a?`<span style="font-size:10px;background:#f0fafa;color:#2a9aa0;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;margin-right:2px">${a.icon} ${a.label}</span>`:''}).join('')||'—';
-    const roleBadges=(u.roles||[]).filter(r=>r!=='Super Admin'||isSA).map(r=>r==='Super Admin'?`<span class="badge" style="background:#ede9fe;color:#7c3aed;margin-right:3px">⭐ SA</span>`:`<span class="badge badge-blue" style="margin-right:3px">${r}</span>`).join('')+((u.hwmsRoles||[]).length?'<br>'+(u.hwmsRoles||[]).map(r=>`<span class="badge" style="background:rgba(139,92,246,.12);color:#7c3aed;margin-right:3px;margin-top:2px">${r}</span>`).join(''):'');
-    return `<tr class="clickable-row" ${u.inactive?'style="opacity:.55"':''}>
+    // Combined Apps & Roles cell. Platform roles render as a purple top
+    // strip (shared across the whole portal); each app the user has
+    // access to renders as one line: app icon + label, then its roles.
+    const PLAT=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
+    const uRoles=(u.roles||[]);
+    const uPlat=uRoles.filter(r=>PLAT.indexOf(r)>=0&&(r!=='Super Admin'||isSA));
+    const uVms=uRoles.filter(r=>PLAT.indexOf(r)<0);
+    const platBadgeMap={'Super Admin':'⭐ SA','Admin':'🛡 Admin','Read Only':'👁 Read Only'};
+    const platHtml=uPlat.length?`<div style="margin-bottom:4px">${uPlat.map(r=>`<span class="badge" style="background:#ede9fe;color:#7c3aed;margin-right:3px">${platBadgeMap[r]||r}</span>`).join('')}</div>`:'';
+    const appRolesByApp={vms:uVms,hwms:u.hwmsRoles||[],hrms:u.hrmsRoles||[],maintenance:u.mttsRoles||[]};
+    const appBadgeStyle={vms:'background:#f0fafa;color:#2a9aa0;border:1px solid #b3dfe0',hwms:'background:rgba(139,92,246,.12);color:#7c3aed;border:1px solid rgba(139,92,246,.3)',hrms:'background:rgba(34,197,94,.12);color:#16a34a;border:1px solid rgba(34,197,94,.3)',maintenance:'background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.3)'};
+    const appLines=(u.apps||[]).map(id=>{
+      const a=PORTAL_APPS.find(x=>x.id===id);if(!a) return '';
+      const rs=appRolesByApp[id]||[];
+      const tagStyle=appBadgeStyle[id]||appBadgeStyle.vms;
+      const appTag=`<span style="font-size:10px;${tagStyle};padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.3px;margin-right:6px;white-space:nowrap">${a.icon} ${a.label}</span>`;
+      const roleTags=rs.length?rs.map(r=>`<span class="badge" style="background:#f8fafc;color:var(--text2);border:1px solid var(--border);margin-right:3px;font-weight:600">${r}</span>`).join(''):`<span style="font-size:11px;color:var(--text3);font-style:italic">no role</span>`;
+      return `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin-bottom:3px">${appTag}${roleTags}</div>`;
+    }).filter(Boolean).join('');
+    const roleBadges=(platHtml+appLines)||'<span style="font-size:11px;color:var(--text3);font-style:italic">No apps assigned</span>';
+    // Clicking anywhere on the row opens the user form. Per-button
+    // onclicks call event.stopPropagation() so they don't double-fire
+    // the row handler.
+    return `<tr class="clickable-row" onclick="puOpenModal('${u.id}')" style="cursor:pointer${u.inactive?';opacity:.55':''}">
       <td>${u.photo?`<img src="${u.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid var(--border2)">`:'<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text3)">👤</div>'}</td>
       <td style="font-weight:600">${u.fullName||'—'}${iBadge}</td>
       <td style="font-family:var(--mono);font-size:12px">${u.name}</td>
-      <td>${locBadge}</td><td>${appBadges}</td><td>${roleBadges}</td>
-      <td style="white-space:nowrap"><button class="action-btn" onclick="puOpenModal('${u.id}')" title="Edit">✏️</button>${!(u.roles||[]).includes('Super Admin')?`<button class="action-btn" onclick="puResetPwd('${u.id}')" title="Reset Password" style="color:#f59e0b">🔑</button>`:``}<button class="action-btn" onclick="puDeleteUser('${u.id}')" title="Delete" style="color:#ef4444">🗑️</button></td>
+      <td>${locBadge}</td><td>${roleBadges}</td>
+      <td style="white-space:nowrap;text-align:center">${!(u.roles||[]).includes('Super Admin')?`<button class="action-btn" onclick="event.stopPropagation();puResetPwd('${u.id}')" title="Reset Password" style="color:#f59e0b">🔑</button>`:`<span style="color:var(--text3);font-size:11px;font-style:italic">—</span>`}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3)">No users found</td></tr>';
+  }).join(''):'<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3)">No users found</td></tr>';
 }
 
 // ── User modal ──────────────────────────────────────────────────────────────
@@ -893,10 +987,25 @@ function puOpenModal(id){
   // Apps
   const ua=u?.apps||(u?['vms']:[]);
   document.getElementById('muApps').innerHTML=PORTAL_APPS.map(a=>{const c=ua.includes(a.id);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:${c?'rgba(42,154,160,.07)':'var(--surface2)'};padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--accent)':'var(--border)'}"><input type="checkbox" class="muAppCb" value="${a.id}" ${c?'checked':''} style="width:auto" onchange="puAppChange(this)"> ${a.icon} ${a.label}</label>`}).join('');
-  // VMS roles
+  // Platform Access — visible / editable only when current user is Super
+  // Admin. Stored alongside VMS roles in u.roles (no schema change).
   const isSA=CU?.roles?.includes('Super Admin');
-  const vr=ROLES.filter(r=>r!=='Super Admin'||isSA);
-  document.getElementById('muVmsBoxes').innerHTML=vr.map(r=>{const c=(u?.roles||[]).includes(r);const sa=r==='Super Admin';return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:${sa?'rgba(139,92,246,.08)':'var(--surface2)'};padding:4px 10px;border-radius:5px;border:1px solid ${c?(sa?'var(--purple)':'var(--accent)'):(sa?'rgba(139,92,246,.3)':'var(--border)')}"><input type="checkbox" class="muVmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${sa?'⭐ ':''}${r}</label>`}).join('');
+  const platSection=document.getElementById('muPlatformRoles');
+  if(platSection) platSection.style.display=isSA?'block':'none';
+  const platBoxes=document.getElementById('muPlatformBoxes');
+  if(platBoxes&&isSA){
+    const pr=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
+    platBoxes.innerHTML=pr.map(r=>{
+      const c=(u?.roles||[]).includes(r);
+      const sa=r==='Super Admin';
+      return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(124,58,237,.07);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#7c3aed':'rgba(124,58,237,.3)'}"><input type="checkbox" class="muPlatCb" value="${r}" ${c?'checked':''} style="width:auto"> ${sa?'⭐ ':''}${r}</label>`;
+    }).join('');
+  } else if(platBoxes){
+    platBoxes.innerHTML='';
+  }
+  // VMS roles — Super Admin no longer appears here (it's a Platform role).
+  const vr=ROLES.filter(r=>r!=='Super Admin');
+  document.getElementById('muVmsBoxes').innerHTML=vr.map(r=>{const c=(u?.roles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:var(--surface2);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--accent)':'var(--border)'}"><input type="checkbox" class="muVmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   // HWMS roles
   document.getElementById('muHwmsBoxes').innerHTML=HWMS_ROLES.map(r=>{const c=(u?.hwmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(139,92,246,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--purple)':'rgba(139,92,246,.25)'}"><input type="checkbox" class="muHwmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   document.getElementById('muHrmsBoxes').innerHTML=(typeof HRMS_ROLES!=='undefined'?HRMS_ROLES:[]).map(r=>{const c=(u?.hrmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(34,197,94,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#16a34a':'rgba(34,197,94,.25)'}"><input type="checkbox" class="muHrmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
@@ -926,7 +1035,23 @@ async function puSaveUser(){
   const fullName=document.getElementById('muFull').value.trim();
   const mobile=document.getElementById('muMobile').value;
   const apps=[...document.querySelectorAll('.muAppCb:checked')].map(i=>i.value);
-  const roles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
+  const vmsRoles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
+  // Platform roles only visible to Super Admin — for non-SA editors keep
+  // whatever was previously on the user record so we don't accidentally
+  // strip Super Admin / Admin from a colleague.
+  const editingUser=document.getElementById('muId').value?byId(DB.users,document.getElementById('muId').value):null;
+  const isSAEditor=CU?.roles?.includes('Super Admin');
+  var platRoles;
+  if(isSAEditor){
+    platRoles=[...document.querySelectorAll('.muPlatCb:checked')].map(i=>i.value);
+  } else {
+    var prev=editingUser?.roles||[];
+    var platSet=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
+    platRoles=prev.filter(r=>platSet.indexOf(r)>=0);
+  }
+  // u.roles carries platform + VMS roles in one column for now; the modal
+  // splits them visually but they're persisted together.
+  const roles=platRoles.concat(vmsRoles);
   const hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
   const hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
   const mttsRoles=[...document.querySelectorAll('.muMttsCb:checked')].map(i=>i.value);
@@ -935,7 +1060,7 @@ async function puSaveUser(){
   if(!plant){modalErr('mUser','Location required');return}
   if(!fullName){modalErr('mUser','Full name required');return}
   if(!apps.length){modalErr('mUser','Select at least one app');return}
-  if(apps.includes('vms')&&!roles.length){modalErr('mUser','Select at least one VMS role');return}
+  if(apps.includes('vms')&&!vmsRoles.length){modalErr('mUser','Select at least one VMS role');return}
   if(apps.includes('hwms')&&!hwmsRoles.length){modalErr('mUser','Select at least one HWMS role');return}
   if(apps.includes('hrms')&&!hrmsRoles.length){modalErr('mUser','Select at least one HRMS role');return}
   if(apps.includes('maintenance')&&!mttsRoles.length){modalErr('mUser','Select at least one MTTS role');return}

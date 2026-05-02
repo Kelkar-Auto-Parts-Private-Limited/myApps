@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V41">
+<meta name="app-build" content="260501-V68">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260501-V41">
+<link rel="stylesheet" href="css/hrms.css?v=260501-V68">
 </head>
 <body>
 
@@ -530,13 +530,14 @@
           <span style="font-size:11px;color:var(--text3)">Override present days, PL, OT, OT@S for specific employees (applies to selected month only)</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
-          <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsManualPCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsManualPCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsManualPCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Present Days</label><input type="number" id="hrmsManualPDays" step="0.5" min="0" placeholder="e.g. 26" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">PL Given</label><input type="number" id="hrmsManualPL" step="0.5" min="0" placeholder="e.g. 2" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
-          <div><label style="font-size:10px;font-weight:700;color:#7c3aed;display:block;margin-bottom:2px">OT</label><input type="number" id="hrmsManualOT" step="0.5" min="0" placeholder="e.g. 5" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
-          <div><label style="font-size:10px;font-weight:700;color:#c2410c;display:block;margin-bottom:2px">OT@S</label><input type="number" id="hrmsManualOTS" step="0.5" min="0" placeholder="e.g. 8" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:70px"></div>
-          <div style="flex:1;min-width:160px"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label><input type="text" id="hrmsManualRemarks" placeholder="e.g. Sick leave, Family emergency…" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box"></div>
-          <button onclick="_hrmsAddManualP()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
+          <div style="position:relative"><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsManualPCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsManualPCode');},200)" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:225px"><div id="ac_hrmsManualPCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Present Days</label><input type="number" id="hrmsManualPDays" step="0.5" min="0" placeholder="e.g. 26" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">PL Given</label><input type="number" id="hrmsManualPL" step="0.5" min="0" placeholder="e.g. 2" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#7c3aed;display:block;margin-bottom:2px">OT</label><input type="number" id="hrmsManualOT" step="0.5" min="0" placeholder="e.g. 5" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#c2410c;display:block;margin-bottom:2px">OT@S</label><input type="number" id="hrmsManualOTS" step="0.5" min="0" placeholder="e.g. 8" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label><input type="text" id="hrmsManualRemarks" placeholder="e.g. Sick leave…" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px"></div>
+          <button id="hrmsManualPAddBtn" onclick="_hrmsAddManualP()" style="padding:5px 14px;font-size:13px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
+          <button onclick="_hrmsClearManualP()" title="Clear all input fields without saving" style="padding:5px 14px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">↻ Clear</button>
         </div>
         <div id="hrmsManualPList" style="max-height:calc(100vh - 280px);overflow-y:auto"></div>
       </div>
@@ -957,8 +958,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V41"></script>
-<script src="js/hrms-logic.js?v=260501-V41"></script>
-<script src="js/hrms-ui.js?v=260501-V41"></script>
+<script src="js/common.js?v=260501-V68"></script>
+<script src="js/hrms-logic.js?v=260501-V68"></script>
+<script src="js/hrms-ui.js?v=260501-V68"></script>
 </body>
 </html>
