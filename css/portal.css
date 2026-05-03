@@ -89,16 +89,19 @@ tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hove
 .modal-err{width:100%;font-size:12px;font-weight:600;color:var(--red);display:none;margin-bottom:6px}
 .user-dropdown{position:absolute;top:52px;right:20px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:8px;min-width:200px;display:none;z-index:200}.user-dropdown.show{display:block}
 .user-dropdown .dd-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);transition:background .15s}.user-dropdown .dd-item:hover{background:var(--surface2)}.user-dropdown .dd-item.danger{color:var(--red)}.user-dropdown .dd-divider{height:1px;background:var(--border);margin:4px 0}
-@media(max-width:768px){#portalHbBtn{display:flex!important}}
 @media(max-width:600px){.portal-body{padding:20px 14px}.app-grid{grid-template-columns:repeat(2,1fr);gap:12px}.app-card{padding:18px 12px}.app-card .app-icon{font-size:32px}.login-card{width:calc(100vw - 32px);padding:32px 24px;margin:16px}.form-row{flex-direction:column;gap:0}}
-.portal-sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:160}
+.portal-sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:160;transition:transform .25s}
 .portal-sidebar .ps-nav{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;margin-bottom:2px;transition:all .15s}
 .portal-sidebar .ps-nav:hover{background:var(--surface2);color:var(--text)}
 .portal-sidebar .ps-nav.active{background:rgba(42,154,160,.12);color:var(--accent);font-weight:700}
-#portalPage .portal-topbar{margin-left:240px}
-#portalPage .portal-body{margin-left:240px}
+#portalPage .portal-topbar{margin-left:240px;transition:margin-left .25s}
+#portalPage .portal-body{margin-left:240px;transition:margin-left .25s}
+/* Desktop: hamburger collapses the sidebar offscreen and the page reflows full-width. */
+#portalPage.portal-sb-hidden .portal-sidebar{transform:translateX(-260px)}
+#portalPage.portal-sb-hidden .portal-topbar{margin-left:0}
+#portalPage.portal-sb-hidden .portal-body{margin-left:0}
 @media(max-width:768px){
-  .portal-sidebar{transform:translateX(-260px);transition:transform .25s}
+  .portal-sidebar{transform:translateX(-260px)}
   .portal-sidebar.open{transform:translateX(0);box-shadow:8px 0 40px rgba(0,0,0,.15)}
   #portalPage .portal-topbar{margin-left:0}
   #portalPage .portal-body{margin-left:0}

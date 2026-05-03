@@ -1230,6 +1230,20 @@ async function ppClearPhoto(){
   ppLoadProfile();
 }
 
+// ── Sidebar toggle ──────────────────────────────────────────────────────────
+// Desktop: collapses the fixed sidebar offscreen and removes the topbar/body
+// left-margin so the page reflows to full width. Mobile: slides the overlay
+// in/out via the `.open` class.
+function togglePortalSidebar(){
+  var page=document.getElementById('portalPage');
+  var sb=document.getElementById('portalSidebar');
+  if(!page||!sb) return;
+  if(window.innerWidth>768){
+    page.classList.toggle('portal-sb-hidden');
+  } else {
+    sb.classList.toggle('open');
+  }
+}
 // ── Dropdown ────────────────────────────────────────────────────────────────
 function toggleDropdown(){document.getElementById('userDropdown').classList.toggle('show')}
 document.addEventListener('click',e=>{

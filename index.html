@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V83">
+<meta name="app-build" content="260501-V90">
 <title>KAP — myApps Portal</title>
-<link rel="stylesheet" href="css/portal.css?v=260501-V83">
+<link rel="stylesheet" href="css/portal.css?v=260501-V90">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -100,8 +100,8 @@
   </div>
   <!-- TOPBAR (mobile) -->
   <div class="portal-topbar">
-    <!-- Hamburger — visible on mobile only -->
-    <button onclick="document.getElementById('portalSidebar').classList.toggle('open')" style="display:none;background:none;border:none;cursor:pointer;padding:6px 7px;border-radius:6px;flex-direction:column;gap:4px;align-items:center;justify-content:center;margin-right:4px" id="portalHbBtn">
+    <!-- Hamburger — show/hide the side menu (works on desktop and mobile) -->
+    <button onclick="togglePortalSidebar()" title="Show / hide menu" style="background:none;border:none;cursor:pointer;padding:6px 7px;border-radius:6px;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;margin-right:4px" id="portalHbBtn">
       <span style="width:20px;height:2px;background:var(--text);border-radius:2px;display:block"></span>
       <span style="width:20px;height:2px;background:var(--text);border-radius:2px;display:block"></span>
       <span style="width:20px;height:2px;background:var(--text);border-radius:2px;display:block"></span>
@@ -345,8 +345,8 @@
 </div>
 </div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V83"></script>
-<script src="js/portal-logic.js?v=260501-V83"></script>
-<script src="js/portal-ui.js?v=260501-V83"></script>
+<script src="js/common.js?v=260501-V90"></script>
+<script src="js/portal-logic.js?v=260501-V90"></script>
+<script src="js/portal-ui.js?v=260501-V90"></script>
 </body>
 </html>

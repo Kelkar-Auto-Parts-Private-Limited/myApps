@@ -298,8 +298,11 @@ function hrmsGo(pid){
     if(pid==='pageHrmsMRoll') _hrmsRenderRollMaster();
     else if(pid==='pageHrmsMAllocation') _hrmsRenderAllocationMaster();
     else renderHrmsMaster(pid);
-    document.getElementById('hrmsMastersGroup').style.display='block';
-    document.getElementById('hrmsMastersArrow').textContent='▼';
+    // Keep the Masters group collapsed by default — user toggles it manually.
+    var _mg=document.getElementById('hrmsMastersGroup');
+    var _ma=document.getElementById('hrmsMastersArrow');
+    if(_mg) _mg.style.display='none';
+    if(_ma) _ma.textContent='▶';
   }
   if(pid.indexOf('pageHrmsUtil')===0){
     var _ug=document.getElementById('hrmsUtilsGroup');if(_ug) _ug.style.display='block';
@@ -7389,6 +7392,146 @@ async function _hrmsCleanupZeroAdvances(){
 // ═══ ESSL / ATTENDANCE IMPORT HISTORY ════════════════════════════════════
 
 // Render import history in the ESSL Attendance panel
+// ── Unknown-employee soft-delete / revoke ────────────────────────────────
+// Storage: hrmsSettings row with key='removedUnknown'. data is keyed by
+// empCode and holds the original attendance + alteration rows so a
+// Revoke can re-insert them. Removal is a true DB delete on
+// hrms_attendance / hrms_alterations — we only keep the days payload
+// here for restore.
+function _hrmsLoadRemovedUnknown(){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
+  return (rec&&rec.data)||{};
+}
+async function _hrmsSaveRemovedUnknown(map){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
+  if(!rec){
+    rec={id:'hs_removedUnknown',key:'removedUnknown',data:{}};
+    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    DB.hrmsSettings.push(rec);
+  }
+  rec.data=map||{};
+  return await _dbSave('hrmsSettings',rec);
+}
+function _hrmsBuildUnknownEmpsBlock(mk){
+  if(!mk) return '';
+  var attRecs=_hrmsAttCache[mk]||[];
+  var empSet={};
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(e&&e.empCode) empSet[String(e.empCode).trim().toUpperCase()]=true;
+  });
+  var active=attRecs.filter(function(a){
+    if(!a||!a.empCode) return false;
+    return !empSet[String(a.empCode).trim().toUpperCase()];
+  });
+  var removedMap=_hrmsLoadRemovedUnknown();
+  var removed=Object.keys(removedMap).map(function(ec){
+    return Object.assign({empCode:ec},removedMap[ec]);
+  }).filter(function(r){return r.monthKey===mk;});
+  if(!active.length&&!removed.length) return '';
+  var thU='padding:6px 10px;font-size:11px;font-weight:800;background:#fef3c7;border-bottom:1px solid #fcd34d;text-align:left';
+  var tdU='padding:6px 10px;font-size:12px;border-bottom:1px solid #fde68a';
+  var totalU=active.length+removed.length;
+  var monthLbl=(typeof _hrmsMonthLabel==='function')?_hrmsMonthLabel(mk):mk;
+  var html='<div style="font-size:13px;font-weight:900;color:#92400e;margin:14px 0 6px">⚠ Unknown Employees in '+monthLbl+' ('+totalU+')</div>';
+  html+='<div style="border:1.5px solid #fdba74;border-radius:8px;overflow:hidden;background:#fff7ed;margin-bottom:14px">';
+  html+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
+  html+='<th style="'+thU+'">Emp Code</th>';
+  html+='<th style="'+thU+';text-align:right">Days w/ Punch</th>';
+  html+='<th style="'+thU+'">Status / Remarks</th>';
+  html+='<th style="'+thU+';text-align:center">Action</th>';
+  html+='</tr></thead><tbody>';
+  active.forEach(function(a){
+    var dayCount=Object.keys(a.days||{}).filter(function(d){var v=a.days[d];return v&&(v['in']||v['out']);}).length;
+    var ecEsc=String(a.empCode).replace(/'/g,"\\'");
+    html+='<tr>'+
+      '<td style="'+tdU+';font-family:var(--mono);font-weight:800;color:#dc2626">'+a.empCode+'</td>'+
+      '<td style="'+tdU+';text-align:right;font-family:var(--mono);font-weight:700">'+dayCount+'</td>'+
+      '<td style="'+tdU+';color:#92400e;font-style:italic">Not in employee master</td>'+
+      '<td style="'+tdU+';text-align:center"><button onclick="_hrmsRemoveUnknownEmp(\''+ecEsc+'\')" title="Delete this employee\'s attendance for this month — keep aside for revoke" style="font-size:11px;padding:3px 10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑 Remove</button></td>'+
+    '</tr>';
+  });
+  removed.forEach(function(r){
+    var when=r.removedAt?new Date(r.removedAt).toLocaleString():'—';
+    var ecEsc=String(r.empCode).replace(/'/g,"\\'");
+    var by=r.removedBy||'—';
+    html+='<tr>'+
+      '<td style="'+tdU+';font-family:var(--mono);font-weight:700;color:var(--text3);text-decoration:line-through">'+r.empCode+'</td>'+
+      '<td style="'+tdU+';text-align:right;color:var(--text3)">—</td>'+
+      '<td style="'+tdU+';color:var(--text3);font-size:11px;font-style:italic">Removed by <b>'+String(by).replace(/</g,'&lt;')+'</b> on '+when+'</td>'+
+      '<td style="'+tdU+';text-align:center"><button onclick="_hrmsRevokeUnknownEmp(\''+ecEsc+'\')" title="Restore this employee\'s attendance" style="font-size:11px;padding:3px 10px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer">↺ Revoke</button></td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
+}
+async function _hrmsRemoveUnknownEmp(empCode){
+  if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to remove.',true);return;}
+  var ec=String(empCode||'').trim();if(!ec) return;
+  if(!confirm('Remove unknown employee "'+ec+'" from '+_hrmsMonthLabel(mk)+'?\n\n• Deletes their attendance row(s) for this month.\n• They will disappear from the muster, P&OT, and New Joinee lists.\n• A removal record stays here so you can Revoke later.')) return;
+  showSpinner('Removing '+ec+'…');
+  try{
+    if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
+    var attRec=(_hrmsAttCache[mk]||[]).find(function(a){return a&&a.empCode===ec;});
+    var altRec=(_hrmsAltCache[mk]||[]).find(function(a){return a&&a.empCode===ec;});
+    var attRow=attRec?{empCode:ec,monthKey:mk,days:attRec.days||{}}:null;
+    var altRow=altRec?{empCode:ec,monthKey:mk,days:altRec.days||{}}:null;
+    if(attRec){
+      var ok=await _dbDel('hrmsAttendance',attRec.id);
+      if(!ok) throw new Error('Failed to delete attendance row');
+      _hrmsAttCache[mk]=(_hrmsAttCache[mk]||[]).filter(function(x){return x.id!==attRec.id;});
+    }
+    if(altRec){
+      try{ await _dbDel('hrmsAlterations',altRec.id); }catch(e){console.warn('alt del',e);}
+      _hrmsAltCache[mk]=(_hrmsAltCache[mk]||[]).filter(function(x){return x.id!==altRec.id;});
+    }
+    var map=_hrmsLoadRemovedUnknown();
+    map[ec]={
+      monthKey:mk,
+      removedAt:new Date().toISOString(),
+      removedBy:CU?(CU.name||CU.id||''):'',
+      attRow:attRow,altRow:altRow
+    };
+    await _hrmsSaveRemovedUnknown(map);
+    notify('🗑 '+ec+' removed — Revoke available below');
+  }catch(e){console.error('Remove unknown failed',e);notify('⚠ '+(e.message||e),true);}
+  finally{hideSpinner();}
+  if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
+  if(typeof _hrmsAttSetTab==='function'&&_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
+}
+async function _hrmsRevokeUnknownEmp(empCode){
+  if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
+  var ec=String(empCode||'').trim();if(!ec) return;
+  var map=_hrmsLoadRemovedUnknown();
+  var rem=map[ec];if(!rem){notify('No removal record for '+ec,true);return;}
+  var mk=rem.monthKey;
+  if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to revoke.',true);return;}
+  if(!confirm('Revoke removal for "'+ec+'"?\n\nTheir attendance data will be re-inserted into '+_hrmsMonthLabel(mk)+'.')) return;
+  showSpinner('Restoring '+ec+'…');
+  try{
+    if(rem.attRow){
+      var rec={id:'ha'+uid(),empCode:ec,monthKey:mk,days:rem.attRow.days||{}};
+      var ok=await _dbSave('hrmsAttendance',rec);
+      if(!ok) throw new Error('Failed to restore attendance row');
+      if(!_hrmsAttCache[mk]) _hrmsAttCache[mk]=[];
+      _hrmsAttCache[mk].push(rec);
+    }
+    if(rem.altRow){
+      var arec={id:'hal'+uid(),empCode:ec,monthKey:mk,days:rem.altRow.days||{}};
+      try{ await _dbSave('hrmsAlterations',arec); }catch(e){console.warn('alt restore',e);}
+      if(!_hrmsAltCache[mk]) _hrmsAltCache[mk]=[];
+      _hrmsAltCache[mk].push(arec);
+    }
+    delete map[ec];
+    await _hrmsSaveRemovedUnknown(map);
+    notify('↺ '+ec+' revoked — attendance restored');
+  }catch(e){console.error('Revoke failed',e);notify('⚠ '+(e.message||e),true);}
+  finally{hideSpinner();}
+  if(typeof _hrmsRenderEsslImportLog==='function') _hrmsRenderEsslImportLog();
+  if(typeof _hrmsAttSetTab==='function'&&_hrmsAttCurrentTab) _hrmsAttSetTab(_hrmsAttCurrentTab);
+}
+
 function _hrmsRenderEsslImportLog(){
   var el=document.getElementById('hrmsEsslImportLog');if(!el) return;
   var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
@@ -7460,37 +7603,53 @@ function _hrmsRenderEsslImportLog(){
     });
     var coveredDays=0;
     for(var dx=1;dx<=dim;dx++){ if((empCountPerDay[dx]||0)>0) coveredDays++; }
+    // Calendar-style coverage view: 7-column grid with one cell per day.
+    // Days with no eSSL data show in red; days with data show the
+    // employee count + import attribution. Tooltip carries the full
+    // import timestamp / file for fast inspection.
     dailyHtml='<div style="font-size:13px;font-weight:900;color:var(--text);margin:0 0 6px">📅 Daywise Coverage — '+monthLabel+' ('+coveredDays+'/'+dim+' days)</div>';
-    dailyHtml+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">';
-    dailyHtml+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
-    dailyHtml+='<th style="'+_th+'">Date</th>';
-    dailyHtml+='<th style="'+_th+';text-align:right">Employees</th>';
-    dailyHtml+='<th style="'+_th+'">Imported By</th>';
-    dailyHtml+='<th style="'+_th+'">Imported At</th>';
-    dailyHtml+='<th style="'+_th+'">File</th>';
-    dailyHtml+='</tr></thead><tbody>';
+    dailyHtml+='<div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:8px;margin-bottom:14px">';
+    dailyHtml+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+    DOWS.forEach(function(dn){
+      dailyHtml+='<div style="text-align:center;font-size:11px;font-weight:800;color:var(--text3);padding:4px 0;letter-spacing:.5px;text-transform:uppercase">'+dn+'</div>';
+    });
+    var firstDow=new Date(yr,mo-1,1).getDay();
+    for(var le=0;le<firstDow;le++) dailyHtml+='<div></div>';
     for(var di3=1;di3<=dim;di3++){
-      var dObj=new Date(yr,mo-1,di3);
-      var dow=DOWS[dObj.getDay()];
-      var dateLbl=String(di3).padStart(2,'0')+'-'+_MON3[mo]+'-'+String(yr).slice(-2)+', '+dow;
       var cnt=empCountPerDay[di3]||0;
       var imp=importByDay[di3];
       var noData=cnt===0;
-      var rowBg=noData?'background:#fee2e2':'';
-      dailyHtml+='<tr style="'+rowBg+'">';
-      dailyHtml+='<td style="'+_td+';font-family:var(--mono);font-weight:700'+(noData?';color:#b91c1c':'')+'">'+dateLbl+'</td>';
-      dailyHtml+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:800;color:'+(noData?'#b91c1c':'#15803d')+'">'+(noData?'No Data Imported':cnt+' Emp Data Available')+'</td>';
-      dailyHtml+='<td style="'+_td+';color:var(--text2);font-weight:600">'+(imp?(imp.importedBy||'—'):'—')+'</td>';
-      dailyHtml+='<td style="'+_td+';font-family:var(--mono);font-size:11px">'+(imp?_fmtTime(imp.timestamp):'—')+'</td>';
-      dailyHtml+='<td style="'+_td+';font-size:11px;font-weight:600;color:var(--text2)" title="'+(imp&&imp.fileName?String(imp.fileName).replace(/"/g,'&quot;'):'')+'">'+(imp?(imp.fileName||'—'):'—')+'</td>';
-      dailyHtml+='</tr>';
+      var bg=noData?'#fee2e2':'#dcfce7';
+      var border=noData?'#fca5a5':'#86efac';
+      var numClr=noData?'#b91c1c':'#15803d';
+      var tip=noData?('No data imported for '+String(di3).padStart(2,'0')+'-'+_MON3[mo]+'-'+String(yr).slice(-2))
+        :(cnt+' employee(s) on '+String(di3).padStart(2,'0')+'-'+_MON3[mo]+'-'+String(yr).slice(-2)
+          +(imp?(' — imported by '+(imp.importedBy||'—')+' on '+_fmtTime(imp.timestamp)+(imp.fileName?' · '+imp.fileName:'')):''));
+      dailyHtml+='<div title="'+tip.replace(/"/g,'&quot;')+'" style="background:'+bg+';border:1.5px solid '+border+';border-radius:6px;padding:5px 7px;min-height:82px;display:flex;flex-direction:column">';
+      dailyHtml+='<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:900;color:'+numClr+';line-height:1">'+di3+'</span></div>';
+      if(noData){
+        dailyHtml+='<div style="margin:auto 0;text-align:center;font-size:10px;font-weight:800;color:'+numClr+';letter-spacing:.4px;text-transform:uppercase">No Data</div>';
+      } else {
+        dailyHtml+='<div style="font-size:20px;font-weight:900;color:'+numClr+';text-align:center;line-height:1.1;margin-top:4px;font-family:var(--mono)">'+cnt+'</div>';
+        if(imp){
+          var by=(imp.importedBy||'').replace(/</g,'&lt;');
+          var fn=(imp.fileName||'');
+          var fnShort=fn.length>16?(fn.slice(0,8)+'…'+fn.slice(-6)):fn;
+          dailyHtml+='<div style="font-size:8px;color:var(--text3);font-weight:600;text-align:center;margin-top:auto;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(by?by:'')+(by&&fnShort?' · ':'')+(fnShort?fnShort.replace(/</g,'&lt;'):'')+'</div>';
+        }
+      }
+      dailyHtml+='</div>';
     }
-    dailyHtml+='</tbody></table></div>';
+    dailyHtml+='</div></div>';
   }
+  // Unknown-employees block — attendance rows whose empCode isn't in the
+  // master, plus any rows soft-deleted via the Remove button (kept aside
+  // in hrmsSettings.removedUnknown so they can be revoked later).
+  var unknownHtml=(typeof _hrmsBuildUnknownEmpsBlock==='function')?_hrmsBuildUnknownEmpsBlock(mk):'';
 
-  if(!imports.length){el.innerHTML=dailyHtml+'<div class="empty-state" style="padding:12px;font-size:12px">No imports for '+monthLabel+' yet. Upload a file to get started.</div>';return;}
+  if(!imports.length){el.innerHTML=dailyHtml+unknownHtml+'<div class="empty-state" style="padding:12px;font-size:12px">No imports for '+monthLabel+' yet. Upload a file to get started.</div>';return;}
 
-  var h=dailyHtml+'<div style="font-size:13px;font-weight:900;color:var(--text);margin:14px 0 6px">📋 Import History — '+monthLabel+' ('+imports.length+')</div>';
+  var h=dailyHtml+unknownHtml+'<div style="font-size:13px;font-weight:900;color:var(--text);margin:14px 0 6px">📋 Import History — '+monthLabel+' ('+imports.length+')</div>';
   h+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
   h+='<th style="'+_th+'">Date/Time</th>';
@@ -9109,12 +9268,29 @@ async function _hrmsSelectMonth(mk){
   showSpinner('Loading data…');
   await _hrmsAttFetchMonth(mk);
   hideSpinner();
-  // If locked, also load saved snapshot and overlay salary/master data from it
+  // If locked, also load saved snapshot and overlay salary/master data from it.
+  // For UNLOCKED months, still probe the snapshot so Recalculate / Save /
+  // Cancel buttons surface across page reloads. _hrmsLoadSavedMonth is a
+  // no-op when the cache already holds the snapshot, so calling it
+  // unconditionally is cheap on the second pass.
   if(_hrmsIsMonthLocked(mk)){
     await _hrmsLoadSavedMonth(mk);
     if(_hrmsHasSavedData(mk)){
       _hrmsPrepSavedCaches(mk);
     }
+  } else {
+    // Unlocked: peek at hrms_month_data first (cheap id-only probe) to
+    // see if a previous Save & Lock left a snapshot. If yes, load it
+    // so the Recalculate / Save / Cancel button trio surfaces — the
+    // unlock-cycle state thus survives page reload / app relaunch.
+    try{
+      if(_sb&&_sbReady&&!_hrmsHasSavedData(mk)){
+        var _probe=await _sb.from('hrms_month_data').select('id').eq('month_key',mk).limit(1);
+        if(_probe&&_probe.data&&_probe.data.length){
+          await _hrmsLoadSavedMonth(mk);
+        }
+      }
+    }catch(e){console.warn('saved-snapshot probe failed',mk,e);}
   }
   _hrmsAttPopFilters();
   _hrmsLoadManualP();
@@ -9391,21 +9567,48 @@ function _hrmsPeriodOverlapsLock(from,to){
   return false;
 }
 
+// Tracks whether the user clicked Recalculate during the current
+// unlock-cycle for a given month. Cleared on lock / cancel / month
+// switch. Determines whether the Save button writes a new snapshot.
+var _hrmsRecalcDirty={};
 function _hrmsUpdateLockBtn(){
   var mk=_hrmsMonth;
   var saveLockBtn=document.getElementById('btnSaveLock');
   var unlockBtn=document.getElementById('btnUnlock');
+  var recalcBtn=document.getElementById('btnRecalc');
+  var saveRecalcBtn=document.getElementById('btnSaveRecalc');
+  var cancelRecalcBtn=document.getElementById('btnCancelRecalc');
   var banner=document.getElementById('hrmsLockBanner');
+  var diffBox=document.getElementById('hrmsRecalcDiff');
+  var hide=function(el){if(el)el.style.display='none';};
   if(!mk){
-    if(saveLockBtn)saveLockBtn.style.display='none';
-    if(unlockBtn)unlockBtn.style.display='none';
-    if(banner)banner.style.display='none';
+    [saveLockBtn,unlockBtn,recalcBtn,saveRecalcBtn,cancelRecalcBtn,banner,diffBox].forEach(hide);
     _hrmsApplyMonthLockUI(false);
     return;
   }
   var locked=_hrmsIsMonthLocked(mk);
-  if(saveLockBtn)saveLockBtn.style.display=locked||!_hrmsHasAccess('action.saveLock')?'none':'';
-  if(unlockBtn)unlockBtn.style.display=!locked||!_hrmsHasAccess('action.unlock')?'none':'';
+  var hasSnap=(typeof _hrmsHasSavedData==='function')?_hrmsHasSavedData(mk):false;
+  // Three states:
+  //   1. Locked          → only the Unlock button is offered.
+  //   2. Unlocked + snapshot exists → Recalculate / Save / Cancel buttons
+  //      let the user re-run the calc and choose to replace or restore.
+  //   3. Unlocked + no snapshot     → Lock Month is the only offer (first
+  //      time locking a month has no previous snapshot to compare against).
+  if(locked){
+    if(saveLockBtn)saveLockBtn.style.display='none';
+    if(unlockBtn)unlockBtn.style.display=_hrmsHasAccess('action.unlock')?'':'none';
+    hide(recalcBtn);hide(saveRecalcBtn);hide(cancelRecalcBtn);hide(diffBox);
+  } else if(hasSnap){
+    hide(saveLockBtn);hide(unlockBtn);
+    var canSL=_hrmsHasAccess('action.saveLock');
+    if(recalcBtn) recalcBtn.style.display=canSL?'':'none';
+    if(saveRecalcBtn) saveRecalcBtn.style.display=canSL?'':'none';
+    if(cancelRecalcBtn) cancelRecalcBtn.style.display=canSL?'':'none';
+    if(diffBox&&!_hrmsRecalcDirty[mk]) hide(diffBox);
+  } else {
+    if(saveLockBtn)saveLockBtn.style.display=_hrmsHasAccess('action.saveLock')?'':'none';
+    hide(unlockBtn);hide(recalcBtn);hide(saveRecalcBtn);hide(cancelRecalcBtn);hide(diffBox);
+  }
   if(banner)banner.style.display=locked?'flex':'none';
   _hrmsApplyMonthLockUI(locked);
 }
@@ -9419,6 +9622,130 @@ function _hrmsUpdateLockBtn(){
 function _hrmsApplyMonthLockUI(locked){
   var page=document.getElementById('pageHrmsAttSal');
   if(page) page.classList.toggle('hrms-month-locked',!!locked);
+}
+
+// ── Unlock-cycle workflow: Recalculate / Save / Cancel ───────────────────
+// Compare the freshly-recomputed _hrmsSalDetails against the previously
+// saved _hrmsSavedMonth[mk].employees and emit an HTML diff summary.
+function _hrmsBuildRecalcDiff(mk){
+  var saved=(_hrmsSavedMonth&&_hrmsSavedMonth[mk]&&_hrmsSavedMonth[mk].employees)||{};
+  var cur=window._hrmsSalDetails||{};
+  var fields=['totalP','totalA','totalOT','totalOTS','totalPL','gross','dedPT','dedPF','dedESI','dedAdv','dedTDS','dedOther','dedTotal','net'];
+  var changes=[];
+  var allCodes={};
+  Object.keys(saved).forEach(function(c){allCodes[c]=true;});
+  Object.keys(cur).forEach(function(c){allCodes[c]=true;});
+  Object.keys(allCodes).sort(function(a,b){return(parseInt(a)||0)-(parseInt(b)||0);}).forEach(function(ec){
+    var s=saved[ec]||null,c=cur[ec]||null;
+    if(!s&&c){ changes.push({ec:ec,name:c.name||'',field:'(new in recalc)',old:'—',neu:'present',delta:''}); return; }
+    if(s&&!c){ changes.push({ec:ec,name:s.name||'',field:'(missing in recalc)',old:'present',neu:'—',delta:''}); return; }
+    fields.forEach(function(f){
+      var ov=s?(+s[f]||0):0;
+      var nv=c?(+c[f]||0):0;
+      if(Math.abs(ov-nv)<0.005) return;// ignore rounding noise
+      changes.push({ec:ec,name:(c&&c.name)||(s&&s.name)||'',field:f,old:Math.round(ov),neu:Math.round(nv),delta:Math.round(nv-ov)});
+    });
+  });
+  return changes;
+}
+
+async function _hrmsRecalculateMonth(){
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('Unlock the month first',true);return;}
+  if(!_hrmsHasSavedData(mk)){notify('No saved snapshot to compare against — use Lock Month to save fresh data.',true);return;}
+  showSpinner('Recalculating salary…');
+  try{
+    var p=mk.split('-'),yr=+p[0],mo=+p[1];
+    // Re-run the salary engine; it populates window._hrmsSalDetails.
+    _hrmsLoadStatutory();
+    await _hrmsAttFetchMonth(mk);
+    _hrmsLoadManualP();
+    _hrmsComputeAttTotals(yr,mo);
+    await _hrmsLoadAdvances(mk);
+    await _hrmsLoadAdvances(_hrmsPrevMonth(mk));
+    await _hrmsRenderOrSalary(yr,mo,'all');
+  }catch(e){console.error('Recalc failed:',e);notify('⚠ Recalc failed: '+e.message,true);hideSpinner();return;}
+  hideSpinner();
+  _hrmsRecalcDirty[mk]=true;
+  // Render the diff banner.
+  var diffBox=document.getElementById('hrmsRecalcDiff');
+  if(!diffBox){notify('Recalc complete (no diff banner element)');return;}
+  var changes=_hrmsBuildRecalcDiff(mk);
+  if(!changes.length){
+    diffBox.innerHTML='<div style="font-weight:800;color:#15803d;font-size:13px">✓ Recalculation matches the saved snapshot — no changes detected.</div>';
+  } else {
+    var byEmp={};changes.forEach(function(ch){byEmp[ch.ec]=(byEmp[ch.ec]||0)+1;});
+    var th='padding:5px 8px;font-size:11px;font-weight:800;background:#fef3c7;border:1px solid #fcd34d;text-align:left';
+    var td='padding:4px 8px;font-size:12px;border:1px solid #fde68a';
+    var rowsHtml=changes.map(function(ch){
+      var dCol=ch.delta>0?'#15803d':(ch.delta<0?'#dc2626':'var(--text2)');
+      var dStr=ch.delta===''?'':((ch.delta>0?'+':'')+ch.delta);
+      return '<tr><td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+ch.ec+'</td>'+
+             '<td style="'+td+'">'+(ch.name||'').replace(/</g,'&lt;')+'</td>'+
+             '<td style="'+td+';font-family:var(--mono);font-weight:700">'+ch.field+'</td>'+
+             '<td style="'+td+';text-align:right;font-family:var(--mono)">'+ch.old+'</td>'+
+             '<td style="'+td+';text-align:right;font-family:var(--mono);font-weight:800">'+ch.neu+'</td>'+
+             '<td style="'+td+';text-align:right;font-family:var(--mono);font-weight:800;color:'+dCol+'">'+dStr+'</td></tr>';
+    }).join('');
+    diffBox.innerHTML='<div style="font-weight:800;color:#92400e;font-size:13px;margin-bottom:6px">⚠ Recalculation changed '+Object.keys(byEmp).length+' employee(s), '+changes.length+' field(s)</div>'+
+      '<div style="max-height:220px;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+      '<th style="'+th+'">Code</th><th style="'+th+'">Name</th><th style="'+th+'">Field</th><th style="'+th+';text-align:right">Old</th><th style="'+th+';text-align:right">New</th><th style="'+th+';text-align:right">Δ</th>'+
+      '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-top:6px">Click <b>Save</b> to overwrite the snapshot with these values, or <b>Cancel</b> to discard the recalc and re-lock with the saved snapshot.</div>';
+  }
+  diffBox.style.display='block';
+}
+
+async function _hrmsSaveAfterRecalc(){
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('Month is already locked',true);return;}
+  if(!_hrmsHasAccess('action.saveLock')){notify('Access denied',true);return;}
+  // Confirm — Save replaces the previously-saved snapshot with the
+  // recalculated values and re-locks the month. Stronger wording when
+  // recalc was actually run (changes pending) vs. plain re-lock.
+  var hadRecalc=!!_hrmsRecalcDirty[mk];
+  var msg=hadRecalc
+    ? '⚠ Salaries will be RECALCULATED and the saved snapshot REPLACED for '+_hrmsMonthLabel(mk)+'.\n\nThis is irreversible — the previously-locked numbers will be overwritten with the values shown in the diff above.\n\nProceed?'
+    : 'Save current data as the locked snapshot for '+_hrmsMonthLabel(mk)+'?\n\nNote: you have not clicked Recalculate yet — the existing live data will be saved as-is.';
+  if(!confirm(msg)) return;
+  // _hrmsSaveAndLock runs the snapshot save + lock flag flip + cache
+  // refresh. Reuse it to stay in sync with the original lock path.
+  delete _hrmsRecalcDirty[mk];
+  await _hrmsSaveAndLock();
+}
+
+async function _hrmsCancelRecalc(){
+  var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
+  if(_hrmsIsMonthLocked(mk)){notify('Month is already locked',true);return;}
+  if(!_hrmsHasAccess('action.saveLock')){notify('Access denied',true);return;}
+  if(!confirm('Discard any recalculation and re-lock '+_hrmsMonthLabel(mk)+' using the previously-saved snapshot?\n\nNo data will be overwritten.')) return;
+  // Flip the lock flag back on without writing a new snapshot — the saved
+  // rows in hrms_month_data are unchanged, so re-locking just re-applies
+  // them. Mirrors the lock half of _hrmsToggleMonthLock without the save.
+  showSpinner('Re-locking '+_hrmsMonthLabel(mk)+'…');
+  try{
+    var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='monthLocks';});
+    if(!rec){
+      rec={id:'hs_monthLocks',key:'monthLocks',data:{}};
+      if(!DB.hrmsSettings) DB.hrmsSettings=[];
+      DB.hrmsSettings.push(rec);
+    }
+    if(!rec.data) rec.data={};
+    rec.data[mk]=true;
+    await _dbSave('hrmsSettings',rec);
+    // Re-prep caches from saved snapshot so the muster / salary tabs
+    // show frozen data again.
+    if(typeof _hrmsPrepSavedCaches==='function'){
+      try{ await _hrmsPrepSavedCaches(mk); }catch(e){console.warn('PrepSavedCaches failed:',e);}
+    }
+    delete _hrmsRecalcDirty[mk];
+    var diffBox=document.getElementById('hrmsRecalcDiff');
+    if(diffBox){diffBox.style.display='none';diffBox.innerHTML='';}
+  }catch(e){console.error('Cancel re-lock failed:',e);notify('⚠ Re-lock failed: '+e.message,true);hideSpinner();return;}
+  hideSpinner();
+  _hrmsUpdateLockBtn();
+  if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
+  notify('🔒 '+_hrmsMonthLabel(mk)+' re-locked from saved snapshot.');
 }
 
 async function _hrmsSaveAndLock(){
@@ -11019,9 +11346,10 @@ function _hrmsWorkerSalarySlip(){
     ]];
     // Estimate the block height (header row + 1 body row + padding) so we
     // can force a page break BEFORE this slip if it won't fit — autoTable's
-    // `pageBreak:'avoid'` is also set as a safety net. Each row at fontSize
-    // 12 + cellPadding 1.4 ≈ 8mm, so a 2-row block is ~16mm plus 3mm gap.
-    var _blockH=18;
+    // `pageBreak:'avoid'` is also set as a safety net. With cellPadding
+    // 2.1 (+20% row height), each row ≈ 9.5mm so a 2-row block ≈ 19mm
+    // plus 3mm gap.
+    var _blockH=22;
     var _pageH=297,_bottomMargin=14;
     if(startY+_blockH>_pageH-_bottomMargin){ doc.addPage(); startY=14; }
     doc.autoTable({
@@ -11029,8 +11357,11 @@ function _hrmsWorkerSalarySlip(){
       head:[headers],
       body:body,
       margin:{left:10,right:10,bottom:_bottomMargin},
-      styles:{fontSize:12,cellPadding:1.4,lineColor:[180,180,180],lineWidth:0.1,halign:'center',valign:'middle'},
-      headStyles:{fillColor:[226,232,240],textColor:[15,23,42],fontStyle:'bold',fontSize:12,halign:'center'},
+      // cellPadding bumped 1.4 → 2.1 (~+50% padding, which translates to
+      // ~+20% row height for both the header and the body row at 12pt).
+      // headStyles inherits cellPadding from styles unless overridden.
+      styles:{fontSize:12,cellPadding:2.1,lineColor:[180,180,180],lineWidth:0.1,halign:'center',valign:'middle'},
+      headStyles:{fillColor:[226,232,240],textColor:[15,23,42],fontStyle:'bold',fontSize:12,halign:'center',cellPadding:2.1},
       columnStyles:{2:{halign:'left',cellWidth:50}},// Name column wider + left-aligned
       theme:'grid',
       tableWidth:'auto',
@@ -15137,18 +15468,70 @@ function _hrmsMyAttPickEmp(empId,empCode){
   _hrmsMyAttRender();
 }
 
+// Per-employee cache for the My Attendance page only. Avoids the
+// whole-month fetch (`_hrmsAttCache[mk]` covering every employee) that
+// the muster / P&OT / salary tabs share — for My Attendance we only
+// need the logged-in user's row from each table. Cuts the payload from
+// O(employees × months) down to O(months).
+//   Shape: _hrmsMyAttEmpCache[mk][empCode] = {att, alt, saved, loaded, savedLoaded}
+var _hrmsMyAttEmpCache={};
+async function _hrmsMyAttFetchEmp(mk,empCode){
+  if(!mk||!empCode) return null;
+  if(!_hrmsMyAttEmpCache[mk]) _hrmsMyAttEmpCache[mk]={};
+  var slot=_hrmsMyAttEmpCache[mk][empCode];
+  if(slot&&slot.loaded) return slot;
+  if(typeof _sb==='undefined'||!_sb||!_sbReady){
+    _hrmsMyAttEmpCache[mk][empCode]={att:null,alt:null,loaded:true};
+    return _hrmsMyAttEmpCache[mk][empCode];
+  }
+  try{
+    var sbA=SB_TABLES.hrmsAttendance,sbAlt=SB_TABLES.hrmsAlterations;
+    var aRes=await _sb.from(sbA).select('*').eq('month_key',mk).eq('emp_code',empCode);
+    var altRes=await _sb.from(sbAlt).select('*').eq('month_key',mk).eq('emp_code',empCode);
+    var aRow=(aRes&&aRes.data&&aRes.data[0])?_fromRow('hrmsAttendance',aRes.data[0]):null;
+    var altRow=(altRes&&altRes.data&&altRes.data[0])?_fromRow('hrmsAlterations',altRes.data[0]):null;
+    _hrmsMyAttEmpCache[mk][empCode]=Object.assign({},slot||{},{att:aRow,alt:altRow,loaded:true});
+  }catch(e){
+    console.warn('_hrmsMyAttFetchEmp failed',mk,empCode,e);
+    _hrmsMyAttEmpCache[mk][empCode]=Object.assign({},slot||{},{att:null,alt:null,loaded:true});
+  }
+  return _hrmsMyAttEmpCache[mk][empCode];
+}
+async function _hrmsMyAttLoadSavedEmp(mk,empCode){
+  if(!mk||!empCode) return null;
+  if(!_hrmsMyAttEmpCache[mk]) _hrmsMyAttEmpCache[mk]={};
+  var slot=_hrmsMyAttEmpCache[mk][empCode];
+  if(slot&&slot.savedLoaded) return slot.saved||null;
+  if(typeof _sb==='undefined'||!_sb||!_sbReady){
+    _hrmsMyAttEmpCache[mk][empCode]=Object.assign({},slot||{},{saved:null,savedLoaded:true});
+    return null;
+  }
+  try{
+    var res=await _sb.from('hrms_month_data').select('*').eq('month_key',mk).eq('emp_code',empCode);
+    var row=(res&&res.data&&res.data[0])?_fromRow('hrmsMonthData',res.data[0]):null;
+    _hrmsMyAttEmpCache[mk][empCode]=Object.assign({},slot||{},{saved:row,savedLoaded:true});
+  }catch(e){
+    console.warn('_hrmsMyAttLoadSavedEmp failed',mk,empCode,e);
+    _hrmsMyAttEmpCache[mk][empCode]=Object.assign({},slot||{},{saved:null,savedLoaded:true});
+  }
+  return _hrmsMyAttEmpCache[mk][empCode].saved||null;
+}
+
 // Compute one employee's day-by-day status for a given month, mirroring
 // the muster-roll logic so totals and statuses line up exactly.
 async function _hrmsMyAttCalcMonth(emp,monthKey){
-  if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(monthKey);
+  // Per-employee fetch — only the logged-in user's rows from
+  // hrms_attendance + hrms_alterations, not the whole month.
+  await _hrmsMyAttFetchEmp(monthKey,emp.empCode);
   var p=monthKey.split('-');var yr=+p[0],mo=+p[1];
   var daysInMonth=new Date(yr,mo,0).getDate();
-  var attRec=(_hrmsAttCache[monthKey]||[]).find(function(a){return a.empCode===emp.empCode;});
-  var altRec=(_hrmsAltCache[monthKey]||[]).find(function(a){return a.empCode===emp.empCode;});
+  var slot=(_hrmsMyAttEmpCache[monthKey]||{})[emp.empCode]||{};
+  var attRec=slot.att||null;
+  var altRec=slot.alt||null;
   var empAtt=(attRec&&attRec.days)||{};
   var empAlt=(altRec&&altRec.days)||{};
   var _otR=(typeof _hrmsGetOtRules==='function')?_hrmsGetOtRules(monthKey):null;
-  if(!_otR) return {days:[],totalP:0,totalOT:0,totalOTS:0,monthKey:monthKey,daysInMonth:daysInMonth};
+  if(!_otR) return {days:[],totalP:0,totalA:0,elCount:0,totalOT:0,totalOTS:0,monthKey:monthKey,daysInMonth:daysInMonth};
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX=_otR.elMaxPerMonth;
   var isStaff=(emp.category||'').toLowerCase()==='staff'&&(emp.employmentType||'').toLowerCase()!=='contract';
   // C-Off applied days — if a C-Off entry was used (or is pending approval)
@@ -15164,7 +15547,7 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
     if(d) coffUsedByDate[d]=c;
   });
   var elCount=0;
-  var daysOut=[];var totalP=0,totalOT=0,totalOTS=0;
+  var daysOut=[];var totalP=0,totalA=0,totalOT=0,totalOTS=0;
   for(var dd=1;dd<=daysInMonth;dd++){
     var alt=(typeof _hrmsEffectiveAlt==='function')?_hrmsEffectiveAlt(empAlt[String(dd)]||empAlt[dd]||null):null;
     var ddd=alt||empAtt[String(dd)]||empAtt[dd]||{};
@@ -15193,7 +15576,8 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
     if(coffApplied) status='P';
     if(!isOff){
       if(status==='P'||status==='EL') totalP+=1;
-      else if(status==='P/2') totalP+=0.5;
+      else if(status==='P/2'){totalP+=0.5;totalA+=0.5;}
+      else if(status==='A') totalA+=1;
     }
     var ot=0,otS=0;
     if(worked>0&&!isStaff){
@@ -15212,7 +15596,7 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
     }
     daysOut.push({day:dd,status:status,worked:worked,ot:ot,otS:otS,isOff:isOff,dayType:dType,altered:!!alt,altReason:(alt&&alt.reason)||'',initial:!!(ddd&&ddd.initial),hasTime:hasTime,inTime:ti,outTime:to2,coffApplied:coffApplied,coffPending:!!(coffApplied&&coffUsedByDate[dd]&&coffUsedByDate[dd].status==='pending'),coffEarnedDate:(coffApplied&&coffUsedByDate[dd])?coffUsedByDate[dd].earnedDate:''});
   }
-  return {days:daysOut,totalP:totalP,totalOT:totalOT,totalOTS:totalOTS,monthKey:monthKey,daysInMonth:daysInMonth};
+  return {days:daysOut,totalP:totalP,totalA:totalA,elCount:elCount,totalOT:totalOT,totalOTS:totalOTS,monthKey:monthKey,daysInMonth:daysInMonth};
 }
 
 // Drop cached attendance/alteration months for the current FY and re-render
@@ -15451,19 +15835,21 @@ async function _hrmsMyAttRender(){
   var plByMk={};
   if(months.length){
     var _plAsc=months.slice().sort(function(a,b){return a.monthKey.localeCompare(b.monthKey);});
-    // Pre-load all saved snapshots for locked months in this FY.
+    // Pre-load saved snapshots for locked months — only the logged-in
+    // user's row from hrms_month_data (not the whole month).
     for(var _li=0;_li<_plAsc.length;_li++){
       var _lmk=_plAsc[_li].monthKey;
       if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(_lmk)){
-        if(typeof _hrmsLoadSavedMonth==='function') await _hrmsLoadSavedMonth(_lmk);
+        if(typeof _hrmsMyAttLoadSavedEmp==='function') await _hrmsMyAttLoadSavedEmp(_lmk,emp.empCode);
       }
     }
     var _prevPlCB=0,_prevPlAvail=0;
     _plAsc.forEach(function(mc){
       var _pp=mc.monthKey.split('-');var _y=+_pp[0],_m=+_pp[1];
       var _locked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mc.monthKey);
-      var _saved=(_locked&&typeof _hrmsSavedMonth!=='undefined'&&_hrmsSavedMonth[mc.monthKey])
-        ?(_hrmsSavedMonth[mc.monthKey].employees||{})[emp.empCode]
+      // Per-employee saved row — pulled by _hrmsMyAttLoadSavedEmp above.
+      var _saved=_locked
+        ?(((_hrmsMyAttEmpCache[mc.monthKey]||{})[emp.empCode]||{}).saved||null)
         :null;
       var _plOB,_plGiven,_plCB,_avail;
       if(_saved){
@@ -15645,6 +16031,8 @@ async function _hrmsMyAttRender(){
       rows+='</tr>';
     }
     var pDisp=mc.totalP%1===0?mc.totalP:mc.totalP.toFixed(1);
+    var aDisp=(mc.totalA||0)%1===0?(mc.totalA||0):(mc.totalA||0).toFixed(1);
+    var elDisp=mc.elCount||0;
     var monthHasData=mc.days.some(function(d){return d.hasTime||d.status==='A';});
     var _plM=plByMk[mc.monthKey]||null;
     var plRow='';
@@ -15674,8 +16062,9 @@ async function _hrmsMyAttRender(){
     monthsHtml+='<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
       '<div style="padding:5px 10px;background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">'+
         '<div style="font-size:13px;font-weight:900">'+monNames[mo]+' '+yr+'</div>'+
-        '<div style="display:flex;gap:6px;font-size:10px;font-weight:700">'+
-          '<span style="background:#16a34a;padding:2px 8px;border-radius:4px">P&nbsp;<b style="font-size:12px">'+pDisp+'</b></span>'+
+        '<div style="display:flex;gap:6px;font-size:11px;font-weight:700;align-items:center;flex-wrap:wrap">'+
+          '<span title="Present days this month (includes Earned Leave)" style="background:#16a34a;padding:3px 10px;border-radius:5px;font-size:12px">P&nbsp;<b style="font-size:15px">'+pDisp+'</b>'+(elDisp>0?'<span style="font-size:10px;font-weight:600;opacity:0.92;margin-left:4px">(incl. EL '+elDisp+')</span>':'')+'</span>'+
+          '<span title="Absent days this month" style="background:#dc2626;padding:3px 10px;border-radius:5px;font-size:12px">A&nbsp;<b style="font-size:15px">'+aDisp+'</b></span>'+
           '<span style="background:#7c3aed;padding:2px 8px;border-radius:4px">OT&nbsp;<b style="font-size:12px">'+fmtTotalHr(mc.totalOT)+'</b></span>'+
           '<span style="background:#c2410c;padding:2px 8px;border-radius:4px">OT@S&nbsp;<b style="font-size:12px">'+fmtTotalHr(mc.totalOTS)+'</b></span>'+
         '</div>'+
@@ -16675,8 +17064,13 @@ function _hrmsRequestWindow(){
 }
 function _hrmsCanRequestForMonth(mk){
   if(!mk||mk.length<7) return false;
-  var w=_hrmsRequestWindow();
-  if(mk!==w.curMk&&mk!==w.nextMk) return false;
+  // Pre-rollout months have no attendance data so alterations make no
+  // sense there.
+  if(mk<'2026-01') return false;
+  // The lock IS the cutoff. Once a month is locked (salary processed),
+  // no more alterations. Otherwise any month from rollout onwards is
+  // fair game — earlier "current/next only" window was rejecting
+  // legitimate corrections on previous open months.
   if((typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk)) return false;
   return true;
 }
@@ -16688,9 +17082,8 @@ function _hrmsAltReqOpen(empId,dateStr){
     var mk=dateStr.slice(0,7);
     if(mk<'2026-01'){notify('⚠ Alteration requests are not available for months before Jan-2026 (no data).',true);return;}
     if(!_hrmsCanRequestForMonth(mk)){
-      var w=_hrmsRequestWindow();
       var locked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk);
-      notify(locked?('⚠ '+mk+' is locked. Alteration requests not allowed.'):('⚠ Alteration requests are allowed only for '+w.curMk+' or '+w.nextMk+'.'),true);
+      notify(locked?('⚠ '+mk+' is locked. Alteration requests not allowed.'):('⚠ Alteration requests are not available for this month.'),true);
       return;
     }
   }
@@ -16736,9 +17129,8 @@ async function _hrmsAltReqSubmit(){
   var mk=date.slice(0,7);
   if(mk<'2026-01'){_showErr('Alteration requests are not available for months before Jan-2026 (no data).');return;}
   if(!_hrmsCanRequestForMonth(mk)){
-    var _wA=_hrmsRequestWindow();
     var _lockedA=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(mk);
-    _showErr(_lockedA?(mk+' is locked — request not allowed'):('Alteration requests are allowed only for '+_wA.curMk+' or '+_wA.nextMk+'.'));
+    _showErr(_lockedA?(mk+' is locked — request not allowed'):('Alteration requests are not available for this month.'));
     return;
   }
   emp.extra=emp.extra||{};

@@ -242,6 +242,21 @@ function _mttsPlantColor(code){
   var leg=(typeof PLANTS!=='undefined'?PLANTS:[]).find(function(x){return x.value===code;});
   return leg?(leg.colour||''):'';
 }
+// Make / model formatter — used everywhere an asset name appears so the
+// reader always sees what kind of equipment it is, not just its tag.
+function _mttsAssetMM(asset){
+  if(!asset) return '';
+  var parts=[asset.make,asset.model].filter(function(x){return x&&String(x).trim();});
+  return parts.join(' / ');
+}
+// Asset label = "{name} ({make} / {model})". Make/model is dropped when
+// neither is set so the suffix never appears as empty parens.
+function _mttsAssetLabel(asset,fallback){
+  if(!asset) return fallback||'(missing)';
+  var nm=asset.name||fallback||'';
+  var mm=_mttsAssetMM(asset);
+  return mm?(nm+' ('+mm+')'):nm;
+}
 // Inline badge (chip) showing plant name on its master-defined background
 // colour. Picks readable text colour by simple luminance check so dark
 // backgrounds get white text.
@@ -434,7 +449,7 @@ function _mttsRenderAssets(){
         '<th style="'+th+'">Plant</th>'+
         '<th style="'+th+'">Type</th>'+
         '<th style="'+th+'">Asset</th>'+
-        '<th style="'+th+'">Serial / Model</th>'+
+        '<th style="'+th+'">Serial</th>'+
         '<th style="'+th+'">Installed</th>'+
         '<th style="'+th+'">Priority</th>'+
         '<th style="'+th+'">Status</th>'+
@@ -450,9 +465,9 @@ function _mttsRenderAssets(){
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+'">'+_mttsPlantBadge(a.plant)+'</td>'+
       '<td style="'+td+'">'+(a.assetType||'—')+'</td>'+
-      '<td style="'+td+'"><div style="font-weight:800;color:var(--text)">'+(a.name||'—')+'</div>'+
+      '<td style="'+td+'"><div style="font-weight:800;color:var(--text)">'+(a.name||'—')+(mm?' <span style="font-weight:600;color:var(--text2)">('+mm+')</span>':'')+'</div>'+
         (a.description?'<div style="font-size:12px;color:var(--text3);margin-top:1px">'+String(a.description).replace(/</g,'&lt;')+'</div>':'')+'</td>'+
-      '<td style="'+td+';font-size:13px">'+(sm?sm+'<br>':'')+(mm||'')+'</td>'+
+      '<td style="'+td+';font-size:13px">'+(sm||'')+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
       '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+critClr[a.criticality]+'22;color:'+critClr[a.criticality]+'">'+(a.criticality||'Medium')+'</span></td>'+
       '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+statusClr[a.status]+'22;color:'+statusClr[a.status]+'">'+(a.status||'Active')+'</span></td>'+
@@ -865,7 +880,7 @@ function _mttsRenderTickets(){
     }
     if(fSearch){
       var asset=byId(DB.mttsAssets||[],t.assetCode);
-      var hay=((asset&&asset.name)||'')+' '+((asset&&asset.serialNo)||'')+' '+(t.assetCode||'')+' '+_mttsPlantLabel(t.plant);
+      var hay=((asset&&asset.name)||'')+' '+_mttsAssetMM(asset)+' '+((asset&&asset.serialNo)||'')+' '+(t.assetCode||'')+' '+_mttsPlantLabel(t.plant);
       if(hay.toLowerCase().indexOf(fSearch)<0) return false;
     }
     return true;
@@ -925,7 +940,7 @@ function _mttsRenderTickets(){
     html+='<div class="mtts-tcards">';
     rows.forEach(function(t){
       var asset=byId(DB.mttsAssets||[],t.assetCode);
-      var assetName=asset?asset.name:(t.assetCode||'(missing)');
+      var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
       var assetType=asset?asset.assetType:'';
       var crit=(asset&&asset.criticality)||'Medium';
       var techList=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ');
@@ -1762,7 +1777,8 @@ function _mttsRaiseRefreshAssets(){
   // assets, and the radio gives a clear single-select affordance.
   wrap.innerHTML='<div class="mtts-raise-asset-list">'+assets.map(function(a){
     var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    var lbl=String((a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+    var _mm=_mttsAssetMM(a);
+    var lbl=String((a.name||'')+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
     var sel=a.id===current;
     return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lbl+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')">'+
       '<input type="radio" name="mttsRaiseAssetRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
@@ -1786,7 +1802,8 @@ function _mttsRaiseRefreshAssetSummary(){
     return;
   }
   btn.classList.remove('is-empty');
-  var lbl=String((a.name||'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+  var _mm=_mttsAssetMM(a);
+  var lbl=String((a.name||'')+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
   btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset</span><span class="mtts-pick-value">'+lbl+'</span>';
 }
 function _mttsRaiseToggleAssetBtns(){
@@ -1966,7 +1983,7 @@ function _mttsTicketAllocateOpen(id){
   // Prominent ticket-info block on the allocate modal: id + plant pill on
   // the top line, asset name big, the raised description quoted below,
   // breakdown + raised meta as a small footer line.
-  var assetNm=asset?asset.name:'(missing)';
+  var assetNm=_mttsAssetLabel(asset);
   var assetTypeLbl=asset?(asset.assetType||''):'';
   var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
   var descTxt=raisedAct?(raisedAct.note||''):'';
@@ -2225,7 +2242,7 @@ function _mttsTicketActionOpen(id,editIdx){
   if(titleEl) titleEl.textContent=(editIdx==null)?'🔧 Add Update':'🔧 Edit Update';
 
   document.getElementById('mttsTechActTicketLbl').innerHTML=
-    '<b>'+(asset?asset.name:'(missing)')+'</b> at '+_mttsPlantLabel(t.plant)+' · '+_MTTS_STATUS_LABEL[t.status]+
+    '<b>'+_mttsAssetLabel(asset)+'</b> at '+_mttsPlantLabel(t.plant)+' · '+_MTTS_STATUS_LABEL[t.status]+
     ' · down for <b style="color:#dc2626">'+_mttsTimerSince(t.raisedAt)+'</b>';
 
   // Inline history of every prior update — who/when/what/photos — with
@@ -2349,7 +2366,7 @@ function _mttsTicketApproveOpen(id){
   var asset=byId(DB.mttsAssets||[],t.assetCode);
 
   document.getElementById('mttsApproveTicketLbl').innerHTML=
-    '<b>'+(asset?asset.name:'(missing)')+'</b> at '+_mttsPlantLabel(t.plant)+
+    '<b>'+_mttsAssetLabel(asset)+'</b> at '+_mttsPlantLabel(t.plant)+
     ' · marked <b>Repair done</b>'+(t.rootCause?' · root cause: '+t.rootCause:'')+
     ' · down for '+_mttsTimerSince(t.raisedAt);
   document.getElementById('mttsApproveCostSvc').value=t.costService||'';
@@ -2523,7 +2540,7 @@ function _mttsTicketDetail(id){
         '<div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px">ID '+(t.id||'').slice(-10)+'</div></div>'+
         '<button onclick="document.getElementById(\'mttsTicketDetailOverlay\').style.display=\'none\'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:0 4px">×</button>'+
       '</div>'+
-      '<div style="font-size:14px"><b>'+(asset?asset.name:'(missing)')+'</b> · '+_mttsPlantLabel(t.plant)+'</div>'+
+      '<div style="font-size:14px"><b>'+_mttsAssetLabel(asset)+'</b> · '+_mttsPlantLabel(t.plant)+'</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType)+' · '+_mttsStatusBadge(t.status)+' · down for '+_mttsTimerSince(t.raisedAt)+'</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'+
         '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Raised by</div><div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">'+_mttsUserDisp(t.raisedBy)+'</div><div style="font-size:10px;color:var(--text3)">'+(t.raisedAt?t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16):'—')+'</div></div>'+
@@ -2655,7 +2672,7 @@ function _mttsDashTicketTable(tickets){
   var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
   var rowsHtml=rows.map(function(t){
     var asset=byId(DB.mttsAssets||[],t.assetCode);
-    var assetName=asset?asset.name:(t.assetCode||'(missing)');
+    var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
     var raised=t.raisedAt?(t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16)):'—';
     var techs=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ')||'—';
     var clr=statusClr[t.status]||'#64748b';
@@ -2798,7 +2815,7 @@ function _mttsDashTechLoad(tickets){
 
   var renderTicketRow=function(t){
     var asset=byId(DB.mttsAssets||[],t.assetCode);
-    var assetName=asset?asset.name:(t.assetCode||'(missing)');
+    var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
     var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
     var shared=(t.assignedTo||[]).length>1;
     var sharedTag=shared?'<span title="Allocated to '+(t.assignedTo||[]).length+' technicians" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">Shared</span>':'';
@@ -2861,7 +2878,7 @@ function _mttsDashCosts(tickets){
     byPlant[pK].cost+=cost;byPlant[pK].svc+=(+t.costService||0);byPlant[pK].spr+=(+t.costSpares||0);byPlant[pK].n++;
     if(!byType[tyK]) byType[tyK]={cost:0,n:0};
     byType[tyK].cost+=cost;byType[tyK].n++;
-    if(!byItem[iK]) byItem[iK]={cost:0,n:0,name:asset?asset.name:'(missing)',plant:t.plant};
+    if(!byItem[iK]) byItem[iK]={cost:0,n:0,name:_mttsAssetLabel(asset),plant:t.plant};
     byItem[iK].cost+=cost;byItem[iK].n++;
   });
   var plantLbl=function(v){return _mttsPlantLabel(v);};

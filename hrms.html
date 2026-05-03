@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V83">
+<meta name="app-build" content="260501-V90">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260501-V83">
+<link rel="stylesheet" href="css/hrms.css?v=260501-V90">
 </head>
 <body>
 
@@ -380,10 +380,14 @@
       <button id="btnAddMonth" class="hrms-allow-locked" onclick="_hrmsAddMonthOpen()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--success,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer">➕ Add Month</button>
       <span id="hrmsMonthLabel" style="display:none"></span>
       <div style="flex:1"></div>
-      <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">💾 Save & Lock</button>
+      <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔒 Lock Month</button>
+      <button onclick="_hrmsRecalculateMonth()" id="btnRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Re-run salary calculation against current attendance / alterations / overrides; shows what will change vs the saved snapshot.">🔄 Recalculate</button>
+      <button onclick="_hrmsSaveAfterRecalc()" id="btnSaveRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Replace the saved snapshot with the recalculated values, then re-lock the month.">💾 Save</button>
+      <button onclick="_hrmsCancelRecalc()" id="btnCancelRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Discard any recalculation and restore the previously saved snapshot, then re-lock the month.">✕ Cancel</button>
       <button onclick="_hrmsToggleMonthLock()" id="btnUnlock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔓 Unlock Month</button>
     </div>
     <div id="hrmsLockBanner" style="display:none"></div>
+    <div id="hrmsRecalcDiff" style="display:none;margin:8px 0;padding:10px 12px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px"></div>
     <!-- 3 Main Tabs: Settings | Attendance | Salary -->
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
       <button onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">⚙️ Settings &amp; Data</button>
@@ -962,8 +966,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V83"></script>
-<script src="js/hrms-logic.js?v=260501-V83"></script>
-<script src="js/hrms-ui.js?v=260501-V83"></script>
+<script src="js/common.js?v=260501-V90"></script>
+<script src="js/hrms-logic.js?v=260501-V90"></script>
+<script src="js/hrms-ui.js?v=260501-V90"></script>
 </body>
 </html>
