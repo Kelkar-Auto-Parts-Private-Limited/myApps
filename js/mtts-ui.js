@@ -326,7 +326,7 @@ async function _mttsReloadTables(tables){
 function _mttsPlantBadge(code){
   var lbl=_mttsPlantLabel(code);
   var bg=_mttsPlantColor(code);
-  if(!bg) return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:#f1f5f9;color:#1a2033;border:1px solid #e2e8f0">'+lbl+'</span>';
+  if(!bg) return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:700;background:#f1f5f9;color:#1a2033;border:1px solid #e2e8f0;white-space:nowrap">'+lbl+'</span>';
   // Detect dark bg (#rrggbb) for white text.
   var hex=String(bg).replace('#','').trim();
   var fg='#1a2033';
@@ -335,7 +335,7 @@ function _mttsPlantBadge(code){
     var lum=(0.299*r+0.587*g+0.114*b);
     if(lum<150) fg='#fff';
   }
-  return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:800;background:'+bg+';color:'+fg+';border:1px solid rgba(0,0,0,.08)">'+lbl+'</span>';
+  return '<span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:800;background:'+bg+';color:'+fg+';border:1px solid rgba(0,0,0,.08);white-space:nowrap">'+lbl+'</span>';
 }
 
 function _mttsPopulatePlantOptions(){
@@ -363,16 +363,27 @@ function _mttsPopulatePlantOptions(){
 var _mttsAssetState={plant:'',type:'',status:'Active',search:''};
 var _mttsAprimState={type:'',status:'',search:''};
 // Reset filters + search on each table page back to "show all" so the
-// user can quickly recover from a narrow filter set.
+// user can quickly recover from a narrow filter set. Also reset the
+// DOM inputs directly — the render functions read DOM values back
+// into state at the top, so clearing only state would get clobbered.
 function _mttsAssetClearFilters(){
+  ['mttsAssetPlantFilter','mttsAssetTypeFilter','mttsAssetStatusFilter','mttsAssetSearch'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.value='';
+  });
   _mttsAssetState.plant='';_mttsAssetState.type='';_mttsAssetState.status='';_mttsAssetState.search='';
   _mttsRenderAssets();
 }
 function _mttsAprimClearFilters(){
+  ['mttsAprimTypeFilter','mttsAprimStatusFilter','mttsAprimSearch'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.value='';
+  });
   _mttsAprimState.type='';_mttsAprimState.status='';_mttsAprimState.search='';
   _mttsRenderAssetPrimaryNames();
 }
 function _mttsTicketClearFilters(){
+  ['mttsTicketPlantFilter','mttsTicketBreakdownFilter','mttsTicketStatusFilter','mttsTicketAssignedFilter','mttsTicketSearch'].forEach(function(id){
+    var el=document.getElementById(id);if(el) el.value='';
+  });
   _mttsTicketState.plant='';_mttsTicketState.breakdown='';_mttsTicketState.status='';_mttsTicketState.assigned='';_mttsTicketState.search='';
   _mttsRenderTickets();
 }
@@ -474,7 +485,7 @@ function _mttsRenderAssets(){
         '<th style="'+thFilter+'"></th>'+
         '<th style="'+thFilter+'"></th>'+
         '<th style="'+thFilter+'"><select id="mttsAssetStatusFilter" onchange="_mttsRenderAssets()" style="'+inlineSel+'">'+statusOpts+'</select></th>'+
-        '<th style="'+thFilter+'"></th>'+
+        '<th style="'+thFilter+';text-align:center"><button type="button" onclick="_mttsAssetClearFilters()" title="Reset all filters and search" style="font-size:11px;padding:5px 8px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;white-space:nowrap">✕ Clear</button></th>'+
       '</tr>'+
       // HEADER ROW — sticky to top of scroll container.
       '<tr>'+
@@ -3786,7 +3797,7 @@ function _mttsRenderAssetPrimaryNames(){
         '<th style="'+thFilter+'"></th>'+
         '<th style="'+thFilter+'"></th>'+
         '<th style="'+thFilter+'"><select id="mttsAprimStatusFilter" onchange="_mttsRenderAssetPrimaryNames()" style="'+inlineSel+'">'+statusOpts+'</select></th>'+
-        '<th style="'+thFilter+'"></th>'+
+        '<th style="'+thFilter+';text-align:center"><button type="button" onclick="_mttsAprimClearFilters()" title="Reset all filters and search" style="font-size:11px;padding:5px 8px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;white-space:nowrap">✕ Clear</button></th>'+
       '</tr>'+
       '<tr>'+
         '<th style="'+th+'">#</th>'+

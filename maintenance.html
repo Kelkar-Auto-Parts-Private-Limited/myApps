@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V98">
+<meta name="app-build" content="260501-V100">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V98">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V100">
 </head>
 <body style="display:none">
 
@@ -123,7 +123,6 @@
         <div class="card-title">All Primary Names</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="mttsAprimHideInactive" onchange="_mttsRenderAssetPrimaryNames()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
-          <button class="btn btn-secondary" onclick="_mttsAprimClearFilters()" title="Reset all filters and search">✕ Clear</button>
           <button class="btn btn-primary" id="btnMttsAddAprim" onclick="_mttsAprimOpen('')">+ Add Primary Name</button>
         </div>
       </div>
@@ -156,7 +155,6 @@
       <div class="card-header" style="flex-wrap:wrap;gap:8px">
         <div class="card-title">All Assets</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button class="btn btn-secondary" onclick="_mttsAssetClearFilters()" title="Reset all filters and search">✕ Clear</button>
           <button class="btn btn-primary" id="btnMttsAddAsset" onclick="_mttsAssetOpen('')">+ Add Asset</button>
         </div>
       </div>
@@ -612,7 +610,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V98"></script>
-<script src="js/mtts-ui.js?v=260501-V98"></script>
+<script src="js/common.js?v=260501-V100"></script>
+<script src="js/mtts-ui.js?v=260501-V100"></script>
 </body>
 </html>
