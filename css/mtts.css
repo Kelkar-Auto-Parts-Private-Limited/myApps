@@ -158,6 +158,20 @@
   tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.06)!important}tr.clickable-row:active{background:rgba(42,154,160,.12)!important}
   .notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);background:var(--green);color:#fff;padding:18px 36px;border-radius:12px;font-size:15px;font-weight:800;z-index:200000;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;max-width:88%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.35);white-space:pre-line;border:2px solid rgba(255,255,255,.15)}
   .notification.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}.notification.error{background:var(--red);color:#fff;font-size:15px}
+  /* Validation feedback — when a required asset/ticket field is missing
+     the field flashes a red ring + red text so the user can immediately
+     see what's blocking the save. Self-clearing after a few seconds or
+     on the user's next interaction. */
+  @keyframes mttsErrFlash{0%,100%{box-shadow:0 0 0 2px var(--red),0 0 0 4px rgba(239,68,68,.2)}50%{box-shadow:0 0 0 3px var(--red),0 0 0 7px rgba(239,68,68,.35)}}
+  .mtts-field-flash-err{outline:2px solid var(--red)!important;outline-offset:2px;border-radius:6px;animation:mttsErrFlash .55s ease-in-out 6;color:var(--red)!important}
+  .mtts-field-flash-err input,.mtts-field-flash-err select,.mtts-field-flash-err textarea{color:var(--red)!important;border-color:var(--red)!important;font-weight:700}
+  .mtts-field-flash-err button,.mtts-field-flash-err label,.mtts-field-flash-err span{color:var(--red)!important}
+  /* Inline alert text inside modal footers (asset / ticket / primary name)
+     — flashes between full red and a faded shade so the message catches
+     the eye each time the user clicks Save and a field is missing. */
+  .modal-error{color:var(--red);font-size:13px;font-weight:800;margin-bottom:8px;display:none;letter-spacing:.2px}
+  @keyframes mttsErrText{0%,100%{opacity:1;color:var(--red)}50%{opacity:.35;color:#7f1d1d}}
+  .modal-error.mtts-err-flash{animation:mttsErrText .55s ease-in-out 6}
   .trip-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;transition:border-color .2s,box-shadow .2s}
   .trip-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
   .trip-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px}

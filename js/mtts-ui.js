@@ -249,11 +249,23 @@ function _mttsAssetMM(asset){
   var parts=[asset.make,asset.model].filter(function(x){return x&&String(x).trim();});
   return parts.join(' / ');
 }
+// Recompose the asset's display name as "Primary - Extension" with spaces
+// around the hyphen so legacy records (saved as "Primary-Extension") render
+// the same way as new ones. Falls back to the stored asset.name when the
+// primary/extension fields aren't both populated.
+function _mttsAssetComposedName(asset){
+  if(!asset) return '';
+  var prim=asset.primaryName?(_mttsAssetPrimaryNameLabel(asset.primaryName)||asset.primaryName):'';
+  var ext=asset.nameExtension||'';
+  if(prim&&ext) return prim+' - '+ext;
+  if(prim) return prim;
+  return asset.name||'';
+}
 // Asset label = "{name} ({make} / {model})". Make/model is dropped when
 // neither is set so the suffix never appears as empty parens.
 function _mttsAssetLabel(asset,fallback){
   if(!asset) return fallback||'(missing)';
-  var nm=asset.name||fallback||'';
+  var nm=_mttsAssetComposedName(asset)||fallback||'';
   var mm=_mttsAssetMM(asset);
   return mm?(nm+' ('+mm+')'):nm;
 }
@@ -349,6 +361,21 @@ function _mttsPopulatePlantOptions(){
 // dropdowns live inside the thead and get rebuilt on every _mttsRenderAssets
 // call.
 var _mttsAssetState={plant:'',type:'',status:'Active',search:''};
+var _mttsAprimState={type:'',status:'',search:''};
+// Reset filters + search on each table page back to "show all" so the
+// user can quickly recover from a narrow filter set.
+function _mttsAssetClearFilters(){
+  _mttsAssetState.plant='';_mttsAssetState.type='';_mttsAssetState.status='';_mttsAssetState.search='';
+  _mttsRenderAssets();
+}
+function _mttsAprimClearFilters(){
+  _mttsAprimState.type='';_mttsAprimState.status='';_mttsAprimState.search='';
+  _mttsRenderAssetPrimaryNames();
+}
+function _mttsTicketClearFilters(){
+  _mttsTicketState.plant='';_mttsTicketState.breakdown='';_mttsTicketState.status='';_mttsTicketState.assigned='';_mttsTicketState.search='';
+  _mttsRenderTickets();
+}
 function _mttsRenderAssets(){
   // Hide "+ Add Asset" when the user can't edit assets.
   var addBtn=document.getElementById('btnMttsAddAsset');
@@ -374,7 +401,11 @@ function _mttsRenderAssets(){
   var fPlant=_mttsAssetState.plant;
   var fType=_mttsAssetState.type;
   var fStatus=_mttsAssetState.status;
-  var fSearch=String(_mttsAssetState.search||'').toLowerCase().trim();
+  // Keep the raw user input for re-rendering the input value (so spaces
+  // and casing aren't swallowed mid-typing). Filtering uses a normalised
+  // copy.
+  var fSearchRaw=String(_mttsAssetState.search||'');
+  var fSearch=fSearchRaw.toLowerCase().trim();
   var assets=(DB.mttsAssets||[]).filter(function(a){
     if(!a) return false;
     if(fPlant&&a.plant!==fPlant) return false;
@@ -406,11 +437,11 @@ function _mttsRenderAssets(){
     var tp=String(a.assetType||'').localeCompare(String(b.assetType||''));if(tp) return tp;
     return String(a.name||'').localeCompare(String(b.name||''));
   });
-  // Filter row sits ABOVE the column headers; the header row is sticky to
-  // top:0 of the scroll container so it always stays visible while the
-  // filter row scrolls away with the rest of the content.
-  var thFilter='padding:6px 8px;background:#fff;border-bottom:1px solid var(--border);text-align:left';
-  var th='padding:9px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-top:1px solid var(--border);border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  // Both filter row and column header row stay sticky to the top of the
+  // scroll container (the outer .table-wrap). Filter row at top:0; column
+  // headers slot directly underneath it. Only the tbody scrolls.
+  var thFilter='padding:6px 8px;background:#fff;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;z-index:3';
+  var th='padding:9px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-top:1px solid var(--border);border-bottom:2px solid var(--border);text-align:left;position:sticky;top:38px;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
   var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
   // Build per-column filter dropdown options for Plant / Type / Status,
   // plus the Name search input that lives above the Asset column.
@@ -427,8 +458,10 @@ function _mttsRenderAssets(){
     return '<option value="'+s+'"'+(s===fStatus?' selected':'')+'>'+s+'</option>';
   }).join('');
   var inlineSel='font-size:11px;padding:5px 7px;border:1px solid var(--border2);border-radius:5px;background:#fff;color:var(--text);width:100%';
-  var inlineSearchVal=String(fSearch||'').replace(/"/g,'&quot;');
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 240px);width:fit-content;max-width:100%">'+
+  var inlineSearchVal=fSearchRaw.replace(/"/g,'&quot;');
+  // No inner overflow wrapper — the outer .table-wrap div is the scroll
+  // container. Two scroll bars (one inner, one outer) was confusing.
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
     '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead>'+
       // FILTER ROW — first; scrolls away with content.
       '<tr>'+
@@ -453,7 +486,7 @@ function _mttsRenderAssets(){
         '<th style="'+th+'">Installed</th>'+
         '<th style="'+th+'">Priority</th>'+
         '<th style="'+th+'">Status</th>'+
-        '<th style="'+th+';text-align:center;width:100px">Actions</th>'+
+        '<th style="'+th+';text-align:center;width:130px">Actions</th>'+
       '</tr>'+
     '</thead><tbody>'+
     (rows.length?'':'<tr><td colspan="9" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>');
@@ -465,7 +498,7 @@ function _mttsRenderAssets(){
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+'">'+_mttsPlantBadge(a.plant)+'</td>'+
       '<td style="'+td+'">'+(a.assetType||'—')+'</td>'+
-      '<td style="'+td+'"><div style="font-weight:800;color:var(--text)">'+(a.name||'—')+(mm?' <span style="font-weight:600;color:var(--text2)">('+mm+')</span>':'')+'</div>'+
+      '<td style="'+td+'"><div style="font-weight:800;color:var(--text)">'+(_mttsAssetComposedName(a)||'—')+(mm?' <span style="font-weight:600;color:var(--text2)">('+mm+')</span>':'')+'</div>'+
         (a.description?'<div style="font-size:12px;color:var(--text3);margin-top:1px">'+String(a.description).replace(/</g,'&lt;')+'</div>':'')+'</td>'+
       '<td style="'+td+';font-size:13px">'+(sm||'')+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
@@ -475,16 +508,22 @@ function _mttsRenderAssets(){
         '<button onclick="event.stopPropagation();_mttsAssetOpen(\''+idEsc+'\')" title="Edit asset" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
         (function(){
           var canEd=_mttsHasAccess('action.editAsset');
+          var btns='';
+          if(canEd) btns+='<button onclick="event.stopPropagation();_mttsAssetDuplicate(\''+idEsc+'\')" title="Add a duplicate of this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:4px;cursor:pointer;margin-left:3px">📋</button>';
           var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
-          if(canEd&&refs===0) return '<button onclick="event.stopPropagation();_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
-          if(canEd&&refs>0) return '<button disabled title="In use — '+refs+' ticket(s) reference this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
-          return '';
+          if(canEd&&refs===0) btns+='<button onclick="event.stopPropagation();_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+          else if(canEd&&refs>0) btns+='<button disabled title="In use — '+refs+' ticket(s) reference this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+          return btns;
         })()+
       '</td>'+
     '</tr>';
   });
   html+='</tbody></table></div>';
   wrap.innerHTML=html;
+  // Stretch the scroll container to fill the available viewport height so
+  // the table uses every available pixel — overrides .table-wrap's
+  // shared default which leaves more bottom whitespace.
+  wrap.style.maxHeight='calc(100vh - 180px)';
   // Restore focus + caret on the filter row's currently-edited input so
   // typing in the search box doesn't lose the cursor on every keystroke.
   if(activeId){
@@ -521,7 +560,7 @@ function _mttsAssetOpen(id, preset){
   _mttsPopulateAssetPrimaryNameOptions();
   var primSel=document.getElementById('mttsAssetPrimary');
   if(primSel){
-    var primVal=a?(a.primaryName||''):'';
+    var primVal=a?(a.primaryName||''):((preset&&preset.primaryName)||'');
     primSel.value=primVal;
     // If the asset's stored primaryName isn't in the master list (legacy
     // data), fall back to blank and let the user pick. The legacy
@@ -529,23 +568,27 @@ function _mttsAssetOpen(id, preset){
     if(a&&primVal&&primSel.value!==primVal){primSel.value='';}
   }
   var extEl=document.getElementById('mttsAssetNameExt');
-  if(extEl) extEl.value=a?(a.nameExtension||''):'';
-  document.getElementById('mttsAssetName').value=a?(a.name||''):'';
-  document.getElementById('mttsAssetDesc').value=a?(a.description||''):'';
-  document.getElementById('mttsAssetSerial').value=a?(a.serialNo||''):'';
-  document.getElementById('mttsAssetInstall').value=a?(a.installDate||'2020-01-01'):'2020-01-01';
-  document.getElementById('mttsAssetMake').value=a?(a.make||''):'';
-  document.getElementById('mttsAssetModel').value=a?(a.model||''):'';
-  document.getElementById('mttsAssetWarranty').value=a&&a.warranty?(a.warranty.until||''):'';
-  document.getElementById('mttsAssetAmc').value=a&&a.amc?(a.amc.until||''):'';
+  if(extEl) extEl.value=a?(a.nameExtension||''):((preset&&preset.nameExtension)||'');
+  document.getElementById('mttsAssetName').value=a?(a.name||''):((preset&&preset.name)||'');
+  document.getElementById('mttsAssetDesc').value=a?(a.description||''):((preset&&preset.description)||'');
+  document.getElementById('mttsAssetSerial').value=a?(a.serialNo||''):((preset&&preset.serialNo)||'');
+  document.getElementById('mttsAssetInstall').value=a?(a.installDate||'2020-01-01'):((preset&&preset.installDate)||'2020-01-01');
+  document.getElementById('mttsAssetMake').value=a?(a.make||''):((preset&&preset.make)||'');
+  document.getElementById('mttsAssetModel').value=a?(a.model||''):((preset&&preset.model)||'');
+  document.getElementById('mttsAssetWarranty').value=a&&a.warranty?(a.warranty.until||''):((preset&&preset.warrantyUntil)||'');
+  document.getElementById('mttsAssetAmc').value=a&&a.amc?(a.amc.until||''):((preset&&preset.amcUntil)||'');
   // Re-set criticality after the field-by-field reset above (it shares the
   // hidden input style as the early-render one but is a no-op duplicate
   // unless an early-pass cleared it).
   document.getElementById('mttsAssetCrit').value=a?(a.criticality||'Medium'):((preset&&preset.criticality)||'Medium');
-  document.getElementById('mttsAssetStatus').value=a?(a.status||'Active'):'Active';
-  // Save button: "Save & Add Next" while adding, plain "Save" while editing.
+  document.getElementById('mttsAssetStatus').value=a?(a.status||'Active'):((preset&&preset.status)||'Active');
+  // Save buttons: edit mode shows a single "Save"; add mode shows
+  // "Save & Add Next" (secondary, keeps the form open with plant/type
+  // pre-filled for the next entry) plus the primary "Save & Close".
   var assetSaveBtn=document.getElementById('mttsAssetSaveBtn');
-  if(assetSaveBtn) assetSaveBtn.textContent=a?'Save':'Save & Add Next';
+  if(assetSaveBtn) assetSaveBtn.textContent=a?'Save':'Save & Close';
+  var assetSaveNextBtn=document.getElementById('mttsAssetSaveNextBtn');
+  if(assetSaveNextBtn) assetSaveNextBtn.style.display=a?'none':'';
   // Transfer history + button visibility (edit-only).
   var transferWrap=document.getElementById('mttsAssetTransferWrap');
   var transferBtn=document.getElementById('mttsAssetTransferBtn');
@@ -574,6 +617,8 @@ function _mttsAssetOpen(id, preset){
     });
     var saveBtn=modalEl.querySelector('button.btn-primary');
     if(saveBtn) saveBtn.style.display=canEdit?'':'none';
+    var saveNext=document.getElementById('mttsAssetSaveNextBtn');
+    if(saveNext) saveNext.style.display=(canEdit&&!a)?'':'none';
     if(modalEl._mttsKeyHandler) modalEl.removeEventListener('keydown',modalEl._mttsKeyHandler);
     modalEl._mttsKeyHandler=function(ev){
       if(modalEl.style.display==='none'||!modalEl.classList.contains('open')) return;
@@ -598,12 +643,37 @@ function _mttsAssetOpen(id, preset){
   }
 }
 
+// Open the Add Asset form pre-populated with another asset's fields. Useful
+// when adding several near-identical assets — user only edits what differs
+// (typically serial / primary name / extension) and saves.
+function _mttsAssetDuplicate(id){
+  if(!_mttsHasAccess('action.editAsset')){notify('You do not have permission to add assets',true);return;}
+  var a=byId(DB.mttsAssets||[],id);
+  if(!a){notify('Asset not found',true);return;}
+  _mttsAssetOpen('',{
+    plant:a.plant,
+    assetType:a.assetType,
+    criticality:a.criticality,
+    primaryName:a.primaryName,
+    nameExtension:a.nameExtension,
+    name:a.name,
+    description:a.description,
+    serialNo:a.serialNo,
+    installDate:a.installDate,
+    make:a.make,
+    model:a.model,
+    warrantyUntil:a.warranty?a.warranty.until:'',
+    amcUntil:a.amc?a.amc.until:'',
+    status:a.status||'Active'
+  });
+}
+
 async function _mttsAssetDeleteFromTable(id){
   if(!_mttsHasAccess('action.editAsset')){notify('Access denied',true);return;}
   var a=byId(DB.mttsAssets||[],id);if(!a) return;
   var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
   if(refs){notify('⚠ Cannot delete — '+refs+' ticket(s) reference this asset',true);return;}
-  if(!confirm('Delete asset "'+(a.name||a.id)+'"? This cannot be undone.')) return;
+  if(!confirm('Delete asset "'+(_mttsAssetComposedName(a)||a.id)+'"? This cannot be undone.')) return;
   var idx=(DB.mttsAssets||[]).indexOf(a);
   var ok=await _dbDel('mttsAssets',a.id);
   if(!ok){notify('Delete failed',true);return;}
@@ -612,10 +682,55 @@ async function _mttsAssetDeleteFromTable(id){
   _mttsRenderAssets();
 }
 
-async function _mttsAssetSave(){
+// Flash one or more form fields red to show they're missing or invalid.
+// Each id can be the field's actual input/select/textarea, or the visible
+// wrapper around a chip-list / radio group. The flash auto-clears after
+// ~3.5s or on the user's next interaction with the element.
+function _mttsFlashFieldErr(){
+  var ids=Array.prototype.slice.call(arguments).filter(Boolean);
+  var first=null;
+  ids.forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    if(!first) first=el;
+    el.classList.remove('mtts-field-flash-err');
+    void el.offsetWidth;// force reflow so animation restarts on repeat misses
+    el.classList.add('mtts-field-flash-err');
+    var clear=function(){
+      el.classList.remove('mtts-field-flash-err');
+      el.removeEventListener('input',clear);
+      el.removeEventListener('change',clear);
+      el.removeEventListener('click',clear);
+    };
+    el.addEventListener('input',clear);
+    el.addEventListener('change',clear);
+    el.addEventListener('click',clear);
+    setTimeout(clear,3500);
+  });
+  if(first){
+    setTimeout(function(){
+      try{
+        var focusable=(first.tagName==='INPUT'||first.tagName==='SELECT'||first.tagName==='TEXTAREA')?first:first.querySelector('input,select,textarea,button');
+        if(focusable&&typeof focusable.focus==='function') focusable.focus();
+      }catch(e){}
+    },80);
+  }
+}
+
+// mode: 'close' (default) closes the modal after save; 'next' keeps the
+// add-asset form open with plant / asset type / criticality pre-filled
+// from the row that was just saved, so the user can rapidly enter a
+// batch of similar assets.
+async function _mttsAssetSave(mode){
+  mode=mode||'close';
   if(!_mttsHasAccess('action.editAsset')){notify('Access denied',true);return;}
   var err=document.getElementById('mttsAssetErr');
-  var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
+  var _showErr=function(m){
+    if(!err) return;
+    err.textContent=m;err.style.display='block';
+    err.classList.remove('mtts-err-flash');void err.offsetWidth;
+    err.classList.add('mtts-err-flash');
+  };
   // Trim every text field (collapse leading/trailing whitespace and stray
   // newlines from paste) before validation + save.
   var _t=function(elId){
@@ -630,30 +745,35 @@ async function _mttsAssetSave(){
   var type=document.getElementById('mttsAssetType').value;
   var primaryCode=document.getElementById('mttsAssetPrimary').value;
   var ext=_t('mttsAssetNameExt');
-  if(!plant){_showErr('Plant is required');return;}
-  if(!type){_showErr('Asset Type is required');return;}
-  if(!primaryCode){_showErr('Primary Name is required');return;}
+  if(!plant){_showErr('Plant is required');_mttsFlashFieldErr('mttsAssetPlantBtns');return;}
+  if(!type){_showErr('Asset Type is required');_mttsFlashFieldErr('mttsAssetTypeBtns');return;}
+  if(!primaryCode){_showErr('Primary Name is required');_mttsFlashFieldErr('mttsAssetPrimary');return;}
   // Compose the full asset name from the master's display label + the
   // free-text extension. Stored alongside primaryName/nameExtension so the
   // table & ticket displays can keep using `name` directly.
   var primLbl=_mttsAssetPrimaryNameLabel(primaryCode)||primaryCode;
-  var name=ext?(primLbl+'-'+ext):primLbl;
+  var name=ext?(primLbl+' - '+ext):primLbl;
   // Reflect the composed name into the hidden field for any consumers that
   // still read it.
   var nameEl=document.getElementById('mttsAssetName');if(nameEl) nameEl.value=name;
-  // Per-plant uniqueness on the (primaryName + extension) combo, case-
-  // insensitive. The same primary at a different plant is fine.
+  // Per-plant uniqueness on the (primaryName + extension + make) combo,
+  // case-insensitive. Same primary+ext at a different make is allowed
+  // (e.g. two compressors with the same tag from different vendors).
+  var makeRaw=_t('mttsAssetMake');
   var primKey=String(primaryCode).toLowerCase();
   var extKey=ext.toLowerCase().replace(/\s+/g,' ');
+  var makeKey=makeRaw.toLowerCase().replace(/\s+/g,' ');
   var dupAsset=(DB.mttsAssets||[]).find(function(a){
     if(!a||a.id===id) return false;
     if(a.plant!==plant) return false;
     var aPrim=String(a.primaryName||'').toLowerCase();
     var aExt=String(a.nameExtension||'').toLowerCase().replace(/\s+/g,' ');
-    return aPrim===primKey&&aExt===extKey;
+    var aMake=String(a.make||'').toLowerCase().replace(/\s+/g,' ');
+    return aPrim===primKey&&aExt===extKey&&aMake===makeKey;
   });
   if(dupAsset){
-    _showErr('"'+name+'" already exists at '+_mttsPlantLabel(plant)+' — primary name + extension must be unique within a plant');
+    _showErr('"'+name+(makeRaw?' ('+makeRaw+')':'')+'" already exists at '+_mttsPlantLabel(plant)+' — primary name + extension + make must be unique within a plant');
+    _mttsFlashFieldErr('mttsAssetPrimary','mttsAssetNameExt','mttsAssetMake');
     return;
   }
   var data={
@@ -693,11 +813,15 @@ async function _mttsAssetSave(){
       _showErr('Save failed');return;
     }
     notify('✓ Asset added');
-    // Save & Add Next: re-render the table behind, then reopen the form
-    // with plant / asset type / priority pre-selected from the entry that
-    // was just saved. Focus lands on Primary Name (handled in _mttsAssetOpen).
     _mttsRenderAssets();
-    _mttsAssetOpen('',{plant:plant,assetType:type,criticality:data.criticality});
+    if(mode==='next'){
+      // Reopen the form with plant / asset type / priority pre-selected
+      // so the user can rapidly enter a batch. Focus lands on Primary
+      // Name (handled in _mttsAssetOpen).
+      _mttsAssetOpen('',{plant:plant,assetType:type,criticality:data.criticality});
+    } else {
+      cm('mMttsAsset');
+    }
     return;
   }
   cm('mMttsAsset');
@@ -710,7 +834,7 @@ function _mttsAssetTransferOpen(){
   if(!id){notify('Save the asset first',true);return;}
   var a=byId(DB.mttsAssets||[],id);if(!a){notify('Asset not found',true);return;}
   var plantLbl=function(v){return _mttsPlantLabel(v);};
-  document.getElementById('mttsTransferAssetLbl').innerHTML='Transferring <b>'+(a.name||'')+'</b> from <b>'+plantLbl(a.plant)+'</b>';
+  document.getElementById('mttsTransferAssetLbl').innerHTML='Transferring <b>'+_mttsAssetComposedName(a)+'</b> from <b>'+plantLbl(a.plant)+'</b>';
   document.getElementById('mttsTransferTo').value='';
   document.getElementById('mttsTransferDate').value=(new Date()).toISOString().slice(0,10);
   document.getElementById('mttsTransferNote').value='';
@@ -933,6 +1057,7 @@ function _mttsRenderTickets(){
       '<select id="mttsTicketBreakdownFilter" onchange="_mttsRenderTickets()">'+bdOpts+'</select>'+
       '<select id="mttsTicketAssignedFilter" onchange="_mttsRenderTickets()">'+assignOpts+'</select>'+
       '<select id="mttsTicketStatusFilter" onchange="_mttsRenderTickets()">'+statusOpts+'</select>'+
+      '<button type="button" class="btn btn-secondary" onclick="_mttsTicketClearFilters()" title="Reset filters and search" style="font-size:12px;padding:6px 10px">✕ Clear</button>'+
     '</div>';
   if(!rows.length){
     html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No tickets match the current filters.</div></div>';
@@ -1778,7 +1903,7 @@ function _mttsRaiseRefreshAssets(){
   wrap.innerHTML='<div class="mtts-raise-asset-list">'+assets.map(function(a){
     var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     var _mm=_mttsAssetMM(a);
-    var lbl=String((a.name||'')+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+    var lbl=String(_mttsAssetComposedName(a)+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
     var sel=a.id===current;
     return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lbl+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')">'+
       '<input type="radio" name="mttsRaiseAssetRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
@@ -1803,7 +1928,7 @@ function _mttsRaiseRefreshAssetSummary(){
   }
   btn.classList.remove('is-empty');
   var _mm=_mttsAssetMM(a);
-  var lbl=String((a.name||'')+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+  var lbl=String(_mttsAssetComposedName(a)+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
   btn.innerHTML='<span class="mtts-pick-prefix">Selected Asset</span><span class="mtts-pick-value">'+lbl+'</span>';
 }
 function _mttsRaiseToggleAssetBtns(){
@@ -1828,7 +1953,12 @@ async function _mttsTicketRaiseSubmit(){
     if(!_mttsCanRaise()){notify('Access denied',true);return;}
   }
   var err=document.getElementById('mttsRaiseErr');
-  var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
+  var _showErr=function(m){
+    if(!err) return;
+    err.textContent=m;err.style.display='block';
+    err.classList.remove('mtts-err-flash');void err.offsetWidth;
+    err.classList.add('mtts-err-flash');
+  };
   var plant=document.getElementById('mttsRaisePlant').value;
   var assetCode=document.getElementById('mttsRaiseAsset').value;
   var bdRadio=document.querySelector('input[name="mttsRaiseBreakdown"]:checked');
@@ -1838,15 +1968,15 @@ async function _mttsTicketRaiseSubmit(){
   var _bdTimeEl=document.getElementById('mttsRaiseBdTime');
   var bdTime=_bdTimeEl?_bdTimeEl.value:'';
   var desc=document.getElementById('mttsRaiseDesc').value.trim();
-  if(!plant){_showErr('Plant is required');return;}
-  if(!assetCode){_showErr('Asset is required');return;}
-  if(!bd){_showErr('Breakdown type is required');return;}
-  if(!bdDate){_showErr('Breakdown Since date is required');return;}
-  if(!bdTime){_showErr('Breakdown Since time is required');return;}
-  if(!desc){_showErr('Description / Symptoms is required');return;}
+  if(!plant){_showErr('Plant is required');_mttsFlashFieldErr('mttsRaisePlantSummary');return;}
+  if(!assetCode){_showErr('Asset is required');_mttsFlashFieldErr('mttsRaiseAssetSummary');return;}
+  if(!bd){_showErr('Breakdown type is required');_mttsFlashFieldErr('mttsRaiseBreakdownRadios');return;}
+  if(!bdDate){_showErr('Breakdown Since date is required');_mttsFlashFieldErr('mttsRaiseBdDate');return;}
+  if(!bdTime){_showErr('Breakdown Since time is required');_mttsFlashFieldErr('mttsRaiseBdTime');return;}
+  if(!desc){_showErr('Description / Symptoms is required');_mttsFlashFieldErr('mttsRaiseDesc');return;}
   var bdSinceLocal=bdDate+'T'+bdTime;
   var bdSinceISO=new Date(bdSinceLocal).toISOString();
-  if(new Date(bdSinceISO).getTime()>Date.now()){_showErr('Breakdown Since cannot be in the future');return;}
+  if(new Date(bdSinceISO).getTime()>Date.now()){_showErr('Breakdown Since cannot be in the future');_mttsFlashFieldErr('mttsRaiseBdDate','mttsRaiseBdTime');return;}
   if(editTicket){
     // Refuse to edit once allocation has happened — keeps the audit trail
     // consistent with what techs were briefed on.
@@ -3581,8 +3711,38 @@ function _mttsAssetPrimaryNameLabel(code){
 
 function _mttsRenderAssetPrimaryNames(){
   var wrap=document.getElementById('mttsAprimTableWrap');if(!wrap) return;
+  // Pull the latest filter inputs into state before rebuilding so the
+  // user's choices survive a re-render. Capture caret on the search box
+  // so typing doesn't lose the cursor each keystroke.
+  var tEl0=document.getElementById('mttsAprimTypeFilter');
+  if(tEl0) _mttsAprimState.type=tEl0.value;
+  var sEl0=document.getElementById('mttsAprimStatusFilter');
+  if(sEl0) _mttsAprimState.status=sEl0.value;
+  var srchEl0=document.getElementById('mttsAprimSearch');
+  if(srchEl0) _mttsAprimState.search=srchEl0.value;
+  var activeId=document.activeElement&&document.activeElement.id;
+  var caretStart=null,caretEnd=null;
+  if(activeId==='mttsAprimSearch'&&srchEl0){
+    try{caretStart=srchEl0.selectionStart;caretEnd=srchEl0.selectionEnd;}catch(e){}
+  }
+  // Hide-Inactive checkbox is the broad "show only Active" shortcut and
+  // continues to live in the page header. The status dropdown inside the
+  // filter row offers finer control (All / Active / Inactive). When the
+  // checkbox is on, it overrides any "Inactive" selection.
   var hideInactive=!!(document.getElementById('mttsAprimHideInactive')||{}).checked;
-  var rows=(DB.mttsAssetPrimaryNames||[]).slice().filter(function(p){return p&&(!hideInactive||!p.inactive);});
+  var fType=_mttsAprimState.type;
+  var fStatus=_mttsAprimState.status;
+  var fSearchRaw=String(_mttsAprimState.search||'');
+  var fSearch=fSearchRaw.toLowerCase().trim();
+  var rows=(DB.mttsAssetPrimaryNames||[]).slice().filter(function(p){
+    if(!p) return false;
+    if(hideInactive&&p.inactive) return false;
+    if(fType&&p.assetType!==fType) return false;
+    if(fStatus==='active'&&p.inactive) return false;
+    if(fStatus==='inactive'&&!p.inactive) return false;
+    if(fSearch&&String(p.name||'').toLowerCase().indexOf(fSearch)<0) return false;
+    return true;
+  });
   rows.sort(function(a,b){
     var t=String(_mttsAssetTypeLabel(a.assetType)||'').localeCompare(String(_mttsAssetTypeLabel(b.assetType)||''));
     if(t) return t;
@@ -3602,22 +3762,43 @@ function _mttsRenderAssetPrimaryNames(){
   // Hide "+ Add" when the user can't edit.
   var addBtn=document.getElementById('btnMttsAddAprim');
   if(addBtn) addBtn.style.display=_mttsHasAccess('action.editAssetPrimaryName')?'':'none';
-  if(!rows.length){
-    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">No primary names yet. Click <b>+ Add Primary Name</b> to create one.</div>';
-    return;
-  }
-  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  // Filter + header rows both sticky to the top of the .table-wrap scroll
+  // container so they stay visible while the body scrolls. No inner
+  // overflow wrapper — the outer .table-wrap is the sole scroll surface.
+  var thFilter='padding:6px 8px;background:#fff;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;z-index:3';
+  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-top:1px solid var(--border);border-bottom:2px solid var(--border);text-align:left;position:sticky;top:38px;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
   var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
-    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead><tr>'+
-      '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Asset Type</th>'+
-      '<th style="'+th+'">Name</th>'+
-      '<th style="'+th+';text-align:right">Assets</th>'+
-      '<th style="'+th+';text-align:right">Agencies</th>'+
-      '<th style="'+th+'">Status</th>'+
-      '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
-    '</tr></thead><tbody>';
+  var typesArr=_mttsAssetTypeList(true);
+  var typeOpts='<option value="">All Types</option>'+typesArr.map(function(t){
+    return '<option value="'+t.value+'"'+(t.value===fType?' selected':'')+'>'+t.label+'</option>';
+  }).join('');
+  var statusOpts='<option value=""'+(fStatus===''?' selected':'')+'>All</option>'+
+    '<option value="active"'+(fStatus==='active'?' selected':'')+'>Active</option>'+
+    '<option value="inactive"'+(fStatus==='inactive'?' selected':'')+'>Inactive</option>';
+  var inlineSel='font-size:11px;padding:5px 7px;border:1px solid var(--border2);border-radius:5px;background:#fff;color:var(--text);width:100%';
+  var inlineSearchVal=fSearchRaw.replace(/"/g,'&quot;');
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
+    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead>'+
+      '<tr>'+
+        '<th style="'+thFilter+'"></th>'+
+        '<th style="'+thFilter+'"><select id="mttsAprimTypeFilter" onchange="_mttsRenderAssetPrimaryNames()" style="'+inlineSel+'">'+typeOpts+'</select></th>'+
+        '<th style="'+thFilter+'"><input type="search" id="mttsAprimSearch" placeholder="🔍 name…" oninput="_mttsRenderAssetPrimaryNames()" value="'+inlineSearchVal+'" style="'+inlineSel+'"></th>'+
+        '<th style="'+thFilter+'"></th>'+
+        '<th style="'+thFilter+'"></th>'+
+        '<th style="'+thFilter+'"><select id="mttsAprimStatusFilter" onchange="_mttsRenderAssetPrimaryNames()" style="'+inlineSel+'">'+statusOpts+'</select></th>'+
+        '<th style="'+thFilter+'"></th>'+
+      '</tr>'+
+      '<tr>'+
+        '<th style="'+th+'">#</th>'+
+        '<th style="'+th+'">Asset Type</th>'+
+        '<th style="'+th+'">Name</th>'+
+        '<th style="'+th+';text-align:right">Assets</th>'+
+        '<th style="'+th+';text-align:right">Agencies</th>'+
+        '<th style="'+th+'">Status</th>'+
+        '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
+      '</tr>'+
+    '</thead><tbody>'+
+    (rows.length?'':'<tr><td colspan="7" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No primary names match the current filters.</td></tr>');
   var canEdit=_mttsHasAccess('action.editAssetPrimaryName');
   rows.forEach(function(p,i){
     var idEsc=String(p.id||'').replace(/'/g,"\\'");
@@ -3646,6 +3827,18 @@ function _mttsRenderAssetPrimaryNames(){
   });
   html+='</tbody></table></div>';
   wrap.innerHTML=html;
+  wrap.style.maxHeight='calc(100vh - 180px)';
+  // Restore focus + caret on the search box so typing isn't interrupted
+  // by the re-render on every keystroke.
+  if(activeId){
+    var newActive=document.getElementById(activeId);
+    if(newActive&&typeof newActive.focus==='function'){
+      newActive.focus();
+      if(activeId==='mttsAprimSearch'&&caretStart!=null){
+        try{newActive.setSelectionRange(caretStart,caretEnd!=null?caretEnd:caretStart);}catch(e){}
+      }
+    }
+  }
 }
 
 function _mttsRenderAprimColorGrid(currentHex){
@@ -3727,10 +3920,13 @@ function _mttsAprimOpen(id, preset){
   document.getElementById('mttsAprimColor').value=initialColor;
   _mttsRenderAprimColorGrid(initialColor);
   document.getElementById('mttsAprimInactive').checked=!!(p&&p.inactive);
-  // Save button label: editing keeps "Save"; adding flips to "Save & Add
-  // Next" so the user knows the form will reopen on success.
+  // Save buttons: edit mode shows a single "Save"; add mode shows
+  // "Save & Add Next" (secondary, keeps the form open) plus the primary
+  // "Save & Close".
   var saveBtn=document.getElementById('mttsAprimSaveBtn');
-  if(saveBtn) saveBtn.textContent=p?'Save':'Save & Add Next';
+  if(saveBtn) saveBtn.textContent=p?'Save':'Save & Close';
+  var saveNextBtn=document.getElementById('mttsAprimSaveNextBtn');
+  if(saveNextBtn) saveNextBtn.style.display=p?'none':'';
   var err=document.getElementById('mttsAprimErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsAprim'); else { document.getElementById('mMttsAprim').classList.add('open'); }
   var modalEl=document.getElementById('mMttsAprim');
@@ -3755,10 +3951,19 @@ function _mttsAprimOpen(id, preset){
   },50);
 }
 
-async function _mttsAprimSave(){
+// mode: 'close' (default) closes the modal after save; 'next' keeps the
+// add form open with the same Asset Type pre-selected so the user can
+// rapidly enter several primary names under the same type.
+async function _mttsAprimSave(mode){
+  mode=mode||'close';
   if(!_mttsHasAccess('action.editAssetPrimaryName')){notify('Access denied',true);return;}
   var err=document.getElementById('mttsAprimErr');
-  var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
+  var _showErr=function(m){
+    if(!err) return;
+    err.textContent=m;err.style.display='block';
+    err.classList.remove('mtts-err-flash');void err.offsetWidth;
+    err.classList.add('mtts-err-flash');
+  };
   var _t=function(elId){var el=document.getElementById(elId);if(!el) return '';var v=String(el.value||'').replace(/^[\s ]+|[\s ]+$/g,'');el.value=v;return v;};
   var existingId=document.getElementById('mttsAprimIdHidden').value;
   var assetType=document.getElementById('mttsAprimAssetType').value;
@@ -3767,10 +3972,10 @@ async function _mttsAprimSave(){
   var code=name;
   var color=document.getElementById('mttsAprimColor').value||'';
   var inactive=document.getElementById('mttsAprimInactive').checked;
-  if(!assetType){_showErr('Asset Type is required');return;}
-  if(!name){_showErr('Name is required');return;}
+  if(!assetType){_showErr('Asset Type is required');_mttsFlashFieldErr('mttsAprimAssetType');return;}
+  if(!name){_showErr('Name is required');_mttsFlashFieldErr('mttsAprimName');return;}
   var dup=(DB.mttsAssetPrimaryNames||[]).find(function(x){return x&&String(x.id||'').toLowerCase()===code.toLowerCase()&&x.id!==existingId;});
-  if(dup){_showErr('"'+name+'" already exists');return;}
+  if(dup){_showErr('"'+name+'" already exists');_mttsFlashFieldErr('mttsAprimName');return;}
   if(existingId){
     var p=byId(DB.mttsAssetPrimaryNames||[],existingId);
     if(!p){_showErr('Primary name not found');return;}
@@ -3793,7 +3998,7 @@ async function _mttsAprimSave(){
       for(var i=0;i<refAssets.length;i++){
         var ext=refAssets[i].nameExtension||'';
         refAssets[i].primaryName=code;
-        refAssets[i].name=ext?(name+'-'+ext):name;
+        refAssets[i].name=ext?(name+' - '+ext):name;
         try{await _dbSave('mttsAssets',refAssets[i]);}catch(e){console.warn('refresh asset name',e);}
       }
       // Agency.primaryNames is a text[] — FK doesn't reach inside arrays,
@@ -3819,12 +4024,16 @@ async function _mttsAprimSave(){
       _showErr('Save failed');return;
     }
     notify('✓ Primary name added');
-    // Save & Add Next: refresh the master table behind, then reopen the
-    // form with the same Asset Type pre-selected and Name cleared so the
-    // user can keep typing names without re-picking the type each time.
     _mttsRenderAssetPrimaryNames();
     _mttsPopulateAssetPrimaryNameOptions();
-    _mttsAprimOpen('',{assetType:assetType});
+    if(mode==='next'){
+      // Reopen the form with the same Asset Type pre-selected and Name
+      // cleared so the user can keep typing names without re-picking
+      // the type each time.
+      _mttsAprimOpen('',{assetType:assetType});
+    } else {
+      cm('mMttsAprim');
+    }
     return;
   }
   cm('mMttsAprim');
