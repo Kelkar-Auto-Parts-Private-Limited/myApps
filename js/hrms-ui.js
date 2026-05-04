@@ -16160,14 +16160,12 @@ async function _hrmsMyAttRender(){
     var todayStr=(new Date()).toISOString().slice(0,10);
     var fyStart=st.year+'-04-01';
     var fyEnd=(st.year+1)+'-03-31';
-    // Disable bank actions when the user's CURRENT month is locked —
-    // every action button on this panel ultimately needs to write into
-    // the current month (Apply targets today's absent days, Revoke
-    // touches the existing claim's month, Remove deletes a stale
-    // entry). Once the salary for the current month is finalised, none
-    // of these are valid moves.
-    var _bankCurMk=(new Date()).getFullYear()+'-'+String((new Date()).getMonth()+1).padStart(2,'0');
-    var _bankLocked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(_bankCurMk);
+    // Apply targets any unlocked month from Jan-2026 onwards (matches
+    // the alteration-request gate). The bank-panel button stays
+    // available as long as at least one such month exists; the modal
+    // itself filters down to absent working days within unlocked
+    // months when the user clicks Apply.
+    var _bankLocked=false;
     var sorted=coffBank.slice().sort(function(a,b){return(b.earnedDate||'').localeCompare(a.earnedDate||'');});
     // Filter to FY relevance.
     sorted=sorted.filter(function(c){
@@ -16413,46 +16411,64 @@ function _hrmsCoffApplyOpen(empId,earnedDate){
   if(!emp){notify('Employee not found',true);return;}
   var entry=((emp.extra&&emp.extra.coffBank)||[]).find(function(c){return c&&c.earnedDate===earnedDate;});
   if(!entry||entry.status!=='available'){notify('C-Off is not available',true);return;}
-  // Current calendar month
+  // Eligible target months — any unlocked month from Jan-2026 up to
+  // the current calendar month. Mirrors _hrmsCanRequestForMonth used
+  // by alteration requests.
   var now=new Date();
-  var curMk=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(curMk)){
-    notify('⚠ Current month ('+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(curMk):curMk)+') is locked. Cannot apply C-Off.',true);
+  var curY=now.getFullYear(),curM=now.getMonth()+1;
+  var candidateMks=[];
+  for(var y=2026;y<=curY;y++){
+    var endM=(y===curY)?curM:12;
+    for(var m=1;m<=endM;m++){
+      var mkc=y+'-'+String(m).padStart(2,'0');
+      if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mkc)) continue;
+      candidateMks.push(mkc);
+    }
+  }
+  if(!candidateMks.length){
+    notify('⚠ No unlocked months available — every month from Jan-2026 onwards is locked',true);
     return;
   }
-  // Find current month's calc from the rendered cache, else fall back to
-  // a fresh compute.
-  var months=_hrmsMyAttState.lastMonths||[];
-  var mc=months.find(function(m){return m.monthKey===curMk;});
-  var afterCalc=function(monthCalc){
-    var absentDays=(monthCalc.days||[]).filter(function(d){return d.status==='A'&&!d.isOff;});
-    // Skip dates that already have a pending or approved alteration request —
-    // user shouldn't be able to use a C-Off against a day they're separately
-    // trying to convert via Missed Punch / Outdoor Duty.
-    var altReqDates={};
-    ((emp.extra&&emp.extra.altRequests)||[]).forEach(function(r){
-      if(r&&(r.status==='pending'||r.status==='approved')&&r.date) altReqDates[r.date]=r.status;
+  // Skip dates that already have a pending/approved alteration request —
+  // user shouldn't apply a C-Off against a day they're separately
+  // converting via Missed Punch / Outdoor Duty.
+  var altReqDates={};
+  ((emp.extra&&emp.extra.altRequests)||[]).forEach(function(r){
+    if(r&&(r.status==='pending'||r.status==='approved')&&r.date) altReqDates[r.date]=r.status;
+  });
+  // Use cached month calcs from the latest render where possible, fall
+  // back to a fresh compute per missing month.
+  var cached=_hrmsMyAttState.lastMonths||[];
+  var promises=candidateMks.map(function(mk){
+    var hit=cached.find(function(c){return c&&c.monthKey===mk;});
+    if(hit) return Promise.resolve(hit);
+    return _hrmsMyAttCalcMonth(emp,mk);
+  });
+  Promise.all(promises).then(function(monthCalcs){
+    var allAbsent=[];var blocked=0;
+    monthCalcs.forEach(function(mc){
+      if(!mc) return;
+      (mc.days||[]).forEach(function(d){
+        if(d.status!=='A'||d.isOff) return;
+        var dateStr=mc.monthKey+'-'+String(d.day).padStart(2,'0');
+        if(altReqDates[dateStr]){blocked++;return;}
+        var p=mc.monthKey.split('-');
+        var dt=new Date(+p[0],+p[1]-1,d.day);
+        var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+        allAbsent.push({mk:mc.monthKey,day:d.day,dateStr:dateStr,dn:dn});
+      });
     });
-    var blocked=0;
-    absentDays=absentDays.filter(function(d){
-      var dateStr=monthCalc.monthKey+'-'+String(d.day).padStart(2,'0');
-      if(altReqDates[dateStr]){blocked++;return false;}
-      return true;
-    });
-    if(!absentDays.length){
-      var msg=blocked
-        ?('All absent days in '+curMk+' are already covered by an alteration request. Revoke the request first if you want to use a C-Off instead.')
-        :('No absent working days in '+curMk+' to apply against');
-      notify(msg,true);
+    // Most recent absent day first.
+    allAbsent.sort(function(a,b){return b.dateStr.localeCompare(a.dateStr);});
+    if(!allAbsent.length){
+      notify(blocked
+        ?'All absent days are already covered by alteration requests. Revoke a request first if you want to use a C-Off instead.'
+        :'No absent working days in any unlocked month to apply against',true);
       return;
     }
-    // Build overlay
     var prior=document.getElementById('_hrmsCoffApplyOverlay');if(prior) prior.remove();
-    var rows=absentDays.map(function(d){
-      var dateStr=monthCalc.monthKey+'-'+String(d.day).padStart(2,'0');
-      var dt=new Date(curMk.split('-')[0],+curMk.split('-')[1]-1,d.day);
-      var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
-      return '<div onclick="_hrmsCoffApplyConfirm(\''+empId+'\',\''+earnedDate+'\',\''+dateStr+'\')" style="padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;justify-content:space-between;font-size:13px" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'\'"><span style="font-weight:700">'+dateStr+'</span><span style="color:var(--text3)">'+dn+'</span></div>';
+    var rows=allAbsent.map(function(d){
+      return '<div onclick="_hrmsCoffApplyConfirm(\''+empId+'\',\''+earnedDate+'\',\''+d.dateStr+'\')" style="padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;justify-content:space-between;font-size:13px" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'\'"><span style="font-weight:700">'+d.dateStr+'</span><span style="color:var(--text3)">'+d.dn+'</span></div>';
     }).join('');
     var html='<div id="_hrmsCoffApplyOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000" onclick="if(event.target===this)this.remove()">'+
       '<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(420px,94vw);max-height:85vh;overflow:auto;padding:0">'+
@@ -16461,16 +16477,17 @@ function _hrmsCoffApplyOpen(empId,earnedDate){
           '<button onclick="document.getElementById(\'_hrmsCoffApplyOverlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button>'+
         '</div>'+
         '<div style="padding:8px 0">'+
-          '<div style="padding:6px 18px;font-size:11px;color:var(--text3);background:#f8fafc">Pick the absent working day in <b>'+curMk+'</b> to apply this C-Off:</div>'+
+          '<div style="padding:6px 18px;font-size:11px;color:var(--text3);background:#f8fafc">Pick the absent working day to apply this C-Off against (any unlocked month from Jan-2026 onwards):</div>'+
           rows+
         '</div>'+
       '</div>'+
     '</div>';
     var tmp=document.createElement('div');tmp.innerHTML=html;
     document.body.appendChild(tmp.firstChild);
-  };
-  if(mc) afterCalc(mc);
-  else _hrmsMyAttCalcMonth(emp,curMk).then(afterCalc);
+  }).catch(function(err){
+    console.error('coff apply candidate build failed',err);
+    notify('Failed to load month data — please retry',true);
+  });
 }
 
 // Confirm and persist the C-Off application against a specific absent day.
@@ -16480,6 +16497,14 @@ async function _hrmsCoffApplyConfirm(empId,earnedDate,usedForDate){
   var entry=((emp.extra&&emp.extra.coffBank)||[]).find(function(c){return c&&c.earnedDate===earnedDate;});
   if(!entry){notify('C-Off entry not found',true);return;}
   if(entry.status!=='available'){notify('C-Off is not available',true);return;}
+  // Defensive — re-check the target month is still unlocked before
+  // committing in case a manager locked the month between modal-open
+  // and confirm.
+  var _tMk=(usedForDate||'').slice(0,7);
+  if(_tMk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(_tMk)){
+    notify('⚠ '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(_tMk):_tMk)+' is now locked — C-Off cannot be applied to it',true);
+    return;
+  }
   if(!confirm('Apply this C-Off (earned '+earnedDate+') against absent day '+usedForDate+'?\n\nThe day will be marked Present (pending approval) on your attendance — the C-Off Requests tab admin must approve it before it\'s finalised.')) return;
   entry.status='pending';
   entry.usedForDate=usedForDate;

@@ -1357,7 +1357,10 @@ function _mttsRenderTickets(){
       // name (the three identifiers in reading order); priority chip is
       // pinned to the top-right corner. Status badge sits in the meta row.
       var idDisp=String(t.id||'');
-      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+'" onclick="_mttsTicketDetail(\''+idEsc+'\')" role="button" tabindex="0">'+
+      // Approved (closed) tickets get a thick green border so they
+      // visually stand apart from in-flight cards at a glance.
+      var approvedBorder=(t.status==='closed')?';border:3px solid #16a34a':'';
+      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+approvedBorder+'" onclick="_mttsTicketDetail(\''+idEsc+'\')" role="button" tabindex="0">'+
         '<div class="mtts-tcard-head">'+
           '<div class="mtts-tcard-headline">'+
             '<div class="mtts-tcard-headtop">'+
