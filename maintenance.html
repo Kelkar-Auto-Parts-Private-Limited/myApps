@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V112">
+<meta name="app-build" content="260501-V122">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V112">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V122">
 </head>
 <body style="display:none">
 
@@ -236,7 +236,7 @@
 
 <!-- ALLOCATE MODAL -->
 <div class="modal-overlay" id="mMttsAllocate"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title">👥 Allocate Technician(s)</div><div class="modal-close" onclick="cm('mMttsAllocate')">×</div></div>
+  <div class="modal-header"><div class="modal-title" id="mttsAllocTitle">👥 Allocate Technician(s)</div><div class="modal-close" onclick="cm('mMttsAllocate')">×</div></div>
   <input type="hidden" id="mttsAllocTicketId">
   <div id="mttsAllocTicketLbl" style="margin-bottom:10px"></div>
   <div class="form-group"><label>Pick one or more Technicians *</label>
@@ -246,12 +246,9 @@
     <input type="text" id="mttsAllocNote" placeholder="Optional">
   </div>
   <div class="modal-error" id="mttsAllocErr"></div>
-  <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap">
-    <button class="btn btn-danger" id="mttsAllocRevokeBtn" onclick="_mttsTicketAllocateRevoke()" style="display:none;font-size:12px;padding:8px 12px">↩ Revoke (back to Open)</button>
-    <div style="display:flex;gap:8px;margin-left:auto">
-      <button class="btn btn-secondary" onclick="cm('mMttsAllocate')">Cancel</button>
-      <button class="btn btn-primary" onclick="_mttsTicketAllocateConfirm()">Save</button>
-    </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:12px;flex-wrap:wrap">
+    <button class="btn btn-secondary" onclick="cm('mMttsAllocate')">Cancel</button>
+    <button class="btn btn-primary" onclick="_mttsTicketAllocateConfirm()">Save</button>
   </div>
 </div></div>
 
@@ -260,40 +257,18 @@
   <div class="modal-header"><div class="modal-title">🔧 Update Ticket</div><div class="modal-close" onclick="cm('mMttsTechAct')">×</div></div>
   <input type="hidden" id="mttsTechActTicketId">
   <input type="hidden" id="mttsTechActEditIdx">
-  <div id="mttsTechActTicketLbl" style="font-size:12px;color:var(--text2);margin-bottom:6px;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px"></div>
-  <div id="mttsTechActHistoryWrap" style="margin-bottom:6px">
-    <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Previous Updates</div>
-    <div id="mttsTechActHistory" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:#fff;padding:3px"></div>
-  </div>
+  <div id="mttsTechActTicketLbl" class="mtts-techact-ticket-lbl"></div>
   <div class="form-group"><label>Status *</label>
-    <select id="mttsTechActStatus" onchange="_mttsTechActRefreshFields()">
-      <option value="awaiting_spares">Awaiting spares</option>
-      <option value="awaiting_agency">Awaiting external agency / agency required onsite</option>
-      <option value="repair_done">Repair done</option>
-      <option value="scrapped">Not repairable — to be scrapped</option>
-    </select>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    <div class="form-group"><label>Update Date *</label>
-      <div class="mtts-date-stepper">
-        <button type="button" class="mtts-date-step-btn" onclick="_mttsTechActShiftDate(-1)" title="Previous day">‹</button>
-        <input type="date" id="mttsTechActDate">
-        <button type="button" class="mtts-date-step-btn" id="mttsTechActDateNextBtn" onclick="_mttsTechActShiftDate(1)" title="Next day">›</button>
-      </div>
-    </div>
-    <div class="form-group"><label>Update Time *</label>
-      <div class="mtts-date-stepper">
-        <button type="button" class="mtts-date-step-btn" onclick="_mttsTechActShiftTime(-15)" title="−15 min">‹</button>
-        <select id="mttsTechActTime" onchange="_mttsTechActTimeChanged()"></select>
-        <button type="button" class="mtts-date-step-btn" id="mttsTechActTimeNextBtn" onclick="_mttsTechActShiftTime(15)" title="+15 min">›</button>
-      </div>
+    <input type="hidden" id="mttsTechActStatus" value="">
+    <div class="mtts-status-btns" id="mttsTechActStatusBtns">
+      <button type="button" data-st="awaiting_spares" class="mtts-status-btn is-yellow" onclick="_mttsTechActPickStatus('awaiting_spares')">⏳ Awaiting Spares</button>
+      <button type="button" data-st="awaiting_agency" class="mtts-status-btn is-yellow" onclick="_mttsTechActPickStatus('awaiting_agency')">🏢 Awaiting external Agency</button>
+      <button type="button" data-st="scrapped" class="mtts-status-btn is-red" onclick="_mttsTechActPickStatus('scrapped')">🚫 Not Repairable (Scrap)</button>
+      <button type="button" data-st="repair_done" class="mtts-status-btn is-green" onclick="_mttsTechActPickStatus('repair_done')">✓ Repair Done — Ticket Closed</button>
     </div>
   </div>
   <div class="form-group"><label>Notes</label>
     <textarea id="mttsTechActNote" rows="2" placeholder="What was done / what's needed"></textarea>
-  </div>
-  <div class="form-group" id="mttsTechActEtaWrap"><label>Expected completion (optional)</label>
-    <input type="date" id="mttsTechActEta">
   </div>
   <div class="form-group" id="mttsTechActRootWrap" style="display:none"><label>Root cause (optional)</label>
     <input type="text" id="mttsTechActRoot" placeholder="What caused this?">
@@ -308,25 +283,39 @@
     <button class="btn btn-secondary" onclick="cm('mMttsTechAct')" style="padding:8px 14px">Cancel</button>
     <button class="btn btn-primary" onclick="_mttsTicketActionSubmit()" style="padding:8px 14px">Save</button>
   </div>
+  <div id="mttsTechActHistoryWrap" style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Ticket History</div>
+    <div id="mttsTechActHistory" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:#fff;padding:3px"></div>
+  </div>
 </div></div>
 
 <!-- MANAGER APPROVAL MODAL -->
 <div class="modal-overlay" id="mMttsApprove"><div class="modal" style="max-width:540px">
   <div class="modal-header"><div class="modal-title">✅ Approve / Close Ticket</div><div class="modal-close" onclick="cm('mMttsApprove')">×</div></div>
   <input type="hidden" id="mttsApproveTicketId">
-  <div id="mttsApproveTicketLbl" style="font-size:12px;color:var(--text2);margin-bottom:10px;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:6px"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    <div class="form-group"><label>Service Cost (₹)</label>
-      <input type="number" id="mttsApproveCostSvc" min="0" step="0.01" placeholder="0.00">
-    </div>
-    <div class="form-group"><label>Spares Cost (₹)</label>
-      <input type="number" id="mttsApproveCostSpr" min="0" step="0.01" placeholder="0.00">
+  <div id="mttsApproveTicketLbl" class="mtts-techact-ticket-lbl"></div>
+  <div class="form-group">
+    <label>External Service &amp; Spares Cost Applicable?</label>
+    <input type="hidden" id="mttsApproveExt" value="no">
+    <div class="mtts-status-btns" id="mttsApproveExtBtns" style="grid-template-columns:1fr 1fr">
+      <button type="button" data-ext="no" class="mtts-status-btn is-green" onclick="_mttsApprovePickExt('no')">No external cost</button>
+      <button type="button" data-ext="yes" class="mtts-status-btn is-yellow" onclick="_mttsApprovePickExt('yes')">Yes — external cost</button>
     </div>
   </div>
-  <div class="form-group">
-    <label>Invoice photos (max 3)</label>
-    <input type="file" id="mttsApprovePhotos" accept="image/*" multiple onchange="_mttsApprovePickPhotos(event)" style="display:none">
-    <div id="mttsApprovePhotoPreview"></div>
+  <div id="mttsApproveExtFields" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group"><label>External Service Cost (₹)</label>
+        <input type="number" id="mttsApproveCostSvc" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group"><label>Spares Cost (₹)</label>
+        <input type="number" id="mttsApproveCostSpr" min="0" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+    <div class="form-group">
+      <label id="mttsApprovePhotoLbl">Invoice photos *</label>
+      <input type="file" id="mttsApprovePhotos" accept="image/*" multiple onchange="_mttsApprovePickPhotos(event)" style="display:none">
+      <div id="mttsApprovePhotoPreview"></div>
+    </div>
   </div>
   <div class="form-group"><label>Manager note</label>
     <input type="text" id="mttsApproveNote" placeholder="Optional">
@@ -604,7 +593,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V112"></script>
-<script src="js/mtts-ui.js?v=260501-V112"></script>
+<script src="js/common.js?v=260501-V122"></script>
+<script src="js/mtts-ui.js?v=260501-V122"></script>
 </body>
 </html>

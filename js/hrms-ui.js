@@ -13670,9 +13670,10 @@ async function _hrmsImportAdvances(inputEl){
           DB.hrmsAdvances=(DB.hrmsAdvances||[]).filter(function(a){return a.monthKey!==mk;});
         }
 
-        var added=0,updated=0,skipped=0,nameMismatch=0;
+        var added=0,updated=0,skipped=0,nameMismatch=0,merged=0;
         var skipReasons={noCode:[],noEmp:[],noValues:[]};
         var mismatchedNames=[];
+        var touched={};// empCode -> record reference for rows already processed in this file
         for(var i=0;i<rows.length;i++){
           var r=rows[i];
           var rowNum=i+2;
@@ -13697,6 +13698,16 @@ async function _hrmsImportAdvances(inputEl){
           if(!adv&&!ded&&!emi){skipped++;skipReasons.noValues.push('Row '+rowNum+' ('+code+')');continue;}
           // paidBy and date are optional audit columns — captured for the log
           // only; not persisted on the advance row (schema has no columns).
+          if(touched[emp.empCode]){
+            // Same empcode appeared earlier in this file — accumulate amounts
+            var trec=touched[emp.empCode];
+            trec.advance=Math.round((trec.advance||0)+adv);
+            trec.deduction=Math.round((trec.deduction||0)+ded);
+            trec.emi=Math.round((trec.emi||0)+emi);
+            await _dbSave('hrmsAdvances',trec);
+            merged++;
+            continue;
+          }
           var existing=DB.hrmsAdvances.find(function(a){return a.empCode===emp.empCode&&a.monthKey===mk;});
           if(existing){
             existing.advance=Math.round(adv);
@@ -13704,9 +13715,10 @@ async function _hrmsImportAdvances(inputEl){
             existing.emi=Math.round(emi);
             await _dbSave('hrmsAdvances',existing);
             updated++;
+            touched[emp.empCode]=existing;
           } else {
             var rec={id:'adv'+uid(),empCode:emp.empCode,monthKey:mk,advance:Math.round(adv),emi:Math.round(emi),deduction:Math.round(ded)};
-            if(await _dbSave('hrmsAdvances',rec)){DB.hrmsAdvances.push(rec);added++;}
+            if(await _dbSave('hrmsAdvances',rec)){DB.hrmsAdvances.push(rec);added++;touched[emp.empCode]=rec;}
           }
         }
         var valid=added+updated;
@@ -13719,7 +13731,7 @@ async function _hrmsImportAdvances(inputEl){
             type:'advances',fileName:_fileName,fileSize:_fileSize,
             monthKey:mk,action:mode,totalRows:rows.length,
             valid:valid,invalid:skipped,
-            added:added,updated:updated,deleted:deleted,
+            added:added,updated:updated,deleted:deleted,merged:merged,
             nameMismatch:nameMismatch,
             importedBy:(CU?(CU.name||CU.id||''):'')
           };
@@ -13745,7 +13757,7 @@ async function _hrmsImportAdvances(inputEl){
         _hrmsAdvCache={};
         hideSpinner();
         _hrmsRenderAdvances();
-        var msg='✅ Advances imported: '+added+' added, '+updated+' updated'+(deleted?', '+deleted+' deleted':'')+(skipped?', '+skipped+' invalid':'')+(nameMismatch?', '+nameMismatch+' name-mismatch':'');
+        var msg='✅ Advances imported: '+added+' added, '+updated+' updated'+(merged?', '+merged+' duplicate-row(s) summed':'')+(deleted?', '+deleted+' deleted':'')+(skipped?', '+skipped+' invalid':'')+(nameMismatch?', '+nameMismatch+' name-mismatch':'');
         notify(msg);
         // Show skip details if any
         if(skipped>0||nameMismatch>0){

@@ -186,6 +186,35 @@
   body.mtts-tight-page .mtts-tcard-filters{position:sticky;top:0;z-index:5;margin-bottom:6px}
   /* View-mode toggle (Cards ↔ Table) — desktop only. */
   @media(max-width:700px){.mtts-view-toggle{display:none!important}}
+  /* Update Ticket — status picker laid out as a 2-column grid of large
+     coloured-border buttons. Selected state fills the button with the
+     matching tint. */
+  .mtts-status-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .mtts-status-btn{padding:10px 12px;font-size:13px;font-weight:700;background:#fff;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;line-height:1.2;transition:background .15s,filter .1s,box-shadow .15s}
+  .mtts-status-btn:hover{filter:brightness(.97)}
+  .mtts-status-btn.is-yellow{border-color:#f59e0b;color:#92400e}
+  .mtts-status-btn.is-red{border-color:#dc2626;color:#991b1b}
+  .mtts-status-btn.is-green{border-color:#16a34a;color:#15803d}
+  .mtts-status-btn.is-yellow.is-selected{background:#fef3c7;box-shadow:0 0 0 2px #fde68a inset}
+  .mtts-status-btn.is-red.is-selected{background:#fee2e2;box-shadow:0 0 0 2px #fca5a5 inset}
+  .mtts-status-btn.is-green.is-selected{background:#dcfce7;box-shadow:0 0 0 2px #86efac inset}
+  @media(max-width:520px){.mtts-status-btns{grid-template-columns:1fr}}
+  /* Update Ticket — prominent ticket info card displayed at the top of
+     the modal so the technician sees id, asset, plant, status, priority
+     and the down-for timer at a glance before they start typing. */
+  .mtts-techact-ticket-lbl{margin-bottom:10px;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#fff);border:1.5px solid var(--border);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .mtts-techact-tihead{display:flex;flex-direction:column;gap:5px}
+  .mtts-techact-titop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+  .mtts-techact-tiid{font-family:var(--mono);font-weight:800;color:var(--text);font-size:14px;letter-spacing:.4px}
+  .mtts-techact-tisep{color:var(--text3);font-weight:700}
+  .mtts-techact-tibd{color:var(--text2);font-weight:700}
+  .mtts-techact-tistatus{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:.3px;margin-left:auto}
+  .mtts-techact-tiasset{font-size:16px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
+  .mtts-techact-timeta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
+  .mtts-techact-tiprio{padding:2px 9px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:.3px}
+  .mtts-techact-tidown{font-weight:600;color:#dc2626}
+  .mtts-techact-tidown b{font-family:var(--mono);font-weight:800}
+  .mtts-techact-tirise{color:var(--text2);font-weight:600}
   /* Header strip on every master / list page: count chips on the left,
      +Add (and any inactive / search controls) on the right. Wraps to two
      rows on narrow screens. */

@@ -823,12 +823,50 @@ async function _mttsAssetDeleteFromTable(id){
   var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
   if(refs){notify('⚠ Cannot delete — '+refs+' ticket(s) reference this asset',true);return;}
   if(!confirm('Delete asset "'+(_mttsAssetComposedName(a)||a.id)+'"? This cannot be undone.')) return;
-  var idx=(DB.mttsAssets||[]).indexOf(a);
-  var ok=await _dbDel('mttsAssets',a.id);
-  if(!ok){notify('Delete failed',true);return;}
-  if(idx>=0) DB.mttsAssets.splice(idx,1);
-  notify('🗑 Asset deleted');
-  _mttsRenderAssets();
+  if(!_sb||!_sbReady){notify('No DB connection',true);return;}
+  // Match on the asset's natural composite key — plant + asset_type +
+  // primary_name + name_extension + make — instead of the `code` column
+  // alone. Legacy data could share `code` across rows that differ only
+  // by make, so a `code`-only delete would wipe siblings. The composite
+  // key uniquely identifies one asset per the V96 uniqueness rule.
+  showSpinner('Deleting…');
+  try{
+    var q=_sb.from('mtts_assets').delete()
+      .eq('plant',a.plant||'')
+      .eq('asset_type',a.assetType||'')
+      .eq('primary_name',a.primaryName||'')
+      .eq('name_extension',a.nameExtension||'')
+      .eq('make',a.make||'')
+      .select();
+    var res=await q;
+    if(res&&res.error){
+      console.error('asset delete failed',res.error);
+      notify('Delete failed: '+(res.error.message||''),true);
+      return;
+    }
+    var deleted=(res&&res.data)||[];
+    if(!deleted.length){
+      notify('Delete blocked — row not found or denied by RLS policy',true);
+      return;
+    }
+    // Mirror the same composite-key filter when removing from the JS
+    // mirror so the UI matches what was actually deleted server-side.
+    DB.mttsAssets=(DB.mttsAssets||[]).filter(function(x){
+      if(!x) return true;
+      return !((x.plant||'')===(a.plant||'')
+        &&(x.assetType||'')===(a.assetType||'')
+        &&(x.primaryName||'')===(a.primaryName||'')
+        &&(x.nameExtension||'')===(a.nameExtension||'')
+        &&(x.make||'')===(a.make||''));
+    });
+    notify('🗑 Asset deleted');
+    _mttsRenderAssets();
+  }catch(e){
+    console.error('asset delete exception',e);
+    notify('Delete failed',true);
+  }finally{
+    hideSpinner();
+  }
 }
 
 // Flash one or more form fields red to show they're missing or invalid.
@@ -985,7 +1023,7 @@ function _mttsAssetTransferOpen(){
   var plantLbl=function(v){return _mttsPlantLabel(v);};
   document.getElementById('mttsTransferAssetLbl').innerHTML='Transferring <b>'+_mttsAssetComposedName(a)+'</b> from <b>'+plantLbl(a.plant)+'</b>';
   document.getElementById('mttsTransferTo').value='';
-  document.getElementById('mttsTransferDate').value=(new Date()).toISOString().slice(0,10);
+  document.getElementById('mttsTransferDate').value=_mttsTodayStr();
   document.getElementById('mttsTransferNote').value='';
   var err=document.getElementById('mttsTransferErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsTransfer'); else { document.getElementById('mMttsTransfer').classList.add('open'); }
@@ -1056,6 +1094,33 @@ function _mttsTimerSince(iso){
   if(hrs>=1) return hrs+'h '+(mins%60)+'m';
   return Math.max(mins,1)+'m';
 }
+
+// ── Indian Standard Time helpers ─────────────────────────────────────────
+// All MTTS timestamps must read and write as IST (UTC+5:30) regardless of
+// the viewer's machine timezone. ISO strings stored in the DB are still UTC
+// (the right canonical form); these helpers shift on the way in/out.
+var _MTTS_IST_OFFSET_MS=(5*60+30)*60000;
+// Format a UTC ISO timestamp as IST. Returns {date:'YYYY-MM-DD',time:'HH:MM'}
+// or null for empty / invalid input.
+function _mttsFmtIST(iso){
+  if(!iso) return null;
+  var t=new Date(iso).getTime();if(isNaN(t)) return null;
+  var d=new Date(t+_MTTS_IST_OFFSET_MS);
+  var pad=function(n){return n<10?'0'+n:''+n;};
+  return {
+    date:d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()),
+    time:pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())
+  };
+}
+function _mttsFmtISTDate(iso){var x=_mttsFmtIST(iso);return x?x.date:'—';}
+function _mttsFmtISTDateTime(iso){var x=_mttsFmtIST(iso);return x?(x.date+' '+x.time):'—';}
+// Build a UTC ISO from a picker pair (YYYY-MM-DD + HH:MM) treated as IST.
+function _mttsIstToISO(dateStr,timeStr){
+  return new Date(dateStr+'T'+(timeStr||'00:00')+':00+05:30').toISOString();
+}
+// Current IST instant as a Date whose UTC-getters return IST fields. Use
+// .getUTCHours()/.getUTCMinutes()/etc to read IST values.
+function _mttsNowIST(){return new Date(Date.now()+_MTTS_IST_OFFSET_MS);}
 
 // Users with Technician role assigned. Used by the manager's allocate modal.
 function _mttsTechnicians(){
@@ -1226,13 +1291,26 @@ function _mttsRenderTickets(){
       var crit=(asset&&asset.criticality)||'Medium';
       var techList=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ');
       var idEsc=String(t.id||'').replace(/'/g,"\\'");
-      var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
+      var raised=_mttsFmtISTDate(t.raisedAt);
       var raiser=t.raisedBy?_mttsUserDisp(t.raisedBy):'';
       var plantColor=_mttsPlantColor(t.plant)||'#94a3b8';
       var plantName=_mttsPlantLabel(t.plant);
       var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
       var isTerminal=(t.status==='closed'||t.status==='scrapped');
       var downFor=isTerminal?'—':_mttsTimerSince(t.breakdownSince||t.raisedAt);
+      // Status-driven card background — at-a-glance lifecycle cue.
+      // Open=light red, assigned=light blue, awaiting spares/agency
+      // (in-progress) = yellow, repair done = light green, closed
+      // (approved) = darker green, scrapped = orange.
+      var cardBg=({
+        open:'#fee2e2',
+        assigned:'#dbeafe',
+        awaiting_spares:'#fef3c7',
+        awaiting_agency:'#fef3c7',
+        repair_done:'#dcfce7',
+        closed:'#bbf7d0',
+        scrapped:'#fed7aa'
+      })[t.status]||'#fff';
       // Description / Symptoms — the note attached to the original
       // 'raised' tech action. Truncate long text on the card so the
       // layout stays compact; full text is visible in the detail view.
@@ -1259,18 +1337,27 @@ function _mttsRenderTickets(){
       } else if(t.status==='repair_done'&&_mttsCanApprove()){
         primaryAct+='<button onclick="'+stop+'_mttsTicketApproveOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">✓ Approve</button>';
       }
-      if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency'||t.status==='repair_done'||t.status==='closed')&&_mttsCanAllocate()){
+      // Reassign suppressed once the ticket reaches Repair done / Closed —
+      // work is sealed at that point and reshuffling techs there would
+      // just confuse the audit trail.
+      if((t.status==='assigned'||t.status==='awaiting_spares'||t.status==='awaiting_agency')&&_mttsCanAllocate()){
         primaryAct+='<button onclick="'+stop+'_mttsTicketAllocateOpen(\''+idEsc+'\')" title="Reassign technicians" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #0ea5e9;color:#0369a1;border-radius:5px;cursor:pointer">👥 Reassign</button>';
       }
       if(t.status==='closed'&&_mttsCanApprove()){
         primaryAct+='<button onclick="'+stop+'_mttsTicketRevokeApproval(\''+idEsc+'\')" title="Revoke approval — back to Repair done" style="font-size:12px;padding:6px 10px;font-weight:700;background:#fff;border:1px solid #f59e0b;color:#92400e;border-radius:5px;cursor:pointer">↩ Revoke ✓</button>';
+      }
+      // Super Admin can delete any ticket (along with its history) at
+      // any status. Don't double-add when the open-ticket branch above
+      // already showed the delete button.
+      if(_mttsIsSA()&&!_mttsCanEditTicket(t)){
+        sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsTicketDelete(\''+idEsc+'\')" title="Delete ticket and history (Super Admin)" aria-label="Delete ticket">🗑</button>';
       }
       var hasActions=!!(primaryAct||sideAct);
       // Build the card itself. Header line carries id + plant pill + asset
       // name (the three identifiers in reading order); priority chip is
       // pinned to the top-right corner. Status badge sits in the meta row.
       var idDisp=String(t.id||'');
-      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+'" onclick="_mttsTicketDetail(\''+idEsc+'\')" role="button" tabindex="0">'+
+      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+'" onclick="_mttsTicketDetail(\''+idEsc+'\')" role="button" tabindex="0">'+
         '<div class="mtts-tcard-head">'+
           '<div class="mtts-tcard-headline">'+
             '<div class="mtts-tcard-headtop">'+
@@ -1343,7 +1430,7 @@ function _mttsTicketTableHtml(rows){
     var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
     var assetType=asset?asset.assetType:'';
     var idEsc=String(t.id||'').replace(/'/g,"\\'");
-    var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
+    var raised=_mttsFmtISTDate(t.raisedAt);
     var raiser=t.raisedBy?_mttsUserDisp(t.raisedBy):'';
     var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
     var isTerminal=(t.status==='closed'||t.status==='scrapped');
@@ -1498,11 +1585,12 @@ function _mttsSnapTo30(timeStr){
   return pad(h)+':'+pad(m);
 }
 
-// Today (local) as YYYY-MM-DD — used to clamp date stepper to non-future.
+// Today in Indian Standard Time as YYYY-MM-DD — used to clamp date stepper
+// to non-future. Always IST so picker bounds match how data is stored.
 function _mttsTodayStr(){
-  var d=new Date();
+  var d=_mttsNowIST();
   var pad=function(n){return n<10?'0'+n:''+n;};
-  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate());
 }
 
 // Build 96 options (00:00 → 23:45) at 15-minute intervals for the
@@ -1514,7 +1602,8 @@ function _mttsPopulateBdTimeOptions(){
   var dateEl=document.getElementById('mttsRaiseBdDate');
   var dateStr=dateEl?dateEl.value:'';
   var isToday=(dateStr===_mttsTodayStr());
-  var nowMins=isToday?(new Date().getHours()*60+new Date().getMinutes()):null;
+  var _istNow=isToday?_mttsNowIST():null;
+  var nowMins=_istNow?(_istNow.getUTCHours()*60+_istNow.getUTCMinutes()):null;
   var prev=sel.value;
   var html='';
   for(var h=0;h<24;h++){
@@ -1530,17 +1619,16 @@ function _mttsPopulateBdTimeOptions(){
 }
 
 // Called when the user picks a time from the select directly. Clamps to
-// the nearest past 15-min boundary if somehow set into the future.
+// the nearest past 15-min boundary (IST) if somehow set into the future.
 function _mttsRaiseTimeChanged(){
   var sel=document.getElementById('mttsRaiseBdTime');
   var dateEl=document.getElementById('mttsRaiseBdDate');
   if(!sel||!dateEl||!sel.value||!dateEl.value) return;
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  if(d.getTime()>Date.now()){
-    var now=new Date();
-    now.setMinutes(Math.floor(now.getMinutes()/15)*15,0,0);
+  if(new Date(_mttsIstToISO(dateEl.value,sel.value)).getTime()>Date.now()){
+    var now=_mttsNowIST();
+    now.setUTCMinutes(Math.floor(now.getUTCMinutes()/15)*15,0,0);
     var pad=function(n){return n<10?'0'+n:''+n;};
-    sel.value=pad(now.getHours())+':'+pad(now.getMinutes());
+    sel.value=pad(now.getUTCHours())+':'+pad(now.getUTCMinutes());
   }
 }
 
@@ -1770,13 +1858,13 @@ function _mttsTicketRaiseOpen(editId){
   var _aRow=document.getElementById('mttsRaiseAssetBtns'); if(_aRow) _aRow.style.display='none';
   // Default breakdown radio to "Stopped" — most common case for a fresh ticket.
   Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=(r.value==='stopped');});
-  // Default Breakdown Since to current local date and time, rounded down
+  // Default Breakdown Since to current IST date and time, rounded down
   // to the nearest 15-minute multiple (matches the time-select's options).
-  var _now=new Date();
-  _now.setMinutes(Math.floor(_now.getMinutes()/15)*15,0,0);
+  var _now=_mttsNowIST();
+  _now.setUTCMinutes(Math.floor(_now.getUTCMinutes()/15)*15,0,0);
   var _pad=function(n){return n<10?'0'+n:''+n;};
-  var _dStr=_now.getFullYear()+'-'+_pad(_now.getMonth()+1)+'-'+_pad(_now.getDate());
-  var _tStr=_pad(_now.getHours())+':'+_pad(_now.getMinutes());
+  var _dStr=_now.getUTCFullYear()+'-'+_pad(_now.getUTCMonth()+1)+'-'+_pad(_now.getUTCDate());
+  var _tStr=_pad(_now.getUTCHours())+':'+_pad(_now.getUTCMinutes());
   var _bdDate=document.getElementById('mttsRaiseBdDate');
   if(_bdDate){
     _bdDate.value=_dStr;
@@ -1801,10 +1889,11 @@ function _mttsTicketRaiseOpen(editId){
     Array.prototype.forEach.call(document.querySelectorAll('input[name="mttsRaiseBreakdown"]'),function(r){r.checked=(r.value===editTicket.breakdownType);});
     if(editTicket.breakdownSince){
       try{
-        var bdD=new Date(editTicket.breakdownSince);
-        if(!isNaN(bdD.getTime())){
-          var ed=bdD.getFullYear()+'-'+_pad(bdD.getMonth()+1)+'-'+_pad(bdD.getDate());
-          var et=_pad(bdD.getHours())+':'+_pad(Math.floor(bdD.getMinutes()/15)*15);
+        var _bdIst=_mttsFmtIST(editTicket.breakdownSince);
+        if(_bdIst){
+          var ed=_bdIst.date;
+          var _hm=_bdIst.time.split(':');
+          var et=_hm[0]+':'+_pad(Math.floor(parseInt(_hm[1],10)/15)*15);
           if(_bdDate) _bdDate.value=ed;
           if(_bdLbl) _bdLbl.textContent=_mttsFmtDdMmmYy(ed);
           if(_bdTime) _bdTime.value=et;
@@ -2088,12 +2177,22 @@ function _mttsAssetPickCrit(v){
 // Render the Asset chip row scoped to the selected plant + (optional) type.
 // Each chip sets the hidden #mttsRaiseAsset to the asset id and collapses
 // the row. Empty/disabled states show inline guidance instead of chips.
+// Search term for the Raise Ticket asset picker — kept at module scope so
+// it survives the per-keystroke re-render of the radio list.
+var _mttsRaiseAssetSearch='';
 function _mttsRaiseRefreshAssets(){
   var plant=document.getElementById('mttsRaisePlant').value;
   var type=document.getElementById('mttsRaiseType').value;
   var wrap=document.getElementById('mttsRaiseAssetBtns');if(!wrap) return;
   var hidden=document.getElementById('mttsRaiseAsset');
   var current=hidden?hidden.value:'';
+  // Capture the search box's value + caret position BEFORE re-render so
+  // typing into it doesn't lose the cursor on every input event.
+  var searchEl=document.getElementById('mttsRaiseAssetSearch');
+  if(searchEl) _mttsRaiseAssetSearch=searchEl.value;
+  var hadFocus=searchEl&&document.activeElement===searchEl;
+  var caretStart=null,caretEnd=null;
+  if(hadFocus){try{caretStart=searchEl.selectionStart;caretEnd=searchEl.selectionEnd;}catch(e){}}
   if(!plant){
     wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">Select a plant first</div>';
     return;
@@ -2104,28 +2203,50 @@ function _mttsRaiseRefreshAssets(){
     // Empty type or __ALL__ sentinel = no filter (show every asset type).
     if(type&&type!==_MTTS_TYPE_ALL&&a.assetType!==type) return false;
     return true;
-  }).sort(function(a,b){
+  });
+  // Free-text search filter — matches against the composed name +
+  // make/model + serial. Case-insensitive, whitespace-trimmed.
+  var srch=String(_mttsRaiseAssetSearch||'').toLowerCase().trim();
+  if(srch){
+    assets=assets.filter(function(a){
+      var hay=((a.name||'')+' '+(_mttsAssetComposedName(a)||'')+' '+(a.make||'')+' '+(a.model||'')+' '+(a.serialNo||'')).toLowerCase();
+      return hay.indexOf(srch)>=0;
+    });
+  }
+  assets.sort(function(a,b){
     // Natural, case-insensitive sort by asset name so "Press 2" comes
     // before "Press 10" and casing doesn't push entries to the bottom.
     return String(a.name||'').localeCompare(String(b.name||''),undefined,{numeric:true,sensitivity:'base'});
   });
+  // Always show the search box first so the user can keep typing even
+  // when a filter trims the list to zero matches.
+  var srchVal=String(_mttsRaiseAssetSearch||'').replace(/"/g,'&quot;');
+  var searchHtml='<input type="search" id="mttsRaiseAssetSearch" placeholder="🔍 Type to filter assets…" oninput="_mttsRaiseRefreshAssets()" value="'+srchVal+'" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border2);border-radius:6px;margin-bottom:6px;background:#fff;color:var(--text);box-sizing:border-box">';
   if(!assets.length){
-    wrap.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No assets at this plant</div>';
-    return;
+    wrap.innerHTML=searchHtml+'<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">'+(srch?'No assets match the search.':'No assets at this plant')+'</div>';
+  } else {
+    // Radio-list layout (replaces chip buttons): one row per asset, sorted
+    // alphabetically. Easier to scan than chips when the plant has many
+    // assets, and the radio gives a clear single-select affordance.
+    wrap.innerHTML=searchHtml+'<div class="mtts-raise-asset-list">'+assets.map(function(a){
+      var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      var _mm=_mttsAssetMM(a);
+      var lbl=String(_mttsAssetComposedName(a)+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
+      var sel=a.id===current;
+      return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lbl+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')">'+
+        '<input type="radio" name="mttsRaiseAssetRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
+        '<span>'+lbl+'</span>'+
+      '</label>';
+    }).join('')+'</div>';
   }
-  // Radio-list layout (replaces chip buttons): one row per asset, sorted
-  // alphabetically. Easier to scan than chips when the plant has many
-  // assets, and the radio gives a clear single-select affordance.
-  wrap.innerHTML='<div class="mtts-raise-asset-list">'+assets.map(function(a){
-    var idEsc=String(a.id).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    var _mm=_mttsAssetMM(a);
-    var lbl=String(_mttsAssetComposedName(a)+(_mm?' ('+_mm+')':'')+(a.serialNo?' · SN '+a.serialNo:'')).replace(/</g,'&lt;');
-    var sel=a.id===current;
-    return '<label class="mtts-raise-asset-row'+(sel?' is-selected':'')+'" title="'+lbl+'" onclick="_mttsRaisePickAsset(\''+idEsc+'\')">'+
-      '<input type="radio" name="mttsRaiseAssetRadio" value="'+idEsc+'"'+(sel?' checked':'')+'>'+
-      '<span>'+lbl+'</span>'+
-    '</label>';
-  }).join('')+'</div>';
+  // Restore focus + caret on the search input so the user keeps typing.
+  if(hadFocus){
+    var newSearchEl=document.getElementById('mttsRaiseAssetSearch');
+    if(newSearchEl&&typeof newSearchEl.focus==='function'){
+      newSearchEl.focus();
+      if(caretStart!=null){try{newSearchEl.setSelectionRange(caretStart,caretEnd!=null?caretEnd:caretStart);}catch(e){}}
+    }
+  }
 }
 function _mttsRaiseRefreshAssetSummary(){
   var btn=document.getElementById('mttsRaiseAssetSummary');if(!btn) return;
@@ -2149,11 +2270,24 @@ function _mttsRaiseRefreshAssetSummary(){
 }
 function _mttsRaiseToggleAssetBtns(){
   var row=document.getElementById('mttsRaiseAssetBtns');if(!row) return;
-  row.style.display=(row.style.display==='none')?'flex':'none';
+  var willOpen=(row.style.display==='none');
+  row.style.display=willOpen?'flex':'none';
+  if(willOpen){
+    // Fresh open — clear any prior search term, re-render the full list,
+    // then drop focus onto the search input so the user can start typing.
+    _mttsRaiseAssetSearch='';
+    _mttsRaiseRefreshAssets();
+    setTimeout(function(){
+      var s=document.getElementById('mttsRaiseAssetSearch');
+      if(s&&typeof s.focus==='function') s.focus();
+    },50);
+  }
 }
 function _mttsRaisePickAsset(id){
   var hidden=document.getElementById('mttsRaiseAsset');
   if(hidden) hidden.value=id;
+  // Reset the search filter so reopening starts fresh.
+  _mttsRaiseAssetSearch='';
   _mttsRaiseRefreshAssets();
   _mttsRaiseRefreshAssetSummary();
   // Collapse the chip row after pick.
@@ -2190,8 +2324,7 @@ async function _mttsTicketRaiseSubmit(){
   if(!bdDate){_showErr('Breakdown Since date is required');_mttsFlashFieldErr('mttsRaiseBdDate');return;}
   if(!bdTime){_showErr('Breakdown Since time is required');_mttsFlashFieldErr('mttsRaiseBdTime');return;}
   if(!desc){_showErr('Description / Symptoms is required');_mttsFlashFieldErr('mttsRaiseDesc');return;}
-  var bdSinceLocal=bdDate+'T'+bdTime;
-  var bdSinceISO=new Date(bdSinceLocal).toISOString();
+  var bdSinceISO=_mttsIstToISO(bdDate,bdTime);
   if(new Date(bdSinceISO).getTime()>Date.now()){_showErr('Breakdown Since cannot be in the future');_mttsFlashFieldErr('mttsRaiseBdDate','mttsRaiseBdTime');return;}
   if(editTicket){
     // Refuse to edit once allocation has happened — keeps the audit trail
@@ -2271,8 +2404,18 @@ function _mttsTicketEditOpen(id){
 async function _mttsTicketDelete(id){
   var t=(DB.mttsTickets||[]).find(function(x){return x&&x.id===id;});
   if(!t){notify('Ticket not found',true);return;}
-  if(!_mttsCanEditTicket(t)){notify('Access denied',true);return;}
-  if(!confirm('Delete this ticket? This cannot be undone.')) return;
+  // Super Admin can delete any ticket at any status (including its
+  // history). Other roles only delete tickets that pass the regular
+  // can-edit gate (i.e. open tickets where they're the raiser/manager).
+  var isSA=_mttsIsSA();
+  if(!_mttsCanEditTicket(t)&&!isSA){notify('Access denied',true);return;}
+  var hCount=(t.techActions||[]).length;
+  var msg='Delete ticket "'+(t.id||'')+'"?\n\n';
+  if(isSA&&!_mttsCanEditTicket(t)){
+    msg+='All '+hCount+' history entr'+(hCount===1?'y':'ies')+' will also be deleted.\n\n';
+  }
+  msg+='This cannot be undone.';
+  if(!confirm(msg)) return;
   var ok=await _dbDel('mttsTickets',t.id);
   if(!ok){notify('Delete failed',true);return;}
   DB.mttsTickets=(DB.mttsTickets||[]).filter(function(x){return x&&x.id!==t.id;});
@@ -2334,7 +2477,7 @@ function _mttsTicketAllocateOpen(id){
   var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
   var descTxt=raisedAct?(raisedAct.note||''):'';
   var bdLbl=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'';
-  var raisedDate=t.raisedAt?t.raisedAt.slice(0,10):'—';
+  var raisedDate=_mttsFmtISTDate(t.raisedAt);
   var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   document.getElementById('mttsAllocTicketLbl').innerHTML=
     '<div class="mtts-alloc-info">'+
@@ -2346,13 +2489,19 @@ function _mttsTicketAllocateOpen(id){
       (descTxt?'<div class="mtts-alloc-info-desc">'+esc(descTxt)+'</div>':'')+
       '<div class="mtts-alloc-info-meta">'+esc(bdLbl)+' · raised '+esc(raisedDate)+'</div>'+
     '</div>';
+  // Reassign mode = the ticket already has technicians on it. The
+  // header flips to "Reassign Technician" and no checkboxes are
+  // pre-selected, forcing the manager to make a fresh pick.
+  var isReassignMode=!!(t.assignedTo&&t.assignedTo.length);
+  var titleEl=document.getElementById('mttsAllocTitle');
+  if(titleEl) titleEl.textContent=isReassignMode?'👥 Reassign Technician':'👥 Allocate Technician(s)';
   // Tech picker: tap-target buttons rather than a tight checkbox list, with
   // each button surfacing the technician's current in-progress ticket
   // count so the manager can spread load. The hidden checkbox inside each
   // button keeps the existing confirm-handler (which reads
   // .mtts-alloc-cb:checked) working unchanged.
   var techs=_mttsTechnicians();
-  var pre=t.assignedTo||[];
+  var pre=isReassignMode?[]:(t.assignedTo||[]);
   var listEl=document.getElementById('mttsAllocTechList');
   if(!techs.length){
     listEl.innerHTML='<div style="padding:10px;font-size:11px;color:var(--text3)">No users with Technician role found. Assign the role to users first via the portal.</div>';
@@ -2375,10 +2524,6 @@ function _mttsTicketAllocateOpen(id){
     }).join('')+'</div>';
   }
   document.getElementById('mttsAllocNote').value='';
-  // Revoke is only meaningful when the ticket is already assigned to
-  // someone — clears all assignees and returns to open status.
-  var revBtn=document.getElementById('mttsAllocRevokeBtn');
-  if(revBtn) revBtn.style.display=(pre&&pre.length)?'inline-flex':'none';
   var err=document.getElementById('mttsAllocErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsAllocate'); else { document.getElementById('mMttsAllocate').classList.add('open'); }
 }
@@ -2424,8 +2569,10 @@ async function _mttsTicketAllocateConfirm(){
     // full lifecycle again.
     t.status='open';
     t.approvedBy='';t.approvedAt='';
-  } else if(!isReassign||t.status==='open'){
-    // First-time allocation, or re-allocation of an open ticket.
+  } else if(!isReassign||t.status==='open'||t.status==='repair_done'){
+    // First-time allocation, re-allocation of an open ticket, or
+    // sending a Repair-done ticket back to the technician (Approve
+    // modal → Send Back redirects here).
     t.status='assigned';
   }
   // Otherwise keep existing in-progress status (assigned / awaiting_*).
@@ -2446,7 +2593,8 @@ function _mttsPopulateTechActTimeOptions(){
   var dateEl=document.getElementById('mttsTechActDate');
   var dateStr=dateEl?dateEl.value:'';
   var isToday=(dateStr===_mttsTodayStr());
-  var nowMins=isToday?(new Date().getHours()*60+new Date().getMinutes()):null;
+  var _istNow=isToday?_mttsNowIST():null;
+  var nowMins=_istNow?(_istNow.getUTCHours()*60+_istNow.getUTCMinutes()):null;
   var prev=sel.value;
   var html='';
   for(var h=0;h<24;h++){
@@ -2463,10 +2611,13 @@ function _mttsPopulateTechActTimeOptions(){
 function _mttsTechActShiftDate(delta){
   var dateEl=document.getElementById('mttsTechActDate');if(!dateEl) return;
   var cur=dateEl.value||_mttsTodayStr();
-  var d=new Date(cur+'T00:00:00');
-  d.setDate(d.getDate()+delta);
+  // Treat the picker date as IST when stepping by days so the result stays
+  // a calendar-day shift in IST regardless of the viewer's timezone.
+  var d=new Date(cur+'T00:00:00+05:30');
+  d.setUTCDate(d.getUTCDate()+delta);
+  var ist=new Date(d.getTime()+_MTTS_IST_OFFSET_MS);
   var pad=function(n){return n<10?'0'+n:''+n;};
-  var nextStr=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  var nextStr=ist.getUTCFullYear()+'-'+pad(ist.getUTCMonth()+1)+'-'+pad(ist.getUTCDate());
   if(nextStr>_mttsTodayStr()) return;
   dateEl.value=nextStr;
   _mttsPopulateTechActTimeOptions();
@@ -2484,12 +2635,13 @@ function _mttsTechActShiftTime(deltaMin){
   var sel=document.getElementById('mttsTechActTime');
   var dateEl=document.getElementById('mttsTechActDate');
   if(!sel||!dateEl||!sel.value||!dateEl.value) return;
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  d.setMinutes(d.getMinutes()+deltaMin);
-  if(d.getTime()>Date.now()) return;
+  // Picker pair is IST; do the math in real UTC ms to compare with Date.now().
+  var t=new Date(_mttsIstToISO(dateEl.value,sel.value)).getTime()+deltaMin*60000;
+  if(t>Date.now()) return;
+  var ist=new Date(t+_MTTS_IST_OFFSET_MS);
   var pad=function(n){return n<10?'0'+n:''+n;};
-  var newDate=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  var newTime=pad(d.getHours())+':'+pad(d.getMinutes());
+  var newDate=ist.getUTCFullYear()+'-'+pad(ist.getUTCMonth()+1)+'-'+pad(ist.getUTCDate());
+  var newTime=pad(ist.getUTCHours())+':'+pad(ist.getUTCMinutes());
   if(newDate!==dateEl.value){
     dateEl.value=newDate;
     _mttsTechActRefreshDateNextBtn();
@@ -2504,21 +2656,19 @@ function _mttsTechActRefreshTimeNextBtn(){
   var sel=document.getElementById('mttsTechActTime');
   var dateEl=document.getElementById('mttsTechActDate');
   if(!sel||!dateEl||!sel.value||!dateEl.value){btn.disabled=false;return;}
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  d.setMinutes(d.getMinutes()+15);
-  btn.disabled=(d.getTime()>Date.now());
+  var t=new Date(_mttsIstToISO(dateEl.value,sel.value)).getTime()+15*60000;
+  btn.disabled=(t>Date.now());
 }
 
 function _mttsTechActTimeChanged(){
   var sel=document.getElementById('mttsTechActTime');
   var dateEl=document.getElementById('mttsTechActDate');
   if(!sel||!dateEl||!sel.value||!dateEl.value) return;
-  var d=new Date(dateEl.value+'T'+sel.value+':00');
-  if(d.getTime()>Date.now()){
-    var now=new Date();
-    now.setMinutes(Math.floor(now.getMinutes()/15)*15,0,0);
+  if(new Date(_mttsIstToISO(dateEl.value,sel.value)).getTime()>Date.now()){
+    var now=_mttsNowIST();
+    now.setUTCMinutes(Math.floor(now.getUTCMinutes()/15)*15,0,0);
     var pad=function(n){return n<10?'0'+n:''+n;};
-    sel.value=pad(now.getHours())+':'+pad(now.getMinutes());
+    sel.value=pad(now.getUTCHours())+':'+pad(now.getUTCMinutes());
   }
   _mttsTechActRefreshTimeNextBtn();
 }
@@ -2531,7 +2681,7 @@ function _mttsRenderTechActHistory(t,currentEditIdx){
   var wrap=document.getElementById('mttsTechActHistory');if(!wrap) return;
   var entries=Array.isArray(t.techActions)?t.techActions:[];
   if(!entries.length){
-    wrap.innerHTML='<div style="padding:8px 10px;font-size:11px;color:var(--text3);font-style:italic">No previous updates yet.</div>';
+    wrap.innerHTML='<div style="padding:8px 10px;font-size:11px;color:var(--text3);font-style:italic">No ticket history yet.</div>';
     return;
   }
   var idEsc=String(t.id||'').replace(/'/g,"\\'");
@@ -2555,12 +2705,12 @@ function _mttsRenderTechActHistory(t,currentEditIdx){
   sorted.sort(function(x,y){return String(y.a.at||'').localeCompare(String(x.a.at||''));});
   wrap.innerHTML=sorted.map(function(p){
     var a=p.a,i=p.i;
-    var ts=a.at?(a.at.slice(0,10)+' '+a.at.slice(11,16)):'—';
+    var ts=_mttsFmtISTDateTime(a.at);
     var who=a.by?_mttsUserDisp(a.by):'—';
     var noteBlock=a.note?'<div style="color:var(--text2);font-size:11px;margin-top:2px">'+String(a.note).replace(/</g,'&lt;')+'</div>':'';
     var etaBlock=a.eta?'<div style="font-size:10px;color:#92400e;margin-top:1px">ETA: '+a.eta+'</div>':'';
     var photos=(a.photos&&a.photos.length)?'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">'+a.photos.map(function(src){return '<a href="'+src+'" target="_blank" onclick="event.stopPropagation()"><img src="'+src+'" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border)"></a>';}).join('')+'</div>':'';
-    var edited=a.editedAt?' <span style="font-size:9px;color:var(--text3);font-style:italic">(edited '+a.editedAt.slice(0,10)+')</span>':'';
+    var edited=a.editedAt?' <span style="font-size:9px;color:var(--text3);font-style:italic">(edited '+_mttsFmtISTDate(a.editedAt)+')</span>':'';
     var editBtn=canEditEntry(a)?'<button onclick="event.stopPropagation();_mttsTicketActionOpen(\''+idEsc+'\','+i+')" title="Edit this update" style="float:right;font-size:10px;padding:2px 7px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'';
     var isCurrent=(currentEditIdx!=null&&currentEditIdx===i);
     var bg=isCurrent?'#fef3c7':'#f8fafc';
@@ -2587,9 +2737,34 @@ function _mttsTicketActionOpen(id,editIdx){
   var titleEl=document.querySelector('#mMttsTechAct .modal-title');
   if(titleEl) titleEl.textContent=(editIdx==null)?'🔧 Add Update':'🔧 Edit Update';
 
+  // Prominent ticket info card at the top — id + breakdown + plant
+  // badge + asset name + criticality + status + down-for timer in a
+  // single rich panel so the technician sees everything they need
+  // before they start typing.
+  var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
+  var critClr={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
+  var crit=(asset&&asset.criticality)||'Medium';
+  var raisedDate=t.raisedAt?t.raisedAt.slice(0,10):'—';
+  var raiser=t.raisedBy?_mttsUserDisp(t.raisedBy):'';
+  var stClr=({open:'#dc2626',assigned:'#1d4ed8',awaiting_spares:'#a16207',awaiting_agency:'#7c3aed',repair_done:'#0891b2',closed:'#16a34a',scrapped:'#475569'})[t.status]||'#64748b';
+  var stLbl=_MTTS_STATUS_LABEL[t.status]||t.status;
   document.getElementById('mttsTechActTicketLbl').innerHTML=
-    '<b>'+_mttsAssetLabel(asset)+'</b> at '+_mttsPlantLabel(t.plant)+' · '+_MTTS_STATUS_LABEL[t.status]+
-    ' · down for <b style="color:#dc2626">'+_mttsTimerSince(t.raisedAt)+'</b>';
+    '<div class="mtts-techact-tihead">'+
+      '<div class="mtts-techact-titop">'+
+        '<span class="mtts-techact-tiid">'+(t.id||'')+'</span>'+
+        '<span class="mtts-techact-tisep">·</span>'+
+        '<span class="mtts-techact-tibd">'+bdLabel+'</span>'+
+        '<span class="mtts-techact-tisep">·</span>'+
+        _mttsPlantBadge(t.plant)+
+        '<span class="mtts-techact-tistatus" style="background:'+stClr+'22;color:'+stClr+'">'+stLbl+'</span>'+
+      '</div>'+
+      '<div class="mtts-techact-tiasset">'+_mttsAssetLabel(asset)+'</div>'+
+      '<div class="mtts-techact-timeta">'+
+        '<span class="mtts-techact-tiprio" style="background:'+critClr[crit]+'22;color:'+critClr[crit]+'">'+crit+'</span>'+
+        '<span class="mtts-techact-tidown">⏱ Down for <b>'+_mttsTimerSince(t.breakdownSince||t.raisedAt)+'</b></span>'+
+        '<span class="mtts-techact-tirise">📅 Raised '+raisedDate+(raiser?' by '+raiser:'')+'</span>'+
+      '</div>'+
+    '</div>';
 
   // Inline history of every prior update — who/when/what/photos — with
   // ✎ Edit links. Highlights the entry currently being edited (if any).
@@ -2598,51 +2773,63 @@ function _mttsTicketActionOpen(id,editIdx){
   var existing=null;
   if(editIdx!=null) existing=(t.techActions||[])[editIdx]||null;
 
-  // Status — pre-fill from edited entry or default.
-  document.getElementById('mttsTechActStatus').value=existing?(existing.action||'awaiting_spares'):'awaiting_spares';
+  // Status — when ADDING a new update no button is preselected (user
+  // must explicitly pick). When EDITING, pre-fill from the entry.
+  if(existing){
+    _mttsTechActPickStatus(existing.action||'awaiting_spares');
+  } else {
+    _mttsTechActPickStatus('');
+  }
   document.getElementById('mttsTechActNote').value=existing?(existing.note||''):'';
-  document.getElementById('mttsTechActEta').value=existing?(existing.eta||''):'';
   document.getElementById('mttsTechActRoot').value=existing?'':'';
 
-  // Date / time: from existing entry's `at` (ISO) or current local time.
-  var d=existing&&existing.at?new Date(existing.at):new Date();
-  // Snap minutes down to 15-min boundary so the value matches a select option.
-  d.setMinutes(Math.floor(d.getMinutes()/15)*15,0,0);
-  var pad=function(n){return n<10?'0'+n:''+n;};
-  var dateEl=document.getElementById('mttsTechActDate');
-  dateEl.value=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  dateEl.max=_mttsTodayStr();
-  if(!dateEl._mttsDateChange){
-    dateEl._mttsDateChange=function(){
-      if(dateEl.value&&dateEl.value>_mttsTodayStr()) dateEl.value=_mttsTodayStr();
-      _mttsPopulateTechActTimeOptions();
-      _mttsTechActRefreshDateNextBtn();
-      _mttsTechActRefreshTimeNextBtn();
-    };
-    dateEl.addEventListener('change',dateEl._mttsDateChange);
-  }
-  _mttsPopulateTechActTimeOptions();
-  document.getElementById('mttsTechActTime').value=pad(d.getHours())+':'+pad(d.getMinutes());
-  _mttsTechActRefreshDateNextBtn();
-  _mttsTechActRefreshTimeNextBtn();
-
+  // Date / time fields removed — every update now stamps the current
+  // system clock at submit time (or preserves the original `at` when
+  // editing an existing entry).
   _mttsTechActPhotosBuf=existing&&Array.isArray(existing.photos)?existing.photos.slice(0,3):[];
   _mttsRenderTechActPhotoTiles();
   document.getElementById('mttsTechActPhotos').value='';
   _mttsTechActRefreshFields();
   var err=document.getElementById('mttsTechActErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsTechAct'); else { document.getElementById('mMttsTechAct').classList.add('open'); }
+  // Enter saves, Escape cancels — typing in the Notes textarea still
+  // gets a literal newline. Listener is attached once per open and
+  // tagged on the modal element so we can remove the prior copy.
+  var modalTA=document.getElementById('mMttsTechAct');
+  if(modalTA){
+    if(modalTA._mttsKeyHandler) modalTA.removeEventListener('keydown',modalTA._mttsKeyHandler);
+    modalTA._mttsKeyHandler=function(ev){
+      if(modalTA.style.display==='none'||!modalTA.classList.contains('open')) return;
+      if(ev.key==='Escape'){ev.preventDefault();cm('mMttsTechAct');return;}
+      if(ev.key==='Enter'){
+        var tag=ev.target&&ev.target.tagName;
+        if(tag==='TEXTAREA') return;
+        ev.preventDefault();_mttsTicketActionSubmit();
+      }
+    };
+    modalTA.addEventListener('keydown',modalTA._mttsKeyHandler);
+  }
+}
+// Status picker — single-select. Updates the hidden input the submit
+// reads, syncs the .is-selected class on the four buttons, and lets
+// _mttsTechActRefreshFields toggle the conditional Root-cause field
+// based on the new selection.
+function _mttsTechActPickStatus(st){
+  var hidden=document.getElementById('mttsTechActStatus');
+  if(hidden) hidden.value=st;
+  var btns=document.querySelectorAll('#mttsTechActStatusBtns .mtts-status-btn');
+  Array.prototype.forEach.call(btns,function(b){
+    b.classList.toggle('is-selected',b.getAttribute('data-st')===st);
+  });
+  _mttsTechActRefreshFields();
 }
 function _mttsTechActRefreshFields(){
   var st=document.getElementById('mttsTechActStatus').value;
   var rootWrap=document.getElementById('mttsTechActRootWrap');
-  var etaWrap=document.getElementById('mttsTechActEtaWrap');
   // Photos are always available on the Update Ticket form (up to 3).
   // Required only when closing the ticket as repair_done.
   var showRoot=(st==='repair_done'||st==='scrapped');
-  var showEta=(st==='awaiting_spares'||st==='awaiting_agency');
   if(rootWrap) rootWrap.style.display=showRoot?'':'none';
-  if(etaWrap) etaWrap.style.display=showEta?'':'none';
   var photoLbl=document.getElementById('mttsTechActPhotoLbl');
   if(photoLbl) photoLbl.textContent=(st==='repair_done')?'Closure photos (max 3) *':'Photos (max 3)';
 }
@@ -2653,24 +2840,22 @@ async function _mttsTicketActionSubmit(){
   var t=byId(DB.mttsTickets||[],id);if(!t){_showErr('Ticket not found');return;}
   if(!(_mttsIsTechnicianOnTicket(t)||_mttsIsSA()||_mttsIsManager())){_showErr('You are not assigned to this ticket');return;}
   var newStatus=document.getElementById('mttsTechActStatus').value;
+  if(!newStatus){_showErr('Please select a status');_mttsFlashFieldErr('mttsTechActStatusBtns');return;}
   var note=document.getElementById('mttsTechActNote').value.trim();
-  var eta=document.getElementById('mttsTechActEta').value;
   var root=document.getElementById('mttsTechActRoot').value.trim();
-  var dateStr=document.getElementById('mttsTechActDate').value;
-  var timeStr=document.getElementById('mttsTechActTime').value;
   var editIdxRaw=document.getElementById('mttsTechActEditIdx').value;
   var editIdx=editIdxRaw===''?null:parseInt(editIdxRaw,10);
-  if(!dateStr){_showErr('Update date is required');return;}
-  if(!timeStr){_showErr('Update time is required');return;}
-  var atIso=new Date(dateStr+'T'+timeStr).toISOString();
-  if(new Date(atIso).getTime()>Date.now()+60000){_showErr('Update date/time cannot be in the future');return;}
+  // Update timestamp comes from the system clock — when editing an
+  // existing entry the original `at` is preserved unless missing.
+  var origAt=(editIdx!=null&&editIdx>=0)?((t.techActions||[])[editIdx]||{}).at:null;
+  var atIso=origAt||new Date().toISOString();
   if(newStatus==='repair_done'&&_mttsTechActPhotosBuf.length===0){_showErr('At least one closure photo is required for "Repair done"');return;}
   var bak=Object.assign({},t);
   t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
   var stepPhotos=_mttsTechActPhotosBuf.slice(0,3);
   var entry={
     action:newStatus,by:CU?(CU.name||CU.id||''):'',at:atIso,
-    note:note,eta:eta||'',photos:stepPhotos
+    note:note,photos:stepPhotos
   };
   if(editIdx!=null&&editIdx>=0&&editIdx<t.techActions.length){
     // Edit existing update — preserve original author + add edit metadata.
@@ -2711,18 +2896,58 @@ function _mttsTicketApproveOpen(id){
   document.getElementById('mttsApproveTicketId').value=id;
   var asset=byId(DB.mttsAssets||[],t.assetCode);
 
+  // Prominent ticket info card — reuses the .mtts-techact-ticket-lbl
+  // styles so Approve, Update, and Detail modals all share one look.
+  var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
+  var critClr={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
+  var crit=(asset&&asset.criticality)||'Medium';
+  var raisedDate=t.raisedAt?t.raisedAt.slice(0,10):'—';
+  var raiser=t.raisedBy?_mttsUserDisp(t.raisedBy):'';
+  var stClr=({open:'#dc2626',assigned:'#1d4ed8',awaiting_spares:'#a16207',awaiting_agency:'#7c3aed',repair_done:'#0891b2',closed:'#16a34a',scrapped:'#475569'})[t.status]||'#64748b';
+  var stLbl=_MTTS_STATUS_LABEL[t.status]||t.status;
   document.getElementById('mttsApproveTicketLbl').innerHTML=
-    '<b>'+_mttsAssetLabel(asset)+'</b> at '+_mttsPlantLabel(t.plant)+
-    ' · marked <b>Repair done</b>'+(t.rootCause?' · root cause: '+t.rootCause:'')+
-    ' · down for '+_mttsTimerSince(t.raisedAt);
+    '<div class="mtts-techact-tihead">'+
+      '<div class="mtts-techact-titop">'+
+        '<span class="mtts-techact-tiid">'+(t.id||'')+'</span>'+
+        '<span class="mtts-techact-tisep">·</span>'+
+        '<span class="mtts-techact-tibd">'+bdLabel+'</span>'+
+        '<span class="mtts-techact-tisep">·</span>'+
+        _mttsPlantBadge(t.plant)+
+        '<span class="mtts-techact-tistatus" style="background:'+stClr+'22;color:'+stClr+'">'+stLbl+'</span>'+
+      '</div>'+
+      '<div class="mtts-techact-tiasset">'+_mttsAssetLabel(asset)+'</div>'+
+      '<div class="mtts-techact-timeta">'+
+        '<span class="mtts-techact-tiprio" style="background:'+critClr[crit]+'22;color:'+critClr[crit]+'">'+crit+'</span>'+
+        '<span class="mtts-techact-tidown">⏱ Down for <b>'+_mttsTimerSince(t.breakdownSince||t.raisedAt)+'</b></span>'+
+        '<span class="mtts-techact-tirise">📅 Raised '+raisedDate+(raiser?' by '+raiser:'')+'</span>'+
+        (t.rootCause?'<span class="mtts-techact-tirise">🛠 '+String(t.rootCause).replace(/</g,'&lt;')+'</span>':'')+
+      '</div>'+
+    '</div>';
   document.getElementById('mttsApproveCostSvc').value=t.costService||'';
   document.getElementById('mttsApproveCostSpr').value=t.costSpares||'';
   _mttsApprovePhotosBuf=(t.invoicePhotos||[]).slice(0,3);
   _mttsRenderApprovePhotoTiles();
   document.getElementById('mttsApprovePhotos').value='';
   document.getElementById('mttsApproveNote').value='';
+  // External-cost toggle defaults to "Yes" — most repairs involve some
+  // cost. Manager can switch to "No external cost" to close cleanly
+  // without entering anything.
+  _mttsApprovePickExt('yes');
   var err=document.getElementById('mttsApproveErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsApprove'); else { document.getElementById('mMttsApprove').classList.add('open'); }
+}
+// External-cost toggle: 'yes' shows the cost / invoice fields and makes
+// at least one cost + at least one invoice photo mandatory; 'no' hides
+// the section and the manager can approve without any inputs.
+function _mttsApprovePickExt(v){
+  var hidden=document.getElementById('mttsApproveExt');
+  if(hidden) hidden.value=v;
+  var btns=document.querySelectorAll('#mttsApproveExtBtns .mtts-status-btn');
+  Array.prototype.forEach.call(btns,function(b){
+    b.classList.toggle('is-selected',b.getAttribute('data-ext')===v);
+  });
+  var fields=document.getElementById('mttsApproveExtFields');
+  if(fields) fields.style.display=(v==='yes')?'':'none';
 }
 async function _mttsTicketApproveConfirm(){
   if(!_mttsCanApprove()){notify('Access denied',true);return;}
@@ -2730,9 +2955,26 @@ async function _mttsTicketApproveConfirm(){
   var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
   var id=document.getElementById('mttsApproveTicketId').value;
   var t=byId(DB.mttsTickets||[],id);if(!t){_showErr('Ticket not found');return;}
+  var ext=(document.getElementById('mttsApproveExt')||{}).value||'no';
   var costSvc=parseFloat(document.getElementById('mttsApproveCostSvc').value)||0;
   var costSpr=parseFloat(document.getElementById('mttsApproveCostSpr').value)||0;
   var note=document.getElementById('mttsApproveNote').value.trim();
+  if(ext==='yes'){
+    // External-cost mode — at least one cost + at least one invoice
+    // photo required so the closure stands up to audit.
+    if(costSvc<=0&&costSpr<=0){
+      _showErr('Enter External Service Cost or Spares Cost (or pick "No external cost")');
+      _mttsFlashFieldErr('mttsApproveCostSvc','mttsApproveCostSpr');return;
+    }
+    if(!_mttsApprovePhotosBuf.length){
+      _showErr('At least 1 invoice photo is required when external cost applies');
+      _mttsFlashFieldErr('mttsApproveExtFields');return;
+    }
+  } else {
+    // No external cost — clear any leftover values so the saved ticket
+    // doesn't carry stale numbers from an earlier draft.
+    costSvc=0;costSpr=0;_mttsApprovePhotosBuf=[];
+  }
   var bak=Object.assign({},t);
   t.costService=costSvc;
   t.costSpares=costSpr;
@@ -2770,21 +3012,17 @@ async function _mttsTicketRevokeApproval(id){
   if(ov&&ov.style.display!=='none') _mttsTicketDetail(id);
 }
 
-async function _mttsTicketApproveReject(){
+// Send back to technician — close the Approve modal and jump straight
+// into the Allocate modal pre-filled with the existing assignees so the
+// manager can confirm or change the technician(s). The Allocate save
+// (_mttsTicketAllocateConfirm) will set status='assigned' and log a
+// 'reassigned' (or 'allocated') techAction.
+function _mttsTicketApproveReject(){
   if(!_mttsCanApprove()){notify('Access denied',true);return;}
   var id=document.getElementById('mttsApproveTicketId').value;
   var t=byId(DB.mttsTickets||[],id);if(!t) return;
-  var note=prompt('Send back to technician — reason:','');
-  if(note===null) return;
-  var bak=Object.assign({},t);
-  t.status='assigned';
-  t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
-  t.techActions.push({action:'rework_requested',by:CU?(CU.name||CU.id||''):'',at:new Date().toISOString(),note:note||''});
-  var ok=await _dbSave('mttsTickets',t);
-  if(!ok){Object.assign(t,bak);notify('Save failed',true);return;}
   cm('mMttsApprove');
-  notify('↩ Sent back to technician');
-  _mttsRenderTickets();
+  _mttsTicketAllocateOpen(id);
 }
 
 // ── Detail viewer (read-only quick look) ──────────────────────────────────
@@ -2845,14 +3083,15 @@ function _mttsTicketDetail(id){
   var actTd='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
   var actBodyRows=actEntries.map(function(p,n){
     var a=p.a,i=p.i;
-    var dateStr=a.at?a.at.slice(0,10):'—';
-    var timeStr=a.at?a.at.slice(11,16):'';
+    var _atIst=_mttsFmtIST(a.at);
+    var dateStr=_atIst?_atIst.date:'—';
+    var timeStr=_atIst?_atIst.time:'';
     var rowPhotos=resolveRowPhotos(a);
     var photos=rowPhotos.length
       ?'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rowPhotos.map(function(src){return '<img src="'+src+'" onclick="event.stopPropagation();_mttsLightbox(\''+String(src).replace(/'/g,"\\'")+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer">';}).join('')+'</div>'
       :'<span style="color:var(--text3)">—</span>';
     var editBtn=canEditEntry(a)?'<button onclick="_mttsTicketActionOpen(\''+idEsc+'\','+i+')" title="Edit this update" style="font-size:10px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎ Edit</button>':'<span style="color:var(--text3);font-size:11px">—</span>';
-    var editedBadge=a.editedAt?'<div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:2px">edited '+a.editedAt.slice(0,10)+'</div>':'';
+    var editedBadge=a.editedAt?'<div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:2px">edited '+_mttsFmtISTDate(a.editedAt)+'</div>':'';
     var notesCell='';
     if(a.note) notesCell+='<div style="color:var(--text);font-size:13px;line-height:1.4;white-space:pre-wrap">'+String(a.note).replace(/</g,'&lt;')+'</div>';
     if(a.eta) notesCell+='<div style="font-size:10px;color:#92400e;margin-top:3px;font-weight:700">ETA: '+a.eta+'</div>';
@@ -2889,9 +3128,9 @@ function _mttsTicketDetail(id){
       '<div style="font-size:14px"><b>'+_mttsAssetLabel(asset)+'</b> · '+_mttsPlantLabel(t.plant)+'</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType)+' · '+_mttsStatusBadge(t.status)+' · down for '+_mttsTimerSince(t.raisedAt)+'</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'+
-        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Raised by</div><div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">'+_mttsUserDisp(t.raisedBy)+'</div><div style="font-size:10px;color:var(--text3)">'+(t.raisedAt?t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16):'—')+'</div></div>'+
-        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Assigned to</div><div style="font-size:13px;font-weight:700;color:'+((t.assignedTo||[]).length?'var(--accent)':'var(--text3)')+';margin-top:2px">'+((t.assignedTo||[]).length?(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', '):'— Not assigned —')+'</div>'+(t.assignedAt?'<div style="font-size:10px;color:var(--text3)">since '+t.assignedAt.slice(0,10)+'</div>':'')+'</div>'+
-        ((t.approvedBy||t.approvedAt)?'<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Approved by</div><div style="font-size:13px;font-weight:700;color:#16a34a;margin-top:2px">'+_mttsUserDisp(t.approvedBy||'—')+'</div><div style="font-size:10px;color:var(--text3)">'+(t.approvedAt?t.approvedAt.slice(0,10)+' '+t.approvedAt.slice(11,16):'—')+'</div></div>':'')+
+        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Raised by</div><div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">'+_mttsUserDisp(t.raisedBy)+'</div><div style="font-size:10px;color:var(--text3)">'+_mttsFmtISTDateTime(t.raisedAt)+'</div></div>'+
+        '<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Assigned to</div><div style="font-size:13px;font-weight:700;color:'+((t.assignedTo||[]).length?'var(--accent)':'var(--text3)')+';margin-top:2px">'+((t.assignedTo||[]).length?(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', '):'— Not assigned —')+'</div>'+(t.assignedAt?'<div style="font-size:10px;color:var(--text3)">since '+_mttsFmtISTDate(t.assignedAt)+'</div>':'')+'</div>'+
+        ((t.approvedBy||t.approvedAt)?'<div><div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Approved by</div><div style="font-size:13px;font-weight:700;color:#16a34a;margin-top:2px">'+_mttsUserDisp(t.approvedBy||'—')+'</div><div style="font-size:10px;color:var(--text3)">'+_mttsFmtISTDateTime(t.approvedAt)+'</div></div>':'')+
       '</div>'+
       (t.rootCause?'<div style="font-size:11px;margin-top:6px;padding:6px 10px;background:#fef3c7;border-left:3px solid #fbbf24;border-radius:0 6px 6px 0"><b>Root cause:</b> '+String(t.rootCause).replace(/</g,'&lt;')+'</div>':'')+
       ((t.costService||t.costSpares)?'<div style="font-size:12px;margin-top:6px;padding:6px 10px;background:#dcfce7;border-radius:6px"><b>Cost:</b> Service ₹'+(t.costService||0)+' · Spares ₹'+(t.costSpares||0)+' · Total ₹'+((t.costService||0)+(t.costSpares||0)).toFixed(2)+'</div>':'')+
@@ -3019,7 +3258,7 @@ function _mttsDashTicketTable(tickets){
   var rowsHtml=rows.map(function(t){
     var asset=byId(DB.mttsAssets||[],t.assetCode);
     var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
-    var raised=t.raisedAt?(t.raisedAt.slice(0,10)+' '+t.raisedAt.slice(11,16)):'—';
+    var raised=_mttsFmtISTDateTime(t.raisedAt);
     var techs=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ')||'—';
     var clr=statusClr[t.status]||'#64748b';
     var stLbl=statusLbl[t.status]||t.status;
@@ -3162,7 +3401,7 @@ function _mttsDashTechLoad(tickets){
   var renderTicketRow=function(t){
     var asset=byId(DB.mttsAssets||[],t.assetCode);
     var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
-    var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
+    var raised=_mttsFmtISTDate(t.raisedAt);
     var shared=(t.assignedTo||[]).length>1;
     var sharedTag=shared?'<span title="Allocated to '+(t.assignedTo||[]).length+' technicians" style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">Shared</span>':'';
     var clr=statusClr[t.status]||'#64748b';
@@ -3283,8 +3522,11 @@ function _mttsDashCosts(tickets){
 
 function _mttsDashUpkeep(assets){
   // PM, warranty, AMC tracking — flagged due (within 30 days) or overdue.
-  var todayStr=(new Date()).toISOString().slice(0,10);
-  var in30=new Date();in30.setDate(in30.getDate()+30);var in30Str=in30.toISOString().slice(0,10);
+  // IST so the "today" / "+30 days" cutoffs align with how dates are stored.
+  var todayStr=_mttsTodayStr();
+  var _in30Ist=_mttsNowIST();_in30Ist.setUTCDate(_in30Ist.getUTCDate()+30);
+  var _in30Pad=function(n){return n<10?'0'+n:''+n;};
+  var in30Str=_in30Ist.getUTCFullYear()+'-'+_in30Pad(_in30Ist.getUTCMonth()+1)+'-'+_in30Pad(_in30Ist.getUTCDate());
   var addMonths=function(dateStr,m){
     if(!dateStr) return '';
     var p=dateStr.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);
