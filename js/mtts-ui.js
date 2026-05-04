@@ -119,6 +119,66 @@ function _mttsIsTechnician(){
 function _mttsIsManager(){
   return CU&&(CU.mttsRoles||[]).indexOf('Maintenance Manager')>=0;
 }
+// Render a labeled count "chip" used on every master / list page header.
+// Each kind gets its own colour so the user can spot Total / Showing /
+// Active / Open / Closed / etc. at a glance instead of reading the
+// dot-separated text line. Falls back to a neutral slate chip for any
+// unrecognised kind.
+function _mttsCountChip(label,val,kind){
+  var palette={
+    total:    {bg:'#1e293b',acc:'#94a3b8'},
+    showing:  {bg:'#1d4ed8',acc:'#bfdbfe'},
+    active:   {bg:'#16a34a',acc:'#bbf7d0'},
+    inactive: {bg:'#dc2626',acc:'#fecaca'},
+    machinery:{bg:'#7c3aed',acc:'#ddd6fe'},
+    building: {bg:'#0891b2',acc:'#a5f3fc'},
+    furniture:{bg:'#ea580c',acc:'#fed7aa'},
+    it:       {bg:'#0d9488',acc:'#99f6e4'},
+    electrical:{bg:'#ca8a04',acc:'#fde68a'},
+    open:     {bg:'#dc2626',acc:'#fecaca'},
+    assigned: {bg:'#1d4ed8',acc:'#bfdbfe'},
+    spares:   {bg:'#a16207',acc:'#fde68a'},
+    agency:   {bg:'#7c3aed',acc:'#ddd6fe'},
+    done:     {bg:'#0891b2',acc:'#a5f3fc'},
+    closed:   {bg:'#16a34a',acc:'#bbf7d0'},
+    scrap:    {bg:'#475569',acc:'#cbd5e1'},
+    info:     {bg:'#475569',acc:'#cbd5e1'}
+  };
+  var c=palette[kind]||palette.info;
+  return '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:7px;background:'+c.bg+';color:#fff;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin:2px 4px 2px 0;border:1.5px solid '+c.acc+'">'+
+    '<span style="opacity:.92">'+label+'</span>'+
+    '<b style="font-size:13px;font-weight:900;letter-spacing:0">'+val+'</b>'+
+    '</span>';
+}
+
+// Centralised view-only lock for master modals (asset, plant, asset type,
+// primary name, agency). Disables form fields *and* the chip rows + color
+// pickers (which are <button> / <div onclick=> elements that escape the
+// usual input/select/textarea lock). Cancel / × close buttons stay live so
+// the user can still dismiss the modal.
+function _mttsLockModal(modalEl,canEdit){
+  if(!modalEl) return;
+  Array.prototype.forEach.call(modalEl.querySelectorAll('input,select,textarea'),function(el){
+    if(canEdit){el.disabled=false;el.readOnly=false;}else{el.disabled=true;}
+  });
+  Array.prototype.forEach.call(modalEl.querySelectorAll('button'),function(b){
+    var oc=b.getAttribute('onclick')||'';
+    var isClose=/^cm\(/.test(oc)||/\bcm\('/.test(oc)||b.classList.contains('modal-close')||b.classList.contains('btn-secondary')&&/^cm\(/.test(oc);
+    // Treat Cancel and any × close button as always-live regardless of edit
+    // permission — also any explicit btn-secondary that triggers cm().
+    if(/^cm\(/.test(oc)) isClose=true;
+    if(canEdit){b.disabled=false;b.style.pointerEvents='';b.style.opacity='';}
+    else if(!isClose){b.disabled=true;b.style.pointerEvents='none';b.style.opacity='0.5';}
+    else {b.disabled=false;b.style.pointerEvents='';b.style.opacity='';}
+  });
+  // Chip rows + color grids — divs with onclick handlers that escape the
+  // input/button lock above.
+  Array.prototype.forEach.call(modalEl.querySelectorAll('.mtts-chip-row,[id$="ColorGrid"]'),function(c){
+    c.style.pointerEvents=canEdit?'':'none';
+    c.style.opacity=canEdit?'':'0.7';
+  });
+}
+
 function _mttsHasAccess(featureKey){
   if(_mttsIsSA()) return true;
   if(_mttsIsManager()) return true; // module-admin equivalent
@@ -178,6 +238,12 @@ function mttsGo(pid){
   if(pid==='pageMttsAssets') _mttsRenderAssets();
   if(pid==='pageMttsTickets') _mttsRenderTickets();
   if(pid==='pageMttsDashboard') _mttsDashboardRender();
+  // Asset / Primary Name / Agency / Tickets pages flex-fill the viewport
+  // and scroll only inside their table / card grid — toggle a body flag
+  // that the CSS keys off of, instead of letting both the page and the
+  // inner content scroll independently.
+  var tightPages={pageMttsAssets:1,pageMttsAssetPrimaryNames:1,pageMttsAgencies:1,pageMttsTickets:1,pageMttsPlants:1,pageMttsAssetTypes:1};
+  document.body.classList.toggle('mtts-tight-page',!!tightPages[pid]);
   if(window.innerWidth<=900) closeMttsNav();
 }
 
@@ -360,8 +426,52 @@ function _mttsPopulatePlantOptions(){
 // In-table filter state — preserved across renders since the per-column
 // dropdowns live inside the thead and get rebuilt on every _mttsRenderAssets
 // call.
-var _mttsAssetState={plant:'',type:'',status:'Active',search:''};
-var _mttsAprimState={type:'',status:'',search:''};
+var _mttsAssetState={plant:'',type:'',status:'Active',search:'',view:''};
+var _mttsAprimState={type:'',status:'',search:'',view:''};
+// Resolve the saved view preference (cards | table) from localStorage on
+// first read; default to cards. Mobile (≤700px) ignores the saved choice
+// and always renders cards regardless.
+function _mttsViewMode(stateObj,storageKey){
+  if(!stateObj.view){
+    try{stateObj.view=localStorage.getItem(storageKey)||'cards';}catch(e){stateObj.view='cards';}
+  }
+  if(window.innerWidth<=700) return 'cards';
+  return stateObj.view==='table'?'table':'cards';
+}
+function _mttsAssetToggleView(){
+  _mttsAssetState.view=(_mttsViewMode(_mttsAssetState,'mtts_view_asset')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_asset',_mttsAssetState.view);}catch(e){}
+  _mttsRenderAssets();
+}
+function _mttsAprimToggleView(){
+  _mttsAprimState.view=(_mttsViewMode(_mttsAprimState,'mtts_view_aprim')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_aprim',_mttsAprimState.view);}catch(e){}
+  _mttsRenderAssetPrimaryNames();
+}
+function _mttsTicketToggleView(){
+  _mttsTicketState.view=(_mttsViewMode(_mttsTicketState,'mtts_view_ticket')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_ticket',_mttsTicketState.view);}catch(e){}
+  _mttsRenderTickets();
+}
+// Plant / Asset Type / Agency master pages also support cards-vs-table.
+var _mttsPlantState={view:''};
+var _mttsAtypeState={view:''};
+var _mttsAgencyState={view:''};
+function _mttsPlantToggleView(){
+  _mttsPlantState.view=(_mttsViewMode(_mttsPlantState,'mtts_view_plant')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_plant',_mttsPlantState.view);}catch(e){}
+  _mttsRenderPlants();
+}
+function _mttsAtypeToggleView(){
+  _mttsAtypeState.view=(_mttsViewMode(_mttsAtypeState,'mtts_view_atype')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_atype',_mttsAtypeState.view);}catch(e){}
+  _mttsRenderAssetTypes();
+}
+function _mttsAgencyToggleView(){
+  _mttsAgencyState.view=(_mttsViewMode(_mttsAgencyState,'mtts_view_agency')==='table')?'cards':'table';
+  try{localStorage.setItem('mtts_view_agency',_mttsAgencyState.view);}catch(e){}
+  _mttsRenderAgencies();
+}
 // Reset filters + search on each table page back to "show all" so the
 // user can quickly recover from a narrow filter set. Also reset the
 // DOM inputs directly — the render functions read DOM values back
@@ -433,8 +543,10 @@ function _mttsRenderAssets(){
   if(sumEl){
     var counts={Machinery:0,Building:0,Furniture:0,'IT Devices':0,'Electrical Devices':0};
     (DB.mttsAssets||[]).forEach(function(a){if(a&&counts.hasOwnProperty(a.assetType)) counts[a.assetType]++;});
-    sumEl.innerHTML='Total: <b>'+(DB.mttsAssets||[]).length+'</b> · Showing: <b>'+assets.length+'</b> · '+
-      Object.keys(counts).map(function(k){return k+': <b>'+counts[k]+'</b>';}).join(' · ');
+    var typeKind={Machinery:'machinery',Building:'building',Furniture:'furniture','IT Devices':'it','Electrical Devices':'electrical'};
+    sumEl.innerHTML=_mttsCountChip('Total',(DB.mttsAssets||[]).length,'total')+
+      _mttsCountChip('Showing',assets.length,'showing')+
+      Object.keys(counts).map(function(k){return _mttsCountChip(k,counts[k],typeKind[k]);}).join('');
   }
   // Note: we no longer early-return on empty results — losing the table
   // would also lose the filter / search inputs and trap the user. Instead
@@ -448,95 +560,76 @@ function _mttsRenderAssets(){
     var tp=String(a.assetType||'').localeCompare(String(b.assetType||''));if(tp) return tp;
     return String(a.name||'').localeCompare(String(b.name||''));
   });
-  // Both filter row and column header row stay sticky to the top of the
-  // scroll container (the outer .table-wrap). Filter row at top:0; column
-  // headers slot directly underneath it. Only the tbody scrolls.
-  var thFilter='padding:6px 8px;background:#fff;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;z-index:3';
-  var th='padding:9px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-top:1px solid var(--border);border-bottom:2px solid var(--border);text-align:left;position:sticky;top:38px;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
-  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  // Build per-column filter dropdown options for Plant / Type / Status,
-  // plus the Name search input that lives above the Asset column.
+  // Card grid layout — same `.mtts-tcards` / `.mtts-tcard` pattern the
+  // tickets page uses. Wider screens can switch to a table layout via
+  // the view-mode toggle (saved per page in localStorage). Mobile is
+  // always cards regardless of the saved preference.
+  var view=_mttsViewMode(_mttsAssetState,'mtts_view_asset');
   var plantList=_mttsPlantList(true);
-  var plantOpts='<option value="">All</option>'+plantList.map(function(p){
+  var plantOpts='<option value="">All plants</option>'+plantList.map(function(p){
     return '<option value="'+p.value+'"'+(p.value===fPlant?' selected':'')+'>'+p.label+'</option>';
   }).join('');
   var typesArr=_mttsAssetTypeList(true);
-  var typeOpts='<option value="">All</option>'+typesArr.map(function(t){
+  var typeOpts='<option value="">All types</option>'+typesArr.map(function(t){
     return '<option value="'+t.value+'"'+(t.value===fType?' selected':'')+'>'+t.label+'</option>';
   }).join('');
   var statusArr=['Active','Inactive','Scrap'];
-  var statusOpts='<option value="">All</option>'+statusArr.map(function(s){
+  var statusOpts='<option value="">All statuses</option>'+statusArr.map(function(s){
     return '<option value="'+s+'"'+(s===fStatus?' selected':'')+'>'+s+'</option>';
   }).join('');
-  var inlineSel='font-size:11px;padding:5px 7px;border:1px solid var(--border2);border-radius:5px;background:#fff;color:var(--text);width:100%';
   var inlineSearchVal=fSearchRaw.replace(/"/g,'&quot;');
-  // No inner overflow wrapper — the outer .table-wrap div is the scroll
-  // container. Two scroll bars (one inner, one outer) was confusing.
-  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
-    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead>'+
-      // FILTER ROW — first; scrolls away with content.
-      '<tr>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"><select id="mttsAssetPlantFilter" onchange="_mttsRenderAssets()" style="'+inlineSel+'">'+plantOpts+'</select></th>'+
-        '<th style="'+thFilter+'"><select id="mttsAssetTypeFilter" onchange="_mttsRenderAssets()" style="'+inlineSel+'">'+typeOpts+'</select></th>'+
-        // Search-by-name input sits above the Asset column.
-        '<th style="'+thFilter+'"><input type="search" id="mttsAssetSearch" placeholder="🔍 name / serial / make…" oninput="_mttsRenderAssets()" value="'+inlineSearchVal+'" style="'+inlineSel+'"></th>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"><select id="mttsAssetStatusFilter" onchange="_mttsRenderAssets()" style="'+inlineSel+'">'+statusOpts+'</select></th>'+
-        '<th style="'+thFilter+';text-align:center"><button type="button" onclick="_mttsAssetClearFilters()" title="Reset all filters and search" style="font-size:11px;padding:5px 8px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;white-space:nowrap">✕ Clear</button></th>'+
-      '</tr>'+
-      // HEADER ROW — sticky to top of scroll container.
-      '<tr>'+
-        '<th style="'+th+'">#</th>'+
-        '<th style="'+th+'">Plant</th>'+
-        '<th style="'+th+'">Type</th>'+
-        '<th style="'+th+'">Asset</th>'+
-        '<th style="'+th+'">Serial</th>'+
-        '<th style="'+th+'">Installed</th>'+
-        '<th style="'+th+'">Priority</th>'+
-        '<th style="'+th+'">Status</th>'+
-        '<th style="'+th+';text-align:center;width:130px">Actions</th>'+
-      '</tr>'+
-    '</thead><tbody>'+
-    (rows.length?'':'<tr><td colspan="9" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>');
-  rows.forEach(function(a,i){
-    var idEsc=String(a.id||'').replace(/'/g,"\\'");
-    var sm=a.serialNo?'SN: '+a.serialNo:'';
-    var mm=[a.make,a.model].filter(Boolean).join(' / ');
-    html+='<tr class="clickable-row" onclick="_mttsAssetOpen(\''+idEsc+'\')">'+
-      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+'">'+_mttsPlantBadge(a.plant)+'</td>'+
-      '<td style="'+td+'">'+(a.assetType||'—')+'</td>'+
-      '<td style="'+td+'"><div style="font-weight:800;color:var(--text)">'+(_mttsAssetComposedName(a)||'—')+(mm?' <span style="font-weight:600;color:var(--text2)">('+mm+')</span>':'')+'</div>'+
-        (a.description?'<div style="font-size:12px;color:var(--text3);margin-top:1px">'+String(a.description).replace(/</g,'&lt;')+'</div>':'')+'</td>'+
-      '<td style="'+td+';font-size:13px">'+(sm||'')+'</td>'+
-      '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
-      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+critClr[a.criticality]+'22;color:'+critClr[a.criticality]+'">'+(a.criticality||'Medium')+'</span></td>'+
-      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:800;background:'+statusClr[a.status]+'22;color:'+statusClr[a.status]+'">'+(a.status||'Active')+'</span></td>'+
-      '<td style="'+td+';text-align:center;white-space:nowrap">'+
-        '<button onclick="event.stopPropagation();_mttsAssetOpen(\''+idEsc+'\')" title="Edit asset" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
-        (function(){
-          var canEd=_mttsHasAccess('action.editAsset');
-          var btns='';
-          if(canEd) btns+='<button onclick="event.stopPropagation();_mttsAssetDuplicate(\''+idEsc+'\')" title="Add a duplicate of this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:4px;cursor:pointer;margin-left:3px">📋</button>';
-          var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
-          if(canEd&&refs===0) btns+='<button onclick="event.stopPropagation();_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
-          else if(canEd&&refs>0) btns+='<button disabled title="In use — '+refs+' ticket(s) reference this asset" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
-          return btns;
-        })()+
-      '</td>'+
-    '</tr>';
-  });
-  html+='</tbody></table></div>';
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsAssetToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  var html='<div class="mtts-tcard-filters">'+
+    '<input type="search" id="mttsAssetSearch" placeholder="🔍 name / serial / make…" oninput="_mttsRenderAssets()" value="'+inlineSearchVal+'">'+
+    '<select id="mttsAssetPlantFilter" onchange="_mttsRenderAssets()">'+plantOpts+'</select>'+
+    '<select id="mttsAssetTypeFilter" onchange="_mttsRenderAssets()">'+typeOpts+'</select>'+
+    '<select id="mttsAssetStatusFilter" onchange="_mttsRenderAssets()">'+statusOpts+'</select>'+
+    viewBtn+
+    '<button type="button" class="btn btn-secondary" onclick="_mttsAssetClearFilters()" title="Reset filters and search" style="font-size:12px;padding:6px 10px">✕ Clear</button>'+
+  '</div>';
+  if(view==='table'){
+    html+=_mttsAssetTableHtml(rows,critClr,statusClr);
+  } else if(!rows.length){
+    html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No assets match the current filters.</div></div>';
+  } else {
+    html+='<div class="mtts-tcards">';
+    rows.forEach(function(a){
+      var idEsc=String(a.id||'').replace(/'/g,"\\'");
+      var mm=[a.make,a.model].filter(Boolean).join(' / ');
+      var crit=a.criticality||'Medium';
+      var statusBg=(statusClr[a.status]||'#94a3b8');
+      var stop='event.stopPropagation();';
+      var canEd=_mttsHasAccess('action.editAsset');
+      var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
+      var sideAct='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsAssetOpen(\''+idEsc+'\')" title="'+(canEd?'Edit asset':'View asset')+'">'+(canEd?'✎':'👁')+'</button>';
+      if(canEd) sideAct+='<button class="mtts-tcard-iconbtn" style="border-color:#bfdbfe;color:#1d4ed8;background:#eff6ff" onclick="'+stop+'_mttsAssetDuplicate(\''+idEsc+'\')" title="Add a duplicate of this asset">📋</button>';
+      if(canEd&&refs===0) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset">🗑</button>';
+      else if(canEd&&refs>0) sideAct+='<button class="mtts-tcard-iconbtn is-del" disabled title="In use — '+refs+' ticket(s) reference this asset" style="opacity:.5;cursor:not-allowed">🗑</button>';
+      var plantColor=_mttsPlantColor(a.plant)||'#94a3b8';
+      html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+'" onclick="_mttsAssetOpen(\''+idEsc+'\')">'+
+        '<div class="mtts-tcard-head">'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-headtop">'+_mttsPlantBadge(a.plant)+'<span class="mtts-tcard-sep">·</span><span class="mtts-tcard-type">'+(a.assetType||'—')+'</span></div>'+
+            '<div class="mtts-tcard-asset">'+(_mttsAssetComposedName(a)||'—')+'</div>'+
+            (mm?'<div class="mtts-tcard-meta">'+mm+'</div>':'')+
+          '</div>'+
+          '<span class="mtts-tcard-prio '+crit+'">'+crit+'</span>'+
+        '</div>'+
+        '<div class="mtts-tcard-rows">'+
+          (a.serialNo?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Serial</span><span class="mtts-tcard-val">'+String(a.serialNo).replace(/</g,'&lt;')+'</span></div>':'')+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Installed</span><span class="mtts-tcard-val is-muted">'+(a.installDate||'—')+'</span></div>'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Status</span><span class="mtts-tcard-val"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:'+statusBg+'22;color:'+statusBg+'">'+(a.status||'Active')+'</span></span></div>'+
+        '</div>'+
+        '<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left"></div>'+
+          '<div class="mtts-tcard-actions-right">'+sideAct+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
   wrap.innerHTML=html;
-  // Stretch the scroll container to fill the available viewport height so
-  // the table uses every available pixel — overrides .table-wrap's
-  // shared default which leaves more bottom whitespace.
-  wrap.style.maxHeight='calc(100vh - 180px)';
-  // Restore focus + caret on the filter row's currently-edited input so
-  // typing in the search box doesn't lose the cursor on every keystroke.
+  // Restore focus + caret on the search box so typing isn't interrupted.
   if(activeId){
     var newActive=document.getElementById(activeId);
     if(newActive&&typeof newActive.focus==='function'){
@@ -546,6 +639,54 @@ function _mttsRenderAssets(){
       }
     }
   }
+}
+
+// Table view for the Asset Master — used when the user toggles to the
+// dense layout on a wide screen. Same data as the cards, just laid out
+// as a sticky-header HTML table inside the existing scroll container.
+function _mttsAssetTableHtml(rows,critClr,statusClr){
+  var th='padding:9px 12px;font-size:12px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var canEd=_mttsHasAccess('action.editAsset');
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Plant</th>'+
+    '<th style="'+th+'">Type</th>'+
+    '<th style="'+th+'">Asset</th>'+
+    '<th style="'+th+'">Make / Model</th>'+
+    '<th style="'+th+'">Serial</th>'+
+    '<th style="'+th+'">Installed</th>'+
+    '<th style="'+th+'">Priority</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:center;width:130px">Actions</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="10" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>';
+  }
+  rows.forEach(function(a,i){
+    var idEsc=String(a.id||'').replace(/'/g,"\\'");
+    var mm=[a.make,a.model].filter(Boolean).join(' / ');
+    var refs=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===a.id;}).length;
+    var stop='event.stopPropagation();';
+    var actions='<button onclick="'+stop+'_mttsAssetOpen(\''+idEsc+'\')" title="'+(canEd?'Edit':'View')+'" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">'+(canEd?'✎':'👁')+'</button>';
+    if(canEd) actions+='<button onclick="'+stop+'_mttsAssetDuplicate(\''+idEsc+'\')" title="Add a duplicate" style="font-size:12px;padding:4px 9px;font-weight:700;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:4px;cursor:pointer;margin-left:3px">📋</button>';
+    if(canEd&&refs===0) actions+='<button onclick="'+stop+'_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+    else if(canEd&&refs>0) actions+='<button disabled title="In use — '+refs+' ticket(s)" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+    html+='<tr class="clickable-row" onclick="_mttsAssetOpen(\''+idEsc+'\')" style="cursor:pointer">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+'">'+_mttsPlantBadge(a.plant)+'</td>'+
+      '<td style="'+td+'">'+(a.assetType||'—')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(_mttsAssetComposedName(a)||'—')+'</td>'+
+      '<td style="'+td+';color:var(--text2)">'+(mm||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:12px">'+(a.serialNo||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:'+critClr[a.criticality]+'22;color:'+critClr[a.criticality]+'">'+(a.criticality||'Medium')+'</span></td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:'+statusClr[a.status]+'22;color:'+statusClr[a.status]+'">'+(a.status||'Active')+'</span></td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
 }
 
 // ── Asset edit modal ──────────────────────────────────────────────────────
@@ -615,17 +756,14 @@ function _mttsAssetOpen(id, preset){
   }
   if(transferBtn) transferBtn.style.display=(a&&canEdit)?'inline-flex':'none';
   var err=document.getElementById('mttsAssetErr');if(err){err.style.display='none';err.textContent='';}
-  // When the user lacks edit permission, lock every input/select/textarea
-  // in the modal and hide the Save button so the modal effectively becomes
-  // a read-only viewer. The Cancel/× still works.
+  // When the user lacks edit permission, lock every input + chip row +
+  // color picker in the modal so it becomes a read-only viewer. Cancel/×
+  // stays live so they can dismiss it.
   var modalEl=document.getElementById('mMttsAsset');
   if(modalEl){
-    Array.prototype.forEach.call(modalEl.querySelectorAll('input,select,textarea'),function(el){
-      // Don't touch the hidden id field — readOnly is harmless on it but
-      // makes intent clearer to keep edits explicit.
-      if(canEdit){el.disabled=false;el.readOnly=false;}
-      else {el.disabled=true;}
-    });
+    _mttsLockModal(modalEl,canEdit);
+    // Save & Close button: hidden in view mode (covered by lockModal too,
+    // but explicit display:none keeps it from reserving footer width).
     var saveBtn=modalEl.querySelector('button.btn-primary');
     if(saveBtn) saveBtn.style.display=canEdit?'':'none';
     var saveNext=document.getElementById('mttsAssetSaveNextBtn');
@@ -943,7 +1081,7 @@ function _mttsIsTechnicianOnTicket(t){
 }
 
 // ── Ticket list render ────────────────────────────────────────────────────
-var _mttsTicketState={plant:'',breakdown:'',status:'',assigned:'',search:'',tab:''};
+var _mttsTicketState={plant:'',breakdown:'',status:'',assigned:'',search:'',tab:'',view:''};
 // Switch the tickets-page tab. Persists on _mttsTicketState so re-renders
 // keep the selection. Updates the active-class on the tab buttons and
 // re-renders the card list.
@@ -1035,8 +1173,10 @@ function _mttsRenderTickets(){
   if(sumEl){
     var counts={open:0,assigned:0,awaiting_spares:0,awaiting_agency:0,repair_done:0,closed:0,scrapped:0};
     (DB.mttsTickets||[]).forEach(function(t){if(t&&counts.hasOwnProperty(t.status)) counts[t.status]++;});
-    sumEl.innerHTML='Total: <b>'+(DB.mttsTickets||[]).length+'</b> · Showing: <b>'+rows.length+'</b> · '+
-      Object.keys(counts).map(function(k){return _MTTS_STATUS_LABEL[k]+': <b>'+counts[k]+'</b>';}).join(' · ');
+    var statusKind={open:'open',assigned:'assigned',awaiting_spares:'spares',awaiting_agency:'agency',repair_done:'done',closed:'closed',scrapped:'scrap'};
+    sumEl.innerHTML=_mttsCountChip('Total',(DB.mttsTickets||[]).length,'total')+
+      _mttsCountChip('Showing',rows.length,'showing')+
+      Object.keys(counts).map(function(k){return _mttsCountChip(_MTTS_STATUS_LABEL[k],counts[k],statusKind[k]);}).join('');
   }
 
   // Build inline filter dropdown options (column-aligned, kept as part of thead).
@@ -1061,6 +1201,8 @@ function _mttsRenderTickets(){
   var inlSel='';// inline style now lives in CSS class .mtts-tcard-filters>*
   // Filter bar above the card grid. All five controls share one flex row
   // that wraps cleanly on a phone (search spans full width, dropdowns pair).
+  var view=_mttsViewMode(_mttsTicketState,'mtts_view_ticket');
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsTicketToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
   var html=
     '<div class="mtts-tcard-filters">'+
       '<input type="search" id="mttsTicketSearch" placeholder="🔍 asset / serial / plant…" oninput="_mttsRenderTickets()" value="'+inlineSearchVal+'">'+
@@ -1068,9 +1210,12 @@ function _mttsRenderTickets(){
       '<select id="mttsTicketBreakdownFilter" onchange="_mttsRenderTickets()">'+bdOpts+'</select>'+
       '<select id="mttsTicketAssignedFilter" onchange="_mttsRenderTickets()">'+assignOpts+'</select>'+
       '<select id="mttsTicketStatusFilter" onchange="_mttsRenderTickets()">'+statusOpts+'</select>'+
+      viewBtn+
       '<button type="button" class="btn btn-secondary" onclick="_mttsTicketClearFilters()" title="Reset filters and search" style="font-size:12px;padding:6px 10px">✕ Clear</button>'+
     '</div>';
-  if(!rows.length){
+  if(view==='table'){
+    html+=_mttsTicketTableHtml(rows);
+  } else if(!rows.length){
     html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No tickets match the current filters.</div></div>';
   } else {
     html+='<div class="mtts-tcards">';
@@ -1088,6 +1233,12 @@ function _mttsRenderTickets(){
       var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
       var isTerminal=(t.status==='closed'||t.status==='scrapped');
       var downFor=isTerminal?'—':_mttsTimerSince(t.breakdownSince||t.raisedAt);
+      // Description / Symptoms — the note attached to the original
+      // 'raised' tech action. Truncate long text on the card so the
+      // layout stays compact; full text is visible in the detail view.
+      var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
+      var descTxt=raisedAct?String(raisedAct.note||'').trim():'';
+      var descShort=descTxt?(descTxt.length>140?descTxt.slice(0,140).replace(/</g,'&lt;')+'…':descTxt.replace(/</g,'&lt;')):'';
       // Actions split: primary status-driven buttons on the left, edit /
       // delete icons pinned to the bottom-right. The whole card is
       // clickable to open detail view, so each button calls
@@ -1137,6 +1288,7 @@ function _mttsRenderTickets(){
         '</div>'+
         '<div class="mtts-tcard-rows">'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Breakdown</span><span class="mtts-tcard-val">'+bdLabel+'</span></div>'+
+          (descShort?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Symptoms</span><span class="mtts-tcard-val" style="white-space:normal;text-align:left;line-height:1.3">'+descShort+'</span></div>':'')+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Down for</span><span class="mtts-tcard-val'+(isTerminal?' is-muted':' mtts-tcard-down')+'">'+downFor+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Raised</span><span class="mtts-tcard-val">'+raised+(raiser?' · <span style="color:var(--text3);font-weight:600">'+raiser+'</span>':'')+'</span></div>'+
           '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Assigned</span><span class="mtts-tcard-val'+(techList?'':' is-muted')+'">'+(techList||'—')+'</span></div>'+
@@ -1163,6 +1315,59 @@ function _mttsRenderTickets(){
   }
   // Refresh sidebar count badge
   _mttsUpdateTicketBadge();
+}
+
+// Table view for the Tickets page — wide-screen alternative to the
+// card grid. Shows the most-scanned columns; click any row to open
+// the detail overlay (same as a card click).
+function _mttsTicketTableHtml(rows){
+  var statusClr={open:'#dc2626',assigned:'#1d4ed8',awaiting_spares:'#a16207',awaiting_agency:'#7c3aed',repair_done:'#0891b2',closed:'#16a34a',scrapped:'#475569'};
+  var th='padding:9px 12px;font-size:12px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">ID</th>'+
+    '<th style="'+th+'">Plant</th>'+
+    '<th style="'+th+'">Asset</th>'+
+    '<th style="'+th+'">Type</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+'">Down for</th>'+
+    '<th style="'+th+'">Symptoms</th>'+
+    '<th style="'+th+'">Raised</th>'+
+    '<th style="'+th+'">Assigned</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="9" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No tickets match the current filters.</td></tr>';
+  }
+  rows.forEach(function(t){
+    var asset=byId(DB.mttsAssets||[],t.assetCode);
+    var assetName=_mttsAssetLabel(asset,t.assetCode||'(missing)');
+    var assetType=asset?asset.assetType:'';
+    var idEsc=String(t.id||'').replace(/'/g,"\\'");
+    var raised=t.raisedAt?t.raisedAt.slice(0,10):'—';
+    var raiser=t.raisedBy?_mttsUserDisp(t.raisedBy):'';
+    var bdLabel=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'—';
+    var isTerminal=(t.status==='closed'||t.status==='scrapped');
+    var downFor=isTerminal?'—':_mttsTimerSince(t.breakdownSince||t.raisedAt);
+    var techList=(t.assignedTo||[]).map(function(u){return _mttsUserDisp(u);}).join(', ')||'—';
+    var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
+    var descTxt=raisedAct?String(raisedAct.note||'').trim():'';
+    var descShort=descTxt?(descTxt.length>80?descTxt.slice(0,80).replace(/</g,'&lt;')+'…':descTxt.replace(/</g,'&lt;')):'—';
+    var stClr=statusClr[t.status]||'#64748b';
+    var stLbl=(_MTTS_STATUS_LABEL||{})[t.status]||t.status;
+    html+='<tr class="clickable-row" onclick="_mttsTicketDetail(\''+idEsc+'\')" style="cursor:pointer">'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:700">'+(t.id||'')+' · '+bdLabel+'</td>'+
+      '<td style="'+td+'">'+_mttsPlantBadge(t.plant)+'</td>'+
+      '<td style="'+td+';font-weight:700">'+assetName+'</td>'+
+      '<td style="'+td+';color:var(--text2)">'+(assetType||'—')+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:'+stClr+'22;color:'+stClr+'">'+stLbl+'</span></td>'+
+      '<td style="'+td+';font-family:var(--mono);'+(isTerminal?'color:var(--text3)':'color:#dc2626;font-weight:700')+'">'+downFor+'</td>'+
+      '<td style="'+td+';color:var(--text2);max-width:280px">'+descShort+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:12px"><span style="color:var(--text3)">'+raised+'</span>'+(raiser?' <span style="color:var(--text3)">·</span> '+raiser:'')+'</td>'+
+      '<td style="'+td+'">'+techList+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
 }
 
 function _mttsUpdateTicketBadge(){
@@ -3153,55 +3358,97 @@ function _mttsRenderPlants(){
   var hideInactive=!!(document.getElementById('mttsPlantHideInactive')||{}).checked;
   var rows=(DB.mttsPlants||[]).slice().filter(function(p){return p&&(!hideInactive||!p.inactive);});
   rows.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
-
-  // Reference counts so the user can see at a glance which plants are in use.
   var refsAsset={},refsTicket={};
   (DB.mttsAssets||[]).forEach(function(a){if(a&&a.plant) refsAsset[a.plant]=(refsAsset[a.plant]||0)+1;});
   (DB.mttsTickets||[]).forEach(function(t){if(t&&t.plant) refsTicket[t.plant]=(refsTicket[t.plant]||0)+1;});
-
   var sumEl=document.getElementById('mttsPlantSummary');
-  if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsPlants||[]).length+'</b> · Active: <b>'+(DB.mttsPlants||[]).filter(function(p){return p&&!p.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
-  if(!rows.length){
-    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">No plants yet. Click <b>+ Add Plant</b> to create one.</div>';
-    return;
+  if(sumEl){
+    var _allP=(DB.mttsPlants||[]),_actP=_allP.filter(function(p){return p&&!p.inactive;}).length;
+    sumEl.innerHTML=_mttsCountChip('Total',_allP.length,'total')+
+      _mttsCountChip('Active',_actP,'active')+
+      _mttsCountChip('Inactive',_allP.length-_actP,'inactive')+
+      _mttsCountChip('Showing',rows.length,'showing');
   }
-  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
-  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
-    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead><tr>'+
-      '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Name</th>'+
-      '<th style="'+th+'">Address</th>'+
-      '<th style="'+th+';text-align:right">Assets</th>'+
-      '<th style="'+th+';text-align:right">Tickets</th>'+
-      '<th style="'+th+'">Status</th>'+
-      '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
-    '</tr></thead><tbody>';
   var canEditPlant=_mttsHasAccess('action.editPlant');
+  var view=_mttsViewMode(_mttsPlantState,'mtts_view_plant');
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsPlantToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  var html='<div class="mtts-tcard-filters">'+viewBtn+'</div>';
+  if(view==='table'){
+    html+=_mttsPlantTableHtml(rows,refsAsset,refsTicket,canEditPlant);
+  } else if(!rows.length){
+    html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No plants yet. Click <b>+ Add Plant</b> to create one.</div></div>';
+  } else {
+    html+='<div class="mtts-tcards">';
+    rows.forEach(function(p){
+      var idEsc=String(p.id||'').replace(/'/g,"\\'");
+      var swatch=p.color?'<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
+      var aRef=refsAsset[p.id]||0,tRef=refsTicket[p.id]||0;
+      var canDelete=canEditPlant&&aRef===0&&tRef===0;
+      var stop='event.stopPropagation();';
+      var sideAct='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsPlantOpen(\''+idEsc+'\')" title="'+(canEditPlant?'Edit':'View')+'">'+(canEditPlant?'✎':'👁')+'</button>';
+      if(canDelete) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsPlantDeleteFromTable(\''+idEsc+'\')" title="Delete">🗑</button>';
+      else if(canEditPlant) sideAct+='<button class="mtts-tcard-iconbtn is-del" disabled title="In use — referenced by '+aRef+' asset(s) / '+tRef+' ticket(s)" style="opacity:.5;cursor:not-allowed">🗑</button>';
+      var statusBadge=p.inactive
+        ?'<span class="mtts-tcard-prio" style="background:#fee2e2;color:#7f1d1d">Inactive</span>'
+        :'<span class="mtts-tcard-prio" style="background:#dcfce7;color:#15803d">Active</span>';
+      html+='<div class="mtts-tcard" style="--plant-color:'+(p.color||'#94a3b8')+'" onclick="_mttsPlantOpen(\''+idEsc+'\')">'+
+        '<div class="mtts-tcard-head">'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-asset">'+swatch+(p.name||'—')+'</div>'+
+          '</div>'+
+          statusBadge+
+        '</div>'+
+        '<div class="mtts-tcard-rows">'+
+          (p.address?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Address</span><span class="mtts-tcard-val" style="white-space:normal;text-align:left;line-height:1.3">'+String(p.address).replace(/</g,'&lt;').replace(/\n/g,', ')+'</span></div>':'')+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Assets</span><span class="mtts-tcard-val">'+aRef+'</span></div>'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Tickets</span><span class="mtts-tcard-val">'+tRef+'</span></div>'+
+        '</div>'+
+        '<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left"></div>'+
+          '<div class="mtts-tcard-actions-right">'+sideAct+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+  wrap.innerHTML=html;
+}
+function _mttsPlantTableHtml(rows,refsAsset,refsTicket,canEditPlant){
+  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Name</th>'+
+    '<th style="'+th+'">Address</th>'+
+    '<th style="'+th+';text-align:right">Assets</th>'+
+    '<th style="'+th+';text-align:right">Tickets</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="7" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No plants match the current filter.</td></tr>';
+  }
   rows.forEach(function(p,i){
     var idEsc=String(p.id||'').replace(/'/g,"\\'");
     var swatch=p.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
     var aRef=refsAsset[p.id]||0,tRef=refsTicket[p.id]||0;
     var canDelete=canEditPlant&&aRef===0&&tRef===0;
-    var deleteBtn=canDelete
-      ? '<button onclick="event.stopPropagation();_mttsPlantDeleteFromTable(\''+idEsc+'\')" title="Delete plant" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '<button disabled title="In use — cannot delete (referenced by '+aRef+' asset(s) / '+tRef+' ticket(s))" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
-    // Row click anywhere opens view / edit. Buttons inside stop propagation.
-    html+='<tr onclick="_mttsPlantOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+    var stop='event.stopPropagation();';
+    var actions='<button onclick="'+stop+'_mttsPlantOpen(\''+idEsc+'\')" title="'+(canEditPlant?'Edit plant':'View plant')+'" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">'+(canEditPlant?'✎':'👁')+'</button>';
+    if(canDelete) actions+='<button onclick="'+stop+'_mttsPlantDeleteFromTable(\''+idEsc+'\')" title="Delete plant" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+    else if(canEditPlant) actions+='<button disabled title="In use — '+aRef+' asset(s) / '+tRef+' ticket(s)" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+    html+='<tr onclick="_mttsPlantOpen(\''+idEsc+'\')" style="cursor:pointer">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
       '<td style="'+td+';font-size:13px;color:var(--text2);max-width:320px">'+String(p.address||'').replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+tRef+'</td>'+
       '<td style="'+td+'">'+(p.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
-      '<td style="'+td+';text-align:center;white-space:nowrap">'+
-        '<button onclick="event.stopPropagation();_mttsPlantOpen(\''+idEsc+'\')" title="Edit plant" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
-        deleteBtn+
-      '</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   });
   html+='</tbody></table></div>';
-  wrap.innerHTML=html;
+  return html;
 }
 
 // 100-swatch colour palette for the Plant edit modal — 10 hues × 10
@@ -3287,9 +3534,10 @@ async function _mttsPlantDeleteFromTable(id){
 }
 
 function _mttsPlantOpen(id){
-  if(!_mttsHasAccess('action.editPlant')&&id===''){notify('You do not have permission to add plants',true);return;}
+  var canEdit=_mttsHasAccess('action.editPlant');
+  if(!canEdit&&id===''){notify('You do not have permission to add plants',true);return;}
   var p=id?(byId(DB.mttsPlants||[],id)||null):null;
-  document.getElementById('mttsPlantTitle').textContent=p?'🏭 Edit Plant':'🏭 Add Plant';
+  document.getElementById('mttsPlantTitle').textContent=p?(canEdit?'🏭 Edit Plant':'🏭 View Plant'):'🏭 Add Plant';
   document.getElementById('mttsPlantIdHidden').value=p?p.id:'';
   // Code field is hidden — name doubles as the identifier. Pre-fill the
   // hidden code input so the rename pipeline still has a value to compare
@@ -3312,11 +3560,15 @@ function _mttsPlantOpen(id){
   // fire stale handlers.
   var modalEl=document.getElementById('mMttsPlant');
   if(modalEl){
+    _mttsLockModal(modalEl,canEdit);
+    var saveBtn=modalEl.querySelector('button.btn-primary');
+    if(saveBtn) saveBtn.style.display=canEdit?'':'none';
     if(modalEl._mttsKeyHandler) modalEl.removeEventListener('keydown',modalEl._mttsKeyHandler);
     modalEl._mttsKeyHandler=function(ev){
       if(modalEl.style.display==='none'||!modalEl.classList.contains('open')) return;
       if(ev.key==='Escape'){ev.preventDefault();cm('mMttsPlant');return;}
       if(ev.key==='Enter'){
+        if(!canEdit){ev.preventDefault();cm('mMttsPlant');return;}
         var tag=ev.target&&ev.target.tagName;
         if(tag==='TEXTAREA') return;// allow newlines in address
         ev.preventDefault();_mttsPlantSave();
@@ -3475,49 +3727,92 @@ function _mttsRenderAssetTypes(){
   (DB.mttsAssetPrimaryNames||[]).forEach(function(p){if(p&&p.assetType) refsPrim[p.assetType]=(refsPrim[p.assetType]||0)+1;});
 
   var sumEl=document.getElementById('mttsAtypeSummary');
-  if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAssetTypes||[]).length+'</b> · Active: <b>'+(DB.mttsAssetTypes||[]).filter(function(t){return t&&!t.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
-  if(!rows.length){
-    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">No asset types yet. Click <b>+ Add Asset Type</b> to create one.</div>';
-    return;
+  if(sumEl){
+    var _allT=(DB.mttsAssetTypes||[]),_actT=_allT.filter(function(t){return t&&!t.inactive;}).length;
+    sumEl.innerHTML=_mttsCountChip('Total',_allT.length,'total')+
+      _mttsCountChip('Active',_actT,'active')+
+      _mttsCountChip('Inactive',_allT.length-_actT,'inactive')+
+      _mttsCountChip('Showing',rows.length,'showing');
   }
-  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
-  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
-    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead><tr>'+
-      '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Name</th>'+
-      '<th style="'+th+';text-align:right">Assets</th>'+
-      '<th style="'+th+';text-align:right">Primary Names</th>'+
-      '<th style="'+th+'">Status</th>'+
-      '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
-    '</tr></thead><tbody>';
   var canEdit=_mttsHasAccess('action.editAssetType');
+  var view=_mttsViewMode(_mttsAtypeState,'mtts_view_atype');
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsAtypeToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  var html='<div class="mtts-tcard-filters">'+viewBtn+'</div>';
+  if(view==='table'){
+    html+=_mttsAtypeTableHtml(rows,refsAsset,refsPrim,canEdit);
+  } else if(!rows.length){
+    html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No asset types yet. Click <b>+ Add Asset Type</b> to create one.</div></div>';
+  } else {
+    html+='<div class="mtts-tcards">';
+    rows.forEach(function(t){
+      var idEsc=String(t.id||'').replace(/'/g,"\\'");
+      var swatch=t.color?'<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:'+t.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
+      var aRef=refsAsset[t.id]||0,pRef=refsPrim[t.id]||0;
+      var canDelete=canEdit&&aRef===0&&pRef===0;
+      var blockMsg=[];if(aRef) blockMsg.push(aRef+' asset(s)');if(pRef) blockMsg.push(pRef+' primary name(s)');
+      var stop='event.stopPropagation();';
+      var sideAct='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsAtypeOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'">'+(canEdit?'✎':'👁')+'</button>';
+      if(canDelete) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsAtypeDeleteFromTable(\''+idEsc+'\')" title="Delete">🗑</button>';
+      else if(canEdit) sideAct+='<button class="mtts-tcard-iconbtn is-del" disabled title="In use — '+blockMsg.join(' + ')+'" style="opacity:.5;cursor:not-allowed">🗑</button>';
+      var statusBadge=t.inactive
+        ?'<span class="mtts-tcard-prio" style="background:#fee2e2;color:#7f1d1d">Inactive</span>'
+        :'<span class="mtts-tcard-prio" style="background:#dcfce7;color:#15803d">Active</span>';
+      html+='<div class="mtts-tcard" style="--plant-color:'+(t.color||'#94a3b8')+'" onclick="_mttsAtypeOpen(\''+idEsc+'\')">'+
+        '<div class="mtts-tcard-head">'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-asset">'+swatch+(t.name||'—')+'</div>'+
+          '</div>'+
+          statusBadge+
+        '</div>'+
+        '<div class="mtts-tcard-rows">'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Assets</span><span class="mtts-tcard-val">'+aRef+'</span></div>'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Primary Names</span><span class="mtts-tcard-val">'+pRef+'</span></div>'+
+        '</div>'+
+        '<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left"></div>'+
+          '<div class="mtts-tcard-actions-right">'+sideAct+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+  wrap.innerHTML=html;
+}
+function _mttsAtypeTableHtml(rows,refsAsset,refsPrim,canEdit){
+  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Name</th>'+
+    '<th style="'+th+';text-align:right">Assets</th>'+
+    '<th style="'+th+';text-align:right">Primary Names</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="6" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No asset types match the current filter.</td></tr>';
+  }
   rows.forEach(function(t,i){
     var idEsc=String(t.id||'').replace(/'/g,"\\'");
     var swatch=t.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+t.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
-    var aRef=refsAsset[t.id]||0;
-    var pRef=refsPrim[t.id]||0;
+    var aRef=refsAsset[t.id]||0,pRef=refsPrim[t.id]||0;
     var canDelete=canEdit&&aRef===0&&pRef===0;
-    var blockMsg=[];
-    if(aRef) blockMsg.push(aRef+' asset(s)');
-    if(pRef) blockMsg.push(pRef+' primary name(s)');
-    var deleteBtn=canDelete
-      ? '<button onclick="event.stopPropagation();_mttsAtypeDeleteFromTable(\''+idEsc+'\')" title="Delete asset type" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '<button disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
-    html+='<tr onclick="_mttsAtypeOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+    var blockMsg=[];if(aRef) blockMsg.push(aRef+' asset(s)');if(pRef) blockMsg.push(pRef+' primary name(s)');
+    var stop='event.stopPropagation();';
+    var actions='<button onclick="'+stop+'_mttsAtypeOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">'+(canEdit?'✎':'👁')+'</button>';
+    if(canDelete) actions+='<button onclick="'+stop+'_mttsAtypeDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+    else if(canEdit) actions+='<button disabled title="In use — '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+    html+='<tr onclick="_mttsAtypeOpen(\''+idEsc+'\')" style="cursor:pointer">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-weight:700">'+swatch+(t.name||'—')+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
       '<td style="'+td+';text-align:right;font-family:var(--mono)">'+pRef+'</td>'+
       '<td style="'+td+'">'+(t.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
-      '<td style="'+td+';text-align:center;white-space:nowrap">'+
-        '<button onclick="event.stopPropagation();_mttsAtypeOpen(\''+idEsc+'\')" title="Edit asset type" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
-        deleteBtn+
-      '</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   });
   html+='</tbody></table></div>';
-  wrap.innerHTML=html;
+  return html;
 }
 
 function _mttsRenderAtypeColorGrid(currentHex){
@@ -3577,9 +3872,10 @@ async function _mttsAtypeDeleteFromTable(id){
 }
 
 function _mttsAtypeOpen(id){
-  if(!_mttsHasAccess('action.editAssetType')&&id===''){notify('You do not have permission to add asset types',true);return;}
+  var canEdit=_mttsHasAccess('action.editAssetType');
+  if(!canEdit&&id===''){notify('You do not have permission to add asset types',true);return;}
   var t=id?(byId(DB.mttsAssetTypes||[],id)||null):null;
-  document.getElementById('mttsAtypeTitle').textContent=t?'🏷 Edit Asset Type':'🏷 Add Asset Type';
+  document.getElementById('mttsAtypeTitle').textContent=t?(canEdit?'🏷 Edit Asset Type':'🏷 View Asset Type'):'🏷 Add Asset Type';
   document.getElementById('mttsAtypeIdHidden').value=t?t.id:'';
   // Code field is hidden — name is the user-facing identifier.
   var codeInput=document.getElementById('mttsAtypeCode');
@@ -3593,11 +3889,15 @@ function _mttsAtypeOpen(id){
   if(typeof om==='function') om('mMttsAtype'); else { document.getElementById('mMttsAtype').classList.add('open'); }
   var modalEl=document.getElementById('mMttsAtype');
   if(modalEl){
+    _mttsLockModal(modalEl,canEdit);
+    var saveBtn=modalEl.querySelector('button.btn-primary');
+    if(saveBtn) saveBtn.style.display=canEdit?'':'none';
     if(modalEl._mttsKeyHandler) modalEl.removeEventListener('keydown',modalEl._mttsKeyHandler);
     modalEl._mttsKeyHandler=function(ev){
       if(modalEl.style.display==='none'||!modalEl.classList.contains('open')) return;
       if(ev.key==='Escape'){ev.preventDefault();cm('mMttsAtype');return;}
       if(ev.key==='Enter'){
+        if(!canEdit){ev.preventDefault();cm('mMttsAtype');return;}
         var tag=ev.target&&ev.target.tagName;
         if(tag==='TEXTAREA') return;
         ev.preventDefault();_mttsAtypeSave();
@@ -3769,76 +4069,78 @@ function _mttsRenderAssetPrimaryNames(){
     ag.primaryNames.forEach(function(pn){if(pn) refsAgency[pn]=(refsAgency[pn]||0)+1;});
   });
   var sumEl=document.getElementById('mttsAprimSummary');
-  if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAssetPrimaryNames||[]).length+'</b> · Active: <b>'+(DB.mttsAssetPrimaryNames||[]).filter(function(p){return p&&!p.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
+  if(sumEl){
+    var _allPn=(DB.mttsAssetPrimaryNames||[]),_actPn=_allPn.filter(function(p){return p&&!p.inactive;}).length;
+    sumEl.innerHTML=_mttsCountChip('Total',_allPn.length,'total')+
+      _mttsCountChip('Active',_actPn,'active')+
+      _mttsCountChip('Inactive',_allPn.length-_actPn,'inactive')+
+      _mttsCountChip('Showing',rows.length,'showing');
+  }
   // Hide "+ Add" when the user can't edit.
   var addBtn=document.getElementById('btnMttsAddAprim');
   if(addBtn) addBtn.style.display=_mttsHasAccess('action.editAssetPrimaryName')?'':'none';
-  // Filter + header rows both sticky to the top of the .table-wrap scroll
-  // container so they stay visible while the body scrolls. No inner
-  // overflow wrapper — the outer .table-wrap is the sole scroll surface.
-  var thFilter='padding:6px 8px;background:#fff;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;z-index:3';
-  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-top:1px solid var(--border);border-bottom:2px solid var(--border);text-align:left;position:sticky;top:38px;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
-  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  // Card grid layout — same `.mtts-tcards` / `.mtts-tcard` pattern the
+  // tickets page uses. Wider screens can switch to a compact table via
+  // the view-mode toggle (saved per page in localStorage).
+  var view=_mttsViewMode(_mttsAprimState,'mtts_view_aprim');
   var typesArr=_mttsAssetTypeList(true);
-  var typeOpts='<option value="">All Types</option>'+typesArr.map(function(t){
+  var typeOpts='<option value="">All types</option>'+typesArr.map(function(t){
     return '<option value="'+t.value+'"'+(t.value===fType?' selected':'')+'>'+t.label+'</option>';
   }).join('');
   var statusOpts='<option value=""'+(fStatus===''?' selected':'')+'>All</option>'+
     '<option value="active"'+(fStatus==='active'?' selected':'')+'>Active</option>'+
     '<option value="inactive"'+(fStatus==='inactive'?' selected':'')+'>Inactive</option>';
-  var inlineSel='font-size:11px;padding:5px 7px;border:1px solid var(--border2);border-radius:5px;background:#fff;color:var(--text);width:100%';
   var inlineSearchVal=fSearchRaw.replace(/"/g,'&quot;');
-  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;width:fit-content;max-width:100%">'+
-    '<table style="width:auto;border-collapse:collapse;font-size:14px"><thead>'+
-      '<tr>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"><select id="mttsAprimTypeFilter" onchange="_mttsRenderAssetPrimaryNames()" style="'+inlineSel+'">'+typeOpts+'</select></th>'+
-        '<th style="'+thFilter+'"><input type="search" id="mttsAprimSearch" placeholder="🔍 name…" oninput="_mttsRenderAssetPrimaryNames()" value="'+inlineSearchVal+'" style="'+inlineSel+'"></th>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"></th>'+
-        '<th style="'+thFilter+'"><select id="mttsAprimStatusFilter" onchange="_mttsRenderAssetPrimaryNames()" style="'+inlineSel+'">'+statusOpts+'</select></th>'+
-        '<th style="'+thFilter+';text-align:center"><button type="button" onclick="_mttsAprimClearFilters()" title="Reset all filters and search" style="font-size:11px;padding:5px 8px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;white-space:nowrap">✕ Clear</button></th>'+
-      '</tr>'+
-      '<tr>'+
-        '<th style="'+th+'">#</th>'+
-        '<th style="'+th+'">Asset Type</th>'+
-        '<th style="'+th+'">Name</th>'+
-        '<th style="'+th+';text-align:right">Assets</th>'+
-        '<th style="'+th+';text-align:right">Agencies</th>'+
-        '<th style="'+th+'">Status</th>'+
-        '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
-      '</tr>'+
-    '</thead><tbody>'+
-    (rows.length?'':'<tr><td colspan="7" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No primary names match the current filters.</td></tr>');
   var canEdit=_mttsHasAccess('action.editAssetPrimaryName');
-  rows.forEach(function(p,i){
-    var idEsc=String(p.id||'').replace(/'/g,"\\'");
-    var swatch=p.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
-    var aRef=refsAsset[p.id]||0;
-    var gRef=refsAgency[p.id]||0;
-    var canDelete=canEdit&&aRef===0&&gRef===0;
-    var blockMsg=[];
-    if(aRef) blockMsg.push(aRef+' asset(s)');
-    if(gRef) blockMsg.push(gRef+' agency(s)');
-    var deleteBtn=canDelete
-      ? '<button onclick="event.stopPropagation();_mttsAprimDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '<button disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
-    html+='<tr onclick="_mttsAprimOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
-      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-weight:600;color:var(--text2)">'+(p.assetType?_mttsAssetTypeLabel(p.assetType):'—')+'</td>'+
-      '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
-      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
-      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+gRef+'</td>'+
-      '<td style="'+td+'">'+(p.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
-      '<td style="'+td+';text-align:center;white-space:nowrap">'+
-        '<button onclick="event.stopPropagation();_mttsAprimOpen(\''+idEsc+'\')" title="Edit" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>'+
-        deleteBtn+
-      '</td>'+
-    '</tr>';
-  });
-  html+='</tbody></table></div>';
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsAprimToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  var html='<div class="mtts-tcard-filters">'+
+    '<input type="search" id="mttsAprimSearch" placeholder="🔍 name…" oninput="_mttsRenderAssetPrimaryNames()" value="'+inlineSearchVal+'">'+
+    '<select id="mttsAprimTypeFilter" onchange="_mttsRenderAssetPrimaryNames()">'+typeOpts+'</select>'+
+    '<select id="mttsAprimStatusFilter" onchange="_mttsRenderAssetPrimaryNames()">'+statusOpts+'</select>'+
+    viewBtn+
+    '<button type="button" class="btn btn-secondary" onclick="_mttsAprimClearFilters()" title="Reset filters and search" style="font-size:12px;padding:6px 10px">✕ Clear</button>'+
+  '</div>';
+  if(view==='table'){
+    html+=_mttsAprimTableHtml(rows,refsAsset,refsAgency,canEdit);
+  } else if(!rows.length){
+    html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">No primary names match the current filters.</div></div>';
+  } else {
+    html+='<div class="mtts-tcards">';
+    rows.forEach(function(p){
+      var idEsc=String(p.id||'').replace(/'/g,"\\'");
+      var swatch=p.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
+      var aRef=refsAsset[p.id]||0;
+      var gRef=refsAgency[p.id]||0;
+      var canDelete=canEdit&&aRef===0&&gRef===0;
+      var blockMsg=[];if(aRef) blockMsg.push(aRef+' asset(s)');if(gRef) blockMsg.push(gRef+' agency(s)');
+      var stop='event.stopPropagation();';
+      var sideAct='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsAprimOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'">'+(canEdit?'✎':'👁')+'</button>';
+      if(canDelete) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsAprimDeleteFromTable(\''+idEsc+'\')" title="Delete">🗑</button>';
+      else if(canEdit) sideAct+='<button class="mtts-tcard-iconbtn is-del" disabled title="In use — referenced by '+blockMsg.join(' + ')+'" style="opacity:.5;cursor:not-allowed">🗑</button>';
+      var statusBadge=p.inactive
+        ?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>'
+        :'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>';
+      html+='<div class="mtts-tcard" style="--plant-color:'+(p.color||'#94a3b8')+'" onclick="_mttsAprimOpen(\''+idEsc+'\')">'+
+        '<div class="mtts-tcard-head">'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-headtop"><span class="mtts-tcard-type">'+(p.assetType?_mttsAssetTypeLabel(p.assetType):'—')+'</span></div>'+
+            '<div class="mtts-tcard-asset">'+swatch+(p.name||'—')+'</div>'+
+          '</div>'+
+          statusBadge+
+        '</div>'+
+        '<div class="mtts-tcard-rows">'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Assets</span><span class="mtts-tcard-val">'+aRef+'</span></div>'+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Agencies</span><span class="mtts-tcard-val">'+gRef+'</span></div>'+
+        '</div>'+
+        '<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left"></div>'+
+          '<div class="mtts-tcard-actions-right">'+sideAct+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
   wrap.innerHTML=html;
-  wrap.style.maxHeight='calc(100vh - 180px)';
   // Restore focus + caret on the search box so typing isn't interrupted
   // by the re-render on every keystroke.
   if(activeId){
@@ -3850,6 +4152,49 @@ function _mttsRenderAssetPrimaryNames(){
       }
     }
   }
+}
+
+// Table view for the Asset Primary Name master — sticky-header HTML
+// table mirrors the original layout for wide-screen users who prefer
+// dense scanning.
+function _mttsAprimTableHtml(rows,refsAsset,refsAgency,canEdit){
+  var th='padding:9px 12px;font-size:12px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Asset Type</th>'+
+    '<th style="'+th+'">Name</th>'+
+    '<th style="'+th+';text-align:right">Assets</th>'+
+    '<th style="'+th+';text-align:right">Agencies</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:center;width:90px">Actions</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="7" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No primary names match the current filters.</td></tr>';
+  }
+  rows.forEach(function(p,i){
+    var idEsc=String(p.id||'').replace(/'/g,"\\'");
+    var swatch=p.color?'<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+p.color+';border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px"></span>':'';
+    var aRef=refsAsset[p.id]||0;
+    var gRef=refsAgency[p.id]||0;
+    var canDelete=canEdit&&aRef===0&&gRef===0;
+    var blockMsg=[];if(aRef) blockMsg.push(aRef+' asset(s)');if(gRef) blockMsg.push(gRef+' agency(s)');
+    var stop='event.stopPropagation();';
+    var actions='<button onclick="'+stop+'_mttsAprimOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">'+(canEdit?'✎':'👁')+'</button>';
+    if(canDelete) actions+='<button onclick="'+stop+'_mttsAprimDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+    else if(canEdit) actions+='<button disabled title="In use — '+blockMsg.join(' + ')+'" style="font-size:12px;padding:4px 9px;font-weight:700;background:#f1f5f9;border:1px solid var(--border);color:#cbd5e1;border-radius:4px;cursor:not-allowed;margin-left:3px">🗑</button>';
+    html+='<tr onclick="_mttsAprimOpen(\''+idEsc+'\')" style="cursor:pointer">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';color:var(--text2);font-weight:600">'+(p.assetType?_mttsAssetTypeLabel(p.assetType):'—')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+swatch+(p.name||'—')+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+aRef+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+gRef+'</td>'+
+      '<td style="'+td+'">'+(p.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
 }
 
 function _mttsRenderAprimColorGrid(currentHex){
@@ -3912,9 +4257,10 @@ async function _mttsAprimDeleteFromTable(id){
 // Save & Add Next flow to pre-select the previous entry's asset type so
 // the user can rattle off several primary names without re-picking it.
 function _mttsAprimOpen(id, preset){
-  if(!_mttsHasAccess('action.editAssetPrimaryName')&&id===''){notify('You do not have permission to add primary names',true);return;}
+  var canEdit=_mttsHasAccess('action.editAssetPrimaryName');
+  if(!canEdit&&id===''){notify('You do not have permission to add primary names',true);return;}
   var p=id?(byId(DB.mttsAssetPrimaryNames||[],id)||null):null;
-  document.getElementById('mttsAprimTitle').textContent=p?'🔤 Edit Primary Name':'🔤 Add Primary Name';
+  document.getElementById('mttsAprimTitle').textContent=p?(canEdit?'🔤 Edit Primary Name':'🔤 View Primary Name'):'🔤 Add Primary Name';
   document.getElementById('mttsAprimIdHidden').value=p?p.id:'';
   // Populate the Asset Type dropdown freshly (so newly-added types are
   // pickable) and reflect the current value if editing.
@@ -3933,20 +4279,23 @@ function _mttsAprimOpen(id, preset){
   document.getElementById('mttsAprimInactive').checked=!!(p&&p.inactive);
   // Save buttons: edit mode shows a single "Save"; add mode shows
   // "Save & Add Next" (secondary, keeps the form open) plus the primary
-  // "Save & Close".
+  // "Save & Close". Both hidden in view-only mode.
   var saveBtn=document.getElementById('mttsAprimSaveBtn');
   if(saveBtn) saveBtn.textContent=p?'Save':'Save & Close';
   var saveNextBtn=document.getElementById('mttsAprimSaveNextBtn');
-  if(saveNextBtn) saveNextBtn.style.display=p?'none':'';
+  if(saveNextBtn) saveNextBtn.style.display=(canEdit&&!p)?'':'none';
   var err=document.getElementById('mttsAprimErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsAprim'); else { document.getElementById('mMttsAprim').classList.add('open'); }
   var modalEl=document.getElementById('mMttsAprim');
   if(modalEl){
+    _mttsLockModal(modalEl,canEdit);
+    if(saveBtn) saveBtn.style.display=canEdit?'':'none';
     if(modalEl._mttsKeyHandler) modalEl.removeEventListener('keydown',modalEl._mttsKeyHandler);
     modalEl._mttsKeyHandler=function(ev){
       if(modalEl.style.display==='none'||!modalEl.classList.contains('open')) return;
       if(ev.key==='Escape'){ev.preventDefault();cm('mMttsAprim');return;}
       if(ev.key==='Enter'){
+        if(!canEdit){ev.preventDefault();cm('mMttsAprim');return;}
         var tag=ev.target&&ev.target.tagName;
         if(tag==='TEXTAREA') return;
         ev.preventDefault();_mttsAprimSave();
@@ -4124,51 +4473,94 @@ function _mttsRenderAgencies(){
   rows.sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
 
   var sumEl=document.getElementById('mttsAgencySummary');
-  if(sumEl) sumEl.innerHTML='Total: <b>'+(DB.mttsAgencies||[]).length+'</b> · Active: <b>'+(DB.mttsAgencies||[]).filter(function(a){return a&&!a.inactive;}).length+'</b> · Showing: <b>'+rows.length+'</b>';
-  if(!rows.length){
-    wrap.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">'+(search?'No agencies match the search.':'No agencies yet. Click <b>+ Add Agency</b> to create one.')+'</div>';
-    return;
+  if(sumEl){
+    var _allAg=(DB.mttsAgencies||[]),_actAg=_allAg.filter(function(a){return a&&!a.inactive;}).length;
+    sumEl.innerHTML=_mttsCountChip('Total',_allAg.length,'total')+
+      _mttsCountChip('Active',_actAg,'active')+
+      _mttsCountChip('Inactive',_allAg.length-_actAg,'inactive')+
+      _mttsCountChip('Showing',rows.length,'showing');
   }
-  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
-  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
-    '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr>'+
-      '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Agency / Vendor</th>'+
-      '<th style="'+th+'">Contact</th>'+
-      '<th style="'+th+'">Email / Phone</th>'+
-      '<th style="'+th+'">Primary Names</th>'+
-      '<th style="'+th+'">Status</th>'+
-      '<th style="'+th+';text-align:center;width:100px">Actions</th>'+
-    '</tr></thead><tbody>';
   var canEdit=_mttsHasAccess('action.editAgency');
+  var view=_mttsViewMode(_mttsAgencyState,'mtts_view_agency');
+  var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsAgencyToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  var html='<div class="mtts-tcard-filters">'+viewBtn+'</div>';
+  if(view==='table'){
+    html+=_mttsAgencyTableHtml(rows,canEdit);
+  } else if(!rows.length){
+    html+='<div class="mtts-tcards"><div class="mtts-tcard-empty">'+(search?'No agencies match the search.':'No agencies yet. Click <b>+ Add Agency</b> to create one.')+'</div></div>';
+  } else {
+    html+='<div class="mtts-tcards">';
+    rows.forEach(function(a){
+      var idEsc=String(a.id||'').replace(/'/g,"\\'");
+      var prims=(a.primaryNames||[]);
+      var primChips=prims.length?prims.map(function(p){return '<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;background:#eef2ff;color:#4338ca;margin:1px 2px">'+String(p).replace(/</g,'&lt;')+'</span>';}).join(''):'<span style="color:var(--text3);font-style:italic">—</span>';
+      var phones=[a.contact1,a.contact2].filter(Boolean).join(' · ');
+      var stop='event.stopPropagation();';
+      var sideAct='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsAgencyOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'">'+(canEdit?'✎':'👁')+'</button>';
+      if(canEdit) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsAgencyDeleteFromTable(\''+idEsc+'\')" title="Delete">🗑</button>';
+      var statusBadge=a.inactive
+        ?'<span class="mtts-tcard-prio" style="background:#fee2e2;color:#7f1d1d">Inactive</span>'
+        :'<span class="mtts-tcard-prio" style="background:#dcfce7;color:#15803d">Active</span>';
+      html+='<div class="mtts-tcard" style="--plant-color:#94a3b8" onclick="_mttsAgencyOpen(\''+idEsc+'\')">'+
+        '<div class="mtts-tcard-head">'+
+          '<div class="mtts-tcard-headline">'+
+            '<div class="mtts-tcard-asset">'+(a.name||'—')+'</div>'+
+            (a.address?'<div class="mtts-tcard-meta">'+String(a.address).replace(/</g,'&lt;').replace(/\n/g,', ')+'</div>':'')+
+          '</div>'+
+          statusBadge+
+        '</div>'+
+        '<div class="mtts-tcard-rows">'+
+          (a.contactName?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Contact</span><span class="mtts-tcard-val">'+String(a.contactName).replace(/</g,'&lt;')+'</span></div>':'')+
+          (a.email?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Email</span><span class="mtts-tcard-val">'+String(a.email).replace(/</g,'&lt;')+'</span></div>':'')+
+          (phones?'<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Phone</span><span class="mtts-tcard-val">'+phones+'</span></div>':'')+
+          '<div class="mtts-tcard-row"><span class="mtts-tcard-lbl">Handles</span><span class="mtts-tcard-val" style="white-space:normal;text-align:right">'+primChips+'</span></div>'+
+        '</div>'+
+        '<div class="mtts-tcard-actions">'+
+          '<div class="mtts-tcard-actions-left"></div>'+
+          '<div class="mtts-tcard-actions-right">'+sideAct+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+  wrap.innerHTML=html;
+}
+function _mttsAgencyTableHtml(rows,canEdit){
+  var th='padding:8px 12px;font-size:13px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
+  var td='padding:8px 12px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Agency / Vendor</th>'+
+    '<th style="'+th+'">Contact</th>'+
+    '<th style="'+th+'">Email / Phone</th>'+
+    '<th style="'+th+'">Primary Names</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:center;width:100px">Actions</th>'+
+  '</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="7" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No agencies match the current filter.</td></tr>';
+  }
   rows.forEach(function(a,i){
     var idEsc=String(a.id||'').replace(/'/g,"\\'");
     var prims=(a.primaryNames||[]);
-    var primChips=prims.length?prims.map(function(p){return '<span style="display:inline-block;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;margin:1px 2px">'+String(p).replace(/</g,'&lt;')+'</span>';}).join(''):'<span style="color:var(--text3);font-style:italic">—</span>';
+    var primChips=prims.length?prims.map(function(p){return '<span style="display:inline-block;padding:1px 7px;border-radius:8px;font-size:11px;font-weight:700;background:#eef2ff;color:#4338ca;margin:1px 2px">'+String(p).replace(/</g,'&lt;')+'</span>';}).join(''):'<span style="color:var(--text3);font-style:italic">—</span>';
     var phones=[a.contact1,a.contact2].filter(Boolean).join(' · ');
-    var deleteBtn=canEdit
-      ? '<button onclick="event.stopPropagation();_mttsAgencyDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>'
-      : '';
-    html+='<tr onclick="_mttsAgencyOpen(\''+idEsc+'\')" style="cursor:pointer" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+
+    var stop='event.stopPropagation();';
+    var actions='<button onclick="'+stop+'_mttsAgencyOpen(\''+idEsc+'\')" title="'+(canEdit?'Edit':'View')+'" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">'+(canEdit?'✎':'👁')+'</button>';
+    if(canEdit) actions+='<button onclick="'+stop+'_mttsAgencyDeleteFromTable(\''+idEsc+'\')" title="Delete" style="font-size:12px;padding:4px 9px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;margin-left:3px">🗑</button>';
+    html+='<tr onclick="_mttsAgencyOpen(\''+idEsc+'\')" style="cursor:pointer">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-weight:800">'+(a.name||'—')+
+      '<td style="'+td+';font-weight:700">'+(a.name||'—')+
         (a.address?'<div style="font-size:11px;color:var(--text3);font-weight:500;margin-top:2px">'+String(a.address).replace(/</g,'&lt;').replace(/\n/g,', ')+'</div>':'')+'</td>'+
       '<td style="'+td+';font-size:13px">'+(a.contactName||'—')+'</td>'+
-      '<td style="'+td+';font-size:12px">'+
-        (a.email?'<div>📧 '+a.email+'</div>':'')+
-        (phones?'<div>📞 '+phones+'</div>':'')+
-        (!a.email&&!phones?'<span style="color:var(--text3)">—</span>':'')+'</td>'+
+      '<td style="'+td+';font-size:12px">'+(a.email?'<div>📧 '+a.email+'</div>':'')+(phones?'<div>📞 '+phones+'</div>':'')+(!a.email&&!phones?'<span style="color:var(--text3)">—</span>':'')+'</td>'+
       '<td style="'+td+'">'+primChips+'</td>'+
       '<td style="'+td+'">'+(a.inactive?'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d">Inactive</span>':'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d">Active</span>')+'</td>'+
-      '<td style="'+td+';text-align:center;white-space:nowrap">'+
-        (canEdit?'<button onclick="event.stopPropagation();_mttsAgencyOpen(\''+idEsc+'\')" title="Edit" style="font-size:12px;padding:4px 10px;font-weight:700;background:#fff;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">✎</button>':'<span style="color:var(--text3)">—</span>')+
-        deleteBtn+
-      '</td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   });
   html+='</tbody></table></div>';
-  wrap.innerHTML=html;
+  return html;
 }
 
 // Selected primary-name set carried across the modal lifecycle. Stored as
@@ -4217,9 +4609,10 @@ function _mttsAgencyTogglePrim(cb){
 }
 
 function _mttsAgencyOpen(id){
-  if(!_mttsHasAccess('action.editAgency')&&id===''){notify('You do not have permission to add agencies',true);return;}
+  var canEdit=_mttsHasAccess('action.editAgency');
+  if(!canEdit&&id===''){notify('You do not have permission to add agencies',true);return;}
   var a=id?(byId(DB.mttsAgencies||[],id)||null):null;
-  document.getElementById('mttsAgencyTitle').textContent=a?'🤝 Edit Agency':'🤝 Add Agency';
+  document.getElementById('mttsAgencyTitle').textContent=a?(canEdit?'🤝 Edit Agency':'🤝 View Agency'):'🤝 Add Agency';
   document.getElementById('mttsAgencyIdHidden').value=a?a.id:'';
   document.getElementById('mttsAgencyName').value=a?(a.name||''):'';
   document.getElementById('mttsAgencyAddress').value=a?(a.address||''):'';
@@ -4235,11 +4628,15 @@ function _mttsAgencyOpen(id){
   var err=document.getElementById('mttsAgencyErr');if(err){err.style.display='none';err.textContent='';}
   if(typeof om==='function') om('mMttsAgency'); else { document.getElementById('mMttsAgency').classList.add('open'); }
   if(modal){
+    _mttsLockModal(modal,canEdit);
+    var saveBtn=modal.querySelector('button.btn-primary');
+    if(saveBtn) saveBtn.style.display=canEdit?'':'none';
     if(modal._mttsKeyHandler) modal.removeEventListener('keydown',modal._mttsKeyHandler);
     modal._mttsKeyHandler=function(ev){
       if(modal.style.display==='none'||!modal.classList.contains('open')) return;
       if(ev.key==='Escape'){ev.preventDefault();cm('mMttsAgency');return;}
       if(ev.key==='Enter'){
+        if(!canEdit){ev.preventDefault();cm('mMttsAgency');return;}
         var tag=ev.target&&ev.target.tagName;
         if(tag==='TEXTAREA') return;
         ev.preventDefault();_mttsAgencySave();

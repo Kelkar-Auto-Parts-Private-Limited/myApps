@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260501-V100">
+<meta name="app-build" content="260501-V112">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260501-V100">
+<link rel="stylesheet" href="css/mtts.css?v=260501-V112">
 </head>
 <body style="display:none">
 
@@ -87,14 +87,13 @@
   <div class="page" id="pageMttsPlants" style="display:none">
     <div class="page-header"><div class="page-title">Plant Master</div><div class="page-sub">Manage plant locations and addresses</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title">All Plants</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="mttsPlantHideInactive" onchange="_mttsRenderPlants()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+      <div class="mtts-summary-bar">
+        <div id="mttsPlantSummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
+          <label class="mtts-inactive-toggle"><input type="checkbox" id="mttsPlantHideInactive" onchange="_mttsRenderPlants()" checked> Hide Inactive</label>
           <button class="btn btn-primary" id="btnMttsAddPlant" onclick="_mttsPlantOpen('')">+ Add Plant</button>
         </div>
       </div>
-      <div id="mttsPlantSummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <div id="mttsPlantTableWrap" class="table-wrap"></div>
     </div>
   </div>
@@ -103,14 +102,13 @@
   <div class="page" id="pageMttsAssetTypes" style="display:none">
     <div class="page-header"><div class="page-title">Asset Type Master</div><div class="page-sub">Manage asset categories</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title">All Asset Types</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="mttsAtypeHideInactive" onchange="_mttsRenderAssetTypes()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+      <div class="mtts-summary-bar">
+        <div id="mttsAtypeSummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
+          <label class="mtts-inactive-toggle"><input type="checkbox" id="mttsAtypeHideInactive" onchange="_mttsRenderAssetTypes()" checked> Hide Inactive</label>
           <button class="btn btn-primary" id="btnMttsAddAtype" onclick="_mttsAtypeOpen('')">+ Add Asset Type</button>
         </div>
       </div>
-      <div id="mttsAtypeSummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <div id="mttsAtypeTableWrap" class="table-wrap"></div>
     </div>
   </div>
@@ -119,14 +117,13 @@
   <div class="page" id="pageMttsAssetPrimaryNames" style="display:none">
     <div class="page-header"><div class="page-title">Asset Primary Name Master</div><div class="page-sub">Curated list of primary asset names — assets pick from this + add a free-text Name Extension</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title">All Primary Names</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="mttsAprimHideInactive" onchange="_mttsRenderAssetPrimaryNames()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+      <div class="mtts-summary-bar">
+        <div id="mttsAprimSummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
+          <label class="mtts-inactive-toggle"><input type="checkbox" id="mttsAprimHideInactive" onchange="_mttsRenderAssetPrimaryNames()" checked> Hide Inactive</label>
           <button class="btn btn-primary" id="btnMttsAddAprim" onclick="_mttsAprimOpen('')">+ Add Primary Name</button>
         </div>
       </div>
-      <div id="mttsAprimSummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <div id="mttsAprimTableWrap" class="table-wrap"></div>
     </div>
   </div>
@@ -135,15 +132,14 @@
   <div class="page" id="pageMttsAgencies" style="display:none">
     <div class="page-header"><div class="page-title">Agency / Vendor Information</div><div class="page-sub">External service vendors and the primary asset names they handle</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title">All Agencies</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="search" id="mttsAgencySearch" placeholder="🔍 Search by name / asset / contact / email" oninput="_mttsRenderAgencies()" style="font-size:12px;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:#fff;color:var(--text);min-width:240px">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="mttsAgencyHideInactive" onchange="_mttsRenderAgencies()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+      <div class="mtts-summary-bar">
+        <div id="mttsAgencySummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
+          <input type="search" id="mttsAgencySearch" placeholder="🔍 Search by name / asset / contact / email" oninput="_mttsRenderAgencies()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:6px;background:#fff;color:var(--text);min-width:200px">
+          <label class="mtts-inactive-toggle"><input type="checkbox" id="mttsAgencyHideInactive" onchange="_mttsRenderAgencies()" checked> Hide Inactive</label>
           <button class="btn btn-primary" id="btnMttsAddAgency" onclick="_mttsAgencyOpen('')">+ Add Agency</button>
         </div>
       </div>
-      <div id="mttsAgencySummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <div id="mttsAgencyTableWrap" class="table-wrap"></div>
     </div>
   </div>
@@ -152,13 +148,12 @@
   <div class="page" id="pageMttsAssets" style="display:none">
     <div class="page-header"><div class="page-title">Asset Master</div><div class="page-sub">Plants, asset types, items, transfers</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title">All Assets</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="mtts-summary-bar">
+        <div id="mttsAssetSummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
           <button class="btn btn-primary" id="btnMttsAddAsset" onclick="_mttsAssetOpen('')">+ Add Asset</button>
         </div>
       </div>
-      <div id="mttsAssetSummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <!-- Column-aligned filter row + sticky header live inside the rendered table (see _mttsRenderAssets). -->
       <div id="mttsAssetTableWrap" class="table-wrap"></div>
     </div>
@@ -168,9 +163,9 @@
   <div class="page" id="pageMttsTickets" style="display:none">
     <div class="page-header"><div class="page-title">Tickets</div><div class="page-sub">Breakdown tickets across the lifecycle</div></div>
     <div class="card">
-      <div class="card-header" style="flex-wrap:wrap;gap:8px">
-        <div class="card-title"><span id="mttsTicketTabLbl">All Tickets</span></div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="mtts-summary-bar">
+        <div id="mttsTicketSummary" class="mtts-summary-chips"></div>
+        <div class="mtts-summary-actions">
           <button class="btn btn-primary" id="btnMttsRaise" onclick="_mttsTicketRaiseOpen()">+ Raise Ticket</button>
         </div>
       </div>
@@ -179,7 +174,6 @@
         <button type="button" class="mtts-ticket-tab" data-tab="raised" onclick="_mttsTicketTabSet('raised')">Raised by me</button>
         <button type="button" class="mtts-ticket-tab" data-tab="mine" onclick="_mttsTicketTabSet('mine')">Allocated to me</button>
       </div>
-      <div id="mttsTicketSummary" style="font-size:12px;color:var(--text3);padding:0 12px 8px"></div>
       <div id="mttsTicketTableWrap" class="table-wrap"></div>
     </div>
   </div>
@@ -610,7 +604,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260501-V100"></script>
-<script src="js/mtts-ui.js?v=260501-V100"></script>
+<script src="js/common.js?v=260501-V112"></script>
+<script src="js/mtts-ui.js?v=260501-V112"></script>
 </body>
 </html>
