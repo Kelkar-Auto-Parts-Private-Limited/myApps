@@ -2278,25 +2278,58 @@ function _hrmsRefreshInitialTabVisibility(){
   var emp=idVal?byId(DB.hrmsEmployees||[],idVal):null;
   var doj=(emp&&emp.dateOfJoining)
     ||(document.getElementById('hrmsEmpDOJ')||{}).value||'';
-  var show=false;
+  // Effective starting month — defaults to DOJ-month. A "true rejoin"
+  // shifts the start to the active period's `from` month, but only when
+  // there's a closed prior period with status Resigned (on-roll) or
+  // Inactive (contract/PR). This avoids treating the auto-mark-inactive
+  // bounce (Active → Inactive → Active in adjacent months for a fresh
+  // hire) as a rejoin. Tab stays visible as long as start-month is
+  // unlocked.
+  var startMk='';
   if(doj){
-    var p=String(doj).split('-');
-    if(p.length===3&&p[0].length===4){
-      var y=+p[0],m=+p[1];
-      if(y&&m){
-        var mk=p[0]+'-'+p[1];
-        var locked=(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk));
-        // 11th of (DOJ month + 1) at end-of-day. JS Date constructor with
-        // monthIndex==m (0-indexed +1) rolls into the next calendar month.
-        var cutoff=new Date(y,m,11,23,59,59);
-        var withinCutoff=new Date()<=cutoff;
-        show=withinCutoff&&!locked;
-      }
-    }
+    var dp=String(doj).split('-');
+    if(dp.length===3&&dp[0].length===4) startMk=dp[0]+'-'+dp[1];
+  }
+  var rejoinMk=_hrmsRejoinStartMk(emp);
+  if(rejoinMk&&(!startMk||rejoinMk>startMk)) startMk=rejoinMk;
+  var show=false;
+  if(startMk){
+    var locked=(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(startMk));
+    show=!locked;
   }
   btn.style.display=show?'':'none';
   // If the active tab was Initial but it's now hidden, snap back to Details.
   if(!show&&_hrmsEmpActiveTab==='initial') _hrmsEmpModalTab('details');
+}
+
+// Returns the rejoin-start month-key (YYYY-MM) for a TRUE rejoin, or ''
+// when the employee is a fresh joinee. A true rejoin requires a closed
+// prior period with status Resigned (on-roll) or Inactive (contract /
+// piece-rate) — anything else (including auto-mark-inactive bounces in
+// adjacent months) falls back to DOJ.
+function _hrmsRejoinStartMk(emp){
+  if(!emp||!Array.isArray(emp.periods)||!emp.periods.length) return '';
+  var approved=emp.periods.filter(function(p){
+    return p&&(!p._wfStatus||p._wfStatus==='approved');
+  });
+  var activeP=approved.find(function(p){
+    return !p.to&&(p.status||'Active')==='Active';
+  });
+  if(!activeP||!activeP.from) return '';
+  var apMk=String(activeP.from).slice(0,7);
+  // Find the latest CLOSED period that ends before apMk and signals a
+  // real prior stint.
+  var hasRealPrior=approved.some(function(p){
+    if(!p.to) return false;
+    var pTo=String(p.to).slice(0,7);
+    if(pTo>=apMk) return false;
+    var st=String(p.status||'').toLowerCase();
+    var et=String(p.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et==='onroll'&&st==='resigned') return true;
+    if((et==='contract'||et==='piecerate')&&st==='inactive') return true;
+    return false;
+  });
+  return hasRealPrior?apMk:'';
 }
 
 function _hrmsInitialDaysFromDoj(){
@@ -2305,30 +2338,18 @@ function _hrmsInitialDaysFromDoj(){
   // dojRaw is YYYY-MM-DD (input type=date). Build 7 consecutive dates.
   var p=dojRaw.split('-');var y=+p[0],m=+p[1],d=+p[2];
   if(!(y&&m&&d)) return [];
-  // Contract / Piece-rate rejoin handling: a contract employee who was
-  // absent for a month auto-flips to Inactive; if they come back later
-  // a fresh active period is opened with a `from` month-key after the
-  // original DOJ. In that case the Initial In/Out tab should generate
-  // the 7 staging rows starting from the rejoin month's day-1, not the
-  // original DOJ — otherwise HR Manager has nowhere to enter the
-  // rejoiner's first 7 days of attendance.
+  // Rejoin handling — only shift to the rejoin month when there's a
+  // CLOSED prior period with status Resigned (on-roll) or Inactive
+  // (contract/PR). Otherwise the staging window starts at DOJ (covers
+  // fresh joiners whose status got auto-bounced Active→Inactive→Active
+  // across adjacent months — they're not real rejoiners).
   var empId=(document.getElementById('hrmsEmpId')||{}).value||'';
   var emp=empId?byId(DB.hrmsEmployees||[],empId):null;
-  if(emp&&Array.isArray(emp.periods)&&emp.periods.length){
-    var et=(emp.employmentType||'').toLowerCase().replace(/\s/g,'');
-    if(et==='contract'||et==='piecerate'){
-      var activeP=emp.periods.find(function(pp){
-        return pp&&!pp.to&&(!pp._wfStatus||pp._wfStatus==='approved')&&(pp.status||'Active')==='Active';
-      });
-      if(activeP&&activeP.from){
-        var dojMk=String(y)+'-'+String(m).padStart(2,'0');
-        if(activeP.from>dojMk){
-          var ap=String(activeP.from).split('-');
-          var ay=+ap[0],am=+ap[1];
-          if(ay&&am){y=ay;m=am;d=1;}
-        }
-      }
-    }
+  var rejoinMk=_hrmsRejoinStartMk(emp);
+  if(rejoinMk){
+    var ap=rejoinMk.split('-');
+    var ay=+ap[0],am=+ap[1];
+    if(ay&&am){y=ay;m=am;d=1;}
   }
   var start=new Date(y,m-1,d);
   if(isNaN(start)) return [];
@@ -3133,7 +3154,7 @@ function openHrmsEmpModal(id){
     // Row 3: DOB / Age / Email / Mobile
     +'<div style="display:grid;grid-template-columns:140px 60px 1fr 130px;gap:8px;margin-bottom:4px"><div class="form-group"><label>Date of Birth</label><input type="date" id="hrmsEmpDOB" onchange="_hrmsShowAge()"></div><div class="form-group"><label>Age</label><input type="text" id="hrmsEmpAge" readonly style="background:var(--surface2);font-weight:700;color:var(--accent)"></div><div class="form-group"><label>Email</label><input type="email" id="hrmsEmpEmail"></div><div class="form-group"><label>Mobile</label><input type="text" id="hrmsEmpMobile"></div></div>'
     // Row 4: DOJ + PL
-    +'<div style="display:grid;grid-template-columns:140px 1fr;gap:8px"><div class="form-group"><label>Date of Joining</label><input type="date" id="hrmsEmpDOJ" onchange="if(typeof _hrmsRefreshInitialTabVisibility===\'function\') _hrmsRefreshInitialTabVisibility();"></div><div class="form-group" style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="hrmsEmpNoPL" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer"><label for="hrmsEmpNoPL" style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;text-transform:none;letter-spacing:0">Paid Leaves not applicable</label></div></div>'
+    +'<div style="display:grid;grid-template-columns:140px 1fr;gap:8px"><div class="form-group"><label>Date of Joining <span style="color:#dc2626">*</span></label><input type="date" id="hrmsEmpDOJ" required onchange="if(typeof _hrmsRefreshInitialTabVisibility===\'function\') _hrmsRefreshInitialTabVisibility();"></div><div class="form-group" style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="hrmsEmpNoPL" style="width:16px;height:16px;accent-color:#dc2626;cursor:pointer"><label for="hrmsEmpNoPL" style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;text-transform:none;letter-spacing:0">Paid Leaves not applicable</label></div></div>'
     +'</div>'
     // ── Column 2: Statutory (top) + Banking (bottom) ──
     +'<div style="display:flex;flex-direction:column;gap:10px">'
@@ -3326,6 +3347,16 @@ async function saveHrmsEmp(){
   var name=[lastName,firstName,middleName].filter(Boolean).join(' ');
   if(!code||!firstName||!lastName){modalErr('mHrmsEmp','Employee Code, First Name and Last Name are required');return;}
   if((DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase()===code.toUpperCase()&&e.id!==id;})){modalErr('mHrmsEmp','Employee Code already exists');return;}
+  // Date of Joining is mandatory and must fall in an unlocked month —
+  // a DOJ inside a locked month would bypass payroll for the joining
+  // month with no way to add the days back, so we refuse the save.
+  var _doj=(document.getElementById('hrmsEmpDOJ')||{}).value||'';
+  if(!_doj){modalErr('mHrmsEmp','Date of Joining is required');return;}
+  var _dojMk=String(_doj).slice(0,7);
+  if(_dojMk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(_dojMk)){
+    modalErr('mHrmsEmp','Date of Joining ('+_doj+') falls in '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(_dojMk):_dojMk)+', which is locked. Pick a date in an unlocked month.');
+    return;
+  }
   // Mandatory period fields — Plant / Emp Type / Category / Team must all be
   // set before save. _hrmsEmpPeriods[0] is the row being persisted (draft or
   // active in edit mode, proposed for new employees).
@@ -4928,16 +4959,63 @@ async function _hrmsComputeEntryExit(yr,mo){
     var p=(e.periods||[]).find(function(pp){return !pp.to&&(!pp._wfStatus||pp._wfStatus==='approved');})
         ||(e.periods||[])[0]||{};
     var pick=function(flat,fromP){return(flat&&String(flat).trim())?flat:(fromP||'');};
+    var pickN=function(flat,fromP){return(+flat||+fromP||0);};
     return Object.assign({},e,{
       employmentType:pick(e.employmentType,p.employmentType),
       category:pick(e.category,p.category),
       location:pick(e.location,p.location),
       teamName:pick(e.teamName,p.teamName),
-      department:pick(e.department,p.department)
+      department:pick(e.department,p.department),
+      roll:pick(e.roll,p.roll),
+      salaryDay:pickN(e.salaryDay,p.salaryDay),
+      salaryMonth:pickN(e.salaryMonth,p.salaryMonth)
     });
   };
   var newEmps=newCodes.map(function(ec){return _enrich(empMap[_norm(ec)])||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',_unmatched:true};}).sort(_sort);
   var leftEmps=leftCodes.map(function(ec){return _enrich(empMap[_norm(ec)])||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',_unmatched:true};}).sort(_sort);
+
+  // Classify each new entry as either "new" (first ever in the system)
+  // or "rejoinee" (had a prior stint). Rejoinee covers two cases:
+  //   1. Contract / Piece-Rate auto-Inactive in some past month and now
+  //      back with attendance — periods array carries the closed
+  //      Inactive entry, so length > 1.
+  //   2. On-Roll employee marked Resigned (or with a closed period
+  //      ending earlier) coming back as Contract / Piece-Rate — also
+  //      periods.length > 1.
+  // Anyone whose periods is empty / single-entry-from-this-month is a
+  // first-time joinee. Unmatched empCodes (no employee record yet)
+  // default to "new" — they have no history we can verify.
+  var _classifyJoinee=function(emp){
+    if(!emp||emp._unmatched) return 'new';
+    // Rejoinee rule (per spec): the employee's status in the latest
+    // earlier month was either 'Resigned' (On Roll) or 'Inactive'
+    // (Contract / Piece Rate). Anyone else appearing this month — DOJ
+    // in this month, or a fresh joinee with no prior period — is a
+    // first-time New Joinee.
+    var periods=(emp.periods||[]).filter(function(p){
+      return p&&(!p._wfStatus||p._wfStatus==='approved');
+    });
+    // Newest-first by `from`-month so the period covering prevMk is
+    // found in the first match.
+    var sortedP=periods.slice().sort(function(a,b){
+      return String(b.from||'').localeCompare(String(a.from||''));
+    });
+    var coveringP=null;
+    for(var pi=0;pi<sortedP.length;pi++){
+      var pp=sortedP[pi];
+      var pFrom=String(pp.from||'').slice(0,7);
+      var pTo=pp.to?String(pp.to).slice(0,7):'';
+      // Period covers prevMk if from <= prevMk <= to (or to is open).
+      if(pFrom<=prevMk&&(!pTo||pTo>=prevMk)){coveringP=pp;break;}
+    }
+    if(!coveringP) return 'new';
+    var et=String(coveringP.employmentType||'').toLowerCase().replace(/\s/g,'');
+    var st=String(coveringP.status||'').toLowerCase();
+    if(et==='onroll'&&st==='resigned') return 'rejoinee';
+    if((et==='contract'||et==='piecerate')&&st==='inactive') return 'rejoinee';
+    return 'new';
+  };
+  newEmps.forEach(function(e){e._joineeType=_classifyJoinee(e);});
 
   // Unknown emp codes across both sets
   var unknownNew=newEmps.filter(function(e){return !!e._unmatched;});
@@ -4963,10 +5041,37 @@ function _hrmsRenderEmpGroupedTable(list,color,mode){
 
   // Informational tables for the Entry (New Joinee/Rejoinee) and Exit
   // (Absent Employees FTM) tabs — no status badge, no per-row action.
+  // The Entry tab also surfaces a Type column with a coloured badge:
+  // green for first-time New Joinee, amber for Rejoinee — plus Role
+  // and Salary (Sal/Mon for On Roll, Sal/Day for Contract/PR).
+  // The Exit tab surfaces a Status column (Active / Inactive /
+  // Resigned / Left).
+  var showType=(mode==='entry');
+  var showRoleSal=(mode==='entry');
+  var showStatus=(mode==='exit');
   var t='';
+  var _fmtMoney=function(n){var v=+n||0;return v?'₹'+v.toLocaleString('en-IN'):'—';};
+  var _salCell=function(e){
+    var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et==='onroll') return _fmtMoney(e.salaryMonth)+'<span style="font-size:10px;color:var(--ink-dim);font-weight:600">/mo</span>';
+    if(et==='contract'||et==='piecerate') return _fmtMoney(e.salaryDay)+'<span style="font-size:10px;color:var(--ink-dim);font-weight:600">/day</span>';
+    return '—';
+  };
+  var _statusCell=function(e){
+    var st=String(e.status||'Active');
+    var styles={
+      'Active':'background:#dcfce7;color:#15803d;border:1px solid #86efac',
+      'Inactive':'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5',
+      'Resigned':'background:#fef3c7;color:#92400e;border:1px solid #fcd34d',
+      'Left':'background:#e5e7eb;color:#374151;border:1px solid #9ca3af'
+    };
+    var sty=styles[st]||styles['Active'];
+    return '<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;'+sty+'">'+st+'</span>';
+  };
   groupList.forEach(function(g){
     t+='<div style="font-size:13px;font-weight:800;color:'+color+';margin:10px 0 4px;padding:4px 8px;background:var(--surface2);border-radius:6px;display:inline-block">'+g.type+' ('+g.emps.length+')</div>';
-    t+='<table style="width:auto!important;margin-bottom:12px;font-size:13px"><thead><tr><th>#</th><th>Plant</th><th>Emp Code</th><th>Name</th><th>Category</th><th>Team</th></tr></thead><tbody>';
+    var hdr='<thead><tr><th>#</th><th>Plant</th><th>Emp Code</th><th>Name</th><th>Category</th><th>Team</th>'+(showRoleSal?'<th>Role</th><th style="text-align:right">Salary</th>':'')+(showStatus?'<th>Status</th>':'')+(showType?'<th>Type</th>':'')+'</tr></thead>';
+    t+='<table style="width:auto!important;margin-bottom:12px;font-size:13px">'+hdr+'<tbody>';
     g.emps.forEach(function(e,i){
       var isU=!!e._unmatched;
       var pClr=isU?'#fecaca':_hrmsGetPlantColor(e.location);
@@ -4978,6 +5083,20 @@ function _hrmsRenderEmpGroupedTable(list,color,mode){
       t+='<td style="font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
       t+='<td>'+(e.category||'—')+'</td>';
       t+='<td>'+(e.teamName||'—')+'</td>';
+      if(showRoleSal){
+        var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+        var showSal=(et==='onroll'||et==='contract'||et==='piecerate');
+        t+='<td>'+(isU?'—':(e.roll||'—'))+'</td>';
+        t+='<td style="text-align:right;font-family:var(--mono);font-weight:700">'+(isU||!showSal?'—':_salCell(e))+'</td>';
+      }
+      if(showStatus) t+='<td>'+(isU?'—':_statusCell(e))+'</td>';
+      if(showType){
+        var jt=e._joineeType||'new';
+        var badge=(jt==='rejoinee')
+          ?'<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">↺ Rejoinee</span>'
+          :'<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">★ New Joinee</span>';
+        t+='<td>'+badge+'</td>';
+      }
       t+='</tr>';
     });
     t+='</tbody></table>';
@@ -5042,8 +5161,14 @@ async function _hrmsRenderEntryTab(yr,mo){
   var el=document.getElementById('hrmsAttTabEntry');if(!el)return;
   el.innerHTML='<div class="empty-state">Loading…</div>';
   var d=await _hrmsComputeEntryExit(yr,mo);
+  var nNew=d.newEmps.filter(function(e){return(e._joineeType||'new')==='new';}).length;
+  var nRej=d.newEmps.length-nNew;
   var h=_hrmsUnknownBanner(d.allUnknown.length);
-  h+='<div style="font-size:15px;font-weight:900;margin-bottom:6px;color:#16a34a">New Joinee / Rejoinee in '+d.curLabel+' (not in '+d.prevLabel+') — '+d.newEmps.length+'</div>';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">'+
+    '<div style="font-size:15px;font-weight:900;color:#16a34a">New Joinee / Rejoinee in '+d.curLabel+' (not in '+d.prevLabel+') — '+d.newEmps.length+'</div>'+
+    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">★ New '+nNew+'</span>'+
+    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">↺ Rejoinee '+nRej+'</span>'+
+  '</div>';
   h+=d.newEmps.length?_hrmsRenderEmpGroupedTable(d.newEmps,'#16a34a','entry'):'<div class="empty-state" style="padding:12px">No new joinee/rejoinee compared to previous month.</div>';
   el.innerHTML=h;
 }
@@ -5092,10 +5217,23 @@ async function _hrmsRenderExitTab(yr,mo){
     return !present[e.empCode];
   });
 
-  // Merge with unmatched prev-month codes (alteration/attendance codes not in master)
+  // Merge with prev-month-presence codes that are no longer present this
+  // month. Includes:
+  //   • Unmatched empCodes (alteration/attendance codes not in master)
+  //   • Contract / Piece-Rate employees who got auto-marked Inactive
+  //     this month (they were Active last month, zero attendance this
+  //     month, so the Active-only filter above skipped them — but the
+  //     user wants to see them here with their current status).
   var byCode={};exitEmps.forEach(function(e){byCode[e.empCode]=e;});
   (d.leftEmps||[]).forEach(function(e){
-    if(e._unmatched&&!byCode[e.empCode]){byCode[e.empCode]=e;exitEmps.push(e);}
+    if(byCode[e.empCode]) return;
+    if(e._unmatched){byCode[e.empCode]=e;exitEmps.push(e);return;}
+    var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et==='contract'||et==='piecerate'){
+      if(e.dateOfJoining&&e.dateOfJoining>mEnd) return;
+      if(e.dateOfLeft&&e.dateOfLeft<mStart) return;
+      byCode[e.empCode]=e;exitEmps.push(e);
+    }
   });
 
   // Sort: plant → category → team
