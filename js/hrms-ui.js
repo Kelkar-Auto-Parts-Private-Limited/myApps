@@ -2383,32 +2383,38 @@ function _hrmsRefreshInitialTabVisibility(){
   var btn=document.getElementById('hrmsEmpTabBtn_initial');if(!btn) return;
   var idVal=(document.getElementById('hrmsEmpId')||{}).value||'';
   var emp=idVal?byId(DB.hrmsEmployees||[],idVal):null;
-  var doj=(emp&&emp.dateOfJoining)
-    ||(document.getElementById('hrmsEmpDOJ')||{}).value||'';
-  // Effective starting month — defaults to DOJ-month. A "true rejoin"
-  // shifts the start to the active period's `from` month, but only when
-  // there's a closed prior period with status Resigned (on-roll) or
-  // Inactive (contract/PR). This avoids treating the auto-mark-inactive
-  // bounce (Active → Inactive → Active in adjacent months for a fresh
-  // hire) as a rejoin.
-  //
-  // Visibility rule: tab shows ONLY when the start-month equals the
-  // currently-selected muster month AND that month is unlocked. New
-  // joinee / rejoinee status is month-specific — an employee who
-  // joined April is a "new joinee" in April only, not in May. Old
-  // employees (start-month before the selected month) get nothing.
-  var startMk='';
-  if(doj){
-    var dp=String(doj).split('-');
-    if(dp.length===3&&dp[0].length===4) startMk=dp[0]+'-'+dp[1];
-  }
-  var rejoinMk=_hrmsRejoinStartMk(emp);
-  if(rejoinMk&&(!startMk||rejoinMk>startMk)) startMk=rejoinMk;
+  // Prefer the live form value so editing the DOJ updates the tab
+  // visibility instantly. Fall back to the saved record only when the
+  // input is empty (e.g., during initial population before the form
+  // has rendered the value).
+  var doj=(document.getElementById('hrmsEmpDOJ')||{}).value
+    ||(emp&&emp.dateOfJoining)||'';
+  var selMk=(typeof _hrmsMonth==='string')?_hrmsMonth:'';
+  var lockedSel=!!(selMk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(selMk));
   var show=false;
-  if(startMk){
-    var selMk=(typeof _hrmsMonth==='string')?_hrmsMonth:'';
-    var locked=(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(startMk));
-    show=!!selMk&&startMk===selMk&&!locked;
+  if(selMk&&!lockedSel){
+    // Primary signal — was this employee classified as a joinee /
+    // rejoinee for the selected month by the Joinee/Rejoinee tab?
+    // The classification is attendance-based (present this month, not
+    // present last) so it covers cases where DOJ predates the month
+    // but the employee's first punches landed in selMk.
+    var empCode=(emp&&emp.empCode)||(document.getElementById('hrmsEmpCode')||{}).value||'';
+    var jMap=(window._hrmsJoineeByMk||{})[selMk];
+    if(jMap&&empCode&&jMap[String(empCode).toUpperCase()]){
+      show=true;
+    } else {
+      // Fallback — DOJ-month or rejoin-month equals selMk (covers
+      // brand-new employees whose attendance hasn't been computed yet
+      // and any session where the entry tab hasn't been opened).
+      var startMk='';
+      if(doj){
+        var dp=String(doj).split('-');
+        if(dp.length===3&&dp[0].length===4) startMk=dp[0]+'-'+dp[1];
+      }
+      var rejoinMk=_hrmsRejoinStartMk(emp);
+      if(rejoinMk&&(!startMk||rejoinMk>startMk)) startMk=rejoinMk;
+      if(startMk&&startMk===selMk) show=true;
+    }
   }
   btn.style.display=show?'':'none';
   // If the active tab was Initial but it's now hidden, snap back to Details.
@@ -2451,18 +2457,34 @@ function _hrmsInitialDaysFromDoj(){
   // dojRaw is YYYY-MM-DD (input type=date). Build 7 consecutive dates.
   var p=dojRaw.split('-');var y=+p[0],m=+p[1],d=+p[2];
   if(!(y&&m&&d)) return [];
+  var empId=(document.getElementById('hrmsEmpId')||{}).value||'';
+  var emp=empId?byId(DB.hrmsEmployees||[],empId):null;
   // Rejoin handling — only shift to the rejoin month when there's a
   // CLOSED prior period with status Resigned (on-roll) or Inactive
   // (contract/PR). Otherwise the staging window starts at DOJ (covers
   // fresh joiners whose status got auto-bounced Active→Inactive→Active
   // across adjacent months — they're not real rejoiners).
-  var empId=(document.getElementById('hrmsEmpId')||{}).value||'';
-  var emp=empId?byId(DB.hrmsEmployees||[],empId):null;
   var rejoinMk=_hrmsRejoinStartMk(emp);
   if(rejoinMk){
     var ap=rejoinMk.split('-');
     var ay=+ap[0],am=+ap[1];
     if(ay&&am){y=ay;m=am;d=1;}
+  }
+  // If the employee is classified as a joinee/rejoinee for the
+  // currently-selected muster month but neither DOJ nor the rejoin
+  // anchor falls in that month, anchor the staging window at the
+  // selected month's day-1. Covers employees whose DOJ predates the
+  // month but whose first attendance landed in selMk (the
+  // Joinee/Rejoinee tab still surfaces them as "new").
+  var selMk=(typeof _hrmsMonth==='string')?_hrmsMonth:'';
+  var jMap=(window._hrmsJoineeByMk||{})[selMk]||null;
+  var ec=(emp&&emp.empCode)||(document.getElementById('hrmsEmpCode')||{}).value||'';
+  if(selMk&&jMap&&ec&&jMap[String(ec).toUpperCase()]){
+    var curMk=String(y)+'-'+String(m).padStart(2,'0');
+    if(curMk!==selMk){
+      var sp=selMk.split('-');var sy=+sp[0],sm=+sp[1];
+      if(sy&&sm){y=sy;m=sm;d=1;}
+    }
   }
   var start=new Date(y,m-1,d);
   if(isNaN(start)) return [];
@@ -3037,14 +3059,30 @@ async function _hrmsShowEmpHistory(){
   // direct row per month; contract employees are embedded in the per-month
   // `_meta` row's `meta.contract` array — we pull both and merge so the
   // history view works regardless of employment type.
+  // Explicit high range bypasses PostgREST's default 1000-row cap so a
+  // long-tenure employee never has months silently dropped.
   var rows=[];
+  var codeKey=String(code||'').trim().toLowerCase();
   if(_sb&&_sbReady){
     try{
-      var {data:directRows,error:directErr}=await _sb.from('hrms_month_data').select('*').eq('emp_code',code);
+      var {data:directRows,error:directErr}=await _sb.from('hrms_month_data').select('*').eq('emp_code',code).range(0,9999);
       if(!directErr&&directRows) rows=directRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean);
+      // Also try ilike-normalised match in case the column was saved with
+      // padding / different casing for the same logical empCode.
+      if(!directErr){
+        try{
+          var {data:fuzzyRows}=await _sb.from('hrms_month_data').select('*').ilike('emp_code',code).range(0,9999);
+          if(fuzzyRows&&fuzzyRows.length){
+            var seen={};rows.forEach(function(r){seen[r.monthKey]=true;});
+            fuzzyRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean).forEach(function(r){
+              if(!seen[r.monthKey]){rows.push(r);seen[r.monthKey]=true;}
+            });
+          }
+        }catch(_){}
+      }
     }catch(e){console.warn('Load history (direct) error:',e);}
     try{
-      var {data:metaRows,error:metaErr}=await _sb.from('hrms_month_data').select('month_key,meta').eq('emp_code','_meta');
+      var {data:metaRows,error:metaErr}=await _sb.from('hrms_month_data').select('month_key,meta').eq('emp_code','_meta').range(0,9999);
       if(!metaErr&&metaRows){
         var byMk={};rows.forEach(function(r){byMk[r.monthKey]=true;});
         metaRows.forEach(function(m){
@@ -3052,7 +3090,9 @@ async function _hrmsShowEmpHistory(){
           if(byMk[mk]) return;// already have a direct row for this month — skip
           var list=m.meta&&m.meta.contract;
           if(!Array.isArray(list)) return;
-          var cr=list.find(function(x){return String(x.empCode||'').trim()===String(code||'').trim();});
+          // Tolerant match — trim + lowercase so leading zeros / casing
+          // differences don't drop a contract month from the history.
+          var cr=list.find(function(x){return String(x.empCode||'').trim().toLowerCase()===codeKey;});
           if(!cr) return;
           // Synthesize a hrmsMonthData-shaped row from the contract snapshot.
           var otTot=(+cr.OT||0)+(+cr.OTS||0);
@@ -5126,6 +5166,18 @@ async function _hrmsComputeEntryExit(yr,mo){
   };
   newEmps.forEach(function(e){e._joineeType=_classifyJoinee(e);});
 
+  // Cache the joinee map for this month — keyed by upper-cased empCode
+  // so the modal's Initial IN/OUT visibility check can decide based on
+  // the same classification the Joinee/Rejoinee table uses (instead of
+  // re-deriving from DOJ alone, which misses employees whose first
+  // attendance lands in a month later than their DOJ).
+  window._hrmsJoineeByMk=window._hrmsJoineeByMk||{};
+  var _joineeMap={};
+  newEmps.forEach(function(e){
+    if(e&&e.empCode) _joineeMap[String(e.empCode).toUpperCase()]=(e._joineeType||'new');
+  });
+  window._hrmsJoineeByMk[mk]=_joineeMap;
+
   // Unknown emp codes across both sets
   var unknownNew=newEmps.filter(function(e){return !!e._unmatched;});
   var unknownLeft=leftEmps.filter(function(e){return !!e._unmatched;});
@@ -5303,13 +5355,12 @@ function _hrmsFilterUnique(list,getter){
   (list||[]).forEach(function(e){var v=String(getter(e)||'').trim();if(v&&!seen[v]){seen[v]=true;out.push(v);}});
   out.sort();return out;
 }
-// Build a category-wise headcount summary strip — one chip per
+// Build a category-wise headcount summary strip — one tile per
 // (category × employmentType) bucket plus a total. Used above both
 // the Joinee/Rejoinee and Absent FTM tables so the user gets a
-// quick read on the bucket mix without scanning the table.
+// quick, scannable read on the bucket mix.
 function _hrmsHeadcountSummaryHTML(list,color){
   if(!list||!list.length) return '';
-  // Group by category, tally employmentType buckets per row.
   var cats={};
   list.forEach(function(e){
     var cat=(e.category||'Other').trim()||'Other';
@@ -5328,22 +5379,35 @@ function _hrmsHeadcountSummaryHTML(list,color){
   });
   var bucketStyle=function(b){
     var t=b.toLowerCase().replace(/\s/g,'');
-    if(t==='onroll') return 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
-    if(t==='contract') return 'background:#fef3c7;color:#92400e;border:1px solid #fcd34d';
-    if(t==='piecerate') return 'background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd';
-    return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+    if(t==='onroll')   return {bg:'#dbeafe',fg:'#1d4ed8',br:'#93c5fd'};
+    if(t==='contract') return {bg:'#fef3c7',fg:'#92400e',br:'#fcd34d'};
+    if(t==='piecerate')return {bg:'#ede9fe',fg:'#6d28d9',br:'#c4b5fd'};
+    return {bg:'#f1f5f9',fg:'#475569',br:'#cbd5e1'};
   };
-  var h='<div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px;padding:8px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">';
-  h+='<div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:'+(color||'var(--text)')+';padding:3px 10px;background:#fff;border:1px solid '+(color||'var(--border)')+';border-radius:10px">Σ Total <span style="font-family:var(--mono);font-size:14px;font-weight:900">'+list.length+'</span></div>';
+  var pageColor=color||'var(--accent)';
+  var h='<div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,var(--surface2) 0%,#ffffff 100%);border:1.5px solid '+pageColor+';border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)">';
+  // ── Grand Total tile ──
+  h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:120px;padding:10px 18px;background:'+pageColor+';color:#fff;border-radius:10px;box-shadow:0 4px 12px rgba(15,23,42,.18)">';
+  h+='<div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.85">Total</div>';
+  h+='<div style="font-family:var(--mono);font-size:32px;font-weight:900;line-height:1;margin-top:2px">'+list.length+'</div>';
+  h+='</div>';
+  // ── Per-category tiles with bucket breakdown ──
   keys.forEach(function(cat){
     var info=cats[cat];
-    h+='<div style="display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;background:#fff;border:1px solid var(--border);border-radius:8px">';
-    h+='<span style="font-weight:800;color:var(--text)">'+cat+'</span>';
-    h+='<span style="font-family:var(--mono);font-size:12px;font-weight:900;color:'+(color||'var(--accent)')+'">'+info.total+'</span>';
+    h+='<div style="display:flex;flex-direction:column;min-width:170px;padding:10px 14px;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 2px 6px rgba(15,23,42,.04)">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">';
+    h+='<span style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase">'+cat+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:24px;font-weight:900;color:'+pageColor+';line-height:1">'+info.total+'</span>';
+    h+='</div>';
     var bks=Object.keys(info.buckets).sort();
-    bks.forEach(function(bk){
-      h+='<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;'+bucketStyle(bk)+'">'+bk+' '+info.buckets[bk]+'</span>';
-    });
+    if(bks.length){
+      h+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">';
+      bks.forEach(function(bk){
+        var st=bucketStyle(bk);
+        h+='<span style="display:inline-flex;align-items:baseline;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';border:1px solid '+st.br+'">'+bk+' <b style="font-family:var(--mono);font-size:13px;font-weight:900">'+info.buckets[bk]+'</b></span>';
+      });
+      h+='</div>';
+    }
     h+='</div>';
   });
   h+='</div>';
@@ -13725,8 +13789,13 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   // Apply team filter
   var sel=_hrmsContractTeamFilter||'All';
   var filteredRows=sel==='All'?rows:rows.filter(function(r){return(r.team||'—')===sel;});
-  // Apply emp code / name search
+  // Apply emp code / name search. When the user picks from the autocomplete
+  // the input value is the labelled form "CODE · Name · Plant" — strip the
+  // " · " suffix so we match against the real empCode rather than the
+  // composite label (which would never appear in either column).
   var q=(_hrmsContractEmpQ||'').trim().toLowerCase();
+  var sep=q.indexOf(' · ');
+  if(sep>=0) q=q.substring(0,sep).trim();
   if(q){
     filteredRows=filteredRows.filter(function(r){
       return(r.empCode||'').toLowerCase().indexOf(q)>=0||(r.name||'').toLowerCase().indexOf(q)>=0;
@@ -13734,16 +13803,34 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   }
   if(!filteredRows.length){grid.innerHTML='<div class="empty-state" style="padding:20px">No employees match'+(q?' "'+q+'"':'')+(sel!=='All'?' in team "'+sel+'"':'')+' for '+_hrmsMonthLabel(mk)+'.</div>';return;}
 
-  // Sort across all rows: Plant → Roll → Emp Code
+  // Default sort: Team → Plant → Emp Code. A user-chosen sort layered
+  // on top via stable sort.
+  var _empCodeKey=function(v){return(parseInt(v)||0)+'|'+String(v||'');};
   filteredRows.sort(function(a,b){
+    var t=(a.team||'').localeCompare(b.team||'');if(t!==0) return t;
     var p=(a.plant||'').localeCompare(b.plant||'');if(p!==0) return p;
-    var r=(a.roll||'').localeCompare(b.roll||'');if(r!==0) return r;
     return(parseInt(a.empCode)||0)-(parseInt(b.empCode)||0)||(a.empCode||'').localeCompare(b.empCode||'');
   });
+  var _csSort=window._hrmsContractSort||{field:'',dir:1};
+  if(_csSort.field){
+    var _f=_csSort.field,_dir=_csSort.dir||1;
+    var _numericFields={rateD:1,rateM:1,P:1,OT:1,OTS:1,PH:1,pPlusPH:1,A:1,totalOT:1,otAt1:1,forPresent:1,forOT:1,spAllow:1,gross:1,pf:1,esi:1,totalSal:1,commission:1,totalBill:1,diwali:1,ctc:1};
+    filteredRows.sort(function(a,b){
+      var av=a[_f],bv=b[_f];
+      if(_numericFields[_f]) return((+av||0)-(+bv||0))*_dir;
+      if(_f==='empCode') return(((parseInt(a.empCode)||0)-(parseInt(b.empCode)||0))||String(a.empCode||'').localeCompare(String(b.empCode||'')))*_dir;
+      return String(av||'').localeCompare(String(bv||''))*_dir;
+    });
+  }
 
   var _r=function(v){return Math.round(v||0).toLocaleString();};
   var _f=function(v){if(v==null)return'0';if(v%1===0) return String(v); return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
-  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b';
+  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b;cursor:pointer;user-select:none';
+  var _thNS='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b';
+  var _arrow=function(field){
+    if(_csSort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
+    return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(_csSort.dir>0?'▲':'▼')+'</span>';
+  };
   var _td='padding:4px 5px;font-size:13px;border:1px solid #e2e8f0;white-space:nowrap';
 
   // Sticky-left widths for #, Emp Code, Name
@@ -13755,36 +13842,36 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   var _stkTd2='position:sticky;left:'+_W1+'px;z-index:1;background:#fff;min-width:'+_W2+'px';
   var _stkTd3='position:sticky;left:'+(_W1+_W2)+'px;z-index:1;background:#fff;min-width:'+_W3+'px';
   var h='<table style="border-collapse:collapse;font-size:13px;white-space:nowrap;width:auto">';
-  // Header (top-sticky)
+  // Header (top-sticky). Click to sort; click again to flip direction.
   h+='<thead style="position:sticky;top:0;z-index:3"><tr>';
-  h+='<th style="'+_th+';'+_stkTh1+'">#</th>';
-  h+='<th style="'+_th+';'+_stkTh2+'">Emp Code</th>';
-  h+='<th style="'+_th+';text-align:left;'+_stkTh3+'">Name</th>';
-  h+='<th style="'+_th+'">DOJ</th>';
-  h+='<th style="'+_th+'">Team</th>';
-  h+='<th style="'+_th+'">Plant</th>';
-  h+='<th style="'+_th+'">Roll</th>';
-  h+='<th style="'+_th+';background:#fef3c7;text-align:right">Rate/Day</th>';
-  h+='<th style="'+_th+';background:#fef3c7;text-align:right">Sal/Month</th>';
-  h+='<th style="'+_th+';background:#dbeafe;text-align:right">P</th>';
-  h+='<th style="'+_th+';background:#dbeafe;text-align:right">OT</th>';
-  h+='<th style="'+_th+';background:#dbeafe;text-align:right">OT@S</th>';
-  h+='<th style="'+_th+';background:#dbeafe;text-align:right">PH</th>';
-  h+='<th style="'+_th+';background:#dbeafe;text-align:right">P+PH</th>';
-  h+='<th style="'+_th+';background:#fee2e2;text-align:right">A</th>';
-  h+='<th style="'+_th+';background:#fff7ed;text-align:right">Total OT</th>';
-  h+='<th style="'+_th+';background:#fff7ed;text-align:right">OT@1</th>';
-  h+='<th style="'+_th+';background:#dcfce7;text-align:right">For Present</th>';
-  h+='<th style="'+_th+';background:#dcfce7;text-align:right">For OT@1</th>';
-  h+='<th style="'+_th+';background:#dcfce7;text-align:right">Sp.Allow</th>';
-  h+='<th style="'+_th+';background:#dcfce7;text-align:right">Gross</th>';
-  h+='<th style="'+_th+';background:#f3e8ff;text-align:right">PF</th>';
-  h+='<th style="'+_th+';background:#f3e8ff;text-align:right">ESI</th>';
-  h+='<th style="'+_th+';background:#f3e8ff;text-align:right">Total Salary</th>';
-  h+='<th style="'+_th+';background:#fef3c7;text-align:right">Commission 8%</th>';
-  h+='<th style="'+_th+';background:#fef3c7;text-align:right">Total Bill</th>';
-  h+='<th style="'+_th+';background:#fce7f3;text-align:right">Diwali Bonus</th>';
-  h+='<th style="'+_th+';background:#dcfce7;text-align:right">CTC</th>';
+  h+='<th style="'+_thNS+';'+_stkTh1+'">#</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'empCode\')" style="'+_th+';'+_stkTh2+'">Emp Code'+_arrow('empCode')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'name\')" style="'+_th+';text-align:left;'+_stkTh3+'">Name'+_arrow('name')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'doj\')" style="'+_th+'">DOJ'+_arrow('doj')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'team\')" style="'+_th+'">Team'+_arrow('team')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'plant\')" style="'+_th+'">Plant'+_arrow('plant')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'roll\')" style="'+_th+'">Roll'+_arrow('roll')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'rateD\')" style="'+_th+';background:#fef3c7;text-align:right">Rate/Day'+_arrow('rateD')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'rateM\')" style="'+_th+';background:#fef3c7;text-align:right">Sal/Month'+_arrow('rateM')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'P\')" style="'+_th+';background:#dbeafe;text-align:right">P'+_arrow('P')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'OT\')" style="'+_th+';background:#dbeafe;text-align:right">OT'+_arrow('OT')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'OTS\')" style="'+_th+';background:#dbeafe;text-align:right">OT@S'+_arrow('OTS')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'PH\')" style="'+_th+';background:#dbeafe;text-align:right">PH'+_arrow('PH')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'pPlusPH\')" style="'+_th+';background:#dbeafe;text-align:right">P+PH'+_arrow('pPlusPH')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'A\')" style="'+_th+';background:#fee2e2;text-align:right">A'+_arrow('A')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'totalOT\')" style="'+_th+';background:#fff7ed;text-align:right">Total OT'+_arrow('totalOT')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'otAt1\')" style="'+_th+';background:#fff7ed;text-align:right">OT@1'+_arrow('otAt1')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'forPresent\')" style="'+_th+';background:#dcfce7;text-align:right">For Present'+_arrow('forPresent')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'forOT\')" style="'+_th+';background:#dcfce7;text-align:right">For OT@1'+_arrow('forOT')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'spAllow\')" style="'+_th+';background:#dcfce7;text-align:right">Sp.Allow'+_arrow('spAllow')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'gross\')" style="'+_th+';background:#dcfce7;text-align:right">Gross'+_arrow('gross')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'pf\')" style="'+_th+';background:#f3e8ff;text-align:right">PF'+_arrow('pf')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'esi\')" style="'+_th+';background:#f3e8ff;text-align:right">ESI'+_arrow('esi')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'totalSal\')" style="'+_th+';background:#f3e8ff;text-align:right">Total Salary'+_arrow('totalSal')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'commission\')" style="'+_th+';background:#fef3c7;text-align:right">Commission 8%'+_arrow('commission')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'totalBill\')" style="'+_th+';background:#fef3c7;text-align:right">Total Bill'+_arrow('totalBill')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'diwali\')" style="'+_th+';background:#fce7f3;text-align:right">Diwali Bonus'+_arrow('diwali')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'ctc\')" style="'+_th+';background:#dcfce7;text-align:right">CTC'+_arrow('ctc')+'</th>';
   h+='</tr></thead><tbody>';
 
   var sn=0;
@@ -13868,7 +13955,7 @@ function _hrmsContractBuildTeamFilter(rows){
   if(sel!=='All'&&!teamCounts[sel]){_hrmsContractTeamFilter='All';sel='All';}
   var _btn=function(label,key,count,active){
     var bg=active?'#2a9aa0':'#fff',clr=active?'#fff':'#1e293b',bd=active?'#1e7a7f':'#cbd5e1';
-    return '<button onclick="_hrmsContractSetTeam(\''+key.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:12px;font-weight:700;background:'+bg+';color:'+clr+';border:1.5px solid '+bd+';border-radius:6px;cursor:pointer">'+label+' <span style="opacity:.75;font-size:10px">('+count+')</span></button>';
+    return '<button class="hrms-allow-locked" onclick="_hrmsContractSetTeam(\''+key.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:12px;font-weight:700;background:'+bg+';color:'+clr+';border:1.5px solid '+bd+';border-radius:6px;cursor:pointer">'+label+' <span style="opacity:.75;font-size:10px">('+count+')</span></button>';
   };
   var html=_btn('All','All',rows.length,sel==='All');
   teams.forEach(function(t){html+=_btn(t,t,teamCounts[t],sel===t);});
@@ -13975,6 +14062,18 @@ function _hrmsContractShowDetail(empCode){
 function _hrmsContractEmpSearchInput(inp){
   _hrmsContractEmpQ=inp.value||'';
   _hrmsContractClearBtnToggle();
+  var mk=_hrmsMonth;if(!mk)return;
+  var grid=document.getElementById('hrmsContractGrid');if(!grid)return;
+  var rows=_hrmsContractCache[mk]||[];
+  var parts=mk.split('-');
+  _hrmsContractRenderRows(grid,rows,mk,parseInt(parts[0]),parseInt(parts[1]));
+}
+
+window._hrmsContractSort=window._hrmsContractSort||{field:'',dir:1};
+function _hrmsContractSortBy(field){
+  var st=window._hrmsContractSort;
+  if(st.field===field) st.dir*=-1;
+  else { st.field=field; st.dir=1; }
   var mk=_hrmsMonth;if(!mk)return;
   var grid=document.getElementById('hrmsContractGrid');if(!grid)return;
   var rows=_hrmsContractCache[mk]||[];

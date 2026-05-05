@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260505-V158">
+<meta name="app-build" content="260505-V165">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260505-V158">
+<link rel="stylesheet" href="css/hrms.css?v=260505-V165">
 </head>
 <body>
 
@@ -814,12 +814,12 @@
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
           <div style="position:relative">
-            <input type="text" id="hrmsContractEmpSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsContractEmpSearchInput(this);_hrmsContractClearBtnToggle()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsContractEmpSearch')},200)" onchange="_hrmsContractEmpSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsContractEmpSearch');_hrmsContractEmpSearchInput(this);}" style="font-size:13px;padding:6px 28px 6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
+            <input type="text" class="hrms-allow-locked" id="hrmsContractEmpSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsContractEmpSearchInput(this);_hrmsContractClearBtnToggle()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsContractEmpSearch')},200)" onchange="_hrmsContractEmpSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsContractEmpSearch');_hrmsContractEmpSearchInput(this);}" style="font-size:13px;padding:6px 28px 6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
             <span id="hrmsContractEmpSearchClear" onmousedown="event.preventDefault();_hrmsContractEmpSearchClear()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:900;color:var(--text3);cursor:pointer;line-height:1;padding:2px 5px;border-radius:50%;user-select:none" title="Clear">✕</span>
             <div id="ac_hrmsContractEmpSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div>
           </div>
           <div id="hrmsContractTeamFilter" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-          <div style="margin-left:auto"><button onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export Excel</button></div>
+          <div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export Excel</button></div>
         </div>
         <div id="hrmsContractGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -977,8 +977,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260505-V158"></script>
-<script src="js/hrms-logic.js?v=260505-V158"></script>
-<script src="js/hrms-ui.js?v=260505-V158"></script>
+<script src="js/common.js?v=260505-V165"></script>
+<script src="js/hrms-logic.js?v=260505-V165"></script>
+<script src="js/hrms-ui.js?v=260505-V165"></script>
 </body>
 </html>
