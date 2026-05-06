@@ -3113,6 +3113,66 @@ async function _hrmsShowEmpHistory(){
         });
       }
     }catch(e){console.warn('Load history (meta) error:',e);}
+    // Last-resort fallback — surface every month for which the
+    // employee has at least one IN/OUT in hrms_attendance, even when
+    // the salary snapshot is missing (Piece Rate workers don't get a
+    // direct row OR a meta.contract slot, and pre-V125 locks didn't
+    // have the contract snapshot at all). For these months we still
+    // show approximate salary numbers — P × rateD using the active
+    // period's salaryDay (or rateM/26 for monthly-rate folks). Marked
+    // _attOnly so the renderer flags it as approximate.
+    try{
+      var attResp=await _sb.from('hrms_attendance').select('month_key,days').eq('emp_code',code).range(0,9999);
+      if(!attResp.error&&attResp.data){
+        var byMk2={};rows.forEach(function(r){byMk2[r.monthKey]=true;});
+        var _periodFor=function(empArg,mkArg){
+          if(!empArg||!Array.isArray(empArg.periods)) return null;
+          var matches=empArg.periods.filter(function(p){
+            if(p._wfStatus&&p._wfStatus!=='approved') return false;
+            var pFrom=String(p.from||'').slice(0,7);
+            var pTo=p.to?String(p.to).slice(0,7):'';
+            return pFrom<=mkArg&&(!pTo||pTo>=mkArg);
+          });
+          if(matches.length){
+            matches.sort(function(a,b){return String(b.from||'').localeCompare(String(a.from||''));});
+            return matches[0];
+          }
+          return null;
+        };
+        attResp.data.forEach(function(a){
+          var mk=a.month_key;if(byMk2[mk]) return;
+          var days=a.days||{};
+          var pCount=0,aCount=0,workingDays=0;
+          Object.keys(days).forEach(function(dk){
+            var d=days[dk];if(!d) return;
+            workingDays++;
+            var hasIn=d['in']&&String(d['in']).trim();
+            var hasOut=d['out']&&String(d['out']).trim();
+            if(hasIn&&hasOut) pCount++;
+            else if(!hasIn&&!hasOut) aCount++;
+          });
+          if(!workingDays) return;
+          // Approximate salary from the active period at that month.
+          var period=_periodFor(emp,mk)||{};
+          var rateD=+period.salaryDay||+emp.salaryDay||0;
+          var rateM=+period.salaryMonth||+emp.salaryMonth||0;
+          var apxGross=0;
+          if(rateD>0) apxGross=Math.round(rateD*pCount);
+          else if(rateM>0) apxGross=Math.round(rateM*pCount/26);
+          var mkLocked=(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk));
+          rows.push({
+            monthKey:mk,empCode:code,
+            rateD:rateD,rateM:rateM,wdCount:0,
+            totalP:pCount,totalA:aCount,
+            totalOT:0,totalOTS:0,totalPL:0,
+            gross:apxGross,advDed:0,dedTotal:0,net:apxGross,
+            _attOnly:true,
+            _attOnlyTag:mkLocked?'approx':'unlocked'
+          });
+          byMk2[mk]=true;
+        });
+      }
+    }catch(e){console.warn('Load history (attendance fallback) error:',e);}
   }
   _hrmsEmpHistoryLoadedFor=id;
 
@@ -3121,8 +3181,9 @@ async function _hrmsShowEmpHistory(){
     return;
   }
 
-  // Sort by monthKey ascending
-  rows.sort(function(a,b){return(a.monthKey||'').localeCompare(b.monthKey||'');});
+  // Sort by monthKey descending — newest month first within each FY,
+  // matching the FY headers which are already rendered newest-first.
+  rows.sort(function(a,b){return(b.monthKey||'').localeCompare(a.monthKey||'');});
 
   // Group by Financial Year (April→March)
   var fyGroups={};
@@ -3148,10 +3209,12 @@ async function _hrmsShowEmpHistory(){
       tot.gross+=m.gross||0;tot.dedTotal+=m.dedTotal||0;tot.net+=m.net||0;
       tot.advDed+=m.advDed||0;
     });
-    // First and last for OB/CB
-    var first=fy.months[0],last=fy.months[fy.months.length-1];
-    tot.advOB=first?(first.advOB||0):0;
-    tot.advCB=last?(last.advCB||0):0;
+    // OB / CB use the oldest / newest month of the FY. With the
+    // descending sort, that's the LAST entry / FIRST entry of the
+    // months array.
+    var newest=fy.months[0],oldest=fy.months[fy.months.length-1];
+    tot.advOB=oldest?(oldest.advOB||0):0;
+    tot.advCB=newest?(newest.advCB||0):0;
 
     h+='<div style="margin-bottom:16px;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">';
     h+='<div style="background:#7c3aed;color:#fff;padding:8px 14px;font-size:14px;font-weight:900;display:flex;justify-content:space-between;align-items:center">';
@@ -3176,8 +3239,14 @@ async function _hrmsShowEmpHistory(){
     h+='<th style="'+_th+';text-align:right;background:#dcfce7">Net</th>';
     h+='</tr></thead><tbody>';
     fy.months.forEach(function(m){
-      h+='<tr style="border-bottom:1px solid #f1f5f9">';
-      h+='<td style="padding:4px 6px;font-weight:700">'+_hrmsShortMonth(m.monthKey)+'</td>';
+      var tag=m._attOnlyTag||(m._attOnly?'unlocked':'');
+      var rowStyle=m._attOnly?(tag==='approx'?'background:#eff6ff;border-bottom:1px solid #93c5fd':'background:#fffbeb;border-bottom:1px solid #fcd34d'):'border-bottom:1px solid #f1f5f9';
+      var tagHtml='';
+      if(tag==='unlocked') tagHtml=' <span style="display:inline-block;margin-left:4px;padding:1px 6px;font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;text-transform:uppercase">unlocked</span>';
+      else if(tag==='approx') tagHtml=' <span style="display:inline-block;margin-left:4px;padding:1px 6px;font-size:9px;font-weight:800;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;border-radius:8px;text-transform:uppercase">approx</span>';
+      var rowTitle=tag==='unlocked'?'Attendance only — month not yet locked, salary not processed':(tag==='approx'?'Approximate — month locked but no per-employee salary snapshot found; gross = P × Sal/Day':'');
+      h+='<tr style="'+rowStyle+'" title="'+rowTitle+'">';
+      h+='<td style="padding:4px 6px;font-weight:700">'+_hrmsShortMonth(m.monthKey)+tagHtml+'</td>';
       h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.rateD?_r(m.rateD):'—')+'</td>';
       h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.rateM?_r(m.rateM):'—')+'</td>';
       h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono)">'+(m.wdCount||0)+'</td>';
@@ -3210,7 +3279,7 @@ async function _hrmsShowEmpHistory(){
     h+='</tbody></table></div></div>';
   });
 
-  h+='<div style="font-size:11px;color:var(--text3);margin-top:8px;padding:8px;background:#f1f5f9;border-radius:6px">ℹ History only includes months that have been <b>Saved &amp; Locked</b>. Unlocked months (in progress) are not shown.</div>';
+  h+='<div style="font-size:11px;color:var(--text3);margin-top:8px;padding:8px;background:#f1f5f9;border-radius:6px">ℹ Untagged rows = full salary snapshot. <span style="display:inline-block;padding:1px 6px;font-size:9px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:8px;text-transform:uppercase">unlocked</span> = month not yet locked, P/A from punches only. <span style="display:inline-block;padding:1px 6px;font-size:9px;font-weight:800;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;border-radius:8px;text-transform:uppercase">approx</span> = month locked but per-employee snapshot missing (typical for Piece Rate); gross = P × Sal/Day from the active period.</div>';
 
   if(body) body.innerHTML=h;
 }

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260505-V165">
+<meta name="app-build" content="260506-V169">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260505-V165">
+<link rel="stylesheet" href="css/hrms.css?v=260506-V169">
 </head>
 <body>
 
@@ -111,19 +111,19 @@
         </colgroup>
         <thead>
         <tr style="background:#fff">
+          <th style="padding:3px 2px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all search boxes / filters" style="font-size:13px;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:900;line-height:1">✕</button></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" placeholder="🔍" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:13px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:13px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" placeholder="🔍" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
+          <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFPlant" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFType" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFTeam" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFDept" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFRoll" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFPlant" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFType" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFTeam" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFDept" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFRoll" onchange="renderHrmsEmployees()" style="font-size:11px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
-          <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all filters" style="font-size:11px;padding:2px 6px;border-radius:3px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕</button></th>
         </tr>
         <tr style="background:#f1f5f9">
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)">#</th>
@@ -977,8 +977,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260505-V165"></script>
-<script src="js/hrms-logic.js?v=260505-V165"></script>
-<script src="js/hrms-ui.js?v=260505-V165"></script>
+<script src="js/common.js?v=260506-V169"></script>
+<script src="js/hrms-logic.js?v=260506-V169"></script>
+<script src="js/hrms-ui.js?v=260506-V169"></script>
 </body>
 </html>
