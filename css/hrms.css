@@ -49,6 +49,13 @@
 }
 .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .no-spin{-moz-appearance:textfield}
+/* Standard HRMS search-box style (matches the Salary-tab search). Used
+   across all standalone search inputs so they share the same look. */
+.hrms-search{font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text)}
+/* Inline variant for column-header filter inputs — keeps the same
+   font / colour / radius but constrained to the cell width and a
+   thinner border so the row isn't visually heavy. */
+.hrms-search-inline{font-size:13px;padding:4px 8px;border:1.5px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text);width:100%;box-sizing:border-box}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
 .btn{padding:8px 16px;border-radius:var(--radius);font-weight:700;cursor:pointer;font-size:13px;border:1.5px solid var(--border);background:var(--surface);transition:all .15s}
 .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:var(--accent2)}

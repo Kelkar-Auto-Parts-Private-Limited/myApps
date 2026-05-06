@@ -167,7 +167,8 @@ var _hrmsPageTitles={
   pageHrmsMAllocation:'Masters — Allocation',
   pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
   pageHrmsUtilDailyAtt:'Utilities — Daily Attendance Summary',
-  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph'
+  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph',
+  pageHrmsUtilContractFromFix:'Utilities — Contract From-Month Cleanup'
 };
 
 function _hrmsUpdateTopTitle(){
@@ -194,7 +195,8 @@ var _HRMS_PAGE_PERMS={
   pageHrmsMSubDept:'page.masterSubDept',pageHrmsMDesig:'page.masterDesig',pageHrmsMRoll:'page.masterRoll',pageHrmsMAllocation:'page.masterAllocation',
   pageHrmsUtilAttConv:'page.utilAttConv',
   pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
-  pageHrmsUtilMonthlyHc:'page.utilMonthlyHc'
+  pageHrmsUtilMonthlyHc:'page.utilMonthlyHc',
+  pageHrmsUtilContractFromFix:'page.utilContractFromFix'
 };
 
 function _hrmsEnforcePermissions(){
@@ -316,6 +318,7 @@ function hrmsGo(pid){
       if(typeof _hrmsDasRender==='function') _hrmsDasRender();
     }
     if(pid==='pageHrmsUtilMonthlyHc'&&typeof _hrmsMhgInit==='function') _hrmsMhgInit();
+    if(pid==='pageHrmsUtilContractFromFix'&&typeof _hrmsCfmRender==='function') _hrmsCfmRender();
   }
   if(pid==='pageHrmsMyAtt'&&typeof _hrmsMyAttInit==='function') _hrmsMyAttInit();
   if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
@@ -1083,6 +1086,16 @@ async function _hrmsAbsentCPRTargets(mk){
 // are NEVER touched. Employees already in 'Left' state are skipped.
 // Returns number of employee records updated. `silent` = no toasts.
 async function _hrmsAutoMarkAbsentInactive(mk,silent){
+  // POLICY (V184+): Active / Inactive status is no longer maintained
+  // automatically for Contract / Piece-Rate employees. Their salary
+  // is computed from attendance presence alone, so flipping their
+  // status added complexity (split periods, downstream filter
+  // skips) without buying us anything. The function stays exported
+  // as a no-op so existing callers don't crash.
+  if(!silent&&typeof notify==='function') notify('Auto-status marking for Contract / Piece-Rate has been retired — presence in attendance is now the sole criterion.');
+  return 0;
+  /* eslint-disable */
+  // ── Legacy implementation kept for reference ──
   if(!mk) return 0;
   await _hrmsAttFetchMonth(mk);
   // Build presence map (same rules as _hrmsAbsentCPRTargets)
@@ -1600,7 +1613,7 @@ function _hrmsBuildPeriodTable(){
         :(isDraft?'<span style="font-size:13px;font-weight:800;color:#2563eb;padding:3px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;display:inline-block">Draft</span>':(isProposed?'<span style="font-size:13px;font-weight:800;color:#f59e0b;padding:3px 6px;background:#fefce8;border:1px solid #fde047;border-radius:4px;display:inline-block">Pending</span>':(isActive?'<span style="font-size:14px;font-weight:800;color:#16a34a;padding:3px 6px;background:#f0fdf4;border:1px solid #86efac;border-radius:4px;display:inline-block">Till date</span>':'<span style="font-size:14px;font-weight:700;color:var(--text)">'+_hrmsShortMonth(p.to)+'</span>')))
         )+'</td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('location')+'" onchange="_hrmsPeriodFieldChange('+i+',\'location\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;font-weight:700;padding:2px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;width:100%;background:'+(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(p.location):'#ffffff')+';color:#1e293b" '+dis+'>'+_plantOpts(p.location)+'</select></td>'
-      +'<td style="padding:4px 3px"><select class="'+_chk('employmentType')+'" onchange="_hrmsPeriodFieldChange('+i+',\'employmentType\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsEmpTypes',p.employmentType)+'</select></td>'
+      +'<td style="padding:4px 3px"><select class="'+_chk('employmentType')+'" onchange="_hrmsPeriodFieldChange('+i+',\'employmentType\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid '+(_saUnlocked&&!isEditable?'#a855f7':'var(--border)')+';border-radius:4px;width:100%" '+((isEditable||_saUnlocked)?(_saUnlocked&&!isEditable?'title="Super Admin override — no approval needed"':''):dis)+'>'+_selOpts('hrmsEmpTypes',p.employmentType)+'</select></td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('category')+'" onchange="_hrmsPeriodFieldChange('+i+',\'category\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_selOpts('hrmsCategories',p.category)+'</select></td>'
       +'<td style="padding:4px 3px"><select class="'+_chk('teamName')+'" onchange="_hrmsPeriodFieldChange('+i+',\'teamName\',this.value);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%" '+dis+'>'+_teamOpts(p.teamName,p.employmentType)+'</select></td>'
       // Department cell — Worker uses hrmsDepartments, Staff uses
@@ -1857,11 +1870,11 @@ function _hrmsEmpSetTab(tab){
 }
 // Sort state for the ECR History table — default newest-first by
 // action date. Toggled by clicking any header in the table.
-window._hrmsEcrHistorySort=window._hrmsEcrHistorySort||{field:'date',dir:-1};
+window._hrmsEcrHistorySort=window._hrmsEcrHistorySort||{field:'actAt',dir:-1};
 function _hrmsEcrHistorySortBy(field){
   var st=window._hrmsEcrHistorySort;
   if(st.field===field) st.dir*=-1;
-  else { st.field=field; st.dir=field==='date'?-1:1; }
+  else { st.field=field; st.dir=(field==='actAt'||field==='reqAt')?-1:1; }
   if(typeof _hrmsRenderChangeReq==='function') _hrmsRenderChangeReq();
 }
 function _hrmsRenderChangeReq(){
@@ -1895,7 +1908,9 @@ function _hrmsRenderChangeReq(){
     var _isNewEcr=!!e._isNewEcr;
     var _ecEsc=String(e.empCode||'').replace(/'/g,"\\'");
     h+='<div><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+_ecEsc+'\')" style="font-family:var(--mono);font-weight:900;font-size:16px;color:var(--accent);text-decoration:underline;cursor:pointer" title="View / edit employee">'+e.empCode+'</a> <span style="font-weight:700;font-size:15px">'+e.name+'</span> <span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">⏳ Pending</span>'+(_isNewEcr?' <span style="background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px">NEW EMPLOYEE</span>':'')+'</div>';
-    h+='<div style="font-size:11px;color:var(--text3)">Proposed from <b>'+_hrmsMonthLabel(p.from)+'</b>'+(p.submittedBy?' by '+p.submittedBy:'')+'</div></div>';
+    var _subAt=p.submittedAt?new Date(p.submittedAt):null;
+    var _subAtTxt=_subAt&&!isNaN(_subAt.getTime())?_subAt.toLocaleString():'';
+    h+='<div style="font-size:11px;color:var(--text3);text-align:right;line-height:1.45">Proposed from <b>'+_hrmsMonthLabel(p.from)+'</b>'+(p.submittedBy?'<br>Requested by <b>'+p.submittedBy+'</b>':'')+(_subAtTxt?'<br><span style="font-family:var(--mono)">'+_subAtTxt+'</span>':'')+'</div></div>';
     // Unified timeline table: all periods + proposed row with changes highlighted
     var _ecrCols=['location','employmentType','category','teamName','roll','department','designation','salaryDay','salaryMonth','specialAllowance','esiApplicable'];
     var _ecrColH={location:'Plant',employmentType:'Emp Type',category:'Category',teamName:'Team',department:'Dept',designation:'Designation',roll:'Role',salaryDay:'Sal/Day',salaryMonth:'Sal/Mon',specialAllowance:'Sp.Allow',esiApplicable:'ESI'};
@@ -1941,8 +1956,10 @@ function _hrmsRenderChangeReq(){
       if(f==='name') return String(e.name||'');
       if(f==='period') return String(p.from||'');
       if(f==='status') return p._ecrResult==='approved'?'1':'0';
-      if(f==='by') return String((p._ecrResult==='approved'?p.approvedBy:p.rejectedBy)||'');
-      if(f==='date') return String((p._ecrResult==='approved'?p.approvedAt:p.rejectedAt)||p.submittedAt||'');
+      if(f==='reqBy') return String(p.submittedBy||'');
+      if(f==='reqAt') return String(p.submittedAt||'');
+      if(f==='actBy') return String((p._ecrResult==='approved'?p.approvedBy:p.rejectedBy)||'');
+      if(f==='actAt') return String((p._ecrResult==='approved'?p.approvedAt:p.rejectedAt)||'');
       if(f==='salaryDay'||f==='salaryMonth'||f==='specialAllowance') return +(p[f]||0);
       return String(p[f]||'');
     };
@@ -1964,8 +1981,10 @@ function _hrmsRenderChangeReq(){
       +'<th onclick="_hrmsEcrHistorySortBy(\'name\')" style="'+_hThS+'">Name'+_ecrArrow('name')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'period\')" style="'+_hThS+'">Period'+_ecrArrow('period')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'status\')" style="'+_hThS+'">Status'+_ecrArrow('status')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'by\')" style="'+_hThS+'">By'+_ecrArrow('by')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'date\')" style="'+_hThS+'">Date'+_ecrArrow('date')+'</th>'
+      +'<th onclick="_hrmsEcrHistorySortBy(\'reqBy\')" style="'+_hThS+'">Requested By'+_ecrArrow('reqBy')+'</th>'
+      +'<th onclick="_hrmsEcrHistorySortBy(\'reqAt\')" style="'+_hThS+'">Requested At'+_ecrArrow('reqAt')+'</th>'
+      +'<th onclick="_hrmsEcrHistorySortBy(\'actBy\')" style="'+_hThS+'">Action By'+_ecrArrow('actBy')+'</th>'
+      +'<th onclick="_hrmsEcrHistorySortBy(\'actAt\')" style="'+_hThS+'">Action At'+_ecrArrow('actAt')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'location\')" style="'+_hThS+'">Plant'+_ecrArrow('location')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'employmentType\')" style="'+_hThS+'">Type'+_ecrArrow('employmentType')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'category\')" style="'+_hThS+'">Category'+_ecrArrow('category')+'</th>'
@@ -1975,28 +1994,53 @@ function _hrmsRenderChangeReq(){
       +'<th onclick="_hrmsEcrHistorySortBy(\'salaryMonth\')" style="'+_hThSR+'">Sal/Mon'+_ecrArrow('salaryMonth')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'specialAllowance\')" style="'+_hThSR+'">Sp.Allow'+_ecrArrow('specialAllowance')+'</th>'
       +(isSA?'<th style="padding:6px 8px;font-size:11px"></th>':'')+'</tr></thead><tbody>';
+    // dd-mmm-yy timestamp helper. Reuses _hrmsFmtDate for the date part
+    // (already produces "06-May-26") and tacks on HH:MM in 24h.
+    var _fmtTs=function(s){
+      if(!s) return '—';
+      var d=new Date(s);if(isNaN(d.getTime())) return '—';
+      var iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var datePart=(typeof _hrmsFmtDate==='function')?_hrmsFmtDate(iso):iso;
+      var hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
+      return datePart+' '+hh+':'+mm;
+    };
+    var _empTypeBadge=function(t){
+      var k=String(t||'').toLowerCase().replace(/\s/g,'');
+      var styles={
+        onroll:'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd',
+        contract:'background:#fef3c7;color:#92400e;border:1px solid #fcd34d',
+        piecerate:'background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd'
+      };
+      var sty=styles[k]||'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+      return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;'+sty+'">'+(t||'—')+'</span>';
+    };
     historyReqs.forEach(function(r){
       var hp=r.period,e=r.emp,cur=r.current||{};
       var isApproved=hp._ecrResult==='approved';
       var badge=isApproved?'<span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-weight:700;font-size:10px">✓ Approved</span>':'<span style="background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:3px;font-weight:700;font-size:10px">✕ Rejected</span>';
-      var by=isApproved?(hp.approvedBy||'—'):(hp.rejectedBy||'—');
-      var dt=isApproved?(hp.approvedAt?new Date(hp.approvedAt).toLocaleDateString():'—'):(hp.rejectedAt?new Date(hp.rejectedAt).toLocaleDateString():'—');
+      var reqBy=hp.submittedBy||'—';
+      var reqAt=_fmtTs(hp.submittedAt);
+      var actBy=isApproved?(hp.approvedBy||'—'):(hp.rejectedBy||'—');
+      var actAt=isApproved?_fmtTs(hp.approvedAt):_fmtTs(hp.rejectedAt);
       var rowBg=isApproved?'background:#f0fdf4':'background:#fef2f2';
       var _hi=function(f){var changed=String(hp[f]||'')!==String((cur[f])||'');return changed?'background:#fef3c7;font-weight:800;color:#92400e':'';};
       var _ecEsc2=String(e.empCode||'').replace(/'/g,"\\'");
+      var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(hp.location||''):'#fff';
       h+='<tr style="border-bottom:1px solid #e2e8f0;'+rowBg+'">'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:800"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+_ecEsc2+'\')" style="color:var(--accent);text-decoration:underline;cursor:pointer" title="View / edit employee">'+e.empCode+'</a></td>'
         +'<td style="padding:5px 8px;font-weight:700">'+e.name+'</td>'
         +'<td style="padding:5px 8px;font-weight:600">'+_hrmsMonthLabel(hp.from)+'</td>'
         +'<td style="padding:5px 8px">'+badge+'</td>'
-        +'<td style="padding:5px 8px">'+by+'</td>'
-        +'<td style="padding:5px 8px;font-family:var(--mono)">'+dt+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('location')+'">'+(hp.location||'—')+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('employmentType')+'">'+(hp.employmentType||'—')+'</td>'
+        +'<td style="padding:5px 8px">'+reqBy+'</td>'
+        +'<td style="padding:5px 8px;font-family:var(--mono);font-size:11px">'+reqAt+'</td>'
+        +'<td style="padding:5px 8px">'+actBy+'</td>'
+        +'<td style="padding:5px 8px;font-family:var(--mono);font-size:11px">'+actAt+'</td>'
+        +'<td style="padding:5px 8px;background:'+pClr+';font-weight:800;color:#1e293b;'+_hi('location')+'">'+(hp.location||'—')+'</td>'
+        +'<td style="padding:5px 8px;'+_hi('employmentType')+'">'+_empTypeBadge(hp.employmentType)+'</td>'
         +'<td style="padding:5px 8px;'+_hi('category')+'">'+(hp.category||'—')+'</td>'
         +'<td style="padding:5px 8px;'+_hi('teamName')+'">'+(hp.teamName||'—')+'</td>'
         +'<td style="padding:5px 8px;'+_hi('roll')+'">'+(hp.roll||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryDay')+'">'+(hp.salaryDay||'—')+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryDay')+'">'+((String(hp.category||'').toLowerCase()==='staff')?'<span style="color:var(--text3)">—</span>':(hp.salaryDay||'—'))+'</td>'
         +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryMonth')+'">'+(hp.salaryMonth||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('specialAllowance')+'">'+(hp.specialAllowance||'—')+'</td>'
         +(isSA?'<td style="padding:5px 4px"><button onclick="_hrmsDeleteEcr(\''+e.id+'\','+r.periodIdx+')" style="font-size:9px;padding:2px 6px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button></td>':'')
@@ -2023,20 +2067,46 @@ async function _hrmsApproveChange(empId,periodIdx){
   if(!confirm('Approve this change request?')) return;
   var e=byId(DB.hrmsEmployees||[],empId);if(!e||!e.periods) return;
   var p=e.periods[periodIdx];if(!p||p._wfStatus!=='proposed') return;
-  // Record approval metadata
+  // Find the existing active period (to=null, no pending workflow).
+  var prevIdx=-1;
+  for(var j=periodIdx+1;j<e.periods.length;j++){
+    if(!e.periods[j]._wfStatus&&!e.periods[j].to){prevIdx=j;break;}
+  }
+  var newFromMk=String(p.from||'').slice(0,7);
+  var prev=prevIdx>=0?e.periods[prevIdx]:null;
+  var prevFromMk=prev?String(prev.from||'').slice(0,7):'';
+  // ── Merge-in-place when from-months are identical ──
+  // If the proposed revision starts the same month as the existing
+  // active period, copy the proposed values into the existing row
+  // instead of closing it and inserting a new one. The old behaviour
+  // produced an invalid `Apr-26 → Mar-26` range when both periods
+  // started on the same month.
+  if(prev&&newFromMk&&prevFromMk&&newFromMk===prevFromMk){
+    _PERIOD_FIELDS.forEach(function(f){
+      if(p[f]!==undefined) prev[f]=p[f];
+    });
+    // Carry over remarks if the proposal had any.
+    if(p.remarks) prev.remarks=p.remarks;
+    // Drop the proposed row entirely — there's no second revision.
+    e.periods.splice(periodIdx,1);
+    delete e._isNewEcr;
+    if((prev.status||'Active')==='Active'){prev.dateOfLeft='';}
+    _PERIOD_FIELDS.forEach(function(f){e[f]=prev[f]||'';});
+    if(await _dbSave('hrmsEmployees',e)){
+      notify('✓ Change merged into existing revision for '+e.empCode);
+      _hrmsRenderChangeReq();renderHrmsEmployees();
+      if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge();
+    }
+    return;
+  }
+  // Standard flow — different from-month means a real new revision.
   p.approvedAt=new Date().toISOString();
   p.approvedBy=CU?CU.name||CU.email||'':'';
   p._ecrResult='approved';// Permanent record for ECR history
   delete p._wfStatus;// Clear workflow status so it becomes active
   delete p._saved;
   p.to=null;
-  // Close the old current active period — find by to===null and no pending _wfStatus
-  for(var j=periodIdx+1;j<e.periods.length;j++){
-    if(!e.periods[j]._wfStatus&&!e.periods[j].to){
-      e.periods[j].to=_hrmsPrevMonth(p.from);
-      break;
-    }
-  }
+  if(prev) prev.to=_hrmsPrevMonth(p.from);
   // Clear new employee flag
   delete e._isNewEcr;
   // If the revision reinstates the employee (Active), any stale dateOfLeft
@@ -3064,67 +3134,85 @@ async function _hrmsShowEmpHistory(){
   var rows=[];
   var codeKey=String(code||'').trim().toLowerCase();
   if(_sb&&_sbReady){
+    var byMk={};
+    // ── Phase 1: Locked-month snapshot is authoritative. For every
+    // month that has a `_meta` row in hrms_month_data (= every locked
+    // month), load the saved snapshot via the same path the salary
+    // tab uses, then look up this employee — first as a direct row,
+    // then in meta.contract. This guarantees locked months always
+    // return saved data instead of a recomputed approximation.
+    try{
+      var {data:metaRows,error:metaErr}=await _sb.from('hrms_month_data').select('month_key').eq('emp_code','_meta').range(0,9999);
+      if(!metaErr&&metaRows){
+        for(var li=0;li<metaRows.length;li++){
+          var lockedMk=metaRows[li].month_key;
+          if(byMk[lockedMk]) continue;
+          var saved=await _hrmsLoadSavedMonth(lockedMk);
+          if(!saved) continue;
+          // Direct match by empCode
+          var rec=saved.employees&&saved.employees[code];
+          if(!rec){
+            // Tolerant match (trim + lowercase) for whitespace / casing
+            // differences in the saved emp_code column.
+            var emps=saved.employees||{};
+            var altKey=Object.keys(emps).find(function(ec){
+              return String(ec||'').trim().toLowerCase()===codeKey;
+            });
+            if(altKey) rec=emps[altKey];
+          }
+          if(rec){rows.push(rec);byMk[lockedMk]=true;continue;}
+          // Try meta.contract for contract employees (snapshot embeds
+          // them inside _meta rather than as direct rows).
+          var clist=saved.meta&&saved.meta.contract;
+          if(Array.isArray(clist)){
+            var cr=clist.find(function(x){return String(x.empCode||'').trim().toLowerCase()===codeKey;});
+            if(cr){
+              var pf=+cr.pf||0,esi=+cr.esi||0;
+              rows.push({
+                monthKey:lockedMk,empCode:code,
+                rateD:+cr.rateD||0,rateM:+cr.rateM||0,
+                wdCount:+cr.wdCount||0,
+                totalP:+cr.P||0,totalA:+cr.A||0,
+                totalOT:+cr.OT||0,totalOTS:+cr.OTS||0,totalPL:0,
+                gross:+cr.gross||0,advDed:0,dedTotal:pf+esi,
+                net:+cr.totalSal||(+cr.gross||0),
+                _contract:true
+              });
+              byMk[lockedMk]=true;
+            }
+          }
+        }
+      }
+    }catch(e){console.warn('Load history (locked-month snapshot) error:',e);}
+
+    // ── Phase 2: Catch any saved direct rows that weren't picked up via
+    // Phase 1 (defensive — locked-month snapshot SHOULD be exhaustive,
+    // but covers any direct rows whose month is missing a `_meta` row).
     try{
       var {data:directRows,error:directErr}=await _sb.from('hrms_month_data').select('*').eq('emp_code',code).range(0,9999);
-      if(!directErr&&directRows) rows=directRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean);
-      // Also try ilike-normalised match in case the column was saved with
-      // padding / different casing for the same logical empCode.
-      if(!directErr){
-        try{
-          var {data:fuzzyRows}=await _sb.from('hrms_month_data').select('*').ilike('emp_code',code).range(0,9999);
-          if(fuzzyRows&&fuzzyRows.length){
-            var seen={};rows.forEach(function(r){seen[r.monthKey]=true;});
-            fuzzyRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean).forEach(function(r){
-              if(!seen[r.monthKey]){rows.push(r);seen[r.monthKey]=true;}
-            });
-          }
-        }catch(_){}
-      }
-    }catch(e){console.warn('Load history (direct) error:',e);}
-    try{
-      var {data:metaRows,error:metaErr}=await _sb.from('hrms_month_data').select('month_key,meta').eq('emp_code','_meta').range(0,9999);
-      if(!metaErr&&metaRows){
-        var byMk={};rows.forEach(function(r){byMk[r.monthKey]=true;});
-        metaRows.forEach(function(m){
-          var mk=m.month_key;
-          if(byMk[mk]) return;// already have a direct row for this month — skip
-          var list=m.meta&&m.meta.contract;
-          if(!Array.isArray(list)) return;
-          // Tolerant match — trim + lowercase so leading zeros / casing
-          // differences don't drop a contract month from the history.
-          var cr=list.find(function(x){return String(x.empCode||'').trim().toLowerCase()===codeKey;});
-          if(!cr) return;
-          // Synthesize a hrmsMonthData-shaped row from the contract snapshot.
-          var otTot=(+cr.OT||0)+(+cr.OTS||0);
-          var pf=+cr.pf||0, esi=+cr.esi||0;
-          rows.push({
-            monthKey:mk, empCode:code,
-            rateD:+cr.rateD||0, rateM:+cr.rateM||0,
-            wdCount:+cr.wdCount||0,
-            totalP:+cr.P||0, totalA:+cr.A||0,
-            totalOT:+cr.OT||0, totalOTS:+cr.OTS||0,
-            totalPL:0,
-            gross:+cr.gross||0,
-            advDed:0, dedTotal:pf+esi,
-            net:+cr.totalSal||(+cr.gross||0),
-            _contract:true
-          });
-          byMk[mk]=true;
+      if(!directErr&&directRows){
+        directRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean).forEach(function(r){
+          if(!byMk[r.monthKey]){rows.push(r);byMk[r.monthKey]=true;}
         });
       }
-    }catch(e){console.warn('Load history (meta) error:',e);}
-    // Last-resort fallback — surface every month for which the
-    // employee has at least one IN/OUT in hrms_attendance, even when
-    // the salary snapshot is missing (Piece Rate workers don't get a
-    // direct row OR a meta.contract slot, and pre-V125 locks didn't
-    // have the contract snapshot at all). For these months we still
-    // show approximate salary numbers — P × rateD using the active
-    // period's salaryDay (or rateM/26 for monthly-rate folks). Marked
-    // _attOnly so the renderer flags it as approximate.
+      // Tolerant ilike fallback for casing variants.
+      try{
+        var {data:fuzzyRows}=await _sb.from('hrms_month_data').select('*').ilike('emp_code',code).range(0,9999);
+        if(fuzzyRows&&fuzzyRows.length){
+          fuzzyRows.map(function(r){return _fromRow('hrmsMonthData',r);}).filter(Boolean).forEach(function(r){
+            if(!byMk[r.monthKey]){rows.push(r);byMk[r.monthKey]=true;}
+          });
+        }
+      }catch(_){}
+    }catch(e){console.warn('Load history (direct) error:',e);}
+
+    // ── Phase 3: Approx fallback. ONLY for months that don't have a
+    // saved snapshot at all (i.e., not locked yet). Surfaces P/A from
+    // raw attendance and computes gross = P × Sal/Day from the active
+    // period so the timeline stays complete.
     try{
       var attResp=await _sb.from('hrms_attendance').select('month_key,days').eq('emp_code',code).range(0,9999);
       if(!attResp.error&&attResp.data){
-        var byMk2={};rows.forEach(function(r){byMk2[r.monthKey]=true;});
         var _periodFor=function(empArg,mkArg){
           if(!empArg||!Array.isArray(empArg.periods)) return null;
           var matches=empArg.periods.filter(function(p){
@@ -3140,7 +3228,7 @@ async function _hrmsShowEmpHistory(){
           return null;
         };
         attResp.data.forEach(function(a){
-          var mk=a.month_key;if(byMk2[mk]) return;
+          var mk=a.month_key;if(byMk[mk]) return;
           var days=a.days||{};
           var pCount=0,aCount=0,workingDays=0;
           Object.keys(days).forEach(function(dk){
@@ -3152,7 +3240,6 @@ async function _hrmsShowEmpHistory(){
             else if(!hasIn&&!hasOut) aCount++;
           });
           if(!workingDays) return;
-          // Approximate salary from the active period at that month.
           var period=_periodFor(emp,mk)||{};
           var rateD=+period.salaryDay||+emp.salaryDay||0;
           var rateM=+period.salaryMonth||+emp.salaryMonth||0;
@@ -3169,7 +3256,7 @@ async function _hrmsShowEmpHistory(){
             _attOnly:true,
             _attOnlyTag:mkLocked?'approx':'unlocked'
           });
-          byMk2[mk]=true;
+          byMk[mk]=true;
         });
       }
     }catch(e){console.warn('Load history (attendance fallback) error:',e);}
@@ -4678,34 +4765,48 @@ function _hrmsAttIncludedEmps(yr,mo){
   var mk=yr+'-'+String(mo).padStart(2,'0');
   var attRecords=_hrmsAttCache[mk]||[];
   var altRecords=(_hrmsAltCache&&_hrmsAltCache[mk])||[];
+  // Normalise emp-codes when building the presence set so legacy rows
+  // with trailing whitespace / different casing still match the master.
+  var _norm=function(c){return String(c||'').trim().toUpperCase();};
   var attCodes={};
   attRecords.forEach(function(a){
     var days=a.days||{};
-    for(var dk in days){var dd=days[dk];if(dd&&((dd['in']&&String(dd['in']).trim())||(dd['out']&&String(dd['out']).trim()))){attCodes[a.empCode]=true;break;}}
+    for(var dk in days){var dd=days[dk];if(dd&&((dd['in']&&String(dd['in']).trim())||(dd['out']&&String(dd['out']).trim()))){attCodes[_norm(a.empCode)]=true;break;}}
   });
-  altRecords.forEach(function(a){if(a.days&&Object.keys(a.days).length) attCodes[a.empCode]=true;});
+  altRecords.forEach(function(a){if(a.days&&Object.keys(a.days).length) attCodes[_norm(a.empCode)]=true;});
   (DB.hrmsEmployees||[]).forEach(function(e){
     var ex=e.extra||{},v;
-    v=ex.manualP&&ex.manualP[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[e.empCode]=true;return;}
-    v=ex.manualPL&&ex.manualPL[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[e.empCode]=true;return;}
-    v=ex.manualOT&&ex.manualOT[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[e.empCode]=true;return;}
-    v=ex.manualOTS&&ex.manualOTS[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[e.empCode]=true;return;}
+    v=ex.manualP&&ex.manualP[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[_norm(e.empCode)]=true;return;}
+    v=ex.manualPL&&ex.manualPL[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[_norm(e.empCode)]=true;return;}
+    v=ex.manualOT&&ex.manualOT[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[_norm(e.empCode)]=true;return;}
+    v=ex.manualOTS&&ex.manualOTS[mk];if(v!==undefined&&v!==null&&+v>0){attCodes[_norm(e.empCode)]=true;return;}
   });
   var daysInMo=new Date(yr,mo,0).getDate();
   var mStart=mk+'-01',mEnd=mk+'-'+String(daysInMo).padStart(2,'0');
   return (DB.hrmsEmployees||[]).filter(function(e){
     if(e._isNewEcr) return false;
+    var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    var hasAtt=!!attCodes[_norm(e.empCode)];
+    // Contract / Piece-Rate (or anyone with flat-type that doesn't match
+    // on-roll cleanly): presence in the month is the ONLY gate. Any
+    // punch / manual override flags them as active for that month, no
+    // status / DOJ / dateOfLeft check — matches the abolished-status
+    // policy for C/PR. Also covers employees whose flat employmentType
+    // somehow drifted to an unexpected value but who clearly have
+    // attendance: surface them rather than hide.
+    if(et==='contract'||et==='piecerate') return hasAtt;
+    // On Roll: still gate by DOJ / dateOfLeft + status.
     if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;
     if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;
-    var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
-    var hasAtt=!!attCodes[e.empCode];
     if(et==='onroll'){
       if((e.status||'Active')!=='Active') return false;
       var ap=(e.periods||[]).find(function(x){return !x.to&&(!x._wfStatus||x._wfStatus==='approved');});
       if(ap&&(ap.status||'Active')!=='Active') return false;
       return true;
     }
-    if(et==='contract'||et==='piecerate') return hasAtt;
+    // Unknown / mistyped employmentType — include if any presence,
+    // regardless of status. Avoids dropping employees whose flat
+    // type field is empty or in an unexpected format.
     return hasAtt||(e.status||'Active')==='Active';
   });
 }
@@ -4923,14 +5024,20 @@ function _hrmsRenderPotTab(yr,mo){
   // Restrict to active + (actually present OR has a manual override).
   // Filters out:
   //   - stale codes that have no master record (_unmatched)
-  //   - inactive / resigned employees (status !== 'Active')
+  //   - On-Roll employees with status !== Active (status is manually
+  //     maintained for on-roll). Contract / Piece-Rate skip the
+  //     status gate — auto-status marking has been retired for them
+  //     and presence in the month is the sole criterion.
   //   - employees with only the blank stub row from Add Month (no punch
   //     and no manual override). Manual overrides + alterations still
   //     surface those employees on the Manual / Alteration tabs.
   emps=emps.filter(function(e){
     if(e._unmatched) return false;
-    var st=e.status||'Active';
-    if(st!=='Active') return false;
+    var _et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(_et==='onroll'){
+      var st=e.status||'Active';
+      if(st!=='Active') return false;
+    }
     var days=lookup[e.empCode]||{};
     var anyPunch=Object.keys(days).some(function(d){
       var v=days[d];
@@ -4955,7 +5062,7 @@ function _hrmsRenderPotTab(yr,mo){
   if(!window._hrmsPotSearch) window._hrmsPotSearch={code:'',name:'',type:'',plant:'',cat:'',team:'',dept:''};
   if(!window._hrmsPotSort) window._hrmsPotSort={key:'',asc:true};
   var _ps=window._hrmsPotSearch;
-  var _psI=function(id,field){return '<input type="search" id="potSrch_'+field+'" value="'+(_ps[field]||'')+'" oninput="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" onsearch="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" placeholder="🔍" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%">';};
+  var _psI=function(id,field){return '<input type="search" class="hrms-search-inline" id="potSrch_'+field+'" value="'+(_ps[field]||'')+'" oninput="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" onsearch="window._hrmsPotSearch.'+field+'=this.value;window._hrmsPotFocus=\'potSrch_'+field+'\';_hrmsRenderPotTab('+yr+','+mo+')" placeholder="🔍">';};
   var _psSrt=function(key){return ' onclick="var s=window._hrmsPotSort;if(s.key===\''+key+'\')s.asc=!s.asc;else{s.key=\''+key+'\';s.asc=true;}_hrmsRenderPotTab('+yr+','+mo+')" style="cursor:pointer"';};
   var _psSI=function(key){var s=window._hrmsPotSort;return s.key===key?(s.asc?' ▲':' ▼'):' ⇅';};
   var _thS='padding:6px 4px;font-size:11px;font-weight:800;white-space:nowrap;border-bottom:1px solid var(--border)';
@@ -7221,6 +7328,615 @@ function _hrmsDasExport(){
 
 // ═══ MONTHLY HEADCOUNT GRAPH (Utilities) ════════════════════════════════════
 // Plant-wise day-by-day head-count line chart for a selected month, using
+// ═══ UTILITIES: Contract From-Month Cleanup ═════════════════════════════
+// Helper page that lists every Contract-typed period whose `from` predates
+// Jan-2026 and lets the admin bulk-rewrite them to 2026-01. Useful for
+// cleaning up legacy data that imported with from-months from before the
+// system rollout.
+var _hrmsCfmRows=[];// last scanned rows: [{empId,empCode,name,plant,team,roll,from,to,status,salaryDay,periodIdx}]
+var _CFM_TARGET_MK='2026-01';
+
+function _hrmsCfmRender(){
+  var el=document.getElementById('hrmsCfmBody');if(!el) return;
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('page.utilContractFromFix')&&!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){
+    el.innerHTML='<div class="empty-state" style="padding:30px;color:var(--text3)">🔒 Access denied</div>';return;
+  }
+  // Collect Contract-typed periods with from < Jan-2026 across all employees.
+  var rows=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    var periods=(emp.periods||[]);
+    periods.forEach(function(p,pi){
+      if(!p) return;
+      var et=String(p.employmentType||'').toLowerCase().replace(/\s/g,'');
+      if(et!=='contract') return;
+      var fromMk=String(p.from||'').slice(0,7);
+      if(!fromMk||fromMk>=_CFM_TARGET_MK) return;
+      rows.push({
+        empId:emp.id,empCode:emp.empCode||'',
+        name:_hrmsDispName(emp),
+        plant:p.location||emp.location||'',
+        team:p.teamName||emp.teamName||'',
+        roll:p.roll||emp.roll||'',
+        from:p.from||'',to:p.to||'',
+        status:p.status||'Active',
+        salaryDay:+p.salaryDay||+emp.salaryDay||0,
+        periodIdx:pi
+      });
+    });
+  });
+  // Sort: plant → team → empCode
+  rows.sort(function(a,b){
+    var p=(a.plant||'').localeCompare(b.plant||'');if(p!==0) return p;
+    var t=(a.team||'').localeCompare(b.team||'');if(t!==0) return t;
+    return((parseInt(a.empCode)||0)-(parseInt(b.empCode)||0))||String(a.empCode||'').localeCompare(String(b.empCode||''));
+  });
+  _hrmsCfmRows=rows;
+
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px;color:#15803d">✓ No Contract-typed period found with From-month before '+_CFM_TARGET_MK+'. Nothing to clean up.</div>';
+    // Continue to render the additional diagnostics (overlapping
+    // periods + out-of-order revisions + invalid range) — they're
+    // independent of the contract from-month scan.
+    _hrmsCfmRenderOverlapping();
+    _hrmsCfmRenderOutOfOrder();
+    _hrmsCfmRenderInvalidRange();
+    return;
+  }
+  // Build summary chip strip.
+  var distinctEmps={};rows.forEach(function(r){distinctEmps[r.empCode]=true;});
+  var summary='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px">'+
+    '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:8px;font-size:12px;font-weight:800">Periods <span style="font-family:var(--mono);font-size:14px;font-weight:900">'+rows.length+'</span></div>'+
+    '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:8px;font-size:12px;font-weight:800">Employees <span style="font-family:var(--mono);font-size:14px;font-weight:900">'+Object.keys(distinctEmps).length+'</span></div>'+
+  '</div>';
+  // Table
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
+  var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var html=summary+'<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 280px)">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp Code</th>'+
+      '<th style="'+th+'">Name</th>'+
+      '<th style="'+th+'">Plant</th>'+
+      '<th style="'+th+'">Team</th>'+
+      '<th style="'+th+'">Role</th>'+
+      '<th style="'+th+'">From</th>'+
+      '<th style="'+th+'">To</th>'+
+      '<th style="'+th+'">Status</th>'+
+      '<th style="'+th+';text-align:right">Sal/Day</th>'+
+      '<th style="'+th+'">→ New From</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#fff';
+    html+='<tr>'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+r.empCode+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(r.name||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-weight:800;background:'+pClr+'">'+(r.plant||'—')+'</td>'+
+      '<td style="'+td+'">'+(r.team||'—')+'</td>'+
+      '<td style="'+td+'">'+(r.roll||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:#dc2626;font-weight:700">'+(typeof _hrmsShortMonth==='function'?_hrmsShortMonth(r.from):r.from)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:var(--text3)">'+(r.to?(typeof _hrmsShortMonth==='function'?_hrmsShortMonth(r.to):r.to):'—')+'</td>'+
+      '<td style="'+td+'">'+r.status+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+(r.salaryDay?'₹'+(+r.salaryDay).toLocaleString('en-IN'):'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:#16a34a;font-weight:800">'+(typeof _hrmsShortMonth==='function'?_hrmsShortMonth(_CFM_TARGET_MK):_CFM_TARGET_MK)+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+  // Render the additional diagnostic sections.
+  _hrmsCfmRenderOverlapping();
+  _hrmsCfmRenderOutOfOrder();
+  _hrmsCfmRenderInvalidRange();
+}
+
+// Two periods overlap when [aFrom..aTo] ∩ [bFrom..bTo] is non-empty.
+// `to` is treated as 9999-99 when open. Compares only month-keys.
+function _hrmsCfmFindOverlaps(periods){
+  if(!Array.isArray(periods)||periods.length<2) return [];
+  var hits=[];
+  for(var i=0;i<periods.length;i++){
+    var a=periods[i];if(!a||(a._wfStatus&&a._wfStatus!=='approved')) continue;
+    var aFrom=String(a.from||'').slice(0,7);if(!aFrom) continue;
+    var aTo=a.to?String(a.to).slice(0,7):'9999-99';
+    for(var j=i+1;j<periods.length;j++){
+      var b=periods[j];if(!b||(b._wfStatus&&b._wfStatus!=='approved')) continue;
+      var bFrom=String(b.from||'').slice(0,7);if(!bFrom) continue;
+      var bTo=b.to?String(b.to).slice(0,7):'9999-99';
+      var lo=aFrom>bFrom?aFrom:bFrom;
+      var hi=aTo<bTo?aTo:bTo;
+      if(lo<=hi) hits.push({i:i,j:j,a:a,b:b});
+    }
+  }
+  return hits;
+}
+
+// Periods are stored newest-first, so revision label "R1" is the
+// oldest array entry (last index). Out-of-order means a higher-index
+// period (older revision number, i.e., "R1") has a from-month LATER
+// than a lower-index period (newer revision number, i.e., "R2") —
+// the from-months don't sort the way the revision labels imply.
+function _hrmsCfmFindOutOfOrder(periods){
+  if(!Array.isArray(periods)||periods.length<2) return [];
+  var approved=periods.filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+  if(approved.length<2) return [];
+  // Walk from newest to oldest — periods[i] should have from > periods[i+1].
+  var hits=[];
+  for(var i=0;i<approved.length-1;i++){
+    var cur=String(approved[i].from||'').slice(0,7);
+    var nxt=String(approved[i+1].from||'').slice(0,7);
+    if(!cur||!nxt) continue;
+    if(cur<nxt){
+      hits.push({i:i,j:i+1,curFrom:cur,prevFrom:nxt,cur:approved[i],prev:approved[i+1]});
+    }
+  }
+  return hits;
+}
+
+// True when an employee is "contract" — flat field says contract OR any
+// approved period in their history has employmentType=Contract. Used to
+// scope the cleanup helper to contract data only.
+function _hrmsCfmIsContractEmp(emp){
+  if(!emp) return false;
+  var flat=String(emp.employmentType||'').toLowerCase().replace(/\s/g,'');
+  if(flat==='contract') return true;
+  var periods=emp.periods||[];
+  for(var i=0;i<periods.length;i++){
+    var p=periods[i];if(!p) continue;
+    if(p._wfStatus&&p._wfStatus!=='approved') continue;
+    var et=String(p.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(et==='contract') return true;
+  }
+  return false;
+}
+
+function _hrmsCfmRenderOverlapping(){
+  var el=document.getElementById('hrmsCfmOverlapBody');if(!el) return;
+  var rows=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!_hrmsCfmIsContractEmp(emp)) return;
+    var hits=_hrmsCfmFindOverlaps(emp.periods||[]);
+    if(!hits.length) return;
+    hits.forEach(function(h){
+      rows.push({
+        empId:emp.id,empCode:emp.empCode||'',name:_hrmsDispName(emp),
+        plant:emp.location||'',
+        a:h.a,b:h.b,
+        aFrom:h.a.from||'',aTo:h.a.to||'',
+        bFrom:h.b.from||'',bTo:h.b.to||'',
+        aType:h.a.employmentType||'',bType:h.b.employmentType||'',
+        aStatus:h.a.status||'',bStatus:h.b.status||''
+      });
+    });
+  });
+  rows.sort(function(a,b){
+    var p=(a.plant||'').localeCompare(b.plant||'');if(p!==0) return p;
+    return((parseInt(a.empCode)||0)-(parseInt(b.empCode)||0))||String(a.empCode||'').localeCompare(String(b.empCode||''));
+  });
+  if(!rows.length){
+    el.innerHTML='<div style="margin-top:6px;padding:10px 12px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;font-size:12px;color:#15803d">✓ No overlapping period pairs found.</div>';
+    return;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
+  var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var distinctEmps={};rows.forEach(function(r){distinctEmps[r.empCode]=true;});
+  // Count how many employees have at least one open Jan-26 period
+  // involved in an overlap — that's the bulk action's expected scope.
+  var bulkCount=0;
+  rows.forEach(function(r){
+    var aOpen=String(r.aFrom||'').slice(0,7)==='2026-01'&&!r.aTo;
+    var bOpen=String(r.bFrom||'').slice(0,7)==='2026-01'&&!r.bTo;
+    if(aOpen||bOpen) bulkCount++;
+  });
+  var canEdit=(typeof _hrmsIsSA==='function'&&_hrmsIsSA());
+  var bulkBtn=(canEdit&&bulkCount>0)
+    ? '<button onclick="_hrmsCfmBulkShiftJan26ToApr26()" style="padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📌 Shift Jan-26→Apr-26 (open) for '+bulkCount+' overlap'+(bulkCount>1?'s':'')+'</button>'
+    : '';
+  var html='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px"><div style="font-size:14px;font-weight:900;color:#dc2626">⚠ Overlapping Periods</div>'+
+    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5">'+rows.length+' overlap pair'+(rows.length>1?'s':'')+' · '+Object.keys(distinctEmps).length+' employee'+(Object.keys(distinctEmps).length>1?'s':'')+'</span>'+
+    '<div style="flex:1"></div>'+bulkBtn+
+  '</div>';
+  html+='<div style="overflow:auto;border:1.5px solid #fca5a5;border-radius:8px;background:#fff;max-height:340px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Emp Code</th>'+
+    '<th style="'+th+'">Name</th>'+
+    '<th style="'+th+'">Plant</th>'+
+    '<th style="'+th+'">Period A (From — To)</th>'+
+    '<th style="'+th+'">Type / Status</th>'+
+    '<th style="'+th+'">Period B (From — To)</th>'+
+    '<th style="'+th+'">Type / Status</th>'+
+  '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#fff';
+    var fmtRange=function(f,t){
+      var ff=typeof _hrmsShortMonth==='function'?_hrmsShortMonth(f):f;
+      var tt=t?(typeof _hrmsShortMonth==='function'?_hrmsShortMonth(t):t):'open';
+      return ff+' — '+tt;
+    };
+    html+='<tr>'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent);cursor:pointer;text-decoration:underline" data-emp-code="'+r.empCode+'" title="Click to view employee">'+r.empCode+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(r.name||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-weight:800;background:'+pClr+'">'+(r.plant||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:#7f1d1d;font-weight:700">'+fmtRange(r.aFrom,r.aTo)+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(r.aType||'—')+' · '+(r.aStatus||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);color:#7f1d1d;font-weight:700">'+fmtRange(r.bFrom,r.bTo)+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(r.bType||'—')+' · '+(r.bStatus||'—')+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+// Compact month-options helper used by the cleanup page editors. Covers
+// (currentYear-10 .. currentYear+2), preserves any out-of-range existing
+// value, and lets the user pick the empty option to mean "open / blank".
+function _hrmsCfmMonthOpts(val,allowEmpty){
+  var moNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var curYr=new Date().getFullYear();
+  var h=allowEmpty?'<option value=""'+(!val?' selected':'')+'>—</option>':'';
+  var hasMatch=false,opts='';
+  for(var y=curYr+2;y>=curYr-10;y--){
+    for(var m=12;m>=1;m--){
+      var mk=y+'-'+String(m).padStart(2,'0');
+      var label=moNames[m-1]+'-'+String(y).slice(-2);
+      if(mk===val) hasMatch=true;
+      opts+='<option value="'+mk+'"'+(mk===val?' selected':'')+'>'+label+'</option>';
+    }
+  }
+  if(val&&!hasMatch) h+='<option value="'+val+'" selected>'+val+'</option>';
+  return h+opts;
+}
+
+function _hrmsCfmRenderOutOfOrder(){
+  var el=document.getElementById('hrmsCfmOrderBody');if(!el) return;
+  var affected=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!_hrmsCfmIsContractEmp(emp)) return;
+    var hits=_hrmsCfmFindOutOfOrder(emp.periods||[]);
+    if(!hits.length) return;
+    affected.push({emp:emp,hits:hits});
+  });
+  affected.sort(function(a,b){
+    var p=(a.emp.location||'').localeCompare(b.emp.location||'');if(p!==0) return p;
+    return((parseInt(a.emp.empCode)||0)-(parseInt(b.emp.empCode)||0))||String(a.emp.empCode||'').localeCompare(String(b.emp.empCode||''));
+  });
+  if(!affected.length){
+    el.innerHTML='<div style="margin-top:6px;padding:10px 12px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;font-size:12px;color:#15803d">✓ All revision numbers line up with their from-months.</div>';
+    return;
+  }
+  var totalInversions=affected.reduce(function(s,a){return s+a.hits.length;},0);
+  var canEdit=(typeof _hrmsIsSA==='function'&&_hrmsIsSA());
+  var html='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px"><div style="font-size:14px;font-weight:900;color:#a16207">⚠ Out-of-Order Revisions</div>'+
+    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">'+totalInversions+' inversion'+(totalInversions>1?'s':'')+' · '+affected.length+' employee'+(affected.length>1?'s':'')+'</span>'+
+    '<span style="font-size:11px;color:var(--text3)">Edit each revision\'s From / To and click <b>Submit</b> to persist, or <b>Delete</b> to drop the row from the periods array. Save runs Sanitize + persists the whole employee record.</span>'+
+  '</div>';
+  affected.forEach(function(a){
+    var emp=a.emp;
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location):'#fff';
+    var approved=(emp.periods||[]).map(function(p,idx){return {p:p,idx:idx};}).filter(function(rec){
+      return rec.p&&(!rec.p._wfStatus||rec.p._wfStatus==='approved');
+    });
+    var totalRevs=approved.length;
+    // Build inversion lookup so we can highlight participating rows.
+    var invIdx={};a.hits.forEach(function(h){invIdx[h.i]=true;invIdx[h.j]=true;});
+    html+='<div style="border:1.5px solid #fcd34d;border-radius:10px;margin-bottom:14px;background:#fff;overflow:hidden">';
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fffbeb;border-bottom:1.5px solid #fcd34d">'+
+      '<div data-emp-code="'+(emp.empCode||'')+'" title="Click to view employee" style="font-family:var(--mono);font-weight:900;font-size:14px;color:var(--accent);cursor:pointer;text-decoration:underline">'+(emp.empCode||'')+'</div>'+
+      '<div style="font-weight:800;font-size:14px">'+_hrmsDispName(emp)+'</div>'+
+      '<span style="font-weight:800;background:'+pClr+';padding:2px 10px;border-radius:5px;font-size:12px">'+(emp.location||'—')+'</span>'+
+      '<span style="font-size:11px;color:var(--text3)">'+totalRevs+' approved revision'+(totalRevs>1?'s':'')+' · '+a.hits.length+' inversion'+(a.hits.length>1?'s':'')+'</span>'+
+    '</div>';
+    var th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap';
+    var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:middle';
+    html+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">Rev</th>'+
+      '<th style="'+th+'">From</th>'+
+      '<th style="'+th+'">To</th>'+
+      '<th style="'+th+'">Type</th>'+
+      '<th style="'+th+'">Status</th>'+
+      '<th style="'+th+';text-align:right">Sal/Day</th>'+
+      '<th style="'+th+';text-align:right">Sal/Mon</th>'+
+      '<th style="'+th+';text-align:center">Action</th>'+
+    '</tr></thead><tbody>';
+    approved.forEach(function(rec,vi){
+      var p=rec.p;
+      var revLabel='R'+(totalRevs-vi);
+      var rowBg=invIdx[vi]?'background:#fef3c7':'';
+      var inputCss='font-size:12px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;width:90px;font-family:var(--mono);font-weight:700;text-align:center';
+      var ecEsc=String(emp.empCode||'').replace(/'/g,"\\'");
+      var actionCell=canEdit
+        ? '<button onclick="_hrmsCfmRevSubmit(\''+emp.id+'\','+rec.idx+')" style="font-size:11px;padding:4px 10px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:4px">📤 Submit</button>'+
+          '<button onclick="_hrmsCfmRevDelete(\''+emp.id+'\','+rec.idx+')" style="font-size:11px;padding:4px 10px;font-weight:800;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer">🗑 Delete</button>'
+        : '<span style="font-size:10px;color:var(--text3)">SA only</span>';
+      html+='<tr style="'+rowBg+'">'+
+        '<td style="'+td+';font-weight:800;color:#92400e">'+revLabel+(invIdx[vi]?' ⚠':'')+'</td>'+
+        '<td style="'+td+'"><select '+(canEdit?'':'disabled ')+'onchange="_hrmsCfmRevSet(\''+emp.id+'\','+rec.idx+',\'from\',this.value)" style="'+inputCss+'">'+_hrmsCfmMonthOpts(p.from||'',false)+'</select></td>'+
+        '<td style="'+td+'"><select '+(canEdit?'':'disabled ')+'onchange="_hrmsCfmRevSet(\''+emp.id+'\','+rec.idx+',\'to\',this.value||null)" style="'+inputCss+'">'+_hrmsCfmMonthOpts(p.to||'',true)+'</select></td>'+
+        '<td style="'+td+'">'+(p.employmentType||'—')+'</td>'+
+        '<td style="'+td+'">'+(p.status||'—')+'</td>'+
+        '<td style="'+td+';text-align:right;font-family:var(--mono);font-weight:700">'+(+p.salaryDay?'₹'+(+p.salaryDay).toLocaleString('en-IN'):'—')+'</td>'+
+        '<td style="'+td+';text-align:right;font-family:var(--mono);font-weight:700">'+(+p.salaryMonth?'₹'+(+p.salaryMonth).toLocaleString('en-IN'):'—')+'</td>'+
+        '<td style="'+td+';text-align:center;white-space:nowrap">'+actionCell+'</td>'+
+      '</tr>';
+    });
+    html+='</tbody></table></div>';
+  });
+  el.innerHTML=html;
+}
+
+// Mutates the in-memory periods array; the user clicks Submit to
+// persist. `null` for `to` means open/till-date.
+function _hrmsCfmRevSet(empId,periodIdx,field,value){
+  var emp=byId(DB.hrmsEmployees||[],empId);if(!emp||!emp.periods||!emp.periods[periodIdx]) return;
+  emp.periods[periodIdx][field]=value;
+}
+
+async function _hrmsCfmRevSubmit(empId,periodIdx){
+  if(!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){notify('Only Super Admin can edit revisions',true);return;}
+  var emp=byId(DB.hrmsEmployees||[],empId);if(!emp){notify('Employee not found',true);return;}
+  if(!emp.periods||!emp.periods[periodIdx]){notify('Revision not found',true);return;}
+  if(typeof _hrmsSanitize==='function') _hrmsSanitize(emp);
+  if(typeof _hrmsSanitizePeriods==='function') _hrmsSanitizePeriods(emp.periods);
+  showSpinner('Saving revision…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✓ Revision saved for '+emp.empCode);
+  _hrmsCfmRender();
+}
+
+// Periods whose `to` month is BEFORE `from` month (e.g. From=Apr-26
+// To=Dec-25). Always invalid — almost always legacy import noise.
+function _hrmsCfmFindInvalidRange(periods){
+  if(!Array.isArray(periods)) return [];
+  var hits=[];
+  periods.forEach(function(p,idx){
+    if(!p) return;
+    if(p._wfStatus&&p._wfStatus!=='approved') return;
+    var fromMk=String(p.from||'').slice(0,7);
+    var toMk=p.to?String(p.to).slice(0,7):'';
+    if(!fromMk||!toMk) return;// open-ended is fine
+    if(toMk<fromMk) hits.push({idx:idx,p:p,fromMk:fromMk,toMk:toMk});
+  });
+  return hits;
+}
+
+function _hrmsCfmRenderInvalidRange(){
+  var el=document.getElementById('hrmsCfmInvalidBody');if(!el) return;
+  var rows=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!_hrmsCfmIsContractEmp(emp)) return;
+    var hits=_hrmsCfmFindInvalidRange(emp.periods||[]);
+    if(!hits.length) return;
+    hits.forEach(function(h){
+      rows.push({
+        empId:emp.id,empCode:emp.empCode||'',name:_hrmsDispName(emp),
+        plant:emp.location||'',
+        periodIdx:h.idx,
+        fromMk:h.fromMk,toMk:h.toMk,
+        empType:h.p.employmentType||'',status:h.p.status||'',
+        salaryDay:+h.p.salaryDay||0,salaryMonth:+h.p.salaryMonth||0
+      });
+    });
+  });
+  rows.sort(function(a,b){
+    var p=(a.plant||'').localeCompare(b.plant||'');if(p!==0) return p;
+    return((parseInt(a.empCode)||0)-(parseInt(b.empCode)||0))||String(a.empCode||'').localeCompare(String(b.empCode||''));
+  });
+  if(!rows.length){
+    el.innerHTML='<div style="margin-top:6px;padding:10px 12px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;font-size:12px;color:#15803d">✓ No revisions found with To before From.</div>';
+    return;
+  }
+  var canEdit=(typeof _hrmsIsSA==='function'&&_hrmsIsSA());
+  var distinctEmps={};rows.forEach(function(r){distinctEmps[r.empCode]=true;});
+  var bulkBtn=canEdit
+    ? '<button onclick="_hrmsCfmBulkDeleteInvalid()" style="padding:6px 14px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer">🗑 Delete all '+rows.length+' invalid revision'+(rows.length>1?'s':'')+'</button>'
+    : '<span style="font-size:11px;color:var(--text3)">SA only</span>';
+  var html='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 8px">'+
+    '<div style="font-size:14px;font-weight:900;color:#dc2626">⚠ Invalid Revisions (To before From)</div>'+
+    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5">'+rows.length+' revision'+(rows.length>1?'s':'')+' · '+Object.keys(distinctEmps).length+' employee'+(Object.keys(distinctEmps).length>1?'s':'')+'</span>'+
+    '<div style="flex:1"></div>'+bulkBtn+
+  '</div>';
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
+  var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  html+='<div style="overflow:auto;border:1.5px solid #fca5a5;border-radius:8px;background:#fff;max-height:340px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+    '<th style="'+th+'">#</th>'+
+    '<th style="'+th+'">Emp Code</th>'+
+    '<th style="'+th+'">Name</th>'+
+    '<th style="'+th+'">Plant</th>'+
+    '<th style="'+th+'">From</th>'+
+    '<th style="'+th+'">To</th>'+
+    '<th style="'+th+'">Type</th>'+
+    '<th style="'+th+'">Status</th>'+
+    '<th style="'+th+';text-align:right">Sal/Day</th>'+
+    '<th style="'+th+';text-align:right">Sal/Mon</th>'+
+    '<th style="'+th+';text-align:center">Action</th>'+
+  '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#fff';
+    var fmt=function(s){return typeof _hrmsShortMonth==='function'?_hrmsShortMonth(s):s;};
+    var act=canEdit
+      ? '<button onclick="_hrmsCfmRevDelete(\''+r.empId+'\','+r.periodIdx+')" style="font-size:11px;padding:3px 10px;font-weight:800;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer">🗑 Delete</button>'
+      : '<span style="font-size:10px;color:var(--text3)">—</span>';
+    html+='<tr style="background:#fff7ed">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent);cursor:pointer;text-decoration:underline" data-emp-code="'+r.empCode+'" title="Click to view employee">'+r.empCode+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(r.name||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-weight:800;background:'+pClr+'">'+(r.plant||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:700">'+fmt(r.fromMk)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:700;color:#dc2626">'+fmt(r.toMk)+'</td>'+
+      '<td style="'+td+'">'+(r.empType||'—')+'</td>'+
+      '<td style="'+td+'">'+(r.status||'—')+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+(r.salaryDay?'₹'+r.salaryDay.toLocaleString('en-IN'):'—')+'</td>'+
+      '<td style="'+td+';text-align:right;font-family:var(--mono)">'+(r.salaryMonth?'₹'+r.salaryMonth.toLocaleString('en-IN'):'—')+'</td>'+
+      '<td style="'+td+';text-align:center">'+act+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+// Bulk-shift any contract employee's open Jan-26 period (from=2026-01,
+// to=null/empty) that participates in an overlap → from=2026-04 (still
+// open). Lets the admin retire the conflict in one click for the
+// common "old open period vs newer open period" pattern. Re-saves
+// each affected employee.
+async function _hrmsCfmBulkShiftJan26ToApr26(){
+  if(!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){notify('Only Super Admin can bulk-shift periods',true);return;}
+  var todo=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!_hrmsCfmIsContractEmp(emp)) return;
+    var hits=_hrmsCfmFindOverlaps(emp.periods||[]);
+    if(!hits.length) return;
+    // Collect indexes of overlap-participating periods that are
+    // open (no `to`) and start at Jan-26.
+    var idxs={};
+    hits.forEach(function(h){
+      [{idx:h.i,p:h.a},{idx:h.j,p:h.b}].forEach(function(side){
+        var fromMk=String(side.p.from||'').slice(0,7);
+        var hasTo=!!(side.p.to&&String(side.p.to).trim());
+        if(fromMk==='2026-01'&&!hasTo) idxs[side.idx]=true;
+      });
+    });
+    var idxList=Object.keys(idxs);
+    if(idxList.length) todo.push({emp:emp,idxs:idxList.map(Number)});
+  });
+  if(!todo.length){notify('No overlapping Jan-26 open period found to shift',true);return;}
+  var totalShifts=todo.reduce(function(s,x){return s+x.idxs.length;},0);
+  if(!confirm('Shift '+totalShifts+' Jan-26 open period(s) → Apr-26 open across '+todo.length+' employee(s)?\n\nThis only affects periods that:\n  • participate in an overlap with another period\n  • start at Jan-26\n  • have no To set (open)\n\nThe new From will be Apr-26, To stays open.')) return;
+  showSpinner('Shifting overlapping Jan-26 periods…');
+  var saved=0,failed=0,shiftedTotal=0;
+  for(var i=0;i<todo.length;i++){
+    var emp=todo[i].emp;
+    var shifted=0;
+    todo[i].idxs.forEach(function(idx){
+      var p=emp.periods&&emp.periods[idx];
+      if(!p) return;
+      var fromMk=String(p.from||'').slice(0,7);
+      var hasTo=!!(p.to&&String(p.to).trim());
+      if(fromMk==='2026-01'&&!hasTo){
+        p.from='2026-04';
+        shifted++;
+      }
+    });
+    if(!shifted) continue;
+    if(typeof _hrmsSanitize==='function') _hrmsSanitize(emp);
+    if(typeof _hrmsSanitizePeriods==='function') _hrmsSanitizePeriods(emp.periods);
+    try{
+      var ok=await _dbSave('hrmsEmployees',emp);
+      if(ok){saved++;shiftedTotal+=shifted;} else failed++;
+    }catch(e){failed++;console.warn('CFM shift save error',emp.empCode,e);}
+  }
+  hideSpinner();
+  if(failed) notify('⚠ Saved '+saved+' employee(s); '+failed+' failed — check console',true);
+  else notify('✓ Shifted '+shiftedTotal+' period(s) Jan-26 → Apr-26 across '+saved+' employee(s)');
+  _hrmsCfmRender();
+}
+
+async function _hrmsCfmBulkDeleteInvalid(){
+  if(!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){notify('Only Super Admin can bulk-delete revisions',true);return;}
+  // Re-scan against the live periods array — don't trust cached row
+  // indexes because earlier deletes may have shifted them.
+  var todo=[];
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!_hrmsCfmIsContractEmp(emp)) return;
+    var hits=_hrmsCfmFindInvalidRange(emp.periods||[]);
+    if(hits.length) todo.push({emp:emp,hits:hits});
+  });
+  if(!todo.length){notify('Nothing to delete — list is clean',true);return;}
+  var totalRevs=todo.reduce(function(s,x){return s+x.hits.length;},0);
+  if(!confirm('Delete '+totalRevs+' invalid revision(s) (To-before-From) across '+todo.length+' employee(s)?\n\nThis cannot be undone.')) return;
+  showSpinner('Deleting invalid revisions…');
+  var saved=0,failed=0;
+  for(var i=0;i<todo.length;i++){
+    var emp=todo[i].emp;
+    // Splice from highest index to lowest to keep indexes stable.
+    var idxs=todo[i].hits.map(function(h){return h.idx;}).sort(function(a,b){return b-a;});
+    idxs.forEach(function(idx){
+      if(emp.periods&&emp.periods[idx]){
+        var p=emp.periods[idx];
+        var f=String(p.from||'').slice(0,7);
+        var t=p.to?String(p.to).slice(0,7):'';
+        // Re-verify against the current state — defensive.
+        if(f&&t&&t<f) emp.periods.splice(idx,1);
+      }
+    });
+    if(typeof _hrmsSanitize==='function') _hrmsSanitize(emp);
+    if(typeof _hrmsSanitizePeriods==='function') _hrmsSanitizePeriods(emp.periods);
+    try{
+      var ok=await _dbSave('hrmsEmployees',emp);
+      if(ok) saved++; else failed++;
+    }catch(e){failed++;console.warn('CFM invalid bulk save error',emp.empCode,e);}
+  }
+  hideSpinner();
+  if(failed) notify('⚠ Saved '+saved+' employee(s); '+failed+' failed — check console',true);
+  else notify('✓ Deleted '+totalRevs+' invalid revision(s) across '+saved+' employee(s)');
+  _hrmsCfmRender();
+}
+
+async function _hrmsCfmRevDelete(empId,periodIdx){
+  if(!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){notify('Only Super Admin can delete revisions',true);return;}
+  var emp=byId(DB.hrmsEmployees||[],empId);if(!emp){notify('Employee not found',true);return;}
+  if(!emp.periods||!emp.periods[periodIdx]){notify('Revision not found',true);return;}
+  var p=emp.periods[periodIdx];
+  if(!confirm('Delete revision for '+emp.empCode+'?\n\nFrom: '+(p.from||'—')+'  To: '+(p.to||'—')+'\nType: '+(p.employmentType||'—')+'  Status: '+(p.status||'—')+'\n\nThis cannot be undone.')) return;
+  emp.periods.splice(periodIdx,1);
+  if(typeof _hrmsSanitize==='function') _hrmsSanitize(emp);
+  if(typeof _hrmsSanitizePeriods==='function') _hrmsSanitizePeriods(emp.periods);
+  showSpinner('Deleting revision…');
+  var ok=await _dbSave('hrmsEmployees',emp);
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('🗑 Revision deleted for '+emp.empCode);
+  _hrmsCfmRender();
+}
+
+async function _hrmsCfmBulkResetToJan26(){
+  if(!(typeof _hrmsIsSA==='function'&&_hrmsIsSA())){
+    notify('Only Super Admin can perform bulk period rewrites',true);return;
+  }
+  if(!_hrmsCfmRows||!_hrmsCfmRows.length){
+    notify('Nothing to fix — click Refresh first',true);return;
+  }
+  var rowCount=_hrmsCfmRows.length;
+  var empSet={};_hrmsCfmRows.forEach(function(r){empSet[r.empId]=true;});
+  var empCount=Object.keys(empSet).length;
+  if(!confirm('Rewrite '+rowCount+' Contract period(s) across '+empCount+' employee(s) so their From-month becomes '+_CFM_TARGET_MK+'?\n\nThis updates the in-memory periods array and saves each affected employee to the database.\n\nProceed?')) return;
+  showSpinner('Rewriting period from-months…');
+  try{
+    var byEmp={};
+    _hrmsCfmRows.forEach(function(r){
+      (byEmp[r.empId]=byEmp[r.empId]||[]).push(r);
+    });
+    var saved=0,failed=0;
+    var ids=Object.keys(byEmp);
+    for(var i=0;i<ids.length;i++){
+      var emp=byId(DB.hrmsEmployees||[],ids[i]);if(!emp){failed++;continue;}
+      byEmp[ids[i]].forEach(function(r){
+        var p=emp.periods&&emp.periods[r.periodIdx];
+        if(!p) return;
+        // Only rewrite if the period is still the one we scanned and
+        // its from is still before the target month.
+        var fromMk=String(p.from||'').slice(0,7);
+        if(fromMk&&fromMk<_CFM_TARGET_MK&&String(p.employmentType||'').toLowerCase().replace(/\s/g,'')==='contract'){
+          p.from=_CFM_TARGET_MK;
+        }
+      });
+      if(typeof _hrmsSanitize==='function') _hrmsSanitize(emp);
+      if(typeof _hrmsSanitizePeriods==='function') _hrmsSanitizePeriods(emp.periods);
+      try{
+        var ok=await _dbSave('hrmsEmployees',emp);
+        if(ok) saved++; else failed++;
+      }catch(e){failed++;console.warn('CFM save error',emp.empCode,e);}
+    }
+    hideSpinner();
+    if(failed) notify('⚠ Saved '+saved+' employee(s); '+failed+' failed — check console',true);
+    else notify('✓ Rewritten '+rowCount+' period(s) across '+saved+' employee(s) → From '+_CFM_TARGET_MK);
+    _hrmsCfmRender();
+  }catch(e){hideSpinner();notify('⚠ Bulk rewrite failed: '+(e&&e.message||e),true);console.error(e);}
+}
+
+// ═══ MONTHLY HEADCOUNT GRAPH ═════════════════════════════════════════════
 // attendance (+ alteration) records already in the system. Three overlapping
 // lines per plant: On Roll / Contract / Piece Rate. Employment type is taken
 // from the employee's currently-active period.
@@ -10601,6 +11317,54 @@ async function _hrmsSaveMonthData(mk){
     contractRows=(_hrmsContractCache[mk]||[]).slice();
   }catch(e){console.warn('Contract snapshot error:',e);}
 
+  // Persist each contract employee as a per-(emp,month) row alongside
+  // the on-roll rows. Makes lookup symmetric: `.eq('emp_code', code)`
+  // returns the row regardless of employmentType, no JSON-array scan.
+  // The legacy meta.contract array is still saved for backward compat.
+  var existingCodes={};rows.forEach(function(r){existingCodes[r.empCode]=true;});
+  contractRows.forEach(function(cr){
+    if(!cr||!cr.empCode||existingCodes[cr.empCode]) return;
+    var pf=+cr.pf||0,esi=+cr.esi||0;
+    var emp=empMap[cr.empCode];
+    rows.push({
+      id:'hmd_'+mk+'_'+cr.empCode,monthKey:mk,empCode:cr.empCode,
+      name:cr.name||(emp?_hrmsDispName(emp):''),
+      firstName:emp?(emp.firstName||''):'',lastName:emp?(emp.lastName||''):'',middleName:emp?(emp.middleName||''):'',
+      location:cr.plant||(emp?(emp.location||''):''),
+      category:cr.cat||(emp?(emp.category||''):''),
+      department:emp?(emp.department||''):'',subDepartment:emp?(emp.subDepartment||''):'',
+      designation:emp?(emp.designation||''):'',employmentType:'Contract',
+      dateOfJoining:cr.doj||(emp?(emp.dateOfJoining||''):''),
+      dateOfBirth:emp?(emp.dateOfBirth||''):'',gender:emp?(emp.gender||''):'',
+      status:emp?(emp.status||'Active'):'Active',
+      teamName:cr.team||(emp?(emp.teamName||''):''),
+      roll:cr.roll||(emp?(emp.roll||''):''),noPL:emp?!!emp.noPL:false,
+      esiNo:emp?(emp.esiNo||''):'',pfNo:emp?(emp.pfNo||''):'',uan:emp?(emp.uan||''):'',
+      panNo:emp?(emp.panNo||''):'',aadhaarNo:emp?(emp.aadhaarNo||''):'',
+      bankName:emp?(emp.bankName||''):'',branchName:emp?(emp.branchName||''):'',
+      acctNo:emp?(emp.acctNo||''):'',ifsc:emp?(emp.ifsc||''):'',
+      rateD:+cr.rateD||0,rateM:+cr.rateM||0,spAllow:+cr.spAllow||0,
+      attendance:{},alterations:{},dayTypes:{},
+      wdCount:+cr.wdCount||0,phCount:+cr.PH||0,
+      totalP:+cr.P||0,totalA:+cr.A||0,paidAbsent:0,
+      totalOT:+cr.OT||0,totalOTS:+cr.OTS||0,totalPL:0,
+      manualP:null,manualPL:null,manualOT:null,manualOTS:null,
+      tds:0,
+      plOB:0,plGiven:0,plCB:0,plAvail:0,
+      confMonths:0,fyMonthNo:0,
+      otAt1:+cr.otAt1||0,otAt15:0,otAt2:0,
+      salForP:+cr.forPresent||0,salAb:0,salForPL:0,
+      salOT1:+cr.forOT||0,salOT15:0,salOT2:0,
+      allowance:+cr.spAllow||0,gross:+cr.gross||0,
+      advOB:0,advMonth:0,advDed:0,advCB:0,
+      dedPT:0,dedPF:pf,dedESI:esi,
+      dedAdv:0,dedTDS:0,dedOther:0,dedTotal:pf+esi,
+      net:+cr.totalSal||(+cr.gross||0),
+      meta:{_contract:true}
+    });
+    existingCodes[cr.empCode]=true;
+  });
+
   var metaData={savedAt:new Date().toISOString(),savedBy:CU?CU.name:'',empCount:rows.length,statutory:statSnap,calendar:calSnap,otRules:otRulesSnap,contract:contractRows};
   rows.push({id:'hmd_'+mk+'__meta',monthKey:mk,empCode:'_meta',meta:metaData});
 
@@ -11038,12 +11802,22 @@ function _hrmsPrepSavedCaches(mk){
     emp._totalP=d.totalP||0;emp._totalA=d.totalA||0;emp._totalOT=d.totalOT||0;emp._totalOTS=d.totalOTS||0;
   });
 
-  // 5. Populate advance cache
+  // 5. Populate advance cache. Also keep DB.hrmsAdvances in sync —
+  // the salary recompute reads from DB.hrmsAdvances, not from
+  // _hrmsAdvCache, so cache-only entries would silently disappear
+  // from the calc and drop dedAdv from net salary.
   _hrmsAdvCache[mk]={};
+  if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
   codes.forEach(function(ec){
     var d=empData[ec];
     if(d.advMonth||d.advDed){
-      _hrmsAdvCache[mk][ec]={empCode:ec,monthKey:mk,advance:d.advMonth||0,deduction:d.advDed||0,emi:0};
+      var existing=DB.hrmsAdvances.find(function(a){return a.empCode===ec&&a.monthKey===mk;});
+      var rec=existing||{id:'adv_'+mk+'_'+ec,empCode:ec,monthKey:mk,advance:d.advMonth||0,deduction:d.advDed||0,emi:0};
+      // Refresh values from snapshot in case they drifted.
+      rec.advance=d.advMonth||0;
+      rec.deduction=d.advDed||0;
+      if(!existing) DB.hrmsAdvances.push(rec);
+      _hrmsAdvCache[mk][ec]=rec;
     }
   });
 
@@ -13705,10 +14479,23 @@ async function _hrmsRenderContractSalary(yr,mo){
   var daysInMo=new Date(yr,mo,0).getDate();
   var mStart=mk+'-01',mEnd=mk+'-'+String(daysInMo).padStart(2,'0');
 
-  // NOTE: previously this short-circuited to saved.meta.contract for locked
-  // months, but that froze the table against any filter-rule changes (the
-  // stored snapshot only held rows computed under the old filter). Always
-  // recompute live — roll rates + attendance are authoritative.
+  // ── Locked-month snapshot pre-load ──
+  // For a locked month, the snapshot stored in hrms_month_data._meta.contract
+  // is authoritative — those rows are frozen and must not be touched. We
+  // still run the live recompute below so any employee who has attendance
+  // for the month but was missing from the snapshot (e.g., locked before
+  // V125 when the contract array wasn't yet persisted, or excluded by an
+  // older active-only filter) is backfilled. The merge step at the end of
+  // _hrmsRenderContractSalary lets snapshot rows win for matching empCodes.
+  var _lockedSnap=null;
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+    try{
+      var saved=await _hrmsLoadSavedMonth(mk);
+      if(saved&&saved.meta&&Array.isArray(saved.meta.contract)){
+        _lockedSnap=saved.meta.contract.map(function(cr){return Object.assign({},cr);});
+      }
+    }catch(e){console.warn('Contract salary snapshot load error:',e);}
+  }
 
   // Load prerequisites (same as Salary tab)
   showSpinner('Loading contract salary…');
@@ -13729,29 +14516,67 @@ async function _hrmsRenderContractSalary(yr,mo){
     hideSpinner();
   }
 
-  // Find active (non-draft/proposed/rejected) period for each employee at this month
+  // Find the period that covers `mk` for an employee. Approved periods
+  // are preferred — they're the authoritative state. If none covers
+  // the month, fall back to a `proposed` (pending ECR) period because
+  // freshly added employees only have a proposed first revision until
+  // an approver acts on it, and they should still appear on the
+  // contract salary tab for the month they joined. Drafts and rejected
+  // entries are always ignored.
+  // NOTE: `from` / `to` are normalised to YYYY-MM via .slice(0,7) before
+  // the range check — some legacy records store the full DOJ-style date
+  // (e.g. "2026-02-15") and a raw string compare would treat that as
+  // greater than "2026-02", causing the period to be silently skipped.
+  var _coverMatch=function(p,mk){
+    var pFrom=String(p.from||'').slice(0,7);
+    var pTo=p.to?String(p.to).slice(0,7):'';
+    if(!pFrom) return false;
+    return pFrom<=mk&&(!pTo||pTo>=mk);
+  };
   var _getPeriod=function(emp,mk){
     var periods=(emp.periods||[]).slice().filter(function(p){
-      // Ignore draft/proposed/rejected revisions — they're not active
       return !p._wfStatus||p._wfStatus==='approved';
-    }).sort(function(a,b){return(b.from||'').localeCompare(a.from||'');});
+    }).sort(function(a,b){return String(b.from||'').slice(0,7).localeCompare(String(a.from||'').slice(0,7));});
     for(var i=0;i<periods.length;i++){
-      var p=periods[i];
-      if((p.from||'')<=mk&&(!p.to||p.to>=mk)) return p;
+      if(_coverMatch(periods[i],mk)) return periods[i];
+    }
+    // Fallback — any proposed period whose from-month covers mk.
+    var pending=(emp.periods||[]).slice().filter(function(p){
+      return p&&p._wfStatus==='proposed';
+    }).sort(function(a,b){return String(b.from||'').slice(0,7).localeCompare(String(a.from||'').slice(0,7));});
+    for(var j=0;j<pending.length;j++){
+      if(_coverMatch(pending[j],mk)) return pending[j];
     }
     return null;
   };
 
-  // Filter: contract employees, ignoring status entirely. Gate only by the
-  // joining/leaving window plus employmentType; the attendance presence check
-  // below drops anyone without a Jan-style punch record for the month.
+  // Filter: only employees whose employmentType for the SELECTED
+  // month is Contract — Piece Rate and On Roll are out, even if
+  // their history once contained a Contract period. Status (Active /
+  // Inactive / Resigned) is intentionally ignored. Presence in the
+  // month — punch / alteration / manual override — is required.
+  var _hasAttForMk={};
+  (_hrmsAttCache[mk]||[]).forEach(function(a){
+    var dy=a.days||{};
+    for(var dk in dy){var dd=dy[dk];if(dd&&((dd['in']&&String(dd['in']).trim())||(dd['out']&&String(dd['out']).trim()))){_hasAttForMk[a.empCode]=true;break;}}
+  });
+  (_hrmsAltCache&&_hrmsAltCache[mk]||[]).forEach(function(a){
+    if(a.days&&Object.keys(a.days).length) _hasAttForMk[a.empCode]=true;
+  });
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    var ex=e.extra||{};var v;
+    v=ex.manualP&&ex.manualP[mk];if(v!==undefined&&v!==null&&+v>0){_hasAttForMk[e.empCode]=true;return;}
+    v=ex.manualOT&&ex.manualOT[mk];if(v!==undefined&&v!==null&&+v>0){_hasAttForMk[e.empCode]=true;return;}
+    v=ex.manualOTS&&ex.manualOTS[mk];if(v!==undefined&&v!==null&&+v>0){_hasAttForMk[e.empCode]=true;return;}
+  });
+  var _isContract=function(s){return String(s||'').toLowerCase().replace(/\s/g,'')==='contract';};
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
-    if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;
-    if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;
+    if(!_hasAttForMk[e.empCode]) return false;// presence required
+    // Determine the employmentType for the SELECTED month. Period
+    // covering mk wins; flat field is fallback when no period covers.
     var p=_getPeriod(e,mk);
-    // If no matching period, fall back entirely to flat field (pre-period data).
-    var et=((p&&p.employmentType)||e.employmentType||'').toLowerCase().replace(/\s/g,'');
-    return et==='contract';
+    if(p) return _isContract(p.employmentType);
+    return _isContract(e.employmentType);
   });
 
   // Compute each row
@@ -13786,9 +14611,11 @@ async function _hrmsRenderContractSalary(yr,mo){
     if(_mpData[emp.empCode]!==undefined) totalP=_mpData[emp.empCode];
     if(emp.extra&&emp.extra.manualOT&&emp.extra.manualOT[mk]!==undefined) totalOT=emp.extra.manualOT[mk];
     if(emp.extra&&emp.extra.manualOTS&&emp.extra.manualOTS[mk]!==undefined) totalOTS=emp.extra.manualOTS[mk];
-    // Skip employees who weren't present this month — no attendance record
-    // and no manual P/OT entries means there's nothing to pay.
-    if(totalP<=0&&totalOT<=0&&totalOTS<=0) return;
+    // Only skip when there's no presence at all — keeps the row even
+    // when totals come out fractional (e.g. partial day → totalP=0
+    // but the punch row exists). Filter already restricted us to
+    // employees with presence; this just preserves them.
+    if(totalP<=0&&totalOT<=0&&totalOTS<=0&&!_hasAttForMk[emp.empCode]) return;
     // OT not applicable for Staff (even under contract)
     var _empCat=(period.category||emp.category||'').toLowerCase();
     if(_empCat==='staff'){totalOT=0;totalOTS=0;}
@@ -13842,16 +14669,36 @@ async function _hrmsRenderContractSalary(yr,mo){
     });
   });
 
+  // ── Merge with locked-month snapshot ──
+  // Snapshot rows are frozen — they win for any matching empCode.
+  // Live rows whose empCode isn't in the snapshot are appended so any
+  // employee missing from an older snapshot (pre-V125 lock or older
+  // active-only filter) gets backfilled.
+  if(_lockedSnap&&_lockedSnap.length){
+    var snapMap={};
+    _lockedSnap.forEach(function(r){
+      if(r&&r.empCode){snapMap[String(r.empCode).trim().toUpperCase()]=r;}
+    });
+    var merged=_lockedSnap.slice();
+    rows.forEach(function(r){
+      var key=String((r&&r.empCode)||'').trim().toUpperCase();
+      if(!key||snapMap[key]) return;
+      merged.push(r);
+    });
+    rows=merged;
+  }
   _hrmsContractCache[mk]=rows;
   _hrmsContractRenderRows(grid,rows,mk,yr,mo);
 }
 
 function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
-  // Drop rows with no attendance for the month. Covers legacy snapshots from
-  // locked months that were saved before the "skip absent employees" rule.
-  rows=(rows||[]).filter(function(r){
-    return (+r.P||0)>0||(+r.OT||0)>0||(+r.OTS||0)>0;
-  });
+  // Keep every row that the upstream filter included. Earlier we
+  // dropped rows whose computed P/OT/OTS were all zero, but that hid
+  // contract employees with valid punches whose totals just happened
+  // to come out fractional / sub-half-day. The upstream filter already
+  // gates on "presence in the month" so anything reaching here is
+  // legitimately a contract row for the month.
+  rows=(rows||[]).slice();
   // Build team filter buttons from the full row set (before applying filter)
   _hrmsContractBuildTeamFilter(rows);
   if(!rows.length){grid.innerHTML='<div class="empty-state" style="padding:20px">No Contract employees with attendance for '+_hrmsMonthLabel(mk)+'.</div>';return;}
@@ -14567,13 +15414,22 @@ async function _hrmsAdvDedChange(input){
   }
   // Refresh the Total Deduction / Total CB chips at the top of the panel.
   if(typeof _hrmsAdvUpdateTotals==='function') _hrmsAdvUpdateTotals();
-  // Persist to database
+  // Persist to database. Keep DB.hrmsAdvances in sync — locked-month
+  // opens seed _hrmsAdvCache directly from the saved snapshot without
+  // adding entries to DB.hrmsAdvances, so an edit-from-cache that only
+  // saved to DB without populating DB.hrmsAdvances would silently make
+  // the next salary recompute see zero advance/deduction (find() misses
+  // in DB.hrmsAdvances) and drop the deduction from net.
+  if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
   if(rec){
     rec.deduction=ded;
+    if(!rec.id) rec.id='adv'+uid();
     _hrmsAdvCache[mk][code]=rec;
+    if(!DB.hrmsAdvances.find(function(a){return a.empCode===code&&a.monthKey===mk;})){
+      DB.hrmsAdvances.push(rec);
+    }
     await _dbSave('hrmsAdvances',rec);
   } else {
-    if(!DB.hrmsAdvances) DB.hrmsAdvances=[];
     var newRec={id:'adv'+uid(),empCode:code,monthKey:mk,advance:0,emi:0,deduction:ded};
     DB.hrmsAdvances.push(newRec);
     _hrmsAdvCache[mk][code]=newRec;
@@ -18199,7 +19055,7 @@ function _hrmsMyAttRenderBank(){
   var hdr='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">'+
     '<div style="font-size:18px;font-weight:900">🏦 C-Off Bank — All Employees</div>'+
     '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
-      '<input type="search" id="hrmsMyAttBankEmpFilter" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttRenderBank()" value="'+String(fEmp).replace(/"/g,'&quot;')+'" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;width:200px">'+
+      '<input type="search" id="hrmsMyAttBankEmpFilter" class="hrms-search" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttRenderBank()" value="'+String(fEmp).replace(/"/g,'&quot;')+'" style="width:240px">'+
       '<select id="hrmsMyAttBankStatus" onchange="_hrmsMyAttRenderBank()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:5px">'+
         '<option value=""'+(fStat===''?' selected':'')+'>All statuses</option>'+
         '<option value="available"'+(fStat==='available'?' selected':'')+'>Available ('+tot.available+')</option>'+

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260506-V169">
+<meta name="app-build" content="260506-V190">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260506-V169">
+<link rel="stylesheet" href="css/hrms.css?v=260506-V190">
 </head>
 <body>
 
@@ -52,6 +52,7 @@
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
     <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
     <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
+    <div class="nav-item" id="navUtilContractFromFix" onclick="hrmsGo('pageHrmsUtilContractFromFix')" style="font-size:12px;padding:7px 16px">🛠 Contract From-Month Cleanup</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <!-- Bottom: Connection + Sign Out -->
@@ -112,8 +113,8 @@
         <thead>
         <tr style="background:#fff">
           <th style="padding:3px 2px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all search boxes / filters" style="font-size:13px;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:900;line-height:1">✕</button></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" placeholder="🔍" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:13px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()" style="font-size:13px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" class="hrms-search-inline" placeholder="🔍" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" class="hrms-search-inline" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFPlant" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
@@ -168,7 +169,7 @@
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
               <span style="font-size:12px;font-weight:700;color:var(--text2)">Employee:</span>
-              <input type="search" id="hrmsMyAttEmpSearch" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttFilterEmp()" onfocus="_hrmsMyAttShowEmpDropdown()" autocomplete="off" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans);width:240px">
+              <input type="search" id="hrmsMyAttEmpSearch" class="hrms-search" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttFilterEmp()" onfocus="_hrmsMyAttShowEmpDropdown()" autocomplete="off" style="width:240px">
               <input type="hidden" id="hrmsMyAttEmpId">
             </span>
             <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
@@ -382,6 +383,26 @@
     </div>
   </div>
 
+  <!-- UTILITIES: Contract From-Month Cleanup -->
+  <div class="page" id="pageHrmsUtilContractFromFix" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+        <div style="font-size:18px;font-weight:900">🛠 Contract From-Month Cleanup</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button onclick="_hrmsCfmRender()" style="padding:7px 14px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer">↻ Refresh</button>
+          <button onclick="_hrmsCfmBulkResetToJan26()" style="padding:7px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📌 Reset all From → Jan-2026 &amp; Save</button>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;line-height:1.55;margin-bottom:10px">
+        Lists every <b>Contract</b>-typed period whose <b>From</b> month is before <b>Jan-2026</b>. Clicking <b>Reset all From → Jan-2026 &amp; Save</b> rewrites those periods so their <code>from</code> = <code>2026-01</code>, then persists each affected employee. Useful for cleaning up legacy data where the original from-month predates the system rollout.
+      </div>
+      <div id="hrmsCfmBody" style="overflow:auto"><div class="empty-state" style="padding:30px 20px;color:var(--text3)">Click <b>Refresh</b> to scan.</div></div>
+      <div id="hrmsCfmOverlapBody" style="overflow:auto;margin-top:18px"></div>
+      <div id="hrmsCfmOrderBody" style="overflow:auto;margin-top:18px"></div>
+      <div id="hrmsCfmInvalidBody" style="overflow:auto;margin-top:18px"></div>
+    </div>
+  </div>
+
   <!-- ATTENDANCE & SALARY (Combined) -->
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
@@ -392,7 +413,7 @@
       <div style="flex:1"></div>
       <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔒 Lock Month</button>
       <button onclick="_hrmsRecalculateMonth()" id="btnRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Re-run salary calculation against current attendance / alterations / overrides; shows what will change vs the saved snapshot.">🔄 Recalculate</button>
-      <button onclick="_hrmsSaveAfterRecalc()" id="btnSaveRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Replace the saved snapshot with the recalculated values, then re-lock the month.">💾 Save</button>
+      <button onclick="_hrmsSaveAfterRecalc()" id="btnSaveRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Replace the saved snapshot with the recalculated values, then re-lock the month.">💾 Save &amp; Lock</button>
       <button onclick="_hrmsCancelRecalc()" id="btnCancelRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Discard any recalculation and restore the previously saved snapshot, then re-lock the month.">✕ Cancel</button>
       <button onclick="_hrmsToggleMonthLock()" id="btnUnlock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔓 Unlock Month</button>
     </div>
@@ -714,7 +735,7 @@
             <button onclick="_hrmsAttEtFilterSet('Visitor')" id="hrmsAttEtfVisitor" style="padding:5px 12px;font-size:11px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor <span id="hrmsAttEtCount_Visitor" style="font-weight:800">0</span></button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-            <div style="position:relative"><input type="text" id="hrmsAttFSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="font-size:12px;padding:5px 24px 5px 8px;border:1.5px solid var(--accent);border-radius:6px;width:220px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
+            <div style="position:relative"><input type="text" id="hrmsAttFSearch" class="hrms-search" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="padding:6px 28px 6px 12px;width:280px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
             <select id="hrmsAttFPlant" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
             <select id="hrmsAttFCategory" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
             <select id="hrmsAttFTeam" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
@@ -732,7 +753,7 @@
         <div id="hrmsAttTabAlteration" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
           <div style="display:flex;gap:10px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
             <div style="position:relative">
-              <input type="text" id="altSrchCode" placeholder="🔍 Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--accent);border-radius:6px;width:240px">
+              <input type="text" id="altSrchCode" class="hrms-search" placeholder="🔍 Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="width:240px">
               <div id="altEmpAcList" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:280px;overflow-y:auto;min-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-top:2px"></div>
             </div>
             <button onclick="document.getElementById('altSrchCode').value='';_hrmsAltFilterChanged()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
@@ -977,8 +998,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260506-V169"></script>
-<script src="js/hrms-logic.js?v=260506-V169"></script>
-<script src="js/hrms-ui.js?v=260506-V169"></script>
+<script src="js/common.js?v=260506-V190"></script>
+<script src="js/hrms-logic.js?v=260506-V190"></script>
+<script src="js/hrms-ui.js?v=260506-V190"></script>
 </body>
 </html>
