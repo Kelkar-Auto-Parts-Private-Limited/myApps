@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="app-build" content="260506-V199">
+<title>KAP Security Surveillance</title>
+<link rel="stylesheet" href="css/security.css?v=260506-V199">
+</head>
+<body style="display:none">
+
+<!-- Splash -->
+<div id="dbSplash" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.95);align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="width:48px;height:48px;border:4px solid rgba(42,154,160,.3);border-top-color:#2a9aa0;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div style="color:#fff;font-size:14px;font-weight:600" id="splashMsg">Loading Security…</div>
+</div>
+<div class="notification" id="notification"></div>
+
+<!-- Mobile Topbar -->
+<div class="sec-topbar" id="secTopbar">
+  <button style="background:none;border:none;font-size:22px;cursor:pointer;padding:4px" onclick="toggleSecNav()">☰</button>
+  <div id="secPageTitle" style="font-size:15px;font-weight:800;color:var(--text);flex:1">Security</div>
+  <span id="secStatusDot" style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block"></span>
+</div>
+<div class="sec-overlay" id="secOverlay" onclick="closeSecNav()"></div>
+
+<!-- Sidebar -->
+<div class="sec-sidebar" id="secSidebar">
+  <div class="brand">
+    <div><h3>Security Surveillance</h3><div style="font-size:10px;color:var(--text3)">Checkpoint & Guard Ops</div></div>
+  </div>
+  <div style="border-bottom:1px solid var(--border);padding:10px 14px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div id="secAvatar" style="width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden">👤</div>
+      <div style="flex:1;min-width:0">
+        <div id="secUserFullName" style="font-size:12px;font-weight:700;color:#1a2033;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+        <div id="secUserRole" style="font-size:10px;color:#64748b;margin-top:1px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="sec-nav-item" onclick="_navigateTo('index.html')" style="background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.15);margin:8px 10px;border-radius:8px;font-weight:700;color:var(--accent)">🏠 My Apps</div>
+  <div class="sec-nav-sec">MASTERS</div>
+  <div class="sec-nav-item" id="nCheckpoints" onclick="secGo('pageCheckpoints')">📍 Checkpoints</div>
+  <div class="sec-nav-item" id="nGuards" onclick="secGo('pageGuards')">👮 Guards</div>
+  <div class="sec-nav-item" id="nRoundSchedules" onclick="secGo('pageRoundSchedules')">🕐 Round Schedules</div>
+  <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
+    <div id="secConnWidget" onclick="typeof _testDbConn==='function'&&_testDbConn()" style="display:flex;align-items:center;gap:7px;padding:6px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer" title="Database connection status">
+      <span id="secConnDot" style="width:8px;height:8px;border-radius:50%;background:#d1d5db;flex-shrink:0"></span>
+      <div style="flex:1;min-width:0"><div id="secConnLabel" style="font-size:10px;font-weight:700;color:#475569">Connecting…</div></div>
+    </div>
+    <div onclick="secLogout()" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600;color:#94a3b8;cursor:pointer" onmouseenter="this.style.background='rgba(239,68,68,.07)';this.style.color='#dc2626'" onmouseleave="this.style.background='transparent';this.style.color='#94a3b8'">
+      <span style="font-size:15px">🚪</span><span>Sign Out</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="sec-content" id="secApp" style="display:none">
+    <div class="page" style="display:none" id="pageCheckpoints">
+
+      <div class="page-header"><div class="page-title">Security Checkpoints</div><div class="page-sub">Manage checkpoints per KAP location</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div class="card-title">Checkpoints by Location</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="cpLocFilter" onchange="renderCheckpoints()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All KAP Locations</option></select>
+            <button class="btn btn-primary" id="btnAddCP" onclick="openCPModal()">+ Add Checkpoint</button>
+          </div>
+        </div>
+        <div id="cpContent"></div>
+      </div>
+    </div>
+
+    <!-- SECURITY GUARD MASTER -->
+
+    </div>
+    <div class="page" id="pageGuards">
+      <div class="page-header"><div class="page-title">Security Guard Master</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:nowrap;gap:8px">
+          <div class="card-title">All Guards</div>
+          <div style="display:flex;gap:8px;flex-wrap:nowrap">
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveGuard" onchange="renderGuards()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+            <button class="btn btn-primary" id="btnAddGuard" onclick="openGuardModal()">+ Add Guard</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tGuards"><thead><tr>
+          <th>Photo</th>
+          <th class="sortable" onclick="sortTable('guardBody',1)">Name</th>
+          <th class="sortable" onclick="sortTable('guardBody',2)">Mobile</th>
+          <th class="sortable" onclick="sortTable('guardBody',3)">Location</th>
+          <th class="sortable" onclick="sortTable('guardBody',4)">Shift</th>
+          <th>Actions</th>
+        </tr></thead><tbody id="guardBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- SECURITY ROUND SCHEDULE MASTER -->
+
+    <div class="page" id="pageRoundSchedules">
+      <div class="page-header"><div class="page-title">Security Round Schedules</div></div>
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px">
+          <div class="card-title">All Schedules</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="rsLocFilter" onchange="renderRoundSchedules()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All Locations</option></select>
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#000;white-space:nowrap;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none"><input type="checkbox" id="showInactiveRS" onchange="renderRoundSchedules()" style="width:13px;height:13px;accent-color:var(--accent);cursor:pointer" checked> Hide Inactive</label>
+            <button class="btn btn-primary" id="btnAddRS" onclick="openRSModal()">+ Add Schedule</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="tRoundSchedules"><thead><tr>
+          <th class="sortable" onclick="sortTable('rsBody',0)">Schedule Name</th>
+          <th class="sortable" onclick="sortTable('rsBody',1)">Location</th>
+          <th class="sortable" onclick="sortTable('rsBody',2)">Guard</th>
+          <th>Checkpoints</th>
+          <th class="sortable" onclick="sortTable('rsBody',4)">Frequency</th>
+          <th>Time Window</th>
+          <th>Actions</th>
+        </tr></thead><tbody id="rsBody"></tbody></table></div>
+      </div>
+    </div>
+
+
+</div><!-- /secApp -->
+
+<!-- Checkpoint Modal -->
+<div class="modal-overlay" id="mCheckpoint" style="display:none"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">×</div></div>
+  <input type="hidden" id="eCPid">
+  <div class="form-group"><label>KAP Location *</label><select id="cpLocS"></select></div>
+  <div class="form-group"><label>Checkpoint Name *</label><input type="text" id="cpNameI" placeholder="e.g. Main Gate, Loading Bay 2" maxlength="60"></div>
+  <div class="form-group"><label>Description</label><textarea id="cpDescI" rows="2" placeholder="Brief description of this checkpoint"></textarea></div>
+  <div class="form-row">
+    <div class="form-group"><label>Sort Order</label><input type="number" id="cpSortI" min="1" max="25" value="1" style="width:80px"></div>
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--green)"><input type="checkbox" id="cpActiveI" checked style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"> <span>Active</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mCheckpoint"></div><button class="btn btn-secondary" onclick="cm('mCheckpoint')">Cancel</button><button class="btn btn-primary" onclick="saveCP()">Save</button></div>
+</div></div>
+
+<div class="modal-overlay" id="mGuard"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mGuardTitle">Add Guard</div><div class="modal-close" onclick="cm('mGuard')">×</div></div>
+  <input type="hidden" id="eGuardId">
+  <div class="form-row">
+    <div class="form-group"><label>Guard Name *</label><input type="text" id="guardNameI" maxlength="60"></div>
+    <div class="form-group"><label>Mobile *</label><input type="tel" id="guardMobI" maxlength="10" placeholder="10-digit"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>KAP Location *</label><select id="guardLocS"></select></div>
+    <div class="form-group"><label>Shift</label><select id="guardShiftS"><option value="">-- Select --</option><option value="Day">Day (6am–6pm)</option><option value="Night">Night (6pm–6am)</option><option value="General">General</option></select></div>
+  </div>
+  <div class="form-group"><label>Email</label><input type="email" id="guardEmailI" placeholder="Optional"></div>
+  <!-- Photo -->
+  <div class="form-group"><label>Photo</label>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="guardPhotoThumb" class="u-thumb-lg" style="cursor:pointer" onclick="document.getElementById('guardPhotoFile').click()">🧑</div>
+      <input type="file" id="guardPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_guardOnPhoto(this)">
+      <button type="button" id="guardPhotoClear" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;display:none" onclick="_guardClearPhoto()">✕ Remove</button>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="guardInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mGuard"></div><button class="btn btn-secondary" onclick="cm('mGuard')">Cancel</button><button class="btn btn-primary" onclick="saveGuard()">Save</button></div>
+</div></div>
+
+
+
+<div class="modal-overlay" id="mRoundSchedule"><div class="modal" style="width:540px"><div class="modal-header"><div class="modal-title" id="mRSTitle">Add Round Schedule</div><div class="modal-close" onclick="cm('mRoundSchedule')">×</div></div>
+  <input type="hidden" id="eRSid">
+  <div class="form-group"><label>Schedule Name *</label><input type="text" id="rsNameI" placeholder="e.g. Night Patrol – KAP1" maxlength="80"></div>
+  <div class="form-row">
+    <div class="form-group"><label>KAP Location *</label><select id="rsLocS" onchange="onRSLocChange()"></select></div>
+    <div class="form-group"><label>Assigned Guard</label><select id="rsGuardS"><option value="">-- Unassigned --</option></select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Start Time *</label><input type="time" id="rsStartI" value="06:00"></div>
+    <div class="form-group"><label>End Time *</label><input type="time" id="rsEndI" value="18:00"></div>
+  </div>
+  <div class="form-group"><label>Frequency *</label><select id="rsFreqS"><option value="Daily">Daily</option><option value="Weekly">Weekly</option><option value="Custom">Custom</option></select></div>
+  <div class="form-group"><label>Checkpoints to Cover *</label>
+    <div id="rsCPList" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2)">
+      <div style="color:var(--text3);font-size:12px;text-align:center;padding:8px">Select a location first</div>
+    </div>
+    <div class="form-hint">Select checkpoints for this round (in order)</div>
+  </div>
+  <div class="form-row">
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;color:var(--text)"><input type="checkbox" id="rsInactive" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label>
+    </div>
+  </div>
+  <div class="modal-footer" style="flex-wrap:wrap"><div class="modal-err" id="merr_mRoundSchedule"></div><button class="btn btn-secondary" onclick="cm('mRoundSchedule')">Cancel</button><button class="btn btn-primary" onclick="saveRS()">Save</button></div>
+</div></div>
+
+
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="mConfirm">
+  <div class="modal" style="width:380px;max-width:92vw;text-align:center;padding:32px">
+    <div style="font-size:40px;margin-bottom:8px">🗑️</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:6px">Delete this item?</div>
+    <div id="confirmMsg" style="font-size:13px;color:#64748b;margin-bottom:20px">This action cannot be undone.</div>
+    <div style="display:flex;justify-content:center;gap:12px">
+      <button onclick="cm('mConfirm')" style="min-width:100px;padding:10px 20px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;cursor:pointer">Cancel</button>
+      <button id="btnConfirmOk" style="min-width:100px;padding:10px 20px;border-radius:8px;border:none;background:#ef4444;color:#fff;font-weight:700;cursor:pointer">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+<!-- ERROR MODAL -->
+<div class="modal-overlay" id="mError">
+  <div class="modal" style="width:420px;max-width:92vw;padding:32px">
+    <div style="font-size:17px;font-weight:800;margin-bottom:12px">⚠️ Cannot Delete</div>
+    <div id="errorMsg" style="font-size:13px;color:#64748b;margin-bottom:20px"></div>
+    <div style="text-align:right"><button onclick="cm('mError')" style="padding:10px 24px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;cursor:pointer">OK</button></div>
+  </div>
+</div>
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
+<script src="js/common.js?v=260506-V199"></script>
+<script src="js/security-logic.js?v=260506-V199"></script>
+<script src="js/security-ui.js?v=260506-V199"></script>
+</body>
+</html>

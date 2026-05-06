@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — Admin Training Guide</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#1e293b;line-height:1.7;max-width:860px;margin:0 auto;padding:32px 24px 60px}
+  h1{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+  h2{font-size:20px;font-weight:800;color:#0f172a;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:16px;font-weight:700;color:#2a9aa0;margin:20px 0 8px}
+  p,li{font-size:14px}
+  .badge{display:inline-block;background:#2a9aa0;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:16px}
+  .toc{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0}
+  .toc-title{font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .toc a{display:block;font-size:13px;font-weight:600;color:#2a9aa0;text-decoration:none;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .step{background:#f0fdfa;border-left:4px solid #2a9aa0;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0}
+  .step b{color:#0f172a}
+  .tip{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .tip::before{content:'Tip: ';font-weight:800;color:#92400e}
+  .note{background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .note::before{content:'Note: ';font-weight:800;color:#1d4ed8}
+  .screen{background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#475569;font-style:italic}
+  ol,ul{padding-left:22px;margin:6px 0}
+  @media print{body{padding:20px}h2{break-before:auto}}.footer{margin-top:40px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>Admin / Super Admin Training Guide</h1>
+<div class="badge">Role: Super Admin / Admin</div>
+<p>This guide covers all administrative functions in the KAP myApps Portal. As an Admin, you have access to user management, all applications (VMS, HRMS, HWMS, Security), database storage monitoring, and master data configuration.</p>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <a href="#login">1. Logging In</a>
+  <a href="#portal">2. Portal Overview</a>
+  <a href="#users">3. User Management</a>
+  <a href="#apps">4. App Access</a>
+  <a href="#dbstorage">5. DB Storage View</a>
+  <a href="#masters">6. Master Data Management</a>
+  <a href="#profile">7. Profile &amp; Settings</a>
+</div>
+
+<h2 id="login">1. Logging In</h2>
+<div class="screen">You see the KAP login page with the company logo, username/password fields, a math CAPTCHA, and a "Remember me" checkbox. A connection status indicator shows database connectivity at the bottom.</div>
+<div class="step"><b>Step 1:</b> Enter your username and password.</div>
+<div class="step"><b>Step 2:</b> Solve the math CAPTCHA (e.g., "7 + 3 = ?").</div>
+<div class="step"><b>Step 3:</b> Click <b>Sign In</b>. If credentials are correct, you enter the portal.</div>
+<div class="tip">After 5 failed attempts, the account locks for 60 seconds. Wait for the timer to expire.</div>
+<div class="note">If prompted to change your password on first login, set one with 6-12 characters including uppercase, lowercase, number, and special character.</div>
+
+<h2 id="portal">2. Portal Overview</h2>
+<div class="screen">The portal shows a left sidebar with: Apps, Users, Profile, and DB Storage links. The main area displays the Apps grid with tiles for VMS, HRMS, HWMS, and Security. Your name and role appear in the sidebar header.</div>
+<p>Click any app tile to open it. The sidebar highlights your current section. A connection status widget at the bottom shows your database link status (green = connected).</p>
+
+<h2 id="users">3. User Management</h2>
+<h3>Viewing Users</h3>
+<div class="step"><b>Step 1:</b> Click <b>Users</b> in the sidebar. You see a table with columns: Photo, Full Name, Username, Location, Apps, Roles, and Actions.</div>
+<div class="step"><b>Step 2:</b> Use the search bar to filter by name. Toggle "Show Inactive" to include deactivated accounts.</div>
+
+<h3>Adding a New User</h3>
+<div class="step"><b>Step 1:</b> Click <b>+ Add User</b>. A modal opens with fields for Username, Password, Full Name, Location, and Mobile.</div>
+<div class="step"><b>Step 2:</b> Under <b>Apps Access</b>, check which apps (VMS, HRMS, HWMS, Security) the user needs.</div>
+<div class="step"><b>Step 3:</b> For each enabled app, assign roles. VMS roles include: Trip Booking, KAP Security, Material Receiver, Trip Approver, Plant Head, Vendor. HWMS and HRMS have their own role sets.</div>
+<div class="step"><b>Step 4:</b> Click <b>Save</b>.</div>
+<div class="tip">Mark a user as Inactive (red checkbox) instead of deleting them to preserve audit history.</div>
+
+<h3>Editing / Resetting Passwords</h3>
+<div class="step"><b>Step 1:</b> In the Users table, click the edit icon on the user's row.</div>
+<div class="step"><b>Step 2:</b> Modify any field. To reset the password, type a new value in the Password field.</div>
+<div class="step"><b>Step 3:</b> Click <b>Save</b> to apply changes.</div>
+
+<h2 id="apps">4. App Access</h2>
+<p>As Admin, you can open all four apps from the portal grid:</p>
+<ul>
+  <li><b>VMS</b> — Vehicle Management System: trip booking, security gate ops, approvals, master data</li>
+  <li><b>HRMS</b> — HR Management: employees, attendance, salary, masters</li>
+  <li><b>HWMS</b> — Warehouse Management: containers, invoices, material requests, payments</li>
+  <li><b>Security</b> — Surveillance: checkpoints, guards, round schedules</li>
+</ul>
+<div class="note">Each app opens in the same browser tab. Use the "My Apps" button in any app's sidebar to return to the portal.</div>
+
+<h2 id="dbstorage">5. DB Storage View</h2>
+<div class="step"><b>Step 1:</b> Click <b>DB Storage</b> in the portal sidebar.</div>
+<div class="screen">A "Database Storage Analysis" panel appears showing table-by-table row counts and estimated sizes. A Refresh button reloads the data.</div>
+<div class="step"><b>Step 2:</b> Click <b>Refresh</b> to get the latest storage statistics.</div>
+<div class="tip">Use this view to monitor database growth and identify large tables that may need cleanup.</div>
+
+<h2 id="masters">6. Master Data Management</h2>
+<p>In VMS, the Admin has access to these master tables (accessible from the VMS sidebar):</p>
+<h3>Locations</h3>
+<div class="step">Navigate to <b>Location Master</b>. Add or edit locations (KAP plants, external sites). Each location can have assigned Trip Booking users, Material Receivers, Trip Approvers, and a Plant Head.</div>
+
+<h3>Vehicle Types, Vehicles, Drivers, Vendors</h3>
+<div class="step">Each master has a dedicated page with a sortable table, Add/Edit/Delete actions, and Export/Import buttons for bulk operations via Excel (.xlsx).</div>
+<div class="tip">Use the "Hide Inactive" toggle to keep the table clean. Export before making bulk changes as a backup.</div>
+
+<h3>Trip Rates</h3>
+<div class="step">Navigate to <b>Trip Rate Master</b>. Define rates per vehicle type + route combination with effective date periods. Use the "Suggest Trips" button to find routes from booked trips that lack rate definitions. Rates can require approval before becoming active.</div>
+
+<h2 id="profile">7. Profile &amp; Settings</h2>
+<div class="step"><b>Step 1:</b> Click <b>Profile</b> in the sidebar to view/edit your full name, mobile, email, and profile photo.</div>
+<div class="step"><b>Step 2:</b> Expand <b>Change Password</b> to update your credentials.</div>
+
+<div class="footer">KAP myApps &mdash; Admin Training Guide &mdash; Kelkar Auto Parts Private Limited</div>
+</body>
+</html>

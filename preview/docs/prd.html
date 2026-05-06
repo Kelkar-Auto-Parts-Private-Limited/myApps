@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps - Product Requirements Document</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --accent: #2a9aa0; --accent-light: #e6f5f6; --text: #1e293b; --text2: #475569; --text3: #94a3b8; --border: #e2e8f0; --surface: #f8fafc; }
+  @media print { body { font-size: 11px; } .page-break { page-break-before: always; } table { font-size: 10px; } }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 40px 24px 80px; background: #fff; }
+  h1 { font-size: 32px; font-weight: 900; color: var(--accent); margin-bottom: 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 22px; font-weight: 800; color: var(--text); margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 3px solid var(--accent); }
+  h3 { font-size: 17px; font-weight: 700; color: var(--accent); margin-top: 28px; margin-bottom: 10px; }
+  h4 { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 18px; margin-bottom: 6px; }
+  p, li { font-size: 14px; color: var(--text2); }
+  p { margin-bottom: 12px; }
+  ul, ol { margin-bottom: 12px; padding-left: 24px; }
+  li { margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+  th { background: var(--accent); color: #fff; font-weight: 700; text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text2); }
+  tr:nth-child(even) td { background: var(--surface); }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; color: var(--accent); }
+  .header { border-bottom: 3px solid var(--accent); padding-bottom: 20px; margin-bottom: 32px; }
+  .header .subtitle { font-size: 16px; color: var(--text2); font-weight: 500; }
+  .header .meta { font-size: 12px; color: var(--text3); margin-top: 8px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .badge-teal { background: var(--accent-light); color: var(--accent); }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-purple { background: #ede9fe; color: #7c3aed; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-red { background: #fee2e2; color: #dc2626; }
+  .app-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .app-card .app-title { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+  .app-card .app-title span { font-size: 20px; margin-right: 6px; }
+  .toc { background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 20px 28px; margin-bottom: 32px; }
+  .toc ol { counter-reset: toc; list-style: none; padding-left: 0; }
+  .toc li { counter-increment: toc; margin-bottom: 6px; }
+  .toc li::before { content: counter(toc) "."; font-weight: 800; color: var(--accent); margin-right: 8px; }
+  .toc a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px; }
+  .toc a:hover { color: var(--accent); }
+  .role-matrix th { font-size: 11px; padding: 8px 6px; white-space: nowrap; }
+  .role-matrix td { font-size: 12px; padding: 6px; text-align: center; }
+  .role-matrix td:first-child { text-align: left; font-weight: 600; }
+  .check { color: #16a34a; font-weight: 700; }
+  .cross { color: #d1d5db; }
+  .note { background: #f0fdfa; border-left: 4px solid var(--accent); padding: 12px 16px; margin: 16px 0; border-radius: 0 8px 8px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>KAP myApps</h1>
+  <div class="subtitle">Product Requirements Document</div>
+  <div class="meta">
+    Kelkar Auto Parts Private Limited &nbsp;|&nbsp; Version 1.0 &nbsp;|&nbsp; April 2026
+  </div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+  <h4 style="margin-top:0;margin-bottom:12px;color:var(--text)">Contents</h4>
+  <ol>
+    <li><a href="#overview">Product Overview</a></li>
+    <li><a href="#apps">App Descriptions</a></li>
+    <li><a href="#roles">User Roles &amp; Permissions Matrix</a></li>
+    <li><a href="#data">Data Model</a></li>
+    <li><a href="#integration">Integration Points</a></li>
+  </ol>
+</div>
+
+<!-- 1. PRODUCT OVERVIEW -->
+<h2 id="overview">1. Product Overview</h2>
+
+<p>
+  <strong>KAP myApps</strong> is an enterprise web platform built for <strong>Kelkar Auto Parts Private Limited</strong> (KAP).
+  It provides a unified suite of internal business applications covering vehicle logistics, warehouse management, human resources, and physical security operations.
+</p>
+
+<h4>Architecture</h4>
+<ul>
+  <li><strong>Frontend:</strong> Static HTML/CSS/JS site hosted on <strong>GitHub Pages</strong> (repo: <code>Kelkar-Auto-Parts-Private-Limited/myApps</code>).</li>
+  <li><strong>Backend:</strong> <strong>Supabase</strong> (PostgreSQL) for authentication, database, realtime subscriptions, and file storage.</li>
+  <li><strong>Offline-first:</strong> All data is cached in <code>localStorage</code>. The app loads instantly from cache and syncs with Supabase in the background.</li>
+  <li><strong>Auth:</strong> Custom username/password authentication via Supabase RPC (<code>verify_session</code>, <code>do_login</code>). Session tokens stored in <code>localStorage</code>. CAPTCHA and account lockout on repeated failures.</li>
+  <li><strong>Realtime sync:</strong> Supabase Realtime (postgres_changes) keeps all connected devices in sync. Changes on one device appear on others within seconds.</li>
+</ul>
+
+<h4>Modules (6 defined, 5 active)</h4>
+<table>
+  <tr><th>ID</th><th>Name</th><th>Status</th><th>HTML Entry</th></tr>
+  <tr><td><code>portal</code></td><td>myApps Portal</td><td><span class="badge badge-green">Active</span></td><td><code>index.html</code></td></tr>
+  <tr><td><code>vms</code></td><td>Vehicle Management System</td><td><span class="badge badge-green">Active</span></td><td><code>vms.html</code></td></tr>
+  <tr><td><code>hwms</code></td><td>HGAP Warehouse Management System</td><td><span class="badge badge-green">Active</span></td><td><code>hwms.html</code></td></tr>
+  <tr><td><code>hrms</code></td><td>Human Resource Management System</td><td><span class="badge badge-green">Active</span></td><td><code>hrms.html</code></td></tr>
+  <tr><td><code>security</code></td><td>Security Surveillance</td><td><span class="badge badge-green">Active</span></td><td><code>security.html</code></td></tr>
+  <tr><td><code>maintenance</code></td><td>Maintenance</td><td><span class="badge badge-amber">Planned</span></td><td>--</td></tr>
+</table>
+
+<h4>Plant Locations</h4>
+<p>The platform supports multiple KAP plant locations: <strong>KAP1</strong> (P1), <strong>KAP2</strong> (P2), <strong>KAP3</strong> (P3), and <strong>KAP4</strong> (P4). Users are assigned to a plant and see data scoped to their location where applicable.</p>
+
+
+<!-- 2. APP DESCRIPTIONS -->
+<h2 id="apps" class="page-break">2. App Descriptions</h2>
+
+<!-- Portal -->
+<div class="app-card">
+  <div class="app-title"><span>🏠</span> myApps Portal</div>
+  <p><strong>Purpose:</strong> Central entry point and administration hub. After login, users see the portal with app tiles for the modules they are authorized to access. Admins manage all user accounts from here.</p>
+  <h4>Key Features</h4>
+  <ul>
+    <li><strong>App Launcher</strong> -- Grid of app tiles filtered by the user's <code>apps[]</code> array. Each tile links to the corresponding module HTML page.</li>
+    <li><strong>User Management</strong> (Admin only) -- Create, edit, deactivate users. Assign roles, HWMS roles, HRMS roles, plant location, and app access. Upload user photos. Import/export users.</li>
+    <li><strong>Profile &amp; Password</strong> -- Any user can update their own full name, mobile, email, photo, and password.</li>
+    <li><strong>DB Storage Analysis</strong> (Super Admin only) -- Inspect localStorage usage and table-level record counts.</li>
+  </ul>
+  <p><strong>Target Users:</strong> All platform users (login), Super Admins and Admins (user management).</p>
+</div>
+
+<!-- VMS -->
+<div class="app-card">
+  <div class="app-title"><span>🚚</span> Vehicle Management System (VMS)</div>
+  <p><strong>Purpose:</strong> End-to-end vehicle trip lifecycle management -- from booking to security gate check to material receipt to final approval. Also handles spot trips (unplanned vendor arrivals) at the gate.</p>
+  <h4>Key Features</h4>
+  <table>
+    <tr><th>Page</th><th>Description</th><th>Roles</th></tr>
+    <tr><td>Dashboard</td><td>Overview of trip statistics, pending actions, segment progress.</td><td>Admin, Plant Head</td></tr>
+    <tr><td>Trip Booking</td><td>Book new trips with route segments (up to 3 destinations), assign driver/vehicle/vendor, set trip rates. Supports multi-segment trips with step-by-step workflow.</td><td>Trip Booking User, Admin, Plant Head</td></tr>
+    <tr><td>KAP Security</td><td>Gate entry/exit workflow. Verify arriving vehicles, capture driver photo, challan photo, vehicle photo. Record entry/exit timestamps.</td><td>KAP Security, Admin, Plant Head</td></tr>
+    <tr><td>Material Receipt</td><td>Confirm material delivery at destination. Capture weight slips, challan documents.</td><td>Material Receiver, Admin, Plant Head</td></tr>
+    <tr><td>Trip Approvals</td><td>Review and approve completed trip segments. Approve or reject trip rate changes.</td><td>Trip Approver, Admin, Plant Head</td></tr>
+    <tr><td>My Trips (Vendor)</td><td>Vendor-facing view of their own trips and status.</td><td>Vendor</td></tr>
+  </table>
+  <h4>Masters</h4>
+  <ul>
+    <li><strong>Locations</strong> -- KAP plants and external locations. Each location stores assigned security, booking, receiver, and approver users.</li>
+    <li><strong>Vehicle Types</strong> -- Categories with capacity (e.g., 10T, 20T).</li>
+    <li><strong>Vendors</strong> -- Transport vendors with owner, contact, linked user account.</li>
+    <li><strong>Vehicles</strong> -- Registered vehicles with PUC, RTP, and insurance expiry tracking.</li>
+    <li><strong>Drivers</strong> -- Driver records with mobile, DL expiry, photo, vendor linkage.</li>
+    <li><strong>Trip Rates</strong> -- Predefined rates per route per vehicle type. Approval workflow (pending/approved/rejected).</li>
+  </ul>
+  <p><strong>Target Users:</strong> Plant logistics teams, security guards, material receivers, transport vendors.</p>
+</div>
+
+<!-- HWMS -->
+<div class="app-card">
+  <div class="app-title"><span>📦</span> HGAP Warehouse Management System (HWMS)</div>
+  <p><strong>Purpose:</strong> Manage the full export warehousing cycle -- from incoming main invoices (MI) and container tracking through sub-invoicing (SI), inventory management, material requests, and payment reconciliation. Designed for the HGAP (presumably Henkel Global Auto Parts or similar) export operation.</p>
+  <h4>Key Features</h4>
+  <table>
+    <tr><th>Page</th><th>Description</th></tr>
+    <tr><td>Dashboard</td><td>KPI overview of invoices, containers, inventory, payments, outstanding.</td></tr>
+    <tr><td>Main Invoices (MI)</td><td>Create/manage export invoices with line items (part, qty, rate). Sea vs. Air tabs. Supports confirm (RFD), import/export. Links to container and customer.</td></tr>
+    <tr><td>Containers</td><td>Track shipping containers: pickup date, carrier, container serial number, status (Onwater/Reached), entry summary, tariff. Link invoices to containers.</td></tr>
+    <tr><td>Inventory</td><td>Warehouse stock view derived from invoice and sub-invoice data.</td></tr>
+    <tr><td>Sub-Invoices (SI)</td><td>Generate sub-invoices from main invoices for individual shipments. Track pickup status, GRN status, payment status per SI.</td></tr>
+    <tr><td>Material Requests</td><td>Internal material request workflow with line items, need-by date, status tracking.</td></tr>
+    <tr><td>Payments</td><td>Payment receipt management. Link payments to sub-invoices and main invoices. Track amounts, balances.</td></tr>
+    <tr><td>Outstanding</td><td>Outstanding payment analysis across customers and invoices.</td></tr>
+  </table>
+  <h4>Masters</h4>
+  <ul>
+    <li><strong>Customer Master</strong> -- Customers with up to 3 consignees, default transport, ports, delivery terms, payment terms.</li>
+    <li><strong>Part Master</strong> -- Parts with revision, weight, HSN code, UOM, packing details, multi-rate history (ex-works, freight, warehouse cost, ICC, final rate).</li>
+    <li><strong>Carrier Master</strong> -- Shipping carriers with address and contact.</li>
+    <li><strong>Ports</strong> -- Ports of loading and discharge with country.</li>
+    <li><strong>Other Masters</strong> -- HSN codes, UOM, Packing types.</li>
+    <li><strong>Company Details</strong> -- Exporter company info (GSTIN, IEC, REX, supplier code).</li>
+    <li><strong>Steel Rates</strong> -- Customer-specific steel and forex rates with validity periods.</li>
+  </ul>
+  <p><strong>Target Users:</strong> Warehouse admins, buyers, buyer coordinators, suppliers, WH users.</p>
+</div>
+
+<!-- HRMS -->
+<div class="app-card">
+  <div class="app-title"><span>👥</span> Human Resource Management System (HRMS)</div>
+  <p><strong>Purpose:</strong> Employee record management, attendance tracking, and salary computation. Supports multiple employment types (On Roll, Contract, Piece Rate, Visitor).</p>
+  <h4>Key Features</h4>
+  <table>
+    <tr><th>Page</th><th>Description</th></tr>
+    <tr><td>Dashboard</td><td>Employee count summaries, attendance stats.</td></tr>
+    <tr><td>Employees</td><td>Full employee database with code, name, DOJ, DOB, department, designation, team, category, PAN, Aadhaar, ESI, PF, UAN, bank details. Import/export/bulk update via Excel. Employee Change Requests (ECR) tab.</td></tr>
+    <tr><td>Attendance &amp; Salary</td><td>Monthly attendance grid per employee. Day-level marking. Salary day/month computation. Print formats for salary slips.</td></tr>
+    <tr><td>Attendance Rules</td><td>Configure day types per month per plant (working day, holiday, half-day, etc.). Alteration rules.</td></tr>
+  </table>
+  <h4>Masters</h4>
+  <ul>
+    <li><strong>Plant (Company)</strong> -- Plant/company entities with colour coding.</li>
+    <li><strong>Category</strong> -- Employee categories.</li>
+    <li><strong>Employment Type</strong> -- On Roll, Contract, Piece Rate, Visitor, etc.</li>
+    <li><strong>Team</strong> -- Teams linked to employment type.</li>
+    <li><strong>Department / Sub Department</strong> -- Organizational hierarchy.</li>
+    <li><strong>Designation</strong> -- Job titles.</li>
+  </ul>
+  <p><strong>Target Users:</strong> HR Admin, Super Admin, Employees (view only).</p>
+</div>
+
+<!-- Security -->
+<div class="app-card">
+  <div class="app-title"><span>📹</span> Security Surveillance</div>
+  <p><strong>Purpose:</strong> Manage physical security operations -- define checkpoints across KAP locations, register guards, and schedule security rounds with checkpoint coverage.</p>
+  <h4>Key Features</h4>
+  <table>
+    <tr><th>Page</th><th>Description</th></tr>
+    <tr><td>Checkpoints</td><td>Define security checkpoints per KAP location (e.g., Main Gate, Loading Bay). Set sort order and active status.</td></tr>
+    <tr><td>Guards</td><td>Guard master with name, mobile, email, assigned location, shift (Day/Night/General), photo. Toggle active/inactive.</td></tr>
+    <tr><td>Round Schedules</td><td>Create patrol schedules: assign guard, select checkpoints in order, set time window and frequency (Daily/Weekly/Custom).</td></tr>
+  </table>
+  <p><strong>Target Users:</strong> Security admins, plant heads.</p>
+</div>
+
+
+<!-- 3. ROLES & PERMISSIONS -->
+<h2 id="roles" class="page-break">3. User Roles &amp; Permissions Matrix</h2>
+
+<p>Each user has three role arrays: <code>roles[]</code> (VMS/Portal), <code>hwmsRoles[]</code> (HWMS), and <code>hrmsRoles[]</code> (HRMS). Super Admin in any array grants full access to that module. The <code>apps[]</code> array controls which module tiles appear on the portal.</p>
+
+<h3>3.1 VMS / Portal Roles</h3>
+<p>Defined in <code>ROLES</code> constant: Super Admin, Admin, Plant Head, Trip Booking User, KAP Security, Material Receiver, Trip Approver, Vendor.</p>
+
+<table class="role-matrix">
+  <thead>
+    <tr>
+      <th style="text-align:left">Feature</th>
+      <th>Super Admin</th>
+      <th>Admin</th>
+      <th>Plant Head</th>
+      <th>Trip Booking</th>
+      <th>KAP Security</th>
+      <th>Material Recv.</th>
+      <th>Trip Approver</th>
+      <th>Vendor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Portal: User Management</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>Portal: DB Storage</td> <td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Dashboard</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Trip Booking</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: KAP Security</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Material Receipt</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Trip Approvals</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>VMS: My Trips (Vendor)</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="check">Y</td></tr>
+    <tr><td>VMS: Location Master</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Vehicle Types</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Vendors</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Vehicles</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Drivers</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Trip Rates</td> <td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>VMS: Helper (System)</td> <td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 HWMS Roles</h3>
+<p>Defined in <code>HWMS_ROLES</code>: Super Admin, HWMS Admin, Supplier, WH Admin, WH User, Buyer, Buyer Coordinator.</p>
+
+<table class="role-matrix">
+  <thead>
+    <tr>
+      <th style="text-align:left">Feature</th>
+      <th>Super Admin</th>
+      <th>HWMS Admin</th>
+      <th>Supplier</th>
+      <th>WH Admin</th>
+      <th>WH User</th>
+      <th>Buyer</th>
+      <th>Buyer Coord.</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Dashboard</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Main Invoices</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Containers</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Inventory</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Sub-Invoices</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Material Requests</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Payments / Outstanding</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Masters (CRUD)</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>Delete confirmed MI/Cont.</td> <td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+    <tr><td>Import data</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td><td class="cross">-</td></tr>
+  </tbody>
+</table>
+
+<h3>3.3 HRMS Roles</h3>
+<p>Defined in <code>HRMS_ROLES</code>: Super Admin, HR Admin, Employee.</p>
+
+<table class="role-matrix">
+  <thead>
+    <tr>
+      <th style="text-align:left">Feature</th>
+      <th>Super Admin</th>
+      <th>HR Admin</th>
+      <th>Employee</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Dashboard</td> <td class="check">Y</td><td class="check">Y</td><td class="check">Y</td></tr>
+    <tr><td>Employees (full CRUD)</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>Attendance &amp; Salary</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>Attendance Rules</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>Masters (CRUD)</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+    <tr><td>Import / Bulk Update</td> <td class="check">Y</td><td class="check">Y</td><td class="cross">-</td></tr>
+  </tbody>
+</table>
+
+
+<!-- 4. DATA MODEL -->
+<h2 id="data" class="page-break">4. Data Model</h2>
+
+<p>All tables reside in a single Supabase (PostgreSQL) project. The in-memory JS key is listed alongside the Supabase table name. Every table uses a string <code>code</code> column as the primary business key (used for upsert conflict resolution). An auto-increment integer <code>id</code> serves as the Supabase PK.</p>
+
+<h3>4.1 Shared / Portal</h3>
+<table>
+  <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>users</code></td>
+    <td><code>vms_users</code></td>
+    <td>code, name, full_name, mobile, email, roles[], hwms_roles[], hrms_roles[], plant, apps[], photo, inactive</td>
+    <td>All platform users. Central identity shared across modules.</td>
+  </tr>
+  <tr>
+    <td><code>locations</code></td>
+    <td><code>vms_locations</code></td>
+    <td>code, name, type (KAP/External), address, geo, colour, kap_sec, trip_book[], mat_recv[], approvers[], plant_head, inactive</td>
+    <td>KAP plants and external locations. Stores per-location role assignments.</td>
+  </tr>
+</table>
+
+<h3>4.2 VMS Tables</h3>
+<table>
+  <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>vehicleTypes</code></td>
+    <td><code>vms_vehicle_types</code></td>
+    <td>code, name, capacity, inactive</td>
+    <td>Vehicle type categories.</td>
+  </tr>
+  <tr>
+    <td><code>vendors</code></td>
+    <td><code>vms_vendors</code></td>
+    <td>code, name, owner, contact, address, user_id, inactive</td>
+    <td>Transport vendors. <code>user_id</code> links to users table for vendor portal access.</td>
+  </tr>
+  <tr>
+    <td><code>drivers</code></td>
+    <td><code>vms_drivers</code></td>
+    <td>code, name, mobile, vendor_id, dl_expiry, photo, inactive</td>
+    <td>Drivers linked to vendors.</td>
+  </tr>
+  <tr>
+    <td><code>vehicles</code></td>
+    <td><code>vms_vehicles</code></td>
+    <td>code, number, type_id, vendor_id, puc_expiry, rtp_expiry, ins_expiry, inactive</td>
+    <td>Registered vehicles with document expiry tracking.</td>
+  </tr>
+  <tr>
+    <td><code>tripRates</code></td>
+    <td><code>vms_trip_rates</code></td>
+    <td>code, name, v_type_id, start_loc, dest1/2/3, rate, valid_start, valid_end, status, added_by, approved_by, approved_at</td>
+    <td>Rate cards per route per vehicle type with approval workflow.</td>
+  </tr>
+  <tr>
+    <td><code>trips</code></td>
+    <td><code>vms_trips</code></td>
+    <td>code, booked_by, plant, date, start_loc, dest1/2/3, driver_id, vehicle_id, vehicle_type_id, actual_vehicle_type_id, vendor, description, trip_cat_id, challans1/2/3[], challan1/2/3, weight1/2/3, photo1/2/3, edited_by, edited_at, cancelled</td>
+    <td>Trip bookings with up to 3 destination legs. Photos and challans per leg.</td>
+  </tr>
+  <tr>
+    <td><code>segments</code></td>
+    <td><code>vms_segments</code></td>
+    <td>code, trip_id, label, s_loc, d_loc, criteria, trip_cat_id, steps{}, status, date, current_step</td>
+    <td>Individual trip segments with step-by-step workflow state in <code>steps</code> JSON.</td>
+  </tr>
+  <tr>
+    <td><code>spotTrips</code></td>
+    <td><code>vms_spot_trips</code></td>
+    <td>code, vehicle_num, supplier, challan, challan_photo, driver_name, driver_mobile, driver_photo, entry_vehicle_photo, entry_remarks, date, entry_time, entry_by, location, exit_time, exit_by, exit_vehicle_photo, exit_remarks</td>
+    <td>Unplanned vehicle arrivals logged at the security gate.</td>
+  </tr>
+</table>
+
+<h3>4.3 HWMS Tables</h3>
+<table>
+  <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>hwmsParts</code></td>
+    <td><code>hwms_parts</code></td>
+    <td>code, part_number, part_revision, description, status, net_weight_kg, uom, hsn_code, part_photo, packing_type, packing_dimensions, qty_per_package, packing_weight, packing_photo, ex_works_rate, freight, warehouse_cost, icc_cost, final_rate, rate_valid_from/to, rates[]</td>
+    <td>Export parts with full packing and multi-rate history.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsInvoices</code></td>
+    <td><code>hwms_invoices</code></td>
+    <td>code, invoice_number, date, container_id, container_number, delivery, payment_terms, buyer_id, buyer_name, consignee_idx, consignee_name, mode_of_transport, port_of_loading_id, port_of_discharge_id, country_of_dest, line_items[], payment_status, payment_number, confirmed</td>
+    <td>Main invoices (MI) for export shipments. <code>confirmed</code> = RFD (Ready for Dispatch).</td>
+  </tr>
+  <tr>
+    <td><code>hwmsContainers</code></td>
+    <td><code>hwms_containers</code></td>
+    <td>code, container_number, container_serial_number, expected_pickup_date, pickup_date, status, reach_date, expected_reach_date, reached_date, carrier_id, carrier_name, carrier_inv_number/date/amount/photo, entry_summary_number, es_date, es_amount, es_photo, tariff_paid, tariff_percent, confirmed</td>
+    <td>Shipping containers with carrier invoicing and customs entry summary.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsSubInvoices</code></td>
+    <td><code>hwms_sub_invoices</code></td>
+    <td>code, sub_invoice_number, date, invoice_id, customer_id, customer_name, line_items[], pickup_status, pickup_date, grn_status, grn_date, payment_status, payment_received, payment_balance, payment_number, payment_date, tariff_percent, tariff_amount, remarks</td>
+    <td>Sub-invoices derived from main invoices for individual deliveries.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsMaterialRequests</code></td>
+    <td><code>hwms_material_requests</code></td>
+    <td>code, mr_number, mr_date, need_by_date, status, line_items[], remarks, created_by</td>
+    <td>Internal material requests.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsPaymentReceipts</code></td>
+    <td><code>hwms_payment_receipts</code></td>
+    <td>code, payment_number, payment_date, status, total_amount, line_items[], si_updates[], mi_updates[], manual_payments[], created_at, created_by, updated_at, updated_by</td>
+    <td>Payment receipts that update SI and MI payment statuses.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsCustomers</code></td>
+    <td><code>hwms_customers</code></td>
+    <td>code, customer_name, supplier_code, address, country, consignee1-3 (name, address, country, is_default), default_transport, default_port_discharge, default_port_loading, default_delivery, default_payment_terms</td>
+    <td>Export customers with up to 3 consignees and default shipping preferences.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsCarriers</code></td>
+    <td><code>hwms_carriers</code></td>
+    <td>code, carrier_name, address, contact</td>
+    <td>Shipping carriers.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsPortDischarge</code></td>
+    <td><code>hwms_port_discharge</code></td>
+    <td>code, name, country</td>
+    <td>Destination ports.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsPortLoading</code></td>
+    <td><code>hwms_port_loading</code></td>
+    <td>code, name, country</td>
+    <td>Origin ports.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsCompany</code></td>
+    <td><code>hwms_company</code></td>
+    <td>code, company_name, address, gstin, iec, rex, supplier_code, place_receipt, country, note</td>
+    <td>Exporter company details for invoice headers.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsSteelRates</code></td>
+    <td><code>hwms_steel_rates</code></td>
+    <td>code, cust_id, steel_rate, forex_rate, valid_from, valid_to</td>
+    <td>Customer-specific steel and forex rates.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsHsn</code></td>
+    <td><code>hwms_hsn</code></td>
+    <td>code, hsn_number, description</td>
+    <td>HSN code lookup.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsUom</code></td>
+    <td><code>hwms_uom</code></td>
+    <td>code, uom, description</td>
+    <td>Units of measure.</td>
+  </tr>
+  <tr>
+    <td><code>hwmsPacking</code></td>
+    <td><code>hwms_packing</code></td>
+    <td>code, name, description</td>
+    <td>Packing types.</td>
+  </tr>
+</table>
+
+<h3>4.4 HRMS Tables</h3>
+<table>
+  <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>hrmsEmployees</code></td>
+    <td><code>hrms_employees</code></td>
+    <td>code, emp_code, name, last_name, first_name, middle_name, department, sub_department, designation, email, mobile, date_of_joining, date_of_birth, gender, status, reporting_to, location, photo, pan_no, aadhaar_no, employment_type, team_name, category, esi_no, pf_no, uan, date_of_left, roll, salary_day, salary_month, bank_name, branch_name, acct_no, ifsc, periods[], extra{}</td>
+    <td>Complete employee records with personal, employment, statutory, and bank details.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsAttendance</code></td>
+    <td><code>hrms_attendance</code></td>
+    <td>code, emp_code, month_key, days{}</td>
+    <td>Monthly attendance per employee. <code>days</code> is a JSON map of day numbers to status codes.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsAlterations</code></td>
+    <td><code>hrms_alterations</code></td>
+    <td>code, emp_code, month_key, days{}</td>
+    <td>Attendance alterations/overrides.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsDayTypes</code></td>
+    <td><code>hrms_day_types</code></td>
+    <td>code, month_key, plant, day_types{}</td>
+    <td>Calendar definition per month per plant (working day, holiday, etc.).</td>
+  </tr>
+  <tr>
+    <td><code>hrmsCompanies</code></td>
+    <td><code>hrms_companies</code></td>
+    <td>code, name, color</td>
+    <td>Plant/company entities.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsCategories</code></td>
+    <td><code>hrms_categories</code></td>
+    <td>code, name</td>
+    <td>Employee categories.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsEmpTypes</code></td>
+    <td><code>hrms_emp_types</code></td>
+    <td>code, name</td>
+    <td>Employment types.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsTeams</code></td>
+    <td><code>hrms_teams</code></td>
+    <td>code, name, emp_type</td>
+    <td>Teams linked to an employment type.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsDepartments</code></td>
+    <td><code>hrms_departments</code></td>
+    <td>code, name</td>
+    <td>Departments.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsSubDepartments</code></td>
+    <td><code>hrms_sub_departments</code></td>
+    <td>code, name, department</td>
+    <td>Sub-departments linked to parent department.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsDesignations</code></td>
+    <td><code>hrms_designations</code></td>
+    <td>code, name</td>
+    <td>Job designations/titles.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsSettings</code></td>
+    <td><code>hrms_settings</code></td>
+    <td>code, key, data{}</td>
+    <td>HRMS configuration key-value store.</td>
+  </tr>
+  <tr>
+    <td><code>hrmsPrintFormats</code></td>
+    <td><code>hrms_print_formats</code></td>
+    <td>code, name, plant, emp_type, category, team, created_by</td>
+    <td>Salary slip print format definitions.</td>
+  </tr>
+</table>
+
+<h3>4.5 Security Surveillance Tables</h3>
+<table>
+  <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>checkpoints</code></td>
+    <td><code>ss_checkpoints</code></td>
+    <td>code, location_id, name, description, sort_order, active</td>
+    <td>Physical checkpoint locations per KAP plant.</td>
+  </tr>
+  <tr>
+    <td><code>guards</code></td>
+    <td><code>ss_guards</code></td>
+    <td>code, name, mobile, email, location_id, shift, photo, inactive</td>
+    <td>Security guard registry.</td>
+  </tr>
+  <tr>
+    <td><code>roundSchedules</code></td>
+    <td><code>ss_round_schedules</code></td>
+    <td>code, name, location_id, guard_id, checkpoint_ids[], frequency, start_time, end_time, inactive</td>
+    <td>Patrol round schedules linking guards to ordered checkpoints.</td>
+  </tr>
+</table>
+
+
+<!-- 5. INTEGRATION POINTS -->
+<h2 id="integration" class="page-break">5. Integration Points</h2>
+
+<h3>5.1 Supabase</h3>
+<table>
+  <tr><th>Service</th><th>Usage</th></tr>
+  <tr>
+    <td><strong>Database (PostgreSQL)</strong></td>
+    <td>All application data stored across 30+ tables. Uses <code>upsert</code> with <code>onConflict:'code'</code> for idempotent writes. RPC functions for auth (<code>do_login</code>, <code>verify_session</code>).</td>
+  </tr>
+  <tr>
+    <td><strong>Realtime</strong></td>
+    <td>Subscribes to <code>postgres_changes</code> (INSERT, UPDATE, DELETE) on hot tables (trips, segments, spotTrips). Enables cross-device live sync. Auto-reconnects on channel errors with 10-second retry.</td>
+  </tr>
+  <tr>
+    <td><strong>Storage</strong></td>
+    <td>Used for photo uploads (driver photos, guard photos, user avatars, challan/vehicle photos, part photos, packing photos, carrier invoice photos). Photos are stored as base64 data URIs in the database columns directly (not Supabase Storage buckets).</td>
+  </tr>
+  <tr>
+    <td><strong>Auth</strong></td>
+    <td>Custom auth (not Supabase Auth). Session token generated by <code>do_login</code> RPC, verified by <code>verify_session</code> RPC. <code>persistSession: false</code> on the Supabase client.</td>
+  </tr>
+</table>
+
+<h3>5.2 GitHub Pages</h3>
+<p>The entire frontend is deployed as a static site on GitHub Pages from the repository <code>Kelkar-Auto-Parts-Private-Limited/myApps</code>, branch <code>main</code>. No server-side rendering or build step -- plain HTML, CSS, and JS files served directly.</p>
+
+<h3>5.3 Offline-First / localStorage Cache</h3>
+<table>
+  <tr><th>Mechanism</th><th>Details</th></tr>
+  <tr>
+    <td><strong>Session persistence</strong></td>
+    <td><code>kap_session</code> stores username + token. <code>kap_current_user</code> caches the full user object for instant session restore without waiting for Supabase CDN.</td>
+  </tr>
+  <tr>
+    <td><strong>Data cache</strong></td>
+    <td>Each table is cached in localStorage (key per table). On boot, the app loads from cache first (instant UI), then syncs from Supabase in the background (<code>_bgSyncFromSupabase</code>).</td>
+  </tr>
+  <tr>
+    <td><strong>Connectivity monitoring</strong></td>
+    <td>A 30-second ping interval checks Supabase connectivity. Status widget in every module sidebar shows connected/error/offline state. After 3 consecutive failures, the client attempts re-initialization.</td>
+  </tr>
+  <tr>
+    <td><strong>Force sync</strong></td>
+    <td><code>_forceSyncAll()</code> pushes all in-memory data to Supabase (recovery tool). Accessible via the VMS sidebar connection widget.</td>
+  </tr>
+  <tr>
+    <td><strong>App-specific lazy loading</strong></td>
+    <td>Each module sets <code>_APP_TABLES</code> to load only its own tables, reducing boot time. Falls back to all tables if not set.</td>
+  </tr>
+</table>
+
+<h3>5.4 Security Features</h3>
+<ul>
+  <li><strong>Math CAPTCHA</strong> on the login page to prevent automated access.</li>
+  <li><strong>Account lockout</strong> after repeated failed login attempts (60-second cooldown).</li>
+  <li><strong>Password policy</strong> enforced: minimum 6 characters, maximum 12.</li>
+  <li><strong>Session tokens</strong> verified on every page navigation via RPC.</li>
+  <li><strong>Role-based access control</strong> enforced both in the UI (nav items, buttons hidden) and in business logic (permission checks before save/delete).</li>
+  <li><strong>Deletion guards</strong>: referential integrity checks prevent deleting users or masters that are referenced by other records. The last Super Admin cannot be deleted.</li>
+</ul>
+
+<div class="note">
+  <strong>Note:</strong> This document reflects the codebase as of April 2026. The Maintenance and Employee Review modules are defined in <code>PORTAL_APPS</code> but are not yet implemented.
+</div>
+
+</body>
+</html>

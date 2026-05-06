@@ -1,0 +1,984 @@
+
+  :root {
+    --bg:#f0f4f8; --surface:#ffffff; --surface2:#f0f4f8; --border:#dde3ed; --border2:#c8d1e0;
+    --accent:#2a9aa0; --accent2:#1d6f73; --text:#1a2033; --text2:#4a5578; --text3:#8a93a8;
+    --green:#22c55e; --red:#ef4444; --blue:#35b0b6; --purple:#8b5cf6; --teal:#14b8a6;
+    --mono:monospace; --sans:sans-serif; --radius:10px; --shadow:0 4px 24px rgba(0,0,0,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;min-height:-webkit-fill-available}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);height:100vh;height:-webkit-fill-available;overflow:hidden;-webkit-text-size-adjust:100%;touch-action:manipulation}
+  #loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0}
+  .login-card{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:48px 40px;width:360px;box-shadow:var(--shadow);animation:loginFadeIn .4s ease-out}
+  @keyframes loginFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .login-logo{margin-bottom:8px;text-align:center}
+  .login-title{font-size:26px;font-weight:700;margin-bottom:6px}
+  .login-sub{font-size:14px;color:var(--text2);margin-bottom:36px}
+  .form-group{margin-bottom:20px}
+  label{display:block;font-size:12px;font-weight:600;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+  #mTripBooking label{font-weight:800;color:#000}
+  input,select,textarea{width:100%;background:#fffbea;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .2s}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  select option{background:var(--surface);color:var(--text)}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radius);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s ease}
+  .btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2)}.btn-secondary:hover{border-color:var(--accent)}
+  .btn-danger{background:var(--red);color:#fff}
+  .btn-green{background:var(--green);color:#000}
+  .btn-full{width:100%;justify-content:center;padding:12px}
+  .error-msg{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#dc2626;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:16px;display:none}
+  .input-error{border:2px solid #dc2626!important;background:rgba(239,68,68,.05)!important}
+  #app{display:none;height:100vh;overflow:hidden}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:var(--surface);border-right:1px solid var(--border);box-shadow:2px 0 12px rgba(0,0,0,.06);display:flex;flex-direction:column;z-index:160;transform:translateX(0);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  .sidebar.nav-hidden{transform:translateX(-260px)}
+  .sidebar.nav-open{transform:translateX(0);box-shadow:8px 0 40px rgba(0,0,0,.15)}
+  .sidebar-logo{padding:8px 14px 6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .sidebar-logo img{width:38px;height:38px;object-fit:contain;border-radius:4px;flex-shrink:0}
+  .sidebar-logo .logo-text{flex:1;min-width:0}
+  .sidebar-logo h2{font-size:11px;font-weight:700;margin:0;color:var(--text);line-height:1.3}
+  .sidebar-nav{flex:1;padding:4px 10px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .nav-section{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:2px;text-transform:uppercase;padding:4px 8px 2px;margin-top:6px}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .2s ease;margin-bottom:1px}
+  .nav-item:hover{background:var(--surface2);color:var(--text)}
+  .nav-item.active{background:rgba(42,154,160,.12);color:var(--accent)}
+  .nav-label{flex:1}
+  .nav-count{margin-left:auto;background:rgba(22,163,74,.12);color:#16a34a;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;font-family:var(--mono)}
+  .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:700;display:none}
+  .nav-icon{font-size:15px;width:18px;text-align:center}
+  .sidebar-user{padding:6px 12px;padding-bottom:max(6px,env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+  .user-info{display:flex;align-items:center;gap:8px}
+  .user-avatar{width:38px;height:38px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden}
+  .user-avatar img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+  .user-name{font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .user-role{font-size:9px;color:var(--text3);margin-top:1px}
+
+
+  .logout-btn{margin-left:auto;cursor:pointer;color:var(--text3);font-size:18px}.logout-btn:hover{color:var(--red)}
+  .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .no-spin{-moz-appearance:textfield}
+  .ea-wrap{display:none!important}
+  body.is-admin .ea-wrap{display:flex!important}
+  .topbar{position:fixed;top:0;left:240px;right:0;height:40px;z-index:150;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 12px;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:left .25s cubic-bezier(.4,0,.2,1)}
+  .topbar-hb{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:6px 7px;border-radius:6px;transition:background .15s;flex-shrink:0}
+  .topbar-hb:hover{background:var(--surface2)}
+  .topbar-hb span{width:20px;height:2px;background:var(--text);border-radius:2px;display:block}
+  .topbar-title{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar-user{display:none;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
+  @media(max-width:900px){.topbar-user{display:flex}}
+  .topbar-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;cursor:pointer}
+  .topbar-avatar img{width:100%;height:100%;object-fit:cover}
+  .topbar-loc{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .main-content{margin-left:240px;padding:48px 12px 16px 12px;height:100vh;height:-webkit-fill-available;overflow-y:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box;vertical-align:top;transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
+  .page-header{display:none}
+  .page{display:none}.page.active{display:block;padding-bottom:80px}
+  .page-header{margin-bottom:4px}
+  .page-title{font-size:18px;font-weight:800}.page-sub{font-size:12px;color:var(--text2);margin-top:2px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+  .card-title{font-size:15px;font-weight:700}
+  .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:10px 14px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2}
+  td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(42,154,160,.04)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+  .badge-amber{background:rgba(42,154,160,.15);color:var(--accent)}
+  .badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+  .badge-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+  .badge-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+  .badge-yellow{background:rgba(234,179,8,.18);color:#a16207;font-weight:800}
+  .badge-onwater{background:#dbeafe;color:#1d4ed8;font-weight:800;border:1px solid #93c5fd}
+  .badge-reached{background:#16a34a;color:#fff;font-weight:800}
+  .badge-gray{background:rgba(0,0,0,.06);color:var(--text2)}
+  .modal-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(30,40,70,.45);z-index:100000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+  .modal-overlay.open{opacity:1;pointer-events:all}
+  .modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;transform:translateY(20px);transition:transform .2s}
+  .modal-overlay.open .modal{transform:translateY(0)}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  .modal-title{font-size:18px;font-weight:700}
+  .modal-close{cursor:pointer;font-size:22px;color:var(--text3)}.modal-close:hover{color:var(--text)}
+  .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;border-top:1px solid var(--border);padding-top:20px}
+  .modal-err{color:#dc2626;font-size:12px;font-weight:600;padding:6px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;display:none;width:100%;text-align:left}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .form-hint{font-size:12px;color:var(--text3);margin-top:5px}
+  textarea{resize:vertical;min-height:70px}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .tb-compact-grid{display:flex;flex-wrap:wrap;gap:8px}
+  .tb-section{border-radius:8px;border:1px solid transparent;padding:8px;transition:background .25s,border-color .25s}
+  .tb-section.tb-active{background:rgba(42,154,160,.09);border-color:var(--accent)}
+  .tb-section.tb-filled{background:rgba(34,197,94,.05);border-color:rgba(34,197,94,.2)}
+  @keyframes tbPromptGlow{0%,100%{box-shadow:0 0 0 0 rgba(42,154,160,.0);border-color:var(--border2)}50%{box-shadow:0 0 0 4px rgba(42,154,160,.22),0 0 12px rgba(42,154,160,.12);border-color:var(--accent)}}
+  .tb-prompt{animation:tbPromptGlow 1.6s ease-in-out infinite!important;border-color:var(--accent)!important;outline:none!important}
+  button.tb-prompt{border-radius:6px!important;border:1.5px solid var(--accent)!important;color:#000!important;background:rgba(42,154,160,.15)!important}
+  div.tb-prompt{border-radius:6px!important;border:1.5px solid var(--accent)!important}
+  .tb-compact-grid .tb-fg{flex:1;min-width:140px;margin-bottom:0}
+  .tb-seg-row{display:flex;gap:8px;flex-wrap:nowrap}
+  .tb-seg-row .tb-fg{flex:1;min-width:110px;margin-bottom:0}
+  .form-group.tb-fg label{font-size:10px;margin-bottom:4px;display:none}
+  .form-group.tb-fg input,.form-group.tb-fg select{padding:10px 12px;font-size:14px;border-radius:8px}
+  .dash-count-item{flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-right:1px solid var(--border)}
+  .dash-count-item:last-child{border-right:none}
+  .dash-count-label{font-size:13px;color:#000;font-weight:500}
+  .dash-count-num{font-size:22px;font-weight:800;font-family:var(--mono);color:#16a34a}
+  /* Process flow */
+  .pflow{display:flex;align-items:flex-start;flex-wrap:wrap;gap:0;margin:10px 0 6px}
+  .pf-step-wrap{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .pf-step{display:flex;align-items:center;gap:4px;font-size:11px;padding:5px 11px;background:var(--surface2);border:1px solid var(--border);white-space:nowrap}
+  .pf-step-wrap:first-child .pf-step{border-radius:20px 0 0 20px}.pf-step-wrap:last-child .pf-step{border-radius:0 20px 20px 0}
+  .pf-step.done{background:rgba(34,197,94,.1);border-color:var(--green);color:var(--green)}
+  .pf-step.active{background:rgba(42,154,160,.15);border-color:var(--accent);color:var(--accent);font-weight:600}
+  .pf-step.skip{opacity:.4;text-decoration:line-through;color:var(--text3)}
+  .pf-step.wait{color:var(--text3)}
+  .pf-user{font-size:10px;text-align:center;line-height:1.4;max-width:130px;word-break:break-word}
+  .pf-user-done{color:#16a34a;font-weight:600}
+  .pf-user-pending{color:var(--text3)}
+  .pf-user-skip{color:var(--text3);opacity:.4}
+  .pf-time{display:block;font-size:9px;color:var(--text3);font-weight:400}
+  .pf-arrow{color:var(--text3);font-size:16px;font-weight:900;padding:0 2px;margin-top:4px;line-height:1}
+  .c-badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(139,92,246,.15);color:var(--purple);margin-left:6px}
+  /* Segment cards */
+  .seg-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s,box-shadow .2s}
+  .seg-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .seg-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
+  .seg-id{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .seg-route{font-size:14px;font-weight:600;margin-top:2px}
+  .seg-meta{font-size:12px;color:var(--text2);margin-top:4px}
+  .info-box{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--blue);margin-bottom:16px}
+  .divider{height:1px;background:var(--border);margin:20px 0}
+  .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+  /* Filter row — always single line, horizontally scrollable on narrow screens */
+  .filter-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding-bottom:2px}
+  .filter-row::-webkit-scrollbar{height:3px}
+  .filter-row::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+  .filter-row>*{flex-shrink:0}
+  .filter-row input[type=text]{min-width:100px;width:auto}
+  .action-btn{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:4px;font-size:14px;transition:background .15s}.action-btn:hover{background:var(--surface2)}
+  tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.06)!important}tr.clickable-row:active{background:rgba(42,154,160,.12)!important}
+  .notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);background:var(--green);color:#fff;padding:18px 36px;border-radius:12px;font-size:15px;font-weight:800;z-index:200000;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;max-width:88%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.35);white-space:pre-line;border:2px solid rgba(255,255,255,.15)}
+  .notification.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}.notification.error{background:var(--red);color:#fff;font-size:15px}
+  /* Validation feedback — when a required asset/ticket field is missing
+     the field flashes a red ring + red text so the user can immediately
+     see what's blocking the save. Self-clearing after a few seconds or
+     on the user's next interaction. */
+  @keyframes mttsErrFlash{0%,100%{box-shadow:0 0 0 2px var(--red),0 0 0 4px rgba(239,68,68,.2)}50%{box-shadow:0 0 0 3px var(--red),0 0 0 7px rgba(239,68,68,.35)}}
+  .mtts-field-flash-err{outline:2px solid var(--red)!important;outline-offset:2px;border-radius:6px;animation:mttsErrFlash .55s ease-in-out 6;color:var(--red)!important}
+  .mtts-field-flash-err input,.mtts-field-flash-err select,.mtts-field-flash-err textarea{color:var(--red)!important;border-color:var(--red)!important;font-weight:700}
+  .mtts-field-flash-err button,.mtts-field-flash-err label,.mtts-field-flash-err span{color:var(--red)!important}
+  /* Inline alert text inside modal footers (asset / ticket / primary name)
+     — flashes between full red and a faded shade so the message catches
+     the eye each time the user clicks Save and a field is missing. */
+  .modal-error{color:var(--red);font-size:13px;font-weight:800;margin-bottom:8px;display:none;letter-spacing:.2px}
+  @keyframes mttsErrText{0%,100%{opacity:1;color:var(--red)}50%{opacity:.35;color:#7f1d1d}}
+  .modal-error.mtts-err-flash{animation:mttsErrText .55s ease-in-out 6}
+  /* Asset / Primary Name / Agency master pages: flex-fill the available
+     viewport so the table is the only thing that scrolls. The card-header
+     (title + Add button), summary line, and the filter / column-header
+     rows inside the table all stay frozen at the top. */
+  body.mtts-tight-page .main-content{overflow:hidden!important}
+  body.mtts-tight-page .page.active{display:flex;flex-direction:column;height:100%;padding-bottom:0}
+  body.mtts-tight-page .card{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin-bottom:0;padding:14px 16px 8px}
+  body.mtts-tight-page .card-header{margin-bottom:8px}
+  body.mtts-tight-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none;scrollbar-gutter:stable}
+  /* Tickets page — filter strip sticks to the top of the scrolling
+     table-wrap; the cards scroll underneath it. */
+  body.mtts-tight-page .mtts-tcard-filters{position:sticky;top:0;z-index:5;margin-bottom:6px}
+  /* View-mode toggle (Cards ↔ Table) — desktop only. */
+  @media(max-width:700px){.mtts-view-toggle{display:none!important}}
+  /* Update Ticket — status picker laid out as a 2-column grid of large
+     coloured-border buttons. Selected state fills the button with the
+     matching tint. */
+  .mtts-status-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .mtts-status-btn{padding:10px 12px;font-size:13px;font-weight:700;background:#fff;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;line-height:1.2;transition:background .15s,filter .1s,box-shadow .15s}
+  .mtts-status-btn:hover{filter:brightness(.97)}
+  .mtts-status-btn.is-yellow{border-color:#f59e0b;color:#92400e}
+  .mtts-status-btn.is-red{border-color:#dc2626;color:#991b1b}
+  .mtts-status-btn.is-green{border-color:#16a34a;color:#15803d}
+  .mtts-status-btn.is-yellow.is-selected{background:#fef3c7;box-shadow:0 0 0 2px #fde68a inset}
+  .mtts-status-btn.is-red.is-selected{background:#fee2e2;box-shadow:0 0 0 2px #fca5a5 inset}
+  .mtts-status-btn.is-green.is-selected{background:#dcfce7;box-shadow:0 0 0 2px #86efac inset}
+  @media(max-width:520px){.mtts-status-btns{grid-template-columns:1fr}}
+  /* Update Ticket — prominent ticket info card displayed at the top of
+     the modal so the technician sees id, asset, plant, status, priority
+     and the down-for timer at a glance before they start typing. */
+  .mtts-techact-ticket-lbl{margin-bottom:10px;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#fff);border:1.5px solid var(--border);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .mtts-techact-tihead{display:flex;flex-direction:column;gap:5px}
+  .mtts-techact-titop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+  .mtts-techact-tiid{font-family:var(--mono);font-weight:800;color:var(--text);font-size:14px;letter-spacing:.4px}
+  .mtts-techact-tisep{color:var(--text3);font-weight:700}
+  .mtts-techact-tibd{color:var(--text2);font-weight:700}
+  .mtts-techact-tistatus{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:.3px;margin-left:auto}
+  .mtts-techact-tiasset{font-size:16px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
+  .mtts-techact-timeta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--text3)}
+  .mtts-techact-tiprio{padding:2px 9px;border-radius:9px;font-size:11px;font-weight:800;letter-spacing:.3px}
+  .mtts-techact-tidown{font-weight:600;color:#dc2626}
+  .mtts-techact-tidown b{font-family:var(--mono);font-weight:800}
+  .mtts-techact-tirise{color:var(--text2);font-weight:600}
+  /* Header strip on every master / list page: count chips on the left,
+     +Add (and any inactive / search controls) on the right. Wraps to two
+     rows on narrow screens. */
+  .mtts-summary-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .mtts-summary-chips{display:flex;flex-wrap:wrap;align-items:center;flex:1 1 auto;min-width:0}
+  .mtts-summary-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+  .mtts-inactive-toggle{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;user-select:none}
+  .mtts-inactive-toggle input{width:13px;height:13px;accent-color:var(--accent);cursor:pointer}
+  /* Responsive table → card transformation. The Asset Master, Asset
+     Primary Name, and Agency tables share class="mtts-rtable". On phone
+     widths each row stacks as a compact card with one labeled key/value
+     per cell; the filter strip stays visible at the top. */
+  @media(max-width:700px){
+    /* Mobile: collapse the .mtts-rtable to a card list. Force every box
+       in the chain to width:100% + box-sizing:border-box so the cards
+       actually shrink to viewport width — without this the original
+       table's column-summed natural width leaks back through. */
+    .mtts-rtable-wrap,body.mtts-tight-page .table-wrap>div.mtts-rtable-wrap{width:100%!important;max-width:100%!important;box-sizing:border-box}
+    .mtts-rtable{display:block;width:100%!important;max-width:100%!important;border-collapse:separate;box-sizing:border-box}
+    /* Reserve a 16 px gutter on the right so the scroll bar never sits
+       on top of card content — applied to the scroll surface AND a
+       hard right-margin on each card so even browsers that ignore
+       padding on a scroll container honour the visible gap. */
+    body.mtts-tight-page .table-wrap{padding-right:16px;box-sizing:border-box;scrollbar-gutter:stable}
+    .mtts-rtable thead{display:block}
+    .mtts-rtable tbody{display:block}
+    .mtts-rtable thead tr.mtts-col-header-row{display:none}
+    .mtts-rtable thead th{position:static!important;top:auto!important;background:transparent!important;box-shadow:none!important;border:none!important}
+    .mtts-rtable thead tr.mtts-filter-row{display:flex;flex-wrap:wrap;gap:5px;padding:0 0 5px;border:none;background:#fff;position:sticky;top:0;z-index:5;box-sizing:border-box}
+    .mtts-rtable thead tr.mtts-filter-row th{display:block;padding:0;flex:1 1 calc(50% - 3px);min-width:0;box-sizing:border-box}
+    .mtts-rtable thead tr.mtts-filter-row th.mtts-filter-empty,.mtts-rtable thead tr.mtts-filter-row th:empty{display:none}
+    /* Hard-cap the card width with calc(100% - 8px) and add a right
+       margin so the card visibly steps away from the scroll bar even
+       on browsers that ignore padding-right on a scroll container. */
+    .mtts-rtable tbody tr{display:block;box-sizing:border-box;width:calc(100% - 8px)!important;max-width:calc(100% - 8px);margin:0 4px 4px 0;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+    .mtts-rtable tbody td{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0;border:none!important;font-size:11.5px;line-height:1.15;min-height:16px}
+    .mtts-rtable tbody td::before{content:attr(data-label);font-weight:700;color:var(--text2);font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;flex:0 0 auto}
+    .mtts-rtable tbody td.mtts-hide-mobile{display:none}
+    .mtts-rtable tbody td.mtts-no-label::before{content:none}
+    .mtts-rtable tbody td.mtts-card-title{display:block;border-bottom:1px solid #f1f5f9!important;margin-bottom:1px;padding-bottom:2px;font-size:12.5px}
+    .mtts-rtable tbody td.mtts-card-title::before{display:block;margin-bottom:0}
+    .mtts-rtable tbody td.mtts-card-title>div:first-child{font-size:12.5px;font-weight:800}
+    .mtts-rtable tbody td.mtts-card-actions{justify-content:flex-end;border-top:1px solid #f1f5f9!important;margin-top:1px;padding-top:3px;gap:3px;min-height:0}
+    .mtts-rtable tbody td.mtts-card-actions::before{content:none}
+    .mtts-rtable tbody td.mtts-card-actions button{padding:1px 6px!important;font-size:10.5px!important;line-height:1.2!important}
+    /* Compress small inline badges (priority/status/plant) inside cards */
+    .mtts-rtable tbody td>span,.mtts-rtable tbody td>.mtts-chip{padding:0 7px!important;font-size:10.5px!important}
+  }
+  .trip-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;transition:border-color .2s,box-shadow .2s}
+  .trip-card:hover{border-color:var(--border2);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .trip-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:6px}
+  .kap-tabs{display:flex;flex-direction:row;border-bottom:2px solid var(--border);overflow-x:auto}
+  .kap-tab-history{color:var(--text2)}
+  .kap-tab.active.kap-tab-history{background:rgba(100,100,100,.1)}
+  .kap-revoke-btn{font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-weight:600}
+  .kap-revoke-btn:hover{background:#dc2626;color:#fff}
+  .kap-inline-photo{width:130px;flex-shrink:0}
+  .kap-inline-rem{flex:1;display:flex;flex-direction:column}
+  @media(max-width:600px){.kap-inline-action{flex-direction:column}.kap-inline-photo{width:100%}}
+  .kap-tab{flex:1;padding:6px 10px;border:none;background:transparent;cursor:pointer;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;white-space:nowrap}
+  .kap-tab-exit{color:#dc2626}
+  .kap-tab-entry{color:#16a34a}
+  .kap-tab.active.kap-tab-exit{background:rgba(220,38,38,.1)}
+  .kap-tab.active.kap-tab-entry{background:rgba(22,163,74,.1)}
+  .kap-tab:not(.active){opacity:.5}
+  .kap-tab-count{background:#dc2626;color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;padding:0 5px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .trip-amt-badge{background:#dcfce7;color:#16a34a;font-weight:800;font-size:12px;font-family:var(--mono);padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .trip-amt-none{background:var(--surface2);color:var(--text3);font-weight:500}
+  .trip-id{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:800;letter-spacing:1px}
+  .seg-photo-thumb{width:48px;height:46px;object-fit:cover;border-radius:6px;border:2px solid var(--border2);cursor:pointer;transition:transform .15s;flex-shrink:0}
+  .seg-photo-thumb:hover{transform:scale(1.08);border-color:var(--accent)}
+  .seg-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  /* Lightbox */
+  #photoLightbox{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.9);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+  .trip-desc{font-size:12px;font-weight:600;margin-top:1px}
+  .trip-meta{font-size:11px;color:var(--text2);margin-top:2px}
+  /* ── Rich Segment Progress Card ─────────────────────── */
+  .seg-prog-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin-bottom:5px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .seg-prog-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;flex-wrap:wrap;gap:4px}
+  .seg-prog-label{display:flex;align-items:center;gap:6px}
+  .seg-lbl-bubble{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .seg-prog-route{font-size:11px;font-weight:600;color:var(--text)}
+  .seg-prog-sub{font-size:10px;color:var(--text3);margin-top:0}
+  /* Step timeline */
+  .step-timeline{display:flex;gap:0;position:relative;margin-top:4px;flex-wrap:wrap}
+  .step-node{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;position:relative}
+  .step-node:not(:last-child)::after{content:"";position:absolute;top:13px;left:calc(50% + 13px);right:calc(-50% + 13px);height:3px;background:var(--border2);z-index:0}
+  .step-node.done:not(:last-child)::after{background:var(--green)}
+  .step-node.active:not(:last-child)::after{background:var(--border2)}
+  .step-icon-wrap{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:12px;position:relative;z-index:1;flex-shrink:0;transition:all .2s}
+  .step-node.done .step-icon-wrap{background:rgba(34,197,94,.15);border-color:var(--green)}
+  .step-node.active .step-icon-wrap{background:rgba(42,154,160,.12);border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,154,160,.15)}
+  .step-node.skip .step-icon-wrap{opacity:.4}
+  .step-node.wait .step-icon-wrap{opacity:.5}
+  .step-label{font-size:9px;font-weight:600;color:var(--text3);margin-top:3px;text-align:center;line-height:1.2}
+  .step-node.done .step-label{color:var(--green)}
+  .step-node.active .step-label{color:var(--accent);font-weight:700}
+  .step-node.skip .step-label{color:var(--text3);text-decoration:line-through}
+  .step-time{font-size:8px;color:var(--text3);text-align:center;margin-top:1px;line-height:1.2}
+  .step-user{font-size:8px;text-align:center;margin-top:1px;line-height:1.2;max-width:72px;word-break:break-word}
+  .step-user-done{color:#16a34a;font-weight:700}
+  .step-user-pending{color:var(--text3)}
+  .step-user-skip{color:var(--text3);opacity:.4}
+  .step-photo-wrap{margin-top:3px}
+  .step-photo-wrap img{width:36px;height:36px;object-fit:cover;border-radius:5px;border:2px solid var(--green);cursor:pointer;transition:transform .15s}
+  .step-photo-wrap img:hover{transform:scale(1.1);border-color:var(--accent)}
+  .locked-overlay{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px;padding:6px 0}
+  .trip-seg-label{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:11px}
+  .trip-overall-badge-done{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+  .trip-overall-badge-active{background:rgba(42,154,160,.12);color:var(--accent);border:1px solid rgba(42,154,160,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+  .trip-overall-badge-rejected{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+  .trip-overall-badge-cancelled{background:rgba(107,114,128,.12);color:#6b7280;border:1px solid rgba(107,114,128,.3);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+  select:disabled{opacity:.45;cursor:not-allowed;border-style:dashed}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--text);background:var(--border)}
+  th.sort-asc::after{content:' ↑';color:var(--accent)}
+  th.sort-desc::after{content:' ↓';color:var(--accent)}
+  .dest-section{border-radius:10px;padding:16px;margin-bottom:4px}
+  .dest-section-a{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2)}
+  .dest-section-b{background:rgba(20,184,166,.06);border:1px solid rgba(20,184,166,.2)}
+  .dest-section-c{background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.2)}
+  .dest-label{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .dest-label-a{color:var(--blue)}
+  .dest-label-b{color:var(--teal)}
+  .dest-label-c{color:var(--purple)}
+  .dest-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dest-dot-a{background:var(--blue)}
+  .dest-dot-b{background:var(--teal)}
+  .dest-dot-c{background:var(--purple)}
+
+  /* ===== MOBILE / TABLET RESPONSIVE ===== */
+  /* ── Hamburger button (always visible, top-left) ── */
+  .mob-topbar{display:none}
+  .mob-hamburger{display:none}
+  .sidebar-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(30,40,70,.35);z-index:149}
+  .sidebar-overlay.open{display:block}
+
+  /* Quick Vehicle modal always centered on all screen sizes */
+  #mQuickVeh{align-items:center!important}
+  #mQuickVeh .modal{position:relative!important;bottom:auto!important;top:auto!important;border-radius:16px!important;transform:translateY(20px);max-height:80vh!important;width:min(400px,92vw)!important}
+  #mQuickVeh.open .modal{transform:translateY(0)!important}
+
+  @media(max-width:900px){
+    /* Narrow — sidebar hidden, topbar full width */
+    .sidebar{transform:translateX(-260px)!important}
+    .sidebar.nav-open{transform:translateX(0)!important}
+    .topbar{left:0!important}
+    .main-content{margin-left:0!important;padding-left:12px!important}
+  }
+
+  @media(max-width:768px){
+    /* Mobile — fix content padding */
+    .main-content{padding:48px 8px 12px 8px}
+
+    /* Login */
+    .login-card{width:calc(100vw - 32px);padding:32px 24px;margin:16px}
+
+    /* Stats grid */
+    .dash-count-item{min-width:120px;padding:12px 14px}
+
+    /* Form rows stack vertically */
+    .form-row{grid-template-columns:1fr}
+
+    /* Page header */
+    .page-title{font-size:16px}
+    .page-header{margin-bottom:4px}
+
+    /* Cards */
+    .card{padding:16px;margin-bottom:14px;overflow:visible}
+    .card-header{flex-direction:column;align-items:flex-start;gap:10px}
+    .card-header>div:last-child{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+
+    /* Tables — horizontal scroll with min-width hint */
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    table{min-width:480px}
+
+    /* Modal — centered on mobile */
+    .modal{width:min(560px,95vw);max-width:95vw;max-height:88vh;border-radius:16px;padding:24px 20px;position:relative;transform:translateY(20px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    .modal-overlay{align-items:center;justify-content:center}
+    .modal-overlay.open .modal{transform:translateY(0)}
+    #mConfirm .modal{width:min(380px,92vw);max-height:none}
+    #mCamCapture .modal{width:min(440px,96vw);max-height:85vh}
+    #mRecordDetail .modal{bottom:auto;top:auto;left:auto;right:auto;position:relative;width:min(480px,96vw);max-height:88vh;border-radius:16px;transform:none;overflow-y:scroll;-webkit-overflow-scrolling:touch}
+    #mRecordDetail{align-items:center!important;justify-content:center!important}
+    /* Trip Booking modal — slides down from top */
+    #mTripBooking{align-items:flex-start!important}
+    #mTripBooking .modal{bottom:auto;top:0;border-radius:0 0 16px 16px;transform:translateY(-110%);max-height:calc(100vh - 8px);overflow-y:scroll;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    #mTripBooking.open .modal{transform:translateY(0)}
+
+
+    /* Segment cards */
+    .seg-card{padding:12px}
+    .seg-prog-header{flex-direction:column;align-items:flex-start}
+    .step-node:not(:last-child)::after{display:none}
+    .step-timeline{gap:8px}
+    .step-node{flex:0 0 calc(50% - 4px);align-items:flex-start;flex-direction:row;gap:8px;background:var(--surface2);border-radius:8px;padding:8px}
+    .step-icon-wrap{flex-shrink:0}
+    .step-label{text-align:left;font-size:11px}
+    .step-time{text-align:left}
+
+    /* Process flow — wrap better */
+    .pflow{flex-wrap:wrap;gap:4px}
+    .pf-step-wrap{min-width:60px}
+    .pf-step{font-size:10px;padding:4px 8px;white-space:normal}
+    .pf-step-wrap:first-child .pf-step,.pf-step-wrap:last-child .pf-step{border-radius:20px}
+    .pf-arrow{display:none}
+
+    /* Toolbar */
+    .toolbar{flex-direction:column;align-items:stretch}
+    .toolbar input,.toolbar select{width:100%}
+    /* Filter row stays horizontal even on mobile — scrollable */
+    .filter-row{flex-wrap:nowrap!important;flex-direction:row!important;overflow-x:auto;gap:6px}
+    .filter-row input,.filter-row select{width:auto!important;min-width:0}
+
+    /* Trip cards */
+    .trip-card{padding:14px}
+    .trip-card-header{flex-direction:column;align-items:flex-start}
+    .trip-segs{gap:6px}
+
+    /* Buttons in action rows */
+    .btn{font-size:13px;padding:9px 16px}
+    .modal-footer{flex-wrap:wrap}
+    .modal-footer .btn{flex:1;justify-content:center}
+
+    /* Dashboard card-header wraps title above filter row on mobile */
+    #pageDashboard .card-header{align-items:stretch;flex-direction:column}
+    #pageDashboard .card-header .filter-row{width:100%}
+
+    /* Notification */
+    .notification{top:50%;bottom:auto;left:50%;right:auto;text-align:center;transform:translate(-50%,-50%) scale(.92);z-index:200000;max-width:92%}
+    .notification.show{transform:translate(-50%,-50%) scale(1)}
+  }
+
+  @media(min-width:769px) and (max-width:1024px){
+    /* Tablet — sidebar is overlay, just adjust grid */
+    .form-row{grid-template-columns:1fr 1fr}
+    .card{padding:20px}
+    .modal{width:520px}
+  }
+
+
+  /* Custom driver autocomplete dropdown */
+  .driver-ac-wrap{position:relative}
+  .driver-ac-list{position:fixed;z-index:10000;background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:180px;overflow-y:auto;overflow-x:hidden;min-width:180px;display:none}
+  .driver-ac-list.open{display:block}
+  .driver-ac-item{padding:8px 12px;font-size:13px;cursor:pointer;color:var(--text)}
+  .driver-ac-item:hover{background:var(--surface2)}
+  .tb-newtrip-only{display:none}
+  .tb-amend-only{display:none}
+  /* Multi-challan list per destination */
+  .challan-section-disabled{opacity:.4;pointer-events:none}
+
+  .challan-list{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+  .challan-row{display:flex;gap:4px;align-items:center;background:rgba(0,0,0,.03);border-radius:5px;padding:2px 5px}
+  .challan-row input{flex:1;min-width:0;padding:5px 7px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:#fffbea;color:var(--text)}
+  .challan-row .ch-del{background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:0 3px;flex-shrink:0}
+  .challan-photo-thumb{width:30px;height:30px;border:1.5px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0}
+  .challan-photo-thumb.has-photo{border-color:var(--green);border-style:solid}
+  .add-challan-btn{background:none;border:1px dashed var(--border2);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--accent);cursor:pointer;font-weight:700;margin-top:3px;transition:border-color .15s}
+  .add-challan-btn:hover{border-color:var(--accent)}
+  /* Vehicle type mismatch warning */
+  @keyframes vtMismatchFlash{0%,100%{opacity:1;background:rgba(239,68,68,.12)}50%{opacity:.5;background:rgba(239,68,68,.04)}}
+  .vt-mismatch-warn{display:none;padding:6px 10px;border-radius:7px;font-size:11px;font-weight:700;color:#dc2626;border:1.5px solid #fca5a5;animation:vtMismatchFlash 1.2s ease-in-out infinite;margin-top:4px}
+  .vt-mismatch-warn.show{display:block}
+
+  /* Trip Booking modal: align to top, no scroll cap */
+  #mTripBooking{align-items:flex-start!important;padding-top:8px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #mTripBooking>.modal{max-height:calc(100vh - 16px);overflow-y:auto!important;overflow-x:hidden!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+
+  /* DB boot splash */
+  .db-splash-logo{font-family:var(--mono);font-size:13px;letter-spacing:4px;color:var(--accent);text-transform:uppercase}
+  @keyframes dbspin{to{transform:rotate(360deg)}}
+  /* Flashing highlight for current segment challan row */
+  @keyframes kapFlash{0%,100%{background:#adff2f}50%{background:#f0fff0}}
+  .kap-row-active{animation:kapFlash 1.2s ease-in-out infinite}
+  .kap-row-done{background:#dcfce7}
+  /* Flashing red for missing data */
+  @keyframes flashRed{0%,100%{background:#fecaca;color:#dc2626}50%{background:#fff;color:#dc2626}}
+  .flash-red{animation:flashRed 1s ease-in-out infinite;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+  /* Flashing green for next step */
+  @keyframes flashGreen{0%,100%{background:#bbf7d0;color:#15803d}50%{background:#f0fdf4;color:#15803d}}
+  /* Flashing orange for approaching expiry */
+  @keyframes flashOrange{0%,100%{background:#fed7aa;color:#c2410c}50%{background:#fff7ed;color:#c2410c}}
+  .flash-green{animation:flashGreen 1.2s ease-in-out infinite;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}
+
+  /* Compact date picker — shows dd-MMM-yy text, native picker opens on click */
+  .date-btn{position:relative;display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap;min-width:80px}
+  .date-btn input[type=date]{position:absolute;top:0;right:0;bottom:0;left:0;opacity:0;width:100%;height:100%;cursor:pointer;border:none;background:none}
+  .date-btn-label{pointer-events:none}
+  /* Empty state placeholder */
+  .empty-state{text-align:center;padding:32px 20px;color:var(--text3);font-size:14px;font-weight:500}
+  /* Better focus outlines for accessibility */
+  input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* Smoother button transitions */
+  .btn:active{transform:scale(.97)}
+
+  /* ── Optimized utility classes (auto-generated) ── */
+  .u-photo-input-overlay{opacity:0;position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;cursor:pointer;border:none}
+  .u-label-sm{font-size:12px;color:var(--text2);font-weight:600;white-space:nowrap}
+  .u-mini-btn{font-size:12px;padding:7px 12px;cursor:pointer;margin:0}
+  .u-thumb{width:28px;height:28px;object-fit:cover;border-radius:4px;border:2px solid var(--border)}
+  .u-thumb-lg{width:40px;height:40px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center}
+  .u-meta-label{font-size:10px;color:#000;font-weight:600;margin:0}
+  .u-tag-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .u-flex-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}
+    .sb-setup-card{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:40px 36px;width:100%;max-width:480px;box-shadow:0 8px 48px rgba(0,0,0,.12)}
+  .sb-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .sb-logo-icon{font-size:28px}
+  .sb-setup-title{font-size:22px;font-weight:800;color:var(--text)}
+  .sb-setup-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.5}
+  .sb-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.5}
+  .sb-step-num{background:var(--accent);color:#fff;font-weight:800;font-size:11px;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .sb-link{color:var(--accent);font-weight:700;text-decoration:none}
+  .sb-link:hover{text-decoration:underline}
+  .sb-input-label{font-size:11px;font-weight:700;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;margin-top:16px;display:block}
+  .sb-input{width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;transition:border-color .2s}
+  .sb-input:focus{border-color:var(--accent)}
+  .sb-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#dc2626;font-size:12px;padding:8px 12px;border-radius:8px;margin-top:12px;display:none}
+  .sb-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px;transition:background .2s}
+  .sb-btn:hover{background:var(--accent2)}
+  .sb-note{font-size:11px;color:var(--text3);text-align:center;margin-top:12px;line-height:1.5}
+  .sb-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .sb-status.connected{background:rgba(34,197,94,.15);color:#16a34a}
+  .sb-status.disconnected{background:rgba(239,68,68,.1);color:#dc2626}
+
+  /* ── Actions column always visible ─────────────────────────────────── */
+  #tUsers thead th:last-child,#tUsers tbody td:last-child,
+  #tDrivers thead th:last-child,#tDrivers tbody td:last-child,
+  #tVendors thead th:last-child,#tVendors tbody td:last-child,
+  #tVehicles thead th:last-child,#tVehicles tbody td:last-child,
+  #tLocations thead th:last-child,#tLocations tbody td:last-child,
+  #tVTypes thead th:last-child,#tVTypes tbody td:last-child{display:table-cell!important}
+  /* ── Location Master: Name col minimum width & Actions always visible ─ */
+  #tLocations thead th:first-child,#tLocations tbody td:first-child{min-width:180px}
+  #tLocations thead th:last-child,#tLocations tbody td:last-child{display:table-cell!important;white-space:nowrap}
+
+  /* ── Responsive master table column hiding ─────────────────────────── */
+  /* Columns hidden at ≤600px (last meaningful col before Actions) */
+  @media (max-width:600px){
+    /* Users: hide Role(s) col 4 */
+    #tUsers thead th:nth-child(4),#tUsers tbody td:nth-child(4){display:none}
+    /* Drivers: hide DL Expiry col 5 */
+    #tDrivers thead th:nth-child(5),#tDrivers tbody td:nth-child(5){display:none}
+    /* Vendors: hide Address col 5 */
+    #tVendors thead th:nth-child(5),#tVendors tbody td:nth-child(5){display:none}
+    /* Vehicles: hide Insurance col 6 AND RTO col 5 (table is very wide) */
+    #tVehicles thead th:nth-child(6),#tVehicles tbody td:nth-child(6){display:none}
+    #tVehicles thead th:nth-child(5),#tVehicles tbody td:nth-child(5){display:none}
+    /* Locations: hide Approver(s) col 6 */
+    #tLocations thead th:nth-child(6),#tLocations tbody td:nth-child(6){display:none}
+  }
+  /* Columns also hidden at ≤440px (one more column) */
+  @media (max-width:440px){
+    /* Users: also hide Location col 3 */
+    #tUsers thead th:nth-child(3),#tUsers tbody td:nth-child(3){display:none}
+    /* Drivers: also hide Vendor col 4 */
+    #tDrivers thead th:nth-child(4),#tDrivers tbody td:nth-child(4){display:none}
+    /* Vendors: also hide Mapped User col 4 and Contact col 3 */
+    #tVendors thead th:nth-child(4),#tVendors tbody td:nth-child(4){display:none}
+    #tVendors thead th:nth-child(3),#tVendors tbody td:nth-child(3){display:none}
+    /* Vehicles: also hide PUC Expiry col 4 */
+    #tVehicles thead th:nth-child(4),#tVehicles tbody td:nth-child(4){display:none}
+    /* Locations: also hide Mat. Receiver(s) col 5 */
+    #tLocations thead th:nth-child(5),#tLocations tbody td:nth-child(5){display:none}
+  }
+  
+  /* ── Date-filter block: compact 2×2 preset buttons ─────────────── */
+  .df-block{display:inline-grid;width:fit-content;grid-template-columns:1fr 1fr auto auto;grid-template-rows:auto auto;gap:3px 4px;align-items:end;padding:6px 8px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);}.df-block .date-btn{width:100%;box-sizing:border-box}.df-block .dr-btn{width:100%;box-sizing:border-box}
+  .dr-btn{font-size:11px;padding:4px 6px;border:1px solid var(--border2);border-radius:5px;background:var(--surface2);cursor:pointer;font-weight:800;color:var(--text2);transition:background .15s,color .15s,border-color .15s;white-space:nowrap;text-align:center;min-width:0;letter-spacing:.3px}
+  .dr-btn:hover{background:var(--border2);color:var(--text)}
+  .dr-btn.dr-btn-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  
+  /* iOS Safari input zoom fix — inputs must be ≥16px font to prevent auto-zoom */
+  @supports (-webkit-touch-callout: none) {
+    input[type="text"], input[type="password"], input[type="tel"],
+    input[type="email"], input[type="number"], input[type="date"],
+    select, textarea {
+      font-size: max(16px, 1em) !important;
+    }
+  }
+
+  /* ── Portal Sidebar ── */
+  #portalSidebar{
+    width:260px;flex-shrink:0;
+    background:#ffffff;
+    border-right:1px solid #e2e8f0;
+    box-shadow:2px 0 12px rgba(0,0,0,.06);
+    display:none;flex-direction:column;height:100vh;overflow-y:auto;
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:200;
+  }
+  #portalSidebar.ps-visible{display:flex;}
+  .ps-logo{padding:18px 18px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;}
+  .ps-logo-text{flex:1;min-width:0;}
+  .ps-logo-text .ps-brand{font-size:9px;font-weight:700;letter-spacing:3px;color:#2a9aa0;text-transform:uppercase;}
+  .ps-logo-text .ps-appname{font-size:14px;font-weight:800;color:#1a2033;letter-spacing:-.3px;margin-top:1px;}
+  .ps-user-card{padding:14px 16px;border-bottom:1px solid #e2e8f0;cursor:pointer;transition:background .18s;}
+  .ps-user-card:hover{background:#f0f4f8;}
+  .ps-user-row{display:flex;align-items:center;gap:11px;}
+  .ps-avatar{width:42px;height:42px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid rgba(42,154,160,.25);}
+  .ps-avatar img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
+  .ps-user-info{flex:1;min-width:0;}
+  .ps-user-name{font-size:13px;font-weight:700;color:#1a2033;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ps-user-role{font-size:10px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ps-user-loc{margin-top:4px;}
+  .ps-nav{flex:1;padding:6px 10px;overflow-y:auto;}
+  .ps-section{font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:2px;text-transform:uppercase;padding:8px 8px 3px;margin-top:4px;}
+  .ps-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:600;color:#4a5578;cursor:pointer;transition:all .18s;margin-bottom:2px;border:1px solid transparent;}
+  .ps-item:hover{background:#f0f4f8;color:#1a2033;}
+  .ps-item.ps-active{background:rgba(42,154,160,.08);color:#2a9aa0;border-color:rgba(42,154,160,.18);}
+  .ps-item .ps-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0;}
+  .ps-item .ps-label{flex:1;}
+  .ps-admin-badge{font-size:9px;background:rgba(139,92,246,.1);color:#8b5cf6;padding:1px 6px;border-radius:4px;font-weight:700;letter-spacing:.5px;}
+  .ps-bottom{padding:12px 14px;padding-bottom:max(32px,env(safe-area-inset-bottom));border-top:1px solid #e2e8f0;}
+  .ps-logout{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:600;color:#94a3b8;cursor:pointer;transition:all .18s;}
+  .ps-logout:hover{background:rgba(239,68,68,.07);color:#dc2626;}
+  #portalMain{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;}
+
+  /* ── Portal topbar (mobile) ── */
+  #portalTopbar{
+    display:none;position:fixed;top:0;left:0;right:0;height:52px;
+    background:#fff;border-bottom:1px solid #e2e8f0;
+    align-items:center;gap:10px;padding:0 14px;
+    z-index:101;box-shadow:0 1px 4px rgba(0,0,0,.07);
+  }
+  #portalTopbar.pt-visible{display:flex;}
+  .pt-hb{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:6px 5px;border-radius:6px;}
+  .pt-hb:hover{background:#f0f4f8;}
+  .pt-hb span{width:20px;height:2px;background:#1a2033;border-radius:2px;display:block;}
+  .pt-title{font-size:15px;font-weight:800;color:#1a2033;}
+
+  /* ── Portal sidebar overlay (mobile) ── */
+  #portalSidebarOverlay{
+    display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.35);z-index:199;
+  }
+  #portalSidebarOverlay.ps-ov-open{display:block;}
+
+  @media(max-width:700px){
+    #portalSidebar{
+      width:260px;position:fixed;top:0;bottom:0;left:0;
+      transform:translateX(-280px);
+      display:flex !important;flex-direction:column !important;
+      overflow-y:auto !important;-webkit-overflow-scrolling:touch;
+      z-index:300 !important;
+    }
+    #portalSidebar.ps-mobile-open{transform:translateX(0);box-shadow:8px 0 32px rgba(0,0,0,.15);}
+    #portalTopbar.pt-visible{display:flex;}
+    #portalMain{padding:62px 12px 16px;margin-left:0 !important;justify-content:flex-start !important;align-items:stretch !important;}
+    /* Apps view: compact header row, cards flush below */
+    #portalViewApps{align-items:stretch !important;}
+    #portalViewApps .ps-apps-header{margin-bottom:12px !important;flex-direction:row !important;align-items:center !important;gap:10px !important;justify-content:flex-start !important;}
+    #portalViewApps .ps-apps-header-center{display:none !important;}
+    #portalViewApps .ps-apps-header-mobile{display:flex !important;}
+    #portalViewApps .ps-apps-divider{display:none !important;}
+    #portalViewApps .ps-apps-footer{display:none !important;}
+    #portalAppsGrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr)) !important;gap:10px !important;max-width:100% !important;}
+    /* Compact card padding on mobile */
+    #portalAppsGrid>div{padding:18px 14px !important;}
+    #portalAppsGrid>div>div:first-child{font-size:30px !important;margin-bottom:8px !important;}
+    .ps-bottom{padding-bottom:max(56px,calc(env(safe-area-inset-bottom) + 40px)) !important;}
+  }
+  @media(min-width:701px){
+    #portalTopbar{display:none !important;}
+    #portalSidebarOverlay{display:none !important;}
+  }
+@keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes sbPulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* Security sidebar */
+  .mtts-sidebar{position:fixed;top:0;left:0;width:260px;height:100vh;background:#fff;border-right:1px solid var(--border);z-index:200;overflow-y:auto;padding:0;transition:left .3s;display:flex;flex-direction:column}
+  .mtts-sidebar .brand{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+  .mtts-sidebar .brand h3{font-size:14px;font-weight:800;color:var(--text);margin:0}
+  .mtts-nav-sec{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:16px 16px 6px}
+  .mtts-nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+  .mtts-nav-item:hover{background:var(--accent-light);color:var(--accent)}
+  .mtts-nav-item.active{background:var(--accent-light);color:var(--accent);border-left-color:var(--accent)}
+  .mtts-topbar{display:flex;position:fixed;top:0;left:260px;right:0;height:52px;background:#fff;border-bottom:1px solid var(--border);z-index:150;align-items:center;padding:0 14px;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .mtts-topbar-ham{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--text2);transition:background .15s}
+  .mtts-topbar-ham:hover{background:var(--surface2)}
+  .mtts-topbar-refresh{background:rgba(42,154,160,.08);border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background .15s}
+  .mtts-topbar-refresh:hover{background:var(--accent);color:#fff}
+  .mtts-topbar-refresh:disabled{opacity:.6;cursor:not-allowed}
+  .mtts-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:190}
+  .mtts-overlay.show{display:block}
+  .mtts-content{margin-left:260px;padding:68px 24px 24px;height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg)}
+  /* Desktop sidebar collapse — hamburger toggles body.mtts-nav-collapsed
+     so the sidebar slides off-screen and the topbar / main content
+     reclaim the freed width. */
+  body.mtts-nav-collapsed .mtts-sidebar{left:-270px}
+  body.mtts-nav-collapsed .mtts-topbar{left:0}
+  body.mtts-nav-collapsed .mtts-content{margin-left:0}
+  @media(max-width:900px){
+    .mtts-topbar-refresh-lbl{display:none}
+  }
+  @media(max-width:700px){
+    .mtts-sidebar{left:-270px}
+    .mtts-sidebar.open{left:0}
+    .mtts-topbar{left:0}
+    .mtts-content{margin-left:0;padding:62px 12px 16px}
+  }
+
+  /* Asset edit modal — compact 3-column grid */
+  .mtts-asset-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .mtts-asset-grid .form-group{margin-bottom:0}
+  .mtts-asset-span2{grid-column:span 2}
+  .mtts-asset-full{grid-column:1 / -1}
+  @media (max-width:900px){
+    .mtts-asset-grid{grid-template-columns:1fr 1fr}
+    .mtts-asset-span2{grid-column:1 / -1}
+  }
+  @media (max-width:640px){
+    .mtts-asset-grid{grid-template-columns:1fr;gap:8px}
+    .mtts-asset-span2,.mtts-asset-full{grid-column:1 / -1}
+    .mtts-asset-modal{width:100vw!important;max-width:100vw!important;max-height:100vh!important;height:100vh;border-radius:0!important;padding:14px!important;transform:none!important}
+    .mtts-asset-modal input,.mtts-asset-modal select,.mtts-asset-modal textarea{font-size:16px!important}
+  }
+
+  /* Raise-Ticket modal — responsive: 2-col on desktop, 1-col on phones,
+     larger touch targets, edge-to-edge sheet on small screens. */
+  .mtts-raise-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mtts-raise-full{grid-column:1 / -1}
+  /* Compact label/input spacing inside the raise modal. */
+  .mtts-raise-modal .form-group{margin-bottom:0}
+  .mtts-raise-modal label{margin-bottom:2px;font-size:12px;letter-spacing:.5px}
+  .mtts-raise-modal input,.mtts-raise-modal select,.mtts-raise-modal textarea{padding:8px 11px!important;min-height:38px!important;border-radius:7px;font-size:15px}
+  .mtts-raise-modal textarea{min-height:56px!important}
+  /* Hairline divider between the asset-pick section and the breakdown
+     section so the form reads as two stages. */
+  .mtts-raise-divider{height:1px;background:var(--border);margin:6px 0 2px;padding:0;border:none}
+  /* Collapsed-picker summary button. Tap to expand the chip row below;
+     after a chip is picked, this button collapses back and shows the
+     chosen value (with the master colour as background for plants). */
+  .mtts-raise-pick{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:69px;padding:15px 14px;border:3px solid var(--accent);border-radius:11px;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:var(--text);transition:border-color .15s,filter .15s,box-shadow .15s;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .mtts-raise-pick:hover{box-shadow:0 4px 12px rgba(0,0,0,.14);filter:brightness(.97)}
+  .mtts-raise-pick.is-empty{color:var(--text3);font-weight:700;font-style:italic;border-style:dashed}
+  .mtts-raise-pick.is-empty:hover{color:var(--accent)}
+  /* Two-tone summary: small uppercase label on the left, larger serif
+     value on the right, divided by a hairline running down the centre.
+     Empty state stays a single centred label (no divider). */
+  .mtts-pick-prefix{font-size:12px;font-weight:600;opacity:.65;letter-spacing:.8px;text-transform:uppercase;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  .mtts-pick-value{font-size:20px;font-weight:800;font-family:Georgia,'Times New Roman',serif;letter-spacing:.3px}
+  .mtts-raise-pick:not(.is-empty){display:grid;grid-template-columns:1fr 1fr;padding:0;gap:0}
+  .mtts-raise-pick:not(.is-empty) .mtts-pick-prefix{display:flex;align-items:center;justify-content:flex-end;padding:14px 14px;border-right:1px solid currentColor;text-align:right;line-height:1.15}
+  .mtts-raise-pick:not(.is-empty) .mtts-pick-value{display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:14px 14px;text-align:left;line-height:1.15}
+  .mtts-raise-pick:not(.is-empty) .mtts-chip-icon{font-size:18px;line-height:1}
+  /* Stack the three pickers tight so Plant / Asset Type / Asset read as
+     one related group rather than three separated form fields. */
+  .mtts-raise-picks{display:flex;flex-direction:column;gap:4px}
+  .mtts-raise-pickblock{display:flex;flex-direction:column;gap:6px}
+  /* Prominent close button — top-right corner, red circle so users can
+     bail out of the form fast on a phone without hunting for Cancel. */
+  .mtts-raise-close{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;font-size:22px;font-weight:900;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;z-index:2;transition:background .15s,color .15s}
+  .mtts-raise-close:hover{background:#dc2626;color:#fff;border-color:#dc2626}
+  /* Make sure the modal box positions the close button absolutely. */
+  .mtts-raise-modal{position:relative}
+  /* Smaller photo tiles in the raise-ticket modal — fits a single
+     thumb-tap row without dominating the form. */
+  .mtts-raise-modal .mtts-photo-thumbs{grid-template-columns:repeat(3,64px);gap:6px}
+  .mtts-raise-modal .mtts-photo-tile{aspect-ratio:1/1;border-radius:7px;font-size:9px}
+  .mtts-raise-modal .mtts-photo-tile .mtts-photo-cam{font-size:18px;margin-bottom:1px}
+  .mtts-raise-modal .mtts-photo-tile .mtts-photo-rm{width:18px;height:18px;font-size:11px;top:2px;right:2px}
+  /* Breakdown Since: keep Date and Time on the same row even on phones
+     so the user sees both anchored to one timestamp. */
+  .mtts-bd-when{display:flex;gap:6px;align-items:stretch}
+  /* Date button — formats the picked date as dd-MMM-yy. The native
+     date input sits on top, transparent, so taps still open the OS
+     picker and the result feeds back into the visible label. */
+  .mtts-bd-date-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#fffbea;border:1px solid var(--border);border-radius:7px;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;min-height:38px;padding:0 12px}
+  .mtts-bd-date-btn:hover{border-color:var(--accent)}
+  .mtts-bd-date-btn input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;background:none;padding:0;margin:0}
+  .mtts-bd-date-icon{pointer-events:none;font-size:16px;line-height:1}
+  .mtts-bd-date-label{pointer-events:none;font-family:var(--mono);letter-spacing:.5px}
+  /* Breakdown date stepper — < / > buttons flank the native date input.
+     The next-day button auto-disables when the current value is today. */
+  .mtts-date-stepper{display:flex;gap:6px;align-items:stretch}
+  .mtts-date-stepper input[type=date]{flex:1;min-width:0}
+  .mtts-date-step-btn{flex-shrink:0;width:36px;background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:18px;font-weight:800;color:var(--text2);cursor:pointer;line-height:1;padding:0;transition:background .15s,border-color .15s}
+  .mtts-date-step-btn:hover:not(:disabled){background:var(--surface2);border-color:var(--accent);color:var(--accent)}
+  .mtts-date-step-btn:disabled{opacity:.35;cursor:not-allowed}
+  /* Plant / Asset Type quick-pick chip row — replaces dropdowns on the
+     raise-ticket form so the user can tap straight from a wrap-flow grid
+     instead of opening a select. The active chip flips to accent colour. */
+  .mtts-chip-row{display:flex;flex-wrap:wrap;gap:6px}
+  .mtts-chip{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);white-space:nowrap;line-height:1;min-height:34px;transition:background .15s,border-color .15s,color .15s}
+  .mtts-chip:hover{border-color:var(--accent);color:var(--accent)}
+  .mtts-chip.is-active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 2px rgba(42,154,160,.15)}
+  .mtts-chip-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
+  /* Raise-ticket Plant chips: each chip carries the plant's master colour
+     as its inline background. Inline styles beat the .is-active default
+     so the colour stays put when active; the inset white ring + accent
+     halo (also inline) signal selection. */
+  #mttsRaisePlantBtns{gap:7px}
+  #mttsRaisePlantBtns .mtts-chip{padding:9px 15px;font-size:16px;min-height:44px;border-width:1.5px;border-radius:9px}
+  #mttsRaisePlantBtns .mtts-chip:hover{filter:brightness(.92)}
+  /* Raise-ticket Asset Type chips: 20% smaller than the plant chips —
+     keeps icon + label readable while freeing vertical space. */
+  #mttsRaiseTypeBtns{gap:6px}
+  #mttsRaiseTypeBtns .mtts-chip{padding:7px 12px;font-size:13px;min-height:35px;border-radius:8px;gap:6px}
+  #mttsRaiseTypeBtns .mtts-chip-icon{font-size:16px;line-height:1;display:inline-flex;align-items:center}
+  /* Breakdown radio chips — one tap-target per option, fits 3 across on phones. */
+  .mtts-bd-radios{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .mtts-bd-opt{display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 6px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);text-transform:none;letter-spacing:0;margin-bottom:0}
+  .mtts-bd-opt input[type=radio]{display:none}
+  .mtts-bd-opt span{pointer-events:none;white-space:nowrap}
+  .mtts-bd-opt:has(input:checked){border-color:var(--accent);background:rgba(42,154,160,.10);color:var(--accent);box-shadow:0 0 0 2px rgba(42,154,160,.10) inset}
+  /* Photo thumbnail tiles — each slot is a tap-target that opens the camera. */
+  .mtts-photo-thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .mtts-photo-tile{position:relative;width:100%;aspect-ratio:1/1;border:2px dashed #0ea5e9;border-radius:10px;background:#f0f9ff;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#0369a1;cursor:pointer;overflow:hidden;font-size:11px;font-weight:700}
+  .mtts-photo-tile.has-img{border-style:solid;border-color:var(--green);background:#000}
+  .mtts-photo-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .mtts-photo-tile .mtts-photo-cam{font-size:24px;margin-bottom:2px}
+  .mtts-photo-tile .mtts-photo-rm{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;font-size:13px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;z-index:2}
+
+  /* Compact Update-Ticket modal — same compactness as the raise form, plus
+     smaller photo tiles so the form stays vertically tight. */
+  .mtts-techact-modal .form-group{margin-bottom:0}
+  .mtts-techact-modal label{margin-bottom:2px;font-size:10px;letter-spacing:.5px}
+  .mtts-techact-modal input,.mtts-techact-modal select,.mtts-techact-modal textarea{padding:7px 10px!important;min-height:36px!important;border-radius:7px}
+  .mtts-techact-modal textarea{min-height:48px!important}
+  .mtts-techact-modal .modal-header{margin-bottom:8px}
+  .mtts-techact-modal .modal-title{font-size:16px}
+  .mtts-techact-modal .mtts-photo-thumbs{grid-template-columns:repeat(3,72px);gap:6px}
+  .mtts-techact-modal .mtts-photo-tile{aspect-ratio:1/1;border-radius:7px;font-size:9px}
+  .mtts-techact-modal .mtts-photo-tile .mtts-photo-cam{font-size:18px;margin-bottom:1px}
+  .mtts-techact-modal .mtts-photo-tile .mtts-photo-rm{width:18px;height:18px;font-size:11px;top:2px;right:2px}
+  .mtts-techact-modal .mtts-date-step-btn{width:32px;font-size:16px}
+  .mtts-techact-modal>div[style*="grid-template-columns"]{gap:8px!important}
+  /* Squeeze the in-modal Previous Updates panel + the footer button row. */
+  .mtts-techact-modal #mttsTechActHistoryWrap{margin-bottom:6px!important}
+  .mtts-techact-modal #mttsTechActHistory{max-height:120px}
+  .mtts-techact-modal .mtts-techact-rows{display:grid;gap:6px}
+  @media (max-width:640px){
+    .mtts-raise-modal{
+      width:100vw!important;max-width:100vw!important;
+      max-height:100vh!important;height:100vh;
+      /* dvh tracks iOS Safari's collapsing URL bar; vh would let the form
+         spill below the visible area and bury the sticky footer. The 100vh
+         lines stay as fallback for older browsers — duplicate declarations
+         are tolerated; the later valid one wins. */
+      max-height:100dvh!important;height:100dvh;
+      border-radius:0!important;
+      padding:max(14px,env(safe-area-inset-top)) 14px 0!important;
+      transform:none!important;
+      display:flex;flex-direction:column;
+    }
+    /* Bigger, safe-area-aware close target so the X never sits under the
+       notch / status bar on phones with display cutouts. */
+    .mtts-raise-modal .mtts-raise-close{
+      top:max(8px,env(safe-area-inset-top))!important;
+      right:max(8px,env(safe-area-inset-right,8px))!important;
+      width:42px;height:42px;font-size:26px;
+    }
+    .mtts-raise-grid{grid-template-columns:1fr;gap:10px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    /* Sticky footer with safe-area padding so the Submit button sits above
+       the home indicator / iOS bottom chrome / app bottom-nav. */
+    .mtts-raise-actions{
+      position:sticky;bottom:0;background:var(--surface);
+      padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+      border-top:1px solid var(--border);
+      margin-left:-14px;margin-right:-14px;
+      z-index:1;
+    }
+    /* Block iOS Safari zoom-on-focus by ensuring 16px+ font on inputs. */
+    .mtts-raise-modal input,
+    .mtts-raise-modal select,
+    .mtts-raise-modal textarea{font-size:16px!important}
+    .mtts-raise-modal .modal-title{font-size:17px}
+  }
+  /* ── Ticket cards ───────────────────────────────────────────────────────
+     Card grid replaces the wide-table list so each ticket reads as a
+     self-contained block — fits a phone screen without horizontal scroll
+     and shows every column inline. */
+  .mtts-tcard-filters{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px}
+  .mtts-tcard-filters>*{flex:1 1 150px;min-width:0;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text)}
+  .mtts-tcard-filters>input[type=search]{flex:2 1 220px}
+  .mtts-tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;align-content:start;padding-right:4px}
+  .mtts-tcard-empty{padding:30px 20px;text-align:center;color:var(--text3);font-size:15px;background:#fff;border:1.5px dashed var(--border);border-radius:10px;grid-column:1/-1}
+  .mtts-tcard{position:relative;background:#fff;border:1.5px solid var(--border);border-left:5px solid var(--plant-color,#94a3b8);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .15s,transform .15s,border-color .15s;cursor:pointer}
+  .mtts-tcard:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);border-color:var(--accent)}
+  .mtts-tcard:focus{outline:2px solid var(--accent);outline-offset:2px}
+  .mtts-tcard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .mtts-tcard-headline{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+  .mtts-tcard-headtop{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:11px}
+  .mtts-tcard-id{font-size:14px;color:var(--text);font-family:var(--mono);font-weight:800;letter-spacing:.4px}
+  .mtts-tcard-sep{color:var(--text3);font-weight:600}
+  .mtts-tcard-asset{font-size:15px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
+  .mtts-tcard-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--text3)}
+  .mtts-tcard-type{padding:1px 7px;background:#f1f5f9;border-radius:5px;font-weight:700;color:var(--text2);letter-spacing:.3px}
+  .mtts-tcard-prio{display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;letter-spacing:.3px;flex-shrink:0;align-self:flex-start}
+  .mtts-tcard-prio.High{background:#fee2e2;color:#dc2626}
+  .mtts-tcard-prio.Medium{background:#fef3c7;color:#b45309}
+  .mtts-tcard-prio.Low{background:#dcfce7;color:#15803d}
+  .mtts-tcard-rows{display:flex;flex-direction:column;gap:2px;font-size:12px}
+  .mtts-tcard-row{display:flex;justify-content:space-between;gap:8px;align-items:baseline;border-bottom:1px dashed #e2e8f0;padding-bottom:2px}
+  .mtts-tcard-row:last-of-type{border-bottom:none;padding-bottom:0}
+  .mtts-tcard-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);font-weight:600;min-width:70px;flex-shrink:0}
+  .mtts-tcard-val{font-weight:700;text-align:right;flex:1;color:var(--text);word-break:break-word}
+  .mtts-tcard-val.mtts-tcard-down{color:#dc2626;font-family:var(--mono)}
+  .mtts-tcard-val.is-muted{color:var(--text3);font-weight:600}
+  .mtts-tcard-actions{display:flex;justify-content:space-between;align-items:center;gap:6px;border-top:1px solid #f1f5f9;padding-top:5px;margin-top:auto}
+  .mtts-tcard-actions-left{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+  .mtts-tcard-actions-right{display:flex;gap:4px;flex-shrink:0}
+  .mtts-tcard-iconbtn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1.5px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;padding:0;line-height:1;transition:filter .15s,background .15s}
+  .mtts-tcard-iconbtn:hover{filter:brightness(.96)}
+  .mtts-tcard-iconbtn.is-edit{border-color:#f59e0b;color:#b45309;background:#fffbea}
+  .mtts-tcard-iconbtn.is-edit:hover{background:#fde68a}
+  .mtts-tcard-iconbtn.is-del{border-color:#dc2626;color:#dc2626;background:#fef2f2}
+  .mtts-tcard-iconbtn.is-del:hover{background:#fecaca}
+  /* ── Allocate Technician picker ─────────────────────────────────────────
+     Replace the tight checkbox list with a button grid; each button is a
+     full tap target carrying the tech's name, optional meta line, and a
+     load chip showing how many in-progress tickets they currently hold. */
+  .mtts-alloc-techgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;padding:6px}
+  .mtts-alloc-techbtn{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;background:#fff;border:2px solid var(--border);border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);transition:border-color .15s,background .15s,box-shadow .15s}
+  .mtts-alloc-techbtn:hover{border-color:var(--accent)}
+  .mtts-alloc-techbtn.is-selected{border-color:#0ea5e9;background:#eff6ff;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+  .mtts-alloc-techbtn.is-selected::after{content:"✓";position:absolute;top:6px;right:8px;font-weight:900;color:#0ea5e9;font-size:14px}
+  .mtts-alloc-name{font-size:14px;font-weight:800;line-height:1.2;color:var(--text)}
+  .mtts-alloc-meta{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.3px}
+  .mtts-alloc-load{display:inline-flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;font-weight:800;padding:2px 9px;border-radius:9px;background:#f1f5f9;color:var(--text2);letter-spacing:.3px}
+  .mtts-alloc-load.is-free{background:#dcfce7;color:#15803d}
+  .mtts-alloc-load.is-busy{background:#fef3c7;color:#92400e}
+  .mtts-alloc-load.is-overloaded{background:#fee2e2;color:#dc2626}
+  /* Allocate modal — prominent ticket-info block above the tech picker. */
+  .mtts-alloc-info{background:#f8fafc;border:1.5px solid var(--border);border-left:5px solid var(--accent);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:5px}
+  .mtts-alloc-info-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .mtts-alloc-info-id{font-family:var(--mono);font-size:20px;font-weight:900;color:var(--text);letter-spacing:.5px}
+  .mtts-alloc-info-asset{font-size:18px;font-weight:800;color:var(--text);line-height:1.2}
+  .mtts-alloc-info-atype{font-size:12px;font-weight:700;color:var(--text3);background:#e2e8f0;padding:2px 8px;border-radius:5px;margin-left:4px;letter-spacing:.3px}
+  .mtts-alloc-info-desc{font-size:14px;color:var(--text);font-style:italic;background:#fff;border:1px solid var(--border);border-radius:6px;padding:7px 10px;line-height:1.35;font-weight:500}
+  .mtts-alloc-info-desc::before{content:"\201C";color:var(--text3);font-size:18px;margin-right:2px}
+  .mtts-alloc-info-desc::after{content:"\201D";color:var(--text3);font-size:18px;margin-left:2px}
+  .mtts-alloc-info-meta{font-size:12px;color:var(--text3);font-weight:600}
+  /* Raise Ticket — shared compact radio list used by Plant / Asset Type /
+     Asset pickers. Vertical, sorted alphabetically, scrollable when long
+     so the rest of the form stays usable. Font bumped from the chip-row
+     baseline (+2px) for easier reading on phone. */
+  .mtts-raise-asset-list{display:flex;flex-direction:column;width:100%;max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff}
+  .mtts-raise-asset-row{display:flex;align-items:center;gap:8px;padding:3px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:18px;font-weight:600;color:var(--text);transition:background .15s;line-height:1.15}
+  .mtts-raise-asset-row:last-child{border-bottom:none}
+  .mtts-raise-asset-row:hover{background:#f8fafc}
+  .mtts-raise-asset-row.is-selected{background:#eff6ff;color:var(--accent)}
+  .mtts-raise-asset-row input[type=radio]{width:auto;margin:0;flex:0 0 auto;cursor:pointer;accent-color:var(--accent)}
+  .mtts-raise-asset-row .mtts-chip-icon{font-size:18px;line-height:1}
+  .mtts-raise-asset-row .mtts-chip-swatch{flex-shrink:0}
+  /* ── Tickets page tab strip ────────────────────────────────────────────
+     Three-up tab row (All / Raised by me / Allocated to me) above the
+     filter bar. Active tab carries an accent underline. */
+  .mtts-ticket-tabs{display:flex;gap:2px;padding:0 12px 0;flex-wrap:wrap;border-bottom:1.5px solid var(--border);margin-bottom:10px}
+  .mtts-ticket-tab{padding:9px 18px;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;font-size:14px;font-weight:700;color:var(--text2);transition:color .15s,border-color .15s,background .15s;margin-bottom:-1.5px;font-family:inherit;border-radius:6px 6px 0 0}
+  .mtts-ticket-tab:hover{color:var(--accent);background:#f8fafc}
+  .mtts-ticket-tab.is-active{color:var(--accent);border-bottom-color:var(--accent);background:#fff}
+  @media (max-width:640px){
+    .mtts-ticket-tabs{padding:0 6px;gap:0}
+    .mtts-ticket-tab{flex:1 1 33%;padding:9px 6px;font-size:12px;text-align:center;border-radius:0}
+  }
+  @media (max-width:640px){
+    .mtts-alloc-techgrid{grid-template-columns:1fr 1fr;gap:6px;padding:4px}
+    .mtts-alloc-techbtn{padding:9px 10px}
+  }
+  @media (max-width:640px){
+    .mtts-tcards{grid-template-columns:1fr;gap:10px}
+    .mtts-tcard{padding:11px 12px}
+    .mtts-tcard-asset{font-size:17px}
+    .mtts-tcard-filters>*{flex:1 1 calc(50% - 4px)}
+    .mtts-tcard-filters>input[type=search]{flex:1 1 100%}
+  }

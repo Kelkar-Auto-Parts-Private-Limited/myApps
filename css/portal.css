@@ -1,0 +1,108 @@
+:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f8f9fb;--border:#e2e5ea;--border2:#c9cdd4;--text:#1e2329;--text2:#4a5568;--text3:#94a3b8;--accent:#2a9aa0;--accent2:#1e7a7f;--accent-light:#e0f5f5;--red:#dc2626;--green:#16a34a;--green-bg:#f0fdf4;--purple:#7c3aed;--mono:'SF Mono','Cascadia Mono','Consolas',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
+.notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.92);background:var(--green);color:#fff;padding:18px 36px;border-radius:12px;font-size:15px;font-weight:800;z-index:200000;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;max-width:88%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.35);white-space:pre-line;border:2px solid rgba(255,255,255,.15)}
+.notification.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+.notification.error{background:var(--red);color:#fff}
+#loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0}
+.login-card{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:48px 40px;width:360px;box-shadow:var(--shadow);animation:loginFadeIn .4s ease-out}
+@keyframes loginFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.form-group{margin-bottom:20px}
+label{display:block;font-size:12px;font-weight:600;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+input,select,textarea{width:100%;background:#fffbea;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radius);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s ease}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2)!important}.btn-secondary:hover{border-color:var(--accent)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-full{width:100%;justify-content:center;padding:12px}
+.error-msg{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#dc2626;font-size:13px;padding:10px 14px;border-radius:8px;margin-bottom:16px;display:none}
+.input-error{border:2px solid #dc2626!important;background:rgba(239,68,68,.05)!important}
+#portalPage{display:none;min-height:100vh;background:var(--bg)}
+.portal-topbar{background:#fff;border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100}
+.portal-topbar .brand{display:flex;align-items:center;gap:10px}.portal-topbar .brand img{width:36px;height:36px;border-radius:8px}.portal-topbar .brand h2{font-size:16px;font-weight:800;color:var(--text)}.portal-topbar .brand span{font-size:11px;color:var(--text3);font-weight:500}
+.portal-topbar .spacer{flex:1}
+.portal-topbar .user-pill{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 14px 5px 6px;cursor:pointer;transition:background .2s}.portal-topbar .user-pill:hover{background:var(--accent-light)}
+.portal-topbar .user-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.portal-topbar .user-name{font-size:13px;font-weight:600;color:var(--text)}.portal-topbar .user-role{font-size:10px;color:var(--text3);font-weight:500}
+.portal-body{max-width:960px;margin:0 auto;padding:32px 20px}.portal-body:has(#permissionsSection[style*="block"]){max-width:none}.portal-welcome{margin-bottom:20px}.portal-welcome h1{font-size:clamp(22px,5vw,30px);font-weight:900;color:var(--text);margin-bottom:4px}.portal-welcome p{font-size:14px;color:var(--text3)}
+.portal-tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0}
+.portal-tab{padding:10px 20px;font-size:14px;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s}.portal-tab:hover{color:var(--text2)}.portal-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.app-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:40px}
+.app-card{background:#fff;border:2px solid var(--border);border-radius:16px;padding:24px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}.app-card:hover{border-color:var(--accent);box-shadow:0 4px 20px rgba(42,154,160,.12);transform:translateY(-2px)}.app-card.disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.app-card .app-icon{font-size:40px;margin-bottom:10px;display:block}.app-card .app-label{font-size:16px;font-weight:800;color:var(--text);margin-bottom:2px}.app-card .app-full{font-size:11px;color:var(--text3);line-height:1.3}
+.app-card .app-badge{position:absolute;top:8px;right:8px;font-size:9px;font-weight:700;padding:2px 8px;border-radius:6px;text-transform:uppercase}.app-badge.active{background:var(--green-bg);color:var(--green)}.app-badge.coming{background:#fff7ed;color:#c2410c}
+.users-section{display:none}
+/* Users tab — fixed-header layout: topbar / welcome / toolbar / thead are
+   all frozen, only the table body scrolls. body.tab-users is set on the
+   <body> by showTab() while the users tab is active.
+   Layout chain (each is flex-shrink:0 unless noted):
+     <body.tab-users>
+       <#portalPage>            height:100vh, no scroll
+         <.portal-topbar>       fixed-height
+         <.portal-body>         flex column, fills the rest
+           <.portal-welcome>    fixed-height
+           <#usersSection>      flex column, fills the rest
+             <.toolbar>         fixed-height
+             <.puTableWrap>     flex:1, overflow:auto  ← only scroller
+               <table>          with sticky thead at top:0 of the wrap.
+   border-collapse:separate keeps sticky <th> borders rendering (modern
+   browsers drop them when collapsed); border-radius:0 + overflow:visible
+   override the global .table rule which would clip the thead. */
+body.tab-users{overflow:hidden;height:100vh}
+body.tab-users #portalPage{height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body.tab-users .portal-topbar{flex-shrink:0}
+body.tab-users .portal-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-top:18px;padding-bottom:0}
+body.tab-users .portal-welcome{flex-shrink:0;margin-bottom:12px}
+body.tab-users .portal-tabs{flex-shrink:0}
+body.tab-users #usersSection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+body.tab-users .users-section .toolbar{flex-shrink:0;background:var(--bg);padding:6px 0;margin-bottom:0}
+.users-section .puTableWrap{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:8px}
+.users-section .puTableWrap table{border-collapse:separate;border-spacing:0;border-radius:0;overflow:visible;box-shadow:none}
+.users-section .puTableWrap thead th{position:sticky;top:0;z-index:3;background:var(--surface2);border-bottom:2px solid #cbd5e1}
+.users-section .puTableWrap td{border-bottom:1px solid #cbd5e1}
+.users-section .puTableWrap th,
+.users-section .puTableWrap td{border-right:1px solid #cbd5e1}
+.users-section .puTableWrap th:last-child,
+.users-section .puTableWrap td:last-child{border-right:none}
+/* Sortable header cells — Full Name / Username / Location. Click toggles
+   ASC → DESC; the indicator in <th> tracks current sort key + direction. */
+.users-section .puTableWrap thead th.puSortable{cursor:pointer;user-select:none}
+.users-section .puTableWrap thead th.puSortable:hover{background:#eef2f7}
+.users-section .puTableWrap thead th .puSortIcon{font-size:10px;margin-left:4px;color:var(--text3);font-weight:700}
+.users-section .puTableWrap thead th.is-sorted .puSortIcon{color:var(--accent)}
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input[type=text]{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;min-width:180px;background:#fff}.toolbar input:focus{border-color:var(--accent)}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--accent-light);color:var(--accent)}.badge-blue{background:rgba(42,154,160,.12);color:var(--accent)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:2}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr.clickable-row{cursor:pointer;transition:background .15s}tr.clickable-row:hover{background:rgba(42,154,160,.03)}
+.action-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:3px 6px;border-radius:4px;transition:background .15s}.action-btn:hover{background:var(--surface2)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:5000;padding:16px}.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.18);width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px 12px;position:sticky;top:0;background:#fff;z-index:1;border-bottom:1px solid var(--border)}.modal-title{font-size:18px;font-weight:800}.modal-close{font-size:24px;cursor:pointer;color:var(--text3);width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px}.modal-close:hover{background:var(--surface2)}
+.modal-body{padding:16px 22px}
+.form-row{display:flex;gap:12px}.form-row>.form-group{flex:1}
+.modal-footer{padding:14px 22px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff;flex-wrap:wrap}
+.modal-err{width:100%;font-size:12px;font-weight:600;color:var(--red);display:none;margin-bottom:6px}
+.user-dropdown{position:absolute;top:52px;right:20px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:8px;min-width:200px;display:none;z-index:200}.user-dropdown.show{display:block}
+.user-dropdown .dd-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);transition:background .15s}.user-dropdown .dd-item:hover{background:var(--surface2)}.user-dropdown .dd-item.danger{color:var(--red)}.user-dropdown .dd-divider{height:1px;background:var(--border);margin:4px 0}
+@media(max-width:600px){.portal-body{padding:20px 14px}.app-grid{grid-template-columns:repeat(2,1fr);gap:12px}.app-card{padding:18px 12px}.app-card .app-icon{font-size:32px}.login-card{width:calc(100vw - 32px);padding:32px 24px;margin:16px}.form-row{flex-direction:column;gap:0}}
+.portal-sidebar{position:fixed;left:0;top:0;bottom:0;width:240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:160;transition:transform .25s}
+.portal-sidebar .ps-nav{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;margin-bottom:2px;transition:all .15s}
+.portal-sidebar .ps-nav:hover{background:var(--surface2);color:var(--text)}
+.portal-sidebar .ps-nav.active{background:rgba(42,154,160,.12);color:var(--accent);font-weight:700}
+#portalPage .portal-topbar{margin-left:240px;transition:margin-left .25s}
+#portalPage .portal-body{margin-left:240px;transition:margin-left .25s}
+/* Desktop: hamburger collapses the sidebar offscreen and the page reflows full-width. */
+#portalPage.portal-sb-hidden .portal-sidebar{transform:translateX(-260px)}
+#portalPage.portal-sb-hidden .portal-topbar{margin-left:0}
+#portalPage.portal-sb-hidden .portal-body{margin-left:0}
+@media(max-width:768px){
+  .portal-sidebar{transform:translateX(-260px)}
+  .portal-sidebar.open{transform:translateX(0);box-shadow:8px 0 40px rgba(0,0,0,.15)}
+  #portalPage .portal-topbar{margin-left:0}
+  #portalPage .portal-body{margin-left:0}
+}
