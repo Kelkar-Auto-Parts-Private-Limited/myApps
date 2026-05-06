@@ -2766,7 +2766,12 @@ function _hrmsRenderInitialAttendance(){
     // muster wins; this tab only stages days that have no
     // attendance record yet).
     var rowDisabled=isLocked||fromMuster;
-    var rowBg=fromMuster?'#dbeafe':(r.confirmed?'#dcfce7':(isLocked?'#fee2e2':(r.editing?'#fffbeb':'#fff')));
+    var isSunday=(r.day==='Sun');
+    // Sunday highlight overrides the neutral white state but lets
+    // muster / locked / confirmed / editing tints win when present —
+    // those carry stronger meaning for the user.
+    var rowBg=fromMuster?'#dbeafe':(r.confirmed?'#dcfce7':(isLocked?'#fee2e2':(r.editing?'#fffbeb':(isSunday?'#fef2f2':'#fff'))));
+    var rowBorderLeft=isSunday?'border-left:3px solid #dc2626;':'';
     var _inpBase='font-size:13px;padding:4px 6px;border:1.5px solid var(--border);border-radius:5px;width:78px;text-align:center;font-family:var(--mono);box-sizing:border-box';
     var disAttr=rowDisabled
       ?'disabled style="'+_inpBase+';background:'+(fromMuster?'#eff6ff':'#f1f5f9')+';color:'+(fromMuster?'#1d4ed8':'#64748b')+';cursor:'+(isLocked||fromMuster?'not-allowed':'default')+'"'
@@ -2788,10 +2793,10 @@ function _hrmsRenderInitialAttendance(){
         +'<button type="button" onclick="_hrmsInitialConfirm('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">💾 Save</button>'
         +'<button type="button" onclick="_hrmsInitialReset('+i+')" style="font-size:11px;padding:4px 10px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:5px;cursor:pointer">↺ Reset</button>';
     }
-    h+='<tr style="background:'+rowBg+';border-top:1px solid var(--border)">'
-      +'<td style="padding:6px 8px;font-weight:700;color:var(--text3)">'+(i+1)+'</td>'
-      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+dispDate+'</td>'
-      +'<td style="padding:6px 8px;font-weight:700;color:'+(r.day==='Sun'?'#dc2626':'var(--text)')+'">'+r.day+'</td>'
+    h+='<tr style="background:'+rowBg+';border-top:1px solid var(--border);'+rowBorderLeft+'">'
+      +'<td style="padding:6px 8px;font-weight:700;color:'+(isSunday?'#dc2626':'var(--text3)')+'">'+(i+1)+'</td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700;color:'+(isSunday?'#dc2626':'var(--text)')+'">'+dispDate+'</td>'
+      +'<td style="padding:6px 8px;font-weight:'+(isSunday?'900':'700')+';color:'+(isSunday?'#dc2626':'var(--text)')+'">'+(isSunday?'<span style="background:#fee2e2;color:#dc2626;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:800">'+r.day+'</span>':r.day)+'</td>'
       +'<td style="padding:4px 6px;text-align:center"><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="_hrmsInitialIn_'+i+'" value="'+(r.in||'')+'" onkeypress="return event.key.length>1||/^[\\d:]$/.test(event.key)" oninput="_hrmsInitialFieldChange('+i+',\'in\',this.value)" onblur="_hrmsInitialBlurTime('+i+',\'in\',this)" '+disAttr+'></td>'
       +'<td style="padding:4px 6px;text-align:center"><input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" id="_hrmsInitialOut_'+i+'" value="'+(r.out||'')+'" onkeypress="return event.key.length>1||/^[\\d:]$/.test(event.key)" oninput="_hrmsInitialFieldChange('+i+',\'out\',this.value)" onblur="_hrmsInitialBlurTime('+i+',\'out\',this)" '+disAttr+'></td>'
       +'<td id="_hrmsInitStatus_'+i+'" style="padding:6px 8px;text-align:center">'+_hrmsInitialStatusBadge(calc.status)+'</td>'
@@ -4817,15 +4822,16 @@ function _hrmsAttIncludedEmps(yr,mo){
     if(e._isNewEcr) return false;
     var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
     var hasAtt=!!attCodes[_norm(e.empCode)];
-    // Contract / Piece-Rate (or anyone with flat-type that doesn't match
-    // on-roll cleanly): presence in the month is the ONLY gate. Any
-    // punch / manual override flags them as active for that month, no
-    // status / DOJ / dateOfLeft check — matches the abolished-status
-    // policy for C/PR. Also covers employees whose flat employmentType
-    // somehow drifted to an unexpected value but who clearly have
-    // attendance: surface them rather than hide.
-    if(et==='contract'||et==='piecerate') return hasAtt;
-    // On Roll: still gate by DOJ / dateOfLeft + status.
+    // Presence is universal — if there's a punch / alteration / manual
+    // override for this month, the employee shows on the muster
+    // regardless of employmentType, status, DOJ, or dateOfLeft. Any
+    // data the system has must be visible. The on-roll status check
+    // is reserved for the no-presence path so we still surface active
+    // on-roll employees who didn't punch (e.g. manually-paid days).
+    if(hasAtt) return true;
+    // Contract / Piece-Rate without presence: nothing to show.
+    if(et==='contract'||et==='piecerate') return false;
+    // On Roll without presence — gate by DOJ / dateOfLeft + status.
     if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;
     if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;
     if(et==='onroll'){
@@ -4834,10 +4840,7 @@ function _hrmsAttIncludedEmps(yr,mo){
       if(ap&&(ap.status||'Active')!=='Active') return false;
       return true;
     }
-    // Unknown / mistyped employmentType — include if any presence,
-    // regardless of status. Avoids dropping employees whose flat
-    // type field is empty or in an unexpected format.
-    return hasAtt||(e.status||'Active')==='Active';
+    return (e.status||'Active')==='Active';
   });
 }
 
@@ -8558,28 +8561,37 @@ function _hrmsRenderAttGrid(yr,mo){
     altLookup[a.empCode]=a.days||{};
   });
 
-  // Get employees filtered (with DOJ/DOL gate matching button counts)
+  // Get employees filtered. Presence overrides every gate — if there's
+  // any punch / alteration / manual override for this month, the
+  // employee shows on the muster regardless of employmentType, status,
+  // DOJ, or dateOfLeft. The gates only apply on the no-presence path
+  // (so an active on-roll employee with no punches still surfaces a
+  // blank row).
   var mStart=monthKey+'-01',mEnd=monthKey+'-'+String(daysInMonth).padStart(2,'0');
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  var _hasManualPath=function(e){
+    var ex=e&&e.extra||{};
+    return (ex.manualP&&+ex.manualP[monthKey]>0)||(ex.manualPL&&+ex.manualPL[monthKey]>0)||(ex.manualOT&&+ex.manualOT[monthKey]>0)||(ex.manualOTS&&+ex.manualOTS[monthKey]>0);
+  };
   var emps=(DB.hrmsEmployees||[]).filter(function(e){
-    var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
-    var isOnRoll=et==='onroll';
-    var isCPR=et==='contract'||et==='piecerate';
-    if(isOnRoll){
-      // On-Roll: only Present (status='Active'). Check flat AND active period
-      // so a stale flat field doesn't bring a Resigned employee back in.
-      if((e.status||'Active')!=='Active') return false;
-      var _ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
-      if(_ap&&(_ap.status||'Active')!=='Active') return false;
-    } else if(isCPR){
-      // Contract / Piece Rate: include ONLY if attendance exists for this month.
-      if(!lookup[e.empCode]) return false;
-    } else {
-      // Others (e.g. Visitor, unclassified) — legacy behaviour.
-      if(!lookup[e.empCode]&&e.status!=='Active') return false;
+    var hasAtt=!!lookup[e.empCode]||!!altLookup[e.empCode]||_hasManualPath(e);
+    if(!hasAtt){
+      // No-presence path — apply the existing gates.
+      var et=(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+      var isOnRoll=et==='onroll';
+      var isCPR=et==='contract'||et==='piecerate';
+      if(isOnRoll){
+        if((e.status||'Active')!=='Active') return false;
+        var _ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+        if(_ap&&(_ap.status||'Active')!=='Active') return false;
+      } else if(isCPR){
+        return false;// C/PR without presence have nothing to show
+      } else if(e.status!=='Active'){
+        return false;
+      }
+      if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;
+      if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;
     }
-    if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;
-    if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;
     if(fSearch&&((e.empCode||'')+' '+(e.name||'')+' '+_hrmsDispName(e)).toLowerCase().indexOf(fSearch)<0) return false;
     if(fPlant&&e.location!==fPlant) return false;
     if(fCat&&e.category!==fCat) return false;
