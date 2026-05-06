@@ -405,11 +405,12 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter){
       var ecEsc=_esc(e.empCode).replace(/'/g,"\\'");
       var status=(e.status||'Active');
       var stClr=status==='Active'?'#15803d':'#dc2626';
+      var _pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(e.location||''):'#fff';
       rowsHtml+='<tr style="border-bottom:1px solid #f1f5f9">'
         +'<td style="padding:5px 8px;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:800"><a href="javascript:void(0)" onclick="document.getElementById(\'_hrmsMasDetailOverlay\').remove();_hrmsOpenEmpByCode(\''+ecEsc+'\')" style="color:var(--accent);text-decoration:underline" title="View / edit employee">'+_esc(e.empCode)+'</a></td>'
         +'<td style="padding:5px 8px;font-weight:700">'+_esc(e.name||'')+'</td>'
-        +'<td style="padding:5px 8px">'+_esc(e.location||'—')+'</td>'
+        +'<td style="padding:5px 8px;font-weight:700;background:'+_pClr+'">'+_esc(e.location||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(e.employmentType||'—')+'</td>'
         +'<td style="padding:5px 8px;color:'+stClr+';font-weight:700">'+_esc(status)+'</td>'
         +'</tr>';
@@ -4535,8 +4536,100 @@ async function _hrmsAttFetchMonth(monthKey){
     if(altRes.error) console.error('Alt fetch error:',altRes.error.message);
     _hrmsAttCache[monthKey]=(attRes.data||[]).map(function(row){return _fromRow('hrmsAttendance',row);}).filter(Boolean);
     _hrmsAltCache[monthKey]=(altRes.data||[]).map(function(row){return _fromRow('hrmsAlterations',row);}).filter(Boolean);
+    // Self-heal: every approved alteration request stored under
+    // emp.extra.altRequests for this month should have a matching
+    // synthetic row in hrms_alterations. The original approval flow
+    // writes the row, but a transient save failure (network blip,
+    // race condition, multi-level approval that finalised in a
+    // different session) can leave the flag without the row, which
+    // makes the muster + manual-alt page silently miss it. Scan and
+    // patch — additions are persisted in the background.
+    try{
+      _hrmsAltCacheHealApprovedRequests(monthKey);
+    }catch(e){console.warn('Alt cache heal error:',e);}
     return _hrmsAttCache[monthKey];
   }catch(e){hideSpinner();console.error('Att fetch error:',e);return[];}
+}
+
+// Reconcile approved altRequests + used C-Off bank entries with the
+// hrms_alterations table for the month. For every employee with an
+// approved request OR a used C-Off whose target date falls in `mk`,
+// ensure a corresponding day exists in the alteration cache. Persists
+// any missing rows to the DB in the background.
+function _hrmsAltCacheHealApprovedRequests(mk){
+  if(!mk||!Array.isArray(_hrmsAltCache[mk])) return;
+  var byEmp={};
+  (_hrmsAltCache[mk]||[]).forEach(function(r){if(r&&r.empCode) byEmp[r.empCode]=r;});
+  var toSave=[];
+  var ensureRec=function(empCode){
+    var rec=byEmp[empCode];
+    if(!rec){
+      rec={id:'halt'+(typeof uid==='function'?uid():Date.now().toString(36)),empCode:empCode,monthKey:mk,days:{}};
+      _hrmsAltCache[mk].push(rec);
+      byEmp[empCode]=rec;
+    }
+    rec.days=rec.days||{};
+    return rec;
+  };
+  (DB.hrmsEmployees||[]).forEach(function(emp){
+    if(!emp||!emp.empCode) return;
+    var ex=emp.extra||{};
+    // ── Approved alteration requests ──
+    (Array.isArray(ex.altRequests)?ex.altRequests:[]).forEach(function(req){
+      if(!req||req.status!=='approved'||!req.date) return;
+      if(String(req.date).slice(0,7)!==mk) return;
+      var dayKey=String(+String(req.date).slice(8,10));
+      var rec=byEmp[emp.empCode];
+      var existing=rec&&rec.days&&(rec.days[dayKey]||rec.days[String(dayKey).padStart(2,'0')]);
+      if(existing){
+        if(existing.approved===false){existing.approved=true;toSave.push(rec);}
+        return;
+      }
+      rec=ensureRec(emp.empCode);
+      rec.days[dayKey]={
+        'in':req['in']||'',
+        'out':req['out']||'',
+        reason:'['+(req.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch')+'] '+(req.reason||''),
+        _altReq:true,_altReqId:req.id
+      };
+      toSave.push(rec);
+    });
+    // ── Used C-Off bank entries ──
+    // status === 'used' means the C-Off was approved + finalised. The
+    // synthetic alteration row gets IN/OUT mirrored from the earned
+    // day (or 09:00–18:00 fallback). When the row is missing we patch
+    // with the fallback; the original sync function already prefers
+    // the earned-day times, but the heal path can't easily await
+    // _hrmsAttFetchMonth on the earned month so we keep it simple.
+    (Array.isArray(ex.coffBank)?ex.coffBank:[]).forEach(function(c){
+      if(!c||c.status!=='used'||!c.usedForDate) return;
+      if(String(c.usedForDate).slice(0,7)!==mk) return;
+      var dayKey=String(+String(c.usedForDate).slice(8,10));
+      var rec=byEmp[emp.empCode];
+      var existing=rec&&rec.days&&(rec.days[dayKey]||rec.days[String(dayKey).padStart(2,'0')]);
+      if(existing){
+        // Existing row already covers the day — flip approved if it
+        // was set false somewhere along the way.
+        if(existing.approved===false){existing.approved=true;toSave.push(rec);}
+        return;
+      }
+      rec=ensureRec(emp.empCode);
+      rec.days[dayKey]={
+        'in':'09:00','out':'18:00',
+        reason:'C-Off taken against working on '+(c.earnedDate||'—'),
+        _coff:true,coffEarnedDate:(c.earnedDate||'')
+      };
+      toSave.push(rec);
+    });
+  });
+  // Persist patched records in the background.
+  if(toSave.length){
+    var seen={};
+    toSave.forEach(function(rec){
+      if(seen[rec.id]) return;seen[rec.id]=true;
+      try{ _dbSave('hrmsAlterations',rec); }catch(e){console.warn('Alt heal save:',e);}
+    });
+  }
 }
 
 var _hrmsAttCurrentTab='summary';
@@ -4875,11 +4968,12 @@ function _hrmsSummaryShowDetail(kind,team,plant,yr,mo){
   } else {
     matches.forEach(function(e,i){
       var ecEsc=_esc(e.empCode).replace(/'/g,"\\'");
+      var _pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(e.location||''):'#fff';
       rowsHtml+='<tr style="border-bottom:1px solid #f1f5f9">'
         +'<td style="padding:5px 8px;color:var(--text3);font-size:11px">'+(i+1)+'</td>'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:800"><a href="javascript:void(0)" onclick="document.getElementById(\'_hrmsSumDetailOverlay\').remove();_hrmsOpenEmpByCode(\''+ecEsc+'\')" style="color:var(--accent);text-decoration:underline" title="View / edit employee">'+_esc(e.empCode)+'</a></td>'
         +'<td style="padding:5px 8px;font-weight:700">'+_esc(e.name||'')+'</td>'
-        +'<td style="padding:5px 8px">'+_esc(e.location||'—')+'</td>'
+        +'<td style="padding:5px 8px;font-weight:700;background:'+_pClr+'">'+_esc(e.location||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(e.category||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(e.teamName||'—')+'</td>'
         +'</tr>';
@@ -9048,25 +9142,37 @@ function _hrmsAttExportSummary(){
 
   var _otR=_hrmsGetOtRules(mk);
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX_PER_MONTH=_otR.elMaxPerMonth;
-  // Mirror the on-screen P&OT filter exactly: active AND actually present
-  // at least once this month. Manual overrides flow through after the
-  // attendance-derived totals so an emp with no punches but a manual
-  // override entry still surfaces here.
-  var hasManual=function(emp,mk){
+  // Mirror the on-screen P&OT filter exactly:
+  //   - presence helper = manualP / manualOT / manualOTS only (PL is not
+  //     a P&OT column, so its presence shouldn't pull a row in)
+  //   - status check applies ONLY to on-roll employees (Contract /
+  //     Piece-Rate skip status per the abolished-status policy)
+  //   - codes are seeded from attendance + manual-override emps so the
+  //     export count matches the table count exactly
+  var hasManualP_ot=function(emp){
     var ex=emp.extra||{};
     return (ex.manualP&&ex.manualP[mk]!==undefined)
-      ||(ex.manualPL&&ex.manualPL[mk]!==undefined)
       ||(ex.manualOT&&ex.manualOT[mk]!==undefined)
       ||(ex.manualOTS&&ex.manualOTS[mk]!==undefined);
   };
-  var emps=(DB.hrmsEmployees||[]).filter(function(e){
-    if((e.status||'Active')!=='Active') return false;
+  var empMapPot={};(DB.hrmsEmployees||[]).forEach(function(e){empMapPot[e.empCode]=e;});
+  var allCodesPot={};
+  attRecords.forEach(function(a){allCodesPot[a.empCode]=true;});
+  (DB.hrmsEmployees||[]).forEach(function(e){if(e&&hasManualP_ot(e)) allCodesPot[e.empCode]=true;});
+  var emps=Object.keys(allCodesPot).map(function(ec){
+    return empMapPot[ec]||{empCode:ec,name:'Employee NA',location:'',employmentType:'',category:'',teamName:'',department:'',_unmatched:true};
+  }).filter(function(e){
+    if(e._unmatched) return false;
+    var _et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    if(_et==='onroll'){
+      if((e.status||'Active')!=='Active') return false;
+    }
     var days=lookup[e.empCode]||{};
     var anyPunch=Object.keys(days).some(function(d){
       var v=days[d];
       return v&&(v['in']||v['out']);
     });
-    return anyPunch||hasManual(e,mk);
+    return anyPunch||hasManualP_ot(e);
   }).sort(function(a,b){
     var typeOrder={'on roll':0,'onroll':0,'contract':1,'piece rate':2,'piecerate':2};
     var catOrder={'staff':0,'worker':1,'security':2};
@@ -9840,6 +9946,12 @@ function _hrmsRenderAltManualList(){
   var el=document.getElementById('hrmsAltManualList');if(!el) return;
   var mk=_hrmsMonth;
   if(!mk){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Select a month above.</div>';return;}
+  // If neither cache is loaded for this month, prefetch then re-render.
+  // Approved alteration requests + C-Off approvals write to
+  // hrms_alterations; without a fresh fetch the list misses them.
+  if((!_hrmsAttCache[mk]||!_hrmsAltCache[mk])&&typeof _hrmsAttFetchMonth==='function'){
+    _hrmsAttFetchMonth(mk).then(function(){_hrmsRenderAltManualList();}).catch(function(e){console.warn('Alt list prefetch failed:',e);});
+  }
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
   var rows=[];
   // 1. Manual / imported / C-Off / approved-request alterations.
@@ -11410,8 +11522,18 @@ async function _hrmsSaveMonthData(mk){
   });
 
   // ── 3. Build _meta row (statutory, calendar)
+  // Include all rate %s, PL rules, and the 9 ESI/PF Basic+DA formulas so a
+  // locked month is fully self-contained — re-rendering the ESI/PF list or
+  // Contract Salary for a locked month uses the exact rates and formulas
+  // that were live at lock-time, not whatever Settings says today.
   var statSnap={};
-  ['pfWorker','pfCompany','pfThreshold','esiWorker','esiThreshold','plStaffJunior','plStaffSenior','plWorker','plSeniorMonths'].forEach(function(k){
+  [
+    'pfWorker','pfCompany','esiWorker','esiCompany',
+    'plStaffJunior','plStaffSenior','plWorker','plSeniorMonths',
+    'formulaPayableDays','formulaBasicDaPf','formulaBasicDaEsi',
+    'formulaPayableDaysStaff','formulaBasicDaPfStaff','formulaBasicDaEsiStaff',
+    'formulaPayableDaysContract','formulaBasicDaPfContract','formulaBasicDaEsiContract'
+  ].forEach(function(k){
     statSnap[k]=_hrmsStatutory[k];
   });
   statSnap.ptRules=JSON.parse(JSON.stringify(_hrmsStatutory.ptRules||[]));
@@ -12173,9 +12295,28 @@ async function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
 
 // ═══ STATUTORY SETTINGS ══════════════════════════════════════════════════
 var _hrmsStatutory={
-  pfWorker:12,pfCompany:13,pfThreshold:21000,
-  esiWorker:0.75,esiCompany:3.25,esiThreshold:21000,
+  pfWorker:12,pfCompany:13,
+  esiWorker:0.75,esiCompany:3.25,
   plStaffSenior:18,plStaffJunior:1.5,plWorker:1.5,plSeniorMonths:60,
+  // Salary calculation formulas. Three independent sets — Worker (the
+  // default; also applies to Security category), Staff, and Contract.
+  // Variables exposed to the evaluator:
+  //   GS = Gross Salary, TD = Total Days (W+PH), P = Present, PL = Paid Leave (incl. PH)
+  //   PD = Payable Days (output of formula 1; available in formulas 2 & 3)
+  // Functions: if, floor, ceiling, round, min, max  (Excel-style)
+  // Blank value → fall back to built-in default in the ESI/PF list.
+  // Worker (existing keys; covers Worker + Security categories on-roll)
+  formulaPayableDays:'',
+  formulaBasicDaPf:'',
+  formulaBasicDaEsi:'',
+  // Staff (on-roll, category = Staff)
+  formulaPayableDaysStaff:'',
+  formulaBasicDaPfStaff:'',
+  formulaBasicDaEsiStaff:'',
+  // Contract (Contract / Piece Rate employees — Contract Salary view)
+  formulaPayableDaysContract:'',
+  formulaBasicDaPfContract:'',
+  formulaBasicDaEsiContract:'',
   ptRules:[
     {amount:0,op:'lt',threshold:25000,gender:'Female',month:'',remark:'Gross < 25000 (Women only)'},
     {amount:0,op:'lt',threshold:7500,gender:'',month:'',remark:'Gross < 7500'},
@@ -12361,14 +12502,21 @@ function _hrmsLoadStatutory(){
     var d=rec.data;
     if(d.pfWorker!==undefined) _hrmsStatutory.pfWorker=d.pfWorker;
     if(d.pfCompany!==undefined) _hrmsStatutory.pfCompany=d.pfCompany;
-    if(d.pfThreshold!==undefined) _hrmsStatutory.pfThreshold=d.pfThreshold;
     if(d.esiWorker!==undefined) _hrmsStatutory.esiWorker=d.esiWorker;
     if(d.esiCompany!==undefined) _hrmsStatutory.esiCompany=d.esiCompany;
-    if(d.esiThreshold!==undefined) _hrmsStatutory.esiThreshold=d.esiThreshold;
     if(d.plStaffSenior!==undefined) _hrmsStatutory.plStaffSenior=d.plStaffSenior;
     if(d.plStaffJunior!==undefined) _hrmsStatutory.plStaffJunior=d.plStaffJunior;
     if(d.plWorker!==undefined) _hrmsStatutory.plWorker=d.plWorker;
     if(d.plSeniorMonths!==undefined) _hrmsStatutory.plSeniorMonths=d.plSeniorMonths;
+    if(d.formulaPayableDays!==undefined) _hrmsStatutory.formulaPayableDays=d.formulaPayableDays||'';
+    if(d.formulaBasicDaPf!==undefined) _hrmsStatutory.formulaBasicDaPf=d.formulaBasicDaPf||'';
+    if(d.formulaBasicDaEsi!==undefined) _hrmsStatutory.formulaBasicDaEsi=d.formulaBasicDaEsi||'';
+    if(d.formulaPayableDaysStaff!==undefined) _hrmsStatutory.formulaPayableDaysStaff=d.formulaPayableDaysStaff||'';
+    if(d.formulaBasicDaPfStaff!==undefined) _hrmsStatutory.formulaBasicDaPfStaff=d.formulaBasicDaPfStaff||'';
+    if(d.formulaBasicDaEsiStaff!==undefined) _hrmsStatutory.formulaBasicDaEsiStaff=d.formulaBasicDaEsiStaff||'';
+    if(d.formulaPayableDaysContract!==undefined) _hrmsStatutory.formulaPayableDaysContract=d.formulaPayableDaysContract||'';
+    if(d.formulaBasicDaPfContract!==undefined) _hrmsStatutory.formulaBasicDaPfContract=d.formulaBasicDaPfContract||'';
+    if(d.formulaBasicDaEsiContract!==undefined) _hrmsStatutory.formulaBasicDaEsiContract=d.formulaBasicDaEsiContract||'';
     if(d.ptRules) _hrmsStatutory.ptRules=d.ptRules;
   }
   _hrmsStatutoryToUI();
@@ -12379,14 +12527,21 @@ function _hrmsStatutoryToUI(){
   var el=function(id){return document.getElementById(id);};
   if(el('hrmsPfWorker')) el('hrmsPfWorker').value=s.pfWorker;
   if(el('hrmsPfCompany')) el('hrmsPfCompany').value=s.pfCompany;
-  if(el('hrmsPfThreshold')) el('hrmsPfThreshold').value=s.pfThreshold;
   if(el('hrmsEsiWorker')) el('hrmsEsiWorker').value=s.esiWorker;
   if(el('hrmsEsiCompany')) el('hrmsEsiCompany').value=s.esiCompany;
-  if(el('hrmsEsiThreshold')) el('hrmsEsiThreshold').value=s.esiThreshold;
   if(el('hrmsPLStaffSenior')) el('hrmsPLStaffSenior').value=s.plStaffSenior;
   if(el('hrmsPLStaffJunior')) el('hrmsPLStaffJunior').value=s.plStaffJunior;
   if(el('hrmsPLWorker')) el('hrmsPLWorker').value=s.plWorker;
   if(el('hrmsPLSeniorMonths')) el('hrmsPLSeniorMonths').value=s.plSeniorMonths;
+  if(el('hrmsFormulaPayableDays')) el('hrmsFormulaPayableDays').value=s.formulaPayableDays||'';
+  if(el('hrmsFormulaBasicDaPf')) el('hrmsFormulaBasicDaPf').value=s.formulaBasicDaPf||'';
+  if(el('hrmsFormulaBasicDaEsi')) el('hrmsFormulaBasicDaEsi').value=s.formulaBasicDaEsi||'';
+  if(el('hrmsFormulaPayableDaysStaff')) el('hrmsFormulaPayableDaysStaff').value=s.formulaPayableDaysStaff||'';
+  if(el('hrmsFormulaBasicDaPfStaff')) el('hrmsFormulaBasicDaPfStaff').value=s.formulaBasicDaPfStaff||'';
+  if(el('hrmsFormulaBasicDaEsiStaff')) el('hrmsFormulaBasicDaEsiStaff').value=s.formulaBasicDaEsiStaff||'';
+  if(el('hrmsFormulaPayableDaysContract')) el('hrmsFormulaPayableDaysContract').value=s.formulaPayableDaysContract||'';
+  if(el('hrmsFormulaBasicDaPfContract')) el('hrmsFormulaBasicDaPfContract').value=s.formulaBasicDaPfContract||'';
+  if(el('hrmsFormulaBasicDaEsiContract')) el('hrmsFormulaBasicDaEsiContract').value=s.formulaBasicDaEsiContract||'';
   _hrmsRenderPtRules();
 }
 
@@ -12425,14 +12580,43 @@ async function _hrmsSaveStatutory(){
   var s=_hrmsStatutory;
   s.pfWorker=parseFloat(document.getElementById('hrmsPfWorker').value)||0;
   s.pfCompany=parseFloat(document.getElementById('hrmsPfCompany').value)||0;
-  s.pfThreshold=parseFloat(document.getElementById('hrmsPfThreshold').value)||0;
   s.esiWorker=parseFloat(document.getElementById('hrmsEsiWorker').value)||0;
   s.esiCompany=parseFloat(document.getElementById('hrmsEsiCompany').value)||0;
-  s.esiThreshold=parseFloat(document.getElementById('hrmsEsiThreshold').value)||0;
   s.plStaffSenior=parseFloat(document.getElementById('hrmsPLStaffSenior').value)||0;
   s.plStaffJunior=parseFloat(document.getElementById('hrmsPLStaffJunior').value)||0;
   s.plWorker=parseFloat(document.getElementById('hrmsPLWorker').value)||0;
   s.plSeniorMonths=parseFloat(document.getElementById('hrmsPLSeniorMonths').value)||0;
+  var _fEl;
+  _fEl=document.getElementById('hrmsFormulaPayableDays');         if(_fEl) s.formulaPayableDays         =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaPf');           if(_fEl) s.formulaBasicDaPf           =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaEsi');          if(_fEl) s.formulaBasicDaEsi          =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaPayableDaysStaff');    if(_fEl) s.formulaPayableDaysStaff    =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaPfStaff');      if(_fEl) s.formulaBasicDaPfStaff      =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaEsiStaff');     if(_fEl) s.formulaBasicDaEsiStaff     =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaPayableDaysContract'); if(_fEl) s.formulaPayableDaysContract =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaPfContract');   if(_fEl) s.formulaBasicDaPfContract   =(_fEl.value||'').trim();
+  _fEl=document.getElementById('hrmsFormulaBasicDaEsiContract');  if(_fEl) s.formulaBasicDaEsiContract  =(_fEl.value||'').trim();
+  // Validate formulas (non-blank ones must compile + run on a probe).
+  // PD is part of the probe so formulas that legitimately reference it
+  // (formulas 2 & 3) don't fail validation.
+  var _probe={GS:18000,TD:26,P:25,PL:1,PD:25};
+  var _checks=[
+    ['Worker · Payable Days',           s.formulaPayableDays],
+    ['Worker · Basic + DA (PF) Capped', s.formulaBasicDaPf],
+    ['Worker · Basic + DA (ESI)',       s.formulaBasicDaEsi],
+    ['Staff · Payable Days',            s.formulaPayableDaysStaff],
+    ['Staff · Basic + DA (PF) Capped',  s.formulaBasicDaPfStaff],
+    ['Staff · Basic + DA (ESI)',        s.formulaBasicDaEsiStaff],
+    ['Contract · Payable Days',         s.formulaPayableDaysContract],
+    ['Contract · Basic + DA (PF) Capped', s.formulaBasicDaPfContract],
+    ['Contract · Basic + DA (ESI)',     s.formulaBasicDaEsiContract]
+  ];
+  for(var i=0;i<_checks.length;i++){
+    var nm=_checks[i][0], expr=_checks[i][1];
+    if(!expr) continue;
+    var v=_hrmsEvalFormula(expr,_probe);
+    if(v===null){ notify('Invalid formula for "'+nm+'". Please fix before saving.',true); return; }
+  }
   // ptRules already updated via onchange
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='statutory';});
   if(rec){
@@ -12447,6 +12631,11 @@ async function _hrmsSaveStatutory(){
   var st=document.getElementById('hrmsStatSaveStatus');
   if(st){st.textContent='✅ Saved';st.style.color='#16a34a';setTimeout(function(){st.textContent='';},3000);}
   notify('✅ Statutory settings saved');
+  // If the ESI/PF list has already been rendered this session, refresh it
+  // so any formula change takes effect without forcing a tab round-trip.
+  if(typeof _hrmsRenderEsiPfList==='function' && document.getElementById('hrmsEsiPfGrid')){
+    try{ _hrmsRenderEsiPfList(); }catch(e){}
+  }
 }
 
 // _hrmsCalcPT is in hrms-logic.js
@@ -12743,7 +12932,8 @@ function _hrmsTdsRender(){
     var nm=_hrmsDispName(e);
     h+='<tr><td style="'+_th+';font-family:var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" data-emp-code="'+e.empCode+'" title="Click to view employee">'+e.empCode+'</td>';
     h+='<td style="'+_th+';'+_ov+'" title="'+nm+'">'+nm+'</td>';
-    h+='<td style="'+_th+';font-size:11px;color:var(--text3);'+_ov+'" title="'+(e.location||'')+'">'+(e.location||'—')+'</td>';
+    var _pClrT=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(e.location||''):'#fff';
+    h+='<td style="'+_th+';font-size:11px;font-weight:700;background:'+_pClrT+';'+_ov+'" title="'+(e.location||'')+'">'+(e.location||'—')+'</td>';
     h+='<td style="'+_th+';text-align:right;font-family:var(--mono);font-weight:700">'+Math.round(amt).toLocaleString()+'</td>';
     h+='<td style="padding:3px 4px;border:1px solid var(--border);text-align:center"><button onclick="_hrmsTdsRemove(\''+e.empCode+'\')" style="font-size:9px;padding:2px 5px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer">✕</button></td></tr>';
   });
@@ -13017,6 +13207,61 @@ function _hrmsPayExportGen(payDate){
 }
 
 // ═══ ESI/PF LIST TAB ═════════════════════════════════════════════════════
+// ─── Formula evaluator (Settings → Statutory) ──────────────────────────────
+// Variables (case-insensitive):
+//   GS = Gross Salary, TD = Total Days (W+PH), P = Present, PL = Paid Leave (incl. PH),
+//   PD = Payable Days (output of formula 1; available inside formulas 2 & 3).
+// Functions: if(cond, then, else), floor(x [, significance]) (Excel-style),
+//            ceiling(x [, significance]) (Excel-style), round(x [, digits]),
+//            min(...), max(...).
+// Operators: + - * / ( ) < > <= >= == != && ||
+// Returns null on parse / runtime error so callers can fall back safely.
+function _hrmsEvalFormula(expr, ctx){
+  if(expr===null||expr===undefined) return null;
+  var src=String(expr).trim();
+  if(!src) return null;
+  // Reject anything that isn't formula-shaped to keep new Function() safe.
+  // Allowed: digits, dot, whitespace, identifiers (a-z), + - * / ( ) , < > = ! & |
+  if(/[^A-Za-z0-9_.,+\-*/()\s<>=!&|]/.test(src)) return null;
+  try{
+    var s=src;
+    // Normalise function names
+    s=s.replace(/\bif\s*\(/gi,'__IF(');
+    s=s.replace(/\bfloor\s*\(/gi,'__FLOOR(');
+    s=s.replace(/\bceiling\s*\(/gi,'__CEILING(');
+    s=s.replace(/\bround\s*\(/gi,'__ROUND(');
+    s=s.replace(/\bmin\s*\(/gi,'__MIN(');
+    s=s.replace(/\bmax\s*\(/gi,'__MAX(');
+    // Substitute variables. Longer names first; PD before P so the leading P
+    // in "PD" doesn't get mistakenly captured (\b boundaries already prevent
+    // this, but order keeps the regex passes minimal).
+    s=s.replace(/\bGS\b/gi,'($GS)');
+    s=s.replace(/\bTD\b/gi,'($TD)');
+    s=s.replace(/\bPL\b/gi,'($PL)');
+    s=s.replace(/\bPD\b/gi,'($PD)');
+    s=s.replace(/\bP\b/gi,'($P)');
+    var fn=new Function('$GS','$TD','$P','$PL','$PD','__IF','__FLOOR','__CEILING','__ROUND','__MIN','__MAX','return ('+s+');');
+    var v=fn(
+      Number(ctx&&ctx.GS)||0,
+      Number(ctx&&ctx.TD)||0,
+      Number(ctx&&ctx.P)||0,
+      Number(ctx&&ctx.PL)||0,
+      Number(ctx&&ctx.PD)||0,
+      function(c,a,b){return c?a:b;},
+      // Excel-style FLOOR: 1 arg = floor to integer; 2 args = floor to nearest multiple of sig.
+      function(n,sig){return (sig===undefined||sig===null||+sig===0)?Math.floor(n):Math.floor(n/sig)*sig;},
+      // Excel-style CEILING: same shape but rounds up.
+      function(n,sig){return (sig===undefined||sig===null||+sig===0)?Math.ceil(n):Math.ceil(n/sig)*sig;},
+      function(n,d){d=d||0;var f=Math.pow(10,d);return Math.round(n*f)/f;},
+      Math.min,
+      Math.max
+    );
+    return (typeof v==='number'&&isFinite(v))?v:null;
+  }catch(e){
+    return null;
+  }
+}
+
 function _hrmsRenderEsiPfList(){
   var el=document.getElementById('hrmsEsiPfGrid');if(!el)return;
   var mk=_hrmsMonth;
@@ -13024,32 +13269,104 @@ function _hrmsRenderEsiPfList(){
   var details=window._hrmsSalDetails||{};
   if(!Object.keys(details).length){el.innerHTML='<div class="empty-state">No salary data. Open Salary tab first.</div>';return;}
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  // Statutory formula sets — Worker (default + Security), Staff. Contract
+  // formulas exist but contract employees aren't in this list (they're
+  // only computed in the Contract Salary view).
+  var fSetW={
+    pay:(_hrmsStatutory.formulaPayableDays||'').trim(),
+    pf :(_hrmsStatutory.formulaBasicDaPf  ||'').trim(),
+    esi:(_hrmsStatutory.formulaBasicDaEsi ||'').trim()
+  };
+  var fSetS={
+    pay:(_hrmsStatutory.formulaPayableDaysStaff||'').trim(),
+    pf :(_hrmsStatutory.formulaBasicDaPfStaff  ||'').trim(),
+    esi:(_hrmsStatutory.formulaBasicDaEsiStaff ||'').trim()
+  };
+  // Statutory rates. The list table's last two columns (PF / ESI) show the
+  // WORKER contribution per row. Summary card lines display worker AND
+  // company aggregates, both pulled directly from Statutory and recomputed
+  // on the aggregate Basic+DA / Basic+DA(ESI) so they stay in lockstep
+  // with the settings.
+  var pfWorkerPct =_hrmsStatutory.pfWorker ||12;
+  var pfCompPct   =_hrmsStatutory.pfCompany||13;
+  var esiWorkerPct=_hrmsStatutory.esiWorker||0.75;
+  var esiCompPct  =_hrmsStatutory.esiCompany||3.25;
+  // Per-row column rates = Worker side.
+  var pfPct  =pfWorkerPct;
+  var esiPct =esiWorkerPct;
+  var esiCompPctG=esiCompPct;
+  var pfCompPctG =pfCompPct;
   var rows=[];
   Object.keys(details).forEach(function(code){
     var d=details[code];var emp=empMap[code];if(!emp)return;
     if((emp.employmentType||'').toLowerCase().replace(/\s/g,'')!=='onroll') return;
     var gross=Math.round(d.gross||0);if(gross<=0)return;
     var cat=(d.category||emp.category||'').toLowerCase();
+    // Pick formula set per category. Staff → Staff set; everyone else
+    // (Worker, Security) falls under the Worker / default set.
+    var fSet=(cat==='staff')?fSetS:fSetW;
+    var fPay=fSet.pay, fPf=fSet.pf, fEsi=fSet.esi;
     var wdPh=(d.wdCount||0)+(d.phCount||0);
-    // Basic + DA: gs>19000→15000; gs<15000→gs; else 15000/(W+PH)*(P+PL+PH)
-    var pPLPH=(d.totalP||0)+(d.totalPL||0)+(d.phCount||0);
+    // Formula context. PL here is "incl. paid holidays" per Settings copy.
+    // d.totalPL already bundles PH (= plGiven + phCount when present), so we
+    // pass it through directly rather than adding phCount on top — adding
+    // would double-count PH for any present employee.
+    // PD (Payable Days) is filled below — formula 1 computes it first so
+    // formulas 2 & 3 can reference it.
+    var ctx={GS:gross, TD:wdPh, P:(d.totalP||0), PL:(d.totalPL||0), PD:0};
+    var pPLPH=ctx.P+ctx.PL;  // = totalP + totalPL  (totalPL already incl. PH)
+    // Built-in tentative basicDA — used for the PD fallback (when formula 1
+    // is blank) and as the basicDA fallback (when formula 2 is blank).
+    var basicDaTmp;
+    if(gross>19000) basicDaTmp=15000;
+    else if(gross<15000) basicDaTmp=gross;
+    else basicDaTmp=wdPh>0?Math.round(15000/wdPh*pPLPH):0;
+    // Step 1 — Payable Days. Formula 1 cannot reference PD (it is the result).
+    var payableDays;
+    if(fPay){
+      var v3=_hrmsEvalFormula(fPay,ctx);
+      payableDays=v3!==null?v3:0;
+    } else {
+      payableDays=wdPh>0?Math.round(basicDaTmp*wdPh/15000*2)/2:0;
+    }
+    ctx.PD=payableDays;
+    // Step 2 — Basic + DA (PF) Capped. PD now available to the formula.
+    // Don't pre-round; the display layer rounds for the cell, while the
+    // raw value flows into PF / OT-Allowance derivation at full precision.
     var basicDA;
-    if(gross>19000) basicDA=15000;
-    else if(gross<15000) basicDA=gross;
-    else basicDA=wdPh>0?Math.round(15000/wdPh*pPLPH):0;
+    if(fPf){
+      var v=_hrmsEvalFormula(fPf,ctx);
+      basicDA=v!==null?v:0;
+    } else {
+      basicDA=basicDaTmp;
+    }
     var otAllow=gross-basicDA;
-    // Payable Days = MROUND(basicDA*(W+PH)/15000, 0.5)
-    var payableDays=wdPh>0?Math.round(basicDA*wdPh/15000*2)/2:0;
-    var esi=Math.round(d.dedESI||0);
-    var pf=Math.round(d.dedPF||0);
+    // Step 3 — Basic + DA (ESI). Formula only; null when not configured.
+    var basicDaEsi=null;
+    if(fEsi){
+      var v2=_hrmsEvalFormula(fEsi,ctx);
+      basicDaEsi=v2!==null?v2:0;
+    }
+    var otherAllow=basicDaEsi!==null?gross-basicDaEsi:null;
+    // PF / ESI amounts — per Settings → Statutory spec:
+    //   PF  = Basic+DA(PF) Capped × pfWorker%, rounded to nearest integer.
+    //   ESI = Basic+DA(ESI) × esiWorker%, rounded UP (ceiling).
+    //         (Threshold gating is the formula's job, e.g. if(GS>21000, 0, GS).)
+    //   Blank formula → fall back to engine value (d.dedPF / d.dedESI).
+    var pf  = fPf  ? Math.round(basicDA*pfPct/100) : Math.round(d.dedPF||0);
+    var esi = fEsi
+      ? (basicDaEsi!==null ? Math.ceil(basicDaEsi*esiPct/100) : 0)
+      : Math.round(d.dedESI||0);
     var _lName=emp.lastName||'',_fName=emp.firstName||'',_mName=emp.middleName||'';
     var nameLFM=[_lName,_fName,_mName].filter(Boolean).join(' ');
     var nameFL=[_fName,_lName].filter(Boolean).join(' ');
-    var pfComp=Math.round(basicDA*(_hrmsStatutory.pfCompany||13)/100);
-    var esiComp=esi>0?Math.round(gross*(_hrmsStatutory.esiCompany||3.25)/100):0;
-    rows.push({code:code,nameLFM:nameLFM,nameFL:nameFL,pfComp:pfComp,esiComp:esiComp,
+    // PF / ESI company aggregates are computed once on the aggregate
+    // Basic + DA / Basic + DA (ESI) after the loop — see sumPfComp /
+    // sumEsiComp below — so no per-row company values here.
+    rows.push({code:code,nameLFM:nameLFM,nameFL:nameFL,
       uan:emp.uan||'',esiNo:emp.esiNo||'',pfNo:emp.pfNo||'',payableDays:payableDays,
-      basicDA:basicDA,otAllow:otAllow,gross:gross,esi:esi,pf:pf,cat:cat,sortKey:cat==='worker'?0:1});
+      basicDA:basicDA,otAllow:otAllow,basicDaEsi:basicDaEsi,otherAllow:otherAllow,
+      gross:gross,esi:esi,pf:pf,cat:cat,sortKey:cat==='worker'?0:1});
   });
   rows.sort(function(a,b){if(a.sortKey!==b.sortKey)return a.sortKey-b.sortKey;return a.nameLFM.localeCompare(b.nameLFM);});
   if(!rows.length){el.innerHTML='<div class="empty-state">No On Roll employees with salary for this month</div>';return;}
@@ -13057,15 +13374,28 @@ function _hrmsRenderEsiPfList(){
   var _f=function(v){if(v%1===0)return String(v);return v.toFixed(1);};
   var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var p=mk.split('-');var monthLabel=_mn[+p[1]]+' '+p[0];
-  // Summary totals
-  var sumBasicDA=0,sumGross=0,sumPfEmp=0,sumEsiEmp=0,sumPfComp=0,sumEsiComp=0;
-  rows.forEach(function(r){sumBasicDA+=r.basicDA;sumGross+=r.gross;sumPfEmp+=r.pf;sumEsiEmp+=r.esi;sumPfComp+=r.pfComp;sumEsiComp+=r.esiComp;});
-  var pfWorkerPct=_hrmsStatutory.pfWorker||12;
-  var pfCompPct=_hrmsStatutory.pfCompany||13;
-  var esiWorkerPct=_hrmsStatutory.esiWorker||0.75;
-  var esiCompPct=_hrmsStatutory.esiCompany||3.25;
-  var _th='padding:5px 4px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b;text-align:center';
+  // Summary totals — aggregate Basic+DA / Basic+DA(ESI) / Gross plus the
+  // ESI worker column sum (so the summary's "ESI @ x%" matches the column
+  // tfoot exactly). PF / ESI company values are recomputed directly off the
+  // aggregates × the Statutory %s so they stay in lockstep with Settings.
+  var sumBasicDA=0,sumGross=0,sumBasicDaEsi=0,sumEsiCol=0;
+  rows.forEach(function(r){sumBasicDA+=r.basicDA;sumGross+=r.gross;sumEsiCol+=r.esi||0;
+    if(r.basicDaEsi!==null) sumBasicDaEsi+=r.basicDaEsi;});
+  // Aggregate PF / ESI — directly tied to Statutory percentages.
+  var sumPfEmp  =Math.round(sumBasicDA   *pfWorkerPct /100);
+  var sumPfComp =Math.round(sumBasicDA   *pfCompPct   /100);
+  var sumEsiEmp =sumEsiCol;  // matches tfoot column total
+  var sumEsiComp=Math.ceil(sumBasicDaEsi *esiCompPct  /100);
+  var _th='padding:5px 4px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:normal;word-break:break-word;line-height:1.2;color:#1e293b;text-align:center;vertical-align:bottom';
   var _td='padding:4px 5px;font-size:12px;border:1px solid #e2e8f0;white-space:nowrap';
+  // Group highlight backgrounds — purple-tint for PF columns (Basic+DA(PF) Capped + PF @ x%),
+  // pink-tint for ESI columns (Basic+DA(ESI) + ESI @ x%). Matches the summary cards.
+  var _bgPf ='background:#faf5ff';
+  var _bgEsi='background:#fef2f2';
+  var _thPf =_th+';'+_bgPf;
+  var _thEsi=_th+';'+_bgEsi;
+  var _tdPf =_td+';'+_bgPf;
+  var _tdEsi=_td+';'+_bgEsi;
   // Sticky summary header with export button
   var h='<div style="position:sticky;top:0;z-index:3;background:#fff;padding-bottom:8px">';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:13px;font-weight:800;color:var(--text)">ESI / PF List \u2014 '+monthLabel+' ('+rows.length+' employees)</div><div style="margin-left:auto"><button onclick="_hrmsEsiPfExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div></div>';
@@ -13080,7 +13410,7 @@ function _hrmsRenderEsiPfList(){
   h+='</div>';
   // ESI card
   h+='<div style="border:1.5px solid #fecaca;border-radius:8px;background:#fef2f2;padding:8px 14px;min-width:220px">';
-  h+='<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:4px"><span style="font-size:11px;font-weight:700;color:var(--text2)">Gross Salary</span><span style="font-size:13px;font-weight:900;font-family:var(--mono)">'+_r(sumGross)+'</span></div>';
+  h+='<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:4px"><span style="font-size:11px;font-weight:700;color:var(--text2)">Basic + DA (ESI)</span><span style="font-size:13px;font-weight:900;font-family:var(--mono)">'+_r(sumBasicDaEsi)+'</span></div>';
   h+='<div style="display:flex;justify-content:space-between;gap:16px"><span style="font-size:11px;font-weight:700;color:#dc2626">ESI @ '+esiWorkerPct+'%</span><span style="font-size:13px;font-weight:800;font-family:var(--mono);color:#dc2626">'+_r(sumEsiEmp)+'</span></div>';
   h+='<div style="display:flex;justify-content:space-between;gap:16px"><span style="font-size:11px;font-weight:700;color:#dc2626">ESI @ '+esiCompPct+'%</span><span style="font-size:13px;font-weight:800;font-family:var(--mono);color:#dc2626">'+_r(sumEsiComp)+'</span></div>';
   h+='<div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;padding-top:4px;border-top:2px solid #dc2626"><span style="font-size:12px;font-weight:900;color:#dc2626">ESI</span><span style="font-size:15px;font-weight:900;font-family:var(--mono);color:#dc2626">'+_r(sumEsiEmp+sumEsiComp)+'</span></div>';
@@ -13094,14 +13424,15 @@ function _hrmsRenderEsiPfList(){
   h+='<th style="'+_th+'">UAN No.</th>';
   h+='<th style="'+_th+'">ESI No.</th>';
   h+='<th style="'+_th+'">PF No.</th>';
-  h+='<th style="'+_th+';text-align:right">Payable Days</th>';
-  h+='<th style="'+_th+';text-align:right">Basic + DA</th>';
-  h+='<th style="'+_th+';text-align:right">OT + Allowance</th>';
   h+='<th style="'+_th+';text-align:right">Gross Salary</th>';
-  h+='<th style="'+_th+';text-align:right">ESI @ '+(_hrmsStatutory.esiWorker||0.75)+'%</th>';
-  h+='<th style="'+_th+';text-align:right">PF @ '+(_hrmsStatutory.pfWorker||12)+'%</th>';
+  h+='<th style="'+_th+';text-align:right">Payable Days</th>';
+  h+='<th style="'+_thPf+';text-align:right">Basic + DA (PF) Capped</th>';
+  h+='<th style="'+_thEsi+';text-align:right">Basic + DA (ESI)</th>';
+  h+='<th style="'+_thEsi+';text-align:right">ESI @ '+esiWorkerPct+'%</th>';
+  h+='<th style="'+_thPf+';text-align:right">PF @ '+pfWorkerPct+'%</th>';
   h+='</tr></thead><tbody>';
-  var totals={payableDays:0,basicDA:0,otAllow:0,gross:0,esi:0,pf:0};
+  var totals={payableDays:0,basicDA:0,gross:0,basicDaEsi:0,esi:0,pf:0};
+  var anyEsi=rows.some(function(r){return r.basicDaEsi!==null;});
   var prevCat='';var sn=0;
   rows.forEach(function(r,i){
     if(prevCat!==''&&r.cat!==prevCat){
@@ -13116,24 +13447,29 @@ function _hrmsRenderEsiPfList(){
     h+='<td style="'+_td+';font-family:var(--mono);text-align:center">'+r.uan+'</td>';
     h+='<td style="'+_td+';font-family:var(--mono);text-align:center">'+r.esiNo+'</td>';
     h+='<td style="'+_td+';font-family:var(--mono);text-align:center">'+r.pfNo+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_f(r.payableDays)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_r(r.basicDA)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_r(r.otAllow)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:700">'+_r(r.gross)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_r(r.esi)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_r(r.pf)+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono)">'+_f(r.payableDays)+'</td>';
+    h+='<td style="'+_tdPf+';text-align:right;font-family:var(--mono)">'+_r(r.basicDA)+'</td>';
+    h+='<td style="'+_tdEsi+';text-align:right;font-family:var(--mono)">'+(r.basicDaEsi!==null?_r(r.basicDaEsi):'')+'</td>';
+    h+='<td style="'+_tdEsi+';text-align:right;font-family:var(--mono)">'+_r(r.esi)+'</td>';
+    h+='<td style="'+_tdPf+';text-align:right;font-family:var(--mono)">'+_r(r.pf)+'</td>';
     h+='</tr>';
-    totals.payableDays+=r.payableDays;totals.basicDA+=r.basicDA;totals.otAllow+=r.otAllow;totals.gross+=r.gross;totals.esi+=r.esi;totals.pf+=r.pf;
+    totals.payableDays+=r.payableDays;totals.basicDA+=r.basicDA;totals.gross+=r.gross;totals.esi+=r.esi;totals.pf+=r.pf;
+    if(r.basicDaEsi!==null) totals.basicDaEsi+=r.basicDaEsi;
   });
   var _stk='position:sticky;bottom:0;z-index:1;background:#e2e8f0';
   var _tf='padding:4px 5px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b;font-weight:900;'+_stk;
+  // Tfoot variants reuse the same sticky positioning but override background
+  // for the PF / ESI column groups so the highlight extends through totals.
+  var _tfPf =_tf+';'+_bgPf;
+  var _tfEsi=_tf+';'+_bgEsi;
   h+='</tbody><tfoot><tr><td colspan="6" style="padding:4px 6px;border:1px solid #cbd5e1;font-weight:900;'+_stk+'">Total ('+rows.length+')</td>';
-  h+='<td style="'+_tf+'">'+_f(totals.payableDays)+'</td>';
-  h+='<td style="'+_tf+'">'+_r(totals.basicDA)+'</td>';
-  h+='<td style="'+_tf+'">'+_r(totals.otAllow)+'</td>';
   h+='<td style="'+_tf+'">'+_r(totals.gross)+'</td>';
-  h+='<td style="'+_tf+'">'+_r(totals.esi)+'</td>';
-  h+='<td style="'+_tf+'">'+_r(totals.pf)+'</td>';
+  h+='<td style="'+_tf+'">'+_f(totals.payableDays)+'</td>';
+  h+='<td style="'+_tfPf+'">'+_r(totals.basicDA)+'</td>';
+  h+='<td style="'+_tfEsi+'">'+(anyEsi?_r(totals.basicDaEsi):'')+'</td>';
+  h+='<td style="'+_tfEsi+'">'+_r(totals.esi)+'</td>';
+  h+='<td style="'+_tfPf+'">'+_r(totals.pf)+'</td>';
   h+='</tr></tfoot></table>';
   el.innerHTML=h;
   window._hrmsEsiPfRows=rows;
@@ -13144,16 +13480,23 @@ function _hrmsEsiPfExport(){
   var rows=window._hrmsEsiPfRows;
   if(!rows||!rows.length){notify('No ESI/PF data. Open the tab first.',true);return;}
   var mk=_hrmsMonth||'';
-  var headers=['Sr.','Name','Name','UAN No.','ESI No.','PF No.','Payable Days (P+PH)','Basic + DA','OT + Allowance','Gross Salary','ESI @ '+(_hrmsStatutory.esiWorker||0.75)+'%','PF @ '+(_hrmsStatutory.pfWorker||12)+'%'];
+  var headers=['Sr.','Name','Name','UAN No.','ESI No.','PF No.','Gross Salary','Payable Days (P+PH)','Basic + DA (PF) Capped','Basic + DA (ESI)','ESI @ '+(_hrmsStatutory.esiWorker||0.75)+'%','PF @ '+(_hrmsStatutory.pfWorker||12)+'%'];
   var out=[headers];
   rows.forEach(function(r,i){
-    out.push([i+1,r.nameLFM,r.nameFL,{_t:r.uan},{_t:r.esiNo},{_t:r.pfNo},r.payableDays,{_n:r.basicDA},{_n:r.otAllow},{_n:r.gross},{_n:r.esi},{_n:r.pf}]);
+    out.push([i+1,r.nameLFM,r.nameFL,{_t:r.uan},{_t:r.esiNo},{_t:r.pfNo},
+      {_n:r.gross},r.payableDays,{_n:r.basicDA},
+      r.basicDaEsi!==null?{_n:r.basicDaEsi}:'',
+      {_n:r.esi},{_n:r.pf}]);
   });
-  var tot={payableDays:0,basicDA:0,otAllow:0,gross:0,esi:0,pf:0};
-  rows.forEach(function(r){tot.payableDays+=r.payableDays;tot.basicDA+=r.basicDA;tot.otAllow+=r.otAllow;tot.gross+=r.gross;tot.esi+=r.esi;tot.pf+=r.pf;});
-  out.push({bold:true,cells:['','','','','','Total',tot.payableDays,{_n:tot.basicDA},{_n:tot.otAllow},{_n:tot.gross},{_n:tot.esi},{_n:tot.pf}]});
+  var tot={payableDays:0,basicDA:0,gross:0,basicDaEsi:0,esi:0,pf:0};
+  var _anyEsi=false;
+  rows.forEach(function(r){tot.payableDays+=r.payableDays;tot.basicDA+=r.basicDA;tot.gross+=r.gross;tot.esi+=r.esi;tot.pf+=r.pf;
+    if(r.basicDaEsi!==null){tot.basicDaEsi+=r.basicDaEsi;_anyEsi=true;}});
+  out.push({bold:true,cells:['','','','','','Total',{_n:tot.gross},tot.payableDays,{_n:tot.basicDA},
+    _anyEsi?{_n:tot.basicDaEsi}:'',
+    {_n:tot.esi},{_n:tot.pf}]});
   _downloadMultiSheetXlsx([{name:'ESI PF List',data:out,stripeStart:1,stripeCount:rows.length,borderStart:0,borderCount:rows.length+2,
-    colWidths:[4,18,18,16,16,16,10,14,14,14,10,10]}],'ESI_PF_List_'+mk+'.xlsx');
+    colWidths:[4,18,18,16,16,16,14,10,14,14,10,10]}],'ESI_PF_List_'+mk+'.xlsx');
   notify('\ud83d\udce4 Exported ESI/PF list ('+rows.length+' employees)');
 }
 
@@ -14693,6 +15036,13 @@ async function _hrmsRenderContractSalary(yr,mo){
 
   // Compute each row
   var esiCompPct=_hrmsStatutory.esiCompany||3.25;
+  var pfCompPct =_hrmsStatutory.pfCompany ||13;
+  // Contract formula set (Settings → Statutory → ESI/PF Basic + DA Formulas)
+  // — when set, drives the hidden Basic + DA (PF / ESI) columns and the
+  // PF/ESI deductions. When blank, the existing built-in rules apply.
+  var fPayC=(_hrmsStatutory.formulaPayableDaysContract||'').trim();
+  var fPfC =(_hrmsStatutory.formulaBasicDaPfContract  ||'').trim();
+  var fEsiC=(_hrmsStatutory.formulaBasicDaEsiContract ||'').trim();
   var rows=[];
   emps.forEach(function(emp){
     var period=_getPeriod(emp,mk)||{};
@@ -14750,18 +15100,44 @@ async function _hrmsRenderContractSalary(yr,mo){
     var _wdPhT=wdCount+phCount;
     var spAllow=_wdPhT>0?Math.round(spAllowM/_wdPhT*pPlusPH):0;
     var gross=forPresent+forOT+spAllow;
-    // PF rule: gs>19000 → 1950; else cap base at (P+PH)*580, apply company PF%
-    var pfPct=_hrmsStatutory.pfCompany||13;
-    var pf;
-    if(gross>19000) pf=1950;
-    else {
-      var pfBase=Math.min(gross,pPlusPH*580);
-      pf=Math.round(pfBase*pfPct/100);
+    // ── Hidden columns: Basic + DA (PF) Capped, Basic + DA (ESI) ──
+    // Computed from the Contract formula set when configured. PL exposes
+    // effective PH (since contract has no PL benefit). PD = formula 1
+    // result, available inside formulas 2 & 3.
+    var ctxC={GS:gross, TD:wdCount+phCount, P:totalP, PL:effPhCount, PD:0};
+    var basicDaPfC=null, basicDaEsiC=null, payDaysC=null;
+    if(fPayC){
+      var _vP=_hrmsEvalFormula(fPayC,ctxC); payDaysC=_vP!==null?_vP:0; ctxC.PD=payDaysC;
     }
-    // ESI: applied when period.esiApplicable === 'Yes' (works for staff too).
-    // Default if unset: Worker = Yes, Staff = No.
-    var _esiApp=period.esiApplicable||(_empCat==='staff'?'No':'Yes');
-    var esi=_esiApp==='Yes'?Math.ceil(gross*esiCompPct/100):0;
+    if(fPfC){
+      var _vF=_hrmsEvalFormula(fPfC,ctxC);  basicDaPfC=_vF!==null?_vF:0;
+    }
+    if(fEsiC){
+      var _vE=_hrmsEvalFormula(fEsiC,ctxC); basicDaEsiC=_vE!==null?_vE:0;
+    }
+    // PF deduction
+    //   - Contract PF formula set → PF = Basic+DA (PF) Capped × pfCompany%
+    //   - blank → existing built-in: gs>19000 → 1950; else min(gs, (P+PH)*580) × pfCompany%
+    var pf;
+    if(basicDaPfC!==null){
+      pf=Math.round(basicDaPfC*pfCompPct/100);
+    } else if(gross>19000){
+      pf=1950;
+    } else {
+      var pfBase=Math.min(gross,pPlusPH*580);
+      pf=Math.round(pfBase*pfCompPct/100);
+    }
+    // ESI deduction
+    //   - Contract ESI formula set → ESI = Basic+DA (ESI) × esiCompany%, rounded UP
+    //   - blank → existing: applied when period.esiApplicable === 'Yes',
+    //     else 0. (Default if unset: Worker = Yes, Staff = No.)
+    var esi;
+    if(basicDaEsiC!==null){
+      esi=Math.ceil(basicDaEsiC*esiCompPct/100);
+    } else {
+      var _esiApp=period.esiApplicable||(_empCat==='staff'?'No':'Yes');
+      esi=_esiApp==='Yes'?Math.ceil(gross*esiCompPct/100):0;
+    }
     var totalSal=gross+pf+esi;
     var commission=Math.round(gross*8/100);
     var totalBill=totalSal+commission;
@@ -14777,7 +15153,9 @@ async function _hrmsRenderContractSalary(yr,mo){
       cat:_empCat,rateD:rateD,rateM:rateM,P:totalP,OT:totalOT,OTS:totalOTS,PH:effPhCount,pPlusPH:pPlusPH,A:absent,
       totalOT:otTotal,otAt1:otAt1,forPresent:forPresent,forOT:forOT,spAllow:spAllow,gross:gross,
       pf:pf,esi:esi,totalSal:totalSal,commission:commission,totalBill:totalBill,
-      diwali:diwali,ctc:ctc,wdCount:wdCount
+      diwali:diwali,ctc:ctc,wdCount:wdCount,
+      // Hidden columns — fed by the Contract formula set in Settings.
+      basicDaPfC:basicDaPfC,basicDaEsiC:basicDaEsiC,payDaysC:payDaysC
     });
   });
 
@@ -15124,49 +15502,134 @@ function _hrmsContractEmpSearchClear(){
   inp.focus();
 }
 
-function _hrmsContractExport(){
+async function _hrmsContractExport(){
   if(!_hrmsHasAccess('action.exportContract')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   var rows=_hrmsContractCache[mk]||[];
   if(!rows.length){notify('No contract salary data to export',true);return;}
   var headers=['Emp Code','Name','DOJ','Team','Plant','Role','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','PF','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
-  var _rowArr=function(r){return[r.empCode,r.name,r.doj,r.team,(r.plant||'').replace(/plant[\s\-]*/i,'P'),r.roll,r.rateD,r.cat==='staff'?r.rateM:'',r.P,Math.round((r.OT||0)*4)/4,Math.round((r.OTS||0)*4)/4,r.PH,r.pPlusPH,r.A,Math.round((r.totalOT||0)*4)/4,Math.round((r.otAt1||0)*4)/4,r.forPresent,r.forOT,r.spAllow,r.gross,r.pf,r.esi,r.totalSal,r.commission,r.totalBill,r.diwali,r.ctc];};
+  // Cell wrappers. _curr → Indian currency #,##,##0 ; _dec → fixed 1-decimal "0.0".
+  // Empty values flow through as plain '' so the cell stays blank without
+  // the engine substituting 0 / NaN.
+  var _curr=function(v){return v===''||v==null?'':{_n:v};};
+  var _dec =function(v){return v===''||v==null?'':{_d:v};};
+  // Per-row data — currency columns G,H,Q-AA wrapped with _curr, decimal
+  // columns I-P wrapped with _dec. Rate/Day rounded to nearest rupee.
+  var _rowArr=function(r){return[
+    r.empCode, r.name, r.doj, r.team,
+    (r.plant||'').replace(/plant[\s\-]*/i,'P'), r.roll,
+    _curr(Math.round(r.rateD)),                       // G  Rate/Day
+    _curr(r.cat==='staff'?r.rateM:''),                // H  Sal/Month
+    _dec(r.P),                                        // I  P
+    _dec(Math.round((r.OT ||0)*4)/4),                 // J  OT
+    _dec(Math.round((r.OTS||0)*4)/4),                 // K  OT@S
+    _dec(r.PH),                                       // L  PH
+    _dec(r.pPlusPH),                                  // M  P+PH
+    _dec(r.A),                                        // N  A
+    _dec(Math.round((r.totalOT||0)*4)/4),             // O  Total OT
+    _dec(Math.round((r.otAt1  ||0)*4)/4),             // P  OT@1
+    _curr(r.forPresent),                              // Q  For Present
+    _curr(r.forOT),                                   // R  For OT@1
+    _curr(r.spAllow),                                 // S  Sp.Allow
+    _curr(r.gross),                                   // T  Gross Salary
+    _curr(r.pf),                                      // U  PF
+    _curr(r.esi),                                     // V  ESI
+    _curr(r.totalSal),                                // W  Total Salary
+    _curr(r.commission),                              // X  Commission 8%
+    _curr(r.totalBill),                               // Y  Total Bill
+    _curr(r.diwali),                                  // Z  Diwali Bonus
+    _curr(r.ctc)                                      // AA CTC
+  ];};
   var _totKeys=['P','OT','OTS','totalOT','forPresent','forOT','spAllow','gross','pf','esi','totalSal','commission','totalBill','diwali','ctc'];
-  var _totRow=function(label,t){return['','','',label,'','','','',t.P,Math.round(t.OT*4)/4,Math.round(t.OTS*4)/4,'','','',Math.round(t.totalOT*4)/4,'',t.forPresent,t.forOT,t.spAllow,t.gross,t.pf,t.esi,t.totalSal,t.commission,t.totalBill,t.diwali,t.ctc];};
+  var _zeroTot=function(){var o={};_totKeys.forEach(function(k){o[k]=0;});return o;};
+  // Total row — same column layout as data, decimal/currency wrappers
+  // applied so the format flows through the tbltotal style.
+  var _totRow=function(label,t){return[
+    '','','', label, '','','','',
+    _dec(t.P),
+    _dec(Math.round(t.OT *4)/4),
+    _dec(Math.round(t.OTS*4)/4),
+    '','','',
+    _dec(Math.round(t.totalOT*4)/4),
+    '',
+    _curr(t.forPresent), _curr(t.forOT), _curr(t.spAllow), _curr(t.gross),
+    _curr(t.pf),         _curr(t.esi),    _curr(t.totalSal),
+    _curr(t.commission), _curr(t.totalBill), _curr(t.diwali), _curr(t.ctc)
+  ];};
   var _sort=function(arr){arr.sort(function(a,b){
     var p=(a.plant||'').localeCompare(b.plant||'');if(p!==0) return p;
     var rr=(a.roll||'').localeCompare(b.roll||'');if(rr!==0) return rr;
     return(parseInt(a.empCode)||0)-(parseInt(b.empCode)||0)||(a.empCode||'').localeCompare(b.empCode||'');
   });};
+  // Filename suffix — mmm_yy (e.g., Apr_26).
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=mk.split('-');var monSuffix=_mn[+p[1]]+'_'+p[0].slice(2);
+  // Sanitise team names for filesystems (no \ / : * ? " < > |, no leading dots, max 80).
+  var _safeName=function(s){return String(s||'').replace(/[\\\/:*?"<>|]/g,'_').replace(/\s+/g,'_').replace(/^\.+/,'').slice(0,80)||'_';};
   // Group by team
   var groups={};
   rows.forEach(function(r){var t=r.team||'—';if(!groups[t])groups[t]=[];groups[t].push(r);});
   var teamList=Object.keys(groups).sort();
-  // Build "All" sheet
-  var allData=[headers];
-  var grand={P:0,OT:0,OTS:0,totalOT:0,forPresent:0,forOT:0,spAllow:0,gross:0,pf:0,esi:0,totalSal:0,commission:0,totalBill:0,diwali:0,ctc:0};
-  teamList.forEach(function(team){
-    _sort(groups[team]);
-    groups[team].forEach(function(r){
-      allData.push(_rowArr(r));
-      _totKeys.forEach(function(k){grand[k]+=r[k]||0;});
+  // Compute column widths from the formatted total row (per user spec —
+  // "minimum to show all data in first total row"). Header text wraps, so
+  // header length does not constrain column width.
+  var _colWidthsFromTotal=function(totalRow){
+    var widths=totalRow.map(function(v){
+      var s='';
+      if(v===''||v==null) s='';
+      else if(typeof v==='object'&&v._n!==undefined) s=Math.round(Number(v._n)||0).toLocaleString('en-IN');
+      else if(typeof v==='object'&&v._d!==undefined) s=(Number(v._d)||0).toFixed(1);
+      else s=String(v);
+      // +3 covers the autofilter dropdown arrow and a small visual gutter.
+      return Math.max(6, s.length+3);
     });
-  });
-  allData.push(_totRow('GRAND TOTAL',grand));
-  // Build per-team sheets
-  var sheets=[{name:'All',data:allData}];
+    // Manual bumps for columns whose total cell is empty / short but whose
+    // data cells need more room (names, dates, team labels, salary).
+    widths[1]+=30;  // B  Name
+    widths[2]+=10;  // C  DOJ
+    widths[3]+=10;  // D  Team
+    widths[7]+=10;  // H  Sal/Month
+    return widths;
+  };
+  // Build a sheet's data with the layout the user asked for:
+  //   Row 1: Grand / Team total (prominent tbltotal style — bold on gold)
+  //   Row 2: Header row (wrapped, 3× normal height)
+  //   Row 3+: Data rows (sorted)
+  // Returns {data, widths} so the caller can hand widths to the xlsx builder.
+  var _buildSheet=function(rowsForSheet,totalLabel){
+    _sort(rowsForSheet);
+    var t=_zeroTot();
+    rowsForSheet.forEach(function(r){_totKeys.forEach(function(k){t[k]+=r[k]||0;});});
+    var totalCells=_totRow(totalLabel,t);
+    var data=[];
+    data.push({tbltotal:true, cells:totalCells});
+    data.push({tblheader:true, cells:headers});
+    rowsForSheet.forEach(function(r){data.push(_rowArr(r));});
+    return {data:data, widths:_colWidthsFromTotal(totalCells)};
+  };
+  // Combined "All" file (every team, single sheet, top grand-total).
+  var allRows=[];teamList.forEach(function(t){allRows=allRows.concat(groups[t]);});
+  var allBuilt=_buildSheet(allRows,'GRAND TOTAL');
+  // Common sheet options — wrap header, freeze top 2 rows + first 2 cols,
+  // auto-filter on the header row (row 2, i.e. filterRow=1 zero-indexed),
+  // header row 3× the default 15px height.
+  var _sheetOpts=function(name,built){return {
+    name:name, data:built.data, colWidths:built.widths,
+    freezeRow:2, freezeCol:2, filterRow:1,
+    rowHeights:{1:45}
+  };};
+  var folderName='Contract_Salary_'+monSuffix;
+  var items=[];
+  items.push({name:folderName+'/All_'+monSuffix+'.xlsx',
+    blob:_buildMultiSheetXlsxBlob([_sheetOpts('All',allBuilt)])});
   teamList.forEach(function(team){
-    var teamData=[headers];
-    var tt={P:0,OT:0,OTS:0,totalOT:0,forPresent:0,forOT:0,spAllow:0,gross:0,pf:0,esi:0,totalSal:0,commission:0,totalBill:0,diwali:0,ctc:0};
-    groups[team].forEach(function(r){
-      teamData.push(_rowArr(r));
-      _totKeys.forEach(function(k){tt[k]+=r[k]||0;});
-    });
-    teamData.push(_totRow('TOTAL',tt));
-    sheets.push({name:team.slice(0,31),data:teamData});
+    var built=_buildSheet(groups[team].slice(),'TOTAL');
+    var sheetName=_safeName(team).slice(0,31)||'Sheet';
+    items.push({name:folderName+'/'+_safeName(team)+'_'+monSuffix+'.xlsx',
+      blob:_buildMultiSheetXlsxBlob([_sheetOpts(sheetName,built)])});
   });
-  _downloadMultiSheetXlsx(sheets,'Contract_Salary_'+mk+'.xlsx');
-  notify('📤 Exported contract salary ('+rows.length+' employees, '+(teamList.length+1)+' sheets)');
+  await _downloadFolderZip(items, folderName+'.zip');
+  notify('📤 Exported contract salary ('+rows.length+' employees, '+(teamList.length+1)+' files)');
 }
 
 // ═══ CONTRACT SALARY — REFERENCE FILE COMPARE ════════════════════════════
@@ -15407,7 +15870,14 @@ async function _hrmsRenderAdvances(){
     var netSal=salDet?Math.round(salDet.net||0):0;
     rows.push({code:emp.empCode,name:_hrmsDispName(emp),location:emp.location||'',ob:ob,adv:adv,emi:emi,total:total,ded:ded,cb:cb,netSal:netSal,id:rec.id||null});
   });
-  rows.sort(function(a,b){return(parseInt(a.code)||0)-(parseInt(b.code)||0);});
+  // Always sort by Plant first (alphabetical), then Emp Code (numeric).
+  rows.sort(function(a,b){
+    var p=(a.location||'').localeCompare(b.location||'');
+    if(p!==0) return p;
+    return((parseInt(a.code)||0)-(parseInt(b.code)||0))||(a.code||'').localeCompare(b.code||'');
+  });
+  // Stash for export so the export reads the same rows the table shows.
+  window._hrmsAdvRows=rows;
 
   var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var monthLabel=_mn[mo]+' '+yr;
@@ -15420,7 +15890,7 @@ async function _hrmsRenderAdvances(){
   h+='<div style="padding:6px 14px;border:1.5px solid #86efac;border-radius:6px;font-size:12px;background:#f0fdf4"><span style="color:#16a34a;font-weight:600">Total Deduction:</span> <span id="hrmsAdvTotDed" style="font-weight:800;font-family:var(--mono);color:#16a34a">'+totDed.toLocaleString()+'</span></div>';
   h+='<div id="hrmsAdvTotCBBox" style="padding:6px 14px;border:1.5px solid '+(totCB>0?'#fca5a5':'#86efac')+';border-radius:6px;font-size:12px;background:'+(totCB>0?'#fef2f2':'#f0fdf4')+'"><span style="font-weight:600;color:'+(totCB>0?'#dc2626':'#16a34a')+'">Total CB:</span> <span id="hrmsAdvTotCB" style="font-weight:800;font-family:var(--mono);color:'+(totCB>0?'#dc2626':'#16a34a')+'">'+totCB.toLocaleString()+'</span></div>';
   h+='</div>';
-  h+='<div style="display:inline-block;overflow-x:auto;border:1.5px solid var(--border);border-radius:8px;max-height:500px;overflow-y:auto">';
+  h+='<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px">';
   h+='<table style="border-collapse:collapse;font-size:12px">';
   h+='<thead><tr style="background:#1e293b;color:#fff;position:sticky;top:0;z-index:1;white-space:nowrap">';
   h+='<th style="padding:4px 6px;font-size:10px;text-align:left">Code</th>';
@@ -15440,7 +15910,8 @@ async function _hrmsRenderAdvances(){
     h+='<tr style="border-bottom:1px solid #e2e8f0;white-space:nowrap">';
     h+='<td style="padding:4px 6px;font-family:var(--mono);font-weight:700;cursor:pointer;text-decoration:underline;color:var(--accent)" data-emp-code="'+r.code+'" title="Click to view employee">'+r.code+'</td>';
     h+='<td style="padding:4px 6px">'+r.name+'</td>';
-    h+='<td style="padding:4px 6px;color:var(--text3)">'+r.location+'</td>';
+    var _pClrA=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.location||''):'#fff';
+    h+='<td style="padding:4px 6px;font-weight:700;background:'+_pClrA+'">'+(r.location||'—')+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);'+(r.ob?'font-weight:700':'color:var(--text3)')+'">'+r.ob+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);'+(r.adv?'font-weight:700;color:#dc2626':'color:var(--text3)')+'">'+r.adv+'</td>';
     // Action: edit/delete only if an advance was taken in this month (not just carried-forward OB)
@@ -15467,6 +15938,26 @@ async function _hrmsRenderAdvances(){
   h+='</tbody></table></div>';
   el.innerHTML=h;
   if(typeof _hrmsRenderAdvImportLog==='function') _hrmsRenderAdvImportLog();
+}
+
+// Export the current month's Advances table. Columns mirror the on-screen
+// summary: Emp Code, Name, OB, Advance (taken this month), Total, Deduction,
+// CB. Reads window._hrmsAdvRows which the renderer populates each render.
+function _hrmsExportAdvances(){
+  var rows=window._hrmsAdvRows||[];
+  if(!rows.length){notify('No advances to export. Open the tab first.',true);return;}
+  var mk=_hrmsMonth||'';
+  var headers=['Emp Code','Name','OB','Advance','Total','Deduction','CB'];
+  var data=[headers];
+  rows.forEach(function(r){
+    data.push([{_t:r.code},r.name,{_n:r.ob},{_n:r.adv},{_n:r.total},{_n:r.ded},{_n:r.cb}]);
+  });
+  var totOB=0,totAdv=0,totTotal=0,totDed=0,totCB=0;
+  rows.forEach(function(r){totOB+=r.ob;totAdv+=r.adv;totTotal+=r.total;totDed+=r.ded;totCB+=r.cb;});
+  data.push({bold:true,cells:['','Total',{_n:totOB},{_n:totAdv},{_n:totTotal},{_n:totDed},{_n:totCB}]});
+  _downloadMultiSheetXlsx([{name:'Advances',data:data,stripeStart:1,stripeCount:rows.length,borderStart:0,borderCount:rows.length+2,
+    colWidths:[10,28,12,12,12,12,12]}],'Advances_'+mk+'.xlsx');
+  notify('📤 Exported advances ('+rows.length+' employees)');
 }
 
 // Recompute Total Deduction + Total CB from current input values + per-row
@@ -16305,15 +16796,52 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
      // April-only skip was unjustified — TDS is a monthly salary
      // deduction regardless of where the month falls in the FY.
     var dedPT=0,dedPF=0,dedESI=0,dedAdv=advDed,dedTDS=Math.round(_hrmsGetTdsForMonth(emp,mk)),dedOther=0;
-    // PF: BV based on gross. GS>19000→BV=15000, GS<15000→BV=GS, 15000-19000→BV=15000/(WD+PH)*(P+totalPL)
-    var pfBV=0;
-    if(gross>19000) pfBV=15000;
-    else if(gross<15000) pfBV=gross;
-    else pfBV=(wdCount+phCount)>0?15000/(wdCount+phCount)*(totalP+totalPL):0;
-    dedPF=Math.round(pfBV*_hrmsStatutory.pfWorker/100);
-    // ESI: applied only if period.esiApplicable is not "No". Default to Yes for Worker, No for Staff.
+    // PF / ESI deductions — formula-driven, matching the ESI/PF list tab so
+    // both views agree on Basic + DA. The list applies COMPANY %; the
+    // salary tab applies WORKER % (employee deduction). Built-in fallbacks
+    // are kept for the case where a formula slot is left blank.
+    var _isStaffSal=isStaff;
+    var _fSetSal=_isStaffSal
+      ? {pay:_hrmsStatutory.formulaPayableDaysStaff, pf:_hrmsStatutory.formulaBasicDaPfStaff, esi:_hrmsStatutory.formulaBasicDaEsiStaff}
+      : {pay:_hrmsStatutory.formulaPayableDays,      pf:_hrmsStatutory.formulaBasicDaPf,      esi:_hrmsStatutory.formulaBasicDaEsi};
+    var _fPaySal=(_fSetSal.pay||'').trim(), _fPfSal=(_fSetSal.pf||'').trim(), _fEsiSal=(_fSetSal.esi||'').trim();
+    var _ctxSal={GS:gross, TD:wdCount+phCount, P:totalP, PL:totalPL, PD:0};
+    // Built-in tentative basicDA (15000-cap logic) — used when the PF
+    // formula or Payable Days formula is left blank.
+    var _basicDaTmpSal;
+    if(gross>19000) _basicDaTmpSal=15000;
+    else if(gross<15000) _basicDaTmpSal=gross;
+    else _basicDaTmpSal=(wdCount+phCount)>0?Math.round(15000/(wdCount+phCount)*(totalP+totalPL)):0;
+    // Step 1 — Payable Days (cannot reference itself)
+    if(_fPaySal){
+      var _vP=_hrmsEvalFormula(_fPaySal,_ctxSal);
+      _ctxSal.PD=_vP!==null?_vP:0;
+    } else {
+      _ctxSal.PD=(wdCount+phCount)>0?Math.round(_basicDaTmpSal*(wdCount+phCount)/15000*2)/2:0;
+    }
+    // Step 2 — Basic + DA (PF) Capped
+    var _basicDaSal;
+    if(_fPfSal){
+      var _vF=_hrmsEvalFormula(_fPfSal,_ctxSal);
+      _basicDaSal=_vF!==null?_vF:0;
+    } else {
+      _basicDaSal=_basicDaTmpSal;
+    }
+    dedPF=Math.round(_basicDaSal*_hrmsStatutory.pfWorker/100);
+    // Step 3 — Basic + DA (ESI). Formula → ESI = basicDaEsi × esiWorker%
+    // (ceil). Blank formula → fall back to gross-based existing behaviour.
+    // Threshold gating is the formula's job (e.g. if(GS>21000, 0, GS)).
+    var _basicDaEsiSal=null;
+    if(_fEsiSal){
+      var _vE=_hrmsEvalFormula(_fEsiSal,_ctxSal);
+      _basicDaEsiSal=_vE!==null?_vE:0;
+    }
     var _esiApp=period.esiApplicable||(isStaff?'No':'Yes');
-    if(_esiApp==='Yes') dedESI=Math.ceil(gross*_hrmsStatutory.esiWorker/100);
+    if(_esiApp==='Yes'){
+      dedESI=_basicDaEsiSal!==null
+        ? Math.ceil(_basicDaEsiSal*_hrmsStatutory.esiWorker/100)
+        : Math.ceil(gross*_hrmsStatutory.esiWorker/100);
+    }
     var _moNames=['','jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
     dedPT=_hrmsCalcPT(gross,emp.gender,_moNames[mo]);
     dedPT=Math.round(dedPT);dedPF=Math.round(dedPF);dedESI=Math.round(dedESI);
@@ -16591,6 +17119,10 @@ function _hrmsOrSalExport(catFilter){
   var details=window._hrmsSalDetails;
   var mk=_hrmsMonth;
   var _mkP=mk.split('-');var _calMo=+_mkP[1];var _expMo=_calMo>=4?_calMo-3:_calMo+9;// FY month: Apr=1, Mar=12
+  // Statutory rates (CTC = gross + 2083 gratuity + ESI company + PF company)
+  var _esiCompPct =_hrmsStatutory.esiCompany||3.25;
+  var _pfWorkerPct=_hrmsStatutory.pfWorker  ||12;
+  var _pfCompPct  =_hrmsStatutory.pfCompany ||13;
   var isAll=catFilter==='all';
   var isWorker=catFilter==='worker';
   var label=isAll?'Salary':(isWorker?'Worker':'Staff');
@@ -16637,7 +17169,7 @@ function _hrmsOrSalExport(catFilter){
       _r(d.dedPT||0),_r(d.dedPF||0),_r(d.dedESI||0),_r(d.dedAdv||0),_r(d.dedTDS||0),_r(d.dedOther||0),
       _r(d.dedTotal||0),_r(d.net||0),
       +(d.plCB||0).toFixed(2),
-      _r((d.gross||0)+2083+(cat!=='staff'?(d.gross||0)*3.25/100:0)+(d.dedPF||0)/12*13),
+      _r((d.gross||0)+2083+(cat!=='staff'?(d.gross||0)*_esiCompPct/100:0)+(d.dedPF||0)/_pfWorkerPct*_pfCompPct),
       +(Math.min(_expMo*1.5,d.plAvail||0)-(d.plCB||0)).toFixed(2)
     ]);
   });
@@ -17179,7 +17711,13 @@ async function _hrmsImportAlteration(inputEl){
           var timeOut=_ft(r['Time Out']||r['TimeOut']||r['Time OUT']||r['OUT']||r['Out']||'');
           var reason=(r['Reason']||r['reason']||r['Remarks']||'').toString().trim();
           if(!grouped[empCode]) grouped[empCode]={};
-          grouped[empCode][String(day)]={'in':timeIn,'out':timeOut,'reason':reason,'approved':false};
+          // Imported alterations are committed by an admin via the
+          // import flow itself, so they're effective immediately —
+          // marking them approved=true lets the muster + salary calc
+          // pick up the IN/OUT and roll P/A/OT properly. (Previously
+          // saved with approved=false, which made the times show on
+          // the muster cell but not contribute to totals.)
+          grouped[empCode][String(day)]={'in':timeIn,'out':timeOut,'reason':reason,'approved':true};
           altered++;
         }
         if(badRows.length){
@@ -18840,6 +19378,7 @@ async function _hrmsCoffApprove(empId,earnedDate){
   // Refresh whichever C-Off / Alteration view is currently visible.
   if(typeof _hrmsRenderCoffTakenTab==='function'&&_hrmsAttSelectedMonth){var p=_hrmsAttSelectedMonth.split('-');_hrmsRenderCoffTakenTab(+p[0],+p[1]);}
   if(typeof _hrmsRenderAltImportLog==='function') _hrmsRenderAltImportLog();
+  if(typeof _hrmsRenderAltManualList==='function') _hrmsRenderAltManualList();
   if(typeof _hrmsRenderManualPList==='function') _hrmsRenderManualPList();
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
@@ -19140,7 +19679,12 @@ function _hrmsMyAttRenderBank(){
     bank.forEach(function(c){
       if(!c||!c.earnedDate) return;
       var st=c.status||'available';
-      if(st!=='used'&&st!=='pending'&&typeof _hrmsCoffEffectivelyExpired==='function'&&_hrmsCoffEffectivelyExpired(c)) st='expired';
+      if(st!=='used'&&st!=='pending'){
+        // Mark expired in two cases: the existing window-locked check, OR
+        // the earnedDate's month itself is locked (no longer applicable).
+        if(typeof _hrmsCoffEffectivelyExpired==='function'&&_hrmsCoffEffectivelyExpired(c)) st='expired';
+        else if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(String(c.earnedDate).slice(0,7))) st='expired';
+      }
       if(fStat&&st!==fStat) return;
       rows.push({emp:emp,coff:c,st:st});
     });
@@ -19160,7 +19704,10 @@ function _hrmsMyAttRenderBank(){
     ((e.extra&&e.extra.coffBank)||[]).forEach(function(c){
       if(!c||!c.earnedDate) return;
       var s=c.status||'available';
-      if(s!=='used'&&s!=='pending'&&typeof _hrmsCoffEffectivelyExpired==='function'&&_hrmsCoffEffectivelyExpired(c)) s='expired';
+      if(s!=='used'&&s!=='pending'){
+        if(typeof _hrmsCoffEffectivelyExpired==='function'&&_hrmsCoffEffectivelyExpired(c)) s='expired';
+        else if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(String(c.earnedDate).slice(0,7))) s='expired';
+      }
       if(tot[s]!=null) tot[s]++;
     });
   });
@@ -19219,11 +19766,13 @@ function _hrmsMyAttRenderBank(){
     if(st==='available'||st==='expired'){
       actions+='<button onclick="_hrmsCoffBlockDate(\''+idEsc+'\',\''+dEsc+'\')" title="Block this date — entry removed and the date won\'t auto-re-claim" style="font-size:10px;padding:3px 8px;font-weight:700;background:#fff;border:1px solid #94a3b8;color:#334155;border-radius:4px;cursor:pointer">🚫 Block</button>';
     }
+    var _pClrB=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
+    var codeEsc=String(emp.empCode||'').replace(/'/g,"\\'");
     tbl+='<tr>'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+';font-family:var(--mono);font-weight:800">'+(emp.empCode||'')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800"><a href="javascript:void(0)" onclick="_hrmsCoffBankGotoMyAtt(\''+idEsc+'\',\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline;cursor:pointer" title="Open My Attendance for this employee">'+(emp.empCode||'')+'</a></td>'+
       '<td style="'+td+';font-weight:700">'+(emp.name||'—')+'</td>'+
-      '<td style="'+td+'">'+(emp.location||'—')+'</td>'+
+      '<td style="'+td+';font-weight:700;background:'+_pClrB+'">'+(emp.location||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(c.earnedDate||'—')+'</td>'+
       '<td style="'+td+'">'+srcTxt+'</td>'+
       '<td style="'+td+';font-family:var(--mono);'+(st==='expired'?'color:#dc2626;font-weight:700':'')+'">'+(c.expiryDate||'—')+'</td>'+
@@ -19234,6 +19783,20 @@ function _hrmsMyAttRenderBank(){
   });
   tbl+='</tbody></table></div>';
   pane.innerHTML=hdr+tbl;
+}
+
+// Jump from the C-Off Bank table → My Attendance pane for the picked
+// employee. Sets the bank-table's underlying state (empId + visible search
+// label), flips back to the "att" sub-tab, then triggers a render so the
+// calendar/summary load for the chosen employee.
+function _hrmsCoffBankGotoMyAtt(empId, empCode){
+  if(!empId) return;
+  _hrmsMyAttState.empId=empId;
+  var emp=byId(DB.hrmsEmployees||[],empId);
+  var inp=document.getElementById('hrmsMyAttEmpSearch');
+  if(inp) inp.value=(empCode||(emp&&emp.empCode)||'')+' — '+((emp&&emp.name)||'');
+  if(typeof _hrmsMyAttSetTab==='function') _hrmsMyAttSetTab('att');
+  if(typeof _hrmsMyAttRender==='function') _hrmsMyAttRender();
 }
 
 // SA-only — block a specific (employee × earnedDate) combo from the
@@ -19743,6 +20306,7 @@ async function _hrmsAltReqApprove(empId,reqId){
   hideSpinner();
   notify(finalise?'✓ Approved — alteration applied':'✓ Level '+(lvl+1)+' approved — routed to '+nextLvlName);
   if(typeof _hrmsRenderAltReqTab==='function'&&_hrmsAttSelectedMonth){var p=_hrmsAttSelectedMonth.split('-');_hrmsRenderAltReqTab(+p[0],+p[1]);}
+  if(typeof _hrmsRenderAltManualList==='function') _hrmsRenderAltManualList();
   if(typeof _hrmsRenderActiveTab==='function') _hrmsRenderActiveTab();
   if(typeof _hrmsMyAttRender==='function'&&_hrmsMyAttState&&_hrmsMyAttState.empId) _hrmsMyAttRender();
   if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge();

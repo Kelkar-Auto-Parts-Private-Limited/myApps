@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260506-V199">
+<meta name="app-build" content="260506-V229">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260506-V199">
+<link rel="stylesheet" href="css/hrms.css?v=260506-V229">
 </head>
 <body>
 
@@ -564,45 +564,96 @@
       <div id="hrmsSetPanelStatutory" style="display:none">
         <div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:12px">Statutory Settings</div>
         <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px">
-          <!-- PF -->
-          <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:200px;flex:1;max-width:280px">
-            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">PF (Provident Fund)</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label>
-              <input type="number" id="hrmsPfWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label>
-              <input type="number" id="hrmsPfCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Threshold</label>
-              <input type="number" id="hrmsPfThreshold" step="500" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-              <span style="font-size:10px;color:var(--text3)">Gross &gt; this</span>
-            </div>
-          </div>
-          <!-- ESI -->
-          <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:200px;flex:1;max-width:280px">
-            <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">ESI (Employee State Insurance)</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label>
-              <input type="number" id="hrmsEsiWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label>
-              <input type="number" id="hrmsEsiCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Threshold</label>
-              <input type="number" id="hrmsEsiThreshold" step="500" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:70px;text-align:right">
-              <span style="font-size:10px;color:var(--text3)">Gross &le; this</span>
-            </div>
-          </div>
           <!-- PT -->
           <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;min-width:300px;flex:2;max-width:500px">
             <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">PT (Professional Tax)</div>
             <div id="hrmsPtRules"></div>
             <button onclick="_hrmsAddPtRule()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--accent);cursor:pointer;font-weight:700;margin-top:4px">+ Add Rule</button>
+          </div>
+        </div>
+        <!-- ESI / PF Basic + DA calculation Formulas -->
+        <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px">ESI / PF Basic + DA calculation Formulas</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+            Variables: <b>GS</b> = Gross Salary,&nbsp; <b>TD</b> = Total Days (W + PH),&nbsp; <b>P</b> = Present Days,&nbsp; <b>PL</b> = Paid Leave (incl. PH),&nbsp; <b>PD</b> = Payable Days (output of formula 1, available in formulas 2 &amp; 3).<br>
+            Functions: <b>if(cond, then, else)</b>, <b>floor(x [, sig])</b>, <b>ceiling(x [, sig])</b>, <b>round(x [, digits])</b>, <b>min(...)</b>, <b>max(...)</b>.&nbsp; Operators: <code>+ &minus; * / ( ) &lt; &gt; &lt;= &gt;= == != &amp;&amp; ||</code>.<br>
+            Leave a formula blank to use the built-in default. PF = Basic+DA(PF) &times; PF%, ESI = Basic+DA(ESI) &times; ESI% (rounded up).<br>
+            <b>Worker</b> set applies to Worker / Security categories (On Roll). <b>Staff</b> set applies to Staff (On Roll). <b>Contract</b> set applies to Contract / Piece-Rate (Contract Salary).
+          </div>
+          <!-- PF / ESI percentages — used by the deductions; thresholds removed. -->
+          <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px">
+            <!-- PF rates -->
+            <div style="border:1.5px dashed var(--border);border-radius:6px;padding:10px;min-width:220px;flex:1;max-width:320px">
+              <div style="font-size:11px;font-weight:800;color:#7c3aed;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">PF (Provident Fund)</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                <label style="font-size:11px;font-weight:700;color:var(--text3);width:80px">Worker %</label>
+                <input type="number" id="hrmsPfWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:80px;text-align:right">
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="font-size:11px;font-weight:700;color:var(--text3);width:80px">Company %</label>
+                <input type="number" id="hrmsPfCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:80px;text-align:right">
+              </div>
+            </div>
+            <!-- ESI rates -->
+            <div style="border:1.5px dashed var(--border);border-radius:6px;padding:10px;min-width:220px;flex:1;max-width:320px">
+              <div style="font-size:11px;font-weight:800;color:#dc2626;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">ESI (Employee State Insurance)</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                <label style="font-size:11px;font-weight:700;color:var(--text3);width:80px">Worker %</label>
+                <input type="number" id="hrmsEsiWorker" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:80px;text-align:right">
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="font-size:11px;font-weight:700;color:var(--text3);width:80px">Company %</label>
+                <input type="number" id="hrmsEsiCompany" step="0.01" min="0" style="font-size:12px;padding:4px 6px;border:1.5px solid var(--border);border-radius:4px;width:80px;text-align:right">
+              </div>
+            </div>
+          </div>
+          <!-- Worker -->
+          <div style="border:1.5px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Worker (default)</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Payable Days</label>
+              <input type="text" id="hrmsFormulaPayableDays" placeholder="e.g., floor((P+PL)*2+0.5)/2" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (PF) Capped</label>
+              <input type="text" id="hrmsFormulaBasicDaPf" placeholder="e.g., if(GS&gt;19000, 15000, if(GS&lt;15000, GS, floor(15000*(P+PL)/TD)))" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (ESI)</label>
+              <input type="text" id="hrmsFormulaBasicDaEsi" placeholder="e.g., if(GS&gt;21000, 0, GS)" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+          </div>
+          <!-- Staff -->
+          <div style="border:1.5px dashed var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Staff</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Payable Days</label>
+              <input type="text" id="hrmsFormulaPayableDaysStaff" placeholder="formula for Staff" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (PF) Capped</label>
+              <input type="text" id="hrmsFormulaBasicDaPfStaff" placeholder="formula for Staff" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (ESI)</label>
+              <input type="text" id="hrmsFormulaBasicDaEsiStaff" placeholder="formula for Staff" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+          </div>
+          <!-- Contract -->
+          <div style="border:1.5px dashed var(--border);border-radius:6px;padding:10px">
+            <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Contract</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Payable Days</label>
+              <input type="text" id="hrmsFormulaPayableDaysContract" placeholder="formula for Contract" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (PF) Capped</label>
+              <input type="text" id="hrmsFormulaBasicDaPfContract" placeholder="formula for Contract" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:11px;font-weight:700;color:var(--text3);width:180px">Basic + DA (ESI)</label>
+              <input type="text" id="hrmsFormulaBasicDaEsiContract" placeholder="formula for Contract" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)">
+            </div>
           </div>
         </div>
         <!-- PL Rules -->
@@ -675,6 +726,7 @@
           </div>
           <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
             <label class="btn btn-primary" style="font-size:12px;padding:6px 14px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAdvances(this)" style="display:none"></label>
+            <button onclick="_hrmsExportAdvances()" title="Export advances to Excel" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
             <button onclick="_hrmsAdvAutoDeduct()" title="Auto-fill deductions per rules" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fde047;color:#a16207;border-radius:6px;cursor:pointer">⚡ Auto Deduct</button>
             <button onclick="_hrmsAdvClearAll()" title="Set every deduction to 0" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🧹 Clear All Deductions</button>
             <button onclick="_hrmsSaveAdvDeductions()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">💾 Save Deductions</button>
@@ -976,8 +1028,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260506-V199"></script>
-<script src="js/hrms-logic.js?v=260506-V199"></script>
-<script src="js/hrms-ui.js?v=260506-V199"></script>
+<script src="js/common.js?v=260506-V229"></script>
+<script src="js/hrms-logic.js?v=260506-V229"></script>
+<script src="js/hrms-ui.js?v=260506-V229"></script>
 </body>
 </html>

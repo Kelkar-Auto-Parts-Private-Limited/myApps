@@ -2648,8 +2648,9 @@ function _downloadMultiSheetXlsx(sheets,filename){
         const ref=_xlCol(ci)+(ri+1);
         var isForceText=cell&&typeof cell==='object'&&cell._t!==undefined;
         var isNumFmt=cell&&typeof cell==='object'&&cell._n!==undefined;
+        var isDec=cell&&typeof cell==='object'&&cell._d!==undefined;
         var isWrap=cell&&typeof cell==='object'&&cell._w!==undefined;
-        const v=isForceText?cell._t:(isNumFmt?cell._n:(isWrap?cell._w:(cell===null||cell===undefined?'':cell)));
+        const v=isForceText?cell._t:(isNumFmt?cell._n:(isDec?cell._d:(isWrap?cell._w:(cell===null||cell===undefined?'':cell))));
         const vStr=String(v).trim();const num=Number(v);
         const forceText=isForceText||(typeof v==='string'&&/^\d{5,}$/.test(vStr))||(typeof v==='string'&&vStr.length>1&&vStr.charAt(0)==='0'&&/^\d+$/.test(vStr));
         var style;
@@ -2662,6 +2663,10 @@ function _downloadMultiSheetXlsx(sheets,filename){
           else if(isBorder&&isStripe) style=14;
           else if(isBorder) style=12;
           else style=11;
+          rowsXml+=`<c r="${ref}" s="${style}"><v>${typeof v==='number'?v:num}</v></c>`;
+        } else if(isDec){
+          // 1-decimal "0.0" format — gold+bold variant on tbltotal rows.
+          style=isTblTotal?23:22;
           rowsXml+=`<c r="${ref}" s="${style}"><v>${typeof v==='number'?v:num}</v></c>`;
         } else {
           if(isBannerRow) style=17;
@@ -2709,15 +2714,21 @@ function _downloadMultiSheetXlsx(sheets,filename){
       +'<dimension ref="'+dimRef+'"/>'
       +(function(){
         var fr=sh.freezeRow!=null?sh.freezeRow:(noFreeze?0:1);
-        if(fr>0){
-          return '<sheetViews><sheetView workbookViewId="0"><pane ySplit="'+fr+'" topLeftCell="A'+(fr+1)+'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+        var fc=sh.freezeCol!=null?sh.freezeCol:0;
+        if(fr>0||fc>0){
+          var attrs='';
+          if(fc>0) attrs+=' xSplit="'+fc+'"';
+          if(fr>0) attrs+=' ySplit="'+fr+'"';
+          var ap=(fc>0&&fr>0)?'bottomRight':(fc>0?'topRight':'bottomLeft');
+          var tlCol=_xlCol(fc);
+          return '<sheetViews><sheetView workbookViewId="0"><pane'+attrs+' topLeftCell="'+tlCol+(fr+1)+'" activePane="'+ap+'" state="frozen"/></sheetView></sheetViews>';
         }
         return '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
       })()
       +'<sheetFormatPr defaultRowHeight="15"/>'+colsXml
       +'<sheetData>'+rowsXml+'</sheetData>'
       +mergeXml
-      +(!noFilter&&colCount>0?'<autoFilter ref="A1:'+_xlCol(colCount-1)+rowCount+'"/>':'')
+      +(!noFilter&&colCount>0?'<autoFilter ref="A'+((sh.filterRow!=null?sh.filterRow:0)+1)+':'+_xlCol(colCount-1)+rowCount+'"/>':'')
       +(sh.landscape?'<pageSetup orientation="landscape"/>':'')
       +'</worksheet>';
   }
@@ -2729,9 +2740,10 @@ function _downloadMultiSheetXlsx(sheets,filename){
   // numFmtId 164 = Indian number format #,##,##0
   var _bdr='<left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/>';
   var _nf=164;// custom numFmt ID for Indian comma format
+  var _nfDec=165;// custom numFmt ID for 1-decimal format
   const stylesXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     +'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    +'<numFmts count="1"><numFmt numFmtId="'+_nf+'" formatCode="#,##,##0"/></numFmts>'
+    +'<numFmts count="2"><numFmt numFmtId="'+_nf+'" formatCode="#,##,##0"/><numFmt numFmtId="'+_nfDec+'" formatCode="0.0"/></numFmts>'
     +'<fonts count="6">'
     +'<font><sz val="11"/><name val="Calibri"/></font>'
     +'<font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
@@ -2749,7 +2761,7 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<fill><patternFill patternType="solid"><fgColor rgb="FF1E7A7F"/></patternFill></fill></fills>'
     +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>'+_bdr+'</border></borders>'
     +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    +'<cellXfs count="22">'
+    +'<cellXfs count="24">'
     // 0=normal, 1=dark header, 2=stripe, 3=bold, 4=bold+stripe
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
@@ -2782,6 +2794,10 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<xf numFmtId="0" fontId="2" fillId="6" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
     // 21=tbltotal number (bold on gold, bordered, Indian num)
     +'<xf numFmtId="'+_nf+'" fontId="2" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 22=1-decimal+border (right-aligned, fixed "0.0" format)
+    +'<xf numFmtId="'+_nfDec+'" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
+    // 23=1-decimal+bold+gold+border (tbltotal cells with decimal columns)
+    +'<xf numFmtId="'+_nfDec+'" fontId="2" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
     +'</cellXfs></styleSheet>';
   var files={};
   // Build each sheet
@@ -2821,7 +2837,27 @@ function _downloadMultiSheetXlsx(sheets,filename){
   var overrides=sheetNames.map(function(_,i){return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';}).join('');
   files['[Content_Types].xml']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+overrides+'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>';
   var blob=_buildZipBlob(files,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  _triggerDownload(blob,filename||'Export.xlsx');
+  if(filename!==null) _triggerDownload(blob,filename||'Export.xlsx');
+  return blob;
+}
+
+// Build a multi-sheet .xlsx as a Blob without triggering a download. Useful
+// when the caller wants to bundle several xlsx files into a folder ZIP.
+function _buildMultiSheetXlsxBlob(sheets){
+  return _downloadMultiSheetXlsx(sheets, null);
+}
+
+// Pack a list of {name, blob} entries into a single .zip Blob and download
+// it. Each entry's `name` becomes the filename inside the zip (use a
+// "folder/file.ext" form to nest into a folder).
+async function _downloadFolderZip(items, zipName){
+  var files={};
+  for(var i=0;i<items.length;i++){
+    var it=items[i];
+    files[it.name]=new Uint8Array(await it.blob.arrayBuffer());
+  }
+  var zipBlob=_buildZipBlob(files,'application/zip');
+  _triggerDownload(zipBlob, zipName||'Folder.zip');
 }
 
 

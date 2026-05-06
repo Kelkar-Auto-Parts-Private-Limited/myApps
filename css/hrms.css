@@ -27,6 +27,12 @@
 #pageHrmsUtilDailyAtt > .card{min-height:0}
 #pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
 #pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
+/* Advances sub-tab — panel fills its parent and contains its own scroll
+   inside the table wrapper so the page itself doesn't get a second
+   vertical scrollbar. Inline display:none (set on inactive panels) wins
+   over this rule, so other sub-tabs stay block-level. */
+#hrmsSetPanelAdvances{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+#hrmsSetPanelAdvances #hrmsAdvGrid{display:flex;flex-direction:column;flex:1;min-height:0}
 #pageHrmsEmpEdit input,#pageHrmsEmpEdit select,#pageHrmsEmpEdit label,#pageHrmsEmpEdit .form-group{font-size:14px!important}
 #pageHrmsEmpEdit #hrmsEmpPeriodBody input,#pageHrmsEmpEdit #hrmsEmpPeriodBody select{font-size:13px!important}
 #hrmsEmpPeriodBody input[type="month"]{font-size:11px!important;padding:1px 0!important;min-width:0!important;width:100%!important;text-align:left!important}
