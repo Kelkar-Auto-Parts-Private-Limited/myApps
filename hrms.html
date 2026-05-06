@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260506-V198">
+<meta name="app-build" content="260506-V199">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260506-V198">
+<link rel="stylesheet" href="css/hrms.css?v=260506-V199">
 </head>
 <body>
 
@@ -52,7 +52,6 @@
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
     <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
     <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
-    <div class="nav-item" id="navUtilContractFromFix" onclick="hrmsGo('pageHrmsUtilContractFromFix')" style="font-size:12px;padding:7px 16px">🛠 Contract From-Month Cleanup</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <!-- Bottom: Connection + Sign Out -->
@@ -379,26 +378,6 @@
         Daily presence (any IN punch) rolled up by plant, grouped by employment type. One chart per plant; three overlapping lines: <b style="color:#15803d">On Roll</b>, <b style="color:#1d4ed8">Contract</b>, <b style="color:#7c3aed">Piece Rate</b>. Data comes from attendance records already imported for the selected month.
       </div>
       <div id="hrmsMhgCharts" style="flex:1;overflow:auto"></div>
-    </div>
-  </div>
-
-  <!-- UTILITIES: Contract From-Month Cleanup -->
-  <div class="page" id="pageHrmsUtilContractFromFix" style="flex-direction:column">
-    <div class="card" style="flex:1;display:flex;flex-direction:column">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:10px">
-        <div style="font-size:18px;font-weight:900">🛠 Contract From-Month Cleanup</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <button onclick="_hrmsCfmRender()" style="padding:7px 14px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer">↻ Refresh</button>
-          <button onclick="_hrmsCfmBulkResetToJan26()" style="padding:7px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📌 Reset all From → Jan-2026 &amp; Save</button>
-        </div>
-      </div>
-      <div style="padding:10px 12px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;line-height:1.55;margin-bottom:10px">
-        Lists every <b>Contract</b>-typed period whose <b>From</b> month is before <b>Jan-2026</b>. Clicking <b>Reset all From → Jan-2026 &amp; Save</b> rewrites those periods so their <code>from</code> = <code>2026-01</code>, then persists each affected employee. Useful for cleaning up legacy data where the original from-month predates the system rollout.
-      </div>
-      <div id="hrmsCfmBody" style="overflow:auto"><div class="empty-state" style="padding:30px 20px;color:var(--text3)">Click <b>Refresh</b> to scan.</div></div>
-      <div id="hrmsCfmOverlapBody" style="overflow:auto;margin-top:18px"></div>
-      <div id="hrmsCfmOrderBody" style="overflow:auto;margin-top:18px"></div>
-      <div id="hrmsCfmInvalidBody" style="overflow:auto;margin-top:18px"></div>
     </div>
   </div>
 
@@ -997,8 +976,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260506-V198"></script>
-<script src="js/hrms-logic.js?v=260506-V198"></script>
-<script src="js/hrms-ui.js?v=260506-V198"></script>
+<script src="js/common.js?v=260506-V199"></script>
+<script src="js/hrms-logic.js?v=260506-V199"></script>
+<script src="js/hrms-ui.js?v=260506-V199"></script>
 </body>
 </html>

@@ -167,8 +167,7 @@ var _hrmsPageTitles={
   pageHrmsMAllocation:'Masters — Allocation',
   pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
   pageHrmsUtilDailyAtt:'Utilities — Daily Attendance Summary',
-  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph',
-  pageHrmsUtilContractFromFix:'Utilities — Contract From-Month Cleanup'
+  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph'
 };
 
 function _hrmsUpdateTopTitle(){
@@ -195,8 +194,7 @@ var _HRMS_PAGE_PERMS={
   pageHrmsMSubDept:'page.masterSubDept',pageHrmsMDesig:'page.masterDesig',pageHrmsMRoll:'page.masterRoll',pageHrmsMAllocation:'page.masterAllocation',
   pageHrmsUtilAttConv:'page.utilAttConv',
   pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
-  pageHrmsUtilMonthlyHc:'page.utilMonthlyHc',
-  pageHrmsUtilContractFromFix:'page.utilContractFromFix'
+  pageHrmsUtilMonthlyHc:'page.utilMonthlyHc'
 };
 
 function _hrmsEnforcePermissions(){
@@ -318,7 +316,6 @@ function hrmsGo(pid){
       if(typeof _hrmsDasRender==='function') _hrmsDasRender();
     }
     if(pid==='pageHrmsUtilMonthlyHc'&&typeof _hrmsMhgInit==='function') _hrmsMhgInit();
-    if(pid==='pageHrmsUtilContractFromFix'&&typeof _hrmsCfmRender==='function') _hrmsCfmRender();
   }
   if(pid==='pageHrmsMyAtt'&&typeof _hrmsMyAttInit==='function') _hrmsMyAttInit();
   if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
@@ -9832,56 +9829,115 @@ function _hrmsAltAddCancel(){
 
 // Render the table of all manual (non-C-Off) alterations for the selected
 // month with Edit / Delete actions per row.
+window._hrmsAltListSort=window._hrmsAltListSort||{field:'',dir:1};
+function _hrmsAltListSortBy(field){
+  var st=window._hrmsAltListSort;
+  if(st.field===field) st.dir*=-1;
+  else { st.field=field; st.dir=1; }
+  _hrmsRenderAltManualList();
+}
 function _hrmsRenderAltManualList(){
   var el=document.getElementById('hrmsAltManualList');if(!el) return;
   var mk=_hrmsMonth;
   if(!mk){el.innerHTML='<div style="font-size:11px;color:var(--text3)">Select a month above.</div>';return;}
-  var recs=_hrmsAltCache[mk]||[];
+  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
   var rows=[];
-  recs.forEach(function(r){
+  // 1. Manual / imported / C-Off / approved-request alterations.
+  (_hrmsAltCache[mk]||[]).forEach(function(r){
     if(!r.days) return;
     Object.keys(r.days).forEach(function(dk){
       var d=r.days[dk];if(!d) return;
-      rows.push({empCode:r.empCode,dayKey:dk,day:+dk,in:d['in']||'',out:d['out']||'',reason:d.reason||'',_coff:!!d._coff,_altReq:!!d._altReq});
+      rows.push({
+        empCode:r.empCode,dayKey:dk,day:+dk,
+        in:d['in']||'',out:d['out']||'',reason:d.reason||'',
+        _coff:!!d._coff,_altReq:!!d._altReq,_initial:false
+      });
     });
   });
-  if(!rows.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:10px;background:var(--surface2);border-radius:6px">No alterations recorded for '+_hrmsMonthLabel(mk)+'.</div>';return;}
+  // 2. Initial IN/OUT entries staged via the employee modal — those
+  // sit in hrms_attendance with `dd.initial:true` and aren't part of
+  // the alteration cache. Surface them here as read-only rows tagged
+  // with remarks="Initial data" so the alteration view is the single
+  // place to see every manual entry, including new joinee / rejoinee
+  // staging entries.
+  (_hrmsAttCache[mk]||[]).forEach(function(a){
+    if(!a||!a.days) return;
+    Object.keys(a.days).forEach(function(dk){
+      var d=a.days[dk];
+      if(!d||!d.initial) return;
+      rows.push({
+        empCode:a.empCode,dayKey:String(+dk),day:+dk,
+        in:d['in']||'',out:d['out']||'',
+        reason:'Initial data',
+        _coff:false,_altReq:false,_initial:true
+      });
+    });
+  });
+  if(!rows.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:10px;background:var(--surface2);border-radius:6px">No alterations or initial entries recorded for '+_hrmsMonthLabel(mk)+'.</div>';window._hrmsAltListLast=[];return;}
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  var dayN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Annotate rows with derived fields for sort + export.
+  rows.forEach(function(r){
+    var emp=empMap[r.empCode];
+    r.name=emp?_hrmsDispName(emp):'';
+    r.plant=emp?(emp.location||''):'';
+    r.dateStr=mk+'-'+String(r.day).padStart(2,'0');
+    r.dayName=dayN[(new Date(yr,mo-1,r.day)).getDay()];
+  });
+  // Default sort: day asc → empCode asc.
   rows.sort(function(a,b){
     var d=a.day-b.day;if(d!==0) return d;
     return(a.empCode||'').localeCompare(b.empCode||'');
   });
-  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
-  var p=mk.split('-');var yr=+p[0],mo=+p[1];
-  var dayN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:1.5px solid var(--border);text-align:left';
+  // Apply user-chosen sort layered on top.
+  var st=window._hrmsAltListSort||{field:'',dir:1};
+  if(st.field){
+    var f=st.field,dir=st.dir||1;
+    rows.sort(function(a,b){
+      var av,bv;
+      if(f==='day'){av=a.day;bv=b.day;return(av-bv)*dir;}
+      av=String(a[f]||'');bv=String(b[f]||'');
+      return av.localeCompare(bv)*dir;
+    });
+  }
+  window._hrmsAltListLast=rows.slice();
+  var th='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:1.5px solid var(--border);text-align:left;cursor:pointer;user-select:none;white-space:nowrap';
+  var thNoSort='padding:6px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:1.5px solid var(--border);text-align:left;white-space:nowrap';
   var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var h='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 420px)">'+
-    '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
-    '<thead><tr>'+
-      '<th style="'+th+'">#</th>'+
-      '<th style="'+th+'">Emp Code</th>'+
-      '<th style="'+th+'">Name</th>'+
-      '<th style="'+th+'">Date</th>'+
-      '<th style="'+th+'">Day</th>'+
-      '<th style="'+th+'">Time IN</th>'+
-      '<th style="'+th+'">Time OUT</th>'+
-      '<th style="'+th+'">Remarks</th>'+
-      '<th style="'+th+';text-align:center">Action</th>'+
+  var arrow=function(field){
+    if(st.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
+    return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(st.dir>0?'▲':'▼')+'</span>';
+  };
+  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">'+
+    '<div style="font-size:13px;font-weight:800;color:var(--text)">Alterations &amp; Initial entries — '+_hrmsMonthLabel(mk)+' ('+rows.length+')</div>'+
+    '<div style="flex:1"></div>'+
+    '<button onclick="_hrmsAltListExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export</button>'+
+  '</div>';
+  h+='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 420px)">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+thNoSort+'">#</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'empCode\')" style="'+th+'">Emp Code'+arrow('empCode')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'name\')" style="'+th+'">Name'+arrow('name')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'plant\')" style="'+th+'">Plant'+arrow('plant')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'day\')" style="'+th+'">Date'+arrow('day')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'dayName\')" style="'+th+'">Day'+arrow('dayName')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'in\')" style="'+th+'">Time IN'+arrow('in')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'out\')" style="'+th+'">Time OUT'+arrow('out')+'</th>'+
+      '<th onclick="_hrmsAltListSortBy(\'reason\')" style="'+th+'">Remarks'+arrow('reason')+'</th>'+
+      '<th style="'+thNoSort+';text-align:center">Action</th>'+
     '</tr></thead><tbody>';
   rows.forEach(function(r,i){
-    var emp=empMap[r.empCode];
-    var dt=new Date(yr,mo-1,r.day);
-    var dn=dayN[dt.getDay()];
-    var sun=(dn==='Sun');
-    var dateStr=mk+'-'+String(r.day).padStart(2,'0');
+    var sun=(r.dayName==='Sun');
     var ecEsc=String(r.empCode||'').replace(/'/g,"\\'");
     var dkEsc=String(r.dayKey||'').replace(/'/g,"\\'");
-    var rowBg=r._coff?'background:#cffafe':(r._altReq?'background:#dbeafe':'');
+    var rowBg=r._coff?'background:#cffafe':(r._altReq?'background:#dbeafe':(r._initial?'background:#fef3c7':''));
     var actions;
     if(r._coff){
       actions='<span title="C-Off-derived alteration — revoke from C-Off Requests sub-tab" style="font-size:10px;color:var(--text3)">C-Off</span>';
     } else if(r._altReq){
       actions='<span title="Approved alteration request — manage from Alteration Requests sub-tab" style="font-size:10px;color:var(--text3)">Request</span>';
+    } else if(r._initial){
+      actions='<span title="Initial IN/OUT staging — edit from the employee\'s Initial IN/OUT tab" style="font-size:10px;color:#92400e">Initial</span>';
     } else {
       actions='<button onclick="_hrmsAltManualEdit(\''+ecEsc+'\',\''+dkEsc+'\')" style="font-size:10px;padding:3px 8px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer;margin-right:3px">✎ Edit</button>'
         +'<button onclick="_hrmsAltManualDelete(\''+ecEsc+'\',\''+dkEsc+'\')" style="font-size:10px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑 Delete</button>';
@@ -9889,17 +9945,31 @@ function _hrmsRenderAltManualList(){
     h+='<tr style="'+rowBg+'">'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+r.empCode+'</td>'+
-      '<td style="'+td+';font-weight:700">'+(emp?_hrmsDispName(emp):'—')+'</td>'+
-      '<td style="'+td+';font-family:var(--mono)">'+dateStr+'</td>'+
-      '<td style="'+td+';font-weight:700;color:'+(sun?'#dc2626':'var(--text)')+'">'+dn+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(r.name||'—')+'</td>'+
+      '<td style="'+td+'">'+(r.plant||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+r.dateStr+'</td>'+
+      '<td style="'+td+';font-weight:700;color:'+(sun?'#dc2626':'var(--text)')+'">'+r.dayName+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(r.in||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(r.out||'—')+'</td>'+
-      '<td style="'+td+';color:var(--text2);font-style:'+(r._coff?'normal':'italic')+';max-width:280px">'+(r.reason||'—')+'</td>'+
+      '<td style="'+td+';color:var(--text2);font-style:'+(r._coff||r._initial?'normal':'italic')+';max-width:280px">'+(r.reason||'—')+'</td>'+
       '<td style="'+td+';text-align:center;white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   });
   h+='</tbody></table></div>';
   el.innerHTML=h;
+}
+
+function _hrmsAltListExport(){
+  var rows=window._hrmsAltListLast||[];
+  if(!rows.length){notify('No alteration data to export',true);return;}
+  var headers=['Emp Code','Name','Date','Time IN','Time OUT','Plant','Remarks'];
+  var data=[headers];
+  rows.forEach(function(r){
+    data.push([r.empCode||'',r.name||'',r.dateStr||'',r.in||'',r.out||'',r.plant||'',r.reason||'']);
+  });
+  var fname='Alterations_'+(_hrmsMonth||'')+'.xlsx';
+  if(typeof _downloadAsXlsx==='function') _downloadAsXlsx(data,'Alterations',fname);
+  notify('📤 Exported '+rows.length+' alteration record(s)');
 }
 
 // Pre-fill the manual alteration form with an existing entry's values.
