@@ -1004,11 +1004,9 @@ function _hrmsUpdateEtfCounts(){
   // official records until then, and they're already counted in the Change
   // Requests tab badge.
   var pool=(DB.hrmsEmployees||[]).filter(function(e){return !e._isNewEcr;});
-  // Honour the "Show only Active/Present" checkbox on the Employees page so
-  // the pill counts always match the visible row count.
-  var chk=document.getElementById('hrmsEmpOnlyActive');
-  var onlyActive=chk?chk.checked:true;
-  var c=_hrmsCountByEmpType(pool,onlyActive);
+  // Counts now mirror the visible row count, which is unfiltered by
+  // status — every employee in the master shows on the page.
+  var c=_hrmsCountByEmpType(pool,false);
   ['All','OnRoll','Contract','PieceRate','Visitor'].forEach(function(k){
     var el=document.getElementById('hrmsEtfCount_'+k);if(el) el.textContent=c[k];
   });
@@ -1271,7 +1269,6 @@ function renderHrmsEmployees(){
   var fCat=(document.getElementById('hrmsEmpFCat')?.value||'');
   var fDept=(document.getElementById('hrmsEmpFDept')?.value||'');
   var fRoll=(document.getElementById('hrmsEmpFRoll')?.value||'');
-  var onlyActive=document.getElementById('hrmsEmpOnlyActive')?document.getElementById('hrmsEmpOnlyActive').checked:true;
   emps=emps.filter(function(e){
     if(codeSearch&&(e.empCode||'').toLowerCase().indexOf(codeSearch)<0) return false;
     if(nameSearch&&(e.name||'').toLowerCase().indexOf(nameSearch)<0) return false;
@@ -1281,16 +1278,6 @@ function renderHrmsEmployees(){
     if(fCat&&e.category!==fCat) return false;
     if(fDept&&_empDept(e)!==fDept) return false;
     if(fRoll&&(e.roll||'')!==fRoll) return false;
-    if(onlyActive){
-      // Consider EITHER the flat status field OR the active period's status —
-      // if either one says Inactive/Resigned, hide. Prevents stale flat fields
-      // (where the period was updated but the emp header wasn't synced) from
-      // leaking resigned employees through the filter.
-      var _ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
-      var _flatOk=(e.status||'Active')==='Active';
-      var _periodOk=!_ap||(_ap.status||'Active')==='Active';
-      if(!_flatOk||!_periodOk) return false;
-    }
     return true;
   });
   var sk=_hrmsEmpSortKey,sa=_hrmsEmpSortAsc;
@@ -1635,15 +1622,22 @@ function _hrmsBuildPeriodTable(){
       +'<td style="padding:4px 3px"><input type="number" class="no-spin'+_chk('specialAllowance')+'" value="'+(p.specialAllowance||'')+'" step="50" min="0" onchange="_hrmsPeriodFieldChange('+i+',\'specialAllowance\',parseFloat(this.value)||0);_hrmsBuildPeriodTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+(isEditable?'':'disabled style="opacity:0.6"')+'></td>'
       +'<td style="padding:4px 3px;text-align:center"><select class="'+_chk('esiApplicable')+'" onchange="_hrmsPeriodFieldChange('+i+',\'esiApplicable\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;font-weight:700" '+dis+'><option value="Yes"'+((p.esiApplicable||'Yes')==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(p.esiApplicable==='No'?' selected':'')+'>No</option></select></td>'
       +(function(){
-        var st=p.status||'Active';
         var et=((p.employmentType||'')+'').toLowerCase().replace(/\s/g,'');
+        var isContractLike=(et==='contract'||et==='piecerate');
+        // Contract / Piece-Rate: status is no longer maintained per
+        // the abolished-auto-status policy. Force Active and render a
+        // static read-only chip so the column doesn't pretend to be
+        // editable. The forced value also flows through the next
+        // render of period save / sync flat fields.
+        if(isContractLike){
+          if(p.status!=='Active') p.status='Active';
+          return '<td style="padding:4px 3px;text-align:center"><span style="display:inline-block;padding:3px 10px;font-size:11px;font-weight:800;background:#dcfce7;color:#15803d;border:1.5px solid #86efac;border-radius:4px" title="Status is auto-managed for Contract / Piece-Rate — always Active">Active</span></td>';
+        }
+        var st=p.status||'Active';
         var isOnRoll=et==='onroll';
         var opts,clr,bg;
-        // Only Active / Inactive are valid statuses now — any legacy 'Left'
-        // value is coerced to Inactive at render time.
         var normSt=(st==='Active')?'Active':'Inactive';
         if(isOnRoll){
-          // On Roll: Active → Present, Inactive → Resigned.
           clr=normSt==='Active'?'#15803d':'#dc2626';
           bg=normSt==='Active'?'#dcfce7':'#fee2e2';
           opts='<option value="Active"'+(normSt==='Active'?' selected':'')+'>Present</option>'+
@@ -2453,41 +2447,52 @@ function _hrmsRefreshInitialTabVisibility(){
   var btn=document.getElementById('hrmsEmpTabBtn_initial');if(!btn) return;
   var idVal=(document.getElementById('hrmsEmpId')||{}).value||'';
   var emp=idVal?byId(DB.hrmsEmployees||[],idVal):null;
-  // Prefer the live form value so editing the DOJ updates the tab
-  // visibility instantly. Fall back to the saved record only when the
-  // input is empty (e.g., during initial population before the form
-  // has rendered the value).
   var doj=(document.getElementById('hrmsEmpDOJ')||{}).value
     ||(emp&&emp.dateOfJoining)||'';
   var selMk=(typeof _hrmsMonth==='string')?_hrmsMonth:'';
   var lockedSel=!!(selMk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(selMk));
+  var empCode=(emp&&emp.empCode)||(document.getElementById('hrmsEmpCode')||{}).value||'';
+  var ecKey=String(empCode||'').toUpperCase();
+  // Helper — slice DOJ down to YYYY-MM. Tolerant of either format.
+  var dojMk='';
+  if(doj){
+    var dp=String(doj).split('-');
+    if(dp.length>=2&&dp[0].length===4) dojMk=dp[0]+'-'+String(dp[1]).padStart(2,'0');
+  }
+  var rejoinMk=_hrmsRejoinStartMk(emp);
+  // ── Primary path: selected muster month is unlocked AND classifier
+  // says this employee is a joinee/rejoinee for selMk. ──
   var show=false;
   if(selMk&&!lockedSel){
-    // Primary signal — was this employee classified as a joinee /
-    // rejoinee for the selected month by the Joinee/Rejoinee tab?
-    // The classification is attendance-based (present this month, not
-    // present last) so it covers cases where DOJ predates the month
-    // but the employee's first punches landed in selMk.
-    var empCode=(emp&&emp.empCode)||(document.getElementById('hrmsEmpCode')||{}).value||'';
     var jMap=(window._hrmsJoineeByMk||{})[selMk];
-    if(jMap&&empCode&&jMap[String(empCode).toUpperCase()]){
-      show=true;
-    } else {
-      // Fallback — DOJ-month or rejoin-month equals selMk (covers
-      // brand-new employees whose attendance hasn't been computed yet
-      // and any session where the entry tab hasn't been opened).
-      var startMk='';
-      if(doj){
-        var dp=String(doj).split('-');
-        if(dp.length===3&&dp[0].length===4) startMk=dp[0]+'-'+dp[1];
-      }
-      var rejoinMk=_hrmsRejoinStartMk(emp);
-      if(rejoinMk&&(!startMk||rejoinMk>startMk)) startMk=rejoinMk;
-      if(startMk&&startMk===selMk) show=true;
+    if(jMap&&ecKey&&jMap[ecKey]){show=true;}
+    else if(dojMk===selMk||rejoinMk===selMk){show=true;}
+  }
+  // ── Relaxed fallback: cache may not have been populated yet
+  // (Joinee/Rejoinee tab not visited this session) AND the user
+  // hasn't selected a muster month. If the employee's DOJ-month or
+  // rejoin-month is itself unlocked, surface the tab so the user can
+  // stage IN/OUT immediately after creating the record. ──
+  if(!show){
+    var checkMk=dojMk||rejoinMk;
+    if(checkMk&&typeof _hrmsIsMonthLocked==='function'&&!_hrmsIsMonthLocked(checkMk)){
+      // Also surface for any cached joinee map across ANY unlocked
+      // month — covers contract rejoinees flagged in a different
+      // month than the one the modal currently has selected.
+      var anyMatch=false;
+      var byMk=window._hrmsJoineeByMk||{};
+      Object.keys(byMk).forEach(function(mk){
+        if(anyMatch) return;
+        if(_hrmsIsMonthLocked&&_hrmsIsMonthLocked(mk)) return;
+        if(byMk[mk]&&ecKey&&byMk[mk][ecKey]) anyMatch=true;
+      });
+      // Also check DOJ-month directly — fresh joinee whose DOJ-month
+      // is unlocked qualifies even without the cache.
+      if(anyMatch||(dojMk&&dojMk===checkMk)) show=true;
+      else if(rejoinMk&&rejoinMk===checkMk) show=true;
     }
   }
   btn.style.display=show?'':'none';
-  // If the active tab was Initial but it's now hidden, snap back to Details.
   if(!show&&_hrmsEmpActiveTab==='initial') _hrmsEmpModalTab('details');
 }
 
@@ -2573,11 +2578,37 @@ function _hrmsLoadInitialFromDB(){
   var rows=_hrmsInitialDaysFromDoj();
   var empCode=(document.getElementById('hrmsEmpCode')||{}).value||'';
   if(!empCode||!rows.length){_hrmsEmpInitialDays=rows;return;}
+  // Collect the unique month-keys covered by the 7-row staging window.
+  // If any of them haven't been fetched into the attendance cache yet
+  // (typical when the user opens the Initial IN/OUT tab without first
+  // visiting the muster of that month), fire the fetches in parallel
+  // and re-render once they land — that way muster data for, say, the
+  // last few days of the previous month surfaces automatically.
+  var months={};
+  rows.forEach(function(r){var p=String(r.date||'').split('-');if(p[0]&&p[1]) months[p[0]+'-'+p[1]]=true;});
+  var needed=Object.keys(months).filter(function(mk){return !_hrmsAttCache[mk];});
+  if(needed.length&&typeof _hrmsAttFetchMonth==='function'){
+    Promise.all(needed.map(function(mk){
+      try{return _hrmsAttFetchMonth(mk);}catch(_){return null;}
+    })).then(function(){
+      // Re-run synchronously now that the cache is populated.
+      _hrmsLoadInitialFromDB();
+      if(typeof _hrmsRenderInitialAttendance==='function') _hrmsRenderInitialAttendance();
+    }).catch(function(e){console.warn('Init IN/OUT prefetch failed:',e);});
+  }
   rows.forEach(function(r){
     var p=r.date.split('-');var mk=p[0]+'-'+p[1];var dk=String(+p[2]);
     var rec=(_hrmsAttCache[mk]||[]).find(function(a){return a.empCode===empCode;});
-    var dd=rec&&rec.days&&rec.days[dk];
-    if(dd&&dd.initial){r.in=dd['in']||'';r.out=dd['out']||'';r.confirmed=!!(r.in||r.out);r.editing=false;}
+    var dd=rec&&rec.days&&(rec.days[dk]||rec.days[dk.padStart(2,'0')]);
+    if(!dd) return;
+    if(dd.initial){
+      r.in=dd['in']||'';r.out=dd['out']||'';
+      r.confirmed=!!(r.in||r.out);r.editing=false;
+    } else if(dd['in']||dd['out']){
+      r.in=dd['in']||'';r.out=dd['out']||'';
+      r.confirmed=true;r.editing=false;
+      r._fromMuster=true;
+    }
   });
   _hrmsEmpInitialDays=rows;
 }
@@ -2729,29 +2760,28 @@ function _hrmsRenderInitialAttendance(){
     var dispDate=dp[2]+'/'+dp[1]+'/'+dp[0];
     var mk=dp[0]+'-'+dp[1];
     var isLocked=locked(r.date);
-    // Inputs are always editable for any HR-perm user — only the
-    // month-lock gate disables them. The two buttons surfaced are
-    // 💾 Save (commits the row to attendance) and ↺ Reset (removes
-    // the staged / saved entry).
-    var rowDisabled=isLocked;
-    var rowBg=r.confirmed?'#dcfce7':(isLocked?'#fee2e2':(r.editing?'#fffbeb':'#fff'));
-    // Build the IN/OUT input attributes — explicit background+color in both
-    // states so an editable cell never inherits a faded look from the row.
+    var fromMuster=!!r._fromMuster;
+    // Inputs are read-only when (a) the month is locked OR (b) the
+    // row's IN/OUT was loaded from regular muster / ESSL data (the
+    // muster wins; this tab only stages days that have no
+    // attendance record yet).
+    var rowDisabled=isLocked||fromMuster;
+    var rowBg=fromMuster?'#dbeafe':(r.confirmed?'#dcfce7':(isLocked?'#fee2e2':(r.editing?'#fffbeb':'#fff')));
     var _inpBase='font-size:13px;padding:4px 6px;border:1.5px solid var(--border);border-radius:5px;width:78px;text-align:center;font-family:var(--mono);box-sizing:border-box';
     var disAttr=rowDisabled
-      ?'disabled style="'+_inpBase+';background:#f1f5f9;color:#64748b;cursor:'+(isLocked?'not-allowed':'default')+'"'
+      ?'disabled style="'+_inpBase+';background:'+(fromMuster?'#eff6ff':'#f1f5f9')+';color:'+(fromMuster?'#1d4ed8':'#64748b')+';cursor:'+(isLocked||fromMuster?'not-allowed':'default')+'"'
       :'style="'+_inpBase+';background:#fff;color:var(--text);cursor:text"';
-    // Live calc — runs on every render and is also refreshed in-place by
-    // _hrmsInitialRefreshRowCalc on each blur (without a full re-render so
-    // Tab navigation between inputs survives).
     var calc=_hrmsInitialCalcDay(r.date,r.in,r.out,isStaff,location,elByMonth[mk]||0);
     if(calc.status==='EL') elByMonth[mk]=(elByMonth[mk]||0)+1;
-    var stateTxt=isLocked?'<span style="color:#dc2626;font-weight:800">🔒 Locked</span>'
+    var stateTxt=fromMuster?'<span style="color:#1d4ed8;font-weight:800">📥 From Muster</span>'
+      :(isLocked?'<span style="color:#dc2626;font-weight:800">🔒 Locked</span>'
       :(r.editing?'<span style="color:#b45309;font-weight:800">✎ Editing</span>'
       :(r.confirmed?'<span style="color:#15803d;font-weight:800">✓ Staged</span>'
-      :'<span style="color:var(--text3)">—</span>'));
+      :'<span style="color:var(--text3)">—</span>')));
     var actions='';
-    if(isLocked){
+    if(fromMuster){
+      actions='<span style="font-size:11px;color:#1d4ed8;font-weight:700">Already in muster</span>';
+    } else if(isLocked){
       actions='<span style="font-size:11px;color:var(--text3)">No action</span>';
     } else {
       actions=''
