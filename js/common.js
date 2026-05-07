@@ -2775,11 +2775,15 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     +'<xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
     // 5=border, 6=stripe+border, 7=bold+border, 8=bold+stripe+border, 9=dark+border
+    // Style 9 is the default header style for the first row of bordered
+    // exports (ESI/PF list, etc.). It carries wrapText so a tall
+    // rowHeights[0] value lets multi-word column titles flow to two lines
+    // instead of being clipped at a single line.
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
     +'<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>'
     +'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>'
     +'<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
-    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
     // 10=title(15pt bold)
     +'<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
     // 11=Indian num, 12=Indian num+border, 13=Indian num+bold+border, 14=Indian num+stripe+border
