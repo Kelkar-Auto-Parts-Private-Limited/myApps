@@ -1790,7 +1790,7 @@ var _PERM_KEYS={
     {key:'settings.manual',label:'Manual Overrides',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.importOB',label:'Import Opening Bal.',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.tds',label:'TDS',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.salrevision',label:'Salary Revisions',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.salrevision',label:'OR Salary Rev',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.bulkSalRevision',label:'Import Salary Excel',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.otrules',label:'OT Rules',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.editOtRules',label:'Edit OT Rules',group:'⚙️ Settings & Sub-tabs'},
@@ -1811,18 +1811,18 @@ var _PERM_KEYS={
     {key:'att.coff',label:'C-Off Requests Tab',group:'📋 Attendance & Sub-tabs'},
     {key:'att.altRequest',label:'Submit Alteration Request',group:'📋 Attendance & Sub-tabs'},
     {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📋 Attendance & Sub-tabs'},
-    {key:'tab.salary',label:'Salary Tab',group:'💰 Salary Tab'},
+    {key:'tab.salary',label:'OR Salary Tab',group:'💰 OR Salary Tab'},
     {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
     {key:'action.exportWorkerSlip',label:"Worker's Salary Slip PDF",group:'💰 Salary Tab'},
-    {key:'tab.payments',label:'Payments Tab',group:'🏦 Payments Tab'},
+    {key:'tab.payments',label:'OR Sal Payments Tab',group:'🏦 OR Sal Payments Tab'},
     {key:'action.exportPayments',label:'Export Payments',group:'🏦 Payments Tab'},
-    {key:'tab.esipf',label:'ESI/PF List Tab',group:'📋 ESI/PF List Tab'},
+    {key:'tab.esipf',label:'OR ESI/PF List Tab',group:'📋 OR ESI/PF List Tab'},
     {key:'action.exportEsiPf',label:'Export ESI/PF',group:'📋 ESI/PF List Tab'},
-    {key:'tab.pt',label:'PT Details Tab',group:'🧾 PT Details Tab'},
+    {key:'tab.pt',label:'OR PT Summary Tab',group:'🧾 OR PT Summary Tab'},
     {key:'action.exportPt',label:'Export PT Details',group:'🧾 PT Details Tab'},
     {key:'tab.contract',label:'Contract Salary Tab',group:'📋 Contract Salary Tab'},
     {key:'action.exportContract',label:'Export Contract Sal.',group:'📋 Contract Salary Tab'},
-    {key:'page.contractRev',label:'Contract Salary Revision Page',group:'💵 Contract Salary Revision'},
+    {key:'page.contractRev',label:'Contract Salary Rev Page',group:'💵 Contract Salary Rev'},
     {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
     {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
     {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
@@ -2817,8 +2817,10 @@ function _downloadMultiSheetXlsx(sheets,filename){
   var defNames='';
   sheets.forEach(function(sh,i){
     if(sh.printTitleRow!=null){
-      var r1=sh.printTitleRow+1;// 1-indexed
-      defNames+='<definedName name="_xlnm.Print_Titles" localSheetId="'+i+'">\''+ex(sheetNames[i])+'\'!$'+r1+':$'+r1+'</definedName>';
+      var _ptr=sh.printTitleRow,_r1,_r2;
+      if(Array.isArray(_ptr)){_r1=_ptr[0]+1;_r2=_ptr[1]+1;}
+      else{_r1=_r2=_ptr+1;}
+      defNames+='<definedName name="_xlnm.Print_Titles" localSheetId="'+i+'">\''+ex(sheetNames[i])+'\'!$'+_r1+':$'+_r2+'</definedName>';
     }
   });
   files['xl/workbook.xml']='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

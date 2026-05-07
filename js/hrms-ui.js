@@ -1847,6 +1847,21 @@ function _hrmsUpdateMyApprovalsBadge(){
     (e.extra.altRequests||[]).forEach(function(r){if(_hrmsMyApprovalsCanAct(r)) n++;});
     (e.extra.coffBank||[]).forEach(function(c){if(_hrmsMyApprovalsCanAct(c)) n++;});
   });
+  // Manual + Excel alteration entries pending approval. The cumulative
+  // side-nav badge isn't month-scoped, so we sweep every loaded month
+  // in _hrmsAltCache (DB.hrmsAlterations isn't part of the boot load).
+  if(_hrmsAltCache){
+    Object.keys(_hrmsAltCache).forEach(function(_mk){
+      (_hrmsAltCache[_mk]||[]).forEach(function(rec){
+        if(!rec||!rec.days) return;
+        Object.keys(rec.days).forEach(function(dk){
+          var d=rec.days[dk];if(!d) return;
+          if(d._coff||d._altReq) return;
+          if(d.approved===false||d.approved==null) n++;
+        });
+      });
+    });
+  }
   nav.textContent=n;nav.style.display=n?'':'none';
 }
 function _hrmsEmpSetTab(tab){
@@ -1965,8 +1980,9 @@ function _hrmsRenderChangeReq(){
       if(_ecrSort.field!==field) return '<span style="opacity:.45;font-size:9px;margin-left:3px">↕</span>';
       return '<span style="font-size:10px;margin-left:3px;color:#fbbf24">'+(_ecrSort.dir>0?'▲':'▼')+'</span>';
     };
-    var _hThS='padding:6px 8px;font-size:11px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap';
-    var _hThSR='padding:6px 8px;font-size:11px;text-align:right;cursor:pointer;user-select:none;white-space:nowrap';
+    // Wrap-friendly header style — multi-word headers can break onto two lines.
+    var _hThS='padding:6px 8px;font-size:11px;text-align:left;cursor:pointer;user-select:none;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom';
+    var _hThSR='padding:6px 8px;font-size:11px;text-align:right;cursor:pointer;user-select:none;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom';
     h+='<div style="margin-top:16px;border-top:2px solid var(--border);padding-top:12px"><div style="font-size:16px;font-weight:900;margin-bottom:10px">📜 ECR History ('+historyReqs.length+')</div>';
     h+='<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#1e293b;color:#fff">'
       +'<th onclick="_hrmsEcrHistorySortBy(\'empCode\')" style="'+_hThS+'">Emp Code'+_ecrArrow('empCode')+'</th>'
@@ -1978,13 +1994,7 @@ function _hrmsRenderChangeReq(){
       +'<th onclick="_hrmsEcrHistorySortBy(\'actBy\')" style="'+_hThS+'">Action By'+_ecrArrow('actBy')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'actAt\')" style="'+_hThS+'">Action At'+_ecrArrow('actAt')+'</th>'
       +'<th onclick="_hrmsEcrHistorySortBy(\'location\')" style="'+_hThS+'">Plant'+_ecrArrow('location')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'employmentType\')" style="'+_hThS+'">Type'+_ecrArrow('employmentType')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'category\')" style="'+_hThS+'">Category'+_ecrArrow('category')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'teamName\')" style="'+_hThS+'">Team'+_ecrArrow('teamName')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'roll\')" style="'+_hThS+'">Role'+_ecrArrow('roll')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'salaryDay\')" style="'+_hThSR+'">Sal/Day'+_ecrArrow('salaryDay')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'salaryMonth\')" style="'+_hThSR+'">Sal/Mon'+_ecrArrow('salaryMonth')+'</th>'
-      +'<th onclick="_hrmsEcrHistorySortBy(\'specialAllowance\')" style="'+_hThSR+'">Sp.Allow'+_ecrArrow('specialAllowance')+'</th>'
+      +'<th style="'+_hThS+';cursor:default">Change</th>'
       +(isSA?'<th style="padding:6px 8px;font-size:11px"></th>':'')+'</tr></thead><tbody>';
     // dd-mmm-yy timestamp helper. Reuses _hrmsFmtDate for the date part
     // (already produces "06-May-26") and tacks on HH:MM in 24h.
@@ -2006,16 +2016,54 @@ function _hrmsRenderChangeReq(){
       var sty=styles[k]||'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
       return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;'+sty+'">'+(t||'—')+'</span>';
     };
+    // "Plant-2" / "Plant 2" / "Plant_2" → "P2"
+    var _plantShort=function(p){return String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
+    // Build a "Change" cell — diffs of the new revision (hp) against the
+    // current active rev (cur). For new joinees (no prior period under
+    // this emp) we just print "New Joinee" since there's nothing to diff.
+    var _ecrChangeFields=[
+      ['location','Plant'],['employmentType','Type'],['category','Category'],
+      ['teamName','Team'],['roll','Role'],['department','Dept'],
+      ['designation','Designation'],['salaryDay','Sal/Day'],
+      ['salaryMonth','Sal/Mon'],['specialAllowance','Sp.Allow'],
+      ['esiApplicable','ESI']
+    ];
+    var _ecrIsNewJoinee=function(emp,p){
+      if(emp&&emp._isNewEcr) return true;
+      if(!emp||!emp.periods) return false;
+      // No prior approved/active period before this one → first ever record.
+      for(var i=0;i<emp.periods.length;i++){
+        var pp=emp.periods[i];
+        if(pp===p) continue;
+        if(pp._ecrResult==='approved') return false;
+        if(!pp._wfStatus&&!pp._ecrResult) return false;
+      }
+      return true;
+    };
+    var _ecrChangeCell=function(hp,cur,emp){
+      if(_ecrIsNewJoinee(emp,hp)) return '<span style="background:#dbeafe;color:#1e3a8a;padding:2px 8px;border-radius:10px;font-weight:800;font-size:10px">New Joinee</span>';
+      var rows=[];
+      _ecrChangeFields.forEach(function(pair){
+        var k=pair[0],lbl=pair[1];
+        var ov=String(cur[k]==null?'':cur[k]).trim();
+        var nv=String(hp[k]==null?'':hp[k]).trim();
+        if(ov===nv) return;
+        rows.push('<div style="font-size:11px;line-height:1.4"><b style="color:#0f172a">'+lbl+':</b> <span style="color:#64748b;text-decoration:line-through">'+(ov||'—')+'</span> → <span style="color:#92400e;font-weight:700">'+(nv||'—')+'</span></div>');
+      });
+      return rows.length?rows.join(''):'<span style="color:var(--text3);font-style:italic">no change</span>';
+    };
     historyReqs.forEach(function(r){
       var hp=r.period,e=r.emp,cur=r.current||{};
       var isApproved=hp._ecrResult==='approved';
       var badge=isApproved?'<span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-weight:700;font-size:10px">✓ Approved</span>':'<span style="background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:3px;font-weight:700;font-size:10px">✕ Rejected</span>';
-      var reqBy=hp.submittedBy||'—';
+      // Resolve usernames / empCodes → display name. Falls back to the
+      // raw stored value when the lookup can't find a match.
+      var reqBy=hp.submittedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(hp.submittedBy):hp.submittedBy):'—';
       var reqAt=_fmtTs(hp.submittedAt);
-      var actBy=isApproved?(hp.approvedBy||'—'):(hp.rejectedBy||'—');
+      var actByRaw=isApproved?hp.approvedBy:hp.rejectedBy;
+      var actBy=actByRaw?(typeof _hrmsApproverName==='function'?_hrmsApproverName(actByRaw):actByRaw):'—';
       var actAt=isApproved?_fmtTs(hp.approvedAt):_fmtTs(hp.rejectedAt);
       var rowBg=isApproved?'background:#f0fdf4':'background:#fef2f2';
-      var _hi=function(f){var changed=String(hp[f]||'')!==String((cur[f])||'');return changed?'background:#fef3c7;font-weight:800;color:#92400e':'';};
       var _ecEsc2=String(e.empCode||'').replace(/'/g,"\\'");
       var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(hp.location||''):'#fff';
       h+='<tr style="border-bottom:1px solid #e2e8f0;'+rowBg+'">'
@@ -2027,14 +2075,8 @@ function _hrmsRenderChangeReq(){
         +'<td style="padding:5px 8px;font-family:var(--mono);font-size:11px">'+reqAt+'</td>'
         +'<td style="padding:5px 8px">'+actBy+'</td>'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-size:11px">'+actAt+'</td>'
-        +'<td style="padding:5px 8px;background:'+pClr+';font-weight:800;color:#1e293b;'+_hi('location')+'">'+(hp.location||'—')+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('employmentType')+'">'+_empTypeBadge(hp.employmentType)+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('category')+'">'+(hp.category||'—')+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('teamName')+'">'+(hp.teamName||'—')+'</td>'
-        +'<td style="padding:5px 8px;'+_hi('roll')+'">'+(hp.roll||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryDay')+'">'+((String(hp.category||'').toLowerCase()==='staff')?'<span style="color:var(--text3)">—</span>':(hp.salaryDay||'—'))+'</td>'
-        +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('salaryMonth')+'">'+(hp.salaryMonth||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:right;font-family:var(--mono);'+_hi('specialAllowance')+'">'+(hp.specialAllowance||'—')+'</td>'
+        +'<td style="padding:5px 8px;background:'+pClr+';font-weight:800;color:#1e293b" title="'+(hp.location||'—')+'">'+_plantShort(hp.location||'—')+'</td>'
+        +'<td style="padding:5px 8px;min-width:240px">'+_ecrChangeCell(hp,cur,e)+'</td>'
         +(isSA?'<td style="padding:5px 4px"><button onclick="_hrmsDeleteEcr(\''+e.id+'\','+r.periodIdx+')" style="font-size:9px;padding:2px 6px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button></td>':'')
         +'</tr>';
     });
@@ -2982,7 +3024,10 @@ async function _hrmsPersistInitialAttendance(empCode){
     if(!inV&&!outV){skippedEmpty++;return;}
     var p=String(r.date||'').split('-');if(p.length!==3) return;
     var mk=p[0]+'-'+p[1];var dk=String(+p[2]);
-    (byMonth[mk]=byMonth[mk]||{})[dk]={'in':inV||'','out':outV||'',initial:true};
+    // Initial entries now route through My Approvals — default approved:false
+    // and stamp who entered them so the queue can show them.
+    (byMonth[mk]=byMonth[mk]||{})[dk]={'in':inV||'','out':outV||'',initial:true,
+      approved:false,requestedBy:(typeof CU!=='undefined'&&CU?(CU.name||CU.id||''):''),requestedAt:new Date().toISOString()};
     staged++;
   });
   console.log('Initial persist: staged='+staged+', skippedInvalid='+skippedInvalid+', skippedEmpty='+skippedEmpty,
@@ -5612,7 +5657,7 @@ function _hrmsUnknownBanner(count){
   var h='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px">';
   h+='<span style="font-size:13px;font-weight:700;color:#dc2626">⚠ '+count+' unknown employee code'+(count>1?'s':'')+' found in attendance data</span>';
   h+='<div style="flex:1"></div>';
-  h+='<button onclick="_hrmsExportUnknownCodes()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">📤 Export Unknown Codes</button>';
+  h+='<button class="hrms-allow-locked" onclick="_hrmsExportUnknownCodes()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">📤 Export Unknown Codes</button>';
   h+='<label style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📥 Import Employees<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this);var mk=_hrmsMonth;if(mk){var p=mk.split(\'-\');_hrmsRenderEntryTab(+p[0],+p[1]);_hrmsRenderExitTab(+p[0],+p[1]);}" style="display:none"></label>';
   h+='</div>';
   return h;
@@ -5737,6 +5782,12 @@ function _hrmsRestoreFilterFocus(snap){
 
 async function _hrmsRenderEntryTab(yr,mo){
   var el=document.getElementById('hrmsAttTabEntry');if(!el)return;
+  // Make the panel a flex column with overflow:hidden so only the inner
+  // table scrolls. The header / summary stays pinned at the top.
+  el.style.display='flex';
+  el.style.flexDirection='column';
+  el.style.minHeight='0';
+  el.style.overflow='hidden';
   var focusSnap=_hrmsCaptureFilterFocus();
   if(!focusSnap) el.innerHTML='<div class="empty-state">Loading…</div>';
   var d=await _hrmsComputeEntryExit(yr,mo);
@@ -5808,7 +5859,7 @@ async function _hrmsRenderEntryTab(yr,mo){
     '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">★ New '+nNew+'</span>'+
     '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">↺ Rejoinee '+nRej+'</span>'+
     '<div style="flex:1"></div>'+
-    (allNew.length?'<button onclick="_hrmsEntryExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>':'')+
+    (allNew.length?'<button class="hrms-allow-locked" onclick="_hrmsEntryExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>':'')+
   '</div>';
   h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type in any search box or pick a value from the drop-downs above the headers to filter. Click headers to sort. Rows tinted by employment type — On Roll (blue), Contract (amber), Piece Rate (purple).</div>';
   if(!allNew.length){
@@ -5842,7 +5893,7 @@ async function _hrmsRenderEntryTab(yr,mo){
   var optTeam=_hrmsFilterUnique(allNew,function(e){return e.teamName;});
   var optEmpType=_hrmsFilterUnique(allNew,function(e){return e.employmentType;});
   var optType=['New Joinee','Rejoinee'];
-  h+='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 240px)">';
+  h+='<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead>';
   // Filter row — top-left X button clears every filter at once.
   var _hasEntryFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
@@ -5953,66 +6004,37 @@ function _hrmsEntryExport(){
 
 async function _hrmsRenderExitTab(yr,mo){
   var el=document.getElementById('hrmsAttTabExit');if(!el)return;
+  // Make the panel a flex column with overflow:hidden so only the inner
+  // table scrolls. Header / summary stays pinned at the top.
+  el.style.display='flex';
+  el.style.flexDirection='column';
+  el.style.minHeight='0';
+  el.style.overflow='hidden';
   var focusSnap=_hrmsCaptureFilterFocus();
   if(!focusSnap) el.innerHTML='<div class="empty-state">Loading…</div>';
   var d=await _hrmsComputeEntryExit(yr,mo);
-  var mk=yr+'-'+String(mo).padStart(2,'0');
-
-  // Build: all Active employees who have 0 presence in the CURRENT month
-  // (i.e., no ESSL punches, no alterations, no non-zero manual overrides).
-  // Plus include those in d.leftEmps (prev-month presence, absent this month) that are still Active.
-  var daysInMo=new Date(yr,mo,0).getDate();
-  var mStart=mk+'-01',mEnd=mk+'-'+String(daysInMo).padStart(2,'0');
-
-  // Reuse the same presence logic used in _hrmsComputeEntryExit
-  var present={};
-  (_hrmsAttCache[mk]||[]).forEach(function(a){
-    var days=a.days||{};
-    for(var dk in days){
-      var dd=days[dk];if(!dd) continue;
-      if((dd['in']&&dd['in'].toString().trim())||(dd['out']&&dd['out'].toString().trim())){
-        present[a.empCode]=true;break;
-      }
-    }
-  });
-  (_hrmsAltCache[mk]||[]).forEach(function(a){if(a.days&&Object.keys(a.days).length) present[a.empCode]=true;});
-  (DB.hrmsEmployees||[]).forEach(function(e){
-    var ex=e.extra||{};var v;
-    v=ex.manualP&&ex.manualP[mk];if(v!==undefined&&v!==null&&+v>0){present[e.empCode]=true;return;}
-    v=ex.manualPL&&ex.manualPL[mk];if(v!==undefined&&v!==null&&+v>0){present[e.empCode]=true;return;}
-    v=ex.manualOT&&ex.manualOT[mk];if(v!==undefined&&v!==null&&+v>0){present[e.empCode]=true;return;}
-    v=ex.manualOTS&&ex.manualOTS[mk];if(v!==undefined&&v!==null&&+v>0){present[e.empCode]=true;return;}
-  });
-
-  // All Active employees with DOJ in range, who are NOT present this month.
-  // Exclude anyone whose active period OR flat field says non-Active — the
-  // flat status field can lag behind when only the period was edited.
-  var exitEmps=(DB.hrmsEmployees||[]).filter(function(e){
-    if((e.status||'Active')!=='Active') return false;
-    var _ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
-    if(_ap&&(_ap.status||'Active')!=='Active') return false;
-    if(e.dateOfJoining&&e.dateOfJoining>mEnd) return false;// not joined yet
-    if(e.dateOfLeft&&e.dateOfLeft<mStart) return false;// already left
-    return !present[e.empCode];
-  });
-
-  // Merge with prev-month-presence codes that are no longer present this
-  // month. Includes:
-  //   • Unmatched empCodes (alteration/attendance codes not in master)
-  //   • Contract / Piece-Rate employees who got auto-marked Inactive
-  //     this month (they were Active last month, zero attendance this
-  //     month, so the Active-only filter above skipped them — but the
-  //     user wants to see them here with their current status).
-  var byCode={};exitEmps.forEach(function(e){byCode[e.empCode]=e;});
-  (d.leftEmps||[]).forEach(function(e){
-    if(byCode[e.empCode]) return;
-    if(e._unmatched){byCode[e.empCode]=e;exitEmps.push(e);return;}
+  // Absent FTM rule:
+  //   Present in the previous month for ≥ 1 day  AND  zero presence in
+  //   the selected month.
+  // _hrmsComputeEntryExit returns that set as `leftEmps`
+  // (prevPresence \ curPresence), enriched with master data (or marked
+  // _unmatched). Status gate:
+  //   • Contract / Piece-Rate → no status check (status was retired for
+  //     these categories).
+  //   • Unmatched empCodes    → kept (surface unknown attendance codes
+  //     so the user can clean them up).
+  //   • Everyone else (On-Roll etc.) → must be currently Active on both
+  //     the flat field and the active period; otherwise the employee
+  //     has formally left and shouldn't appear here.
+  var exitEmps=(d.leftEmps||[]).filter(function(e){
+    if(!e) return false;
+    if(e._unmatched) return true;
     var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
-    if(et==='contract'||et==='piecerate'){
-      if(e.dateOfJoining&&e.dateOfJoining>mEnd) return;
-      if(e.dateOfLeft&&e.dateOfLeft<mStart) return;
-      byCode[e.empCode]=e;exitEmps.push(e);
-    }
+    if(et==='contract'||et==='piecerate') return true;
+    if((e.status||'Active')!=='Active') return false;
+    var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    if(ap&&(ap.status||'Active')!=='Active') return false;
+    return true;
   });
 
   // Default sort: category → team → empCode. Re-applied first so a
@@ -6073,7 +6095,7 @@ async function _hrmsRenderExitTab(yr,mo){
   h+='<div style="font-size:15px;font-weight:900;color:#dc2626">Absent Employees FTM — '+d.curLabel+' ('+exitEmps.length+(exitEmps.length!==allExit.length?' / '+allExit.length:'')+')</div>';
   h+='<div style="flex:1"></div>';
   if(allExit.length){
-    h+='<button onclick="_hrmsExitExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>';
+    h+='<button class="hrms-allow-locked" onclick="_hrmsExitExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>';
   }
   h+='</div>';
   h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type in any search box or pick a value from the drop-downs above the headers to filter. Click headers to sort. Rows tinted by employment type — On Roll (blue), Contract (amber), Piece Rate (purple).</div>';
@@ -6104,7 +6126,7 @@ async function _hrmsRenderExitTab(yr,mo){
   var optTeam=_hrmsFilterUnique(allExit,function(e){return e.teamName;});
   var optEmpType=_hrmsFilterUnique(allExit,function(e){return e.employmentType;});
   var optStatus=_hrmsFilterUnique(allExit,function(e){return e.status||'Active';});
-  h+='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 240px)">';
+  h+='<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead>';
   // Filter row — top-left X button clears every filter at once.
   var _hasExitFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
@@ -9908,7 +9930,10 @@ async function _hrmsAddManualAlteration(){
       _hrmsAltCache[mk].push(rec);
     }
     rec.days=rec.days||{};
-    rec.days[dayKey]={'in':inT,'out':outT,reason:reason||'Manual entry'};
+    // Manual entries now route through My Approvals — default approved=false
+    // until an admin approves on that page. Stamp who requested + when.
+    rec.days[dayKey]={'in':inT,'out':outT,reason:reason||'Manual entry',_source:'manual',
+      approved:false,requestedBy:(CU?(CU.name||CU.id||''):''),requestedAt:new Date().toISOString()};
     var ok=await _dbSave('hrmsAlterations',rec);
     hideSpinner();
     if(!ok){notify('⚠ Save failed',true);return;}
@@ -10023,7 +10048,7 @@ function _hrmsRenderAltManualList(){
   var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">'+
     '<div style="font-size:13px;font-weight:800;color:var(--text)">Alterations &amp; Initial entries — '+_hrmsMonthLabel(mk)+' ('+rows.length+')</div>'+
     '<div style="flex:1"></div>'+
-    '<button onclick="_hrmsAltListExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export</button>'+
+    '<button class="hrms-allow-locked" onclick="_hrmsAltListExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export</button>'+
   '</div>';
   h+='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff;max-height:calc(100vh - 420px)">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
@@ -12085,7 +12110,7 @@ function _hrmsRenderActiveTab(){
   var mk=_hrmsMonth;
   if(!mk) return;
   var p=mk.split('-');var yr=+p[0],mo=+p[1];
-  // Show/hide main tabs based on permissions
+  // Show/hide main tabs based on permissions.
   var _tabPerms={settings:'tab.settings',attendance:'tab.attendance',salary:'tab.salary',payments:'tab.payments',esipf:'tab.esipf',pt:'tab.pt',contract:'tab.contract'};
   ['settings','attendance','salary','payments','esipf','pt','contract'].forEach(function(t){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
@@ -12127,24 +12152,26 @@ async function _hrmsCalApplyAllSave(val){
 // ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
 var _hrmsActiveSettingsTab='calendar';
 function _hrmsSettingsSubTab(tab){
-  // Permission check for settings sub-tabs. The merged "coffalt" tab is
-  // gated by either att.coff OR att.altApprove — admins who can see
-  // either request type can see the combined view.
-  var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',coffalt:'att.coff',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
-  if(tab==='coffalt'){
-    if(!(_hrmsHasAccess('att.coff')||_hrmsHasAccess('att.altApprove'))){notify('Access denied',true);return;}
-  } else if(_setTabPerm[tab]&&!_hrmsHasAccess(_setTabPerm[tab])){
-    notify('Access denied',true);return;
-  }
+  // Permission check for settings sub-tabs.
+  var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
+  if(_setTabPerm[tab]&&!_hrmsHasAccess(_setTabPerm[tab])){notify('Access denied',true);return;}
   _hrmsActiveSettingsTab=tab;
-  ['calendar','esslatt','altimport','alteration','advances','manual','coffalt','tds','salrevision','contractrev','otrules','statutory'].forEach(function(t){
+  ['calendar','esslatt','altimport','alteration','advances','manual','tds','salrevision','contractrev','otrules','statutory'].forEach(function(t){
     var panel=document.getElementById('hrmsSetPanel'+t.charAt(0).toUpperCase()+t.slice(1));
     var btn=document.getElementById('hrmsSetTab'+t.charAt(0).toUpperCase()+t.slice(1));
-    var allowed=(t==='coffalt')?(_hrmsHasAccess('att.coff')||_hrmsHasAccess('att.altApprove')):_hrmsHasAccess(_setTabPerm[t]);
+    var allowed=_hrmsHasAccess(_setTabPerm[t]);
     if(panel) panel.style.display=t===tab?'':'none';
     if(btn){btn.style.display=allowed?'':'none';btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
   });
-  if(tab==='statutory'){_hrmsLoadStatutory();_hrmsStatutoryToUI();_hrmsRenderPtRules();}
+  if(tab==='statutory'){
+    _hrmsLoadStatutory();
+    _hrmsStatutoryToUI();
+    _hrmsRenderPtRules();
+    // OT Rules now lives inside the Statutory panel — render it on open
+    // so the per-month edit/save controls show the current month's values.
+    _hrmsOtRulesEditMode=false;
+    _hrmsRenderOtRules();
+  }
   if(tab==='otrules'){_hrmsOtRulesEditMode=false;_hrmsRenderOtRules();}
   if(tab==='esslatt') _hrmsRenderEsslImportLog();
   if(tab==='altimport') _hrmsRenderAltImportLog();
@@ -12158,7 +12185,6 @@ function _hrmsSettingsSubTab(tab){
   if(tab==='contractrev') _hrmsSalImpRenderPreview('contract');
   if(tab==='tds') _hrmsTdsRender();
   if(tab==='advances') _hrmsRenderAdvances();
-  if(tab==='coffalt') _hrmsRenderCoffAltReqTab();
 }
 
 
@@ -12376,76 +12402,72 @@ var _hrmsOtRulesEditMode=false;
 function _hrmsRenderOtRules(){
   var body=document.getElementById('hrmsOtRulesBody');if(!body)return;
   var mk=_hrmsMonth;
-  if(!mk){body.innerHTML='<div class="empty-state">Select a month above to configure OT rules</div>';return;}
+  if(!mk){body.innerHTML='<div style="font-size:11px;color:var(--text3);padding:6px 0">Select a month above to configure OT rules.</div>';return;}
   var locked=_hrmsIsMonthLocked(mk);
   var rules=_hrmsGetOtRules(mk);
-  // Snapshot current rules for cancel-revert
   window._hrmsOtRulesSnapshot=JSON.parse(JSON.stringify(rules));
   var editable=_hrmsOtRulesEditMode&&!locked;
 
+  // Compact field — small input + tight label/unit. Sits inline so a section
+  // row hosts multiple fields side-by-side.
   var _fld=function(key,label,step,unit){
-    return '<div style="display:flex;flex-direction:column;gap:3px;width:170px"><label style="font-size:11px;font-weight:700;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+(unit?' <span style="color:var(--text3);font-weight:500">('+unit+')</span>':'')+'</label>'+
-      '<input type="number" id="otr_'+key+'" step="'+(step||0.5)+'" value="'+rules[key]+'" '+(editable?'':'disabled')+' style="font-size:13px;padding:5px 8px;border:1.5px solid '+(editable?'var(--accent)':'var(--border)')+';border-radius:4px;width:90px;background:'+(editable?'#fff':'var(--surface2)')+';color:'+(editable?'var(--text)':'var(--text2)')+'">'+
-      '</div>';
+    return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);margin-right:8px">'+
+      '<span style="white-space:nowrap">'+label+(unit?' <span style="color:var(--text3);font-weight:500">('+unit+')</span>':'')+'</span>'+
+      '<input type="number" id="otr_'+key+'" step="'+(step||0.5)+'" value="'+rules[key]+'" '+(editable?'':'disabled')+
+      ' style="font-size:12px;padding:2px 5px;border:1px solid '+(editable?'var(--accent)':'var(--border)')+';border-radius:3px;width:54px;text-align:right;background:'+(editable?'#fff':'var(--surface2)')+';color:'+(editable?'var(--text)':'var(--text2)')+'">'+
+      '</label>';
   };
 
-  var _sec=function(title,color,fields){
-    var h='<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:800;color:'+color+';margin-bottom:6px;padding:5px 10px;background:var(--surface2);border-radius:6px;border-left:3px solid '+color+'">'+title+'</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:10px;padding:0 4px">';
-    fields.forEach(function(f){h+=_fld(f.key,f.label,f.step,f.unit);});
-    h+='</div></div>';
-    return h;
+  // 3-column compact table: section badge | inline fields. Each section
+  // becomes a single row.
+  var _td='padding:5px 8px;border:1px solid var(--border);vertical-align:top';
+  var _tdSec='padding:5px 8px;border:1px solid var(--border);vertical-align:top;font-size:11px;font-weight:800;white-space:nowrap;width:1%';
+  var _row=function(title,color,fields){
+    var inner='';
+    fields.forEach(function(f){inner+=_fld(f.key,f.label,f.step,f.unit);});
+    return '<tr><td style="'+_tdSec+';color:'+color+';background:#fafbfc">'+title+'</td><td style="'+_td+'">'+inner+'</td></tr>';
   };
 
-  var h='<div style="margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;gap:10px">';
-  h+='<span style="font-size:13px;font-weight:700;color:var(--text)">Rules for <b style="color:var(--accent)">'+_hrmsMonthLabel(mk)+'</b></span>';
-  h+='<span style="font-size:11px;color:var(--text3)">'+(editable?'✏️ Edit mode — make changes and Save':'🔒 View mode — click Edit to modify')+'</span>';
+  var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<span style="font-size:11px;font-weight:700;color:var(--text2)">Rules for <b style="color:var(--accent)">'+_hrmsMonthLabel(mk)+'</b></span>';
+  h+='<span style="font-size:10px;color:var(--text3)">'+(editable?'✏️ Edit mode':(locked?'🔒 Locked':'🔒 View only — click Edit to modify'))+'</span>';
   h+='<div style="flex:1"></div>';
   if(!locked){
     if(editable){
-      h+='<button onclick="_hrmsCancelOtRules()" style="padding:5px 14px;font-size:12px;font-weight:700;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#475569;border-radius:5px;cursor:pointer">✕ Cancel</button>';
-      h+='<button onclick="_hrmsSaveOtRules()" style="padding:5px 14px;font-size:12px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">💾 Save</button>';
+      h+='<button onclick="_hrmsCancelOtRules()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#f1f5f9;border:1.5px solid #cbd5e1;color:#475569;border-radius:4px;cursor:pointer">✕ Cancel</button>';
+      h+='<button onclick="_hrmsSaveOtRules()" style="padding:3px 10px;font-size:11px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">💾 Save</button>';
     } else {
-      h+='<button onclick="_hrmsEditOtRules()" style="padding:5px 14px;font-size:12px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:5px;cursor:pointer">✏️ Edit</button>';
+      h+='<button onclick="_hrmsEditOtRules()" style="padding:3px 10px;font-size:11px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:4px;cursor:pointer">✏️ Edit</button>';
     }
   }
   h+='</div>';
 
-  h+=_sec('🟢 Attendance Classification','#16a34a',[
+  h+='<table style="border-collapse:collapse;font-size:11px;width:100%"><tbody>';
+  h+=_row('🟢 Attendance Classification','#16a34a',[
     {key:'fullDay',label:'Full Day Threshold',unit:'hrs'},
     {key:'halfDay',label:'Half Day Threshold',unit:'hrs'},
-    {key:'elMin',label:'EL Minimum Hours',unit:'hrs (Staff only)'},
-    {key:'elMaxPerMonth',label:'EL Max Per Month',unit:'days',step:1}
+    {key:'elMin',label:'EL Min Hours',unit:'hrs · Staff'},
+    {key:'elMaxPerMonth',label:'EL Max/Month',unit:'days',step:1}
   ]);
-
-  h+=_sec('🟠 OT on Working Days (Workers only)','#f59e0b',[
-    {key:'otTier1Threshold',label:'Tier 1 Threshold',unit:'worked ≥ hrs'},
-    {key:'otTier1Subtract',label:'Tier 1 Subtract',unit:'hrs'},
-    {key:'otTier2Threshold',label:'Tier 2 Threshold',unit:'worked > hrs'},
-    {key:'otTier2Subtract',label:'Tier 2 Subtract',unit:'hrs'},
-    {key:'otMaxPerDay',label:'OT Max Per Day',unit:'hrs'}
+  h+=_row('🟠 OT — Working Days (Workers)','#f59e0b',[
+    {key:'otTier1Threshold',label:'T1 Thr',unit:'worked ≥ hrs'},
+    {key:'otTier1Subtract',label:'T1 Sub',unit:'hrs'},
+    {key:'otTier2Threshold',label:'T2 Thr',unit:'worked > hrs'},
+    {key:'otTier2Subtract',label:'T2 Sub',unit:'hrs'},
+    {key:'otMaxPerDay',label:'Max/Day',unit:'hrs'}
   ]);
-
-  h+=_sec('🔵 OT on Off Days / Sundays (Workers only)','#2563eb',[
-    {key:'otsTier1Threshold',label:'Tier 1 Threshold',unit:'worked ≥ hrs'},
-    {key:'otsTier1Deduct',label:'Tier 1 Deduct',unit:'hrs'},
-    {key:'otsTier2Threshold',label:'Tier 2 Threshold',unit:'worked > hrs'},
-    {key:'otsTier2Deduct',label:'Tier 2 Deduct',unit:'hrs'},
-    {key:'otsMaxPerDay',label:'OTS Max Per Day',unit:'hrs'}
+  h+=_row('🔵 OT — Off Days / Sundays (Workers)','#2563eb',[
+    {key:'otsTier1Threshold',label:'T1 Thr',unit:'worked ≥ hrs'},
+    {key:'otsTier1Deduct',label:'T1 Ded',unit:'hrs'},
+    {key:'otsTier2Threshold',label:'T2 Thr',unit:'worked > hrs'},
+    {key:'otsTier2Deduct',label:'T2 Ded',unit:'hrs'},
+    {key:'otsMaxPerDay',label:'Max/Day',unit:'hrs'}
   ]);
-
-  h+=_sec('🔴 Ineligible OT (IOT)','#dc2626',[
-    {key:'iotAbsentThreshold',label:'Absent Threshold',unit:'days'},
-    {key:'iotHoursPerDay',label:'IOT Hours Per Day',unit:'hrs/day'}
+  h+=_row('🔴 Ineligible OT (IOT)','#dc2626',[
+    {key:'iotAbsentThreshold',label:'Absent Thr',unit:'days'},
+    {key:'iotHoursPerDay',label:'Hrs/Day',unit:'hrs'}
   ]);
-
-  h+='<div style="margin-top:12px;padding:10px 14px;background:#f0f9ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:11px;color:#1e40af;line-height:1.6">';
-  h+='<b>Formula reference:</b><br>';
-  h+='• Working Day OT: if worked > Tier2 → (worked − Tier2_Sub); else if worked ≥ Tier1 → (worked − Tier1_Sub); capped at Max<br>';
-  h+='• Off Day OTS: if worked > Tier2 → (worked − Tier2_Deduct); else if worked ≥ Tier1 → (worked − Tier1_Deduct); capped at Max<br>';
-  h+='• Ineligible OT (IOT) deducted first from OTS, then from OT';
-  h+='</div>';
-
+  h+='</tbody></table>';
   body.innerHTML=h;
 }
 
@@ -13199,9 +13221,9 @@ function _hrmsPayExportGen(payDate){
   }
 
   var allSheets=[{name:'Cosmos',data:cosData,stripeStart:4,stripeCount:cosN,borderStart:3,borderCount:cosN+2,noFilter:true,noFreeze:true,merges:cosMerges,
-    colWidths:[5,35,23,13],printTitleRow:3}];
+    colWidths:[5,35,23,13],printTitleRow:[0,3]}];
   allSheets=allSheets.concat(neftSheets);
-  _downloadMultiSheetXlsx(allSheets,'Payment_'+mk+'.xlsx');
+  _downloadMultiSheetXlsx(allSheets,'Cosmos_Salary_'+_mn[+p[1]]+'_'+p[0].slice(2)+'.xlsx');
   notify('📤 Exported Cosmos ('+cosmosRows.length+') + NEFT ('+neftRows.length+', '+neftSheets.length+' sheet'+(neftSheets.length!==1?'s':'')+')');
 
 }
@@ -13264,6 +13286,12 @@ function _hrmsEvalFormula(expr, ctx){
 
 function _hrmsRenderEsiPfList(){
   var el=document.getElementById('hrmsEsiPfGrid');if(!el)return;
+  // Make the panel a flex column with overflow:hidden so only the inner
+  // table wrapper scrolls. Summary stays pinned at the top, no sticky.
+  el.style.display='flex';
+  el.style.flexDirection='column';
+  el.style.minHeight='0';
+  el.style.overflow='hidden';
   var mk=_hrmsMonth;
   if(!mk){el.innerHTML='<div class="empty-state">Select a month above</div>';return;}
   var details=window._hrmsSalDetails||{};
@@ -13396,9 +13424,9 @@ function _hrmsRenderEsiPfList(){
   var _thEsi=_th+';'+_bgEsi;
   var _tdPf =_td+';'+_bgPf;
   var _tdEsi=_td+';'+_bgEsi;
-  // Sticky summary header with export button
-  var h='<div style="position:sticky;top:0;z-index:3;background:#fff;padding-bottom:8px">';
-  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:13px;font-weight:800;color:var(--text)">ESI / PF List \u2014 '+monthLabel+' ('+rows.length+' employees)</div><div style="margin-left:auto"><button onclick="_hrmsEsiPfExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div></div>';
+  // Header + summary block — natural height, sits above the scrollable table wrapper. Drops position:sticky since the table wrapper below scrolls independently inside the flex-column panel.
+  var h='<div style="background:#fff;padding-bottom:8px;flex-shrink:0">';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:13px;font-weight:800;color:var(--text)">ESI / PF List \u2014 '+monthLabel+' ('+rows.length+' employees)</div><div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsEsiPfExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div></div>';
   // Summary — two side-by-side cards
   h+='<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">';
   // PF card
@@ -13416,6 +13444,9 @@ function _hrmsRenderEsiPfList(){
   h+='<div style="display:flex;justify-content:space-between;gap:16px;margin-top:4px;padding-top:4px;border-top:2px solid #dc2626"><span style="font-size:12px;font-weight:900;color:#dc2626">ESI</span><span style="font-size:15px;font-weight:900;font-family:var(--mono);color:#dc2626">'+_r(sumEsiEmp+sumEsiComp)+'</span></div>';
   h+='</div></div>';
   h+='</div>';
+  // Table wrapper: flex:1 + min-height:0 + overflow:auto so only the
+  // table scrolls. Header (above) stays at natural height.
+  h+='<div style="flex:1;min-height:0;overflow:auto">';
   h+='<table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:auto">';
   h+='<thead style="position:sticky;top:0;z-index:2"><tr>';
   h+='<th style="'+_th+'">Sr.</th>';
@@ -13470,7 +13501,7 @@ function _hrmsRenderEsiPfList(){
   h+='<td style="'+_tfEsi+'">'+(anyEsi?_r(totals.basicDaEsi):'')+'</td>';
   h+='<td style="'+_tfEsi+'">'+_r(totals.esi)+'</td>';
   h+='<td style="'+_tfPf+'">'+_r(totals.pf)+'</td>';
-  h+='</tr></tfoot></table>';
+  h+='</tr></tfoot></table></div>';
   el.innerHTML=h;
   window._hrmsEsiPfRows=rows;
 }
@@ -13561,7 +13592,7 @@ function _hrmsRenderPtDetails(){
   var canExport=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportPt');
   var h='<div style="position:sticky;top:0;z-index:3;background:#fff;padding-bottom:8px">';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--text)">PT Details \u2014 '+monthLabel+' (On Roll)</div>';
-  if(canExport) h+='<div style="margin-left:auto"><button onclick="_hrmsPtExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div>';
+  if(canExport) h+='<div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsPtExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div>';
   h+='</div>';
   // Rules-applied summary — all configured rules, plus a tail row for
   // employees who didn't match any rule (only shown if count > 0 since the
@@ -15220,7 +15251,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   var _csSort=window._hrmsContractSort||{field:'',dir:1};
   if(_csSort.field){
     var _f=_csSort.field,_dir=_csSort.dir||1;
-    var _numericFields={rateD:1,rateM:1,P:1,OT:1,OTS:1,PH:1,pPlusPH:1,A:1,totalOT:1,otAt1:1,forPresent:1,forOT:1,spAllow:1,gross:1,pf:1,esi:1,totalSal:1,commission:1,totalBill:1,diwali:1,ctc:1};
+    var _numericFields={rateD:1,rateM:1,P:1,OT:1,OTS:1,PH:1,pPlusPH:1,A:1,totalOT:1,otAt1:1,forPresent:1,forOT:1,spAllow:1,gross:1,basicDaPfC:1,basicDaEsiC:1,pf:1,esi:1,totalSal:1,commission:1,totalBill:1,diwali:1,ctc:1};
     filteredRows.sort(function(a,b){
       var av=a[_f],bv=b[_f];
       if(_numericFields[_f]) return((+av||0)-(+bv||0))*_dir;
@@ -15231,8 +15262,8 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
 
   var _r=function(v){return Math.round(v||0).toLocaleString();};
   var _f=function(v){if(v==null)return'0';if(v%1===0) return String(v); return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
-  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b;cursor:pointer;user-select:none';
-  var _thNS='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:nowrap;color:#1e293b';
+  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b;cursor:pointer;user-select:none';
+  var _thNS='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b';
   var _arrow=function(field){
     if(_csSort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
     return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(_csSort.dir>0?'▲':'▼')+'</span>';
@@ -15250,7 +15281,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   var h='<table style="border-collapse:collapse;font-size:13px;white-space:nowrap;width:auto">';
   // Header (top-sticky). Click to sort; click again to flip direction.
   h+='<thead style="position:sticky;top:0;z-index:3"><tr>';
-  h+='<th style="'+_thNS+';'+_stkTh1+'">#</th>';
+  h+='<th onclick="_hrmsContractSortReset()" title="Reset sort to default (Team → Plant → Emp Code)" style="'+_th+';'+_stkTh1+'">#</th>';
   h+='<th onclick="_hrmsContractSortBy(\'empCode\')" style="'+_th+';'+_stkTh2+'">Emp Code'+_arrow('empCode')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'name\')" style="'+_th+';text-align:left;'+_stkTh3+'">Name'+_arrow('name')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'doj\')" style="'+_th+'">DOJ'+_arrow('doj')+'</th>';
@@ -15271,7 +15302,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<th onclick="_hrmsContractSortBy(\'forOT\')" style="'+_th+';background:#dcfce7;text-align:right">For OT@1'+_arrow('forOT')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'spAllow\')" style="'+_th+';background:#dcfce7;text-align:right">Sp.Allow'+_arrow('spAllow')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'gross\')" style="'+_th+';background:#dcfce7;text-align:right">Gross'+_arrow('gross')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'basicDaPfC\')" style="'+_th+';background:#faf5ff;text-align:right">Basic + DA (PF) Capped'+_arrow('basicDaPfC')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'pf\')" style="'+_th+';background:#f3e8ff;text-align:right">PF'+_arrow('pf')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'basicDaEsiC\')" style="'+_th+';background:#fdf2f8;text-align:right">Basic + DA (ESI)'+_arrow('basicDaEsiC')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'esi\')" style="'+_th+';background:#f3e8ff;text-align:right">ESI'+_arrow('esi')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'totalSal\')" style="'+_th+';background:#f3e8ff;text-align:right">Total Salary'+_arrow('totalSal')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'commission\')" style="'+_th+';background:#fef3c7;text-align:right">Commission 8%'+_arrow('commission')+'</th>';
@@ -15281,7 +15314,8 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='</tr></thead><tbody>';
 
   var sn=0;
-  var grandTotals={P:0,OT:0,OTS:0,PH:0,pPlusPH:0,A:0,totalOT:0,otAt1:0,forPresent:0,forOT:0,spAllow:0,gross:0,pf:0,esi:0,totalSal:0,commission:0,totalBill:0,diwali:0,ctc:0,count:0};
+  var grandTotals={P:0,OT:0,OTS:0,PH:0,pPlusPH:0,A:0,totalOT:0,otAt1:0,forPresent:0,forOT:0,spAllow:0,gross:0,basicDaPfC:0,basicDaEsiC:0,pf:0,esi:0,totalSal:0,commission:0,totalBill:0,diwali:0,ctc:0,count:0};
+  var anyBasicDaPfC=false,anyBasicDaEsiC=false;
 
   filteredRows.forEach(function(r){
     sn++;
@@ -15308,7 +15342,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#f0fdf4">'+_r(r.forOT)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#f0fdf4">'+_r(r.spAllow)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#dcfce7;font-weight:900;color:#15803d">'+_r(r.gross)+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+(r.basicDaPfC!=null?_r(r.basicDaPfC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+_r(r.pf)+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fdf2f8">'+(r.basicDaEsiC!=null?_r(r.basicDaEsiC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+_r(r.esi)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff;font-weight:700">'+_r(r.totalSal)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7">'+_r(r.commission)+'</td>';
@@ -15317,6 +15353,8 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#dcfce7;font-weight:900;color:#15803d;font-size:14px">'+_r(r.ctc)+'</td>';
     h+='</tr>';
     ['P','OT','OTS','PH','pPlusPH','A','totalOT','otAt1','forPresent','forOT','spAllow','gross','pf','esi','totalSal','commission','totalBill','diwali','ctc'].forEach(function(k){grandTotals[k]+=r[k]||0;});
+    if(r.basicDaPfC!=null){grandTotals.basicDaPfC+=r.basicDaPfC;anyBasicDaPfC=true;}
+    if(r.basicDaEsiC!=null){grandTotals.basicDaEsiC+=r.basicDaEsiC;anyBasicDaEsiC=true;}
   });
   grandTotals.count=filteredRows.length;
 
@@ -15338,7 +15376,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<td style="'+_tf+'">'+_r(grandTotals.forOT)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.spAllow)+'</td>';
   h+='<td style="'+_tf+';font-weight:900;color:#15803d">'+_r(grandTotals.gross)+'</td>';
+  h+='<td style="'+_tf+'">'+(anyBasicDaPfC?_r(grandTotals.basicDaPfC):'')+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.pf)+'</td>';
+  h+='<td style="'+_tf+'">'+(anyBasicDaEsiC?_r(grandTotals.basicDaEsiC):'')+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.esi)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.totalSal)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.commission)+'</td>';
@@ -15486,6 +15526,16 @@ function _hrmsContractSortBy(field){
   var parts=mk.split('-');
   _hrmsContractRenderRows(grid,rows,mk,parseInt(parts[0]),parseInt(parts[1]));
 }
+// Clear the user-chosen sort and re-render — falls back to the default
+// Team → Plant → Emp Code order baked into _hrmsContractRenderRows.
+function _hrmsContractSortReset(){
+  window._hrmsContractSort={field:'',dir:1};
+  var mk=_hrmsMonth;if(!mk)return;
+  var grid=document.getElementById('hrmsContractGrid');if(!grid)return;
+  var rows=_hrmsContractCache[mk]||[];
+  var parts=mk.split('-');
+  _hrmsContractRenderRows(grid,rows,mk,parseInt(parts[0]),parseInt(parts[1]));
+}
 
 function _hrmsContractClearBtnToggle(){
   var inp=document.getElementById('hrmsContractEmpSearch');
@@ -15583,12 +15633,12 @@ async function _hrmsContractExport(){
       // +3 covers the autofilter dropdown arrow and a small visual gutter.
       return Math.max(6, s.length+3);
     });
-    // Manual bumps for columns whose total cell is empty / short but whose
+    // Fixed widths for columns whose total cell is empty / short but whose
     // data cells need more room (names, dates, team labels, salary).
-    widths[1]+=30;  // B  Name
-    widths[2]+=10;  // C  DOJ
-    widths[3]+=10;  // D  Team
-    widths[7]+=10;  // H  Sal/Month
+    widths[1]=30;  // B  Name
+    widths[2]=10;  // C  DOJ
+    widths[3]=10;  // D  Team
+    widths[7]=10;  // H  Sal/Month
     return widths;
   };
   // Build a sheet's data with the layout the user asked for:
@@ -17337,9 +17387,261 @@ function _hrmsAltFilterChanged(){
   var parts=mk.split('-');
   _hrmsRenderAltGrid(parseInt(parts[0]),parseInt(parts[1]));
 }
+// Unified renderer for the Attendance → "All Alterations & C-off" sub-tab.
+// Surfaces six row sources for the selected month, all read-only:
+//   • Initial Joinee Data — hrms_attendance days flagged `initial:true`
+//   • Manual P & OT       — emp.extra.manualP/PL/OT/OTS for the month
+//   • Manual Alt          — hrms_alterations day entries with _source='manual'
+//   • Alt Excel Upload    — hrms_alterations day entries with _source='excel'
+//   • C-Off Req Emp       — emp.extra.coffBank entries dated in the month
+//   • Alt Req EMP         — emp.extra.altRequests dated in the month
+// Status column shows Approved / Waiting for Approval / Rejected. The
+// approval chain pill is rendered when the underlying record carries one.
+// All Approve / Reject actions live in the My Approvals page now.
 function _hrmsRenderAltGrid(yr,mo){
   var grid=document.getElementById('hrmsAltGrid');if(!grid)return;
   var monthKey=yr+'-'+String(mo).padStart(2,'0');
+  // Lazy-fetch the per-month attendance + alteration caches if either
+  // is missing for the selected month. Initial joinee entries live in
+  // hrms_attendance — without this, opening "All Alterations & C-off"
+  // before the muster / summary tab loaded would show no initial data.
+  if((!_hrmsAttCache||_hrmsAttCache[monthKey]===undefined||!_hrmsAltCache||_hrmsAltCache[monthKey]===undefined)
+     &&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsAltGridFetching){
+    window._hrmsAltGridFetching=true;
+    _hrmsAttFetchMonth(monthKey).then(function(){
+      window._hrmsAltGridFetching=false;
+      _hrmsRenderAltGrid(yr,mo);
+    }).catch(function(e){window._hrmsAltGridFetching=false;console.warn('alt grid fetch',monthKey,e);});
+  }
+  var TYPE_LABELS={initialJoinee:'Initial Joinee Data',manualPot:'Manual P & OT',manualAlt:'Manual Alt',altExcel:'Alt Excel Upload',coffReq:'C-Off Req Emp',altReq:'Alt Req EMP'};
+  var typeStyle=function(t){
+    if(t==='coffReq')      return 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd';
+    if(t==='altReq')       return 'background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd';
+    if(t==='manualAlt')    return 'background:#fef3c7;color:#92400e;border:1px solid #fde68a';
+    if(t==='altExcel')     return 'background:#dcfce7;color:#15803d;border:1px solid #86efac';
+    if(t==='manualPot')    return 'background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4';
+    if(t==='initialJoinee')return 'background:#cffafe;color:#155e75;border:1px solid #67e8f9';
+    return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+  };
+  var statusStyle=function(s){
+    if(s==='Approved') return 'background:#dcfce7;color:#15803d;border:1px solid #86efac';
+    if(s==='Rejected') return 'background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5';
+    if(s==='Waiting for Approval') return 'background:#fef3c7;color:#92400e;border:1px solid #fde68a';
+    return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
+  };
+  var rows=[];
+  var empByCode={};
+  (DB.hrmsEmployees||[]).forEach(function(e){if(e&&e.empCode) empByCode[String(e.empCode).toUpperCase()]=e;});
+  // 1. Initial Joinee Data — hrms_attendance days where initial:true.
+  // Status mirrors the approval flag (post V241 these route through My
+  // Approvals): approved===true → Approved, approved===false → Waiting
+  // for Approval, missing flag → legacy entry shown as Approved.
+  // Records whose empCode isn't yet in the master (new-joinee ECRs that
+  // haven't been approved) still surface — we render them with an
+  // unmatched stub so the user can see the data was entered.
+  ((_hrmsAttCache&&_hrmsAttCache[monthKey])||[]).forEach(function(rec){
+    if(!rec||!rec.days) return;
+    var emp=empByCode[String(rec.empCode||'').toUpperCase()]
+      ||{empCode:rec.empCode||'',name:'Employee NA',location:'',_unmatched:true};
+    Object.keys(rec.days).forEach(function(dk){
+      var d=rec.days[dk];if(!d||!d.initial) return;
+      var dateStr=monthKey+'-'+String(+dk).padStart(2,'0');
+      var st=(d.approved===false)?'Waiting for Approval':'Approved';
+      rows.push({type:'initialJoinee',emp:emp,date:dateStr,
+        details:'IN '+(d['in']||'—')+' · OUT '+(d['out']||'—'),
+        status:st,chain:''});
+    });
+  });
+  // 2. Manual P & OT — collapse all four fields into one row per emp×month.
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    var ex=e.extra||{};
+    var p=ex.manualP&&ex.manualP[monthKey],pl=ex.manualPL&&ex.manualPL[monthKey];
+    var ot=ex.manualOT&&ex.manualOT[monthKey],ots=ex.manualOTS&&ex.manualOTS[monthKey];
+    if(p==null&&pl==null&&ot==null&&ots==null) return;
+    var parts=[];
+    if(p!=null) parts.push('P='+p);
+    if(pl!=null) parts.push('PL='+pl);
+    if(ot!=null) parts.push('OT='+ot);
+    if(ots!=null) parts.push('OT@S='+ots);
+    rows.push({type:'manualPot',emp:e,date:monthKey,
+      details:parts.join(' · '),status:'Approved',chain:''});
+  });
+  // 3. C-Off Req Emp
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    var bank=(e.extra&&e.extra.coffBank)||[];
+    bank.forEach(function(c){
+      if(!c) return;
+      var d=c.usedForDate||c.earnedDate||'';
+      if(!d||d.indexOf(monthKey)!==0) return;
+      // Skip pristine entries that haven't been claimed yet.
+      if(c.status==='available'&&!c.rejectedAt&&!c.requestedAt&&!c.usedAt) return;
+      var st=c.rejectedBy?'Rejected':((c.status==='used'||c.status==='approved')?'Approved':(c.status==='pending'?'Waiting for Approval':(c.status||'—')));
+      var details='Earned '+(c.earnedDate||'—')+' · '+(c.source==='PH'?'Paid Holiday':c.source==='WO'?'Weekly Off':(c.source||'—'));
+      var chain=(typeof _hrmsRenderApprovalChainHTML==='function')?_hrmsRenderApprovalChainHTML(c,{compact:true}):'';
+      rows.push({type:'coffReq',emp:e,date:c.usedForDate||c.earnedDate,details:details,status:st,chain:chain});
+    });
+  });
+  // 4. Alt Req EMP
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    ((e.extra&&e.extra.altRequests)||[]).forEach(function(r){
+      if(!r||!r.date) return;
+      if(r.date.indexOf(monthKey)!==0) return;
+      var st=(r.status==='approved')?'Approved':(r.status==='rejected')?'Rejected':(r.status==='pending')?'Waiting for Approval':(r.status||'—');
+      var typeLbl=r.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch';
+      var details=typeLbl+' · IN '+(r['in']||'—')+' · OUT '+(r['out']||'—')+(r.reason?(' · '+r.reason):'');
+      var chain=(typeof _hrmsRenderApprovalChainHTML==='function')?_hrmsRenderApprovalChainHTML(r,{compact:true}):'';
+      rows.push({type:'altReq',emp:e,date:r.date,details:details,status:st,chain:chain});
+    });
+  });
+  // 5 & 6. Manual Alt + Alt Excel — both come from the per-month alteration
+  // cache (`_hrmsAltCache[mk]`). DB.hrmsAlterations isn't loaded at boot
+  // (alterations are fetched lazily per month), so iterating it directly
+  // would always come up empty. Skip _coff / _altReq flagged days — those
+  // are already surfaced above via their source records.
+  ((_hrmsAltCache&&_hrmsAltCache[monthKey])||[]).forEach(function(rec){
+    if(!rec||!rec.days) return;
+    var emp=empByCode[String(rec.empCode||'').toUpperCase()];if(!emp) return;
+    Object.keys(rec.days).forEach(function(dk){
+      var d=rec.days[dk];if(!d) return;
+      if(d._coff||d._altReq) return;
+      var src=d._source||((d.reason==='Manual entry')?'manual':'excel');
+      var typ=src==='manual'?'manualAlt':'altExcel';
+      var dateStr=monthKey+'-'+String(+dk).padStart(2,'0');
+      var st=d.approved?'Approved':(d.approved===false?'Waiting for Approval':'—');
+      var details='IN '+(d['in']||'—')+' · OUT '+(d['out']||'—')+(d.reason?(' · '+d.reason):'');
+      rows.push({type:typ,emp:emp,date:dateStr,details:details,status:st,chain:''});
+    });
+  });
+  // Apply the existing emp code / name search filter from the toolbar.
+  var _ac=(document.getElementById('altSrchCode')?.value||'').toLowerCase().trim();
+  if(_ac){
+    rows=rows.filter(function(r){
+      var code=(r.emp.empCode||'').toLowerCase();
+      var name=((r.emp.name||'')+' '+((typeof _hrmsDispName==='function')?_hrmsDispName(r.emp):'')).toLowerCase();
+      return code.indexOf(_ac)>=0||name.indexOf(_ac)>=0;
+    });
+  }
+  // Default sort — pending first, then date desc, then emp code. The user
+  // can override per-column by clicking a header (toggle direction on
+  // re-click). Sort state lives on window so it survives re-renders.
+  var stOrder={'Waiting for Approval':0,'Rejected':1,'Approved':2};
+  var defaultSort=function(a,b){
+    var sa=stOrder[a.status]==null?9:stOrder[a.status],sb=stOrder[b.status]==null?9:stOrder[b.status];
+    if(sa!==sb) return sa-sb;
+    var da=String(a.date||''),db=String(b.date||'');
+    if(da!==db) return db.localeCompare(da);
+    return(parseInt(a.emp.empCode)||0)-(parseInt(b.emp.empCode)||0);
+  };
+  rows.sort(defaultSort);
+  var sort=window._hrmsAltGridSort||{field:'',dir:1};
+  if(sort.field){
+    var f=sort.field,dir=sort.dir||1;
+    var fieldVal=function(r){
+      if(f==='type')    return TYPE_LABELS[r.type]||r.type||'';
+      if(f==='empCode') return String(r.emp.empCode||'');
+      if(f==='name')    return String(r.emp.name||'');
+      if(f==='plant')   return String(r.emp.location||'');
+      if(f==='date')    return String(r.date||'');
+      if(f==='details') return String(r.details||'');
+      if(f==='status')  return String(r.status||'');
+      return '';
+    };
+    rows.sort(function(a,b){
+      var av=fieldVal(a),bv=fieldVal(b);
+      if(f==='empCode'){
+        var an=parseInt(av)||0,bn=parseInt(bv)||0;
+        if(an!==bn) return(an-bn)*dir;
+      }
+      return String(av).localeCompare(String(bv))*dir;
+    });
+  }
+  var pendingCount=rows.filter(function(r){return r.status==='Waiting for Approval';}).length;
+  var countEl=document.getElementById('hrmsAltCount');
+  if(countEl) countEl.textContent=rows.length+' record'+(rows.length===1?'':'s')+' · '+pendingCount+' pending';
+  if(!rows.length){grid.innerHTML='<div class="empty-state">No alterations or C-offs for this month.</div>';return;}
+  // Wrap the whole tab body in a flex column so the summary card sits at
+  // the top at its natural height and only the table wrapper scrolls.
+  // The grid container itself is flex:1 + overflow:auto from hrms.html;
+  // we make the inner table wrapper flex:1 + min-height:0 + overflow:auto
+  // so the page-level scroll is replaced by an internal table scrollbar.
+  grid.style.display='flex';
+  grid.style.flexDirection='column';
+  grid.style.minHeight='0';
+  grid.style.overflow='hidden';
+  // ── Per-type summary card above the table ──
+  // Bordered card with a "Summary" heading + one tile per non-empty type.
+  // Each tile shows the type label, total, and a pending callout when any
+  // of those rows still need approval. Colours mirror the row Type pill.
+  var TYPE_ORDER=['initialJoinee','manualPot','manualAlt','altExcel','coffReq','altReq'];
+  var typeAgg={};
+  rows.forEach(function(r){
+    var t=r.type;
+    if(!typeAgg[t]) typeAgg[t]={total:0,pending:0};
+    typeAgg[t].total++;
+    if(r.status==='Waiting for Approval') typeAgg[t].pending++;
+  });
+  var summaryHtml='<div style="border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:#fafbff">';
+  summaryHtml+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+  summaryHtml+='<div style="font-size:13px;font-weight:900;color:var(--text);text-transform:uppercase;letter-spacing:0.5px">Summary by Type</div>';
+  summaryHtml+='<div style="flex:1;height:1px;background:var(--border)"></div>';
+  summaryHtml+='<div style="font-size:12px;font-weight:800;color:var(--text2)">Total: <span style="font-size:14px;color:var(--accent)">'+rows.length+'</span></div>';
+  if(pendingCount){
+    summaryHtml+='<div style="font-size:12px;font-weight:800;color:#dc2626">Pending: <span style="font-size:14px">'+pendingCount+'</span></div>';
+  }
+  summaryHtml+='</div>';
+  summaryHtml+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
+  TYPE_ORDER.forEach(function(t){
+    var agg=typeAgg[t];if(!agg) return;
+    summaryHtml+='<div style="flex:1;min-width:170px;padding:10px 12px;border-radius:8px;'+typeStyle(t)+'">'+
+      '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;opacity:0.85;margin-bottom:4px">'+(TYPE_LABELS[t]||t)+'</div>'+
+      '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'+
+        '<span style="font-size:22px;font-weight:900;line-height:1">'+agg.total+'</span>'+
+        '<span style="font-size:10px;font-weight:700;opacity:0.75">total</span>'+
+        (agg.pending?'<span style="margin-left:auto;background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800">'+agg.pending+' pending</span>':'')+
+      '</div>'+
+    '</div>';
+  });
+  summaryHtml+='</div></div>';
+  var thSort='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1;cursor:pointer;user-select:none';
+  var thNS='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var arrow=function(field){
+    if(sort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
+    return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(sort.dir>0?'▲':'▼')+'</span>';
+  };
+  var html=summaryHtml+'<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+thNS+'">#</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'type\')" style="'+thSort+'">Type'+arrow('type')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'empCode\')" style="'+thSort+'">Emp Code'+arrow('empCode')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'name\')" style="'+thSort+'">Name'+arrow('name')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'plant\')" style="'+thSort+'">Plant'+arrow('plant')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'date\')" style="'+thSort+'">Date'+arrow('date')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'details\')" style="'+thSort+'">Details'+arrow('details')+'</th>'+
+      '<th onclick="_hrmsAltGridSortBy(\'status\')" style="'+thSort+'">Status'+arrow('status')+'</th>'+
+      '<th style="'+thNS+'">Approval Chain</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var emp=r.emp;
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
+    var pShort=String(emp.location||'—').replace(/plant[\s\-_]*(\d+)/i,'P$1');
+    html+='<tr>'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+typeStyle(r.type)+'">'+(TYPE_LABELS[r.type]||r.type)+'</span></td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800"><span data-emp-code="'+(emp.empCode||'')+'" style="cursor:pointer;text-decoration:underline;color:var(--accent)" title="View employee">'+(emp.empCode||'')+'</span></td>'+
+      '<td style="'+td+';font-weight:700">'+(emp.name||'—')+'</td>'+
+      '<td style="'+td+';background:'+pClr+';font-weight:700" title="'+(emp.location||'—')+'">'+pShort+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(r.date||'—')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(r.details||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+statusStyle(r.status)+'">'+r.status+'</span></td>'+
+      '<td style="'+td+'">'+(r.chain||'')+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  grid.innerHTML=html;
+  return;
+  // ── Legacy alteration-only renderer below kept as dead code so the
+  // earlier IN/OUT comparison view can be revived if needed. ──
   var canApprove=_hrmsHasAccess('action.approveAlt');
   var canReject=_hrmsHasAccess('action.rejectAlt');
   var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -17524,6 +17826,18 @@ function _hrmsRenderAltGrid(yr,mo){
   h+='</tbody></table></div>';
 
   grid.innerHTML=h;
+}
+
+// Toggle sort field/direction for the All Alterations & C-off table.
+// Click a header → that column becomes the sort key (asc); click again →
+// flip to desc; click a different header → switches and resets to asc.
+window._hrmsAltGridSort=window._hrmsAltGridSort||{field:'',dir:1};
+function _hrmsAltGridSortBy(field){
+  var s=window._hrmsAltGridSort;
+  if(s.field===field) s.dir*=-1;
+  else { s.field=field; s.dir=1; }
+  var mk=_hrmsAttSelectedMonth;if(!mk)return;
+  var p=mk.split('-');_hrmsRenderAltGrid(parseInt(p[0]),parseInt(p[1]));
 }
 
 // ═══ ALTERATION APPROVAL FUNCTIONS ═══════════════════════════════════════
@@ -17717,7 +18031,10 @@ async function _hrmsImportAlteration(inputEl){
           // pick up the IN/OUT and roll P/A/OT properly. (Previously
           // saved with approved=false, which made the times show on
           // the muster cell but not contribute to totals.)
-          grouped[empCode][String(day)]={'in':timeIn,'out':timeOut,'reason':reason,'approved':true};
+          // Excel uploads now require approval too — default approved:false
+          // and stamp requestedBy/At so the My Approvals queue can show them.
+          grouped[empCode][String(day)]={'in':timeIn,'out':timeOut,'reason':reason,'approved':false,_source:'excel',
+            requestedBy:(CU?(CU.name||CU.id||''):''),requestedAt:new Date().toISOString()};
           altered++;
         }
         if(badRows.length){
@@ -20515,10 +20832,13 @@ async function _hrmsSADeleteCoffAltReq(empId,type,idx){
   if(!_hrmsIsSA()){notify('Only Super Admin can delete approved requests',true);return;}
   var emp=byId(DB.hrmsEmployees||[],empId);
   if(!emp||!emp.extra){notify('Employee not found',true);return;}
-  var arr=type==='coff'?emp.extra.coffBank:emp.extra.altRequests;
-  if(!Array.isArray(arr)||idx<0||idx>=arr.length){notify('Request entry not found',true);return;}
+  // The Action button only renders for coffReq / altReq rows — the other
+  // types are read-only mirrors of source data the user should manage from
+  // the appropriate source tab.
+  var arr=(type==='coffReq')?emp.extra.coffBank:(type==='altReq')?emp.extra.altRequests:null;
+  if(!arr||!Array.isArray(arr)||idx<0||idx>=arr.length){notify('Request entry not found',true);return;}
   var item=arr[idx];
-  var label=type==='coff'
+  var label=type==='coffReq'
     ? 'C-Off (earned '+(item.earnedDate||'—')+', status '+(item.status||'—')+')'
     : 'Alteration ('+(item.date||'—')+', status '+(item.status||'—')+')';
   var msg='Delete this '+label+'?\n\nThis removes the request entry only. Any salary snapshot or muster cell already produced from a prior approval will not be reverted automatically.';
@@ -20528,7 +20848,7 @@ async function _hrmsSADeleteCoffAltReq(empId,type,idx){
   var ok=await _dbSave('hrmsEmployees',emp);
   hideSpinner();
   if(!ok){notify('⚠ Save failed',true);return;}
-  notify('✕ '+(type==='coff'?'C-Off':'Alteration')+' request deleted');
+  notify('✕ '+(type==='coffReq'?'C-Off':'Alteration')+' request deleted');
   _hrmsRenderCoffAltReqTab();
 }
 
@@ -20567,23 +20887,52 @@ function _hrmsCoffAltRestoreFocus(snap){
   }
 }
 
+// Type id → user-facing label. Five sources are aggregated in this view:
+//   manualPot  — emp.extra.manualP/PL/OT/OTS  (Manual P & OT tab)
+//   manualAlt  — hrmsAlterations day entries authored manually
+//   altExcel   — hrmsAlterations day entries imported from Excel
+//   coffReq    — emp.extra.coffBank (C-Off Req Emp)
+//   altReq     — emp.extra.altRequests (Alt Req EMP)
+var _HRMS_COFFALT_TYPE_LABELS={manualPot:'Manual P & OT',manualAlt:'Manual Alt',altExcel:'Alt Excel Upload',coffReq:'C-Off Req Emp',altReq:'Alt Req EMP'};
+function _hrmsCoffAltTypeLabel(t){return _HRMS_COFFALT_TYPE_LABELS[t]||t||'';}
+
 function _hrmsRenderCoffAltReqTab(){
   var el=document.getElementById('hrmsCoffAltReqBody');if(!el) return;
   var focusSnap=_hrmsCoffAltCaptureFocus();
   var rows=[];
   (DB.hrmsEmployees||[]).forEach(function(e){
-    if(!e||!e.extra) return;
-    (e.extra.coffBank||[]).forEach(function(c,_idx){
+    if(!e) return;
+    var ex=e.extra||{};
+    // Manual P & OT — collapse manualP/PL/OT/OTS for the same month into a single row.
+    var monthSet={};
+    ['manualP','manualPL','manualOT','manualOTS'].forEach(function(f){
+      var src=ex[f];if(!src) return;
+      Object.keys(src).forEach(function(mk){if(src[mk]!=null&&src[mk]!==undefined) monthSet[mk]=true;});
+    });
+    Object.keys(monthSet).forEach(function(mk){
+      var parts=[];
+      var p=ex.manualP&&ex.manualP[mk], pl=ex.manualPL&&ex.manualPL[mk];
+      var ot=ex.manualOT&&ex.manualOT[mk], ots=ex.manualOTS&&ex.manualOTS[mk];
+      if(p!=null) parts.push('P='+p);
+      if(pl!=null) parts.push('PL='+pl);
+      if(ot!=null) parts.push('OT='+ot);
+      if(ots!=null) parts.push('OT@S='+ots);
+      var label=(typeof _hrmsMonthLabel==='function')?_hrmsMonthLabel(mk):mk;
+      rows.push({
+        emp:e,type:'manualPot',entry:null,srcIdx:-1,
+        subject:label,details:parts.join(' · ')||'—',
+        status:'applied',actedBy:'',actedAt:'',reason:'',ts:mk
+      });
+    });
+    (ex.coffBank||[]).forEach(function(c,_idx){
       if(!c) return;
       // Skip pristine entries — c-offs that were earned but never claimed
       // (no request, no approval, no rejection) aren't a "request" yet.
       if(c.status==='available'&&!c.rejectedAt&&!c.requestedAt&&!c.usedAt) return;
       var ts=c.usedAt||c.approvedAt||c.rejectedAt||c.requestedAt||c.earnedDate||'';
-      // Reject sets c-off status back to 'available' but stamps rejectedBy;
-      // we surface that as 'rejected' for clarity.
       var st=c.rejectedBy?'rejected':(c.status||'available');
       rows.push({
-        emp:e,type:'coff',entry:c,srcIdx:_idx,
+        emp:e,type:'coffReq',entry:c,srcIdx:_idx,
         subject:c.usedForDate||c.earnedDate||'—',
         details:'Earned '+(c.earnedDate||'—')+' · '+(c.source==='PH'?'Paid Holiday':c.source==='WO'?'Weekly Off':(c.source||'—')),
         status:st,
@@ -20593,11 +20942,11 @@ function _hrmsRenderCoffAltReqTab(){
         ts:ts
       });
     });
-    (e.extra.altRequests||[]).forEach(function(r,_idx){
+    (ex.altRequests||[]).forEach(function(r,_idx){
       if(!r) return;
       var ts=r.approvedAt||r.rejectedAt||r.requestedAt||r.date||'';
       rows.push({
-        emp:e,type:'alt',entry:r,srcIdx:_idx,
+        emp:e,type:'altReq',entry:r,srcIdx:_idx,
         subject:r.date||'—',
         details:(r.type==='outdoor_duty'?'Outdoor Duty':'Missed Punch')+' · '+(r['in']||'—')+'–'+(r['out']||'—'),
         status:r.status||'pending',
@@ -20608,13 +20957,41 @@ function _hrmsRenderCoffAltReqTab(){
       });
     });
   });
-  if(!rows.length){el.innerHTML='<div class="empty-state" style="padding:30px 20px">No C-Off or Alteration requests yet.</div>';return;}
+  // Manual Alt + Alt Excel Upload — derived from DB.hrmsAlterations.
+  // Skip days flagged with _coff (C-Off Bank-derived) or _altReq (request-
+  // derived) since those rows are already surfaced via the source records.
+  // Distinguishing manual vs excel: check the day's `_source` tag if set
+  // (new entries), else fall back to the heuristic that manual entries
+  // default `reason` to "Manual entry".
+  var _empByCode={};(DB.hrmsEmployees||[]).forEach(function(e){if(e&&e.empCode) _empByCode[String(e.empCode).toUpperCase()]=e;});
+  (DB.hrmsAlterations||[]).forEach(function(rec){
+    if(!rec||!rec.days) return;
+    var emp=_empByCode[String(rec.empCode||'').toUpperCase()];
+    if(!emp) return;
+    Object.keys(rec.days).forEach(function(dk){
+      var d=rec.days[dk];if(!d) return;
+      if(d._coff||d._altReq) return;
+      var dateStr=(rec.monthKey||'')+'-'+String(+dk).padStart(2,'0');
+      var src=d._source||((d.reason==='Manual entry')?'manual':'excel');
+      var typ=src==='manual'?'manualAlt':'altExcel';
+      rows.push({
+        emp:emp,type:typ,entry:d,srcIdx:-1,
+        subject:dateStr,
+        details:'IN: '+(d['in']||'—')+' · OUT: '+(d['out']||'—'),
+        status:'applied',
+        actedBy:'',actedAt:'',
+        reason:d.reason||'',
+        ts:dateStr
+      });
+    });
+  });
+  if(!rows.length){el.innerHTML='<div class="empty-state" style="padding:30px 20px">No C-Off, alteration, or manual P/OT entries yet.</div>';return;}
   var allRows=rows.slice();
 
   // Apply filters before sorting.
   var filters=window._hrmsCoffAltFilters||{};
   rows=rows.filter(function(r){
-    var typeLabel=r.type==='coff'?'C-Off':'Alteration';
+    var typeLabel=_hrmsCoffAltTypeLabel(r.type);
     if(!_hrmsFilterMatch(filters.type,typeLabel)) return false;
     if(filters.employee){
       var combined=(r.emp.empCode||'')+' '+(r.emp.name||'');
@@ -20635,7 +21012,7 @@ function _hrmsRenderCoffAltReqTab(){
   var sort=window._hrmsCoffAltSort||{field:'ts',dir:-1};
   var dir=sort.dir||1;
   var fieldVal=function(r,f){
-    if(f==='type') return r.type==='coff'?'C-Off':'Alteration';
+    if(f==='type') return _hrmsCoffAltTypeLabel(r.type);
     if(f==='empCode') return r.emp.empCode||'';
     if(f==='name') return r.emp.name||'';
     if(f==='subject') return r.subject||'';
@@ -20667,8 +21044,12 @@ function _hrmsRenderCoffAltReqTab(){
     return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
   };
   var typeStyle=function(t){
-    if(t==='coff') return 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd';
-    return 'background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd';
+    if(t==='coffReq')   return 'background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd';
+    if(t==='altReq')    return 'background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd';
+    if(t==='manualAlt') return 'background:#fef3c7;color:#92400e;border:1px solid #fde68a';
+    if(t==='altExcel')  return 'background:#dcfce7;color:#15803d;border:1px solid #86efac';
+    if(t==='manualPot') return 'background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4';
+    return 'background:#f1f5f9;color:#475569;border:1px solid #cbd5e1';
   };
   var pendCount=allRows.filter(function(x){return x.status==='pending';}).length;
   var sumHtml='<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+
@@ -20688,7 +21069,7 @@ function _hrmsRenderCoffAltReqTab(){
     var html='<option value="">All</option>'+opts.map(function(o){return '<option value="'+esc(o)+'"'+(filters[field]===o?' selected':'')+'>'+o+'</option>';}).join('');
     return '<th style="'+filterTh+'"><select id="hrmsCoffAltF_'+field+'" onchange="_hrmsCoffAltFilterChange(\''+field+'\',this.value)" style="'+filterInputCss+'">'+html+'</select></th>';
   };
-  var optType=['C-Off','Alteration'];
+  var optType=['Manual P & OT','Manual Alt','Alt Excel Upload','C-Off Req Emp','Alt Req EMP'];
   var optStatus=_hrmsFilterUnique(allRows,function(r){return r.status||'';});
   var hasFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
   var clrBtn='<button onclick="_hrmsCoffAltClearFilters()" title="Clear all filters" '+(hasFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(hasFilter?'#fee2e2':'#e5e7eb')+';color:'+(hasFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(hasFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(hasFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
@@ -20730,7 +21111,7 @@ function _hrmsRenderCoffAltReqTab(){
     var requestedAt=e.requestedAt?e.requestedAt.slice(0,10):'—';
     html+='<tr>'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;'+typeStyle(r.type)+'">'+(r.type==='coff'?'C-Off':'Alteration')+'</span></td>'+
+      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+typeStyle(r.type)+'">'+_hrmsCoffAltTypeLabel(r.type)+'</span></td>'+
       '<td style="'+td+'"><div data-emp-code="'+(emp.empCode||'')+'" title="Click to view employee" style="font-family:var(--mono);font-weight:800;color:var(--accent);cursor:pointer;text-decoration:underline">'+(emp.empCode||'')+'</div><div style="font-size:11px">'+(emp.name||'—')+'</div></td>'+
       '<td style="'+td+';font-family:var(--mono)">'+(r.subject||'—')+'</td>'+
       '<td style="'+td+';font-size:11px">'+(r.details||'—')+'</td>'+
@@ -20741,7 +21122,9 @@ function _hrmsRenderCoffAltReqTab(){
       '<td style="'+td+';font-family:var(--mono);font-size:10px;color:var(--text3)">'+(r.actedAt?r.actedAt.slice(0,10):'—')+'</td>'+
       '<td style="'+td+'">'+((typeof _hrmsRenderApprovalChainHTML==='function')?_hrmsRenderApprovalChainHTML(e,{compact:true}):'')+'</td>'+
       (_hrmsIsSA()
-        ? '<td style="'+td+';text-align:center"><button onclick="_hrmsSADeleteCoffAltReq(\''+r.emp.id+'\',\''+r.type+'\','+r.srcIdx+')" title="Delete this request (Super Admin only)" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑</button></td>'
+        ? ((r.type==='coffReq'||r.type==='altReq')&&r.srcIdx>=0
+            ? '<td style="'+td+';text-align:center"><button onclick="_hrmsSADeleteCoffAltReq(\''+r.emp.id+'\',\''+r.type+'\','+r.srcIdx+')" title="Delete this request (Super Admin only)" style="font-size:11px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑</button></td>'
+            : '<td style="'+td+';text-align:center;color:var(--text3)">—</td>')
         : '')+
     '</tr>';
   });
@@ -21395,16 +21778,73 @@ async function _hrmsOrgEditSave(){
 var _hrmsApprActiveTab='altreq';
 
 function _hrmsMyApprovalsSubTab(tab){
-  _hrmsApprActiveTab=(tab==='coff')?'coff':'altreq';
-  var bAlt=document.getElementById('hrmsApprTabAltreq'),bCo=document.getElementById('hrmsApprTabCoff');
-  var pAlt=document.getElementById('hrmsApprPanelAltreq'),pCo=document.getElementById('hrmsApprPanelCoff');
-  var act='padding:8px 18px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent)';
-  var idle='padding:8px 18px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid transparent;background:transparent;color:var(--text3)';
-  if(bAlt) bAlt.style.cssText=(_hrmsApprActiveTab==='altreq'?act:idle);
-  if(bCo) bCo.style.cssText=(_hrmsApprActiveTab==='coff'?act:idle);
-  if(pAlt) pAlt.style.display=(_hrmsApprActiveTab==='altreq')?'':'none';
-  if(pCo) pCo.style.display=(_hrmsApprActiveTab==='coff')?'':'none';
+  var allowed={altreq:1,manualAlt:1,altExcel:1,initial:1,coff:1};
+  _hrmsApprActiveTab=allowed[tab]?tab:'altreq';
+  var btnIds={altreq:'hrmsApprTabAltreq',manualAlt:'hrmsApprTabManualAlt',altExcel:'hrmsApprTabAltExcel',initial:'hrmsApprTabInitial',coff:'hrmsApprTabCoff'};
+  var panelIds={altreq:'hrmsApprPanelAltreq',manualAlt:'hrmsApprPanelManualAlt',altExcel:'hrmsApprPanelAltExcel',initial:'hrmsApprPanelInitial',coff:'hrmsApprPanelCoff'};
+  var act='padding:8px 16px;font-size:12px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent)';
+  var idle='padding:8px 16px;font-size:12px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid transparent;background:transparent;color:var(--text3)';
+  Object.keys(btnIds).forEach(function(k){
+    var btn=document.getElementById(btnIds[k]);
+    var panel=document.getElementById(panelIds[k]);
+    var on=(k===_hrmsApprActiveTab);
+    if(btn){
+      // Preserve the badge span when re-applying styles by reading just the
+      // background/border/colour properties — innerHTML stays intact.
+      btn.style.cssText=(on?act:idle);
+    }
+    if(panel) panel.style.display=on?'':'none';
+  });
   _hrmsMyApprovalsRender();// refresh content
+}
+
+// Month state for the My Approvals page. Defaults to whatever Attendance &
+// Salary has open (_hrmsMonth); falls back to the current calendar month.
+var _hrmsApprMonth=null;
+function _hrmsApprResolveMonth(){
+  if(_hrmsApprMonth) return _hrmsApprMonth;
+  if(_hrmsMonth){_hrmsApprMonth=_hrmsMonth;return _hrmsApprMonth;}
+  var t=new Date();
+  _hrmsApprMonth=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+  return _hrmsApprMonth;
+}
+function _hrmsApprUpdateMonthLabel(){
+  var lbl=document.getElementById('hrmsApprMonthLabel');if(!lbl) return;
+  var mk=_hrmsApprResolveMonth();
+  lbl.textContent=(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk);
+}
+async function _hrmsApprPickMonth(){
+  // Reuse the global month picker modal — its select handler fires
+  // _hrmsSelectMonth which sets _hrmsMonth. Mirror that into _hrmsApprMonth.
+  var current=_hrmsApprResolveMonth();
+  om('mMonthPicker');
+  var el=document.getElementById('monthPickerList');
+  el.innerHTML='<div class="empty-state">Loading…</div>';
+  if(typeof _hrmsAttFetchIndex==='function') await _hrmsAttFetchIndex();
+  var months=_hrmsAttMonthIndex||[];
+  if(!months.length){el.innerHTML='<div class="empty-state">No attendance data found.</div>';return;}
+  var h='';
+  months.forEach(function(m){
+    var p=m.monthKey.split('-');var yr=+p[0],mo=+p[1];
+    var isSel=current===m.monthKey;
+    h+='<div onclick="_hrmsApprSelectMonth(\''+m.monthKey+'\')" style="cursor:pointer;padding:12px 16px;border-radius:8px;margin-bottom:6px;border:1.5px solid '+(isSel?'var(--accent)':'var(--border)')+';background:'+(isSel?'var(--accent-light)':'var(--surface)')+';display:flex;justify-content:space-between;align-items:center">';
+    h+='<div style="font-size:15px;font-weight:800;color:'+(isSel?'var(--accent)':'var(--text)')+'">'+_MONTH_NAMES[mo]+' '+yr+'</div>';
+    h+='<div style="font-size:12px;color:var(--text3)">'+m.empCount+' employees</div></div>';
+  });
+  el.innerHTML=h;
+}
+async function _hrmsApprSelectMonth(mk){
+  cm('mMonthPicker');
+  _hrmsApprMonth=mk;
+  _hrmsApprUpdateMonthLabel();
+  // Pull this month's alteration cache so the Manual / Excel tabs have
+  // data to render. Cheap when the cache already has it.
+  if(typeof _hrmsAttFetchMonth==='function'){
+    showSpinner('Loading…');
+    try{ await _hrmsAttFetchMonth(mk); }catch(e){console.warn('appr fetch',mk,e);}
+    hideSpinner();
+  }
+  _hrmsMyApprovalsRender();
 }
 
 // Identifiers under which the current user is recorded in approvalLog.by /
@@ -21570,16 +22010,114 @@ function _hrmsMyApprovalsCollect(){
   coffP.sort(function(a,b){return(a.coff.requestedAt||'').localeCompare(b.coff.requestedAt||'');});
   altH.sort(function(a,b){return(b.myAction.at||'').localeCompare(a.myAction.at||'');});
   coffH.sort(function(a,b){return(b.myAction.at||'').localeCompare(a.myAction.at||'');});
+  // Filter altreq + coff by selected month if set. The existing rows have
+  // a date (req.date or coff.usedForDate / coff.earnedDate) — match its mk.
+  var mk=_hrmsApprResolveMonth?_hrmsApprResolveMonth():null;
+  var _altDateMk=function(r){var d=r.req&&(r.req.date||'');return d?d.slice(0,7):'';};
+  var _coffMk=function(r){var c=r.coff||{};var d=c.usedForDate||c.earnedDate||'';return d?d.slice(0,7):'';};
+  if(mk){
+    altP=altP.filter(function(r){return _altDateMk(r)===mk;});
+    altH=altH.filter(function(r){return _altDateMk(r)===mk;});
+    coffP=coffP.filter(function(r){return _coffMk(r)===mk;});
+    coffH=coffH.filter(function(r){return _coffMk(r)===mk;});
+  }
+  // ── Manual Alt + Excel Alt rows ──
+  // Source: per-month _hrmsAltCache[mk] (DB.hrmsAlterations isn't part of
+  // the boot load). Each day-entry on a record is a separate approval
+  // candidate. Pending = approved!==true & not flagged as _coff/_altReq.
+  var manualP=[],manualH=[],excelP=[],excelH=[];
+  var _empByCode={};(DB.hrmsEmployees||[]).forEach(function(e){if(e&&e.empCode) _empByCode[String(e.empCode).toUpperCase()]=e;});
+  // When a specific month is selected we look only at that month's cache;
+  // otherwise (month = null fallback) walk every loaded month.
+  var _altRecsForCollect=[];
+  if(mk){
+    _altRecsForCollect=(_hrmsAltCache&&_hrmsAltCache[mk])||[];
+  } else if(_hrmsAltCache){
+    Object.keys(_hrmsAltCache).forEach(function(k){_altRecsForCollect=_altRecsForCollect.concat(_hrmsAltCache[k]||[]);});
+  }
+  _altRecsForCollect.forEach(function(rec){
+    if(!rec||!rec.days) return;
+    if(mk&&rec.monthKey!==mk) return;
+    var emp=_empByCode[String(rec.empCode||'').toUpperCase()];
+    if(!emp) return;
+    Object.keys(rec.days).forEach(function(dk){
+      var d=rec.days[dk];if(!d) return;
+      if(d._coff||d._altReq) return;
+      var src=d._source||((d.reason==='Manual entry')?'manual':'excel');
+      var dateStr=(rec.monthKey||'')+'-'+String(+dk).padStart(2,'0');
+      var rowBase={emp:emp,recId:rec.id,monthKey:rec.monthKey,dayKey:dk,dateStr:dateStr,day:d};
+      var pending=(d.approved===false||d.approved==null);
+      if(src==='manual'){
+        if(pending) manualP.push(Object.assign({pending:true},rowBase));
+        else manualH.push(Object.assign({pending:false},rowBase));
+      } else {
+        if(pending) excelP.push(Object.assign({pending:true},rowBase));
+        else excelH.push(Object.assign({pending:false},rowBase));
+      }
+    });
+  });
+  manualP.sort(function(a,b){return(a.day.requestedAt||a.dateStr).localeCompare(b.day.requestedAt||b.dateStr);});
+  excelP.sort(function(a,b){return(a.day.requestedAt||a.dateStr).localeCompare(b.day.requestedAt||b.dateStr);});
+  manualH.sort(function(a,b){return(b.day.approvedAt||b.dateStr).localeCompare(a.day.approvedAt||a.dateStr);});
+  excelH.sort(function(a,b){return(b.day.approvedAt||b.dateStr).localeCompare(a.day.approvedAt||a.dateStr);});
+  // ── New Joinee Initial IN/OUT rows ──
+  // Source: per-month _hrmsAttCache[mk] entries flagged `initial:true`.
+  // Each day-entry is its own approval candidate. Pending = approved!==true.
+  var initialP=[],initialH=[];
+  var _attRecsForCollect=[];
+  if(mk){
+    _attRecsForCollect=(_hrmsAttCache&&_hrmsAttCache[mk])||[];
+  } else if(_hrmsAttCache){
+    Object.keys(_hrmsAttCache).forEach(function(k){_attRecsForCollect=_attRecsForCollect.concat(_hrmsAttCache[k]||[]);});
+  }
+  _attRecsForCollect.forEach(function(rec){
+    if(!rec||!rec.days) return;
+    if(mk&&rec.monthKey!==mk) return;
+    var emp=_empByCode[String(rec.empCode||'').toUpperCase()];
+    if(!emp) return;
+    Object.keys(rec.days).forEach(function(dk){
+      var d=rec.days[dk];if(!d||!d.initial) return;
+      var dateStr=(rec.monthKey||'')+'-'+String(+dk).padStart(2,'0');
+      var rowBase={emp:emp,recId:rec.id,monthKey:rec.monthKey,dayKey:dk,dateStr:dateStr,day:d};
+      var pending=(d.approved===false||d.approved==null);
+      if(pending) initialP.push(Object.assign({pending:true},rowBase));
+      else initialH.push(Object.assign({pending:false},rowBase));
+    });
+  });
+  initialP.sort(function(a,b){return(a.day.requestedAt||a.dateStr).localeCompare(b.day.requestedAt||b.dateStr);});
+  initialH.sort(function(a,b){return(b.day.approvedAt||b.dateStr).localeCompare(a.day.approvedAt||a.dateStr);});
   return {
     altRows:altP.concat(altH),
     coffRows:coffP.concat(coffH),
     altPendingCount:altP.length,
-    coffPendingCount:coffP.length
+    coffPendingCount:coffP.length,
+    manualRows:manualP.concat(manualH),
+    manualPendingCount:manualP.length,
+    excelRows:excelP.concat(excelH),
+    excelPendingCount:excelP.length,
+    initialRows:initialP.concat(initialH),
+    initialPendingCount:initialP.length
   };
 }
 
 function _hrmsMyApprovalsRender(){
   if(!document.getElementById('hrmsApprPanelAltreq')) return;
+  // Make sure the month label reflects the active month, even on first open.
+  if(typeof _hrmsApprUpdateMonthLabel==='function') _hrmsApprUpdateMonthLabel();
+  // Ensure this month's alteration cache is loaded so the Manual / Excel
+  // tabs have data to render. _hrmsAttFetchMonth is idempotent; if the
+  // cache already has the month it returns synchronously. When the cache
+  // is empty we kick off a fetch and re-render once it resolves.
+  var _mkResolved=(typeof _hrmsApprResolveMonth==='function')?_hrmsApprResolveMonth():null;
+  if(_mkResolved&&typeof _hrmsAttFetchMonth==='function'&&(!_hrmsAltCache||_hrmsAltCache[_mkResolved]===undefined)){
+    if(!window._hrmsApprFetching){
+      window._hrmsApprFetching=true;
+      _hrmsAttFetchMonth(_mkResolved).then(function(){
+        window._hrmsApprFetching=false;
+        _hrmsMyApprovalsRender();
+      }).catch(function(e){window._hrmsApprFetching=false;console.warn('appr lazy fetch',_mkResolved,e);});
+    }
+  }
   var data=_hrmsMyApprovalsCollect();
   var sum=document.getElementById('hrmsApprovalsSummary');
   if(sum){
@@ -21588,17 +22126,260 @@ function _hrmsMyApprovalsRender(){
     var mode=_hrmsIsSuperAdmin()?'<span style="color:#7c3aed;font-weight:700">Super Admin (sees all)</span>':'pending + historical';
     sum.innerHTML='Approver: <b>'+who+'</b> · '+mode;
   }
-  // Sub-tab badges show only the PENDING count — history items aren't urgent.
+  // Sub-tab badges show only the PENDING count.
   var bAlt=document.getElementById('hrmsApprBadgeAlt'),bCo=document.getElementById('hrmsApprBadgeCoff');
+  var bMan=document.getElementById('hrmsApprBadgeManualAlt'),bExc=document.getElementById('hrmsApprBadgeAltExcel');
+  var bIni=document.getElementById('hrmsApprBadgeInitial');
   if(bAlt){bAlt.textContent=data.altPendingCount;bAlt.style.display=data.altPendingCount?'':'none';}
   if(bCo){bCo.textContent=data.coffPendingCount;bCo.style.display=data.coffPendingCount?'':'none';}
+  if(bMan){bMan.textContent=data.manualPendingCount;bMan.style.display=data.manualPendingCount?'':'none';}
+  if(bExc){bExc.textContent=data.excelPendingCount;bExc.style.display=data.excelPendingCount?'':'none';}
+  if(bIni){bIni.textContent=data.initialPendingCount||0;bIni.style.display=data.initialPendingCount?'':'none';}
+  // Sidebar cumulative count = sum of all five pending buckets.
   var nav=document.getElementById('cMyApprovals');
   if(nav){
-    var pending=data.altPendingCount+data.coffPendingCount;
+    var pending=data.altPendingCount+data.coffPendingCount+data.manualPendingCount+data.excelPendingCount+(data.initialPendingCount||0);
     nav.textContent=pending;nav.style.display=pending?'':'none';
   }
   _hrmsMyApprovalsRenderAlt(data.altRows,data.altPendingCount);
   _hrmsMyApprovalsRenderCoff(data.coffRows,data.coffPendingCount);
+  if(typeof _hrmsMyApprovalsRenderManualAlt==='function') _hrmsMyApprovalsRenderManualAlt(data.manualRows,data.manualPendingCount);
+  if(typeof _hrmsMyApprovalsRenderAltExcel==='function') _hrmsMyApprovalsRenderAltExcel(data.excelRows,data.excelPendingCount);
+  if(typeof _hrmsMyApprovalsRenderInitial==='function') _hrmsMyApprovalsRenderInitial(data.initialRows||[],data.initialPendingCount||0);
+}
+
+// Shared renderer for the Manual Alt + Alt Excel tabs — both list day-level
+// entries from DB.hrmsAlterations with Approve / Reject controls. Approve
+// flips d.approved → true; Reject removes the day from the record (deletes
+// the record entirely if it ends up empty).
+function _hrmsMyApprovalsRenderAltDays(panelId, rows, pendCount, sourceLabel){
+  var el=document.getElementById(panelId);if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px 20px">📭 No '+sourceLabel+' alterations for the selected month.</div>';
+    return;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var html='<div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b style="color:#dc2626">'+pendCount+'</b> pending · '+rows.length+' total</div>'+
+    '<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp Code</th>'+
+      '<th style="'+th+'">Name</th>'+
+      '<th style="'+th+'">Date</th>'+
+      '<th style="'+th+'">IN</th>'+
+      '<th style="'+th+'">OUT</th>'+
+      '<th style="'+th+'">Reason</th>'+
+      '<th style="'+th+'">Requested</th>'+
+      '<th style="'+th+';text-align:center">Status / Action</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var emp=r.emp,d=r.day;
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
+    var rowBg=r.pending?'background:#fffbeb':(d.approved?'background:#f0fdf4':'');
+    var reqBy=d.requestedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(d.requestedBy):d.requestedBy):'—';
+    var reqAt=d.requestedAt?d.requestedAt.slice(0,10):'—';
+    var statusOrAction;
+    if(r.pending){
+      var args="'"+r.recId+"','"+r.dayKey+"'";
+      statusOrAction='<button onclick="_hrmsMyApprovalsAltApprove('+args+')" title="Approve this alteration" style="font-size:11px;padding:3px 10px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:4px">✓ Approve</button>'+
+        '<button onclick="_hrmsMyApprovalsAltReject('+args+')" title="Reject (removes this entry)" style="font-size:11px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Reject</button>';
+    } else if(d.approved){
+      var aBy=d.approvedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(d.approvedBy):d.approvedBy):'';
+      var aAt=d.approvedAt?d.approvedAt.slice(0,10):'';
+      statusOrAction='<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">✓ APPROVED</span>'+(aBy?'<div style="font-size:10px;color:var(--text3);margin-top:2px">by '+aBy+(aAt?' · '+aAt:'')+'</div>':'');
+    } else {
+      statusOrAction='<span style="color:var(--text3);font-size:10px">—</span>';
+    }
+    html+='<tr style="'+rowBg+'">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800;background:'+pClr+'">'+(emp.empCode||'')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(emp.name||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+r.dateStr+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(d['in']||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(d['out']||'—')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+(d.reason||'').replace(/</g,'&lt;')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+reqBy+'<div style="font-size:10px;color:var(--text3)">'+reqAt+'</div></td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+statusOrAction+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+function _hrmsMyApprovalsRenderManualAlt(rows,pc){return _hrmsMyApprovalsRenderAltDays('hrmsApprPanelManualAlt',rows,pc,'manual');}
+function _hrmsMyApprovalsRenderAltExcel(rows,pc){return _hrmsMyApprovalsRenderAltDays('hrmsApprPanelAltExcel',rows,pc,'Excel-uploaded');}
+
+// Initial IN/OUT renderer — same row shape as the alt-day renderer above
+// but the underlying record sits in hrms_attendance. Approve / Reject hit
+// dedicated handlers that update the attendance cache + table.
+function _hrmsMyApprovalsRenderInitial(rows,pendCount){
+  var el=document.getElementById('hrmsApprPanelInitial');if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px 20px">📭 No new-joinee initial IN/OUT entries for the selected month.</div>';
+    return;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var html='<div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b style="color:#dc2626">'+pendCount+'</b> pending · '+rows.length+' total</div>'+
+    '<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp Code</th>'+
+      '<th style="'+th+'">Name</th>'+
+      '<th style="'+th+'">Date</th>'+
+      '<th style="'+th+'">IN</th>'+
+      '<th style="'+th+'">OUT</th>'+
+      '<th style="'+th+'">Entered</th>'+
+      '<th style="'+th+';text-align:center">Status / Action</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(function(r,i){
+    var emp=r.emp,d=r.day;
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
+    var rowBg=r.pending?'background:#fffbeb':(d.approved?'background:#f0fdf4':'');
+    var reqBy=d.requestedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(d.requestedBy):d.requestedBy):'—';
+    var reqAt=d.requestedAt?d.requestedAt.slice(0,10):'—';
+    var statusOrAction;
+    if(r.pending){
+      var args="'"+r.recId+"','"+r.dayKey+"'";
+      statusOrAction='<button onclick="_hrmsMyApprovalsInitialApprove('+args+')" title="Approve this initial entry" style="font-size:11px;padding:3px 10px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:4px">✓ Approve</button>'+
+        '<button onclick="_hrmsMyApprovalsInitialReject('+args+')" title="Reject (removes this entry)" style="font-size:11px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Reject</button>';
+    } else if(d.approved){
+      var aBy=d.approvedBy?(typeof _hrmsApproverName==='function'?_hrmsApproverName(d.approvedBy):d.approvedBy):'';
+      var aAt=d.approvedAt?d.approvedAt.slice(0,10):'';
+      statusOrAction='<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">✓ APPROVED</span>'+(aBy?'<div style="font-size:10px;color:var(--text3);margin-top:2px">by '+aBy+(aAt?' · '+aAt:'')+'</div>':'');
+    } else {
+      statusOrAction='<span style="color:var(--text3);font-size:10px">—</span>';
+    }
+    html+='<tr style="'+rowBg+'">'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-weight:800;background:'+pClr+'">'+(emp.empCode||'')+'</td>'+
+      '<td style="'+td+';font-weight:700">'+(emp.name||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+r.dateStr+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(d['in']||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono)">'+(d['out']||'—')+'</td>'+
+      '<td style="'+td+';font-size:11px">'+reqBy+'<div style="font-size:10px;color:var(--text3)">'+reqAt+'</div></td>'+
+      '<td style="'+td+';text-align:center;white-space:nowrap">'+statusOrAction+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+// Approve / Reject for initial IN/OUT entries. Backed by hrms_attendance.
+async function _hrmsMyApprovalsInitialApprove(recId,dayKey){
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.editEmployee')&&!_hrmsIsSuperAdmin()){notify('Access denied',true);return;}
+  var rec=null;
+  if(_hrmsAttCache){
+    for(var _mk in _hrmsAttCache){
+      var hit=(_hrmsAttCache[_mk]||[]).find(function(r){return r.id===recId;});
+      if(hit){rec=hit;break;}
+    }
+  }
+  if(!rec||!rec.days||!rec.days[dayKey]){notify('Initial entry not found',true);return;}
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(rec.monthKey)){notify('⚠ Month '+rec.monthKey+' is locked',true);return;}
+  var d=rec.days[dayKey];
+  d.approved=true;
+  d.approvedBy=(CU?(CU.name||CU.id||''):'');
+  d.approvedAt=new Date().toISOString();
+  showSpinner('Approving…');
+  var ok=await _dbSave('hrmsAttendance',rec);
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✓ Initial IN/OUT approved');
+  _hrmsMyApprovalsRender();
+}
+async function _hrmsMyApprovalsInitialReject(recId,dayKey){
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.editEmployee')&&!_hrmsIsSuperAdmin()){notify('Access denied',true);return;}
+  var rec=null;
+  if(_hrmsAttCache){
+    for(var _mk in _hrmsAttCache){
+      var hit=(_hrmsAttCache[_mk]||[]).find(function(r){return r.id===recId;});
+      if(hit){rec=hit;break;}
+    }
+  }
+  if(!rec||!rec.days||!rec.days[dayKey]){notify('Initial entry not found',true);return;}
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(rec.monthKey)){notify('⚠ Month '+rec.monthKey+' is locked',true);return;}
+  if(!confirm('Reject this initial IN/OUT entry?\n\nThis removes '+rec.empCode+'\'s entry for '+rec.monthKey+'-'+String(+dayKey).padStart(2,'0')+'.')) return;
+  delete rec.days[dayKey];
+  showSpinner('Rejecting…');
+  var ok;
+  if(Object.keys(rec.days).length===0){
+    ok=await _dbDel('hrmsAttendance',rec.id);
+    if(ok && _hrmsAttCache && _hrmsAttCache[rec.monthKey]){
+      _hrmsAttCache[rec.monthKey]=_hrmsAttCache[rec.monthKey].filter(function(x){return x.id!==rec.id;});
+    }
+  } else {
+    ok=await _dbSave('hrmsAttendance',rec);
+  }
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✕ Initial IN/OUT rejected');
+  _hrmsMyApprovalsRender();
+}
+
+// Approve / reject handlers for Manual + Excel alterations. Permission gate
+// matches the import flow (action.importAlterations); locked months refuse.
+async function _hrmsMyApprovalsAltApprove(recId,dayKey){
+  if(!_hrmsHasAccess('action.importAlterations')){notify('Access denied',true);return;}
+  // Lookup across every loaded month's cache — the page is month-scoped
+  // for display, but the record may live under any month's key.
+  var rec=null;
+  if(_hrmsAltCache){
+    for(var _mk in _hrmsAltCache){
+      var hit=(_hrmsAltCache[_mk]||[]).find(function(r){return r.id===recId;});
+      if(hit){rec=hit;break;}
+    }
+  }
+  if(!rec||!rec.days||!rec.days[dayKey]){notify('Alteration not found',true);return;}
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(rec.monthKey)){notify('⚠ Month '+rec.monthKey+' is locked',true);return;}
+  var d=rec.days[dayKey];
+  d.approved=true;
+  d.approvedBy=(CU?(CU.name||CU.id||''):'');
+  d.approvedAt=new Date().toISOString();
+  showSpinner('Approving…');
+  var ok=await _dbSave('hrmsAlterations',rec);
+  // Keep the in-memory cache in sync so the muster / salary tabs reflect
+  // the approval immediately on next render.
+  if(ok && _hrmsAltCache && _hrmsAltCache[rec.monthKey]){
+    var cached=_hrmsAltCache[rec.monthKey].find(function(x){return x.id===rec.id;});
+    if(cached) cached.days[dayKey]=Object.assign({},d);
+  }
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✓ Alteration approved');
+  _hrmsMyApprovalsRender();
+}
+async function _hrmsMyApprovalsAltReject(recId,dayKey){
+  if(!_hrmsHasAccess('action.importAlterations')){notify('Access denied',true);return;}
+  var rec=null;
+  if(_hrmsAltCache){
+    for(var _mk in _hrmsAltCache){
+      var hit=(_hrmsAltCache[_mk]||[]).find(function(r){return r.id===recId;});
+      if(hit){rec=hit;break;}
+    }
+  }
+  if(!rec||!rec.days||!rec.days[dayKey]){notify('Alteration not found',true);return;}
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(rec.monthKey)){notify('⚠ Month '+rec.monthKey+' is locked',true);return;}
+  if(!confirm('Reject this alteration?\n\nThis removes the IN/OUT entry for '+rec.empCode+' on '+rec.monthKey+'-'+String(+dayKey).padStart(2,'0')+'.')) return;
+  delete rec.days[dayKey];
+  showSpinner('Rejecting…');
+  var ok;
+  if(Object.keys(rec.days).length===0){
+    ok=await _dbDel('hrmsAlterations',rec.id);
+    if(ok && _hrmsAltCache && _hrmsAltCache[rec.monthKey]){
+      _hrmsAltCache[rec.monthKey]=_hrmsAltCache[rec.monthKey].filter(function(x){return x.id!==rec.id;});
+    }
+  } else {
+    ok=await _dbSave('hrmsAlterations',rec);
+    if(ok && _hrmsAltCache && _hrmsAltCache[rec.monthKey]){
+      var cached=_hrmsAltCache[rec.monthKey].find(function(x){return x.id===rec.id;});
+      if(cached){delete cached.days[dayKey];}
+    }
+  }
+  hideSpinner();
+  if(!ok){notify('⚠ Save failed',true);return;}
+  notify('✕ Alteration rejected');
+  _hrmsMyApprovalsRender();
 }
 
 function _hrmsMyApprovalsRenderAlt(rows,pendCount){
