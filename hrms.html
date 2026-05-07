@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260507-V3">
+<meta name="app-build" content="260507-V4">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260507-V3">
+<link rel="stylesheet" href="css/hrms.css?v=260507-V4">
 </head>
 <body>
 
@@ -436,12 +436,12 @@
           <div id="hrmsApprovalsSummary" style="font-size:12px;color:var(--text3)"></div>
         </div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:wrap">
-          <button id="hrmsApprTabAltreq" class="hrms-approval-subtab hrms-allow-locked active" onclick="_hrmsMyApprovalsSubTab('altreq')">🛠 Alt Req Emp <span id="hrmsApprBadgeAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabManualAlt" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('manualAlt')">✏️ Manual Alt <span id="hrmsApprBadgeManualAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabAltExcel" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altExcel')">📥 Alt Req through Excel <span id="hrmsApprBadgeAltExcel" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabInitial" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('initial')">🆕 New Joinee Initial IN/OUT <span id="hrmsApprBadgeInitial" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabCoff" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('coff')">🏦 C-off Req Emp <span id="hrmsApprBadgeCoff" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabOrgsal" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('orgsal')">💼 Org &amp; Salary <span id="hrmsApprBadgeOrgsal" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabAltreq" class="hrms-approval-subtab hrms-allow-locked active" onclick="_hrmsMyApprovalsSubTab('altreq')">🛠 Alt Req Emp <span id="hrmsApprTotalAlt" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeAlt" class="hrms-appr-count-pending" style="display:none">0</span></button>
+          <button id="hrmsApprTabManualAlt" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('manualAlt')">✏️ Manual Alt <span id="hrmsApprTotalManualAlt" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeManualAlt" class="hrms-appr-count-pending" style="display:none">0</span></button>
+          <button id="hrmsApprTabAltExcel" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altExcel')">📥 Alt Req through Excel <span id="hrmsApprTotalAltExcel" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeAltExcel" class="hrms-appr-count-pending" style="display:none">0</span></button>
+          <button id="hrmsApprTabInitial" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('initial')">🆕 New Joinee Initial IN/OUT <span id="hrmsApprTotalInitial" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeInitial" class="hrms-appr-count-pending" style="display:none">0</span></button>
+          <button id="hrmsApprTabCoff" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('coff')">🏦 C-off Req Emp <span id="hrmsApprTotalCoff" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeCoff" class="hrms-appr-count-pending" style="display:none">0</span></button>
+          <button id="hrmsApprTabOrgsal" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('orgsal')">💼 Org &amp; Salary <span id="hrmsApprTotalOrgsal" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeOrgsal" class="hrms-appr-count-pending" style="display:none">0</span></button>
         </div>
         <div id="hrmsApprPanelAltreq"></div>
         <div id="hrmsApprPanelManualAlt" style="display:none"></div>
@@ -1010,8 +1010,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260507-V3"></script>
-<script src="js/hrms-logic.js?v=260507-V3"></script>
-<script src="js/hrms-ui.js?v=260507-V3"></script>
+<script src="js/common.js?v=260507-V4"></script>
+<script src="js/hrms-logic.js?v=260507-V4"></script>
+<script src="js/hrms-ui.js?v=260507-V4"></script>
 </body>
 </html>

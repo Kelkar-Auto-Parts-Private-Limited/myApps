@@ -22762,12 +22762,16 @@ function _hrmsMyApprovalsCollect(){
 
 function _hrmsMyApprovalsRender(){
   if(!document.getElementById('hrmsApprPanelAltreq')) return;
-  // Ensure this month's alteration cache is loaded so the Manual / Excel
-  // tabs have data to render. _hrmsAttFetchMonth is idempotent; if the
-  // cache already has the month it returns synchronously. When the cache
-  // is empty we kick off a fetch and re-render once it resolves.
+  // Ensure this month's attendance + alteration caches are loaded so
+  // every sub-tab (incl. New Joinee Initial IN/OUT, which reads
+  // hrms_attendance flagged initial:true) has data to render.
+  // _hrmsAttFetchMonth is idempotent — synchronous when both caches
+  // already have the month. Trigger a fetch when EITHER cache is
+  // missing so a half-loaded state still gets healed.
   var _mkResolved=(typeof _hrmsApprResolveMonth==='function')?_hrmsApprResolveMonth():null;
-  if(_mkResolved&&typeof _hrmsAttFetchMonth==='function'&&(!_hrmsAltCache||_hrmsAltCache[_mkResolved]===undefined)){
+  var _altMissing=!_hrmsAltCache||_hrmsAltCache[_mkResolved]===undefined;
+  var _attMissing=typeof _hrmsAttCache==='undefined'||!_hrmsAttCache||_hrmsAttCache[_mkResolved]===undefined;
+  if(_mkResolved&&typeof _hrmsAttFetchMonth==='function'&&(_altMissing||_attMissing)){
     if(!window._hrmsApprFetching){
       window._hrmsApprFetching=true;
       _hrmsAttFetchMonth(_mkResolved).then(function(){
@@ -22781,17 +22785,22 @@ function _hrmsMyApprovalsRender(){
   if(sum) sum.innerHTML='';
   // Collect pending Org & Salary changes (one row per emp × month).
   var orgSalRows=_hrmsMyApprovalsCollectOrgSal();
-  // Sub-tab badges show only the PENDING count.
-  var bAlt=document.getElementById('hrmsApprBadgeAlt'),bCo=document.getElementById('hrmsApprBadgeCoff');
-  var bMan=document.getElementById('hrmsApprBadgeManualAlt'),bExc=document.getElementById('hrmsApprBadgeAltExcel');
-  var bIni=document.getElementById('hrmsApprBadgeInitial');
-  var bOrg=document.getElementById('hrmsApprBadgeOrgsal');
-  if(bAlt){bAlt.textContent=data.altPendingCount;bAlt.style.display=data.altPendingCount?'':'none';}
-  if(bCo){bCo.textContent=data.coffPendingCount;bCo.style.display=data.coffPendingCount?'':'none';}
-  if(bMan){bMan.textContent=data.manualPendingCount;bMan.style.display=data.manualPendingCount?'':'none';}
-  if(bExc){bExc.textContent=data.excelPendingCount;bExc.style.display=data.excelPendingCount?'':'none';}
-  if(bIni){bIni.textContent=data.initialPendingCount||0;bIni.style.display=data.initialPendingCount?'':'none';}
-  if(bOrg){bOrg.textContent=orgSalRows.length;bOrg.style.display=orgSalRows.length?'':'none';}
+  // Sub-tab badges: each tab shows two chips — a neutral total (count
+  // of all rows currently visible in that tab) plus a red pending chip
+  // (only when > 0). Operator can scan both queue depth + actionable
+  // backlog from the tab strip alone.
+  var _setCounts=function(totalId,pendId,total,pending){
+    var t=document.getElementById(totalId);
+    var p=document.getElementById(pendId);
+    if(t){t.textContent=total||0;t.style.display=total?'':'none';}
+    if(p){p.textContent=pending||0;p.style.display=pending?'':'none';}
+  };
+  _setCounts('hrmsApprTotalAlt','hrmsApprBadgeAlt',data.altRows.length,data.altPendingCount);
+  _setCounts('hrmsApprTotalCoff','hrmsApprBadgeCoff',data.coffRows.length,data.coffPendingCount);
+  _setCounts('hrmsApprTotalManualAlt','hrmsApprBadgeManualAlt',data.manualRows.length,data.manualPendingCount);
+  _setCounts('hrmsApprTotalAltExcel','hrmsApprBadgeAltExcel',data.excelRows.length,data.excelPendingCount);
+  _setCounts('hrmsApprTotalInitial','hrmsApprBadgeInitial',(data.initialRows||[]).length,data.initialPendingCount||0);
+  _setCounts('hrmsApprTotalOrgsal','hrmsApprBadgeOrgsal',orgSalRows.length,orgSalRows.length);
   // Sidebar cumulative count = sum of all six pending buckets.
   var nav=document.getElementById('cMyApprovals');
   if(nav){
@@ -22838,8 +22847,8 @@ function _hrmsMyApprovalsRenderOrgSal(rows){
   var canAct=(typeof _hrmsHasAccess==='function')&&(_hrmsHasAccess('action.editEmployee')||(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin()));
   var th='padding:5px 6px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;color:#1e293b;text-align:left;white-space:nowrap';
   var td='padding:5px 6px;font-size:12px;border:1px solid #e2e8f0;vertical-align:top';
-  var h='<div style="overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
-  h+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
+  var h='<div class="hrms-appr-table-wrap">';
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>';
   h+='<th style="'+th+'">Emp Code</th><th style="'+th+'">Name</th><th style="'+th+'">Month</th><th style="'+th+'">Field</th><th style="'+th+'">Current</th><th style="'+th+'">Proposed</th><th style="'+th+';text-align:center">Requested</th><th style="'+th+';text-align:center">Action</th>';
   h+='</tr></thead><tbody>';
   rows.forEach(function(r){
@@ -22940,8 +22949,7 @@ function _hrmsMyApprovalsRenderAltDays(panelId, rows, pendCount, sourceLabel){
   }
   var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
   var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var html='<div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b style="color:#dc2626">'+pendCount+'</b> pending · '+rows.length+' total</div>'+
-    '<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+  var html='<div class="hrms-appr-table-wrap">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
       '<th style="'+th+'">Emp Code</th>'+
@@ -23000,8 +23008,7 @@ function _hrmsMyApprovalsRenderInitial(rows,pendCount){
   }
   var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
   var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var html='<div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b style="color:#dc2626">'+pendCount+'</b> pending · '+rows.length+' total</div>'+
-    '<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+  var html='<div class="hrms-appr-table-wrap">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
       '<th style="'+th+'">Emp Code</th>'+
@@ -23170,7 +23177,7 @@ function _hrmsMyApprovalsRenderAlt(rows,pendCount){
   }
   var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
   var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+  var html='<div class="hrms-appr-table-wrap">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
       '<th style="'+th+'">Emp</th>'+
@@ -23231,7 +23238,7 @@ function _hrmsMyApprovalsRenderCoff(rows,pendCount){
   }
   var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:1';
   var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
-  var html='<div style="overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
+  var html='<div class="hrms-appr-table-wrap">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
       '<th style="'+th+'">#</th>'+
       '<th style="'+th+'">Emp</th>'+
