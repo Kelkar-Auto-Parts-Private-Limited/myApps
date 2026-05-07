@@ -125,6 +125,138 @@ function _hrmsSanitizePeriods(periods){
   });
 }
 
+// ═══ SALARY-MONTHS DATA MODEL ═══════════════════════════════════════════
+// Per-employee snapshot of org+salary fields keyed by month ('YYYY-MM').
+// Replaces the period range model: each entry holds the active fields for
+// that month plus an optional `pending` change awaiting approval. Periods
+// remain on the record as the migration source-of-truth and approval log.
+
+// Migration window starts at Jan-26 (when this model went live). For
+// employees who joined later, expansion starts at the DOJ month instead.
+var _HRMS_SAL_MONTHS_START='2026-01';
+
+function _hrmsCoverMatch(p,mk){
+  var pFrom=String(p&&p.from||'').slice(0,7);
+  var pTo=p&&p.to?String(p.to).slice(0,7):'';
+  if(!pFrom) return false;
+  return pFrom<=mk&&(!pTo||pTo>=mk);
+}
+
+// Find the period covering month `mk` for an employee. Approved periods
+// win; falls back to a `proposed` period if no approved period covers it.
+// Returns null when no period covers the month.
+function _hrmsFindCoveringPeriod(emp,mk){
+  var periods=(emp&&emp.periods||[]).slice().sort(function(a,b){
+    return String(b.from||'').slice(0,7).localeCompare(String(a.from||'').slice(0,7));
+  });
+  for(var i=0;i<periods.length;i++){
+    var p=periods[i];
+    if((!p._wfStatus||p._wfStatus==='approved')&&_hrmsCoverMatch(p,mk)) return p;
+  }
+  for(var j=0;j<periods.length;j++){
+    if(periods[j]._wfStatus==='proposed'&&_hrmsCoverMatch(periods[j],mk)) return periods[j];
+  }
+  return null;
+}
+
+// Iterate month keys from `startMk` (inclusive) to `endMk` (inclusive) in
+// ascending order. Both bounds are 'YYYY-MM' strings.
+function _hrmsMonthKeysBetween(startMk,endMk){
+  var out=[];
+  if(!startMk||!endMk||startMk>endMk) return out;
+  var sp=startMk.split('-');var ep=endMk.split('-');
+  var y=+sp[0],m=+sp[1],ey=+ep[0],em=+ep[1];
+  while(y<ey||(y===ey&&m<=em)){
+    out.push(y+'-'+String(m).padStart(2,'0'));
+    m++;if(m>12){m=1;y++;}
+  }
+  return out;
+}
+
+// Latest month-key currently registered in the Att&Sal index, or null when
+// nothing is loaded yet. Caller is responsible for fetching the index when
+// needed (boot path runs _hrmsAttFetchIndex before opening the modal).
+function _hrmsLatestSystemMonth(){
+  if(typeof _hrmsAttMonthIndex==='undefined'||!_hrmsAttMonthIndex) return null;
+  if(!_hrmsAttMonthIndex.length) return null;
+  // _hrmsAttMonthIndex is sorted descending — first entry is latest.
+  return _hrmsAttMonthIndex[0].monthKey||null;
+}
+
+// Resolve the start month for `emp`: the earliest month the employee has
+// any record for (period or DOJ), clamped to no earlier than
+// _HRMS_SAL_MONTHS_START. Using the earliest period's `from` rather than
+// just DOJ is critical for rejoin cases — when an employee resigns and
+// rejoins, dateOfJoining gets overwritten with the rejoin month, but
+// emp.periods[] still carries the original (Jan-26) entry.
+function _hrmsSalaryMonthsStart(emp){
+  var earliest=null;
+  if(emp&&Array.isArray(emp.periods)){
+    emp.periods.forEach(function(p){
+      if(!p||p._wfStatus==='rejected') return;
+      var f=String(p.from||'').slice(0,7);
+      if(f&&(!earliest||f<earliest)) earliest=f;
+    });
+  }
+  if(!earliest) earliest=String(emp&&emp.dateOfJoining||'').slice(0,7);
+  if(!earliest) return _HRMS_SAL_MONTHS_START;
+  return earliest>_HRMS_SAL_MONTHS_START?earliest:_HRMS_SAL_MONTHS_START;
+}
+
+// Build the per-month snapshot from the active period at `mk`. Returns null
+// when no period covers the month.
+function _hrmsSnapshotFromPeriod(emp,mk){
+  var p=_hrmsFindCoveringPeriod(emp,mk);
+  if(!p) return null;
+  var snap={};
+  for(var i=0;i<_PERIOD_FIELDS.length;i++){
+    var f=_PERIOD_FIELDS[i];
+    snap[f]=(p[f]==null?'':p[f]);
+  }
+  // esiApplicable lives outside _PERIOD_FIELDS in hrms-logic.js; carry it.
+  if(p.esiApplicable!=null) snap.esiApplicable=p.esiApplicable;
+  return snap;
+}
+
+// Populate `emp.salaryMonths` for every month from the employee's earliest
+// period start (clamped to Jan-26) through `endMk` (inclusive). Months
+// where no period covers are LEFT BLANK — that's the desired behaviour
+// for rejoin gaps (employee resigned, then rejoined later). Existing
+// entries are preserved — this is idempotent and safe to call repeatedly.
+function _hrmsExpandPeriodsToMonths(emp,endMk){
+  if(!emp) return {};
+  if(!emp.salaryMonths||typeof emp.salaryMonths!=='object') emp.salaryMonths={};
+  var startMk=_hrmsSalaryMonthsStart(emp);
+  var end=endMk||_hrmsLatestSystemMonth();
+  if(!end||end<startMk) return emp.salaryMonths;
+  var keys=_hrmsMonthKeysBetween(startMk,end);
+  for(var i=0;i<keys.length;i++){
+    var mk=keys[i];
+    if(emp.salaryMonths[mk]) continue;// preserve any user-edited snapshot
+    var snap=_hrmsSnapshotFromPeriod(emp,mk);
+    if(snap) emp.salaryMonths[mk]=snap;
+  }
+  return emp.salaryMonths;
+}
+
+// Return the active org+salary values for `emp` at month `mk`. Prefers the
+// salaryMonths snapshot when present; falls back to the period lookup so
+// callers work during the rollout before every employee has been migrated.
+// `pending` changes are NOT merged — readers see the approved values.
+function _hrmsGetSalaryMonth(emp,mk){
+  if(!emp||!mk) return null;
+  if(emp.salaryMonths&&emp.salaryMonths[mk]){
+    var s=emp.salaryMonths[mk];
+    // Strip pending so callers can't accidentally read proposed values.
+    if(s.pending){
+      var clean={};Object.keys(s).forEach(function(k){if(k!=='pending') clean[k]=s[k];});
+      return clean;
+    }
+    return s;
+  }
+  return _hrmsFindCoveringPeriod(emp,mk);
+}
+
 // ═══ DATE / TIME FORMATTING ═══
 
 /**
