@@ -15557,7 +15557,7 @@ async function _hrmsContractExport(){
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   var rows=_hrmsContractCache[mk]||[];
   if(!rows.length){notify('No contract salary data to export',true);return;}
-  var headers=['Emp Code','Name','DOJ','Team','Plant','Role','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','PF','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
+  var headers=['Emp Code','Name','DOJ','Team','Plant','Role','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','Basic + DA (PF) Capped','PF','Basic + DA (ESI)','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
   // Cell wrappers. _curr → Indian currency #,##,##0 ; _dec → fixed 1-decimal "0.0".
   // Empty values flow through as plain '' so the cell stays blank without
   // the engine substituting 0 / NaN.
@@ -15582,15 +15582,17 @@ async function _hrmsContractExport(){
     _curr(r.forOT),                                   // R  For OT@1
     _curr(r.spAllow),                                 // S  Sp.Allow
     _curr(r.gross),                                   // T  Gross Salary
-    _curr(r.pf),                                      // U  PF
-    _curr(r.esi),                                     // V  ESI
-    _curr(r.totalSal),                                // W  Total Salary
-    _curr(r.commission),                              // X  Commission 8%
-    _curr(r.totalBill),                               // Y  Total Bill
-    _curr(r.diwali),                                  // Z  Diwali Bonus
-    _curr(r.ctc)                                      // AA CTC
+    _curr(r.basicDaPfC),                              // U  Basic + DA (PF) Capped
+    _curr(r.pf),                                      // V  PF
+    _curr(r.basicDaEsiC),                             // W  Basic + DA (ESI)
+    _curr(r.esi),                                     // X  ESI
+    _curr(r.totalSal),                                // Y  Total Salary
+    _curr(r.commission),                              // Z  Commission 8%
+    _curr(r.totalBill),                               // AA Total Bill
+    _curr(r.diwali),                                  // AB Diwali Bonus
+    _curr(r.ctc)                                      // AC CTC
   ];};
-  var _totKeys=['P','OT','OTS','totalOT','forPresent','forOT','spAllow','gross','pf','esi','totalSal','commission','totalBill','diwali','ctc'];
+  var _totKeys=['P','OT','OTS','totalOT','forPresent','forOT','spAllow','gross','basicDaPfC','basicDaEsiC','pf','esi','totalSal','commission','totalBill','diwali','ctc'];
   var _zeroTot=function(){var o={};_totKeys.forEach(function(k){o[k]=0;});return o;};
   // Total row — same column layout as data, decimal/currency wrappers
   // applied so the format flows through the tbltotal style.
@@ -15603,7 +15605,10 @@ async function _hrmsContractExport(){
     _dec(Math.round(t.totalOT*4)/4),
     '',
     _curr(t.forPresent), _curr(t.forOT), _curr(t.spAllow), _curr(t.gross),
-    _curr(t.pf),         _curr(t.esi),    _curr(t.totalSal),
+    t._hasBasicDaPfC?_curr(t.basicDaPfC):'',
+    _curr(t.pf),
+    t._hasBasicDaEsiC?_curr(t.basicDaEsiC):'',
+    _curr(t.esi),    _curr(t.totalSal),
     _curr(t.commission), _curr(t.totalBill), _curr(t.diwali), _curr(t.ctc)
   ];};
   var _sort=function(arr){arr.sort(function(a,b){
@@ -15649,7 +15654,14 @@ async function _hrmsContractExport(){
   var _buildSheet=function(rowsForSheet,totalLabel){
     _sort(rowsForSheet);
     var t=_zeroTot();
-    rowsForSheet.forEach(function(r){_totKeys.forEach(function(k){t[k]+=r[k]||0;});});
+    var hasBasicDaPfC=false,hasBasicDaEsiC=false;
+    rowsForSheet.forEach(function(r){
+      _totKeys.forEach(function(k){t[k]+=r[k]||0;});
+      if(r.basicDaPfC!=null) hasBasicDaPfC=true;
+      if(r.basicDaEsiC!=null) hasBasicDaEsiC=true;
+    });
+    t._hasBasicDaPfC=hasBasicDaPfC;
+    t._hasBasicDaEsiC=hasBasicDaEsiC;
     var totalCells=_totRow(totalLabel,t);
     var data=[];
     data.push({tbltotal:true, cells:totalCells});
