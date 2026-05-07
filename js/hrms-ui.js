@@ -3559,9 +3559,13 @@ async function _hrmsInitialConfirm(idx){
       else if(existing._prev) prevSnap=existing._prev;
     }
     var newDay={'in':r.in||'','out':r.out||'',initial:true,
-      approved:true,
-      approvedBy:(typeof CU!=='undefined'&&CU?(CU.name||CU.id||''):''),
-      approvedAt:new Date().toISOString()};
+      // Manual Initial IN/OUT staged from the Org & Sal Revisions row
+      // enters the approval queue rather than being auto-approved — this
+      // is what surfaces it under My Approvals → New Joinee Initial IN/OUT
+      // for the selected month so the reviewer can confirm or reject.
+      approved:false,
+      requestedBy:(typeof CU!=='undefined'&&CU?(CU.name||CU.id||''):''),
+      requestedAt:new Date().toISOString()};
     if(prevSnap) newDay._prev=prevSnap;
     rec.days[dk]=newDay;
     var ok=await _dbSave('hrmsAttendance',rec);
@@ -5329,7 +5333,7 @@ function _hrmsAltCacheHealApprovedRequests(mk){
   }
 }
 
-var _hrmsAttCurrentTab='summary';
+var _hrmsAttCurrentTab='attendance';
 var _hrmsAttEtFilter='';// default: All (no employment-type filter)
 
 function _hrmsAttEtFilterSet(val){
@@ -11940,7 +11944,7 @@ function _hrmsMainTab(tab){
   tabs.forEach(function(t){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
     var content=document.getElementById('hrmsMain'+t.charAt(0).toUpperCase()+t.slice(1)+'Content');
-    if(btn){btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.background=t===tab?'var(--accent-light)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
+    if(btn) btn.classList.toggle('active',t===tab);
     if(content) content.style.display=t===tab?(t==='settings'?'':'flex'):'none';
   });
   _hrmsRenderActiveTab();
@@ -12829,7 +12833,7 @@ function _hrmsSettingsSubTab(tab){
     var btn=document.getElementById('hrmsSetTab'+t.charAt(0).toUpperCase()+t.slice(1));
     var allowed=_hrmsHasAccess(_setTabPerm[t]);
     if(panel) panel.style.display=t===tab?'':'none';
-    if(btn){btn.style.display=allowed?'':'none';btn.style.borderBottomColor=t===tab?'var(--accent)':'transparent';btn.style.color=t===tab?'var(--accent)':'var(--text3)';}
+    if(btn){btn.style.display=allowed?'':'none';btn.classList.toggle('active',t===tab);}
   });
   if(tab==='statutory'){
     _hrmsLoadStatutory();
@@ -22485,17 +22489,11 @@ function _hrmsMyApprovalsSubTab(tab){
   _hrmsApprActiveTab=allowed[tab]?tab:'altreq';
   var btnIds={altreq:'hrmsApprTabAltreq',manualAlt:'hrmsApprTabManualAlt',altExcel:'hrmsApprTabAltExcel',initial:'hrmsApprTabInitial',coff:'hrmsApprTabCoff',orgsal:'hrmsApprTabOrgsal'};
   var panelIds={altreq:'hrmsApprPanelAltreq',manualAlt:'hrmsApprPanelManualAlt',altExcel:'hrmsApprPanelAltExcel',initial:'hrmsApprPanelInitial',coff:'hrmsApprPanelCoff',orgsal:'hrmsApprPanelOrgsal'};
-  var act='padding:8px 16px;font-size:12px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent)';
-  var idle='padding:8px 16px;font-size:12px;font-weight:800;border:none;cursor:pointer;border-radius:6px 6px 0 0;border-bottom:3px solid transparent;background:transparent;color:var(--text3)';
   Object.keys(btnIds).forEach(function(k){
     var btn=document.getElementById(btnIds[k]);
     var panel=document.getElementById(panelIds[k]);
     var on=(k===_hrmsApprActiveTab);
-    if(btn){
-      // Preserve the badge span when re-applying styles by reading just the
-      // background/border/colour properties — innerHTML stays intact.
-      btn.style.cssText=(on?act:idle);
-    }
+    if(btn) btn.classList.toggle('active',on);
     if(panel) panel.style.display=on?'':'none';
   });
   _hrmsMyApprovalsRender();// refresh content
@@ -22780,12 +22778,7 @@ function _hrmsMyApprovalsRender(){
   }
   var data=_hrmsMyApprovalsCollect();
   var sum=document.getElementById('hrmsApprovalsSummary');
-  if(sum){
-    var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
-    var who=me?(me.empCode+' — '+me.name):'(not mapped)';
-    var mode=_hrmsIsSuperAdmin()?'<span style="color:#7c3aed;font-weight:700">Super Admin (sees all)</span>':'pending + historical';
-    sum.innerHTML='Approver: <b>'+who+'</b> · '+mode;
-  }
+  if(sum) sum.innerHTML='';
   // Collect pending Org & Salary changes (one row per emp × month).
   var orgSalRows=_hrmsMyApprovalsCollectOrgSal();
   // Sub-tab badges show only the PENDING count.

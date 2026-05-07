@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260507-V2">
+<meta name="app-build" content="260507-V3">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260507-V2">
+<link rel="stylesheet" href="css/hrms.css?v=260507-V3">
 </head>
 <body>
 
@@ -382,29 +382,29 @@
     <div id="hrmsRecalcDiff" style="display:none;margin:8px 0;padding:10px 12px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px"></div>
     <!-- 3 Main Tabs: Settings | Attendance | Salary -->
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">⚙️ Settings &amp; Data</button>
-      <button onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📅 Attendance</button>
-      <button onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">💰 OR Salary</button>
-      <button onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🏦 OR Sal Payments</button>
-      <button onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 OR ESI/PF List</button>
-      <button onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🧾 OR PT Summary</button>
-      <button onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none;padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 Contract Salary</button>
+      <button class="hrms-main-tab active" onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings">⚙️ Settings &amp; Data</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance">📅 Attendance</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary">💰 OR Salary</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments">🏦 OR Sal Payments</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf">📋 OR ESI/PF List</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt">🧾 OR PT Summary</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none">📋 Contract Salary</button>
     </div>
 
     <!-- === SETTINGS TAB === -->
     <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column;padding-top:0">
       <!-- Settings sub-tabs -->
       <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
-        <div class="hrms-settings-tab active" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent)">Calendar</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">ESSL Data</div>
-        <div class="hrms-settings-tab hrms-allow-locked" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual Alt</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Manual P &amp; OT</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Advances</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">TDS</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">OR Salary Rev</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Contract Salary Rev</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('statutory')" id="hrmsSetTabStatutory" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Statutory</div>
+        <div class="hrms-settings-tab active" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt">ESSL Data</div>
+        <div class="hrms-settings-tab hrms-allow-locked" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration">Manual Alt</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual">Manual P &amp; OT</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances">Advances</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds">TDS</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">OR Salary Rev</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev">Contract Salary Rev</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('statutory')" id="hrmsSetTabStatutory">Statutory</div>
       </div>
 
       <!-- Sub-tab: Calendar -->
@@ -436,12 +436,12 @@
           <div id="hrmsApprovalsSummary" style="font-size:12px;color:var(--text3)"></div>
         </div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:wrap">
-          <button id="hrmsApprTabAltreq" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altreq')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">🛠 Alt Req Emp <span id="hrmsApprBadgeAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabManualAlt" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('manualAlt')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">✏️ Manual Alt <span id="hrmsApprBadgeManualAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabAltExcel" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altExcel')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📥 Alt Req through Excel <span id="hrmsApprBadgeAltExcel" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabInitial" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('initial')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🆕 New Joinee Initial IN/OUT <span id="hrmsApprBadgeInitial" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabCoff" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('coff')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🏦 C-off Req Emp <span id="hrmsApprBadgeCoff" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
-          <button id="hrmsApprTabOrgsal" class="hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('orgsal')" style="padding:8px 16px;font-size:12px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">💼 Org &amp; Salary <span id="hrmsApprBadgeOrgsal" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabAltreq" class="hrms-approval-subtab hrms-allow-locked active" onclick="_hrmsMyApprovalsSubTab('altreq')">🛠 Alt Req Emp <span id="hrmsApprBadgeAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabManualAlt" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('manualAlt')">✏️ Manual Alt <span id="hrmsApprBadgeManualAlt" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabAltExcel" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altExcel')">📥 Alt Req through Excel <span id="hrmsApprBadgeAltExcel" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabInitial" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('initial')">🆕 New Joinee Initial IN/OUT <span id="hrmsApprBadgeInitial" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabCoff" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('coff')">🏦 C-off Req Emp <span id="hrmsApprBadgeCoff" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
+          <button id="hrmsApprTabOrgsal" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('orgsal')">💼 Org &amp; Salary <span id="hrmsApprBadgeOrgsal" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></button>
         </div>
         <div id="hrmsApprPanelAltreq"></div>
         <div id="hrmsApprPanelManualAlt" style="display:none"></div>
@@ -717,13 +717,13 @@
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <!-- Attendance sub-tabs -->
         <div style="display:flex;gap:0;margin-bottom:8px;border-bottom:2px solid var(--border)">
-          <div class="hrms-att-tab active" id="hrmsTabSummary" onclick="_hrmsAttSetTab('summary')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Summary</div>
-          <div class="hrms-att-tab" id="hrmsTabPot" onclick="_hrmsAttSetTab('pot')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">P & OT</div>
-          <div class="hrms-att-tab" id="hrmsTabAttendance" onclick="_hrmsAttSetTab('attendance')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Muster Roll</div>
-          <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">All Alterations &amp; C-off</div>
-          <div class="hrms-att-tab" id="hrmsTabEntry" onclick="_hrmsAttSetTab('entry')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">New Joinee/Rejoinee</div>
-          <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">Absent Employees FTM</div>
-          <div class="hrms-att-tab" id="hrmsTabPrintformats" onclick="_hrmsAttSetTab('printformats')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">🖨 Print Muster</div>
+          <div class="hrms-att-tab active" id="hrmsTabAttendance" onclick="_hrmsAttSetTab('attendance')">Muster Roll</div>
+          <div class="hrms-att-tab" id="hrmsTabPot" onclick="_hrmsAttSetTab('pot')">P & OT</div>
+          <div class="hrms-att-tab" id="hrmsTabSummary" onclick="_hrmsAttSetTab('summary')">Summary</div>
+          <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')">All Alterations &amp; C-off</div>
+          <div class="hrms-att-tab" id="hrmsTabEntry" onclick="_hrmsAttSetTab('entry')">New Joinee/Rejoinee</div>
+          <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')">Absent Employees FTM</div>
+          <div class="hrms-att-tab" id="hrmsTabPrintformats" onclick="_hrmsAttSetTab('printformats')">🖨 Print Muster</div>
         </div>
         <!-- Tab: Summary -->
         <div id="hrmsAttTabSummary" class="hrms-att-panel" style="flex:1;overflow:auto"></div>
@@ -1010,8 +1010,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260507-V2"></script>
-<script src="js/hrms-logic.js?v=260507-V2"></script>
-<script src="js/hrms-ui.js?v=260507-V2"></script>
+<script src="js/common.js?v=260507-V3"></script>
+<script src="js/hrms-logic.js?v=260507-V3"></script>
+<script src="js/hrms-ui.js?v=260507-V3"></script>
 </body>
 </html>

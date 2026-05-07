@@ -40,7 +40,43 @@
 #hrmsEmpPeriodBody input[type="month"]::-webkit-inner-spin-button,#hrmsEmpPeriodBody input[type="month"]::-webkit-clear-button{display:none}
 @keyframes hrmsFlash{0%,100%{border-color:#f59e0b}50%{border-color:#dc2626}}
 .hrms-changed{border:2px solid #f59e0b!important;animation:hrmsFlash 1s infinite!important;background:#fefce8!important}
-.hrms-att-tab.active{color:var(--accent)!important;border-bottom-color:var(--accent)!important}
+/* Unified Attendance & Salary tab styling — shared by main tabs,
+   settings sub-tabs, attendance sub-tabs, and My Approvals sub-tabs.
+   Selected state uses an accent-light fill + bold accent text + thick
+   accent underline so the active tab is unambiguously highlighted. */
+.hrms-att-tab,
+.hrms-settings-tab,
+.hrms-main-tab,
+.hrms-approval-subtab{
+  padding:8px 16px!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  font-family:inherit!important;
+  border:none!important;
+  border-bottom:3px solid transparent!important;
+  background:transparent!important;
+  color:var(--text3)!important;
+  cursor:pointer!important;
+  border-radius:6px 6px 0 0!important;
+  transition:background-color 0.15s, color 0.15s, border-color 0.15s!important;
+}
+.hrms-att-tab:hover,
+.hrms-settings-tab:hover,
+.hrms-main-tab:hover,
+.hrms-approval-subtab:hover{
+  background:rgba(124,58,237,0.06)!important;
+  color:var(--accent)!important;
+}
+.hrms-att-tab.active,
+.hrms-settings-tab.active,
+.hrms-main-tab.active,
+.hrms-approval-subtab.active{
+  background:var(--accent-light)!important;
+  color:var(--accent)!important;
+  border-bottom:3px solid var(--accent)!important;
+  font-weight:900!important;
+  box-shadow:inset 0 -3px 0 var(--accent)!important;
+}
 /* When the selected month is locked, grey-out and click-block any
    mutating controls inside Settings and the Attendance sub-tabs.
    Sub-tab navigation, filter selects, search inputs and the lock /
