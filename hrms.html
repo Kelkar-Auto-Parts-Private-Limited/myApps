@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260508-V7">
+<meta name="app-build" content="260508-V8">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260508-V7">
+<link rel="stylesheet" href="css/hrms.css?v=260508-V8">
 </head>
 <body>
 
@@ -714,22 +714,14 @@
 
       <!-- Sub-tab: Advances -->
       <div id="hrmsSetPanelAdvances" style="display:none">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <div style="display:flex;gap:6px;align-items:flex-end">
-            <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsAdvCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAdvCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsAdvCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
-            <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Advance</label><input type="number" id="hrmsAdvAmount" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:80px"></div>
-            <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">EMI</label><input type="number" id="hrmsAdvEmi" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:80px"></div>
-            <button onclick="_hrmsAddAdvance()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
-          </div>
-          <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-            <label class="btn btn-primary" style="font-size:12px;padding:6px 14px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAdvances(this)" style="display:none"></label>
-            <button class="hrms-allow-locked" onclick="_hrmsExportAdvances()" title="Export advances to Excel" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
-            <button onclick="_hrmsAdvAutoDeduct()" title="Auto-fill deductions per rules" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fde047;color:#a16207;border-radius:6px;cursor:pointer">⚡ Auto Deduct</button>
-            <button onclick="_hrmsAdvClearAll()" title="Set every deduction to 0" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🧹 Clear All Deductions</button>
-            <button onclick="_hrmsSaveAdvDeductions()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">💾 Save Deductions</button>
+        <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:10px;flex-wrap:wrap">
+          <!-- Summary tiles populated by _hrmsRenderAdvances. -->
+          <div id="hrmsAdvSummary" style="display:flex;gap:10px;flex:1;flex-wrap:wrap;align-items:stretch;min-width:0"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <label class="btn btn-primary" title="Excel columns: Emp Code, Name, Amount, Paid By (optional), Date (optional). Legacy: Advance, Deduction, EMI still accepted." style="font-size:13px;padding:10px 18px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAdvances(this)" style="display:none"></label>
+            <button class="hrms-allow-locked" onclick="_hrmsExportAdvances()" title="Export advances to Excel" style="padding:10px 18px;font-size:13px;font-weight:800;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
           </div>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Import Excel columns: <b>Emp Code</b>, <b>Name</b>, <b>Amount</b>, <b>Paid By</b> (optional), <b>Date</b> (optional). Legacy: <b>Advance</b>, <b>Deduction</b>, <b>EMI</b> still accepted.</div>
         <div id="hrmsAdvGrid"></div>
         <div id="hrmsAdvImportLog" style="margin-top:10px"></div>
       </div>
@@ -762,16 +754,17 @@
             <button onclick="_hrmsAttEtFilterSet('Visitor')" id="hrmsAttEtfVisitor" style="padding:5px 12px;font-size:11px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor <span id="hrmsAttEtCount_Visitor" style="font-weight:800">0</span></button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-            <div style="position:relative"><input type="text" id="hrmsAttFSearch" class="hrms-search" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="padding:6px 28px 6px 12px;width:280px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
-            <select id="hrmsAttFPlant" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
-            <select id="hrmsAttFCategory" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
-            <select id="hrmsAttFTeam" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
-            <button onclick="_hrmsAttClearFilters()" style="font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+            <div style="position:relative"><input type="text" id="hrmsAttFSearch" class="hrms-search hrms-allow-locked" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="padding:6px 28px 6px 12px;width:280px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
+            <select id="hrmsAttFPlant" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
+            <select id="hrmsAttFCategory" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
+            <select id="hrmsAttFTeam" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
+            <button class="hrms-allow-locked" onclick="_hrmsAttClearFilters()" style="font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
             <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
               <span id="hrmsAttCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
               <button id="hrmsAttToggleBtn" onclick="_hrmsAttToggleMode()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-light);color:var(--accent);font-weight:800;cursor:pointer">Actual</button>
               <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMonth()" style="font-size:11px;padding:5px 12px">📤 Export</button>
               <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMuster()" style="font-size:11px;padding:5px 12px" title="Export the muster grid as displayed (mirrors active filters)">📥 Export Muster</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsMusterPdfFiltered()" style="font-size:11px;padding:5px 12px" title="Download a PDF of the muster grid as currently sorted and filtered">📄 PDF Filtered Data</button>
             </div>
           </div>
           <div id="hrmsAttGrid" style="overflow:auto;flex:1;position:relative"></div>
@@ -1030,8 +1023,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260508-V7"></script>
-<script src="js/hrms-logic.js?v=260508-V7"></script>
-<script src="js/hrms-ui.js?v=260508-V7"></script>
+<script src="js/common.js?v=260508-V8"></script>
+<script src="js/hrms-logic.js?v=260508-V8"></script>
+<script src="js/hrms-ui.js?v=260508-V8"></script>
 </body>
 </html>
