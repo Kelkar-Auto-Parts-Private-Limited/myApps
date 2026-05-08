@@ -5212,46 +5212,108 @@ var _hrmsAttMonthIndex=null;// [{monthKey,empCount}] from Supabase
 async function _hrmsAttFetchIndex(){
   if(!_sb||!_sbReady)return;
   try{
-    // Pull `days` too so we can count only employees with at least one
-    // real in/out day. "Add Month" creates an empty placeholder row for
-    // every active employee — counting raw rows would always show
-    // "all employees", which doesn't match the operator's intuition of
-    // "people who actually had attendance this month".
-    var {data,error}=await _sb.from('hrms_attendance').select('month_key,emp_code,days');
-    if(error){console.error('Att index fetch error:',error.message);return;}
-    // empCode → employmentType bucket so the per-month breakdown can
-    // split On Roll / Contract / Piece Rate.
-    var empTypeMap={};
+    // Pull attendance, alterations, and the saved-month _meta rows in
+    // parallel. Presence for the popup is the same triple-union the
+    // muster uses (in/out punch, alteration day, or non-zero manual
+    // P/PL/OT/OTS) so the counts on the popup tile match the muster.
+    // _meta carries `headcounts` saved at lock time — for any month
+    // that has it, the snapshot wins (it captures the as-locked
+    // employmentType for each employee, which can drift later).
+    var [attRes,altRes,metaRes]=await Promise.all([
+      _sb.from('hrms_attendance').select('month_key,emp_code,days'),
+      _sb.from('hrms_alterations').select('month_key,emp_code,days'),
+      _sb.from('hrms_month_data').select('month_key,meta').eq('emp_code','_meta')
+    ]);
+    if(attRes.error){console.error('Att index fetch error:',attRes.error.message);return;}
+    if(altRes.error){console.warn('Alt index fetch error:',altRes.error.message);}
+    if(metaRes.error){console.warn('Month-data meta fetch error:',metaRes.error.message);}
+    var attRows=attRes.data||[];
+    var altRows=altRes.data||[];
+    var metaRows=metaRes.data||[];
+    // Saved headcount per locked month, keyed by month_key.
+    var savedHeadcount={};
+    metaRows.forEach(function(r){
+      var hc=r&&r.meta&&r.meta.headcounts;
+      if(hc) savedHeadcount[r.month_key]=hc;
+    });
+    // Manual P/PL/OT/OTS contributions per month, keyed: emp_code → set
+    // of monthKeys with any non-zero override.
+    var manualByMonth={};
     (DB.hrmsEmployees||[]).forEach(function(e){
       if(!e||!e.empCode) return;
-      var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
-      empTypeMap[e.empCode]=et;
+      var ex=e.extra||{};
+      ['manualP','manualPL','manualOT','manualOTS'].forEach(function(k){
+        var m=ex[k];if(!m||typeof m!=='object') return;
+        Object.keys(m).forEach(function(mk){
+          if(+m[mk]>0){(manualByMonth[mk]=manualByMonth[mk]||{})[e.empCode]=true;}
+        });
+      });
     });
     var months={};
-    (data||[]).forEach(function(r){
-      var k=r.month_key;if(!k)return;
+    var ensureMonth=function(k){
       if(!months[k]) months[k]={emps:{},byType:{onroll:0,contract:0,piecerate:0,other:0}};
-      // Only count when the employee has at least one day with a real
-      // in/out time recorded. Days without times are placeholders.
-      var hasAttendance=false;
+      return months[k];
+    };
+    // Add presence from attendance rows (only days with a real in/out).
+    attRows.forEach(function(r){
+      var k=r.month_key;if(!k) return;
+      var bucket=ensureMonth(k);
       var days=r.days||{};
       for(var dk in days){
         var d=days[dk];if(!d) continue;
         if((d['in']&&String(d['in']).trim())||(d['out']&&String(d['out']).trim())){
-          hasAttendance=true;break;
+          bucket.emps[r.emp_code]=true;break;
         }
       }
-      if(!hasAttendance) return;
-      if(months[k].emps[r.emp_code]) return;// already counted
-      months[k].emps[r.emp_code]=true;
-      var et=empTypeMap[r.emp_code]||'';
-      if(et==='onroll') months[k].byType.onroll++;
-      else if(et==='contract') months[k].byType.contract++;
-      else if(et==='piecerate') months[k].byType.piecerate++;
-      else months[k].byType.other++;
+    });
+    // Add presence from alteration rows (any day key counts).
+    altRows.forEach(function(r){
+      var k=r.month_key;if(!k) return;
+      var bucket=ensureMonth(k);
+      var days=r.days||{};
+      if(days&&Object.keys(days).length) bucket.emps[r.emp_code]=true;
+    });
+    // Add presence from manual P/PL/OT/OTS overrides.
+    Object.keys(manualByMonth).forEach(function(k){
+      var bucket=ensureMonth(k);
+      var codes=manualByMonth[k];
+      for(var c in codes) bucket.emps[c]=true;
+    });
+    // Bucket each emp by the period-aware employmentType for that
+    // month — same resolver the muster uses, so the popup breakdown
+    // and the muster's type-counter agree.
+    var empMapById={};
+    (DB.hrmsEmployees||[]).forEach(function(e){if(e&&e.empCode) empMapById[e.empCode]=e;});
+    Object.keys(months).forEach(function(k){
+      Object.keys(months[k].emps).forEach(function(code){
+        var emp=empMapById[code];
+        var raw=emp?_hrmsEtForMk(emp,k):'';
+        var et=String(raw||'').toLowerCase().replace(/\s/g,'');
+        if(et==='onroll') months[k].byType.onroll++;
+        else if(et==='contract') months[k].byType.contract++;
+        else if(et==='piecerate') months[k].byType.piecerate++;
+        else months[k].byType.other++;
+      });
+    });
+    // Locked months: prefer the headcount captured at lock time. The
+    // saved snapshot reflects the employmentType / status that was true
+    // when the month was locked, which can drift later as employees
+    // change roll / leave the company.
+    Object.keys(savedHeadcount).forEach(function(k){
+      ensureMonth(k);// ensure it exists even if no live attendance rows
+      var hc=savedHeadcount[k];
+      months[k].byType={
+        onroll:+hc.onroll||0,
+        contract:+hc.contract||0,
+        piecerate:+hc.piecerate||0,
+        other:+hc.other||0
+      };
+      months[k]._snapTotal=+hc.total||(months[k].byType.onroll+months[k].byType.contract+months[k].byType.piecerate+months[k].byType.other);
     });
     _hrmsAttMonthIndex=Object.keys(months).sort().reverse().map(function(k){
-      return{monthKey:k,empCount:Object.keys(months[k].emps).length,byType:months[k].byType};
+      var m=months[k];
+      var total=m._snapTotal!=null?m._snapTotal:Object.keys(m.emps).length;
+      return{monthKey:k,empCount:total,byType:m.byType};
     });
   }catch(e){console.error('Att index error:',e);}
 }
