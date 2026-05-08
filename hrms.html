@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260508-V4">
+<meta name="app-build" content="260508-V5">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260508-V4">
+<link rel="stylesheet" href="css/hrms.css?v=260508-V5">
 </head>
 <body>
 
@@ -31,7 +31,7 @@
   <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
   <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
-  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
+  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance &amp; Approvals</div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
@@ -154,9 +154,13 @@
   <!-- MY ATTENDANCE -->
   <div class="page" id="pageHrmsMyAtt" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
-      <!-- Sub-tabs: My Attendance (default) + C-Off Bank (Super Admin only) -->
+      <!-- Sub-tabs: My Attendance (default) + My Approvals (non-SA only) +
+           C-Off Bank (Super Admin only). My Approvals here is per-user
+           and chain-based — distinct from the central Settings → My
+           Approvals which is the org-wide queue. -->
       <div id="hrmsMyAttTabBar" style="display:flex;gap:6px;border-bottom:2px solid var(--border);margin-bottom:8px">
         <button id="hrmsMyAttTabBtnAtt" type="button" onclick="_hrmsMyAttSetTab('att')" style="padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid var(--accent);color:var(--accent);cursor:pointer;margin-bottom:-2px">🗓 My Attendance</button>
+        <button id="hrmsMyAttTabBtnAppr" type="button" onclick="_hrmsMyAttSetTab('appr')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">✅ My Approvals <span id="hrmsMyAttApprBadge" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:4px">0</span></button>
         <button id="hrmsMyAttTabBtnBank" type="button" onclick="_hrmsMyAttSetTab('bank')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">🏦 C-Off Bank (All Employees)</button>
       </div>
       <!-- Default attendance view -->
@@ -179,6 +183,20 @@
         <div id="hrmsMyAttEmpDropdown" style="position:absolute;display:none;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow:auto;width:280px;z-index:10"></div>
         <div id="hrmsMyAttSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
         <div id="hrmsMyAttBody" style="flex:1;min-height:0;overflow:auto"></div>
+      </div>
+      <!-- Per-user approvals queue (non-SA users). Approvals reaching
+           this user via the org-structure chain (and the historical
+           items they've already acted on). -->
+      <div id="hrmsMyAttPaneAppr" style="display:none;flex:1;flex-direction:column;min-height:0">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <div style="font-size:18px;font-weight:900">✅ My Approvals</div>
+          <div style="font-size:11px;color:var(--text3)">Approvals routed to you via the HR org-structure chain. Revoke is allowed only on unlocked months.</div>
+          <div style="flex:1"></div>
+          <span id="hrmsMyAttApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
+          <button class="hrms-allow-locked" onclick="_hrmsMyAttApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
+        </div>
+        <div id="hrmsMyAttApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+        <div id="hrmsMyAttApprPanel" style="flex:1;min-height:0;overflow:auto"></div>
       </div>
       <!-- Super Admin: cross-employee C-Off bank ledger -->
       <div id="hrmsMyAttPaneBank" style="display:none;flex:1;flex-direction:column;min-height:0"></div>
@@ -430,20 +448,25 @@
         <div id="hrmsEsslImportLog"></div>
       </div>
 
-      <!-- Sub-tab: My Approvals -->
+      <!-- Sub-tab: My Approvals — single unified table with type-counter
+           tiles at the top. Click any tile to filter the table; click
+           "All" to clear the filter. Search row + Export All sit above
+           the filter strip. -->
       <div id="hrmsSetPanelMyapprovals" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div id="hrmsApprovalsSummary" style="font-size:12px;color:var(--text3)"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+          <div style="position:relative">
+            <input type="search" class="hrms-allow-locked hrms-search" id="hrmsApprSearch" oninput="_hrmsApprSearchChange(this.value)" placeholder="🔍 Emp Code / Name" autocomplete="off" style="width:240px">
+          </div>
+          <button class="hrms-allow-locked" onclick="_hrmsApprSearchClear()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+          <div style="flex:1"></div>
+          <span id="hrmsApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
+          <button class="hrms-allow-locked" onclick="_hrmsApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
         </div>
-        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:wrap">
-          <button id="hrmsApprTabAltreq" class="hrms-approval-subtab hrms-allow-locked active" onclick="_hrmsMyApprovalsSubTab('altreq')">🛠 Alt Req Emp <span id="hrmsApprTotalAlt" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeAlt" class="hrms-appr-count-pending" style="display:none">0</span></button>
-          <button id="hrmsApprTabManualAlt" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('manualAlt')">✏️ Manual Alt <span id="hrmsApprTotalManualAlt" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeManualAlt" class="hrms-appr-count-pending" style="display:none">0</span></button>
-          <button id="hrmsApprTabAltExcel" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('altExcel')">📥 Alt Req through Excel <span id="hrmsApprTotalAltExcel" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeAltExcel" class="hrms-appr-count-pending" style="display:none">0</span></button>
-          <button id="hrmsApprTabInitial" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('initial')">🆕 New Joinee Initial IN/OUT <span id="hrmsApprTotalInitial" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeInitial" class="hrms-appr-count-pending" style="display:none">0</span></button>
-          <button id="hrmsApprTabCoff" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('coff')">🏦 C-off Req Emp <span id="hrmsApprTotalCoff" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeCoff" class="hrms-appr-count-pending" style="display:none">0</span></button>
-          <button id="hrmsApprTabOrgsal" class="hrms-approval-subtab hrms-allow-locked" onclick="_hrmsMyApprovalsSubTab('orgsal')">💼 Org &amp; Salary <span id="hrmsApprTotalOrgsal" class="hrms-appr-count-total" style="display:none">0</span><span id="hrmsApprBadgeOrgsal" class="hrms-appr-count-pending" style="display:none">0</span></button>
-        </div>
-        <div id="hrmsApprPanelAltreq"></div>
+        <div id="hrmsApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+        <div id="hrmsApprPanelUnified"></div>
+        <!-- Hidden panel anchors kept around so any orphaned legacy
+             renderer call lands on a no-op rather than throwing. -->
+        <div id="hrmsApprPanelAltreq" style="display:none"></div>
         <div id="hrmsApprPanelManualAlt" style="display:none"></div>
         <div id="hrmsApprPanelAltExcel" style="display:none"></div>
         <div id="hrmsApprPanelInitial" style="display:none"></div>
@@ -764,6 +787,7 @@
             <div style="flex:1"></div>
             <span id="hrmsAltCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
             <span style="font-size:10px;color:var(--text3)">Approvals are managed in <b>My Approvals</b>.</span>
+            <button class="hrms-allow-locked" onclick="_hrmsAltGridExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
           </div>
           <div id="hrmsAltGrid" style="overflow:auto;flex:1;position:relative"></div>
         </div>
@@ -945,24 +969,20 @@
 <div class="modal-overlay" id="mAddMonth"><div class="modal" style="max-width:380px">
   <div class="modal-header"><div class="modal-title">➕ Add New Month</div><div class="modal-close" onclick="cm('mAddMonth')">×</div></div>
   <div style="padding:16px">
-    <div style="display:flex;gap:10px;margin-bottom:16px">
-      <div style="flex:1">
-        <label style="font-size:12px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px">Month</label>
-        <select id="addMonthMonth" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:14px">
-          <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-          <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-          <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-          <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-        </select>
-      </div>
-      <div style="flex:1">
-        <label style="font-size:12px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px">Year</label>
-        <input type="number" id="addMonthYear" min="2024" max="2099" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:14px">
-      </div>
+    <!-- Month is locked to the current calendar month — operators
+         cannot pre-create future months or backfill past ones from
+         here. The hidden inputs preserve the IDs the existing
+         _hrmsAddMonthConfirm reads, so the create flow stays the same. -->
+    <input type="hidden" id="addMonthMonth">
+    <input type="hidden" id="addMonthYear">
+    <div style="margin-bottom:16px;padding:16px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;text-align:center">
+      <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Current Month</div>
+      <div id="addMonthLabel" style="font-size:24px;font-weight:900;color:var(--accent);font-family:var(--mono)">—</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">Only the running calendar month can be added.</div>
     </div>
     <div id="addMonthError" style="display:none;color:var(--danger,#dc2626);font-size:12px;font-weight:600;margin-bottom:12px;padding:8px;background:#fef2f2;border-radius:6px"></div>
     <div id="addMonthInfo" style="display:none;font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px;background:var(--surface);border-radius:6px"></div>
-    <button onclick="_hrmsAddMonthConfirm()" class="btn btn-primary" style="width:100%;padding:10px;font-size:14px;font-weight:800">Create Month</button>
+    <button id="addMonthCreateBtn" onclick="_hrmsAddMonthConfirm()" class="btn btn-primary" style="width:100%;padding:10px;font-size:14px;font-weight:800">Create Month</button>
   </div>
 </div></div>
 
@@ -1010,8 +1030,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260508-V4"></script>
-<script src="js/hrms-logic.js?v=260508-V4"></script>
-<script src="js/hrms-ui.js?v=260508-V4"></script>
+<script src="js/common.js?v=260508-V5"></script>
+<script src="js/hrms-logic.js?v=260508-V5"></script>
+<script src="js/hrms-ui.js?v=260508-V5"></script>
 </body>
 </html>
