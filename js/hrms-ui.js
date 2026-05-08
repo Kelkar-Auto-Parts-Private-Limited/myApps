@@ -12681,11 +12681,37 @@ function _hrmsPrepSavedCaches(mk){
   var empData=saved.employees;
   var codes=Object.keys(empData);
 
-  // 1. Merge attendance cache — overlay snapshot data onto raw ESSL, keep non-snapshot employees
+  // 1. Merge attendance cache — overlay snapshot data onto raw ESSL, keep non-snapshot employees.
+  // Preserve per-day metadata flags from the live record (initial,
+  // approved, approvedBy/At, requestedBy/At, _prev) so the My Approvals
+  // → New Joinee Initial IN/OUT queue and the Reset/restore flow keep
+  // working for locked months. The snapshot only ever stored canonical
+  // in/out/status, so a wholesale replace was silently stripping every
+  // initial:true marker once the month locked.
   var existingAtt=_hrmsAttCache[mk]||[];
   var attByCode={};existingAtt.forEach(function(a){attByCode[a.empCode]=a;});
+  var _META_KEYS=['initial','approved','approvedBy','approvedAt','requestedBy','requestedAt','_prev'];
   codes.forEach(function(ec){
-    attByCode[ec]={id:'sa_'+ec,empCode:ec,monthKey:mk,days:empData[ec].attendance||{}};
+    var savedDays=empData[ec].attendance||{};
+    var existingRec=attByCode[ec];
+    var existingDays=(existingRec&&existingRec.days)||{};
+    var mergedDays={};
+    var dkSet={};Object.keys(savedDays).forEach(function(k){dkSet[k]=1;});Object.keys(existingDays).forEach(function(k){dkSet[k]=1;});
+    Object.keys(dkSet).forEach(function(dk){
+      var s=savedDays[dk]||{};
+      var e=existingDays[dk]||{};
+      // Snapshot values are authoritative for in/out/status (locked
+      // canonical); existing-record metadata layered on top so flags
+      // survive the lock.
+      var merged=Object.assign({},e,s);
+      _META_KEYS.forEach(function(k){if(e[k]!==undefined) merged[k]=e[k];});
+      mergedDays[dk]=merged;
+    });
+    attByCode[ec]={
+      id:(existingRec&&existingRec.id)||'sa_'+ec,
+      _dbId:existingRec&&existingRec._dbId,
+      empCode:ec,monthKey:mk,days:mergedDays
+    };
   });
   _hrmsAttCache[mk]=Object.keys(attByCode).map(function(ec){return attByCode[ec];});
 
