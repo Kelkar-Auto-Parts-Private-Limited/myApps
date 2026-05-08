@@ -3559,13 +3559,16 @@ async function _hrmsInitialConfirm(idx){
       else if(existing._prev) prevSnap=existing._prev;
     }
     var newDay={'in':r.in||'','out':r.out||'',initial:true,
-      // Manual Initial IN/OUT staged from the Org & Sal Revisions row
-      // enters the approval queue rather than being auto-approved — this
-      // is what surfaces it under My Approvals → New Joinee Initial IN/OUT
-      // for the selected month so the reviewer can confirm or reject.
-      approved:false,
-      requestedBy:(typeof CU!=='undefined'&&CU?(CU.name||CU.id||''):''),
-      requestedAt:new Date().toISOString()};
+      // Initial IN/OUT entries are auto-approved on save by user
+      // direction — staging via the Org & Sal Revisions Data button is
+      // already a privileged HR action. They still appear in
+      // My Approvals → New Joinee Initial IN/OUT for the selected
+      // month as historical (✓ APPROVED) rows so the operator has a
+      // single audit trail. Switch back to approved:false +
+      // requestedBy/At if explicit review is reinstated.
+      approved:true,
+      approvedBy:(typeof CU!=='undefined'&&CU?(CU.name||CU.id||''):''),
+      approvedAt:new Date().toISOString()};
     if(prevSnap) newDay._prev=prevSnap;
     rec.days[dk]=newDay;
     var ok=await _dbSave('hrmsAttendance',rec);
@@ -6044,33 +6047,57 @@ async function _hrmsComputeEntryExit(yr,mo){
   var prevMk=prevYr+'-'+String(prevMo).padStart(2,'0');
   await _hrmsAttFetchMonth(mk);
   await _hrmsAttFetchMonth(prevMk);
+  // Load the saved snapshot for any locked month — _presenceSet reads
+  // the authoritative totalP from there instead of walking the cache.
+  if(typeof _hrmsLoadSavedMonth==='function'&&typeof _hrmsIsMonthLocked==='function'){
+    var _locks=[mk,prevMk].filter(function(k){
+      return _hrmsIsMonthLocked(k)&&!(typeof _hrmsSavedMonth!=='undefined'&&_hrmsSavedMonth[k]);
+    });
+    if(_locks.length){
+      try{await Promise.all(_locks.map(function(k){
+        try{return _hrmsLoadSavedMonth(k);}catch(_){return Promise.resolve();}
+      }));}catch(_){}
+    }
+  }
 
-  // "Present in month" = has ACTUAL activity:
-  //   1. ESSL attendance record with at least one day that has in/out times
-  //   2. Manual P / PL / OT / OTS override (non-zero) for that month
-  //   3. Alteration record with at least one day
-  // Employees with empty placeholder attendance records (e.g. from "Add Month") are NOT counted.
+  // "Present in month" = effective muster presence — i.e. the employee
+  // actually had attendance time recorded somewhere in the month.
+  // Sources:
+  //   • Locked months → totalP > 0 in the saved snapshot
+  //     (_hrmsSavedMonth[mk].employees[empCode].totalP). This is the
+  //     authoritative muster figure; no recompute.
+  //   • Unlocked months → any day in hrms_attendance OR hrms_alterations
+  //     that carries a real in/out time. C-off-used (_coff:true),
+  //     Alt-Req placeholders (_altReq:true), and month-level manual
+  //     P / PL / OT / OTS overrides are NOT counted — those don't
+  //     represent muster presence.
   var _presenceSet=function(targetMk){
     var set={};
-    (_hrmsAttCache[targetMk]||[]).forEach(function(a){
-      var days=a.days||{};
+    var locked=(typeof _hrmsIsMonthLocked==='function')&&_hrmsIsMonthLocked(targetMk);
+    if(locked&&typeof _hrmsSavedMonth!=='undefined'&&_hrmsSavedMonth[targetMk]&&_hrmsSavedMonth[targetMk].employees){
+      var emps=_hrmsSavedMonth[targetMk].employees;
+      Object.keys(emps).forEach(function(ec){
+        if(emps[ec]&&+emps[ec].totalP>0) set[ec]=true;
+      });
+      return set;
+    }
+    var checkDays=function(rec){
+      var days=rec.days||{};
       for(var dk in days){
         var d=days[dk];if(!d) continue;
+        if(d._coff||d._altReq) continue;
         if((d['in']&&d['in'].toString().trim())||(d['out']&&d['out'].toString().trim())){
-          set[a.empCode]=true;break;
+          return true;
         }
       }
+      return false;
+    };
+    (_hrmsAttCache[targetMk]||[]).forEach(function(a){
+      if(checkDays(a)) set[a.empCode]=true;
     });
     (_hrmsAltCache[targetMk]||[]).forEach(function(a){
-      if(a.days&&Object.keys(a.days).length) set[a.empCode]=true;
-    });
-    (DB.hrmsEmployees||[]).forEach(function(e){
-      var ex=e.extra||{};
-      var v;
-      v=ex.manualP&&ex.manualP[targetMk];if(v!==undefined&&v!==null&&+v>0){set[e.empCode]=true;return;}
-      v=ex.manualPL&&ex.manualPL[targetMk];if(v!==undefined&&v!==null&&+v>0){set[e.empCode]=true;return;}
-      v=ex.manualOT&&ex.manualOT[targetMk];if(v!==undefined&&v!==null&&+v>0){set[e.empCode]=true;return;}
-      v=ex.manualOTS&&ex.manualOTS[targetMk];if(v!==undefined&&v!==null&&+v>0){set[e.empCode]=true;return;}
+      if(set[a.empCode]) return;
+      if(checkDays(a)) set[a.empCode]=true;
     });
     return set;
   };
@@ -6697,7 +6724,6 @@ async function _hrmsRenderExitTab(yr,mo){
   // sticky user-chosen sort layers cleanly on top.
   var _catOrder={'staff':0,'worker':1,'security':2};
   var _catRank=function(v){var k=(v||'').toLowerCase();return _catRank.cache?_catRank.cache:(_catOrder[k]!==undefined?_catOrder[k]:9);};
-  var _statusOrder={'active':0,'inactive':1,'resigned':2,'left':3};
   exitEmps.sort(function(a,b){
     var ac=(a.category||'').toLowerCase(),bc=(b.category||'').toLowerCase();
     var ci=_catOrder[ac]!==undefined?_catOrder[ac]:9;
@@ -6710,7 +6736,7 @@ async function _hrmsRenderExitTab(yr,mo){
   // Snapshot the unfiltered list so the dropdown options stay stable.
   var allExit=exitEmps.slice();
   // Apply filter values (search text + dropdowns above the headers).
-  var filters=window._hrmsExitFilters||{plant:'',empCode:'',name:'',category:'',team:'',empType:'',status:''};
+  var filters=window._hrmsExitFilters||{plant:'',empCode:'',name:'',category:'',team:'',empType:''};
   exitEmps=exitEmps.filter(function(e){
     if(!_hrmsFilterMatch(filters.plant,e.location)) return false;
     if(!_hrmsFilterMatch(filters.empCode,e.empCode)) return false;
@@ -6718,9 +6744,43 @@ async function _hrmsRenderExitTab(yr,mo){
     if(!_hrmsFilterMatch(filters.category,e.category)) return false;
     if(!_hrmsFilterMatch(filters.team,e.teamName)) return false;
     if(!_hrmsFilterMatch(filters.empType,e.employmentType)) return false;
-    if(!_hrmsFilterMatch(filters.status,e.status||'Active')) return false;
     return true;
   });
+
+  // Pre-fetch the 6-month window (5 prior months + the currently
+  // selected month) attendance + saved-month caches so each per-month
+  // column can compute P days. _hrmsAttFetchMonth is idempotent —
+  // already-cached months return synchronously without a network call.
+  var sixMonths=[];
+  for(var smI=5; smI>=0; smI--){
+    var smD=new Date(yr,mo-1-smI,1);
+    sixMonths.push({y:smD.getFullYear(),m:smD.getMonth()+1,
+      mk:smD.getFullYear()+'-'+String(smD.getMonth()+1).padStart(2,'0')});
+  }
+  if(typeof _hrmsAttFetchMonth==='function'){
+    var smNeed=sixMonths.filter(function(s){
+      return (!_hrmsAttCache||_hrmsAttCache[s.mk]===undefined)
+        || (!_hrmsAltCache||_hrmsAltCache[s.mk]===undefined);
+    });
+    if(smNeed.length){
+      try{
+        await Promise.all(smNeed.map(function(s){
+          try{return _hrmsAttFetchMonth(s.mk);}catch(_){return Promise.resolve();}
+        }));
+      }catch(_){/* swallow — column falls back to "—" for missing months */}
+    }
+    // Saved snapshots for any locked months in the window (totalP comes
+    // from the snapshot when the month is locked).
+    if(typeof _hrmsLoadSavedMonth==='function'&&typeof _hrmsSavedMonth!=='undefined'){
+      try{
+        await Promise.all(sixMonths.map(function(s){
+          if(_hrmsSavedMonth[s.mk]) return Promise.resolve();
+          if(typeof _hrmsIsMonthLocked!=='function'||!_hrmsIsMonthLocked(s.mk)) return Promise.resolve();
+          try{return _hrmsLoadSavedMonth(s.mk);}catch(_){return Promise.resolve();}
+        }));
+      }catch(_){}
+    }
+  }
 
   // Apply user-chosen sort on top of the default. Stable sort keeps the
   // category+team+empCode ordering as the secondary key when the user
@@ -6731,7 +6791,6 @@ async function _hrmsRenderExitTab(yr,mo){
     var cmp=function(a,b){
       var av,bv;
       if(f==='category'){av=_catOrder[(a.category||'').toLowerCase()];bv=_catOrder[(b.category||'').toLowerCase()];if(av===undefined)av=9;if(bv===undefined)bv=9;return(av-bv)*dir;}
-      if(f==='status'){av=_statusOrder[(a.status||'Active').toLowerCase()];bv=_statusOrder[(b.status||'Active').toLowerCase()];if(av===undefined)av=9;if(bv===undefined)bv=9;return(av-bv)*dir;}
       av=String(a[f==='emp'?'empCode':f==='plant'?'location':f==='team'?'teamName':f==='empType'?'employmentType':f]||'');
       bv=String(b[f==='emp'?'empCode':f==='plant'?'location':f==='team'?'teamName':f==='empType'?'employmentType':f]||'');
       return av.localeCompare(bv)*dir;
@@ -6781,12 +6840,12 @@ async function _hrmsRenderExitTab(yr,mo){
   var optCategory=_hrmsFilterUnique(allExit,function(e){return e.category;});
   var optTeam=_hrmsFilterUnique(allExit,function(e){return e.teamName;});
   var optEmpType=_hrmsFilterUnique(allExit,function(e){return e.employmentType;});
-  var optStatus=_hrmsFilterUnique(allExit,function(e){return e.status||'Active';});
   h+='<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead>';
   // Filter row — top-left X button clears every filter at once.
   var _hasExitFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
   var _clrBtn='<button onclick="_hrmsExitClearFilters()" title="Clear all filters" '+(_hasExitFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(_hasExitFilter?'#fee2e2':'#e5e7eb')+';color:'+(_hasExitFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(_hasExitFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(_hasExitFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
+  var _MON_ABBR=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   h+='<tr>';
   h+='<th style="'+_filterTh+';cursor:default;text-align:center">'+_clrBtn+'</th>';
   h+=_selFilter('plant',optPlant);
@@ -6795,7 +6854,9 @@ async function _hrmsRenderExitTab(yr,mo){
   h+=_selFilter('category',optCategory);
   h+=_selFilter('team',optTeam);
   h+=_selFilter('empType',optEmpType);
-  h+=_selFilter('status',optStatus);
+  // One filler cell per per-month column — month columns aren't
+  // filterable / sortable.
+  sixMonths.forEach(function(){h+='<th style="'+_filterTh+';cursor:default"></th>';});
   h+='</tr>';
   // Header row
   h+='<tr>';
@@ -6806,7 +6867,15 @@ async function _hrmsRenderExitTab(yr,mo){
   h+='<th onclick="_hrmsExitSortBy(\'category\')" style="'+_th+'">Category'+_arrow('category')+'</th>';
   h+='<th onclick="_hrmsExitSortBy(\'team\')" style="'+_th+'">Team'+_arrow('team')+'</th>';
   h+='<th onclick="_hrmsExitSortBy(\'empType\')" style="'+_th+'">Emp Type'+_arrow('empType')+'</th>';
-  h+='<th onclick="_hrmsExitSortBy(\'status\')" style="'+_th+'">Status'+_arrow('status')+'</th>';
+  // Per-month headers: just "Mon" (full Mon-YY in the title for hover).
+  // Last column is the currently-selected month so the operator can
+  // pivot from "they're absent now" to "they had X days last month" at
+  // a glance.
+  sixMonths.forEach(function(s){
+    var lbl=_MON_ABBR[s.m]||String(s.m);
+    var tip=lbl+'-'+String(s.y).slice(-2);
+    h+='<th style="'+_th+';cursor:default;text-align:right" title="'+tip+'">'+lbl+'</th>';
+  });
   h+='</tr></thead><tbody>';
   exitEmps.forEach(function(e,i){
     var isU=!!e._unmatched;
@@ -6822,18 +6891,27 @@ async function _hrmsRenderExitTab(yr,mo){
     h+='<td style="'+_td+'">'+(e.category||'—')+'</td>';
     h+='<td style="'+_td+'">'+(e.teamName||'—')+'</td>';
     h+='<td style="'+_td+'">'+(e.employmentType||'—')+'</td>';
-    h+='<td style="'+_td+'">'+(isU?'—':_hrmsStatusBadgeHTML(e.status||'Active'))+'</td>';
+    sixMonths.forEach(function(s){
+      var p=(typeof _hrmsCalcMonthlyP==='function')?_hrmsCalcMonthlyP(e,s.mk):null;
+      var val=(p==null)?'—':((p%1===0)?String(p):p.toFixed(1));
+      var clr=(p==null)?'var(--text3)':(p>0?'var(--text)':'#dc2626');
+      h+='<td style="'+_td+';font-family:var(--mono);text-align:right;color:'+clr+';font-weight:'+(p>0?'700':'600')+'">'+val+'</td>';
+    });
     h+='</tr>';
   });
   if(!exitEmps.length){
-    h+='<tr><td colspan="8" style="padding:14px;text-align:center;color:var(--text3);font-style:italic">No rows match the current filters.</td></tr>';
+    h+='<tr><td colspan="13" style="padding:14px;text-align:center;color:var(--text3);font-style:italic">No rows match the current filters.</td></tr>';
   }
   h+='</tbody></table></div>';
   el.innerHTML=h;
   _hrmsRestoreFilterFocus(focusSnap);
 }
 
-window._hrmsExitFilters=window._hrmsExitFilters||{plant:'',empCode:'',name:'',category:'',team:'',empType:'',status:''};
+window._hrmsExitFilters=window._hrmsExitFilters||{plant:'',empCode:'',name:'',category:'',team:'',empType:''};
+// Status filter retired — drop any stale value left over from a previous
+// session so it doesn't silently filter the table now that the column is
+// gone.
+if(window._hrmsExitFilters&&'status' in window._hrmsExitFilters) delete window._hrmsExitFilters.status;
 function _hrmsExitFilterChange(field,val){
   window._hrmsExitFilters[field]=val;
   if(_hrmsMonth){var p=_hrmsMonth.split('-');_hrmsRenderExitTab(+p[0],+p[1]);}
@@ -18254,44 +18332,24 @@ function _hrmsRenderAltGrid(yr,mo){
       return code.indexOf(_ac)>=0||name.indexOf(_ac)>=0;
     });
   }
-  // Default sort — pending first, then date desc, then emp code. The user
-  // can override per-column by clicking a header (toggle direction on
-  // re-click). Sort state lives on window so it survives re-renders.
-  var stOrder={'Waiting for Approval':0,'Rejected':1,'Approved':2};
-  var defaultSort=function(a,b){
-    var sa=stOrder[a.status]==null?9:stOrder[a.status],sb=stOrder[b.status]==null?9:stOrder[b.status];
-    if(sa!==sb) return sa-sb;
-    var da=String(a.date||''),db=String(b.date||'');
-    if(da!==db) return db.localeCompare(da);
-    return(parseInt(a.emp.empCode)||0)-(parseInt(b.emp.empCode)||0);
-  };
-  rows.sort(defaultSort);
-  var sort=window._hrmsAltGridSort||{field:'',dir:1};
-  if(sort.field){
-    var f=sort.field,dir=sort.dir||1;
-    var fieldVal=function(r){
-      if(f==='type')    return TYPE_LABELS[r.type]||r.type||'';
-      if(f==='empCode') return String(r.emp.empCode||'');
-      if(f==='name')    return String(r.emp.name||'');
-      if(f==='plant')   return String(r.emp.location||'');
-      if(f==='date')    return String(r.date||'');
-      if(f==='details') return String(r.details||'');
-      if(f==='status')  return String(r.status||'');
-      return '';
-    };
-    rows.sort(function(a,b){
-      var av=fieldVal(a),bv=fieldVal(b);
-      if(f==='empCode'){
-        var an=parseInt(av)||0,bn=parseInt(bv)||0;
-        if(an!==bn) return(an-bn)*dir;
-      }
-      return String(av).localeCompare(String(bv))*dir;
-    });
-  }
+  // Fixed sort: emp code asc, then type (TYPE_RANK), then date asc.
+  // Per-column sort is intentionally disabled — the table uses rowspan
+  // merging on Emp Code / Name / Plant / Type cells, and a free-form
+  // sort would scatter the merge groups.
+  var TYPE_RANK={initialJoinee:0,manualPot:1,manualAlt:2,altExcel:3,coffReq:4,altReq:5};
+  rows.sort(function(a,b){
+    var an=parseInt(a.emp.empCode)||0,bn=parseInt(b.emp.empCode)||0;
+    if(an!==bn) return an-bn;
+    var ac=String(a.emp.empCode||''),bc=String(b.emp.empCode||'');
+    if(ac!==bc) return ac.localeCompare(bc);
+    var ta=TYPE_RANK[a.type]==null?9:TYPE_RANK[a.type];
+    var tb=TYPE_RANK[b.type]==null?9:TYPE_RANK[b.type];
+    if(ta!==tb) return ta-tb;
+    return String(a.date||'').localeCompare(String(b.date||''));
+  });
   var pendingCount=rows.filter(function(r){return r.status==='Waiting for Approval';}).length;
   var countEl=document.getElementById('hrmsAltCount');
   if(countEl) countEl.textContent=rows.length+' record'+(rows.length===1?'':'s')+' · '+pendingCount+' pending';
-  if(!rows.length){grid.innerHTML='<div class="empty-state">No alterations or C-offs for this month.</div>';return;}
   // Wrap the whole tab body in a flex column so the summary card sits at
   // the top at its natural height and only the table wrapper scrolls.
   // The grid container itself is flex:1 + overflow:auto from hrms.html;
@@ -18302,10 +18360,13 @@ function _hrmsRenderAltGrid(yr,mo){
   grid.style.minHeight='0';
   grid.style.overflow='hidden';
   // ── Per-type summary card above the table ──
-  // Bordered card with a "Summary" heading + one tile per non-empty type.
-  // Each tile shows the type label, total, and a pending callout when any
-  // of those rows still need approval. Colours mirror the row Type pill.
+  // Clickable tiles: clicking any tile filters the table to that type;
+  // clicking "All" (or the active tile again) clears the filter. The
+  // tile counts are computed from the search-filtered set BEFORE the
+  // type filter is applied, so they stay stable when the operator
+  // clicks through tiles. Selected tile gets an accent outline.
   var TYPE_ORDER=['initialJoinee','manualPot','manualAlt','altExcel','coffReq','altReq'];
+  var typeFilter=window._hrmsAltGridTypeFilter||'';
   var typeAgg={};
   rows.forEach(function(r){
     var t=r.type;
@@ -18317,15 +18378,29 @@ function _hrmsRenderAltGrid(yr,mo){
   summaryHtml+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
   summaryHtml+='<div style="font-size:13px;font-weight:900;color:var(--text);text-transform:uppercase;letter-spacing:0.5px">Summary by Type</div>';
   summaryHtml+='<div style="flex:1;height:1px;background:var(--border)"></div>';
-  summaryHtml+='<div style="font-size:12px;font-weight:800;color:var(--text2)">Total: <span style="font-size:14px;color:var(--accent)">'+rows.length+'</span></div>';
-  if(pendingCount){
-    summaryHtml+='<div style="font-size:12px;font-weight:800;color:#dc2626">Pending: <span style="font-size:14px">'+pendingCount+'</span></div>';
+  if(typeFilter){
+    summaryHtml+='<div style="font-size:11px;font-weight:700;color:var(--text2)">Filter: <span style="color:var(--accent);font-weight:900">'+(TYPE_LABELS[typeFilter]||typeFilter)+'</span> <span onclick="_hrmsAltGridSetFilter(\'\')" style="cursor:pointer;color:#dc2626;font-weight:900;margin-left:4px" title="Clear filter">✕</span></div>';
   }
   summaryHtml+='</div>';
   summaryHtml+='<div style="display:flex;gap:10px;flex-wrap:wrap">';
+  // "All" tile — neutral colour, always visible.
+  var allActive=!typeFilter;
+  var allOutline=allActive?'box-shadow:0 0 0 3px var(--accent);':'';
+  summaryHtml+='<div onclick="_hrmsAltGridSetFilter(\'\')" style="flex:1;min-width:140px;padding:10px 12px;border-radius:8px;cursor:pointer;background:#1e293b;color:#fff;border:1px solid #1e293b;'+allOutline+'" title="Show all types">'+
+    '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;opacity:0.85;margin-bottom:4px">All</div>'+
+    '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'+
+      '<span style="font-size:22px;font-weight:900;line-height:1">'+rows.length+'</span>'+
+      '<span style="font-size:10px;font-weight:700;opacity:0.75">total</span>'+
+      (pendingCount?'<span style="margin-left:auto;background:#dc2626;color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800">'+pendingCount+' pending</span>':'')+
+    '</div>'+
+  '</div>';
   TYPE_ORDER.forEach(function(t){
-    var agg=typeAgg[t];if(!agg) return;
-    summaryHtml+='<div style="flex:1;min-width:170px;padding:10px 12px;border-radius:8px;'+typeStyle(t)+'">'+
+    var agg=typeAgg[t]||{total:0,pending:0};
+    var dim=agg.total===0?'opacity:0.55;':'';
+    var active=typeFilter===t;
+    var outline=active?'box-shadow:0 0 0 3px var(--accent);':'';
+    var titleAttr=' title="Click to '+(active?'clear':'filter table to')+' '+(TYPE_LABELS[t]||t)+'"';
+    summaryHtml+='<div onclick="_hrmsAltGridSetFilter(\''+(active?'':t)+'\')"'+titleAttr+' style="flex:1;min-width:170px;padding:10px 12px;border-radius:8px;cursor:pointer;'+dim+outline+typeStyle(t)+'">'+
       '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;opacity:0.85;margin-bottom:4px">'+(TYPE_LABELS[t]||t)+'</div>'+
       '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'+
         '<span style="font-size:22px;font-weight:900;line-height:1">'+agg.total+'</span>'+
@@ -18335,36 +18410,82 @@ function _hrmsRenderAltGrid(yr,mo){
     '</div>';
   });
   summaryHtml+='</div></div>';
-  var thSort='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1;cursor:pointer;user-select:none';
-  var thNS='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
-  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var arrow=function(field){
-    if(sort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
-    return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(sort.dir>0?'▲':'▼')+'</span>';
-  };
+  // Apply the type filter for the table body. Tile counts above stay
+  // unfiltered so the operator can pivot between types without losing
+  // sight of how many rows each type has.
+  if(typeFilter) rows=rows.filter(function(r){return r.type===typeFilter;});
+  // No data (after filter): still render the summary card (so the all-
+  // zero or filtered-zero tiles stay visible) and a brief empty-state
+  // in place of the table.
+  if(!rows.length){
+    grid.style.display='block';
+    var emptyMsg=typeFilter
+      ?'No '+(TYPE_LABELS[typeFilter]||typeFilter)+' records this month.'
+      :'No alterations or C-offs for this month.';
+    grid.innerHTML=summaryHtml+'<div class="empty-state" style="padding:20px;text-align:center;color:var(--text3)">'+emptyMsg+'</div>';
+    return;
+  }
+  // Compute rowspan grouping. Outer group: same emp code (Emp Code,
+  // Name, Plant span the whole emp block). Inner group within each emp:
+  // same type (Type spans the type block). The renderer below skips
+  // emitting <td> for rows that fall inside an active span.
+  for(var ri0=0; ri0<rows.length;){
+    var ec=rows[ri0].emp.empCode;
+    var ej=ri0+1;
+    while(ej<rows.length && rows[ej].emp.empCode===ec) ej++;
+    rows[ri0]._empSpan=ej-ri0;
+    for(var rk=ri0+1; rk<ej; rk++) rows[rk]._empHidden=true;
+    for(var tk=ri0; tk<ej;){
+      var tt=rows[tk].type;
+      var tj=tk+1;
+      while(tj<ej && rows[tj].type===tt) tj++;
+      rows[tk]._typeSpan=tj-tk;
+      for(var tm=tk+1; tm<tj; tm++) rows[tm]._typeHidden=true;
+      tk=tj;
+    }
+    ri0=ej;
+  }
+  var th='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1';
+  var td='padding:6px 10px;font-size:12px;border-bottom:1px solid #cbd5e1;vertical-align:top';
+  var tdMerged='padding:6px 10px;font-size:12px;border-bottom:1px solid #cbd5e1;border-right:1px solid #e2e8f0;vertical-align:top;background:#fafbfc';
   var html=summaryHtml+'<div style="flex:1;min-height:0;overflow:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff">'+
     '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+
-      '<th style="'+thNS+'">#</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'type\')" style="'+thSort+'">Type'+arrow('type')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'empCode\')" style="'+thSort+'">Emp Code'+arrow('empCode')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'name\')" style="'+thSort+'">Name'+arrow('name')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'plant\')" style="'+thSort+'">Plant'+arrow('plant')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'date\')" style="'+thSort+'">Date'+arrow('date')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'details\')" style="'+thSort+'">Details'+arrow('details')+'</th>'+
-      '<th onclick="_hrmsAltGridSortBy(\'status\')" style="'+thSort+'">Status'+arrow('status')+'</th>'+
-      '<th style="'+thNS+'">Approval Chain</th>'+
+      '<th style="'+th+'">#</th>'+
+      '<th style="'+th+'">Emp Code</th>'+
+      '<th style="'+th+'">Name</th>'+
+      '<th style="'+th+'">Plant</th>'+
+      '<th style="'+th+'">Type</th>'+
+      '<th style="'+th+'">Date</th>'+
+      '<th style="'+th+'">Details</th>'+
+      '<th style="'+th+'">Status</th>'+
+      '<th style="'+th+'">Approval Chain</th>'+
     '</tr></thead><tbody>';
+  // Day-level rows save date as YYYY-MM-DD; manualPot rows save it as
+  // YYYY-MM (whole-month). Render dd-mmm for day-level, mmm-yy for the
+  // month-only case. Full ISO date kept in the title for hover.
+  var _MON3=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _fmtDdMmm=function(s){
+    if(!s) return '—';
+    var p=String(s).split('-');
+    if(p.length>=3) return String(+p[2]).padStart(2,'0')+'-'+(_MON3[+p[1]]||p[1]);
+    if(p.length===2) return (_MON3[+p[1]]||p[1])+'-'+String(p[0]).slice(-2);
+    return s;
+  };
   rows.forEach(function(r,i){
     var emp=r.emp;
     var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
     var pShort=String(emp.location||'—').replace(/plant[\s\-_]*(\d+)/i,'P$1');
     html+='<tr>'+
-      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
-      '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+typeStyle(r.type)+'">'+(TYPE_LABELS[r.type]||r.type)+'</span></td>'+
-      '<td style="'+td+';font-family:var(--mono);font-weight:800"><span data-emp-code="'+(emp.empCode||'')+'" style="cursor:pointer;text-decoration:underline;color:var(--accent)" title="View employee">'+(emp.empCode||'')+'</span></td>'+
-      '<td style="'+td+';font-weight:700">'+(emp.name||'—')+'</td>'+
-      '<td style="'+td+';background:'+pClr+';font-weight:700" title="'+(emp.location||'—')+'">'+pShort+'</td>'+
-      '<td style="'+td+';font-family:var(--mono)">'+(r.date||'—')+'</td>'+
+      '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
+    if(!r._empHidden){
+      html+='<td rowspan="'+r._empSpan+'" style="'+tdMerged+';font-family:var(--mono);font-weight:800"><span data-emp-code="'+(emp.empCode||'')+'" style="cursor:pointer;text-decoration:underline;color:var(--accent)" title="View employee">'+(emp.empCode||'')+'</span></td>'+
+        '<td rowspan="'+r._empSpan+'" style="'+tdMerged+';font-weight:700">'+(emp.name||'—')+'</td>'+
+        '<td rowspan="'+r._empSpan+'" style="'+tdMerged+';background:'+pClr+';font-weight:700" title="'+(emp.location||'—')+'">'+pShort+'</td>';
+    }
+    if(!r._typeHidden){
+      html+='<td rowspan="'+r._typeSpan+'" style="'+tdMerged+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+typeStyle(r.type)+'">'+(TYPE_LABELS[r.type]||r.type)+'</span></td>';
+    }
+    html+='<td style="'+td+';font-family:var(--mono);white-space:nowrap" title="'+(r.date||'')+'">'+_fmtDdMmm(r.date)+'</td>'+
       '<td style="'+td+';font-size:11px">'+(r.details||'').replace(/</g,'&lt;')+'</td>'+
       '<td style="'+td+'"><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;'+statusStyle(r.status)+'">'+r.status+'</span></td>'+
       '<td style="'+td+'">'+(r.chain||'')+'</td>'+
@@ -18570,6 +18691,16 @@ function _hrmsAltGridSortBy(field){
   if(s.field===field) s.dir*=-1;
   else { s.field=field; s.dir=1; }
   var mk=_hrmsAttSelectedMonth;if(!mk)return;
+  var p=mk.split('-');_hrmsRenderAltGrid(parseInt(p[0]),parseInt(p[1]));
+}
+
+// Apply / clear the type filter for the All Alterations & C-off table.
+// Pass an empty string to clear the filter and show all types. Sticks
+// on window so the choice survives re-renders triggered by other
+// controls (sort, search, month change still resets back to all).
+function _hrmsAltGridSetFilter(type){
+  window._hrmsAltGridTypeFilter=type||'';
+  var mk=_hrmsAttSelectedMonth;if(!mk) return;
   var p=mk.split('-');_hrmsRenderAltGrid(parseInt(p[0]),parseInt(p[1]));
 }
 

@@ -757,10 +757,10 @@
         <div id="hrmsAttTabAlteration" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
           <div style="display:flex;gap:10px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
             <div style="position:relative">
-              <input type="text" id="altSrchCode" class="hrms-search" placeholder="🔍 Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="width:240px">
+              <input type="text" id="altSrchCode" class="hrms-search hrms-allow-locked" placeholder="🔍 Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="width:240px">
               <div id="altEmpAcList" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:280px;overflow-y:auto;min-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-top:2px"></div>
             </div>
-            <button onclick="document.getElementById('altSrchCode').value='';_hrmsAltFilterChanged()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+            <button class="hrms-allow-locked" onclick="document.getElementById('altSrchCode').value='';_hrmsAltFilterChanged()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
             <div style="flex:1"></div>
             <span id="hrmsAltCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
             <span style="font-size:10px;color:var(--text3)">Approvals are managed in <b>My Approvals</b>.</span>
