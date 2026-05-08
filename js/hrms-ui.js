@@ -22723,16 +22723,21 @@ function _hrmsMyApprovalsCollect(){
   // ── New Joinee Initial IN/OUT rows ──
   // Source: per-month _hrmsAttCache[mk] entries flagged `initial:true`.
   // Each day-entry is its own approval candidate. Pending = approved!==true.
+  // We deliberately skip the per-month filter that the alteration tabs
+  // use: Initial entries are an employee-centric concept — a 7-day
+  // window from a late-month DOJ spills into the next month, so each
+  // day saves into its OWN date-month record, not the operator's
+  // currently-selected month. Walking every cached month surfaces all
+  // initial entries the operator has staged. The renderer's `dateStr`
+  // makes the actual day visible in the row, so cross-month entries
+  // are still readable.
   var initialP=[],initialH=[];
   var _attRecsForCollect=[];
-  if(mk){
-    _attRecsForCollect=(_hrmsAttCache&&_hrmsAttCache[mk])||[];
-  } else if(_hrmsAttCache){
+  if(_hrmsAttCache){
     Object.keys(_hrmsAttCache).forEach(function(k){_attRecsForCollect=_attRecsForCollect.concat(_hrmsAttCache[k]||[]);});
   }
   _attRecsForCollect.forEach(function(rec){
     if(!rec||!rec.days) return;
-    if(mk&&rec.monthKey!==mk) return;
     var emp=_empByCode[String(rec.empCode||'').toUpperCase()];
     if(!emp) return;
     Object.keys(rec.days).forEach(function(dk){
@@ -22762,22 +22767,37 @@ function _hrmsMyApprovalsCollect(){
 
 function _hrmsMyApprovalsRender(){
   if(!document.getElementById('hrmsApprPanelAltreq')) return;
-  // Ensure this month's attendance + alteration caches are loaded so
-  // every sub-tab (incl. New Joinee Initial IN/OUT, which reads
+  // Ensure the attendance + alteration caches are loaded so every
+  // sub-tab (incl. New Joinee Initial IN/OUT, which reads
   // hrms_attendance flagged initial:true) has data to render.
   // _hrmsAttFetchMonth is idempotent — synchronous when both caches
-  // already have the month. Trigger a fetch when EITHER cache is
-  // missing so a half-loaded state still gets healed.
+  // already have the month. Pre-fetch the prior + next month too so
+  // Initial entries staged on a 7-day window that spans a month
+  // boundary land in the cache regardless of which month the operator
+  // happens to have selected.
   var _mkResolved=(typeof _hrmsApprResolveMonth==='function')?_hrmsApprResolveMonth():null;
-  var _altMissing=!_hrmsAltCache||_hrmsAltCache[_mkResolved]===undefined;
-  var _attMissing=typeof _hrmsAttCache==='undefined'||!_hrmsAttCache||_hrmsAttCache[_mkResolved]===undefined;
-  if(_mkResolved&&typeof _hrmsAttFetchMonth==='function'&&(_altMissing||_attMissing)){
-    if(!window._hrmsApprFetching){
+  var _adjMonths=function(mk){
+    if(!mk) return [];
+    var p=mk.split('-');var y=+p[0],m=+p[1];
+    var prev=new Date(y,m-2,1);var next=new Date(y,m,1);
+    var fmt=function(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');};
+    return [fmt(prev),mk,fmt(next)];
+  };
+  var _needFetch=function(k){
+    var altMissing=!_hrmsAltCache||_hrmsAltCache[k]===undefined;
+    var attMissing=typeof _hrmsAttCache==='undefined'||!_hrmsAttCache||_hrmsAttCache[k]===undefined;
+    return altMissing||attMissing;
+  };
+  if(_mkResolved&&typeof _hrmsAttFetchMonth==='function'){
+    var _toFetch=_adjMonths(_mkResolved).filter(_needFetch);
+    if(_toFetch.length&&!window._hrmsApprFetching){
       window._hrmsApprFetching=true;
-      _hrmsAttFetchMonth(_mkResolved).then(function(){
+      Promise.all(_toFetch.map(function(k){
+        try{return _hrmsAttFetchMonth(k);}catch(_){return Promise.resolve();}
+      })).then(function(){
         window._hrmsApprFetching=false;
         _hrmsMyApprovalsRender();
-      }).catch(function(e){window._hrmsApprFetching=false;console.warn('appr lazy fetch',_mkResolved,e);});
+      }).catch(function(e){window._hrmsApprFetching=false;console.warn('appr lazy fetch',_toFetch,e);});
     }
   }
   var data=_hrmsMyApprovalsCollect();
