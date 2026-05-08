@@ -22723,14 +22723,12 @@ function _hrmsMyApprovalsCollect(){
   // ── New Joinee Initial IN/OUT rows ──
   // Source: per-month _hrmsAttCache[mk] entries flagged `initial:true`.
   // Each day-entry is its own approval candidate. Pending = approved!==true.
-  // We deliberately skip the per-month filter that the alteration tabs
-  // use: Initial entries are an employee-centric concept — a 7-day
-  // window from a late-month DOJ spills into the next month, so each
-  // day saves into its OWN date-month record, not the operator's
-  // currently-selected month. Walking every cached month surfaces all
-  // initial entries the operator has staged. The renderer's `dateStr`
-  // makes the actual day visible in the row, so cross-month entries
-  // are still readable.
+  // Scope the result to the selected month so a 7-day window that spans
+  // a month boundary surfaces under the right tab — Apr 28..30 entries
+  // appear under Apr, May 1..3 entries appear under May. The
+  // _hrmsMyApprovalsRender pre-fetch loads adjacent months into cache
+  // so the spill-over months are present even when the operator just
+  // landed on the selected month.
   var initialP=[],initialH=[];
   var _attRecsForCollect=[];
   if(_hrmsAttCache){
@@ -22738,6 +22736,7 @@ function _hrmsMyApprovalsCollect(){
   }
   _attRecsForCollect.forEach(function(rec){
     if(!rec||!rec.days) return;
+    if(mk&&rec.monthKey!==mk) return;
     var emp=_empByCode[String(rec.empCode||'').toUpperCase()];
     if(!emp) return;
     Object.keys(rec.days).forEach(function(dk){
