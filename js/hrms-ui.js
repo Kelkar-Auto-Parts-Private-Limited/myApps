@@ -4012,7 +4012,7 @@ async function _hrmsShowEmpHistory(){
   var fys=Object.keys(fyGroups).sort().reverse().map(function(k){return fyGroups[k];});
 
   var h='';
-  var _r=function(v){return Math.round(v||0).toLocaleString();};
+  var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
   var _f=function(v){if(!v&&v!==0)return'0';if(v%1===0)return String(v);return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
 
   fys.forEach(function(fy){
@@ -6387,8 +6387,16 @@ function _hrmsFilterUnique(list,getter){
 // (category × employmentType) bucket plus a total. Used above both
 // the Joinee/Rejoinee and Absent FTM tables so the user gets a
 // quick, scannable read on the bucket mix.
-function _hrmsHeadcountSummaryHTML(list,color){
+function _hrmsHeadcountSummaryHTML(list,color,opts){
   if(!list||!list.length) return '';
+  opts=opts||{};
+  // Compact mode roughly halves the visual footprint — used by the
+  // dashboard tabs so the table gets more vertical room.
+  var compact=!!opts.compact;
+  // filterFn = name of a JS function that takes (field, value); when
+  // present, the category tiles and employment-type chips become
+  // clickable filter shortcuts.
+  var filterFn=opts.filterFn||'';
   var cats={};
   list.forEach(function(e){
     var cat=(e.category||'Other').trim()||'Other';
@@ -6413,26 +6421,41 @@ function _hrmsHeadcountSummaryHTML(list,color){
     return {bg:'#f1f5f9',fg:'#475569',br:'#cbd5e1'};
   };
   var pageColor=color||'var(--accent)';
-  var h='<div style="display:flex;flex-wrap:wrap;gap:12px;margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,var(--surface2) 0%,#ffffff 100%);border:1.5px solid '+pageColor+';border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.06)">';
+  var _esc=function(s){return String(s||'').replace(/'/g,"\\'");};
+  // Compact dimensions vs default
+  var dim=compact
+    ?{outerPad:'7px 10px',outerGap:'8px',outerRadius:'8px',outerMargin:'0 0 8px',
+      tilePad:'6px 12px',tileMinW:'80px',tileRadius:'6px',
+      totalLbl:'9px',totalNum:'20px',
+      catMinW:'120px',catLbl:'11px',catNum:'18px',
+      chipPad:'2px 6px',chipFs:'10px',chipNum:'12px',chipGap:'3px',chipMt:'5px'}
+    :{outerPad:'14px 16px',outerGap:'12px',outerRadius:'12px',outerMargin:'0 0 14px',
+      tilePad:'10px 18px',tileMinW:'120px',tileRadius:'10px',
+      totalLbl:'11px',totalNum:'32px',
+      catMinW:'170px',catLbl:'13px',catNum:'24px',
+      chipPad:'3px 9px',chipFs:'11px',chipNum:'13px',chipGap:'5px',chipMt:'8px'};
+  var h='<div style="display:flex;flex-wrap:wrap;gap:'+dim.outerGap+';margin:'+dim.outerMargin+';padding:'+dim.outerPad+';background:linear-gradient(135deg,var(--surface2) 0%,#ffffff 100%);border:1.5px solid '+pageColor+';border-radius:'+dim.outerRadius+';box-shadow:0 4px 14px rgba(15,23,42,.06)">';
   // ── Grand Total tile ──
-  h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:120px;padding:10px 18px;background:'+pageColor+';color:#fff;border-radius:10px;box-shadow:0 4px 12px rgba(15,23,42,.18)">';
-  h+='<div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.85">Total</div>';
-  h+='<div style="font-family:var(--mono);font-size:32px;font-weight:900;line-height:1;margin-top:2px">'+list.length+'</div>';
+  h+='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:'+dim.tileMinW+';padding:'+dim.tilePad+';background:'+pageColor+';color:#fff;border-radius:'+dim.tileRadius+';box-shadow:0 4px 12px rgba(15,23,42,.18)">';
+  h+='<div style="font-size:'+dim.totalLbl+';font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.85">Total</div>';
+  h+='<div style="font-family:var(--mono);font-size:'+dim.totalNum+';font-weight:900;line-height:1;margin-top:2px">'+list.length+'</div>';
   h+='</div>';
   // ── Per-category tiles with bucket breakdown ──
   keys.forEach(function(cat){
     var info=cats[cat];
-    h+='<div style="display:flex;flex-direction:column;min-width:170px;padding:10px 14px;background:#fff;border:1.5px solid var(--border);border-radius:10px;box-shadow:0 2px 6px rgba(15,23,42,.04)">';
+    var catClick=filterFn?' onclick="'+filterFn+'(\'category\',\''+_esc(cat)+'\')" style="cursor:pointer;display:flex;flex-direction:column;min-width:'+dim.catMinW+';padding:'+dim.tilePad+';background:#fff;border:1.5px solid var(--border);border-radius:'+dim.tileRadius+';box-shadow:0 2px 6px rgba(15,23,42,.04);transition:transform .1s, box-shadow .1s" onmouseover="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 4px 10px rgba(15,23,42,.10)\'" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'0 2px 6px rgba(15,23,42,.04)\'" title="Filter category to '+_esc(cat)+'"':' style="display:flex;flex-direction:column;min-width:'+dim.catMinW+';padding:'+dim.tilePad+';background:#fff;border:1.5px solid var(--border);border-radius:'+dim.tileRadius+';box-shadow:0 2px 6px rgba(15,23,42,.04)"';
+    h+='<div'+catClick+'>';
     h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">';
-    h+='<span style="font-size:13px;font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase">'+cat+'</span>';
-    h+='<span style="font-family:var(--mono);font-size:24px;font-weight:900;color:'+pageColor+';line-height:1">'+info.total+'</span>';
+    h+='<span style="font-size:'+dim.catLbl+';font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase">'+cat+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:'+dim.catNum+';font-weight:900;color:'+pageColor+';line-height:1">'+info.total+'</span>';
     h+='</div>';
     var bks=Object.keys(info.buckets).sort();
     if(bks.length){
-      h+='<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">';
+      h+='<div style="display:flex;flex-wrap:wrap;gap:'+dim.chipGap+';margin-top:'+dim.chipMt+'">';
       bks.forEach(function(bk){
         var st=bucketStyle(bk);
-        h+='<span style="display:inline-flex;align-items:baseline;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;background:'+st.bg+';color:'+st.fg+';border:1px solid '+st.br+'">'+bk+' <b style="font-family:var(--mono);font-size:13px;font-weight:900">'+info.buckets[bk]+'</b></span>';
+        var chipClick=filterFn?' onclick="event.stopPropagation();'+filterFn+'(\'empType\',\''+_esc(bk)+'\')" style="cursor:pointer" title="Filter Emp Type to '+_esc(bk)+'"':'';
+        h+='<span'+chipClick+' style="display:inline-flex;align-items:baseline;gap:4px;font-size:'+dim.chipFs+';font-weight:700;padding:'+dim.chipPad+';border-radius:8px;background:'+st.bg+';color:'+st.fg+';border:1px solid '+st.br+(filterFn?';cursor:pointer':'')+'">'+bk+' <b style="font-family:var(--mono);font-size:'+dim.chipNum+';font-weight:900">'+info.buckets[bk]+'</b></span>';
       });
       h+='</div>';
     }
@@ -6475,6 +6498,61 @@ async function _hrmsRenderEntryTab(yr,mo){
   if(!focusSnap) el.innerHTML='<div class="empty-state">Loading…</div>';
   var d=await _hrmsComputeEntryExit(yr,mo);
   var allNew=(d.newEmps||[]).slice();
+
+  // Pre-fetch the 6-month window (5 prior + currently selected) so the
+  // per-month P columns can resolve. _hrmsAttFetchMonth + saved-month
+  // snapshot loads are idempotent — already-cached months return
+  // synchronously.
+  var sixMonths=[];
+  for(var smI=5; smI>=0; smI--){
+    var smD=new Date(yr,mo-1-smI,1);
+    sixMonths.push({y:smD.getFullYear(),m:smD.getMonth()+1,
+      mk:smD.getFullYear()+'-'+String(smD.getMonth()+1).padStart(2,'0')});
+  }
+  if(typeof _hrmsAttFetchMonth==='function'){
+    var smNeed=sixMonths.filter(function(s){
+      return (!_hrmsAttCache||_hrmsAttCache[s.mk]===undefined)
+        || (!_hrmsAltCache||_hrmsAltCache[s.mk]===undefined);
+    });
+    if(smNeed.length){
+      try{await Promise.all(smNeed.map(function(s){
+        try{return _hrmsAttFetchMonth(s.mk);}catch(_){return Promise.resolve();}
+      }));}catch(_){}
+    }
+    if(typeof _hrmsLoadSavedMonth==='function'&&typeof _hrmsSavedMonth!=='undefined'){
+      try{await Promise.all(sixMonths.map(function(s){
+        if(_hrmsSavedMonth[s.mk]) return Promise.resolve();
+        if(typeof _hrmsIsMonthLocked!=='function'||!_hrmsIsMonthLocked(s.mk)) return Promise.resolve();
+        try{return _hrmsLoadSavedMonth(s.mk);}catch(_){return Promise.resolve();}
+      }));}catch(_){}
+    }
+  }
+
+  // Re-classify joinee type using earlier-month presence. The base
+  // _classifyJoinee in computeEntryExit only returns 'rejoinee' when a
+  // closed Resigned/Inactive period covered prevMk. That misses people
+  // whose period stayed open but who had a real attendance gap. Rule
+  // here: any P > 0 in a month strictly earlier than prevMk → rejoinee.
+  var _curMk=yr+'-'+String(mo).padStart(2,'0');
+  var _prevMo=mo-1,_prevYr=yr;
+  if(_prevMo<1){_prevMo=12;_prevYr--;}
+  var _prevMk=_prevYr+'-'+String(_prevMo).padStart(2,'0');
+  var _earlierMks=sixMonths.map(function(s){return s.mk;}).filter(function(k){return k<_prevMk;});
+  allNew.forEach(function(e){
+    if(!e||e._unmatched) return;
+    if(e._joineeType==='rejoinee') return;
+    for(var ei=0;ei<_earlierMks.length;ei++){
+      var p=(typeof _hrmsCalcMonthlyP==='function')?_hrmsCalcMonthlyP(e,_earlierMks[ei]):null;
+      if(p&&p>0){e._joineeType='rejoinee';break;}
+    }
+  });
+  // Refresh the joinee map for this month so the modal's Initial IN/OUT
+  // visibility check sees the updated classification.
+  window._hrmsJoineeByMk=window._hrmsJoineeByMk||{};
+  var _joineeMap2={};
+  allNew.forEach(function(e){if(e&&e.empCode) _joineeMap2[String(e.empCode).toUpperCase()]=(e._joineeType||'new');});
+  window._hrmsJoineeByMk[_curMk]=_joineeMap2;
+  // Counts after re-classification.
   var nNew=allNew.filter(function(e){return(e._joineeType||'new')==='new';}).length;
   var nRej=allNew.length-nNew;
 
@@ -6537,19 +6615,37 @@ async function _hrmsRenderEntryTab(yr,mo){
   window._hrmsEntryLastList=newEmps.slice();
 
   var h=_hrmsUnknownBanner(d.allUnknown.length);
-  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">'+
-    '<div style="font-size:15px;font-weight:900;color:#16a34a">New Joinee / Rejoinee in '+d.curLabel+' (not in '+d.prevLabel+') — '+newEmps.length+(newEmps.length!==allNew.length?' / '+allNew.length:'')+'</div>'+
-    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">★ New '+nNew+'</span>'+
-    '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:800;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">↺ Rejoinee '+nRej+'</span>'+
-    '<div style="flex:1"></div>'+
-    (allNew.length?'<button class="hrms-allow-locked" onclick="_hrmsEntryExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>':'')+
-  '</div>';
-  h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type in any search box or pick a value from the drop-downs above the headers to filter. Click headers to sort. Rows tinted by employment type — On Roll (blue), Contract (amber), Piece Rate (purple).</div>';
   if(!allNew.length){
     h+='<div class="empty-state" style="padding:12px">No new joinee/rejoinee compared to previous month.</div>';
     el.innerHTML=h;return;
   }
-  h+=_hrmsHeadcountSummaryHTML(allNew,'#16a34a');
+  // Side-by-side summary cards: Total · New Joinee · Rejoinee. Each
+  // card has its own colour-coded total + per-category breakdown.
+  // Export All sits on the right of the same row so it's reachable
+  // without scrolling past the summary.
+  var _newList=allNew.filter(function(e){return(e._joineeType||'new')==='new';});
+  var _rejList=allNew.filter(function(e){return e._joineeType==='rejoinee';});
+  // Summary cards are compact + clickable. Outer label sets the
+  // joinee-type filter ('New Joinee' / 'Rejoinee'); category tile or
+  // emp-type chip inside dispatches the corresponding column filter.
+  // Total card label clears the joinee-type filter.
+  var _summaryCard=function(label,labelColor,list,cardColor,typeFilterValue){
+    if(!list||!list.length) return '';
+    var labelClick=' onclick="_hrmsEntryFilterChange(\'type\',\''+typeFilterValue+'\')"';
+    var labelTitle=typeFilterValue?' title="Filter Type to '+typeFilterValue+'"':' title="Clear Type filter"';
+    return '<div style="flex:1;min-width:200px">'+
+      '<div'+labelClick+labelTitle+' style="font-size:11px;font-weight:900;color:'+labelColor+';margin:0 0 3px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer">'+label+'</div>'+
+      _hrmsHeadcountSummaryHTML(list,cardColor,{compact:true,filterFn:'_hrmsEntryFilterChange'})+
+    '</div>';
+  };
+  h+='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:10px">';
+  h+=_summaryCard('📋 Total &middot; '+allNew.length,'var(--accent)',allNew,'var(--accent)','');
+  h+=_summaryCard('★ New Joinee &middot; '+_newList.length,'#15803d',_newList,'#16a34a','New Joinee');
+  h+=_summaryCard('↺ Rejoinee &middot; '+_rejList.length,'#92400e',_rejList,'#d97706','Rejoinee');
+  h+='<div style="display:flex;align-items:flex-start;padding-top:18px">'+
+    '<button class="hrms-allow-locked" onclick="_hrmsEntryExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;white-space:nowrap">📤 Export All</button>'+
+  '</div>';
+  h+='</div>';
   var _arrow=function(field){
     if(_sort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
     return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(_sort.dir>0?'▲':'▼')+'</span>';
@@ -6565,11 +6661,11 @@ async function _hrmsRenderEntryTab(yr,mo){
   var _fmtMoney=function(n){var v=+n||0;return v?'₹'+v.toLocaleString('en-IN'):'—';};
   var _esc=function(s){return String(s||'').replace(/"/g,'&quot;');};
   var _txtFilter=function(field){
-    return '<th style="'+_filterTh+'"><input type="search" id="hrmsEntryF_'+field+'" oninput="_hrmsEntryFilterChange(\''+field+'\',this.value)" value="'+_esc(filters[field])+'" placeholder="Search…" style="'+_filterInputCss+'"></th>';
+    return '<th style="'+_filterTh+'"><input type="search" class="hrms-allow-locked" id="hrmsEntryF_'+field+'" oninput="_hrmsEntryFilterChange(\''+field+'\',this.value)" value="'+_esc(filters[field])+'" placeholder="Search…" style="'+_filterInputCss+'"></th>';
   };
   var _selFilter=function(field,opts){
     var html='<option value="">All</option>'+opts.map(function(o){return '<option value="'+_esc(o)+'"'+(filters[field]===o?' selected':'')+'>'+o+'</option>';}).join('');
-    return '<th style="'+_filterTh+'"><select id="hrmsEntryF_'+field+'" onchange="_hrmsEntryFilterChange(\''+field+'\',this.value)" style="'+_filterInputCss+'">'+html+'</select></th>';
+    return '<th style="'+_filterTh+'"><select class="hrms-allow-locked" id="hrmsEntryF_'+field+'" onchange="_hrmsEntryFilterChange(\''+field+'\',this.value)" style="'+_filterInputCss+'">'+html+'</select></th>';
   };
   var optPlant=_hrmsFilterUnique(allNew,function(e){return e.location;});
   var optCategory=_hrmsFilterUnique(allNew,function(e){return e.category;});
@@ -6580,7 +6676,8 @@ async function _hrmsRenderEntryTab(yr,mo){
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead>';
   // Filter row — top-left X button clears every filter at once.
   var _hasEntryFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
-  var _clrBtn='<button onclick="_hrmsEntryClearFilters()" title="Clear all filters" '+(_hasEntryFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(_hasEntryFilter?'#fee2e2':'#e5e7eb')+';color:'+(_hasEntryFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(_hasEntryFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(_hasEntryFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
+  var _clrBtn='<button class="hrms-allow-locked" onclick="_hrmsEntryClearFilters()" title="Clear all filters" '+(_hasEntryFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(_hasEntryFilter?'#fee2e2':'#e5e7eb')+';color:'+(_hasEntryFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(_hasEntryFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(_hasEntryFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
+  var _MON_ABBR_ENTRY=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   h+='<tr>';
   h+='<th style="'+_filterTh+';cursor:default;text-align:center">'+_clrBtn+'</th>';
   h+=_selFilter('plant',optPlant);
@@ -6591,20 +6688,34 @@ async function _hrmsRenderEntryTab(yr,mo){
   h+=_selFilter('empType',optEmpType);
   h+=_txtFilter('role');
   h+='<th style="'+_filterTh+';cursor:default"></th>';
+  // Per-month columns (5 prior + selected) — non-filterable, tinted.
+  sixMonths.forEach(function(){h+='<th style="'+_filterThMon+';cursor:default"></th>';});
   h+=_selFilter('type',optType);
   h+='</tr>';
+  // Per-month columns get a soft tinted background so the eye picks up
+  // the "history" block separately from the master-data columns to its
+  // left and the Type badge to its right.
+  var _thMon=_th+';background:#eef2ff;text-align:right';
+  var _filterThMon=_filterTh+';background:#eef2ff';
+  var _tdMon=_td+';background:#eef2ff;font-family:var(--mono);text-align:right';
   // Header row
   h+='<tr>';
-  h+='<th style="'+_th+';cursor:default">#</th>';
+  h+='<th style="'+_th+';cursor:default;width:36px">#</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'plant\')" style="'+_th+'">Plant'+_arrow('plant')+'</th>';
-  h+='<th onclick="_hrmsEntrySortBy(\'emp\')" style="'+_th+'">Emp Code'+_arrow('emp')+'</th>';
+  h+='<th onclick="_hrmsEntrySortBy(\'emp\')" style="'+_th+';width:75px">Emp Code'+_arrow('emp')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'name\')" style="'+_th+'">Name'+_arrow('name')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'category\')" style="'+_th+'">Category'+_arrow('category')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'team\')" style="'+_th+'">Team'+_arrow('team')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'empType\')" style="'+_th+'">Emp Type'+_arrow('empType')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'role\')" style="'+_th+'">Role'+_arrow('role')+'</th>';
   h+='<th onclick="_hrmsEntrySortBy(\'salary\')" style="'+_th+';text-align:right">Salary'+_arrow('salary')+'</th>';
-  h+='<th onclick="_hrmsEntrySortBy(\'type\')" style="'+_th+'">Type'+_arrow('type')+'</th>';
+  // Per-month present-day headers — "Mon" label, full Mon-YY tooltip.
+  sixMonths.forEach(function(s){
+    var lbl=_MON_ABBR_ENTRY[s.m]||String(s.m);
+    var tip=lbl+'-'+String(s.y).slice(-2);
+    h+='<th style="'+_thMon+';cursor:default" title="'+tip+'">'+lbl+'</th>';
+  });
+  h+='<th onclick="_hrmsEntrySortBy(\'type\')" style="'+_th+';min-width:130px;white-space:nowrap">Type'+_arrow('type')+'</th>';
   h+='</tr></thead><tbody>';
   newEmps.forEach(function(e,i){
     var isU=!!e._unmatched;
@@ -6634,11 +6745,17 @@ async function _hrmsRenderEntryTab(yr,mo){
     h+='<td style="'+_td+'">'+(e.employmentType||'—')+'</td>';
     h+='<td style="'+_td+'">'+(isU?'—':(e.roll||'—'))+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:700">'+salCell+'</td>';
-    h+='<td style="'+_td+'">'+typeBadge+'</td>';
+    sixMonths.forEach(function(s){
+      var p=(typeof _hrmsCalcMonthlyP==='function')?_hrmsCalcMonthlyP(e,s.mk):null;
+      var val=(p==null)?'—':((p%1===0)?String(p):p.toFixed(1));
+      var clr=(p==null)?'var(--text3)':(p>0?'var(--text)':'#dc2626');
+      h+='<td style="'+_tdMon+';color:'+clr+';font-weight:'+(p>0?'700':'600')+'">'+val+'</td>';
+    });
+    h+='<td style="'+_td+';white-space:nowrap">'+typeBadge+'</td>';
     h+='</tr>';
   });
   if(!newEmps.length){
-    h+='<tr><td colspan="10" style="padding:14px;text-align:center;color:var(--text3);font-style:italic">No rows match the current filters.</td></tr>';
+    h+='<tr><td colspan="16" style="padding:14px;text-align:center;color:var(--text3);font-style:italic">No rows match the current filters.</td></tr>';
   }
   h+='</tbody></table></div>';
   el.innerHTML=h;
@@ -6806,19 +6923,19 @@ async function _hrmsRenderExitTab(yr,mo){
   // unknown set comes from the Entry side (new joiners) and isn't relevant
   // here. The same banner still appears on the New Joinee/Rejoinee tab.
   var h='';
-  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">';
-  h+='<div style="font-size:15px;font-weight:900;color:#dc2626">Absent Employees FTM — '+d.curLabel+' ('+exitEmps.length+(exitEmps.length!==allExit.length?' / '+allExit.length:'')+')</div>';
-  h+='<div style="flex:1"></div>';
-  if(allExit.length){
-    h+='<button class="hrms-allow-locked" onclick="_hrmsExitExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📤 Export All</button>';
-  }
-  h+='</div>';
-  h+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px">Type in any search box or pick a value from the drop-downs above the headers to filter. Click headers to sort. Rows tinted by employment type — On Roll (blue), Contract (amber), Piece Rate (purple).</div>';
   if(!allExit.length){
     h+='<div class="empty-state" style="padding:12px">All active employees have activity this month.</div>';
     el.innerHTML=h;return;
   }
-  h+=_hrmsHeadcountSummaryHTML(allExit,'#dc2626');
+  // Compact + clickable summary. Each category tile / emp-type chip
+  // dispatches a filter via _hrmsExitFilterChange. Export All button on
+  // the right of the same row.
+  h+='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:10px">';
+  h+='<div style="flex:1;min-width:200px">'+_hrmsHeadcountSummaryHTML(allExit,'#dc2626',{compact:true,filterFn:'_hrmsExitFilterChange'})+'</div>';
+  h+='<div style="display:flex;align-items:flex-start;padding-top:6px">'+
+    '<button class="hrms-allow-locked" onclick="_hrmsExitExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;white-space:nowrap">📤 Export All</button>'+
+  '</div>';
+  h+='</div>';
   // Flat sortable + filterable table.
   var _arrow=function(field){
     if(_sort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
@@ -6830,11 +6947,11 @@ async function _hrmsRenderExitTab(yr,mo){
   var _td='padding:5px 10px;font-size:13px;border-bottom:1px solid #f1f5f9';
   var _esc=function(s){return String(s||'').replace(/"/g,'&quot;');};
   var _txtFilter=function(field){
-    return '<th style="'+_filterTh+'"><input type="search" id="hrmsExitF_'+field+'" oninput="_hrmsExitFilterChange(\''+field+'\',this.value)" value="'+_esc(filters[field])+'" placeholder="Search…" style="'+_filterInputCss+'"></th>';
+    return '<th style="'+_filterTh+'"><input type="search" class="hrms-allow-locked" id="hrmsExitF_'+field+'" oninput="_hrmsExitFilterChange(\''+field+'\',this.value)" value="'+_esc(filters[field])+'" placeholder="Search…" style="'+_filterInputCss+'"></th>';
   };
   var _selFilter=function(field,opts){
     var html='<option value="">All</option>'+opts.map(function(o){return '<option value="'+_esc(o)+'"'+(filters[field]===o?' selected':'')+'>'+o+'</option>';}).join('');
-    return '<th style="'+_filterTh+'"><select id="hrmsExitF_'+field+'" onchange="_hrmsExitFilterChange(\''+field+'\',this.value)" style="'+_filterInputCss+'">'+html+'</select></th>';
+    return '<th style="'+_filterTh+'"><select class="hrms-allow-locked" id="hrmsExitF_'+field+'" onchange="_hrmsExitFilterChange(\''+field+'\',this.value)" style="'+_filterInputCss+'">'+html+'</select></th>';
   };
   var optPlant=_hrmsFilterUnique(allExit,function(e){return e.location;});
   var optCategory=_hrmsFilterUnique(allExit,function(e){return e.category;});
@@ -6844,8 +6961,13 @@ async function _hrmsRenderExitTab(yr,mo){
   h+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead>';
   // Filter row — top-left X button clears every filter at once.
   var _hasExitFilter=Object.keys(filters).some(function(k){return String(filters[k]||'').trim();});
-  var _clrBtn='<button onclick="_hrmsExitClearFilters()" title="Clear all filters" '+(_hasExitFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(_hasExitFilter?'#fee2e2':'#e5e7eb')+';color:'+(_hasExitFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(_hasExitFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(_hasExitFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
+  var _clrBtn='<button class="hrms-allow-locked" onclick="_hrmsExitClearFilters()" title="Clear all filters" '+(_hasExitFilter?'':'disabled ')+'style="width:22px;height:22px;padding:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:'+(_hasExitFilter?'#fee2e2':'#e5e7eb')+';color:'+(_hasExitFilter?'#dc2626':'#9ca3af')+';border:1px solid '+(_hasExitFilter?'#fca5a5':'#cbd5e1')+';border-radius:4px;cursor:'+(_hasExitFilter?'pointer':'not-allowed')+';line-height:1">✕</button>';
   var _MON_ABBR=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Per-month columns get a soft tinted background so the eye picks up
+  // the "history" block separately from the master-data columns.
+  var _thMonExit=_th+';background:#eef2ff;text-align:right';
+  var _filterThMonExit=_filterTh+';background:#eef2ff';
+  var _tdMonExit=_td+';background:#eef2ff;font-family:var(--mono);text-align:right';
   h+='<tr>';
   h+='<th style="'+_filterTh+';cursor:default;text-align:center">'+_clrBtn+'</th>';
   h+=_selFilter('plant',optPlant);
@@ -6855,14 +6977,14 @@ async function _hrmsRenderExitTab(yr,mo){
   h+=_selFilter('team',optTeam);
   h+=_selFilter('empType',optEmpType);
   // One filler cell per per-month column — month columns aren't
-  // filterable / sortable.
-  sixMonths.forEach(function(){h+='<th style="'+_filterTh+';cursor:default"></th>';});
+  // filterable / sortable. Tinted to align with the body cells.
+  sixMonths.forEach(function(){h+='<th style="'+_filterThMonExit+';cursor:default"></th>';});
   h+='</tr>';
   // Header row
   h+='<tr>';
-  h+='<th style="'+_th+';cursor:default">#</th>';
+  h+='<th style="'+_th+';cursor:default;width:36px">#</th>';
   h+='<th onclick="_hrmsExitSortBy(\'plant\')" style="'+_th+'">Plant'+_arrow('plant')+'</th>';
-  h+='<th onclick="_hrmsExitSortBy(\'emp\')" style="'+_th+'">Emp Code'+_arrow('emp')+'</th>';
+  h+='<th onclick="_hrmsExitSortBy(\'emp\')" style="'+_th+';width:75px">Emp Code'+_arrow('emp')+'</th>';
   h+='<th onclick="_hrmsExitSortBy(\'name\')" style="'+_th+'">Name'+_arrow('name')+'</th>';
   h+='<th onclick="_hrmsExitSortBy(\'category\')" style="'+_th+'">Category'+_arrow('category')+'</th>';
   h+='<th onclick="_hrmsExitSortBy(\'team\')" style="'+_th+'">Team'+_arrow('team')+'</th>';
@@ -6874,7 +6996,7 @@ async function _hrmsRenderExitTab(yr,mo){
   sixMonths.forEach(function(s){
     var lbl=_MON_ABBR[s.m]||String(s.m);
     var tip=lbl+'-'+String(s.y).slice(-2);
-    h+='<th style="'+_th+';cursor:default;text-align:right" title="'+tip+'">'+lbl+'</th>';
+    h+='<th style="'+_thMonExit+';cursor:default" title="'+tip+'">'+lbl+'</th>';
   });
   h+='</tr></thead><tbody>';
   exitEmps.forEach(function(e,i){
@@ -6895,7 +7017,7 @@ async function _hrmsRenderExitTab(yr,mo){
       var p=(typeof _hrmsCalcMonthlyP==='function')?_hrmsCalcMonthlyP(e,s.mk):null;
       var val=(p==null)?'—':((p%1===0)?String(p):p.toFixed(1));
       var clr=(p==null)?'var(--text3)':(p>0?'var(--text)':'#dc2626');
-      h+='<td style="'+_td+';font-family:var(--mono);text-align:right;color:'+clr+';font-weight:'+(p>0?'700':'600')+'">'+val+'</td>';
+      h+='<td style="'+_tdMonExit+';color:'+clr+';font-weight:'+(p>0?'700':'600')+'">'+val+'</td>';
     });
     h+='</tr>';
   });
@@ -16049,15 +16171,15 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     });
   }
 
-  var _r=function(v){return Math.round(v||0).toLocaleString();};
+  var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
   var _f=function(v){if(v==null)return'0';if(v%1===0) return String(v); return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
-  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b;cursor:pointer;user-select:none';
-  var _thNS='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b';
+  var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #94a3b8;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b;cursor:pointer;user-select:none';
+  var _thNS='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #94a3b8;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b';
   var _arrow=function(field){
     if(_csSort.field!==field) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
     return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(_csSort.dir>0?'▲':'▼')+'</span>';
   };
-  var _td='padding:4px 5px;font-size:13px;border:1px solid #e2e8f0;white-space:nowrap';
+  var _td='padding:4px 5px;font-size:13px;border:1px solid #94a3b8;white-space:nowrap';
 
   // Sticky-left widths for #, Emp Code, Name
   var _W1=32,_W2=70,_W3=170;
@@ -16099,7 +16221,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<th onclick="_hrmsContractSortBy(\'commission\')" style="'+_th+';background:#fef3c7;text-align:right">Commission 8%'+_arrow('commission')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'totalBill\')" style="'+_th+';background:#fef3c7;text-align:right">Total Bill'+_arrow('totalBill')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'diwali\')" style="'+_th+';background:#fce7f3;text-align:right">Diwali Bonus'+_arrow('diwali')+'</th>';
-  h+='<th onclick="_hrmsContractSortBy(\'ctc\')" style="'+_th+';background:#dcfce7;text-align:right">CTC'+_arrow('ctc')+'</th>';
+  h+='<th onclick="_hrmsContractSortBy(\'ctc\')" style="'+_th+';background:#dcfce7;text-align:right;padding-right:24px">CTC'+_arrow('ctc')+'</th>';
   h+='</tr></thead><tbody>';
 
   var sn=0;
@@ -16139,7 +16261,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7">'+_r(r.commission)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7;font-weight:800">'+_r(r.totalBill)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fce7f3;color:#be185d">'+_r(r.diwali)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#dcfce7;font-weight:900;color:#15803d;font-size:14px">'+_r(r.ctc)+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#dcfce7;font-weight:900;color:#15803d;font-size:14px;padding-right:24px">'+_r(r.ctc)+'</td>';
     h+='</tr>';
     ['P','OT','OTS','PH','pPlusPH','A','totalOT','otAt1','forPresent','forOT','spAllow','gross','pf','esi','totalSal','commission','totalBill','diwali','ctc'].forEach(function(k){grandTotals[k]+=r[k]||0;});
     if(r.basicDaPfC!=null){grandTotals.basicDaPfC+=r.basicDaPfC;anyBasicDaPfC=true;}
@@ -16147,10 +16269,11 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   });
   grandTotals.count=filteredRows.length;
 
-  // Grand total — sticky at bottom (salary-page style: gray bg, dark text)
+  // Grand total — sticky at bottom. Taller (~50% more vertical
+  // breathing room) + darker borders for clearer column separation.
   var _stk='position:sticky;bottom:0;z-index:1;background:#e2e8f0';
-  var _tf='padding:2px 3px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b;'+_stk;
-  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="7" style="padding:4px 6px;border:1px solid #cbd5e1;left:0;z-index:2;'+_stk+'">Total ('+grandTotals.count+')</td>';
+  var _tf='padding:8px 4px;text-align:right;font-family:var(--mono);border:1px solid #94a3b8;color:#1e293b;'+_stk;
+  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="7" style="padding:8px 6px;border:1px solid #94a3b8;left:0;z-index:2;'+_stk+'">Total ('+grandTotals.count+')</td>';
   h+='<td style="'+_tf+'"></td>';
   h+='<td style="'+_tf+'"></td>';
   h+='<td style="'+_tf+'">'+_f(grandTotals.P)+'</td>';
@@ -16173,7 +16296,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<td style="'+_tf+'">'+_r(grandTotals.commission)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.totalBill)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.diwali)+'</td>';
-  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px">'+_r(grandTotals.ctc)+'</td>';
+  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px;padding-right:24px">'+_r(grandTotals.ctc)+'</td>';
   h+='</tr></tfoot>';
 
   h+='</table>';
@@ -16210,7 +16333,7 @@ function _hrmsContractShowDetail(empCode){
   var mk=_hrmsMonth;if(!mk) return;
   var r=(_hrmsContractCache[mk]||[]).find(function(x){return x.empCode===empCode;});
   if(!r) return;
-  var _r=function(v){return Math.round(v||0).toLocaleString();};
+  var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
   var _f=function(v){if(v==null)return'0';if(v%1===0) return String(v); return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
   var pfPct=_hrmsStatutory.pfCompany||13;
   var esiPct=_hrmsStatutory.esiCompany||3.25;
@@ -17328,8 +17451,9 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     });
   }
 
-  // Match Contract Salary table density (5px 4px th / 4px 5px td)
-  var _th='padding:5px 4px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b;text-align:center';
+  // Match Contract Salary table density (5px 4px th / 4px 5px td) and
+  // use the unified slate-400 border across header / body / footer.
+  var _th='padding:5px 4px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid #94a3b8;color:#1e293b;text-align:center';
   var h='<table style="border-collapse:collapse;font-size:13px;white-space:nowrap">';
   h+='<thead style="position:sticky;top:0;z-index:2"><tr style="background:#f1f5f9;color:#1e293b">';
   var _thF=_th+';position:sticky;z-index:3;background:#f1f5f9';
@@ -17340,7 +17464,7 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
   h+='<th style="'+_th+';background:#dcfce7" colspan="8">Salary</th>';
   h+='<th style="'+_th+';background:#fef2f2" colspan="5">Advance</th>';
   h+='<th style="'+_th+';background:#f1f5f9" colspan="7">Deductions</th>';
-  h+='<th style="'+_th+';background:#dcfce7" rowspan="2">Net</th>';
+  h+='<th style="'+_th+';background:#dcfce7;padding-right:24px" rowspan="2">Net</th>';
   h+='</tr><tr style="background:#f8fafc;color:#1e293b">';
   ['OB','Gvn','CB'].forEach(function(c){h+='<th style="'+_th+';background:#f3e8ff">'+c+'</th>';});
   ['P','A','OT','OTS','PL'].forEach(function(c){h+='<th style="'+_th+';background:#dbeafe">'+c+'</th>';});
@@ -17371,7 +17495,7 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     var pClr=_hrmsGetPlantColor(d.location||'');
     var plt=(d.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     // Match Contract Salary table row density
-    var _td='padding:4px 5px;border:1px solid #e2e8f0;';
+    var _td='padding:4px 5px;border:1px solid #94a3b8;';
     var _tdr=_td+'text-align:right;font-family:var(--mono);';
     var _tdF=_td+'position:sticky;z-index:1;background:#fff;';
 
@@ -17389,22 +17513,22 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     h+='<td style="'+_tdr+'background:#f0fdf4">'+_r(d.allowance||0)+'</td><td style="'+_tdr+'background:#dcfce7;font-weight:900;color:#15803d">'+_r(d.gross||0)+'</td>';
     h+='<td style="'+_tdr+'background:#fef2f2">'+_r(d.advOB||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advMonth||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(advTotal)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advDed||0)+'</td><td style="'+_tdr+'background:#fef2f2">'+_r(d.advCB||0)+'</td>';
     h+='<td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedPT||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedPF||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedESI||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedAdv||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedTDS||0)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(d.dedOther||0)+'</td><td style="'+_tdr+'background:#f1f5f9;font-weight:700">'+_r(d.dedTotal||0)+'</td>';
-    h+='<td style="'+_tdr+'background:#dcfce7;font-weight:900;font-size:14px;color:#15803d">'+_r(d.net||0)+'</td>';
+    h+='<td style="'+_tdr+'background:#dcfce7;font-weight:900;font-size:14px;color:#15803d;padding-right:24px">'+_r(d.net||0)+'</td>';
     h+='</tr>';
   });
-  // Totals row — sticky at bottom via tfoot
-  var _r2=function(v){return Math.round(v).toLocaleString();};
+  // Totals row — sticky at bottom via tfoot. Taller + darker borders.
+  var _r2=function(v){return Math.round(v).toLocaleString('en-IN');};
   var _stk='position:sticky;bottom:0;z-index:1;background:#e2e8f0';
-  var _tf='padding:2px 3px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b;'+_stk;
-  var _tfE='border:1px solid #cbd5e1;'+_stk;
-  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="4" style="padding:4px 6px;border:1px solid #cbd5e1;left:0;z-index:2;'+_stk+'">Total ('+emps.length+')</td><td style="'+_tfE+'"></td><td style="'+_tfE+'"></td>';
+  var _tf='padding:8px 4px;text-align:right;font-family:var(--mono);border:1px solid #94a3b8;color:#1e293b;'+_stk;
+  var _tfE='border:1px solid #94a3b8;'+_stk;
+  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="4" style="padding:8px 6px;border:1px solid #94a3b8;left:0;z-index:2;'+_stk+'">Total ('+emps.length+')</td><td style="'+_tfE+'"></td><td style="'+_tfE+'"></td>';
   h+='<td colspan="3" style="'+_tfE+'"></td><td colspan="5" style="'+_tfE+'"></td><td colspan="3" style="'+_tfE+'"></td>';
   h+='<td style="'+_tf+'">'+_r2(totals.salP)+'</td><td style="'+_tf+'">'+_r2(totals.salAb)+'</td><td style="'+_tf+'">'+_r2(totals.salPL)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.salOT1)+'</td><td style="'+_tf+'">'+_r2(totals.salOT15)+'</td><td style="'+_tf+'">'+_r2(totals.salOT2)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.allow)+'</td><td style="'+_tf+';font-weight:900;color:#15803d">'+_r2(totals.gross)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.advOB)+'</td><td style="'+_tf+'">'+_r2(totals.advMonth)+'</td><td style="'+_tf+'">'+_r2(totals.advTotal)+'</td><td style="'+_tf+'">'+_r2(totals.advDed)+'</td><td style="'+_tf+'">'+_r2(totals.advCB)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.dedPT)+'</td><td style="'+_tf+'">'+_r2(totals.dedPF)+'</td><td style="'+_tf+'">'+_r2(totals.dedESI)+'</td><td style="'+_tf+'">'+_r2(totals.dedAdv)+'</td><td style="'+_tf+'">'+_r2(totals.dedTDS)+'</td><td style="'+_tf+'">'+_r2(totals.dedOther)+'</td><td style="'+_tf+'">'+_r2(totals.dedTotal)+'</td>';
-  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px">'+_r2(totals.net)+'</td></tr></tfoot>';
+  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px;padding-right:24px">'+_r2(totals.net)+'</td></tr></tfoot>';
   h+='</table>';
   grid.innerHTML=emps.length?h:'<div class="empty-state">No saved salary data for this filter</div>';
   var expBtn=document.getElementById(exportBtnId);
@@ -17502,8 +17626,11 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
 
   var FULL_DAY=_otR.fullDay,HALF_DAY=_otR.halfDay,EL_MIN=_otR.elMin,EL_MAX=_otR.elMaxPerMonth;
   var _salBalances=[];// collect {empCode,plOB,plCB,advOB,advCB} for saving
-  // Match Contract Salary table density (5px 4px th / 4px 5px td)
-  var _th='padding:5px 4px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid #cbd5e1;color:#1e293b;text-align:center';
+  // Unified border across header / body / footer so the table reads as
+  // one continuous grid instead of a heavy footer pinned under a
+  // lighter body. 1px slate-400 keeps each cell defined without
+  // crowding the eye.
+  var _th='padding:5px 4px;font-size:12px;font-weight:800;white-space:nowrap;border:1px solid #94a3b8;color:#1e293b;text-align:center';
   var h='<table style="border-collapse:collapse;font-size:13px;white-space:nowrap">';
   // Header row 1 — grouped
   h+='<thead style="position:sticky;top:0;z-index:2"><tr style="background:#f1f5f9;color:#1e293b">';
@@ -17515,7 +17642,7 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
   h+='<th style="'+_th+';background:#dcfce7" colspan="8">Salary</th>';
   h+='<th style="'+_th+';background:#fef2f2" colspan="5">Advance</th>';
   h+='<th style="'+_th+';background:#f1f5f9" colspan="7">Deductions</th>';
-  h+='<th style="'+_th+';background:#dcfce7" rowspan="2">Net</th>';
+  h+='<th style="'+_th+';background:#dcfce7;padding-right:24px" rowspan="2">Net</th>';
   h+='</tr>';
   // Header row 2 — sub-columns
   h+='<tr style="background:#f8fafc;color:#1e293b">';
@@ -17711,7 +17838,7 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     // Store balances for saving
     _salBalances.push({empCode:emp.empCode,plOB:plOB,plGiven:plGiven,plCB:plCB,advOB:advOB,advMonth:advMonth,advDed:advDed,advCB:advCB});
     // Round
-    var _r=function(v){return Math.round(v);};
+    var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
     // Accumulate totals
     totals.salP+=salForP;totals.salAb+=salAb;totals.salPL+=salForPL;totals.salOT1+=salOT1;totals.salOT15+=salOT15;totals.salOT2+=salOT2;totals.allow+=allowance;totals.gross+=gross;
     totals.advOB+=advOB;totals.advMonth+=advMonth;totals.advTotal+=advTotal;totals.advDed+=advDed;totals.advCB+=advCB;
@@ -17720,7 +17847,7 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     var _empLoc=period.location||emp.location;
     var pClr=_hrmsGetPlantColor(_empLoc);
     // Match Contract Salary table row density
-    var _td='padding:4px 5px;border:1px solid #e2e8f0;';
+    var _td='padding:4px 5px;border:1px solid #94a3b8;';
     var _tdr=_td+'text-align:right;font-family:var(--mono);';
     // Store detail data for click
     var _det={empCode:emp.empCode,name:_hrmsDispName(emp),location:_empLoc,category:period.category||emp.category,doj:emp.dateOfJoining,gender:emp.gender,rateD:rateD,rateM:rateM,spAllow:spAllow,plOB:plOB,plGiven:plGiven,plCB:plCB,plAvail:plAvailTill,confMonths:_confMo,fyMonthNo:_fyMonthNo,wdCount:wdCount,phCount:phCount,totalP:totalP,totalA:totalA,paidAbsent:paidAbsent,totalOT:totalOT,totalOTS:totalOTS,otAt1:otAt1,otAt15:otAt15,otAt2:otAt2,salForP:salForP,salAb:salAb,salForPL:salForPL,salOT1:salOT1,salOT15:salOT15,salOT2:salOT2,allowance:allowance,gross:gross,dedPT:dedPT,dedPF:dedPF,dedESI:dedESI,dedAdv:dedAdv,dedTDS:dedTDS,dedOther:dedOther,dedTotal:dedTotal,net:net,totalPL:totalPL,advOB:advOB,advCB:advCB,iot:(!isStaff&&totalA>_otR.iotAbsentThreshold?(totalA-_otR.iotAbsentThreshold)*_otR.iotHoursPerDay:0)};
@@ -17750,15 +17877,18 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     // Deductions
     h+='<td style="'+_tdr+'background:#f1f5f9">'+_r(dedPT)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(dedPF)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(dedESI)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(dedAdv)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(dedTDS)+'</td><td style="'+_tdr+'background:#f1f5f9">'+_r(dedOther)+'</td><td style="'+_tdr+'background:#f1f5f9;font-weight:700">'+_r(dedTotal)+'</td>';
     // Net
-    h+='<td style="'+_tdr+'background:#dcfce7;font-weight:900;font-size:14px;color:#15803d">'+_r(net)+'</td>';
+    h+='<td style="'+_tdr+'background:#dcfce7;font-weight:900;font-size:14px;color:#15803d;padding-right:24px">'+_r(net)+'</td>';
     h+='</tr>';
   });
-  // Totals row — sticky at bottom via tfoot
-  var _r2=function(v){return Math.round(v).toLocaleString();};
+  // Totals row — sticky at bottom via tfoot. Taller (~50% more
+  // vertical breathing room) and darker borders so adjacent column
+  // numbers don't visually run together.
+  var _r2=function(v){return Math.round(v).toLocaleString('en-IN');};
   var _stk='position:sticky;bottom:0;z-index:1;background:#e2e8f0';
-  var _tf='padding:2px 3px;text-align:right;font-family:var(--mono);border:1px solid #cbd5e1;color:#1e293b;'+_stk;
-  var _tfE='border:1px solid #cbd5e1;'+_stk;
-  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="4" style="padding:4px 6px;border:1px solid #cbd5e1;left:0;z-index:2;'+_stk+'">Total ('+emps.length+')</td><td style="'+_tfE+'"></td><td style="'+_tfE+'"></td>';
+  var _tf='padding:8px 4px;text-align:right;font-family:var(--mono);border:1px solid #94a3b8;color:#1e293b;'+_stk;
+  var _tfE='border:1px solid #94a3b8;'+_stk;
+  var _padRt=';padding-right:24px';// gap after the last column
+  h+='</tbody><tfoot><tr style="font-weight:900"><td colspan="4" style="padding:8px 6px;border:1px solid #94a3b8;left:0;z-index:2;'+_stk+'">Total ('+emps.length+')</td><td style="'+_tfE+'"></td><td style="'+_tfE+'"></td>';
   h+='<td colspan="3" style="'+_tfE+'"></td>';
   h+='<td colspan="5" style="'+_tfE+'"></td>';
   h+='<td colspan="3" style="'+_tfE+'"></td>';
@@ -17767,7 +17897,7 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
   h+='<td style="'+_tf+'">'+_r2(totals.allow)+'</td><td style="'+_tf+';font-weight:900;color:#15803d">'+_r2(totals.gross)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.advOB)+'</td><td style="'+_tf+'">'+_r2(totals.advMonth)+'</td><td style="'+_tf+'">'+_r2(totals.advTotal)+'</td><td style="'+_tf+'">'+_r2(totals.advDed)+'</td><td style="'+_tf+'">'+_r2(totals.advCB)+'</td>';
   h+='<td style="'+_tf+'">'+_r2(totals.dedPT)+'</td><td style="'+_tf+'">'+_r2(totals.dedPF)+'</td><td style="'+_tf+'">'+_r2(totals.dedESI)+'</td><td style="'+_tf+'">'+_r2(totals.dedAdv)+'</td><td style="'+_tf+'">'+_r2(totals.dedTDS)+'</td><td style="'+_tf+'">'+_r2(totals.dedOther)+'</td><td style="'+_tf+'">'+_r2(totals.dedTotal)+'</td>';
-  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px">'+_r2(totals.net)+'</td></tr></tfoot>';
+  h+='<td style="'+_tf+';font-weight:900;color:#15803d;font-size:14px'+_padRt+'">'+_r2(totals.net)+'</td></tr></tfoot>';
   h+='</table>';
   var emptyMsg=isWorker?'No Worker employees with attendance for this month':'No Staff employees with attendance for this month';
   grid.innerHTML=emps.length?h:'<div class="empty-state">'+emptyMsg+'</div>';
@@ -18386,7 +18516,7 @@ function _hrmsRenderAltGrid(yr,mo){
   // "All" tile — neutral colour, always visible.
   var allActive=!typeFilter;
   var allOutline=allActive?'box-shadow:0 0 0 3px var(--accent);':'';
-  summaryHtml+='<div onclick="_hrmsAltGridSetFilter(\'\')" style="flex:1;min-width:140px;padding:10px 12px;border-radius:8px;cursor:pointer;background:#1e293b;color:#fff;border:1px solid #1e293b;'+allOutline+'" title="Show all types">'+
+  summaryHtml+='<div onclick="_hrmsAltGridSetFilter(\'\')" style="flex:1;min-width:140px;padding:10px 12px;border-radius:8px;cursor:pointer;background:#e2e8f0;color:#1e293b;border:1px solid #cbd5e1;'+allOutline+'" title="Show all types">'+
     '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;opacity:0.85;margin-bottom:4px">All</div>'+
     '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">'+
       '<span style="font-size:22px;font-weight:900;line-height:1">'+rows.length+'</span>'+
