@@ -88,7 +88,7 @@ function _hrmsHasAccess(featureKey){
   // screened before admin opts into Role Settings.
   if(!CU) return false;
   var roles=CU.hrmsRoles||[];
-  if(roles.indexOf('HR Manager')>=0||roles.indexOf('HR Admin')>=0) return true;
+  if(roles.indexOf('HR Manager')>=0) return true;
   if(roles.indexOf('Employee')>=0){
     // Employee role has NO default HRMS access — admin must explicitly
     // grant access via Configure Access. Returning false here means a

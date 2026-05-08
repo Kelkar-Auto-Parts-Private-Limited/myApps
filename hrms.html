@@ -1,22 +1,22 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260508-V5">
-<title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260508-V5">
+<meta name="app-build" content="260508-V6">
+<title>KAP � HRMS</title>
+<link rel="stylesheet" href="css/hrms.css?v=260508-V6">
 </head>
 <body>
 
 <div id="notification" class="notification"></div>
 
 <!-- SPLASH -->
-<div id="dbSplash"><div class="spinner"></div><div id="splashMsg" style="font-size:13px;color:var(--text3)">Connecting…</div></div>
+<div id="dbSplash"><div class="spinner"></div><div id="splashMsg" style="font-size:13px;color:var(--text3)">Connecting�</div></div>
 
 <!-- TOPBAR -->
 <div class="topbar" id="topbar" style="display:none">
-  <button class="ham" onclick="_hrmsToggleSidebar()">☰</button>
+  <button class="ham" onclick="_hrmsToggleSidebar()">?</button>
   <div class="title" id="topbarTitle">HRMS</div>
   <div class="user-info"><span id="hrmsUserName"></span></div>
 </div>
@@ -24,44 +24,44 @@
 <!-- SIDEBAR -->
 <div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('show')"></div>
 <div class="sidebar">
-  <div class="sidebar-logo"><h2>👥 HRMS</h2></div>
+  <div class="sidebar-logo"><h2>?? HRMS</h2></div>
   <!-- My Apps -->
-  <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
+  <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">?? My Apps</div>
   <div class="nav-section">HRMS</div>
-  <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
-  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
-  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
-  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance &amp; Approvals</div>
-  <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
-  <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
+  <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">?? Dashboard</div>
+  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">?? Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
+  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">?? Attendance & Salary</div>
+  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">?? My Attendance &amp; Approvals</div>
+  <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">?? Attendance Rules</div>
+  <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">?? Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">?</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
-    <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')" style="font-size:12px;padding:7px 16px">🌳 HR Organisation Structure</div>
-    <div class="nav-item" id="navMCompany" onclick="hrmsGo('pageHrmsMCompany')" style="font-size:12px;padding:7px 16px">🏭 Plant</div>
-    <div class="nav-item" id="navMCategory" onclick="hrmsGo('pageHrmsMCategory')" style="font-size:12px;padding:7px 16px">🏷 Category</div>
-    <div class="nav-item" id="navMEmpType" onclick="hrmsGo('pageHrmsMEmpType')" style="font-size:12px;padding:7px 16px">📋 Employment Type</div>
-    <div class="nav-item" id="navMTeam" onclick="hrmsGo('pageHrmsMTeam')" style="font-size:12px;padding:7px 16px">👥 Team</div>
-    <div class="nav-item" id="navMDept" onclick="hrmsGo('pageHrmsMDept')" style="font-size:12px;padding:7px 16px;white-space:nowrap">🏛 Departments (Worker)</div>
-    <div class="nav-item" id="navMSubDept" onclick="hrmsGo('pageHrmsMSubDept')" style="font-size:12px;padding:7px 16px;white-space:nowrap">📁 Departments (Staff)</div>
-    <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">🎖 Designation</div>
-    <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">🪪 Role</div>
-    <div class="nav-item" id="navMAllocation" onclick="hrmsGo('pageHrmsMAllocation')" style="font-size:12px;padding:7px 16px">🎯 Allocation</div>
+    <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')" style="font-size:12px;padding:7px 16px">?? HR Organisation Structure</div>
+    <div class="nav-item" id="navMCompany" onclick="hrmsGo('pageHrmsMCompany')" style="font-size:12px;padding:7px 16px">?? Plant</div>
+    <div class="nav-item" id="navMCategory" onclick="hrmsGo('pageHrmsMCategory')" style="font-size:12px;padding:7px 16px">?? Category</div>
+    <div class="nav-item" id="navMEmpType" onclick="hrmsGo('pageHrmsMEmpType')" style="font-size:12px;padding:7px 16px">?? Employment Type</div>
+    <div class="nav-item" id="navMTeam" onclick="hrmsGo('pageHrmsMTeam')" style="font-size:12px;padding:7px 16px">?? Team</div>
+    <div class="nav-item" id="navMDept" onclick="hrmsGo('pageHrmsMDept')" style="font-size:12px;padding:7px 16px;white-space:nowrap">?? Departments (Worker)</div>
+    <div class="nav-item" id="navMSubDept" onclick="hrmsGo('pageHrmsMSubDept')" style="font-size:12px;padding:7px 16px;white-space:nowrap">?? Departments (Staff)</div>
+    <div class="nav-item" id="navMDesig" onclick="hrmsGo('pageHrmsMDesig')" style="font-size:12px;padding:7px 16px">?? Designation</div>
+    <div class="nav-item" id="navMRoll" onclick="hrmsGo('pageHrmsMRoll')" style="font-size:12px;padding:7px 16px">?? Role</div>
+    <div class="nav-item" id="navMAllocation" onclick="hrmsGo('pageHrmsMAllocation')" style="font-size:12px;padding:7px 16px">?? Allocation</div>
   </div>
-  <div class="nav-item" onclick="_hrmsToggleUtilities()" style="cursor:pointer">🛠 Utilities <span id="hrmsUtilsArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
+  <div class="nav-item" onclick="_hrmsToggleUtilities()" style="cursor:pointer">?? Utilities <span id="hrmsUtilsArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">?</span></div>
   <div id="hrmsUtilsGroup" style="display:none;padding-left:12px">
-    <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
-    <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
-    <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
+    <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">?? Attendance Excel Converter</div>
+    <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">?? Daily Attendance Summary</div>
+    <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">?? Monthly Headcount Graph</div>
   </div>
-  <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
+  <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">?? Refresh Data</div>
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div class="nav-section" style="padding:4px 10px 6px">CONNECTION</div>
     <div id="hrmsConnWidget" style="margin:0 0 6px;padding:8px 12px;border-radius:8px;background:#f1f5f9;border:1.5px solid #475569;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="if(typeof _testDbConn==='function')_testDbConn()">
       <div id="hrmsConnDot" style="width:10px;height:10px;border-radius:50%;background:#d1d5db;flex-shrink:0"></div>
-      <span id="hrmsConnLabel" style="font-size:12px;font-weight:600;color:#475569">Connecting…</span>
+      <span id="hrmsConnLabel" style="font-size:12px;font-weight:600;color:#475569">Connecting�</span>
     </div>
     <div onclick="hrmsLogout()" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;font-size:12px;font-weight:600;color:#94a3b8;cursor:pointer" onmouseenter="this.style.background='rgba(239,68,68,.07)';this.style.color='#dc2626'" onmouseleave="this.style.background='transparent';this.style.color='#94a3b8'">
-      <span style="font-size:15px">🚪</span><span>Sign Out</span>
+      <span style="font-size:15px">??</span><span>Sign Out</span>
     </div>
   </div>
 </div>
@@ -72,8 +72,8 @@
 
   <!-- DASHBOARD -->
   <div class="page active" id="pageHrmsDashboard">
-    <div class="card"><div style="font-size:18px;font-weight:900;margin-bottom:12px">📊 HRMS Dashboard</div>
-      <div id="hrmsDashContent"><div class="empty-state">Loading…</div></div>
+    <div class="card"><div style="font-size:18px;font-weight:900;margin-bottom:12px">?? HRMS Dashboard</div>
+      <div id="hrmsDashContent"><div class="empty-state">Loading�</div></div>
     </div>
   </div>
 
@@ -81,8 +81,8 @@
   <div class="page" id="pageHrmsEmployees">
     <!-- Tabs -->
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button id="hrmsEmpTabList" onclick="_hrmsEmpSetTab('list')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">👤 Employees</button>
-      <button id="hrmsEmpTabEcr" onclick="_hrmsEmpSetTab('ecr')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 Change Requests <span id="cChangeReqTab" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;display:none">0</span></button>
+      <button id="hrmsEmpTabList" onclick="_hrmsEmpSetTab('list')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">?? Employees</button>
+      <button id="hrmsEmpTabEcr" onclick="_hrmsEmpSetTab('ecr')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">?? Change Requests <span id="cChangeReqTab" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;display:none">0</span></button>
     </div>
     <!-- Employee List Tab -->
     <div id="hrmsEmpListSection">
@@ -95,10 +95,10 @@
         <button onclick="_hrmsEmpTypeFilter('Visitor')" id="hrmsEtfVisitor" style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor <span id="hrmsEtfCount_Visitor" style="font-weight:800">0</span></button>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">👤 Employees <span id="hrmsEmpCount" style="font-size:13px;font-weight:700;color:var(--text3)"></span></div>
+        <div style="font-size:18px;font-weight:900">?? Employees <span id="hrmsEmpCount" style="font-size:13px;font-weight:700;color:var(--text3)"></span></div>
         <div style="display:flex;gap:8px;align-items:center">
-          <label id="btnImportEmployees" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this)" style="display:none"></label>
-          <button id="btnExportEmployees" class="btn btn-secondary" onclick="_hrmsExportEmployees()" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <label id="btnImportEmployees" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this)" style="display:none"></label>
+          <button id="btnExportEmployees" class="btn btn-secondary" onclick="_hrmsExportEmployees()" style="font-size:12px;padding:7px 12px">?? Export</button>
           <button id="btnAddEmployee" class="btn btn-primary" onclick="_hrmsOpenEmpPage()">+ Add Employee</button>
         </div>
       </div>
@@ -109,9 +109,9 @@
         </colgroup>
         <thead>
         <tr style="background:#fff">
-          <th style="padding:3px 2px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all search boxes / filters" style="font-size:13px;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:900;line-height:1">✕</button></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" class="hrms-search-inline" placeholder="🔍" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
-          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" class="hrms-search-inline" placeholder="🔍 Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
+          <th style="padding:3px 2px;border-bottom:2px solid var(--border);text-align:center"><button onclick="_hrmsEmpClearFilters()" title="Clear all search boxes / filters" style="font-size:13px;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:900;line-height:1">?</button></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpCodeSearch" class="hrms-search-inline" placeholder="??" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><input type="search" id="hrmsEmpNameSearch" class="hrms-search-inline" placeholder="?? Name" oninput="renderHrmsEmployees()" onsearch="renderHrmsEmployees()"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFPlant" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
@@ -125,17 +125,17 @@
         </tr>
         <tr style="background:#f1f5f9">
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)">#</th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 6px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('empCode')">Code <span id="hrmsEmpSortI_empCode" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 6px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('name')">Name <span id="hrmsEmpSortI_name" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('gender')">Gender <span id="hrmsEmpSortI_gender" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('dateOfJoining')">DOJ <span id="hrmsEmpSortI_dateOfJoining" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('location')">Plant <span id="hrmsEmpSortI_location" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('employmentType')">Type <span id="hrmsEmpSortI_employmentType" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('teamName')">Team <span id="hrmsEmpSortI_teamName" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('department')">Department <span id="hrmsEmpSortI_department" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Role <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
-          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">⇅</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 6px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('empCode')">Code <span id="hrmsEmpSortI_empCode" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 6px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('name')">Name <span id="hrmsEmpSortI_name" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('gender')">Gender <span id="hrmsEmpSortI_gender" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('dateOfJoining')">DOJ <span id="hrmsEmpSortI_dateOfJoining" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('location')">Plant <span id="hrmsEmpSortI_location" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('employmentType')">Type <span id="hrmsEmpSortI_employmentType" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('teamName')">Team <span id="hrmsEmpSortI_teamName" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('department')">Department <span id="hrmsEmpSortI_department" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Role <span id="hrmsEmpSortI_roll" style="font-size:9px">?</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">?</span></th>
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)">Actions</th>
         </tr>
         </thead><tbody id="hrmsEmpBody"></tbody></table>
@@ -145,7 +145,7 @@
     <!-- ECR Tab -->
     <div id="hrmsEmpEcrSection" style="display:none">
     <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius)">
-      <div style="font-size:18px;font-weight:900;margin-bottom:12px">📋 Employee Change Requests</div>
+      <div style="font-size:18px;font-weight:900;margin-bottom:12px">?? Employee Change Requests</div>
       <div id="hrmsChangeReqContent"></div>
     </div>
     </div>
@@ -156,28 +156,28 @@
     <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <!-- Sub-tabs: My Attendance (default) + My Approvals (non-SA only) +
            C-Off Bank (Super Admin only). My Approvals here is per-user
-           and chain-based — distinct from the central Settings → My
+           and chain-based � distinct from the central Settings ? My
            Approvals which is the org-wide queue. -->
       <div id="hrmsMyAttTabBar" style="display:flex;gap:6px;border-bottom:2px solid var(--border);margin-bottom:8px">
-        <button id="hrmsMyAttTabBtnAtt" type="button" onclick="_hrmsMyAttSetTab('att')" style="padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid var(--accent);color:var(--accent);cursor:pointer;margin-bottom:-2px">🗓 My Attendance</button>
-        <button id="hrmsMyAttTabBtnAppr" type="button" onclick="_hrmsMyAttSetTab('appr')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">✅ My Approvals <span id="hrmsMyAttApprBadge" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:4px">0</span></button>
-        <button id="hrmsMyAttTabBtnBank" type="button" onclick="_hrmsMyAttSetTab('bank')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">🏦 C-Off Bank (All Employees)</button>
+        <button id="hrmsMyAttTabBtnAtt" type="button" onclick="_hrmsMyAttSetTab('att')" style="padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid var(--accent);color:var(--accent);cursor:pointer;margin-bottom:-2px">?? My Attendance</button>
+        <button id="hrmsMyAttTabBtnAppr" type="button" onclick="_hrmsMyAttSetTab('appr')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">? My Approvals <span id="hrmsMyAttApprBadge" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:4px">0</span></button>
+        <button id="hrmsMyAttTabBtnBank" type="button" onclick="_hrmsMyAttSetTab('bank')" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:none;border:none;border-bottom:3px solid transparent;color:var(--text3);cursor:pointer;margin-bottom:-2px">?? C-Off Bank (All Employees)</button>
       </div>
       <!-- Default attendance view -->
       <div id="hrmsMyAttPaneAtt" style="flex:1;display:flex;flex-direction:column;min-height:0">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div style="font-size:18px;font-weight:900">🗓 My Attendance</div>
+          <div style="font-size:18px;font-weight:900">?? My Attendance</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
               <span style="font-size:12px;font-weight:700;color:var(--text2)">Employee:</span>
-              <input type="search" id="hrmsMyAttEmpSearch" class="hrms-search" placeholder="🔍 Code or Name…" oninput="_hrmsMyAttFilterEmp()" onfocus="_hrmsMyAttShowEmpDropdown()" autocomplete="off" style="width:240px">
+              <input type="search" id="hrmsMyAttEmpSearch" class="hrms-search" placeholder="?? Code or Name�" oninput="_hrmsMyAttFilterEmp()" onfocus="_hrmsMyAttShowEmpDropdown()" autocomplete="off" style="width:240px">
               <input type="hidden" id="hrmsMyAttEmpId">
             </span>
             <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
               <span style="font-size:12px;font-weight:700;color:var(--text2)">Year:</span>
               <select id="hrmsMyAttYear" onchange="_hrmsMyAttRender()" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px"></select>
             </span>
-            <button id="hrmsMyAttRefreshBtn" onclick="_hrmsMyAttRefresh()" title="Reload attendance & alterations from the database" style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer">↻ Refresh</button>
+            <button id="hrmsMyAttRefreshBtn" onclick="_hrmsMyAttRefresh()" title="Reload attendance & alterations from the database" style="font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer">? Refresh</button>
           </div>
         </div>
         <div id="hrmsMyAttEmpDropdown" style="position:absolute;display:none;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow:auto;width:280px;z-index:10"></div>
@@ -189,11 +189,11 @@
            items they've already acted on). -->
       <div id="hrmsMyAttPaneAppr" style="display:none;flex:1;flex-direction:column;min-height:0">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <div style="font-size:18px;font-weight:900">✅ My Approvals</div>
+          <div style="font-size:18px;font-weight:900">? My Approvals</div>
           <div style="font-size:11px;color:var(--text3)">Approvals routed to you via the HR org-structure chain. Revoke is allowed only on unlocked months.</div>
           <div style="flex:1"></div>
           <span id="hrmsMyAttApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
-          <button class="hrms-allow-locked" onclick="_hrmsMyAttApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
+          <button class="hrms-allow-locked" onclick="_hrmsMyAttApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">?? Export All</button>
         </div>
         <div id="hrmsMyAttApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
         <div id="hrmsMyAttApprPanel" style="flex:1;min-height:0;overflow:auto"></div>
@@ -208,7 +208,7 @@
     <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div style="font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px">
-          🌳 HR Organisation Structure
+          ?? HR Organisation Structure
         </div>
       </div>
       <div id="hrmsOrgSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
@@ -219,7 +219,7 @@
   <!-- ATTENDANCE RULES -->
   <div class="page" id="pageHrmsAttRules">
     <div class="card">
-      <div style="font-size:18px;font-weight:900;margin-bottom:16px">📏 Attendance Rules</div>
+      <div style="font-size:18px;font-weight:900;margin-bottom:16px">?? Attendance Rules</div>
 
       <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Day Types</div>
       <table style="width:auto;margin-bottom:20px"><thead><tr><th>Badge</th><th>Type</th><th>Description</th></tr></thead><tbody>
@@ -230,17 +230,17 @@
 
       <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Present / Absent Logic (Working Days)</div>
       <table style="width:auto;margin-bottom:20px"><thead><tr><th>Hours Inside</th><th>Status</th><th>Total P Count</th></tr></thead><tbody>
-        <tr><td><b>≥ 8 hrs 15 min</b> (8.25 hrs)</td><td><span style="color:#16a34a;font-weight:800">P</span> (Present)</td><td>1</td></tr>
-        <tr><td><b>≥ 6 hrs 30 min</b> and < 8 hrs 15 min<br><span style="font-size:11px;color:#2563eb">(Staff category only, max 2/month)</span></td><td><span style="color:#2563eb;font-weight:800">EL</span> (Early Leave)</td><td>1 (counted as present)</td></tr>
-        <tr><td><b>≥ 4 hrs</b> and < 8 hrs 15 min</td><td><span style="color:#f59e0b;font-weight:800">P/2</span> (Half Day)</td><td>0.5</td></tr>
+        <tr><td><b>= 8 hrs 15 min</b> (8.25 hrs)</td><td><span style="color:#16a34a;font-weight:800">P</span> (Present)</td><td>1</td></tr>
+        <tr><td><b>= 6 hrs 30 min</b> and < 8 hrs 15 min<br><span style="font-size:11px;color:#2563eb">(Staff category only, max 2/month)</span></td><td><span style="color:#2563eb;font-weight:800">EL</span> (Early Leave)</td><td>1 (counted as present)</td></tr>
+        <tr><td><b>= 4 hrs</b> and < 8 hrs 15 min</td><td><span style="color:#f59e0b;font-weight:800">P/2</span> (Half Day)</td><td>0.5</td></tr>
         <tr><td><b>< 4 hrs</b> or no record</td><td><span style="color:#dc2626;font-weight:800">A</span> (Absent)</td><td>0</td></tr>
       </tbody></table>
 
       <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Holiday / Off Days</div>
       <table style="width:auto;margin-bottom:20px"><thead><tr><th>Condition</th><th>Result</th></tr></thead><tbody>
-        <tr><td>No time recorded on <b>Holiday (H)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">H</span> — not counted in Total P</td></tr>
-        <tr><td>No time recorded on <b>Paid Holiday (P)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">P</span> — not counted in Total P</td></tr>
-        <tr><td>Time recorded on any off day</td><td><span style="color:#16a34a;font-weight:800">P</span> — NOT counted in Total P, hours go to OT @S</td></tr>
+        <tr><td>No time recorded on <b>Holiday (H)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">H</span> � not counted in Total P</td></tr>
+        <tr><td>No time recorded on <b>Paid Holiday (P)</b></td><td>Shows <span style="color:#94a3b8;font-weight:700">P</span> � not counted in Total P</td></tr>
+        <tr><td>Time recorded on any off day</td><td><span style="color:#16a34a;font-weight:800">P</span> � NOT counted in Total P, hours go to OT @S</td></tr>
       </tbody></table>
 
       <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Early Leave (EL) Rules</div>
@@ -261,14 +261,14 @@
       <div style="font-size:13px;font-weight:800;margin:10px 0 6px">Working Day OT Formula (non-Staff)</div>
       <table style="width:auto;margin-bottom:20px"><thead><tr><th>Condition</th><th>OT Hours</th></tr></thead><tbody>
         <tr><td>Inside <b>< 8.5 hrs</b></td><td>0 (no OT)</td></tr>
-        <tr><td>Inside <b>≥ 8.5 hrs</b> and <b>≤ 14 hrs</b></td><td>Out − In − <b>8.5 hrs</b></td></tr>
-        <tr><td>Inside <b>> 14 hrs</b></td><td>Out − In − <b>9 hrs</b></td></tr>
+        <tr><td>Inside <b>= 8.5 hrs</b> and <b>= 14 hrs</b></td><td>Out - In - <b>8.5 hrs</b></td></tr>
+        <tr><td>Inside <b>> 14 hrs</b></td><td>Out - In - <b>9 hrs</b></td></tr>
         <tr><td>Max per day</td><td><b>7 hrs</b> (capped)</td></tr>
       </tbody></table>
       <div style="font-size:13px;font-weight:800;margin:10px 0 6px">Holiday OT @S Formula (non-Staff)</div>
       <table style="width:auto;margin-bottom:10px"><thead><tr><th>Step</th><th>Rule</th></tr></thead><tbody>
         <tr><td>1. Start</td><td>OT = total worked hours on H or P day</td></tr>
-        <tr><td>2. Lunch deduction</td><td>If OT > 4 hrs but ≤ 13 hrs → deduct <b>0.5 hr</b><br>If OT > 13 hrs → deduct <b>1 hr</b></td></tr>
+        <tr><td>2. Lunch deduction</td><td>If OT > 4 hrs but = 13 hrs ? deduct <b>0.5 hr</b><br>If OT > 13 hrs ? deduct <b>1 hr</b></td></tr>
         <tr><td>3. Cap</td><td>Max <b>15 hrs</b> per day</td></tr>
       </tbody></table>
 
@@ -279,20 +279,20 @@
         <div>
           <div style="font-size:13px;font-weight:800;margin-bottom:6px;color:#1d4ed8">IN Time Rounding</div>
           <table style="width:100%"><thead><tr><th>Actual Range</th><th>Rounded To</th></tr></thead><tbody>
-            <tr><td>07:40 — 08:10</td><td style="font-weight:800">08:00</td></tr>
-            <tr><td>08:40 — 09:10</td><td style="font-weight:800">09:00</td></tr>
-            <tr><td>18:40 — 19:10</td><td style="font-weight:800">19:00</td></tr>
+            <tr><td>07:40 � 08:10</td><td style="font-weight:800">08:00</td></tr>
+            <tr><td>08:40 � 09:10</td><td style="font-weight:800">09:00</td></tr>
+            <tr><td>18:40 � 19:10</td><td style="font-weight:800">19:00</td></tr>
             <tr><td>All other times</td><td style="font-weight:800">Nearest 15 min</td></tr>
           </tbody></table>
         </div>
         <div>
           <div style="font-size:13px;font-weight:800;margin-bottom:6px;color:#dc2626">OUT Time Rounding</div>
           <table style="width:100%"><thead><tr><th>Actual Range</th><th>Rounded To</th></tr></thead><tbody>
-            <tr><td>06:00 — 06:20</td><td style="font-weight:800">06:00</td></tr>
-            <tr><td>08:00 — 08:20</td><td style="font-weight:800">08:00</td></tr>
-            <tr><td>16:30 — 16:50</td><td style="font-weight:800">16:30</td></tr>
-            <tr><td>18:00 — 18:20</td><td style="font-weight:800">18:00</td></tr>
-            <tr><td>19:00 — 19:20</td><td style="font-weight:800">19:00</td></tr>
+            <tr><td>06:00 � 06:20</td><td style="font-weight:800">06:00</td></tr>
+            <tr><td>08:00 � 08:20</td><td style="font-weight:800">08:00</td></tr>
+            <tr><td>16:30 � 16:50</td><td style="font-weight:800">16:30</td></tr>
+            <tr><td>18:00 � 18:20</td><td style="font-weight:800">18:00</td></tr>
+            <tr><td>19:00 � 19:20</td><td style="font-weight:800">19:00</td></tr>
             <tr><td>All other times</td><td style="font-weight:800">Nearest 15 min</td></tr>
           </tbody></table>
         </div>
@@ -321,12 +321,12 @@
   <div class="page" id="pageHrmsUtilAttConv" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">📗 Attendance Excel Converter</div>
+        <div style="font-size:18px;font-weight:900">?? Attendance Excel Converter</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsAttConvUpload(this)" style="display:none"></label>
-          <button id="hrmsAttConvImpBtn" onclick="_hrmsAttConvImportToEssl()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#2a9aa0;color:#fff;border:none;border-radius:6px;cursor:pointer">📥 Import / Update ESSL Data (Current Month)</button>
-          <button id="hrmsAttConvDlBtn" onclick="_hrmsAttConvDownload()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Download Consolidated XLSX</button>
-          <button id="hrmsAttConvClearBtn" onclick="_hrmsAttConvClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">?? Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsAttConvUpload(this)" style="display:none"></label>
+          <button id="hrmsAttConvImpBtn" onclick="_hrmsAttConvImportToEssl()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#2a9aa0;color:#fff;border:none;border-radius:6px;cursor:pointer">?? Import / Update ESSL Data (Current Month)</button>
+          <button id="hrmsAttConvDlBtn" onclick="_hrmsAttConvDownload()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">?? Download Consolidated XLSX</button>
+          <button id="hrmsAttConvClearBtn" onclick="_hrmsAttConvClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">? Clear</button>
         </div>
       </div>
       <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
@@ -343,22 +343,22 @@
   <div class="page" id="pageHrmsUtilDailyAtt" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">📊 Daily Attendance Summary</div>
+        <div style="font-size:18px;font-weight:900">?? Daily Attendance Summary</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsDasUpload(this)" style="display:none"></label>
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">?? Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsDasUpload(this)" style="display:none"></label>
           <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
-            <span style="font-size:12px;font-weight:700;color:var(--text2)">📅 From history:</span>
+            <span style="font-size:12px;font-weight:700;color:var(--text2)">?? From history:</span>
             <input type="date" id="hrmsDasHistDate" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans)">
             <button onclick="_hrmsDasLoadFromHistory()" style="padding:5px 12px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer">Load</button>
           </span>
-          <button id="hrmsDasExportBtn" onclick="_hrmsDasExport()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Export Summary</button>
-          <button id="hrmsDasClearBtn" onclick="_hrmsDasClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+          <button id="hrmsDasExportBtn" onclick="_hrmsDasExport()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">?? Export Summary</button>
+          <button id="hrmsDasClearBtn" onclick="_hrmsDasClear()" style="display:none;padding:8px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">? Clear</button>
         </div>
       </div>
       <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
         Two ways to generate the summary:<br>
-        <b>1. Upload Excel</b> — raw biometric file with <b>Column B = Date &amp; Time</b>, <b>Column C = In/Out</b>, <b>Column D = Emp Code</b>. Only <b>IN</b> records count; each employee's latest IN timestamp is used.<br>
-        <b>2. Pick a date from history</b> — uses the attendance data already imported into the system for that month. Head count is grouped with departments in rows and plants in columns.
+        <b>1. Upload Excel</b> � raw biometric file with <b>Column B = Date &amp; Time</b>, <b>Column C = In/Out</b>, <b>Column D = Emp Code</b>. Only <b>IN</b> records count; each employee's latest IN timestamp is used.<br>
+        <b>2. Pick a date from history</b> � uses the attendance data already imported into the system for that month. Head count is grouped with departments in rows and plants in columns.
       </div>
       <div id="hrmsDasSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
       <div id="hrmsDasBody" style="flex:1;min-height:0;display:flex;flex-direction:column"></div>
@@ -369,10 +369,10 @@
   <div class="page" id="pageHrmsUtilMonthlyHc" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">📈 Monthly Headcount Graph</div>
+        <div style="font-size:18px;font-weight:900">?? Monthly Headcount Graph</div>
         <div style="display:flex;gap:8px;align-items:center">
           <span style="font-size:12px;font-weight:700;color:var(--text2)">Month:</span>
-          <select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>
+          <select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading�</option></select>
         </div>
       </div>
       <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
@@ -386,27 +386,27 @@
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <button id="btnSelMonth" class="hrms-allow-locked" onclick="_hrmsPickMonth()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">📅 Select Month</button>
-      <button id="btnAddMonth" class="hrms-allow-locked" onclick="_hrmsAddMonthOpen()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--success,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer">➕ Add Month</button>
+      <button id="btnSelMonth" class="hrms-allow-locked" onclick="_hrmsPickMonth()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">?? Select Month</button>
+      <button id="btnAddMonth" class="hrms-allow-locked" onclick="_hrmsAddMonthOpen()" style="padding:8px 16px;font-size:13px;font-weight:800;background:var(--success,#16a34a);color:#fff;border:none;border-radius:6px;cursor:pointer">? Add Month</button>
       <span id="hrmsMonthLabel" style="display:none"></span>
       <div style="flex:1"></div>
-      <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔒 Lock Month</button>
-      <button onclick="_hrmsRecalculateMonth()" id="btnRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Re-run salary calculation against current attendance / alterations / overrides; shows what will change vs the saved snapshot.">🔄 Recalculate</button>
-      <button onclick="_hrmsSaveAfterRecalc()" id="btnSaveRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Replace the saved snapshot with the recalculated values, then re-lock the month.">💾 Save &amp; Lock</button>
-      <button onclick="_hrmsCancelRecalc()" id="btnCancelRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Discard any recalculation and restore the previously saved snapshot, then re-lock the month.">✕ Cancel</button>
-      <button onclick="_hrmsToggleMonthLock()" id="btnUnlock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">🔓 Unlock Month</button>
+      <button onclick="_hrmsSaveAndLock()" id="btnSaveLock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">?? Lock Month</button>
+      <button onclick="_hrmsRecalculateMonth()" id="btnRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Re-run salary calculation against current attendance / alterations / overrides; shows what will change vs the saved snapshot.">?? Recalculate</button>
+      <button onclick="_hrmsSaveAfterRecalc()" id="btnSaveRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Replace the saved snapshot with the recalculated values, then re-lock the month.">?? Save &amp; Lock</button>
+      <button onclick="_hrmsCancelRecalc()" id="btnCancelRecalc" style="padding:8px 14px;font-size:13px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none" title="Discard any recalculation and restore the previously saved snapshot, then re-lock the month.">? Cancel</button>
+      <button onclick="_hrmsToggleMonthLock()" id="btnUnlock" style="padding:8px 16px;font-size:13px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;display:none">?? Unlock Month</button>
     </div>
     <div id="hrmsLockBanner" style="display:none"></div>
     <div id="hrmsRecalcDiff" style="display:none;margin:8px 0;padding:10px 12px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px"></div>
     <!-- 3 Main Tabs: Settings | Attendance | Salary -->
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button class="hrms-main-tab active" onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings">⚙️ Settings &amp; Data</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance">📅 Attendance</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary">💰 OR Salary</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments">🏦 OR Sal Payments</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf">📋 OR ESI/PF List</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt">🧾 OR PT Summary</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none">📋 Contract Salary</button>
+      <button class="hrms-main-tab active" onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings">?? Settings &amp; Data</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance">?? Attendance</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary">?? OR Salary</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments">?? OR Sal Payments</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf">?? OR ESI/PF List</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt">?? OR PT Summary</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none">?? Contract Salary</button>
     </div>
 
     <!-- === SETTINGS TAB === -->
@@ -434,33 +434,33 @@
       <div id="hrmsSetPanelEsslatt" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;flex-wrap:wrap">
           <div>
-            <div style="font-size:14px;font-weight:900;color:var(--text)">📥 Import / Update ESSL Attendance</div>
+            <div style="font-size:14px;font-weight:900;color:var(--text)">?? Import / Update ESSL Attendance</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px">Upload ESSL punch data for the selected month. Only one month at a time.</div>
           </div>
           <div style="flex:1"></div>
-          <label class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0;font-weight:800">📥 Import/Update<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAttendance(this)" style="display:none"></label>
-          <button onclick="_hrmsWipeMonthAttendance()" style="font-size:12px;padding:8px 14px;font-weight:800;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🗑 Clear All Attendance for Month</button>
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0;font-weight:800">?? Import/Update<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAttendance(this)" style="display:none"></label>
+          <button onclick="_hrmsWipeMonthAttendance()" style="font-size:12px;padding:8px 14px;font-weight:800;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">?? Clear All Attendance for Month</button>
         </div>
         <div style="padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.6">
-          <b>Excel columns:</b> <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Employee Name</code> (optional) · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Date</code> (DD/MM/YYYY or YYYY-MM-DD) · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time IN</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time Out</code><br>
-          <b>Notes:</b> All rows must be for the same month · Existing data can be replaced on import · Times can be HH:MM or Excel time decimals.
+          <b>Excel columns:</b> <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Employee Name</code> (optional) � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Date</code> (DD/MM/YYYY or YYYY-MM-DD) � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time IN</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Time Out</code><br>
+          <b>Notes:</b> All rows must be for the same month � Existing data can be replaced on import � Times can be HH:MM or Excel time decimals.
         </div>
         <div id="hrmsEsslImportLog"></div>
       </div>
 
-      <!-- Sub-tab: My Approvals — single unified table with type-counter
+      <!-- Sub-tab: My Approvals � single unified table with type-counter
            tiles at the top. Click any tile to filter the table; click
            "All" to clear the filter. Search row + Export All sit above
            the filter strip. -->
       <div id="hrmsSetPanelMyapprovals" style="display:none">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <div style="position:relative">
-            <input type="search" class="hrms-allow-locked hrms-search" id="hrmsApprSearch" oninput="_hrmsApprSearchChange(this.value)" placeholder="🔍 Emp Code / Name" autocomplete="off" style="width:240px">
+            <input type="search" class="hrms-allow-locked hrms-search" id="hrmsApprSearch" oninput="_hrmsApprSearchChange(this.value)" placeholder="?? Emp Code / Name" autocomplete="off" style="width:240px">
           </div>
-          <button class="hrms-allow-locked" onclick="_hrmsApprSearchClear()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+          <button class="hrms-allow-locked" onclick="_hrmsApprSearchClear()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">? Clear</button>
           <div style="flex:1"></div>
           <span id="hrmsApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
-          <button class="hrms-allow-locked" onclick="_hrmsApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
+          <button class="hrms-allow-locked" onclick="_hrmsApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">?? Export All</button>
         </div>
         <div id="hrmsApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
         <div id="hrmsApprPanelUnified"></div>
@@ -474,25 +474,25 @@
         <div id="hrmsApprPanelOrgsal" style="display:none"></div>
       </div>
 
-      <!-- Standalone Alteration sub-tab removed — its contents are now
+      <!-- Standalone Alteration sub-tab removed � its contents are now
            merged into the "Alteration & Overrides" panel below. The empty
            anchor here keeps any code that probed for the panel id happy. -->
       <div id="hrmsSetPanelAltimport" style="display:none"></div>
 
       <!-- Sub-tab: Salary Revision (On-Roll employees only) -->
       <div id="hrmsSetPanelSalrevision" style="display:none">
-        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Salary Revision (On Roll)</div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">?? Import Salary Revision (On Roll)</div>
         <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
           Applies only to <b>On-Roll</b> employees. Each approved row creates a new revision effective from the given month; every other period field is copied forward.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
-          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('onroll',this)" style="display:none"></label>
+          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">?? Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('onroll',this)" style="display:none"></label>
           <span id="hrmsSalImpSummary_onroll" style="font-size:11px;color:var(--text3)"></span>
           <span style="flex:1"></span>
-          <button id="hrmsSalImpApproveSelBtn_onroll" onclick="_hrmsSalImpApprove('onroll',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
-          <button id="hrmsSalImpApproveAllBtn_onroll" onclick="_hrmsSalImpApprove('onroll',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
-          <button id="hrmsSalImpCancelBtn_onroll" onclick="_hrmsSalImpCancel('onroll')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+          <button id="hrmsSalImpApproveSelBtn_onroll" onclick="_hrmsSalImpApprove('onroll',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">? Approve Selected</button>
+          <button id="hrmsSalImpApproveAllBtn_onroll" onclick="_hrmsSalImpApprove('onroll',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">? Approve All</button>
+          <button id="hrmsSalImpCancelBtn_onroll" onclick="_hrmsSalImpCancel('onroll')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">? Clear</button>
         </div>
         <div id="hrmsSalImpPreview_onroll"></div>
       </div>
@@ -501,33 +501,33 @@
       <div id="hrmsSetPanelAlteration" style="display:none">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;flex-wrap:wrap">
           <div>
-            <div style="font-size:14px;font-weight:900;color:var(--text)">📋 Import Alteration</div>
+            <div style="font-size:14px;font-weight:900;color:var(--text)">?? Import Alteration</div>
             <div style="font-size:11px;color:var(--text3);margin-top:2px">Upload manual corrections to attendance punches (with reason) for the selected month.</div>
           </div>
           <div style="flex:1"></div>
-          <label class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0;font-weight:800">📋 Import Alteration<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAlteration(this)" style="display:none"></label>
+          <label class="btn btn-primary" style="font-size:13px;padding:8px 18px;cursor:pointer;margin:0;font-weight:800">?? Import Alteration<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAlteration(this)" style="display:none"></label>
         </div>
         <div style="padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e;line-height:1.6">
-          <b>Excel columns:</b> <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Date</code> · <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Time IN</code> · <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Time Out</code> · <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Reason</code><br>
-          <b>Notes:</b> All rows must be for the currently selected month · Alterations override ESSL attendance during salary calculation.
+          <b>Excel columns:</b> <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Emp Code</code> � <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Date</code> � <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Time IN</code> � <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Time Out</code> � <code style="background:#fde68a;padding:1px 5px;border-radius:3px">Reason</code><br>
+          <b>Notes:</b> All rows must be for the currently selected month � Alterations override ESSL attendance during salary calculation.
         </div>
         <div id="hrmsAltImportLog"></div>
 
-        <!-- ── Manual Add Alteration ── -->
+        <!-- -- Manual Add Alteration -- -->
         <div style="border-top:2px dashed var(--border);margin:18px 0 12px"></div>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <span style="font-size:14px;font-weight:900;color:var(--text)">Add Alteration Manually</span>
-          <span style="font-size:11px;color:var(--text3)">Single-row entry — overrides ESSL punch for that employee on that day.</span>
+          <span style="font-size:11px;color:var(--text3)">Single-row entry � overrides ESSL punch for that employee on that day.</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px;background:var(--surface2);border-radius:8px">
           <div style="position:relative">
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code</label>
-            <input type="text" id="hrmsAltAddCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAltAddOnCode()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAltAddCode');_hrmsAltAddOnCode();},200)" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px">
+            <input type="text" id="hrmsAltAddCode" placeholder="Type code or name�" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAltAddOnCode()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAltAddCode');_hrmsAltAddOnCode();},200)" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px">
             <div id="ac_hrmsAltAddCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
           </div>
           <div style="flex:1;min-width:160px">
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Employee Name</label>
-            <div id="hrmsAltAddName" style="font-size:12px;padding:6px 8px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-height:14px">—</div>
+            <div id="hrmsAltAddName" style="font-size:12px;padding:6px 8px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-height:14px">�</div>
           </div>
           <div>
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Date</label>
@@ -535,7 +535,7 @@
           </div>
           <div>
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Day</label>
-            <div id="hrmsAltAddDay" style="font-size:12px;padding:6px 10px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-width:54px;text-align:center">—</div>
+            <div id="hrmsAltAddDay" style="font-size:12px;padding:6px 10px;border:1.5px dashed var(--border);border-radius:4px;color:var(--text2);background:#f8fafc;min-width:54px;text-align:center">�</div>
           </div>
           <div>
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Time IN</label>
@@ -547,15 +547,15 @@
           </div>
           <div style="flex:1;min-width:160px">
             <label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label>
-            <input type="text" id="hrmsAltAddReason" placeholder="Reason…" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box">
+            <input type="text" id="hrmsAltAddReason" placeholder="Reason�" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:4px;width:100%;box-sizing:border-box">
           </div>
           <button id="hrmsAltAddBtn" onclick="_hrmsAddManualAlteration()" style="padding:6px 16px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add Alteration</button>
           <button id="hrmsAltCancelBtn" onclick="_hrmsAltAddCancel()" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">Cancel</button>
         </div>
-        <!-- ── Manual Alteration list (current month) ── -->
+        <!-- -- Manual Alteration list (current month) -- -->
         <div style="margin-top:14px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <span style="font-size:13px;font-weight:900;color:var(--text)">Alterations — Current Month</span>
+            <span style="font-size:13px;font-weight:900;color:var(--text)">Alterations � Current Month</span>
             <span style="font-size:11px;color:var(--text3)">Manual entries for the selected month</span>
           </div>
           <div id="hrmsAltManualList"></div>
@@ -569,14 +569,14 @@
           <span style="font-size:11px;color:var(--text3)">Override present days, PL, OT, OT@S for specific employees (applies to selected month only)</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
-          <div style="position:relative"><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsManualPCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsManualPCode');},200)" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:225px"><div id="ac_hrmsManualPCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
+          <div style="position:relative"><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsManualPCode" placeholder="Type code or name�" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsManualPCode');},200)" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:225px"><div id="ac_hrmsManualPCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
           <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Present Days</label><input type="number" id="hrmsManualPDays" step="0.5" min="0" placeholder="e.g. 26" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
           <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">PL Given</label><input type="number" id="hrmsManualPL" step="0.5" min="0" placeholder="e.g. 2" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#7c3aed;display:block;margin-bottom:2px">OT</label><input type="number" id="hrmsManualOT" step="0.5" min="0" placeholder="e.g. 5" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#c2410c;display:block;margin-bottom:2px">OT@S</label><input type="number" id="hrmsManualOTS" step="0.5" min="0" placeholder="e.g. 8" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:75px"></div>
-          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label><input type="text" id="hrmsManualRemarks" placeholder="e.g. Sick leave…" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Remarks</label><input type="text" id="hrmsManualRemarks" placeholder="e.g. Sick leave�" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:140px"></div>
           <button id="hrmsManualPAddBtn" onclick="_hrmsAddManualP()" style="padding:5px 14px;font-size:13px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
-          <button onclick="_hrmsClearManualP()" title="Clear all input fields without saving" style="padding:5px 14px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">↻ Clear</button>
+          <button onclick="_hrmsClearManualP()" title="Clear all input fields without saving" style="padding:5px 14px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">? Clear</button>
         </div>
         <div id="hrmsManualPList" style="max-height:calc(100vh - 280px);overflow-y:auto"></div>
       </div>
@@ -584,7 +584,7 @@
       <!-- Sub-tab: Statutory -->
       <div id="hrmsSetPanelStatutory" style="display:none">
         <div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:12px">Statutory Settings</div>
-        <!-- Two-column layout — left: OT Rules + PL Rules, right: Formula
+        <!-- Two-column layout � left: OT Rules + PL Rules, right: Formula
              card + PT card. Flex-wrap collapses to a single column on
              narrower screens (< ~880px). -->
         <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px;align-items:flex-start">
@@ -592,7 +592,7 @@
           <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:12px">
             <!-- OT Rules -->
             <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
-              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">OT Rules <span style="font-size:10px;font-weight:600;color:var(--text3)">— per-month overrides</span></div>
+              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">OT Rules <span style="font-size:10px;font-weight:600;color:var(--text3)">� per-month overrides</span></div>
               <div id="hrmsOtRulesBody"></div>
             </div>
             <!-- PL Rules -->
@@ -624,7 +624,7 @@
             </div>
           </div>
         </div>
-        <!-- ESI / PF Basic + DA calculation Formulas — full width, two-column inner layout -->
+        <!-- ESI / PF Basic + DA calculation Formulas � full width, two-column inner layout -->
         <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">ESI / PF Basic + DA calculation Formulas</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
@@ -687,7 +687,7 @@
           <span style="font-size:11px;color:var(--text3)">Monthly TDS amount per employee. Continues to next month unless deleted.</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
-          <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsTdsCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsTdsCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsTdsCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
+          <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsTdsCode" placeholder="Type code or name�" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsTdsCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsTdsCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
           <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">TDS Amount</label><input type="number" id="hrmsTdsAmount" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:90px"></div>
           <button onclick="_hrmsTdsAdd()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
         </div>
@@ -696,40 +696,32 @@
 
       <!-- Sub-tab: Contract Salary Revision (Excel import + selective approve) -->
       <div id="hrmsSetPanelContractrev" style="display:none">
-        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Contract Salary Revision</div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">?? Import Contract Salary Revision</div>
         <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
+          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> � <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
           Each approved row creates a new revision with the given Effective Month (defaulting to the current month); every other period field is copied from the active period.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
-          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('contract',this)" style="display:none"></label>
+          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">?? Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('contract',this)" style="display:none"></label>
           <span id="hrmsSalImpSummary_contract" style="font-size:11px;color:var(--text3)"></span>
           <span style="flex:1"></span>
-          <button id="hrmsSalImpApproveSelBtn_contract" onclick="_hrmsSalImpApprove('contract',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
-          <button id="hrmsSalImpApproveAllBtn_contract" onclick="_hrmsSalImpApprove('contract',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
-          <button id="hrmsSalImpCancelBtn_contract" onclick="_hrmsSalImpCancel('contract')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
+          <button id="hrmsSalImpApproveSelBtn_contract" onclick="_hrmsSalImpApprove('contract',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">? Approve Selected</button>
+          <button id="hrmsSalImpApproveAllBtn_contract" onclick="_hrmsSalImpApprove('contract',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">? Approve All</button>
+          <button id="hrmsSalImpCancelBtn_contract" onclick="_hrmsSalImpCancel('contract')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">? Clear</button>
         </div>
         <div id="hrmsSalImpPreview_contract"></div>
       </div>
 
       <!-- Sub-tab: Advances -->
       <div id="hrmsSetPanelAdvances" style="display:none">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <div style="display:flex;gap:6px;align-items:flex-end">
-            <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsAdvCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAdvCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsAdvCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
-            <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Advance</label><input type="number" id="hrmsAdvAmount" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:80px"></div>
-            <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">EMI</label><input type="number" id="hrmsAdvEmi" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:80px"></div>
-            <button onclick="_hrmsAddAdvance()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
-          </div>
-          <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-            <label class="btn btn-primary" style="font-size:12px;padding:6px 14px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAdvances(this)" style="display:none"></label>
-            <button class="hrms-allow-locked" onclick="_hrmsExportAdvances()" title="Export advances to Excel" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
-            <button onclick="_hrmsAdvAutoDeduct()" title="Auto-fill deductions per rules" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fde047;color:#a16207;border-radius:6px;cursor:pointer">⚡ Auto Deduct</button>
-            <button onclick="_hrmsAdvClearAll()" title="Set every deduction to 0" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🧹 Clear All Deductions</button>
-            <button onclick="_hrmsSaveAdvDeductions()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">💾 Save Deductions</button>
+        <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:10px;flex-wrap:wrap">
+          <!-- Summary tiles populated by _hrmsRenderAdvances. -->
+          <div id="hrmsAdvSummary" style="display:flex;gap:10px;flex:1;flex-wrap:wrap;align-items:stretch;min-width:0"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <label class="btn btn-primary" title="Excel columns: Emp Code, Name, Amount, Paid By (optional), Date (optional). Legacy: Advance, Deduction, EMI still accepted." style="font-size:13px;padding:10px 18px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportAdvances(this)" style="display:none"></label>
+            <button class="hrms-allow-locked" onclick="_hrmsExportAdvances()" title="Export advances to Excel" style="padding:10px 18px;font-size:13px;font-weight:800;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">?? Export</button>
           </div>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Import Excel columns: <b>Emp Code</b>, <b>Name</b>, <b>Amount</b>, <b>Paid By</b> (optional), <b>Date</b> (optional). Legacy: <b>Advance</b>, <b>Deduction</b>, <b>EMI</b> still accepted.</div>
         <div id="hrmsAdvGrid"></div>
         <div id="hrmsAdvImportLog" style="margin-top:10px"></div>
       </div>
@@ -746,7 +738,7 @@
           <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')">All Alterations &amp; C-off</div>
           <div class="hrms-att-tab" id="hrmsTabEntry" onclick="_hrmsAttSetTab('entry')">New Joinee/Rejoinee</div>
           <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')">Absent Employees FTM</div>
-          <div class="hrms-att-tab" id="hrmsTabPrintformats" onclick="_hrmsAttSetTab('printformats')">🖨 Print Muster</div>
+          <div class="hrms-att-tab" id="hrmsTabPrintformats" onclick="_hrmsAttSetTab('printformats')">?? Print Muster</div>
         </div>
         <!-- Tab: Summary -->
         <div id="hrmsAttTabSummary" class="hrms-att-panel" style="flex:1;overflow:auto"></div>
@@ -762,16 +754,17 @@
             <button onclick="_hrmsAttEtFilterSet('Visitor')" id="hrmsAttEtfVisitor" style="padding:5px 12px;font-size:11px;font-weight:700;border:2px solid #fde047;background:#fff;color:#a16207;border-radius:20px;cursor:pointer">Visitor <span id="hrmsAttEtCount_Visitor" style="font-weight:800">0</span></button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-            <div style="position:relative"><input type="text" id="hrmsAttFSearch" class="hrms-search" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="padding:6px 28px 6px 12px;width:280px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">✕</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
-            <select id="hrmsAttFPlant" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
-            <select id="hrmsAttFCategory" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
-            <select id="hrmsAttFTeam" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
-            <button onclick="_hrmsAttClearFilters()" style="font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+            <div style="position:relative"><input type="text" id="hrmsAttFSearch" class="hrms-search hrms-allow-locked" placeholder="Type Emp Code or Name�" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsAttFSearch')},200)" onchange="_hrmsAttRefresh();document.getElementById('hrmsAttFSearchX').style.display=this.value?'block':'none'" style="padding:6px 28px 6px 12px;width:280px"><span id="hrmsAttFSearchX" onclick="document.getElementById('hrmsAttFSearch').value='';this.style.display='none';_hrmsEmpACClose('hrmsAttFSearch');_hrmsAttRefresh()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;color:var(--text3);font-weight:700;line-height:1">?</span><div id="ac_hrmsAttFSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div></div>
+            <select id="hrmsAttFPlant" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Plants</option></select>
+            <select id="hrmsAttFCategory" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Categories</option></select>
+            <select id="hrmsAttFTeam" class="hrms-allow-locked" onchange="_hrmsAttRefresh()" style="font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px"><option value="">All Teams</option></select>
+            <button class="hrms-allow-locked" onclick="_hrmsAttClearFilters()" style="font-size:10px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">? Clear</button>
             <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
               <span id="hrmsAttCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
               <button id="hrmsAttToggleBtn" onclick="_hrmsAttToggleMode()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-light);color:var(--accent);font-weight:800;cursor:pointer">Actual</button>
-              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMonth()" style="font-size:11px;padding:5px 12px">📤 Export</button>
-              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMuster()" style="font-size:11px;padding:5px 12px" title="Export the muster grid as displayed (mirrors active filters)">📥 Export Muster</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMonth()" style="font-size:11px;padding:5px 12px">?? Export</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMuster()" style="font-size:11px;padding:5px 12px" title="Export the muster grid as displayed (mirrors active filters)">?? Export Muster</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsMusterPdfFiltered()" style="font-size:11px;padding:5px 12px" title="Download a PDF of the muster grid as currently sorted and filtered">?? PDF Filtered Data</button>
             </div>
           </div>
           <div id="hrmsAttGrid" style="overflow:auto;flex:1;position:relative"></div>
@@ -780,21 +773,21 @@
         <div id="hrmsAttTabAlteration" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
           <div style="display:flex;gap:10px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
             <div style="position:relative">
-              <input type="text" id="altSrchCode" class="hrms-search hrms-allow-locked" placeholder="🔍 Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="width:240px">
+              <input type="text" id="altSrchCode" class="hrms-search hrms-allow-locked" placeholder="?? Emp Code / Name" oninput="_hrmsAltEmpAutocomplete(this);_hrmsAltFilterChanged()" onfocus="_hrmsAltEmpAutocomplete(this)" onblur="setTimeout(function(){_hrmsAltEmpACClose();},200)" autocomplete="off" style="width:240px">
               <div id="altEmpAcList" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:280px;overflow-y:auto;min-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-top:2px"></div>
             </div>
-            <button class="hrms-allow-locked" onclick="document.getElementById('altSrchCode').value='';_hrmsAltFilterChanged()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+            <button class="hrms-allow-locked" onclick="document.getElementById('altSrchCode').value='';_hrmsAltFilterChanged()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">? Clear</button>
             <div style="flex:1"></div>
             <span id="hrmsAltCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
             <span style="font-size:10px;color:var(--text3)">Approvals are managed in <b>My Approvals</b>.</span>
-            <button class="hrms-allow-locked" onclick="_hrmsAltGridExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
+            <button class="hrms-allow-locked" onclick="_hrmsAltGridExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">?? Export All</button>
           </div>
           <div id="hrmsAltGrid" style="overflow:auto;flex:1;position:relative"></div>
         </div>
         <!-- Tab: P & OT -->
         <div id="hrmsAttTabPot" class="hrms-att-panel" style="display:none;flex-direction:column;flex:1;overflow:hidden">
           <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:flex-end">
-            <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportSummary()" style="font-size:11px;padding:5px 12px">📊 Export Summary</button>
+            <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportSummary()" style="font-size:11px;padding:5px 12px">?? Export Summary</button>
           </div>
           <div id="hrmsAttTabPotContent" style="overflow:auto;flex:1"></div>
         </div>
@@ -804,11 +797,11 @@
         <!-- Tab: Print Muster -->
         <div id="hrmsAttTabPrintformats" class="hrms-att-panel" style="display:none;flex:1;overflow:auto;padding:12px">
           <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
-            <div style="font-size:14px;font-weight:900">🖨 Print Muster</div>
+            <div style="font-size:14px;font-weight:900">?? Print Muster</div>
             <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:14px"><input type="checkbox" id="printFmtSelectAllInline" onchange="_hrmsPrintFmtToggleAllInline(this.checked)" checked style="width:auto"> Select All</label>
             <div style="flex:1"></div>
             <button id="btnAddPrintFormat" class="btn btn-secondary" onclick="_hrmsOpenPrintFmtEdit()" style="font-size:12px;padding:6px 14px">+ Add New Format</button>
-            <button class="btn btn-primary" onclick="_hrmsBulkPrintInline()" style="font-size:12px;padding:6px 14px">📁 Save Selected as PDF</button>
+            <button class="btn btn-primary" onclick="_hrmsBulkPrintInline()" style="font-size:12px;padding:6px 14px">?? Save Selected as PDF</button>
           </div>
           <div id="printFmtListInline"></div>
         </div>
@@ -820,11 +813,11 @@
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
           <div style="position:relative">
-            <input type="search" id="hrmsOrSalSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsOrSalSearchInput(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsOrSalSearch')},200)" onchange="_hrmsOrSalSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsOrSalSearch');_hrmsOrSalSearchInput(this);}" onsearch="_hrmsOrSalSearchInput(this)" style="font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
+            <input type="search" id="hrmsOrSalSearch" placeholder="Type Emp Code or Name�" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsOrSalSearchInput(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsOrSalSearch')},200)" onchange="_hrmsOrSalSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsOrSalSearch');_hrmsOrSalSearchInput(this);}" onsearch="_hrmsOrSalSearchInput(this)" style="font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
             <div id="ac_hrmsOrSalSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div>
           </div>
-          <button class="hrms-allow-locked" onclick="_hrmsOrSalExport('all')" id="hrmsSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
-          <button class="hrms-allow-locked" onclick="_hrmsWorkerSalarySlip()" id="hrmsWorkerSlipBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">🧾 Worker's Salary Slip</button>
+          <button class="hrms-allow-locked" onclick="_hrmsOrSalExport('all')" id="hrmsSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">?? Export</button>
+          <button class="hrms-allow-locked" onclick="_hrmsWorkerSalarySlip()" id="hrmsWorkerSlipBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">?? Worker's Salary Slip</button>
         </div>
         <div id="hrmsSalGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -837,7 +830,7 @@
           <div class="hrms-pay-tab active" id="hrmsPayTabCosmos" onclick="_hrmsPayTab('cosmos')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent)">Cosmos</div>
           <div class="hrms-pay-tab" id="hrmsPayTabNeft" onclick="_hrmsPayTab('neft')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">NEFT</div>
           <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-            <button class="hrms-allow-locked" onclick="_hrmsPayExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
+            <button class="hrms-allow-locked" onclick="_hrmsPayExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">?? Export</button>
           </div>
         </div>
         <div id="hrmsPayGrid" style="overflow:auto;flex:1"></div>
@@ -863,12 +856,12 @@
       <div class="card" style="display:flex;flex-direction:column;flex:1;overflow:hidden;margin-bottom:0;border-top:none;border-radius:0 0 var(--radius) var(--radius)">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
           <div style="position:relative">
-            <input type="text" class="hrms-allow-locked" id="hrmsContractEmpSearch" placeholder="Type Emp Code or Name…" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsContractEmpSearchInput(this);_hrmsContractClearBtnToggle()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsContractEmpSearch')},200)" onchange="_hrmsContractEmpSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsContractEmpSearch');_hrmsContractEmpSearchInput(this);}" style="font-size:13px;padding:6px 28px 6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
-            <span id="hrmsContractEmpSearchClear" onmousedown="event.preventDefault();_hrmsContractEmpSearchClear()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:900;color:var(--text3);cursor:pointer;line-height:1;padding:2px 5px;border-radius:50%;user-select:none" title="Clear">✕</span>
+            <input type="text" class="hrms-allow-locked" id="hrmsContractEmpSearch" placeholder="Type Emp Code or Name�" autocomplete="off" oninput="_hrmsEmpAC(this);_hrmsContractEmpSearchInput(this);_hrmsContractClearBtnToggle()" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsContractEmpSearch')},200)" onchange="_hrmsContractEmpSearchInput(this)" onkeydown="if(event.key==='Enter'){_hrmsEmpACClose('hrmsContractEmpSearch');_hrmsContractEmpSearchInput(this);}" style="font-size:13px;padding:6px 28px 6px 12px;border:2px solid var(--accent);border-radius:6px;width:280px">
+            <span id="hrmsContractEmpSearchClear" onmousedown="event.preventDefault();_hrmsContractEmpSearchClear()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:900;color:var(--text3);cursor:pointer;line-height:1;padding:2px 5px;border-radius:50%;user-select:none" title="Clear">?</span>
             <div id="ac_hrmsContractEmpSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div>
           </div>
           <div id="hrmsContractTeamFilter" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-          <div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export Excel</button></div>
+          <div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">?? Export Excel</button></div>
         </div>
         <div id="hrmsContractGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -884,20 +877,20 @@
 
 <!-- EMPLOYEE EDIT/VIEW MODAL -->
 <div class="modal-overlay" id="mHrmsEmpEdit" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;height:92vh;display:flex;flex-direction:column;padding:0;position:relative">
-  <button onclick="_hrmsEmpClose()" title="Close (Esc)" style="position:absolute;top:8px;right:10px;background:transparent;border:1.5px solid var(--border);width:30px;height:30px;font-size:18px;color:var(--text2);cursor:pointer;line-height:1;border-radius:50%;font-weight:800;z-index:30;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='transparent';this.style.color='var(--text2)';this.style.borderColor='var(--border)'">✕</button>
+  <button onclick="_hrmsEmpClose()" title="Close (Esc)" style="position:absolute;top:8px;right:10px;background:transparent;border:1.5px solid var(--border);width:30px;height:30px;font-size:18px;color:var(--text2);cursor:pointer;line-height:1;border-radius:50%;font-weight:800;z-index:30;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='transparent';this.style.color='var(--text2)';this.style.borderColor='var(--border)'">?</button>
   <div id="hrmsEmpModalContent" style="overflow:auto;padding:16px 20px;flex:1"></div>
 </div></div>
 
 <!-- MONTH PICKER MODAL -->
 <div class="modal-overlay" id="mMonthPicker"><div class="modal" style="max-width:450px">
-  <div class="modal-header"><div class="modal-title">📅 Select Month</div><div class="modal-close" onclick="cm('mMonthPicker')">×</div></div>
+  <div class="modal-header"><div class="modal-title">?? Select Month</div><div class="modal-close" onclick="cm('mMonthPicker')">�</div></div>
   <div id="monthPickerList" style="max-height:400px;overflow-y:auto"></div>
 </div></div>
 
 <!-- ALTERATION REQUEST MODAL -->
 <!-- ORG STRUCTURE EDIT MODAL -->
 <div class="modal-overlay" id="mOrgEdit"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title">🌳 Edit Reporting</div><div class="modal-close" onclick="cm('mOrgEdit')">×</div></div>
+  <div class="modal-header"><div class="modal-title">?? Edit Reporting</div><div class="modal-close" onclick="cm('mOrgEdit')">�</div></div>
   <input type="hidden" id="orgEditEmpId">
   <div class="form-group">
     <label>Employee</label>
@@ -915,7 +908,7 @@
   <div class="form-group">
     <label>Reports To</label>
     <select id="orgEditReportsTo">
-      <option value="">— None (top of tree) —</option>
+      <option value="">� None (top of tree) �</option>
     </select>
   </div>
   <div class="modal-error" id="orgEditErr"></div>
@@ -926,7 +919,7 @@
 </div></div>
 
 <div class="modal-overlay" id="mAltReq"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title">🛠 Request Alteration</div><div class="modal-close" onclick="cm('mAltReq')">×</div></div>
+  <div class="modal-header"><div class="modal-title">?? Request Alteration</div><div class="modal-close" onclick="cm('mAltReq')">�</div></div>
   <input type="hidden" id="altReqEmpId">
   <input type="hidden" id="altReqEditId">
   <div class="form-group">
@@ -967,9 +960,9 @@
 
 <!-- ADD MONTH MODAL -->
 <div class="modal-overlay" id="mAddMonth"><div class="modal" style="max-width:380px">
-  <div class="modal-header"><div class="modal-title">➕ Add New Month</div><div class="modal-close" onclick="cm('mAddMonth')">×</div></div>
+  <div class="modal-header"><div class="modal-title">? Add New Month</div><div class="modal-close" onclick="cm('mAddMonth')">�</div></div>
   <div style="padding:16px">
-    <!-- Month is locked to the current calendar month — operators
+    <!-- Month is locked to the current calendar month � operators
          cannot pre-create future months or backfill past ones from
          here. The hidden inputs preserve the IDs the existing
          _hrmsAddMonthConfirm reads, so the create flow stays the same. -->
@@ -977,7 +970,7 @@
     <input type="hidden" id="addMonthYear">
     <div style="margin-bottom:16px;padding:16px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;text-align:center">
       <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Current Month</div>
-      <div id="addMonthLabel" style="font-size:24px;font-weight:900;color:var(--accent);font-family:var(--mono)">—</div>
+      <div id="addMonthLabel" style="font-size:24px;font-weight:900;color:var(--accent);font-family:var(--mono)">�</div>
       <div style="font-size:10px;color:var(--text3);margin-top:6px">Only the running calendar month can be added.</div>
     </div>
     <div id="addMonthError" style="display:none;color:var(--danger,#dc2626);font-size:12px;font-weight:600;margin-bottom:12px;padding:8px;background:#fef2f2;border-radius:6px"></div>
@@ -986,35 +979,35 @@
   </div>
 </div></div>
 
-<!-- INITIAL IN/OUT DATA POPUP — opened from a New Joinee / Rejoinee row in
+<!-- INITIAL IN/OUT DATA POPUP � opened from a New Joinee / Rejoinee row in
      the Org & Sal Revisions table. Uses the same render target id
      (hrmsEmpInitialBody) so _hrmsRenderInitialAttendance keeps working. -->
 <div class="modal-overlay" id="mHrmsEmpInitial" style="z-index:900"><div class="modal" style="max-width:1100px;width:92vw;max-height:88vh;display:flex;flex-direction:column">
-  <div class="modal-header"><div class="modal-title">🕘 Initial IN/OUT Data</div><div class="modal-close" onclick="cm('mHrmsEmpInitial')">×</div></div>
+  <div class="modal-header"><div class="modal-title">?? Initial IN/OUT Data</div><div class="modal-close" onclick="cm('mHrmsEmpInitial')">�</div></div>
   <div style="overflow:auto;padding:14px"><div id="hrmsEmpInitialBody"></div></div>
 </div></div>
 
 <!-- PRINT FORMAT MODAL -->
 <div class="modal-overlay" id="mPrintFmt"><div class="modal" style="max-width:650px;max-height:90vh;display:flex;flex-direction:column">
-  <div class="modal-header"><div class="modal-title">🖨 Print Formats</div><div class="modal-close" onclick="cm('mPrintFmt')">×</div></div>
+  <div class="modal-header"><div class="modal-title">?? Print Formats</div><div class="modal-close" onclick="cm('mPrintFmt')">�</div></div>
   <!-- Bulk print + add new bar -->
   <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
     <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="printFmtSelectAll" onchange="_hrmsPrintFmtToggleAll(this.checked)" checked style="width:auto"> Select All</label>
     <div style="flex:1"></div>
     <button class="btn btn-secondary" onclick="_hrmsOpenPrintFmtEdit()" style="font-size:12px;padding:6px 14px">+ Add New Format</button>
-    <button class="btn btn-primary" onclick="_hrmsBulkPrint()" style="font-size:12px;padding:6px 14px">📁 Save Selected as PDF</button>
+    <button class="btn btn-primary" onclick="_hrmsBulkPrint()" style="font-size:12px;padding:6px 14px">?? Save Selected as PDF</button>
   </div>
   <div id="printFmtList" style="flex:1;overflow-y:auto;min-height:0"></div>
 </div></div>
 
 <!-- PRINT FORMAT EDIT MODAL -->
 <div class="modal-overlay" id="mPrintFmtEdit"><div class="modal" style="max-width:700px">
-  <div class="modal-header"><div class="modal-title" id="printFmtFormTitle">Add New Format</div><div class="modal-close" onclick="cm('mPrintFmtEdit')">×</div></div>
+  <div class="modal-header"><div class="modal-title" id="printFmtFormTitle">Add New Format</div><div class="modal-close" onclick="cm('mPrintFmtEdit')">�</div></div>
   <div style="padding:4px 0">
     <input type="hidden" id="printFmtId">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group" style="grid-column:span 2"><label>Format Name *</label><input type="text" id="printFmtName" placeholder="e.g. Plant-1 Staff"></div>
-      <div class="form-group"><label>Plant <span style="font-size:10px;font-weight:500;color:var(--text3)">(Ctrl/⌘+click for multiple, blank = All)</span></label><select id="printFmtPlant" multiple size="5" style="min-height:110px"></select></div>
+      <div class="form-group"><label>Plant <span style="font-size:10px;font-weight:500;color:var(--text3)">(Ctrl/?+click for multiple, blank = All)</span></label><select id="printFmtPlant" multiple size="5" style="min-height:110px"></select></div>
       <div class="form-group"><label>Employment Type <span style="font-size:10px;font-weight:500;color:var(--text3)">(multi-select)</span></label><select id="printFmtType" multiple size="5" style="min-height:110px"></select></div>
       <div class="form-group"><label>Category <span style="font-size:10px;font-weight:500;color:var(--text3)">(multi-select)</span></label><select id="printFmtCat" multiple size="5" style="min-height:110px"></select></div>
       <div class="form-group"><label>Team <span style="font-size:10px;font-weight:500;color:var(--text3)">(multi-select)</span></label><select id="printFmtTeam" multiple size="5" style="min-height:110px"></select></div>
@@ -1030,8 +1023,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260508-V5"></script>
-<script src="js/hrms-logic.js?v=260508-V5"></script>
-<script src="js/hrms-ui.js?v=260508-V5"></script>
+<script src="js/common.js?v=260508-V6"></script>
+<script src="js/hrms-logic.js?v=260508-V6"></script>
+<script src="js/hrms-ui.js?v=260508-V6"></script>
 </body>
 </html>

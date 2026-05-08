@@ -340,7 +340,7 @@ function showPortal(){
   var isAdmin=(CU.roles||[]).indexOf('Admin')>=0;
   var isVmsAdmin=(CU.roles||[]).indexOf('VMS Admin')>=0;
   var isHwmsAdmin=(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HR Admin')>=0||(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
+  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
   var isMttsAdmin=(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
   var canManageUsers=isSuper||isAdmin||isVmsAdmin||isHwmsAdmin||isHrAdmin||isMttsAdmin;
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=canManageUsers?'':'none';
@@ -381,7 +381,7 @@ function showTab(tab){
   var _isAdmin=CU&&(CU.roles||[]).indexOf('Admin')>=0;
   var _isVmsAdmin=CU&&(CU.roles||[]).indexOf('VMS Admin')>=0;
   var _isHwmsAdmin=CU&&(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var _isHrAdmin=CU&&((CU.hrmsRoles||[]).indexOf('HR Admin')>=0||(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0);
+  var _isHrAdmin=CU&&(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
   var _isMttsAdmin=CU&&(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
   var _canUsers=_isSA||_isAdmin||_isVmsAdmin||_isHwmsAdmin||_isHrAdmin||_isMttsAdmin;
   var _canDb=_isSA||_isAdmin||_isHwmsAdmin;
@@ -1468,7 +1468,7 @@ var _permActiveRole='';
 
 // Module → default roles from constants (Portal editor-only helper)
 function _permGetDefaultRoles(mod){
-  if(mod==='HRMS') return typeof HRMS_ROLES!=='undefined'?HRMS_ROLES.slice():['Super Admin','HR Manager','HR Admin','Employee'];
+  if(mod==='HRMS') return typeof HRMS_ROLES!=='undefined'?HRMS_ROLES.slice():['Super Admin','HR Manager','Employee'];
   if(mod==='VMS') return typeof ROLES!=='undefined'?ROLES.slice():['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor'];
   if(mod==='HWMS') return typeof HWMS_ROLES!=='undefined'?HWMS_ROLES.slice():['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator'];
   if(mod==='Security') return ['Super Admin','Guard','Viewer'];

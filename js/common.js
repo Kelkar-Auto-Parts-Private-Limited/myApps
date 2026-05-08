@@ -1737,9 +1737,7 @@ const PLATFORM_ROLES=['Super Admin','Admin','Read Only'];
 // HRMS Admin / MTTS Admin) plus a Read Only.
 const ROLES=['VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'];
 const HWMS_ROLES=['HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'];
-// HR Admin retained alongside HRMS Admin so existing assignments keep
-// working until users are migrated to the new HRMS Admin label.
-const HRMS_ROLES=['HRMS Admin','HR Manager','HR Admin','Employee','Read Only'];
+const HRMS_ROLES=['HRMS Admin','HR Manager','Employee','Read Only'];
 const MTTS_ROLES=['MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only'];
 
 // ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
@@ -1755,7 +1753,7 @@ var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'r
 var _PERM_MODULE_ROLES={
   VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'],
   HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'],
-  HRMS:['Super Admin','HRMS Admin','HR Admin','HR Manager','Employee','Read Only'],
+  HRMS:['Super Admin','HRMS Admin','HR Manager','Employee','Read Only'],
   Security:['Super Admin','Guard','Viewer','Read Only'],
   MTTS:['Super Admin','MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only']
 };
@@ -1999,12 +1997,13 @@ function _permLoadData(){
 // legacy admin role so both labels grant module-admin access during the
 // rollout. 'Admin' here means the platform-level Admin and is NOT a
 // per-module admin — it's added to canManageUsers separately.
-var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin','HR Admin'],Security:[],MTTS:['MTTS Admin','Maintenance Manager']};
+var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'],Security:[],MTTS:['MTTS Admin','Maintenance Manager']};
 // Per-key default-full role grants. Applied only when no explicit role
 // permission is configured — admins can still revoke via Configure Access.
 var _PERM_DEFAULTS_FULL={
   HRMS:{
-    'page.masterAllocation':['HR Manager']
+    'page.masterAllocation':['HR Manager'],
+    'action.addPrintFormat':['HR Manager']
   }
 };
 function permLevel(mod,pageTabKey,_visited){
@@ -2652,6 +2651,30 @@ function _downloadMultiSheetXlsx(sheets,filename){
       var isBorder=ri>=bStart&&ri<bEnd;
       cells.forEach((cell,ci)=>{
         const ref=_xlCol(ci)+(ri+1);
+        // Muster style tag — short-circuit dispatch to one of the
+        // muster-specific cellXfs slots (24..37). Lookup table mirrors
+        // the table's status / day-type / total colour scheme.
+        var mstTag=cell&&typeof cell==='object'&&typeof cell._mst==='string'?cell._mst:null;
+        if(mstTag){
+          var _mstMap={HDR:24,P:25,A:26,'P/2':27,EL:28,H:29,OFF:30,ALT:31,MISS:32,TOT_P:33,TOT_OT:34,TOT_OTS:35,NORM:36,NIGHT:37};
+          var mstStyle=_mstMap[mstTag];
+          if(mstStyle!=null){
+            var mv=cell._v;
+            if(mv===undefined||mv===null||mv===''){
+              var msi=sstIdx('');
+              rowsXml+=`<c r="${ref}" t="s" s="${mstStyle}"><v>${msi}</v></c>`;
+            } else {
+              var mvStr=String(mv).trim();var mvNum=Number(mv);
+              if(typeof mv==='number'||(!isNaN(mvNum)&&mvStr!==''&&!/^\d{5,}$/.test(mvStr)&&!(mvStr.length>1&&mvStr.charAt(0)==='0'&&/^\d+$/.test(mvStr)))){
+                rowsXml+=`<c r="${ref}" s="${mstStyle}"><v>${typeof mv==='number'?mv:mvNum}</v></c>`;
+              } else {
+                var msi2=sstIdx(String(mv));
+                rowsXml+=`<c r="${ref}" t="s" s="${mstStyle}"><v>${msi2}</v></c>`;
+              }
+            }
+            return;
+          }
+        }
         var isForceText=cell&&typeof cell==='object'&&cell._t!==undefined;
         var isNumFmt=cell&&typeof cell==='object'&&cell._n!==undefined;
         var isDec=cell&&typeof cell==='object'&&cell._d!==undefined;
@@ -2758,16 +2781,28 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<font><sz val="16"/><b/><name val="Calibri"/></font>'
     +'<font><sz val="14"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
     +'</fonts>'
-    +'<fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+    +'<fills count="18"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FF1e2028"/></patternFill></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/></patternFill></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FF2A9AA0"/></patternFill></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FFCFEEEF"/></patternFill></fill>'
     +'<fill><patternFill patternType="solid"><fgColor rgb="FFFFE066"/></patternFill></fill>'
-    +'<fill><patternFill patternType="solid"><fgColor rgb="FF1E7A7F"/></patternFill></fill></fills>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF1E7A7F"/></patternFill></fill>'
+    // Muster fills 8..17 — match the on-screen muster grid colour palette.
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/></patternFill></fill>'// 8 light green (P)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'// 9 light red (A)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFEF3C7"/></patternFill></fill>'// 10 amber (P/2 + day-off)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFDBEAFE"/></patternFill></fill>'// 11 light blue (EL)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFE5E7EB"/></patternFill></fill>'// 12 grey (H)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFCE7F3"/></patternFill></fill>'// 13 pink (alteration)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFEF4444"/></patternFill></fill>'// 14 strong red (missing)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFAF5FF"/></patternFill></fill>'// 15 light purple (Total OT)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFFFF7ED"/></patternFill></fill>'// 16 light orange (Total OT@S)
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF1E293B"/></patternFill></fill>'// 17 dark navy (header)
+    +'</fills>'
     +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>'+_bdr+'</border></borders>'
     +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    +'<cellXfs count="24">'
+    +'<cellXfs count="38">'
     // 0=normal, 1=dark header, 2=stripe, 3=bold, 4=bold+stripe
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
@@ -2808,6 +2843,39 @@ function _downloadMultiSheetXlsx(sheets,filename){
     +'<xf numFmtId="'+_nfDec+'" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
     // 23=1-decimal+bold+gold+border (tbltotal cells with decimal columns)
     +'<xf numFmtId="'+_nfDec+'" fontId="2" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // Muster styles 24..37 — drive cell._mst dispatch in buildSheet so the
+    // Excel export mirrors the on-screen muster grid colours. All include
+    // thin borders + centered alignment to match the table's grid feel.
+    // 24 muster header (white bold on dark navy, bordered, centered, wrap)
+    +'<xf numFmtId="0" fontId="1" fillId="17" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    // 25 status P (light green, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 26 status A (light red, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="9" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 27 status P/2 (amber, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="10" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 28 status EL (light blue, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="11" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 29 status H (grey, bordered, centered)
+    +'<xf numFmtId="0" fontId="0" fillId="12" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 30 day-off background (amber, bordered, centered)
+    +'<xf numFmtId="0" fontId="0" fillId="10" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 31 alteration (pink, bordered, centered)
+    +'<xf numFmtId="0" fontId="0" fillId="13" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 32 missing (strong red bg, bold white text, bordered, centered)
+    +'<xf numFmtId="0" fontId="1" fillId="14" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 33 total P column (green bg, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 34 total OT column (light purple bg, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="15" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 35 total OT@S column (light orange bg, bold, bordered, centered)
+    +'<xf numFmtId="0" fontId="2" fillId="16" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 36 muster normal cell (white, bordered, centered)
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    // 37 muster bold cell (white, bold, bordered, centered) — used for
+    // night-shift in/out times so they stand out the same way the table
+    // does.
+    +'<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
     +'</cellXfs></styleSheet>';
   var files={};
   // Build each sheet

@@ -1,23 +1,23 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260508-V5">
-<title>KAP — HWMS</title>
-<link rel="stylesheet" href="css/hwms.css?v=260508-V5">
+<meta name="app-build" content="260508-V6">
+<title>KAP � HWMS</title>
+<link rel="stylesheet" href="css/hwms.css?v=260508-V6">
 </head>
 <body>
 <div id="notification" class="notification"></div>
-<div id="dbSplash"><div class="spinner"></div><div class="msg" id="splashMsg">Loading HWMS…</div></div>
+<div id="dbSplash"><div class="spinner"></div><div class="msg" id="splashMsg">Loading HWMS�</div></div>
 <!-- Photo Lightbox -->
 <div id="photoLightbox" onclick="this.style.display='none'"><img id="photoLightboxImg" src=""><div style="display:flex;gap:10px"><button id="sharePhotoBtn" onclick="event.stopPropagation()" style="display:none;background:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer">Share</button></div></div>
 <!-- Topbar -->
 <div class="topbar" id="hwmsTopbar">
-  <button class="ham" onclick="toggleHwmsNav()" title="Toggle sidebar menu">☰</button>
+  <button class="ham" onclick="toggleHwmsNav()" title="Toggle sidebar menu">?</button>
   <div class="title" id="hwmsPageTitle">HWMS</div>
   <div style="flex:1"></div>
-  <button id="hwmsTopbarRefresh" onclick="_hwmsTopbarRefresh()" title="Refresh — pull the latest data from the database" style="font-size:13px;font-weight:700;padding:5px 10px;margin-right:10px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:4px">↻ <span style="font-size:12px">Refresh</span></button>
+  <button id="hwmsTopbarRefresh" onclick="_hwmsTopbarRefresh()" title="Refresh � pull the latest data from the database" style="font-size:13px;font-weight:700;padding:5px 10px;margin-right:10px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:4px">? <span style="font-size:12px">Refresh</span></button>
   <div class="user-info"><span id="hwmsUserName"></span> <span style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block" id="sbStatusDot" title="DB"></span></div>
 </div>
 <!-- Sidebar -->
@@ -34,7 +34,7 @@
     </div>
   </div>
   <!-- My Apps -->
-  <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
+  <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">?? My Apps</div>
   <div class="nav-sec" id="navSecOps">OPERATIONS</div>
   <div class="nav-item" id="navDashboard" onclick="hwmsGo('pageHwmsDashboard')" style="font-weight:800">&#x1F4CA; Dashboard</div>
   <div class="nav-item" id="navInvoices" onclick="hwmsGo(_hwmsActiveMiPage)">&#x1F9FE; Main Invoices (MI) <span class="hwms-cnt hwms-cnt-green" id="hcInvoices"></span></div>
@@ -81,14 +81,14 @@
         <div class="card-header" style="flex-wrap:nowrap;gap:8px">
           <div class="card-title">All Parts</div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap">
-            <button class="btn btn-secondary" onclick="exportMaster('hwmsParts')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsParts',this)"></label>
+            <button class="btn btn-secondary" onclick="exportMaster('hwmsParts')" style="font-size:12px;padding:7px 12px">?? Export</button>
+            <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsParts',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsPart" onclick="openHwmsPartModal()">+ Add Part</button>
           </div>
         </div>
         <div style="position:relative;margin-bottom:8px;max-width:400px">
-          <input type="text" id="hwmsPartSearch" placeholder="🔍 Search part number, description…" oninput="renderHwmsParts();document.getElementById('hwmsPartSearchX').style.display=this.value?'block':'none'" style="font-size:13px;padding:8px 32px 8px 12px;border:1.5px solid var(--accent);border-radius:var(--radius);background:var(--surface);color:var(--text);width:100%">
-          <span id="hwmsPartSearchX" onclick="document.getElementById('hwmsPartSearch').value='';this.style.display='none';renderHwmsParts()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--text3);font-weight:700;line-height:1">✕</span>
+          <input type="text" id="hwmsPartSearch" placeholder="?? Search part number, description�" oninput="renderHwmsParts();document.getElementById('hwmsPartSearchX').style.display=this.value?'block':'none'" style="font-size:13px;padding:8px 32px 8px 12px;border:1.5px solid var(--accent);border-radius:var(--radius);background:var(--surface);color:var(--text);width:100%">
+          <span id="hwmsPartSearchX" onclick="document.getElementById('hwmsPartSearch').value='';this.style.display='none';renderHwmsParts()" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:var(--text3);font-weight:700;line-height:1">?</span>
         </div>
         <div class="table-wrap"><table id="tHwmsParts"><thead><tr>
           <th>Photo</th>
@@ -106,40 +106,40 @@
       <div class="card">
         <!-- TABS: Sea / Air -->
         <div id="hwmsInvTabs" style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid var(--border)">
-          <button onclick="_hwmsInvSetTab('sea')" id="hwmsInvTabSea" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#eff6ff;color:#2563eb;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid #2563eb;border-bottom:none;margin-right:-1px">🚢 By Sea <span id="hwmsInvTabSeaCnt" style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
-          <button onclick="_hwmsInvSetTab('air')" id="hwmsInvTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">✈️ By Air <span id="hwmsInvTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
+          <button onclick="_hwmsInvSetTab('sea')" id="hwmsInvTabSea" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#eff6ff;color:#2563eb;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid #2563eb;border-bottom:none;margin-right:-1px">?? By Sea <span id="hwmsInvTabSeaCnt" style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
+          <button onclick="_hwmsInvSetTab('air')" id="hwmsInvTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">?? By Air <span id="hwmsInvTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
         </div>
         <div class="card-header" style="flex-wrap:wrap;gap:8px;border-radius:0">
           <div id="hwmsInvStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div id="hwmsInvButtons" style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
-            <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
-            <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8">📥 Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
-            <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700">✕ Cancel</button>
-            <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" id="btnHwmsInvImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
+            <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">??? Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8">?? Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700">? Cancel</button>
+            <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">?? Export</button>
+            <label class="btn btn-secondary" id="btnHwmsInvImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add MI</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:100%;white-space:nowrap"><thead>
           <tr style="background:var(--surface2)">
             <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
-            <th style="padding:4px 6px;vertical-align:top;width:32px;text-align:center"><div style="font-size:10px">🇺🇸</div></th>
-            <th style="padding:4px 6px;vertical-align:top;min-width:165px"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="🔍 Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('date')" title="Sort"><span id="hwmsInvSortI_date">⇅</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="_hwmsInvDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="_hwmsInvDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('containerNumber')" title="Sort"><span id="hwmsInvSortI_containerNumber">⇅</span></button></div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('pickupDate')" title="Sort"><span id="hwmsInvSortI_pickupDate">⇅</span></button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">MI Status</div><div style="position:relative"><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterStatus')" onclick="event.stopPropagation()" style="font-size:11px;padding:5px 4px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="Dispatched">Dispatched</option><option value="Warehouse">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsInvFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterStatus').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;width:32px;text-align:center"><div style="font-size:10px">????</div></th>
+            <th style="padding:4px 6px;vertical-align:top;min-width:165px"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">?</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="?? Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">?</button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('date')" title="Sort"><span id="hwmsInvSortI_date">?</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="_hwmsInvDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="_hwmsInvDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
+            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('containerNumber')" title="Sort"><span id="hwmsInvSortI_containerNumber">?</span></button></div></th>
+            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('pickupDate')" title="Sort"><span id="hwmsInvSortI_pickupDate">?</span></button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">MI Status</div><div style="position:relative"><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterStatus')" onclick="event.stopPropagation()" style="font-size:11px;padding:5px 4px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="Dispatched">Dispatched</option><option value="Warehouse">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsInvFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterStatus').value='';renderHwmsInvoices();this.style.display='none'">?</button></div></th>
             <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">SI</div></th>
             <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">Payment</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
-            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($) <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('amount')" title="Sort"><span id="hwmsInvSortI_amount">⇅</span></button></div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($) <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('amount')" title="Sort"><span id="hwmsInvSortI_amount">?</span></button></div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div><div id="hwmsInvHeaderSiTotal" style="font-size:12px;font-weight:900;color:#7c3aed;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Received ($)</div><div id="hwmsInvHeaderRcvdTotal" style="font-size:12px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div><div id="hwmsInvHeaderBalTotal" style="font-size:12px;font-weight:900;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff %</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff ($)</div><div id="hwmsInvHeaderTariffTotal" style="font-size:12px;font-weight:900;color:#ea580c;font-family:var(--mono);margin-top:3px"></div></th>
-            <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsInvClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
+            <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsInvClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">? Clear</button></th>
           </tr>
         </thead><tbody id="hwmsInvBody"></tbody></table></div>
       </div>
@@ -149,10 +149,10 @@
     <div class="page" id="pageHwmsInvEdit">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="hwms-back-btn" onclick="_hwmsInvBack()">← Back</button>
+          <button class="hwms-back-btn" onclick="_hwmsInvBack()">? Back</button>
           <div class="page-title" id="mHwmsInvTitle">Add Invoice</div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="_hwmsInvReset()" style="font-size:13px;padding:8px 20px;background:#fef3c7;border:1.5px solid #fbbf24;color:#92400e;font-weight:700;border-radius:var(--radius);cursor:pointer">↺ Reset</button><button class="btn btn-primary" onclick="saveHwmsInv()" style="font-size:13px;padding:8px 24px">💾 Save Invoice</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn" onclick="_hwmsInvReset()" style="font-size:13px;padding:8px 20px;background:#fef3c7;border:1.5px solid #fbbf24;color:#92400e;font-weight:700;border-radius:var(--radius);cursor:pointer">? Reset</button><button class="btn btn-primary" onclick="saveHwmsInv()" style="font-size:13px;padding:8px 24px">?? Save Invoice</button></div>
       </div>
       <div class="card" style="padding:16px 20px">
         <input type="hidden" id="eHwmsInvId">
@@ -161,16 +161,16 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
           <!-- Invoice Details (blue tint) -->
           <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:12px 14px">
-            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🧾 Main Invoice (MI) Details</div>
+            <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">?? Main Invoice (MI) Details</div>
             <div style="display:grid;grid-template-columns:60px 100px 1fr;gap:8px;align-items:end">
               <div class="form-group" style="margin:0"><label>FY</label><input type="text" id="hwmsInvFY" readonly style="padding:6px 8px;font-family:var(--inv-mono);font-weight:800;font-size:14px;text-align:center;background:var(--surface2);color:var(--accent);letter-spacing:1px"></div>
               <div class="form-group" style="margin:0"><label>MI No.</label><input type="text" id="hwmsInvSuffix" maxlength="5" placeholder="00001" style="padding:6px 8px;font-family:var(--inv-mono);font-weight:700;font-size:14px;letter-spacing:1px"></div>
-              <div class="form-group" style="margin:0"><label>Date *</label><div style="position:relative;display:flex;align-items:center"><input type="text" id="hwmsInvDateDisplay" readonly onclick="document.getElementById('hwmsInvDate').showPicker()" placeholder="DD-MMM-YY" style="padding:6px 8px;padding-right:30px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--border);border-radius:var(--radius)"><span onclick="document.getElementById('hwmsInvDate').showPicker()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:15px;cursor:pointer;pointer-events:auto">📅</span><input type="date" id="hwmsInvDate" onchange="_hwmsInvDateChange();_hwmsInvDateSync()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
+              <div class="form-group" style="margin:0"><label>Date *</label><div style="position:relative;display:flex;align-items:center"><input type="text" id="hwmsInvDateDisplay" readonly onclick="document.getElementById('hwmsInvDate').showPicker()" placeholder="DD-MMM-YY" style="padding:6px 8px;padding-right:30px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--border);border-radius:var(--radius)"><span onclick="document.getElementById('hwmsInvDate').showPicker()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:15px;cursor:pointer;pointer-events:auto">??</span><input type="date" id="hwmsInvDate" onchange="_hwmsInvDateChange();_hwmsInvDateSync()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
             </div>
           </div>
           <!-- Container Details (purple tint) -->
           <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:12px 14px">
-            <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📦 Container & Shipping</div>
+            <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">?? Container & Shipping</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
               <div class="form-group" style="margin:0"><label>Container</label><input type="text" id="hwmsInvContainerDisplay" readonly style="padding:6px 6px;background:var(--surface2);font-family:var(--mono);font-weight:700;color:var(--accent)"><input type="hidden" id="hwmsInvContainer"></div>
               <div class="form-group" style="margin:0"><label>Mode of Transport</label><select id="hwmsInvTransport" onchange="_hwmsInvTransportChanged()" style="padding:6px 6px;background:var(--surface2)" disabled><option value="">--</option><option value="By Sea">By Sea</option><option value="By Air">By Air</option></select></div>
@@ -180,7 +180,7 @@
         </div>
         <!-- SECTION 3: Customer (green tint) -->
         <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px;margin-bottom:10px">
-          <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">👤 Customer</div>
+          <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">?? Customer</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;margin-bottom:8px">
             <div class="form-group" style="margin:0"><label>Buyer (Customer) *</label><select id="hwmsInvBuyer" onchange="_hwmsInvOnBuyerChange()" style="padding:6px 6px"><option value="">--</option></select></div>
             <div class="form-group" style="margin:0"><label>Consignee</label><select id="hwmsInvConsignee" style="padding:6px 6px"><option value="">--</option></select></div>
@@ -194,11 +194,11 @@
         </div>
         <!-- SECTION 4: Line Items (amber tint) -->
         <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:12px 14px">
-          <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📋 Line Items</div>
+          <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">?? Line Items</div>
         <!-- Add Line Item form -->
         <div id="hwmsLiAddRow" style="padding:10px 12px;background:rgba(42,154,160,.04);border:1.5px dashed var(--accent);border-radius:8px;margin-bottom:10px">
           <div style="display:flex;gap:6px;align-items:end;flex-wrap:wrap">
-            <div class="form-group" style="margin:0;width:60px;flex-shrink:0"><label style="font-size:12px;font-weight:600" title="Auto-fills the next pallet (P1, P2…). Type the same pallet name as another row to share a pallet between parts.">Pallet</label><input type="text" id="hwmsLiAddPallet" maxlength="6" title="Auto-fills the next pallet. Type a duplicate (e.g. P1) to put this part on the same pallet as another." style="padding:6px 4px;font-size:16px;font-family:var(--mono);font-weight:700;text-align:center;color:var(--accent);width:100%"></div>
+            <div class="form-group" style="margin:0;width:60px;flex-shrink:0"><label style="font-size:12px;font-weight:600" title="Auto-fills the next pallet (P1, P2�). Type the same pallet name as another row to share a pallet between parts.">Pallet</label><input type="text" id="hwmsLiAddPallet" maxlength="6" title="Auto-fills the next pallet. Type a duplicate (e.g. P1) to put this part on the same pallet as another." style="padding:6px 4px;font-size:16px;font-family:var(--mono);font-weight:700;text-align:center;color:var(--accent);width:100%"></div>
             <div class="form-group hwms-part-search-wrap" style="margin:0;width:132px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Part *</label><input type="hidden" id="hwmsLiAddPart"><input type="text" id="hwmsLiPartSearch" autocomplete="off" placeholder="Type part no..." oninput="_hwmsPartFilter()" onfocus="_hwmsPartFilter()" style="padding:6px 5px;font-size:15px;width:100%"><div class="hwms-part-dd" id="hwmsPartDd"></div></div>
             <div class="form-group" style="margin:0;width:90px;flex-shrink:0"><label style="font-size:12px;font-weight:600">PO No.</label><input type="text" id="hwmsLiAddPo" style="padding:6px 5px;font-size:16px;width:100%"></div>
             <div class="form-group" style="margin:0;width:58px;flex-shrink:0"><label style="font-size:12px;font-weight:600">Qty</label><input type="number" id="hwmsLiAddQty" min="1" step="1" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:16px;width:100%"></div>
@@ -213,9 +213,9 @@
             <div class="form-group" style="margin:0;width:53px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Pkg Wt</label><input type="number" id="hwmsLiAddPkgWt" step="1" min="0" oninput="_hwmsLiCalcWeights()" style="padding:6px 4px;font-size:14px;font-family:var(--mono);width:100%"></div>
             <div class="form-group" style="margin:0;width:57px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Gross Wt</label><input type="text" id="hwmsLiAddGrossWt" style="padding:6px 4px;font-size:14px;font-family:var(--mono);width:100%;background:var(--surface2);font-weight:700;text-align:right" readonly></div>
             <div class="form-group" style="margin:0;width:72px;flex-shrink:0"><label style="font-size:11px;font-weight:600">HSN</label><input type="text" id="hwmsLiAddHsn" style="padding:6px 4px;font-size:13px;font-family:var(--mono);width:100%;background:var(--surface2)" readonly></div>
-            <div id="hwmsLiPartPhoto" style="width:40px;height:40px;flex-shrink:0;border-radius:6px;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f8fafc"><span style="font-size:16px;color:#ccc">📷</span></div>
+            <div id="hwmsLiPartPhoto" style="width:40px;height:40px;flex-shrink:0;border-radius:6px;border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f8fafc"><span style="font-size:16px;color:#ccc">??</span></div>
             <button class="btn btn-primary" id="hwmsLiAddBtn" onclick="_hwmsLiAdd()" style="padding:0;font-size:20px;font-weight:900;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:flex;align-items:center;justify-content:center" title="Add line item">+</button>
-            <button class="btn btn-secondary" id="hwmsLiCancelBtn" onclick="_hwmsLiResetAddRow()" style="padding:0;font-size:14px;font-weight:700;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:none;align-items:center;justify-content:center" title="Cancel edit">✕</button>
+            <button class="btn btn-secondary" id="hwmsLiCancelBtn" onclick="_hwmsLiResetAddRow()" style="padding:0;font-size:14px;font-weight:700;border-radius:6px;width:40px;height:37px;flex-shrink:0;display:none;align-items:center;justify-content:center" title="Cancel edit">?</button>
           </div>
         </div>
         <!-- Line items table -->
@@ -230,7 +230,7 @@
               <th style="padding:5px 6px;font-size:10px">UOM</th>
               <th style="padding:5px 6px;font-size:10px;text-align:right">Rate ($)</th>
               <th style="padding:5px 6px;font-size:10px;text-align:right">Amount ($)</th>
-              <th style="padding:5px 6px;font-size:10px">L×W×H (mm)</th>
+              <th style="padding:5px 6px;font-size:10px">L�W�H (mm)</th>
               <th style="padding:5px 6px;font-size:10px">Package</th>
               <th style="padding:5px 6px;font-size:10px;text-align:right">Net Wt (Kg)</th>
               <th style="padding:5px 6px;font-size:10px;text-align:right">Pkg Wt (Kg)</th>
@@ -257,9 +257,9 @@
     <div class="page" id="pageHwmsInvView">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:48px;z-index:10;background:var(--bg);padding:10px 0 8px;border-bottom:1px solid var(--border);margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="hwms-back-btn" onclick="_hwmsInvBack()">← Back</button>
-          <button id="hwmsInvPrevBtn" onclick="_hwmsInvNav(-1)" title="Previous Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
-          <button id="hwmsInvNextBtn" onclick="_hwmsInvNav(1)" title="Next Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
+          <button class="hwms-back-btn" onclick="_hwmsInvBack()">? Back</button>
+          <button id="hwmsInvPrevBtn" onclick="_hwmsInvNav(-1)" title="Previous Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
+          <button id="hwmsInvNextBtn" onclick="_hwmsInvNav(1)" title="Next Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
           <div class="page-title" id="hwmsInvViewTitle">Invoice Details</div>
         </div>
         <div id="hwmsInvViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
@@ -273,27 +273,27 @@
       <div class="card" id="hwmsContListView">
         <!-- TABS: Sea / Air -->
         <div id="hwmsContTabs" style="display:flex;gap:0;margin-bottom:0;border-bottom:2px solid var(--border)">
-          <button onclick="_hwmsContSetTab('sea')" id="hwmsContTabSea" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#eff6ff;color:#2563eb;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid #2563eb;border-bottom:none;margin-right:-1px">🚢 By Sea <span id="hwmsContTabSeaCnt" style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
-          <button onclick="_hwmsContSetTab('air')" id="hwmsContTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">✈️ By Air <span id="hwmsContTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
+          <button onclick="_hwmsContSetTab('sea')" id="hwmsContTabSea" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#eff6ff;color:#2563eb;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid #2563eb;border-bottom:none;margin-right:-1px">?? By Sea <span id="hwmsContTabSeaCnt" style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
+          <button onclick="_hwmsContSetTab('air')" id="hwmsContTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">?? By Air <span id="hwmsContTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
         </div>
         <div class="card-header" style="flex-wrap:nowrap;gap:8px;border-radius:0">
           <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
-            <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">✈️ Receive All Air</button>
-            <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
-            <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
+            <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">?? Receive All Air</button>
+            <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">??? Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">?? Export</button>
+            <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Consignment</button>
           </div>
         </div>
         <div style="overflow:auto;max-height:calc(100vh - 160px);border:2px solid #cbd5e1;border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #94a3b8">
           <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsContSelectAll" onchange="_hwmsContToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
-          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Container No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('containerNumber')" title="Sort"><span id="hwmsContSortIcon_containerNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsContSearch" placeholder="🔍 Search..." oninput="renderHwmsContainers();_hwmsFilterX('hwmsContSearch')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsContSearch_x" onclick="event.stopPropagation();document.getElementById('hwmsContSearch').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
+          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Container No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('containerNumber')" title="Sort"><span id="hwmsContSortIcon_containerNumber">?</span></button></div><div style="position:relative"><input type="text" id="hwmsContSearch" placeholder="?? Search..." oninput="renderHwmsContainers();_hwmsFilterX('hwmsContSearch')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsContSearch_x" onclick="event.stopPropagation();document.getElementById('hwmsContSearch').value='';renderHwmsContainers();this.style.display='none'">?</button></div></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Main Invoices</div></th>
-          <th style="padding:4px 6px;vertical-align:top;min-width:165px;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('expectedPickupDate')" title="Sort"><span id="hwmsContSortIcon_expectedPickupDate">⇅</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="event.stopPropagation();_hwmsContDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
-          <th style="padding:4px 6px;vertical-align:top;max-width:80px"><div style="font-size:11px;margin-bottom:3px">Carrier <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('carrierName')" title="Sort"><span id="hwmsContSortIcon_carrierName">⇅</span></button></div><div style="position:relative"><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterCarrier')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterCarrier_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterCarrier').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
-          <th id="hwmsContInvValueTh" class="hwms-cont-invval" style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Inv. Value <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('invValue')" title="Sort"><span id="hwmsContSortIcon_invValue">⇅</span></button></div><div id="hwmsContInvValueTotal" style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
-          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('status')" title="Sort"><span id="hwmsContSortIcon_status">⇅</span></button></div><div style="position:relative"><select id="hwmsContFilterStatus" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterStatus')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="Onwater">In Transit</option><option value="Reached">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterStatus').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
+          <th style="padding:4px 6px;vertical-align:top;min-width:165px;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('expectedPickupDate')" title="Sort"><span id="hwmsContSortIcon_expectedPickupDate">?</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="event.stopPropagation();_hwmsContDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
+          <th style="padding:4px 6px;vertical-align:top;max-width:80px"><div style="font-size:11px;margin-bottom:3px">Carrier <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('carrierName')" title="Sort"><span id="hwmsContSortIcon_carrierName">?</span></button></div><div style="position:relative"><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterCarrier')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterCarrier_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterCarrier').value='';renderHwmsContainers();this.style.display='none'">?</button></div></th>
+          <th id="hwmsContInvValueTh" class="hwms-cont-invval" style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Inv. Value <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('invValue')" title="Sort"><span id="hwmsContSortIcon_invValue">?</span></button></div><div id="hwmsContInvValueTotal" style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
+          <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('status')" title="Sort"><span id="hwmsContSortIcon_status">?</span></button></div><div style="position:relative"><select id="hwmsContFilterStatus" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterStatus')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="Onwater">In Transit</option><option value="Reached">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterStatus').value='';renderHwmsContainers();this.style.display='none'">?</button></div></th>
           <th style="padding:4px 6px;vertical-align:top;text-align:center;width:40px"><div style="font-size:10px">Days</div></th>
         </tr></thead><tbody id="hwmsContBody"></tbody></table></div>
       </div>
@@ -301,9 +301,9 @@
       <!-- IN-PAGE FORM VIEW (replaces modal) -->
       <div id="hwmsContFormView" style="display:none">
         <div style="position:sticky;top:48px;z-index:10;background:var(--surface);padding:10px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <button class="hwms-back-btn" onclick="_hwmsContCancel()">← Back</button>
-          <button id="hwmsContPrevBtn" onclick="_hwmsContNav(-1)" title="Previous Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
-          <button id="hwmsContNextBtn" onclick="_hwmsContNav(1)" title="Next Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
+          <button class="hwms-back-btn" onclick="_hwmsContCancel()">? Back</button>
+          <button id="hwmsContPrevBtn" onclick="_hwmsContNav(-1)" title="Previous Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
+          <button id="hwmsContNextBtn" onclick="_hwmsContNav(1)" title="Next Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
           <div id="mHwmsContTitle" style="font-size:18px;font-weight:900;color:var(--text)">Plan New Container</div>
           <div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)"></div>
           <div id="hwmsContTopTypeBadge" style="display:none"></div>
@@ -315,22 +315,22 @@
         <!-- SECTION 1: Consignment Details (left 2x2) + Linked Invoices (right) -->
         <div id="hwmsContSection1" style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:14px 16px;margin-bottom:14px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <div id="hwmsContRow1Details" style="font-size:13px;font-weight:900;color:#2563eb;text-transform:uppercase;letter-spacing:1px">📦 Consignment Details</div>
-            <button class="btn btn-primary hwms-cont-save" onclick="saveHwmsCont()" style="font-size:11px;padding:6px 16px;font-weight:800">💾 Save</button>
+            <div id="hwmsContRow1Details" style="font-size:13px;font-weight:900;color:#2563eb;text-transform:uppercase;letter-spacing:1px">?? Consignment Details</div>
+            <button class="btn btn-primary hwms-cont-save" onclick="saveHwmsCont()" style="font-size:11px;padding:6px 16px;font-weight:800">?? Save</button>
           </div>
           <div id="hwmsContTypeBadge" style="display:none;margin-bottom:10px"></div>
           <div style="display:grid;grid-template-columns:minmax(280px,1fr) 2fr;gap:14px;align-items:start">
             <!-- Left: Consignment fields 2x2 -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div class="form-group" style="margin:0;grid-column:1/-1"><label>Consignment Type *</label><div style="display:flex;gap:6px" id="hwmsContTypeWrap"><button type="button" id="hwmsContTypeSea" onclick="_hwmsContSetType('sea')" class="btn" style="flex:1;padding:6px 8px;font-size:11px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid #2563eb;background:#dbeafe;color:#1d4ed8">🚢 Sea</button><button type="button" id="hwmsContTypeAir" onclick="_hwmsContSetType('air')" class="btn" style="flex:1;padding:6px 8px;font-size:11px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid var(--border);background:#f8fafc;color:var(--text3)">✈️ Air</button></div></div>
+              <div class="form-group" style="margin:0;grid-column:1/-1"><label>Consignment Type *</label><div style="display:flex;gap:6px" id="hwmsContTypeWrap"><button type="button" id="hwmsContTypeSea" onclick="_hwmsContSetType('sea')" class="btn" style="flex:1;padding:6px 8px;font-size:11px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid #2563eb;background:#dbeafe;color:#1d4ed8">?? Sea</button><button type="button" id="hwmsContTypeAir" onclick="_hwmsContSetType('air')" class="btn" style="flex:1;padding:6px 8px;font-size:11px;font-weight:800;border-radius:var(--radius);cursor:pointer;border:2px solid var(--border);background:#f8fafc;color:var(--text3)">?? Air</button></div></div>
               <input type="hidden" id="hwmsContType" value="sea">
               <div class="form-group" style="margin:0"><label>Consignment No. *</label><div style="display:flex;align-items:center;gap:0"><span id="hwmsContPrefix" style="padding:6px 6px;font-family:var(--mono);font-weight:900;font-size:13px;background:var(--surface2);border:1px solid var(--border2);border-right:none;border-radius:var(--radius) 0 0 var(--radius);color:var(--accent);white-space:nowrap">CN-</span><input type="text" id="hwmsContNum" placeholder="001/26" oninput="_hwmsContNumInput()" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;border-radius:0 var(--radius) var(--radius) 0;flex:1;min-width:0"></div></div>
-              <div class="form-group" style="margin:0"><label>Expected Pickup *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:12px;cursor:pointer;width:82px;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContExpPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:2px;user-select:none" title="Pick date">📅</span></div></div>
+              <div class="form-group" style="margin:0"><label>Expected Pickup *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsContExpPickup_fmt" readonly onclick="document.getElementById('hwmsContExpPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:12px;cursor:pointer;width:82px;box-sizing:border-box"><input type="date" id="hwmsContExpPickup" onchange="_hwmsContDateFmt('hwmsContExpPickup')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContExpPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:2px;user-select:none" title="Pick date">??</span></div></div>
             </div>
             <!-- Right: Linked Main Invoices -->
             <div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Linked Main Invoices</div>
+                <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">?? Linked Main Invoices</div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <select id="hwmsContAddInvSel" style="padding:4px 8px;font-size:11px;border:1px solid var(--border2);border-radius:4px;min-width:120px"><option value="">-- Add Invoice --</option></select>
                   <button class="btn" onclick="_hwmsContAddInv()" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer">+ Add</button>
@@ -347,7 +347,7 @@
                     <th style="padding:4px 8px;font-size:9px">MI</th>
                     <th style="padding:4px 8px;font-size:9px">SI</th>
                     <th style="padding:4px 8px;font-size:9px">Payment</th>
-                    <th style="padding:4px 8px;font-size:9px;width:30px">🖨️</th>
+                    <th style="padding:4px 8px;font-size:9px;width:30px">???</th>
                     <th style="padding:4px 8px;font-size:9px;width:36px"></th>
                   </tr></thead>
                   <tbody id="hwmsContInvBody"></tbody>
@@ -362,8 +362,8 @@
           <!-- Dispatch Details (orange tint) -->
           <div id="hwmsContDispatchSection" style="background:rgba(234,88,12,.05);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:1px">🚢 Dispatch Details</div>
-              <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#fff7ed;border:1.5px solid #fb923c;color:#ea580c;border-radius:var(--radius);cursor:pointer">💾 Save</button>
+              <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:1px">?? Dispatch Details</div>
+              <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#fff7ed;border:1.5px solid #fb923c;color:#ea580c;border-radius:var(--radius);cursor:pointer">?? Save</button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
               <div class="form-group" style="margin:0"><label>Carrier *</label><select id="hwmsContCarrier" onchange="_hwmsContShowCarrierInfo()" style="padding:7px 8px"><option value="">--</option></select></div>
@@ -371,20 +371,20 @@
             </div>
             <div id="hwmsContCarrierInfo" style="display:none;line-height:1.4;margin-bottom:6px"></div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
-              <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup');_hwmsContOnDispatchDate()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span><button type="button" class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:11px;padding:6px 14px;background:#ea580c;border-color:#ea580c;font-weight:800;white-space:nowrap">🚀 Dispatch Container</button><button type="button" class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Undo Dispatch</button></div></div>
+              <div class="form-group" style="margin:0" id="hwmsContPickupWrap"><label>Actual Dispatch Date *</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="position:relative"><input type="text" id="hwmsContPickup_fmt" readonly onclick="document.getElementById('hwmsContPickup').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsContPickup" onchange="_hwmsContDateFmt('hwmsContPickup');_hwmsContOnDispatchDate()" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsContPickup').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">??</span><button type="button" class="btn btn-primary" id="btnHwmsContDispatch" onclick="_hwmsContDispatch()" style="font-size:11px;padding:6px 14px;background:#ea580c;border-color:#ea580c;font-weight:800;white-space:nowrap">?? Dispatch Container</button><button type="button" class="btn" id="btnHwmsContUndoDispatch" onclick="_hwmsContUndoDispatch()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">? Undo Dispatch</button></div></div>
             </div>
             <div id="hwmsContDispatchLabel" style="display:none;margin-top:8px;padding:6px 12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:12px;font-weight:700;color:#16a34a"></div>
           </div>
           <!-- Destination (green tint) -->
           <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:12px 14px">
-            <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">📍 Destination</div>
+            <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">?? Destination</div>
             <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px">
               <div class="form-group" style="margin:0"><label>Expected Reach Date</label><div style="position:relative"><input type="text" id="hwmsContExpReach_fmt" readonly style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;background:var(--surface2);width:88px;box-sizing:border-box"><input type="date" id="hwmsContExpReach" onchange="_hwmsContDateFmt('hwmsContExpReach')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0" readonly></div></div>
               <input type="hidden" id="hwmsContReachedDate"><input type="hidden" id="hwmsContReachedDate_fmt">
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <button type="button" class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:11px;padding:6px 14px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer;white-space:nowrap">📦 Receive this Container</button>
-                <button type="button" class="btn" id="btnHwmsContEditReceived" onclick="_hwmsContOpenReceive()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:var(--radius);cursor:pointer;white-space:nowrap">✏️ Edit Received Container</button>
-                <button type="button" class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">↩ Undo Received</button>
+                <button type="button" class="btn" id="btnHwmsContReached" onclick="_hwmsContOpenReceive()" style="font-size:11px;padding:6px 14px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:var(--radius);cursor:pointer;white-space:nowrap">?? Receive this Container</button>
+                <button type="button" class="btn" id="btnHwmsContEditReceived" onclick="_hwmsContOpenReceive()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:var(--radius);cursor:pointer;white-space:nowrap">?? Edit Received Container</button>
+                <button type="button" class="btn" id="btnHwmsContRevokeReached" onclick="_hwmsContRevokeReached()" style="font-size:10px;padding:6px 10px;font-weight:800;display:none;background:#fbbf24;border:1.5px solid #f59e0b;color:#78350f;border-radius:var(--radius);cursor:pointer;white-space:nowrap">? Undo Received</button>
               </div>
             </div>
             <div id="hwmsContReachedInfo" style="display:none;padding:8px 12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-size:12px;font-weight:700;color:#15803d"></div>
@@ -393,19 +393,19 @@
 
         <!-- ROW 3: Carrier Invoice + Entry Summary side by side -->
         <div id="hwmsContPostShipSection">
-          <div style="font-size:14px;font-weight:900;color:#7c3aed;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(139,92,246,.3)">📋 Post Shipment Details</div>
+          <div style="font-size:14px;font-weight:900;color:#7c3aed;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid rgba(139,92,246,.3)">?? Post Shipment Details</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;align-items:start">
             <!-- Carrier Invoice (amber tint) -->
             <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:10px 12px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px">🧾 Carrier Invoice</div>
-                <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#fef3c7;border:1.5px solid #fbbf24;color:#a16207;border-radius:var(--radius);cursor:pointer">💾 Save</button>
+                <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px">?? Carrier Invoice</div>
+                <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#fef3c7;border:1.5px solid #fbbf24;color:#a16207;border-radius:var(--radius);cursor:pointer">?? Save</button>
               </div>
               <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Invoice No.</label><input type="text" id="hwmsContCarrInv" maxlength="15" placeholder="—" style="width:100px;padding:7px 8px;font-size:13px"></div>
+                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Invoice No.</label><input type="text" id="hwmsContCarrInv" maxlength="15" placeholder="�" style="width:100px;padding:7px 8px;font-size:13px"></div>
                 <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Date</label><div style="position:relative"><input type="text" id="hwmsContCarrDate_fmt" readonly onclick="document.getElementById('hwmsContCarrDate').showPicker()" placeholder="dd-mmm-yy" style="width:90px;padding:7px 8px;font-weight:700;font-family:var(--mono);font-size:12px;cursor:pointer"><input type="date" id="hwmsContCarrDate" onchange="_hwmsContDateFmt('hwmsContCarrDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Amount ($)</label><input type="text" id="hwmsContCarrAmt" inputmode="decimal" maxlength="10" placeholder="—" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="width:80px;padding:7px 8px;font-family:var(--mono);font-weight:700;text-align:right;font-size:13px"></div>
-                <label style="margin:0 0 2px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:8px;font-size:14px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">📎</label>
+                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Amount ($)</label><input type="text" id="hwmsContCarrAmt" inputmode="decimal" maxlength="10" placeholder="�" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="width:80px;padding:7px 8px;font-family:var(--mono);font-weight:700;text-align:right;font-size:13px"></div>
+                <label style="margin:0 0 2px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:rgba(234,179,8,.12);border:1.5px solid rgba(234,179,8,.35);border-radius:8px;font-size:14px" title="Attach invoice photo/PDF" onclick="document.getElementById('hwmsContCarrPhoto').click()">??</label>
                 <input type="file" id="hwmsContCarrPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContCarrPhotoPreview')" style="display:none">
                 <div id="hwmsContCarrPhotoPreview" style="flex-shrink:0;margin-bottom:2px"></div>
               </div>
@@ -413,14 +413,14 @@
             <!-- Entry Summary (purple tint) -->
             <div style="background:rgba(139,92,246,.05);border:1.5px solid rgba(139,92,246,.2);border-radius:8px;padding:10px 12px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px">📄 Entry Summary</div>
-                <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#7c3aed;border-radius:var(--radius);cursor:pointer">💾 Save</button>
+                <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:1px">?? Entry Summary</div>
+                <button class="btn hwms-cont-save" onclick="saveHwmsCont()" style="font-size:10px;padding:4px 10px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#7c3aed;border-radius:var(--radius);cursor:pointer">?? Save</button>
               </div>
               <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">ES Number</label><input type="text" id="hwmsContESNum" maxlength="15" placeholder="—" style="width:100px;padding:7px 8px;font-size:13px"></div>
+                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">ES Number</label><input type="text" id="hwmsContESNum" maxlength="15" placeholder="�" style="width:100px;padding:7px 8px;font-size:13px"></div>
                 <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Date</label><div style="position:relative"><input type="text" id="hwmsContESDate_fmt" readonly onclick="document.getElementById('hwmsContESDate').showPicker()" placeholder="dd-mmm-yy" style="width:90px;padding:7px 8px;font-weight:700;font-family:var(--mono);font-size:12px;cursor:pointer"><input type="date" id="hwmsContESDate" onchange="_hwmsContDateFmt('hwmsContESDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div></div>
-                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Tariff ($)</label><input type="text" id="hwmsContTariffPaid" inputmode="decimal" maxlength="10" placeholder="—" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="width:80px;padding:7px 8px;font-family:var(--mono);font-weight:700;text-align:right;font-size:13px"></div>
-                <label style="margin:0 0 2px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:8px;font-size:14px" title="Attach ES photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">📎</label>
+                <div class="form-group" style="margin:0;flex:0 0 auto"><label style="font-size:9px">Tariff ($)</label><input type="text" id="hwmsContTariffPaid" inputmode="decimal" maxlength="10" placeholder="�" oninput="_hwmsCurrencyFormat(this)" onblur="_hwmsCurrencyBlur(this)" style="width:80px;padding:7px 8px;font-family:var(--mono);font-weight:700;text-align:right;font-size:13px"></div>
+                <label style="margin:0 0 2px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:rgba(139,92,246,.12);border:1.5px solid rgba(139,92,246,.35);border-radius:8px;font-size:14px" title="Attach ES photo/PDF" onclick="document.getElementById('hwmsContESPhoto').click()">??</label>
                 <input type="file" id="hwmsContESPhoto" accept="image/*,.pdf" onchange="_hwmsContFilePreview(this,'hwmsContESPhotoPreview')" style="display:none">
                 <div id="hwmsContESPhotoPreview" style="flex-shrink:0;margin-bottom:2px"></div>
               </div>
@@ -436,10 +436,10 @@
     <div class="page" id="pageHwmsCarriers">
       
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Carriers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsCarriers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
+        <button class="btn btn-secondary" onclick="exportMaster('hwmsCarriers')" style="font-size:12px;padding:7px 12px">?? Export</button>
+        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
         <button class="btn btn-primary" onclick="openHwmsCarrierModal()">+ Add Carrier</button>
-      </div></div><div class="table-wrap"><table id="tHwmsCarriers"><thead><tr><th class="sortable" onclick="sortTable('hwmsCarrBody',0)">Carrier Name</th><th>Address</th><th>🇮🇳 India Contact</th><th>🇺🇸 USA Contact</th><th>Actions</th></tr></thead><tbody id="hwmsCarrBody"></tbody></table></div></div>
+      </div></div><div class="table-wrap"><table id="tHwmsCarriers"><thead><tr><th class="sortable" onclick="sortTable('hwmsCarrBody',0)">Carrier Name</th><th>Address</th><th>???? India Contact</th><th>???? USA Contact</th><th>Actions</th></tr></thead><tbody id="hwmsCarrBody"></tbody></table></div></div>
     </div>
 
     <!-- HWMS: HSN MASTER -->
@@ -458,7 +458,7 @@
           <div class="form-group" style="margin:0;grid-column:1/-1"><label>MI Note 2</label><textarea id="hwmsCoNote2" rows="2" style="padding:8px 12px" placeholder="Second invoice note (optional)"></textarea></div>
           <div class="form-group" style="margin:0;grid-column:1/-1"><label>MI Note 3</label><textarea id="hwmsCoNote3" rows="2" style="padding:8px 12px" placeholder="Third invoice note (optional)"></textarea></div>
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-primary" onclick="saveHwmsCompany()" style="padding:8px 24px;font-size:14px">💾 Save</button></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-primary" onclick="saveHwmsCompany()" style="padding:8px 24px;font-size:14px">?? Save</button></div>
       </div>
     </div>
 
@@ -470,31 +470,31 @@
       
       <!-- Sub-tabs -->
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
-        <button id="omTab_packing" onclick="hwmsOmTab('packing')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">📦 Packaging</button>
-        <button id="omTab_uom" onclick="hwmsOmTab('uom')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">📏 UOM</button>
-        <button id="omTab_hsn" onclick="hwmsOmTab('hsn')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">🔢 HSN</button>
+        <button id="omTab_packing" onclick="hwmsOmTab('packing')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">?? Packaging</button>
+        <button id="omTab_uom" onclick="hwmsOmTab('uom')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">?? UOM</button>
+        <button id="omTab_hsn" onclick="hwmsOmTab('hsn')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">?? HSN</button>
       </div>
       <!-- Packaging -->
       <div id="omSection_packing">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Packaging Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-          <button class="btn btn-secondary" onclick="exportMaster('hwmsPacking')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPacking')" style="font-size:12px;padding:7px 12px">?? Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPackingModal()">+ Add Packaging</button>
         </div></div><div class="table-wrap"><table id="tHwmsPacking"><thead><tr><th class="sortable" onclick="sortTable('hwmsPackBody',0)">Packaging Name</th><th class="sortable" onclick="sortTable('hwmsPackBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsPackBody"></tbody></table></div></div>
       </div>
       <!-- UOM -->
       <div id="omSection_uom" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Units of Measurement</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-          <button class="btn btn-secondary" onclick="exportMaster('hwmsUom')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsUom')" style="font-size:12px;padding:7px 12px">?? Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsUomModal()">+ Add UOM</button>
         </div></div><div class="table-wrap"><table id="tHwmsUom"><thead><tr><th class="sortable" onclick="sortTable('hwmsUomBody',0)">UOM</th><th class="sortable" onclick="sortTable('hwmsUomBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsUomBody"></tbody></table></div></div>
       </div>
       <!-- HSN -->
       <div id="omSection_hsn" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All HSN Codes</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-          <button class="btn btn-secondary" onclick="exportMaster('hwmsHsn')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsHsn')" style="font-size:12px;padding:7px 12px">?? Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsHsnModal()">+ Add HSN</button>
         </div></div><div class="table-wrap"><table id="tHwmsHsn"><thead><tr><th class="sortable" onclick="sortTable('hwmsHsnBody',0)">HSN Number</th><th class="sortable" onclick="sortTable('hwmsHsnBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsHsnBody"></tbody></table></div></div>
       </div>
@@ -504,8 +504,8 @@
     <div class="page" id="pageHwmsCustomers">
       
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Customers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-        <button class="btn btn-secondary" onclick="exportMaster('hwmsCustomers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCustomers',this)"></label>
+        <button class="btn btn-secondary" onclick="exportMaster('hwmsCustomers')" style="font-size:12px;padding:7px 12px">?? Export</button>
+        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCustomers',this)"></label>
         <button class="btn btn-primary" onclick="openHwmsCustModal()">+ Add Customer</button>
       </div></div><div class="table-wrap"><table id="tHwmsCustomers"><thead><tr>
         <th class="sortable" onclick="sortTable('hwmsCustBody',0)">Customer Name</th>
@@ -525,8 +525,8 @@
           <table id="tHwmsSteelRates" style="width:100%;border-collapse:collapse;font-size:14px">
             <thead><tr>
               <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:left">Customer</th>
-              <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:right">Steel Rate (₹/Kg)</th>
-              <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:right">Forex Rate (₹/USD)</th>
+              <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:right">Steel Rate (?/Kg)</th>
+              <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:right">Forex Rate (?/USD)</th>
               <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1">Valid From</th>
               <th style="position:sticky;top:0;background:#f1f5f9;font-weight:800;color:#000;padding:10px 12px;border-bottom:2px solid #cbd5e1">Valid To</th>
               <th style="position:sticky;top:0;background:#f1f5f9;padding:10px 12px;border-bottom:2px solid #cbd5e1;width:80px"></th>
@@ -542,14 +542,14 @@
       
       <!-- Sub-tabs -->
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
-        <button id="ptTab_disch" onclick="hwmsPtTab('disch')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">🚢 Port of Discharge</button>
-        <button id="ptTab_load" onclick="hwmsPtTab('load')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">⚓ Port of Loading</button>
+        <button id="ptTab_disch" onclick="hwmsPtTab('disch')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);margin-bottom:-2px">?? Port of Discharge</button>
+        <button id="ptTab_load" onclick="hwmsPtTab('load')" style="padding:7px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text2);margin-bottom:-2px">? Port of Loading</button>
       </div>
       <!-- Discharge -->
       <div id="ptSection_disch">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Discharge</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortDischarge')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortDischarge')" style="font-size:12px;padding:7px 12px">?? Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPortDischModal()">+ Add Port</button>
         </div></div><div class="table-wrap"><table id="tHwmsPortDisch"><thead><tr>
           <th class="sortable" onclick="sortTable('hwmsPortDischBody',0)">Port Name</th>
@@ -559,8 +559,8 @@
       <!-- Loading -->
       <div id="ptSection_load" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Loading</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
-          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortLoading')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
+          <button class="btn btn-secondary" onclick="exportMaster('hwmsPortLoading')" style="font-size:12px;padding:7px 12px">?? Export</button>
+          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">?? Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPortLoadModal()">+ Add Port</button>
         </div></div><div class="table-wrap"><table id="tHwmsPortLoad"><thead><tr>
           <th class="sortable" onclick="sortTable('hwmsPortLoadBody',0)">Port Name</th>
@@ -576,19 +576,19 @@
         <!-- Summary stats with search in same row -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
           <div id="hwmsInventoryStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
-          <button class="btn btn-secondary" onclick="_hwmsInventoryExport()" style="font-size:12px;padding:7px 12px">📤 Export</button>
+          <button class="btn btn-secondary" onclick="_hwmsInventoryExport()" style="font-size:12px;padding:7px 12px">?? Export</button>
         </div>
         <!-- Table -->
         <div class="table-wrap">
           <table id="tHwmsInventory">
             <thead><tr>
-              <th style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Part Number <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('partNumber')" title="Sort"><span id="hwmsInvtSortI_partNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInventorySearch" placeholder="🔍 Search Part…" oninput="renderHwmsInventory();_hwmsInvSearchXBtn()" onclick="event.stopPropagation()" style="font-size:13px;padding:8px 10px;padding-right:28px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><button type="button" id="hwmsInvSearchClear" onclick="document.getElementById('hwmsInventorySearch').value='';renderHwmsInventory();this.style.display='none'" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;font-weight:800;color:var(--text3);cursor:pointer;padding:2px 4px;line-height:1" title="Clear search">✕</button></div></th>
+              <th style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Part Number <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('partNumber')" title="Sort"><span id="hwmsInvtSortI_partNumber">?</span></button></div><div style="position:relative"><input type="text" id="hwmsInventorySearch" placeholder="?? Search Part�" oninput="renderHwmsInventory();_hwmsInvSearchXBtn()" onclick="event.stopPropagation()" style="font-size:13px;padding:8px 10px;padding-right:28px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><button type="button" id="hwmsInvSearchClear" onclick="document.getElementById('hwmsInventorySearch').value='';renderHwmsInventory();this.style.display='none'" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;font-weight:800;color:var(--text3);cursor:pointer;padding:2px 4px;line-height:1" title="Clear search">?</button></div></th>
               <th style="vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Description</div><select id="hwmsInventoryStockFilter" onchange="renderHwmsInventory()" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="all">All Parts</option><option value="instock">In Stock</option><option value="zero">Zero Stock</option></select></th>
-              <th style="text-align:left">WH Location <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('whLocation')" title="Sort"><span id="hwmsInvtSortI_whLocation">⇅</span></button></th>
-              <th style="text-align:right">Total Qty Received <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('totalQty')" title="Sort"><span id="hwmsInvtSortI_totalQty">⇅</span></button></th>
-              <th style="text-align:right">Qty in Warehouse <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('whQty')" title="Sort"><span id="hwmsInvtSortI_whQty">⇅</span></button></th>
-              <th style="text-align:right">Qty Dispatched <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('dispatchedQty')" title="Sort"><span id="hwmsInvtSortI_dispatchedQty">⇅</span></button></th>
-              <th style="text-align:right">In Transit <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('transitQty')" title="Sort"><span id="hwmsInvtSortI_transitQty">⇅</span></button></th>
+              <th style="text-align:left">WH Location <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('whLocation')" title="Sort"><span id="hwmsInvtSortI_whLocation">?</span></button></th>
+              <th style="text-align:right">Total Qty Received <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('totalQty')" title="Sort"><span id="hwmsInvtSortI_totalQty">?</span></button></th>
+              <th style="text-align:right">Qty in Warehouse <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('whQty')" title="Sort"><span id="hwmsInvtSortI_whQty">?</span></button></th>
+              <th style="text-align:right">Qty Dispatched <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('dispatchedQty')" title="Sort"><span id="hwmsInvtSortI_dispatchedQty">?</span></button></th>
+              <th style="text-align:right">In Transit <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInventorySort('transitQty')" title="Sort"><span id="hwmsInvtSortI_transitQty">?</span></button></th>
             </tr></thead>
             <tbody id="hwmsInventoryBody"></tbody>
           </table>
@@ -600,11 +600,11 @@
     <div class="modal-overlay" id="mHwmsHold" style="z-index:1050"><div class="modal" style="max-width:960px;width:96vw;height:calc(100vh - 20px);max-height:calc(100vh - 20px);overflow:hidden;padding:0;display:flex;flex-direction:column">
       <!-- Sticky header -->
       <div style="flex-shrink:0;padding:14px 24px 0;background:var(--surface)">
-        <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="color:#dc2626;font-size:18px">🚫 Hold / Release Material</div><div class="modal-close" onclick="cm('mHwmsHold')">×</div></div>
+        <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" style="color:#dc2626;font-size:18px">?? Hold / Release Material</div><div class="modal-close" onclick="cm('mHwmsHold')">�</div></div>
         <!-- Tabs -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border)">
-          <button id="hwmsHoldTab1" onclick="_hwmsHoldSwitchTab('hold')" style="padding:10px 24px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-bottom:3px solid #dc2626;background:none;color:#dc2626">🚫 Hold Stock</button>
-          <button id="hwmsHoldTab2" onclick="_hwmsHoldSwitchTab('release')" style="padding:10px 24px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-bottom:3px solid transparent;background:none;color:var(--text3)">✅ Release Stock</button>
+          <button id="hwmsHoldTab1" onclick="_hwmsHoldSwitchTab('hold')" style="padding:10px 24px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-bottom:3px solid #dc2626;background:none;color:#dc2626">?? Hold Stock</button>
+          <button id="hwmsHoldTab2" onclick="_hwmsHoldSwitchTab('release')" style="padding:10px 24px;font-size:13px;font-weight:800;border:none;cursor:pointer;border-bottom:3px solid transparent;background:none;color:var(--text3)">? Release Stock</button>
         </div>
       </div>
       <!-- HOLD TAB -->
@@ -613,7 +613,7 @@
         <div style="flex-shrink:0;padding:12px 24px 8px;border-bottom:1px solid var(--border);background:var(--surface)">
           <label style="font-size:12px;font-weight:700;margin-bottom:4px;display:block">Search Part Number</label>
           <div style="position:relative">
-            <input type="text" id="hwmsHoldPartSearch" autocomplete="off" placeholder="🔍 Type part number..." oninput="_hwmsHoldPartFilter()" onfocus="_hwmsHoldPartFilter()" style="font-size:14px;padding:10px 12px;border:2px solid var(--accent);border-radius:8px;width:100%;box-sizing:border-box;font-family:var(--mono);font-weight:700">
+            <input type="text" id="hwmsHoldPartSearch" autocomplete="off" placeholder="?? Type part number..." oninput="_hwmsHoldPartFilter()" onfocus="_hwmsHoldPartFilter()" style="font-size:14px;padding:10px 12px;border:2px solid var(--accent);border-radius:8px;width:100%;box-sizing:border-box;font-family:var(--mono);font-weight:700">
             <div id="hwmsHoldPartDd" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:10;background:#fff;border:1.5px solid var(--accent);border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
           </div>
           <div id="hwmsHoldPartInfo" style="display:none;padding:8px 14px;background:rgba(42,154,160,.06);border:1.5px solid rgba(42,154,160,.2);border-radius:8px;margin-top:8px">
@@ -645,7 +645,7 @@
         <div id="hwmsHoldBtnBar" style="display:none;flex-shrink:0;padding:10px 24px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:10px;align-items:center;justify-content:flex-end">
           <span id="hwmsHoldSelCount" style="font-size:12px;font-weight:700;color:var(--text3)"></span>
           <button onclick="cm('mHwmsHold')" style="padding:10px 24px;font-size:14px;font-weight:800;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;cursor:pointer">Cancel</button>
-          <button onclick="_hwmsHoldSelected()" style="padding:10px 24px;font-size:14px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer">🚫 Hold Stock</button>
+          <button onclick="_hwmsHoldSelected()" style="padding:10px 24px;font-size:14px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer">?? Hold Stock</button>
         </div>
       </div>
       <!-- RELEASE TAB -->
@@ -671,7 +671,7 @@
         <div style="flex-shrink:0;padding:10px 24px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:10px;align-items:center;justify-content:flex-end">
           <span id="hwmsRelSelCount" style="font-size:12px;font-weight:700;color:var(--text3)"></span>
           <button onclick="cm('mHwmsHold')" style="padding:10px 24px;font-size:14px;font-weight:800;background:var(--surface2);color:var(--text);border:1.5px solid var(--border);border-radius:8px;cursor:pointer">Cancel</button>
-          <button onclick="_hwmsReleaseSelected()" style="padding:10px 24px;font-size:14px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer">✅ Release Selected</button>
+          <button onclick="_hwmsReleaseSelected()" style="padding:10px 24px;font-size:14px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer">? Release Selected</button>
         </div>
       </div>
     </div></div>
@@ -684,18 +684,18 @@
         <div class="table-wrap">
           <table id="hwmsSiTbl"><thead><tr>
             <th id="hwmsSiSelectAllTh" style="width:30px;text-align:center;display:none"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
-            <th style="width:30px;text-align:center"><div style="font-size:10px">🖨️</div></th>
-            <th><div>Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('date')" title="Sort"><span id="hwmsSiSortI_date">⇅</span></button></div></th>
-            <th><div>Sub-Inv # <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('subInvoiceNumber')" title="Sort"><span id="hwmsSiSortI_subInvoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltNum" placeholder="🔍 Filter…" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltNum')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltNum_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltNum').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
-            <th><div>Customer <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('customerName')" title="Sort"><span id="hwmsSiSortI_customerName">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltCust" placeholder="🔍 Filter…" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltCust')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltCust_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltCust').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
+            <th style="width:30px;text-align:center"><div style="font-size:10px">???</div></th>
+            <th><div>Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('date')" title="Sort"><span id="hwmsSiSortI_date">?</span></button></div></th>
+            <th><div>Sub-Inv # <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('subInvoiceNumber')" title="Sort"><span id="hwmsSiSortI_subInvoiceNumber">?</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltNum" placeholder="?? Filter�" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltNum')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltNum_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltNum').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
+            <th><div>Customer <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('customerName')" title="Sort"><span id="hwmsSiSortI_customerName">?</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltCust" placeholder="?? Filter�" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltCust')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltCust_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltCust').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
             <th><div>PO No.</div></th>
-            <th><div>Pallet-Part × Qty <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('parts')" title="Sort"><span id="hwmsSiSortI_parts">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltPart" placeholder="🔍 Part…" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPart')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltPart_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPart').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="text-align:right"><div>Amount <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('amount')" title="Sort"><span id="hwmsSiSortI_amount">⇅</span></button></div></th>
-            <th style="text-align:center"><div>Pickup <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('pickupStatus')" title="Sort"><span id="hwmsSiSortI_pickupStatus">⇅</span></button></div><div style="position:relative"><select id="hwmsSiFltPickup" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPickup')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltPickup_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPickup').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="text-align:center"><div>GRN <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('grnStatus')" title="Sort"><span id="hwmsSiSortI_grnStatus">⇅</span></button></div><div style="position:relative"><select id="hwmsSiFltGrn" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltGrn')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Pending">Pending</option><option value="Received">Received</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltGrn_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltGrn').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="text-align:center"><div>Payment <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentStatus')" title="Sort"><span id="hwmsSiSortI_paymentStatus">⇅</span></button></div><div style="position:relative"><select id="hwmsSiFltPay" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPay')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Pending">Pending</option><option value="Partially Paid">Part. Paid</option><option value="Fully Paid">Fully Paid</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltPay_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPay').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="text-align:right"><div>Received <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentReceived')" title="Sort"><span id="hwmsSiSortI_paymentReceived">⇅</span></button></div></th>
-            <th style="text-align:right"><div>Balance <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentBalance')" title="Sort"><span id="hwmsSiSortI_paymentBalance">⇅</span></button></div></th>
+            <th><div>Pallet-Part � Qty <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('parts')" title="Sort"><span id="hwmsSiSortI_parts">?</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltPart" placeholder="?? Part�" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPart')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltPart_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPart').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
+            <th style="text-align:right"><div>Amount <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('amount')" title="Sort"><span id="hwmsSiSortI_amount">?</span></button></div></th>
+            <th style="text-align:center"><div>Pickup <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('pickupStatus')" title="Sort"><span id="hwmsSiSortI_pickupStatus">?</span></button></div><div style="position:relative"><select id="hwmsSiFltPickup" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPickup')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltPickup_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPickup').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
+            <th style="text-align:center"><div>GRN <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('grnStatus')" title="Sort"><span id="hwmsSiSortI_grnStatus">?</span></button></div><div style="position:relative"><select id="hwmsSiFltGrn" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltGrn')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Pending">Pending</option><option value="Received">Received</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltGrn_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltGrn').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
+            <th style="text-align:center"><div>Payment <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentStatus')" title="Sort"><span id="hwmsSiSortI_paymentStatus">?</span></button></div><div style="position:relative"><select id="hwmsSiFltPay" onchange="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltPay')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><option value="">All</option><option value="Pending">Pending</option><option value="Partially Paid">Part. Paid</option><option value="Fully Paid">Fully Paid</option></select><button type="button" class="hwms-filter-x" id="hwmsSiFltPay_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltPay').value='';renderHwmsSubInvoices();this.style.display='none'">?</button></div></th>
+            <th style="text-align:right"><div>Received <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentReceived')" title="Sort"><span id="hwmsSiSortI_paymentReceived">?</span></button></div></th>
+            <th style="text-align:right"><div>Balance <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('paymentBalance')" title="Sort"><span id="hwmsSiSortI_paymentBalance">?</span></button></div></th>
           </tr></thead><tbody id="hwmsSiBody"></tbody></table>
         </div>
       </div>
@@ -705,9 +705,9 @@
     <div class="page" id="pageHwmsSiView">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="hwms-back-btn" onclick="_hwmsActiveSiPage='pageHwmsSubInvoices';hwmsGo('pageHwmsSubInvoices')">← Back</button>
-          <button id="hwmsSiPrevBtn" onclick="_hwmsSiNav(-1)" title="Previous Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
-          <button id="hwmsSiNextBtn" onclick="_hwmsSiNav(1)" title="Next Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
+          <button class="hwms-back-btn" onclick="_hwmsActiveSiPage='pageHwmsSubInvoices';hwmsGo('pageHwmsSubInvoices')">? Back</button>
+          <button id="hwmsSiPrevBtn" onclick="_hwmsSiNav(-1)" title="Previous Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
+          <button id="hwmsSiNextBtn" onclick="_hwmsSiNav(1)" title="Next Sub-Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">�</button>
           <div class="page-title" id="hwmsSiViewTitle">Sub-Invoice Details</div>
         </div>
         <div id="hwmsSiViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
@@ -739,7 +739,7 @@
       <div style="position:sticky;top:0;z-index:10;background:#fff;padding:8px 16px 4px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:12px">
-            <button class="hwms-back-btn" onclick="hwmsGo('pageHwmsMR')">← Back</button>
+            <button class="hwms-back-btn" onclick="hwmsGo('pageHwmsMR')">? Back</button>
             <div class="page-title" id="hwmsMrViewTitle">MR Details</div>
           </div>
           <div id="hwmsMrViewActions" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>
@@ -751,7 +751,7 @@
 
     <!-- MATERIAL REQUEST MODAL -->
     <div class="modal-overlay" id="mHwmsMr"><div class="modal" style="max-width:800px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 24px">
-      <div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsMrTitle">New Material Request</div><div class="modal-close" onclick="cm('mHwmsMr')">×</div></div>
+      <div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsMrTitle">New Material Request</div><div class="modal-close" onclick="cm('mHwmsMr')">�</div></div>
       <input type="hidden" id="hwmsMrId">
       <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <div class="form-group" style="margin:0;flex:1;min-width:140px"><label>MR Number</label><input type="text" id="hwmsMrNum" readonly style="font-family:var(--mono);font-weight:700;background:#f1f5f9;color:var(--text3)"></div>
@@ -789,15 +789,15 @@
             <div style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 12px 0;margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:2px solid #86efac;border-radius:10px;padding:14px 18px">
                 <div>
-                  <div style="font-size:17px;font-weight:900;color:#16a34a">💳 Payment Receipt Preview</div>
+                  <div style="font-size:17px;font-weight:900;color:#16a34a">?? Payment Receipt Preview</div>
                   <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
                     <span id="hwmsPayImportNum" style="font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent);letter-spacing:0.3px"></span>
                     <span id="hwmsPayImportDateLabel" style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text2)"></span>
                   </div>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center">
-                  <label style="display:inline-block;padding:7px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border-radius:6px;cursor:pointer">📤 Re-upload<input type="file" id="hwmsPayImportFile" accept=".xlsx,.xls,.csv" onchange="_hwmsPayImportParse(this)" style="display:none"></label>
-                  <button onclick="_hwmsPayHideImport()" style="padding:7px 16px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">← Back to Payments</button>
+                  <label style="display:inline-block;padding:7px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border-radius:6px;cursor:pointer">?? Re-upload<input type="file" id="hwmsPayImportFile" accept=".xlsx,.xls,.csv" onchange="_hwmsPayImportParse(this)" style="display:none"></label>
+                  <button onclick="_hwmsPayHideImport()" style="padding:7px 16px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">? Back to Payments</button>
                 </div>
               </div>
             </div>
@@ -820,11 +820,11 @@
     </div>
     <div class="page" id="pageHwmsSysGuide">
       <div class="card" style="padding:24px;max-width:1100px">
-        <div style="font-size:20px;font-weight:900;color:var(--accent);margin-bottom:20px">📖 HWMS System Guide <span style="font-size:12px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:8px">Admin</span></div>
+        <div style="font-size:20px;font-weight:900;color:var(--accent);margin-bottom:20px">?? HWMS System Guide <span style="font-size:12px;font-weight:600;color:#7c3aed;background:#ede9fe;padding:2px 10px;border-radius:6px;vertical-align:middle;margin-left:8px">Admin</span></div>
 
         <!-- SECTION 1: ROLES -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">👥 HWMS Roles</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">?? HWMS Roles</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px">
             <thead><tr style="background:var(--surface2)">
               <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">Code</th>
@@ -843,7 +843,7 @@
 
         <!-- SECTION 2: PAGE ACCESS MATRIX -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔐 Page Access Matrix</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">?? Page Access Matrix</div>
           <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="background:var(--surface2)">
@@ -860,7 +860,7 @@
 
         <!-- SECTION 3: DATABASE TABLES -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🗄️ Supabase Database Tables</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">??? Supabase Database Tables</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="background:var(--surface2)">
               <th style="padding:8px 10px;text-align:left;border:1px solid var(--border);font-weight:800">App Key</th>
@@ -874,19 +874,19 @@
 
         <!-- SECTION 4: PROCESS FLOW -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">📋 Process Flow</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">?? Process Flow</div>
           <div id="sysGuideFlow" style="font-size:13px;line-height:1.8"></div>
         </div>
 
         <!-- SECTION 5: STATUS LIFECYCLE -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔄 Container Status Lifecycle</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">?? Container Status Lifecycle</div>
           <div id="sysGuideContLife" style="font-size:13px"></div>
         </div>
 
         <!-- SECTION 6: INVOICE STATUS LIFECYCLE -->
         <div style="margin-bottom:24px">
-          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">🔄 Invoice Status Lifecycle</div>
+          <div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border)">?? Invoice Status Lifecycle</div>
           <div id="sysGuideInvLife" style="font-size:13px"></div>
         </div>
 
@@ -899,7 +899,7 @@
 <!-- HWMS SUB-INVOICE MODAL -->
 <div class="modal-overlay" id="mHwmsSi"><div class="modal" style="max-width:700px;width:95vw;max-height:calc(100vh - 20px);overflow-y:auto;padding:14px 18px">
   <div class="modal-header" style="position:sticky;top:-14px;background:var(--surface);z-index:2;padding:8px 0 6px;margin:-14px -18px 6px;padding-left:18px;padding-right:18px;border-bottom:1px solid var(--border)">
-    <div class="modal-title" id="mHwmsSiTitle" style="font-size:15px">New Sub-Invoice</div><div class="modal-close" onclick="cm('mHwmsSi')">×</div>
+    <div class="modal-title" id="mHwmsSiTitle" style="font-size:15px">New Sub-Invoice</div><div class="modal-close" onclick="cm('mHwmsSi')">�</div>
   </div>
   <input type="hidden" id="hwmsSiId">
   <!-- Row 1: SI # + Date + Customer -->
@@ -910,15 +910,15 @@
   </div>
   <!-- MR Parts with Stock Reference -->
   <div id="hwmsSiMrRef" style="display:none;margin-bottom:8px;border:1.5px solid #bfdbfe;border-radius:8px;background:#eff6ff;padding:8px 10px">
-    <div style="font-size:11px;font-weight:800;color:#1d4ed8;margin-bottom:6px">📋 Open MR Parts with Warehouse Stock</div>
+    <div style="font-size:11px;font-weight:800;color:#1d4ed8;margin-bottom:6px">?? Open MR Parts with Warehouse Stock</div>
     <div id="hwmsSiMrRefBody" style="max-height:200px;overflow-y:auto"></div>
   </div>
   <!-- Row 2: Original Invoice selector -->
   <div class="form-group" style="margin-bottom:6px"><label style="font-size:10px">Original Main Invoice *</label>
-    <select id="hwmsSiInvSel" onchange="_hwmsSiOnInvChange()" style="font-family:var(--mono);padding:5px 8px;font-size:12px"><option value="">— Select Invoice —</option></select>
+    <select id="hwmsSiInvSel" onchange="_hwmsSiOnInvChange()" style="font-family:var(--mono);padding:5px 8px;font-size:12px"><option value="">� Select Invoice �</option></select>
     <div id="hwmsSiInvInfo" style="display:none;font-size:10px;color:var(--text2);margin-top:3px;padding:4px 8px;background:var(--surface2);border-radius:4px"></div>
   </div>
-  <!-- Line Items from selected invoice — checkboxes + qty override -->
+  <!-- Line Items from selected invoice � checkboxes + qty override -->
   <div id="hwmsSiPartsSection" style="display:none;margin-bottom:6px">
     <label style="margin-bottom:4px;font-size:10px">Select Parts to Dispatch *</label>
     <div id="hwmsSiPartsList" style="border:1px solid var(--border);border-radius:6px;overflow:hidden;max-height:300px;overflow-y:auto"></div>
@@ -930,11 +930,11 @@
   <!-- Pickup + GRN on same row -->
   <div style="display:flex;gap:8px;margin-bottom:6px">
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Pickup</label>
-      <select id="hwmsSiPickup" style="padding:5px 6px;font-size:11px"><option value="">—</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select>
+      <select id="hwmsSiPickup" style="padding:5px 6px;font-size:11px"><option value="">�</option><option value="Scheduled">Scheduled</option><option value="Picked">Picked</option></select>
     </div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Pickup Date</label><input type="date" id="hwmsSiPickupDate" style="padding:5px 6px;font-size:11px"></div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">GRN</label>
-      <select id="hwmsSiGrn" style="padding:5px 6px;font-size:11px"><option value="">—</option><option value="Pending">Pending</option><option value="Received">Received</option></select>
+      <select id="hwmsSiGrn" style="padding:5px 6px;font-size:11px"><option value="">�</option><option value="Pending">Pending</option><option value="Received">Received</option></select>
     </div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">GRN Date</label><input type="date" id="hwmsSiGrnDate" style="padding:5px 6px;font-size:11px"></div>
   </div>
@@ -943,7 +943,7 @@
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Tariff %</label><input type="number" id="hwmsSiTariffPct" step="0.01" class="no-spin" placeholder="0" style="font-family:var(--mono);padding:5px 6px;font-size:11px"></div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Tariff Amt ($)</label><input type="number" id="hwmsSiTariffAmt" step="0.01" class="no-spin" placeholder="0" style="font-family:var(--mono);padding:5px 6px;font-size:11px"></div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Payment</label>
-      <select id="hwmsSiPayment" style="padding:5px 6px;font-size:11px"><option value="">—</option><option value="Pending">Pending</option><option value="Partially Paid">Partially Paid</option><option value="Fully Paid">Fully Paid</option></select>
+      <select id="hwmsSiPayment" style="padding:5px 6px;font-size:11px"><option value="">�</option><option value="Pending">Pending</option><option value="Partially Paid">Partially Paid</option><option value="Fully Paid">Fully Paid</option></select>
     </div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Received ($)</label><input type="number" id="hwmsSiPayRcvd" step="0.01" class="no-spin" placeholder="0" style="font-family:var(--mono);background:#f1f5f9;color:#16a34a;padding:5px 6px;font-size:11px" readonly oninput="_hwmsSiCalcBal()"></div>
     <div class="form-group" style="margin:0;flex:1"><label style="font-size:10px">Balance ($)</label><input type="text" id="hwmsSiPayBal" class="no-spin" placeholder="0" style="font-family:var(--mono);background:#f1f5f9;font-weight:700;padding:5px 6px;font-size:11px" readonly></div>
@@ -958,17 +958,17 @@
 <!-- HWMS SUB-INVOICE PREVIEW POPUP -->
 <div class="modal-overlay" id="mHwmsSiPreview" style="z-index:1100"><div class="modal" style="max-width:860px;width:95vw;height:calc(100vh - 20px);max-height:calc(100vh - 20px);overflow:hidden;padding:0;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
-    <div style="font-size:14px;font-weight:800;color:var(--text)">🖨️ Sub-Invoice Preview</div>
+    <div style="font-size:14px;font-weight:800;color:var(--text)">??? Sub-Invoice Preview</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn" onclick="_hwmsSiPreviewPrint()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer">🖨️ Print</button>
-      <button class="btn" onclick="_hwmsSiPreviewNewTab()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:5px;cursor:pointer">↗ Open in New Tab</button>
-      <div class="modal-close" onclick="cm('mHwmsSiPreview')" style="position:static">×</div>
+      <button class="btn" onclick="_hwmsSiPreviewPrint()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer">??? Print</button>
+      <button class="btn" onclick="_hwmsSiPreviewNewTab()" style="font-size:12px;font-weight:700;padding:5px 14px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:5px;cursor:pointer">? Open in New Tab</button>
+      <div class="modal-close" onclick="cm('mHwmsSiPreview')" style="position:static">�</div>
     </div>
   </div>
   <iframe id="hwmsSiPreviewFrame" style="flex:1;width:100%;border:none;background:#fff"></iframe>
 </div></div>
 <!-- HWMS PART MASTER MODAL -->
-<div class="modal-overlay" id="mHwmsPart"><div class="modal" style="max-width:904px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsPartTitle">Add Part</div><div class="modal-close" onclick="cm('mHwmsPart')">×</div></div>
+<div class="modal-overlay" id="mHwmsPart"><div class="modal" style="max-width:904px;width:95vw;max-height:calc(100vh - 30px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsPartTitle">Add Part</div><div class="modal-close" onclick="cm('mHwmsPart')">�</div></div>
   <input type="hidden" id="eHwmsPartId">
   <!-- Row 1: Active + Part No + Rev + Description -->
   <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:8px">
@@ -982,7 +982,7 @@
     <div class="form-group" style="margin:0;width:85px;flex-shrink:0"><label>Net Wt (Kg)</label><input type="number" id="hwmsPartWt" step="0.01" min="0" class="hwms-num-clean" style="padding:7px 8px;text-align:right;font-family:var(--mono)"></div>
     <div class="form-group" style="margin:0;width:120px;flex-shrink:0"><label>UOM</label><select id="hwmsPartUom" style="padding:7px 8px"><option value="">--</option></select></div>
     <div class="form-group" style="margin:0;width:150px;flex-shrink:0"><label>HSN Code</label><select id="hwmsPartHsn" style="padding:7px 8px"><option value="">--</option></select></div>
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-bottom:2px"><span style="font-size:10px;font-weight:700;color:var(--text3)">Photo</span><div id="hwmsPartPhotoThumb" class="u-thumb-lg" style="cursor:pointer;width:34px;height:34px" onclick="document.getElementById('hwmsPartPhotoFile').click()">📷</div><input type="file" id="hwmsPartPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_hwmsOnPartPhoto(this)"><button type="button" id="hwmsPartPhotoClear" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;display:none" onclick="_hwmsClearPartPhoto()">✕</button></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-bottom:2px"><span style="font-size:10px;font-weight:700;color:var(--text3)">Photo</span><div id="hwmsPartPhotoThumb" class="u-thumb-lg" style="cursor:pointer;width:34px;height:34px" onclick="document.getElementById('hwmsPartPhotoFile').click()">??</div><input type="file" id="hwmsPartPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_hwmsOnPartPhoto(this)"><button type="button" id="hwmsPartPhotoClear" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;display:none" onclick="_hwmsClearPartPhoto()">?</button></div>
   </div>
   <!-- PACKING SECTION -->
   <div style="height:1px;background:var(--border);margin:8px 0"></div>
@@ -994,7 +994,7 @@
     <div class="form-group" style="margin:0;width:68px;flex-shrink:0"><label>L (mm)</label><input type="number" id="hwmsPartDimL" min="0" step="1" class="hwms-num-clean" style="padding:7px 6px;text-align:right;font-family:var(--mono)"></div>
     <div class="form-group" style="margin:0;width:68px;flex-shrink:0"><label>W (mm)</label><input type="number" id="hwmsPartDimW" min="0" step="1" class="hwms-num-clean" style="padding:7px 6px;text-align:right;font-family:var(--mono)"></div>
     <div class="form-group" style="margin:0;width:68px;flex-shrink:0"><label>H (mm)</label><input type="number" id="hwmsPartDimH" min="0" step="1" class="hwms-num-clean" style="padding:7px 6px;text-align:right;font-family:var(--mono)"></div>
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-bottom:2px"><span style="font-size:10px;font-weight:700;color:var(--text3)">Photo</span><div id="hwmsPackPhotoThumb" class="u-thumb-lg" style="cursor:pointer;width:34px;height:34px" onclick="document.getElementById('hwmsPackPhotoFile').click()">📷</div><input type="file" id="hwmsPackPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_hwmsOnPackPhoto(this)"><button type="button" id="hwmsPackPhotoClear" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;display:none" onclick="_hwmsClearPackPhoto()">✕</button></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-bottom:2px"><span style="font-size:10px;font-weight:700;color:var(--text3)">Photo</span><div id="hwmsPackPhotoThumb" class="u-thumb-lg" style="cursor:pointer;width:34px;height:34px" onclick="document.getElementById('hwmsPackPhotoFile').click()">??</div><input type="file" id="hwmsPackPhotoFile" accept="image/*" capture="environment" style="display:none" onchange="_hwmsOnPackPhoto(this)"><button type="button" id="hwmsPackPhotoClear" class="btn btn-secondary" style="font-size:10px;padding:2px 6px;display:none" onclick="_hwmsClearPackPhoto()">?</button></div>
   </div>
   <!-- RATE SECTION -->
   <div style="height:1px;background:var(--border);margin:8px 0"></div>
@@ -1012,7 +1012,7 @@
       <div class="form-group" style="margin:0;width:95px;flex-shrink:0"><label style="font-size:11px;font-weight:700;color:#16a34a">Final Rate</label><input type="number" id="hwmsPartFinalRate" step="0.01" readonly style="padding:6px 6px;font-size:15px;font-weight:800;color:#16a34a;background:#f0fdf4;text-align:right;font-family:var(--mono)"></div>
       <div class="form-group" style="margin:0;width:120px;flex-shrink:0"><label style="font-size:11px;font-weight:600">Revision Date *</label><input type="date" id="hwmsPartRateDate" style="padding:6px 4px;font-size:13px"></div>
       <button class="btn btn-primary" id="hwmsRateAddBtn" onclick="_hwmsAddRateRevision()" style="font-size:13px;padding:6px 14px;height:34px;flex-shrink:0">+ Add Rate</button>
-      <button class="btn btn-secondary" id="hwmsRateCancelBtn" onclick="_hwmsRateCancelEdit()" style="font-size:12px;padding:6px 10px;height:34px;flex-shrink:0;display:none">✕ Cancel</button>
+      <button class="btn btn-secondary" id="hwmsRateCancelBtn" onclick="_hwmsRateCancelEdit()" style="font-size:12px;padding:6px 10px;height:34px;flex-shrink:0;display:none">? Cancel</button>
     </div>
   </div>
   <div class="modal-footer" style="flex-wrap:wrap;margin-top:12px;padding-top:12px"><div class="modal-err" id="merr_mHwmsPart"></div><button class="btn btn-secondary" onclick="cm('mHwmsPart')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsPart()">Save</button></div>
@@ -1023,27 +1023,27 @@
 <!-- HWMS RECEIVE CONTAINER MODAL -->
 <div class="modal-overlay" id="mHwmsContReceive"><div class="modal" style="max-width:900px;width:96vw;max-height:calc(100vh - 20px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 24px">
   <div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)">
-    <div><div class="modal-title" style="color:#16a34a">📦 Receive Container</div><div id="hwmsRecvContNum" style="font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent);margin-top:4px"></div></div>
-    <div class="modal-close" onclick="cm('mHwmsContReceive')">×</div>
+    <div><div class="modal-title" style="color:#16a34a">?? Receive Container</div><div id="hwmsRecvContNum" style="font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent);margin-top:4px"></div></div>
+    <div class="modal-close" onclick="cm('mHwmsContReceive')">�</div>
   </div>
   <div style="margin-bottom:10px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-    <div class="form-group" style="margin:0"><label style="font-weight:700">Receipt Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsRecvDate_fmt" readonly onclick="document.getElementById('hwmsRecvDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsRecvDate" onchange="_hwmsContDateFmt('hwmsRecvDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsRecvDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">📅</span></div></div>
-    <div class="form-group" style="margin:0"><label style="font-weight:700;font-size:10px;color:var(--text3)">Container Photo (optional)</label><div style="display:flex;gap:6px;align-items:center"><label style="margin:0;cursor:pointer;display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:rgba(42,154,160,.1);border:1.5px solid var(--accent);border-radius:var(--radius);font-size:16px" title="Upload container photo" onclick="document.getElementById('hwmsRecvContPhoto').click()">📷</label><input type="file" id="hwmsRecvContPhoto" accept="image/*" onchange="_hwmsRecvPhotoPreview(this,'hwmsRecvContPhotoPreview')" style="display:none"><div id="hwmsRecvContPhotoPreview"></div></div></div>
+    <div class="form-group" style="margin:0"><label style="font-weight:700">Receipt Date *</label><div style="display:flex;gap:4px;align-items:center"><div style="position:relative"><input type="text" id="hwmsRecvDate_fmt" readonly onclick="document.getElementById('hwmsRecvDate').showPicker()" placeholder="dd-mmm-yy" style="padding:6px 8px;font-weight:700;font-family:var(--mono);font-size:13px;cursor:pointer;width:88px;box-sizing:border-box"><input type="date" id="hwmsRecvDate" onchange="_hwmsContDateFmt('hwmsRecvDate')" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer"></div><span onclick="document.getElementById('hwmsRecvDate').showPicker()" style="font-size:16px;cursor:pointer;flex-shrink:0;padding:4px;user-select:none" title="Pick date">??</span></div></div>
+    <div class="form-group" style="margin:0"><label style="font-weight:700;font-size:10px;color:var(--text3)">Container Photo (optional)</label><div style="display:flex;gap:6px;align-items:center"><label style="margin:0;cursor:pointer;display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:rgba(42,154,160,.1);border:1.5px solid var(--accent);border-radius:var(--radius);font-size:16px" title="Upload container photo" onclick="document.getElementById('hwmsRecvContPhoto').click()">??</label><input type="file" id="hwmsRecvContPhoto" accept="image/*" onchange="_hwmsRecvPhotoPreview(this,'hwmsRecvContPhotoPreview')" style="display:none"><div id="hwmsRecvContPhotoPreview"></div></div></div>
   </div>
   <div id="hwmsRecvBody" style="margin-bottom:12px"></div>
   <div class="modal-footer" style="flex-wrap:wrap">
     <div class="modal-err" id="merr_mHwmsContReceive"></div>
     <button class="btn btn-secondary" onclick="cm('mHwmsContReceive')">Cancel</button>
-    <button class="btn btn-primary" style="background:#16a34a;border-color:#15803d" onclick="_hwmsContSaveReceive()">📦 Confirm Receipt & Save</button>
+    <button class="btn btn-primary" style="background:#16a34a;border-color:#15803d" onclick="_hwmsContSaveReceive()">?? Confirm Receipt & Save</button>
   </div>
 </div></div>
 
 <!-- HWMS CUSTOMER MODAL -->
-<div class="modal-overlay" id="mHwmsCust"><div class="modal" style="max-width:680px;width:96vw;max-height:calc(100vh - 40px);overflow-y:auto;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsCustTitle">Add Customer</div><div class="modal-close" onclick="cm('mHwmsCust')">×</div></div>
+<div class="modal-overlay" id="mHwmsCust"><div class="modal" style="max-width:680px;width:96vw;max-height:calc(100vh - 40px);overflow-y:auto;padding:20px 24px"><div class="modal-header" style="position:sticky;top:-20px;background:var(--surface);z-index:2;padding:12px 0 8px;margin:-20px -24px 8px;padding-left:24px;padding-right:24px;border-bottom:1px solid var(--border)"><div class="modal-title" id="mHwmsCustTitle">Add Customer</div><div class="modal-close" onclick="cm('mHwmsCust')">�</div></div>
   <input type="hidden" id="eHwmsCustId">
   <!-- SECTION 1: Customer Details (blue tint) -->
   <div style="background:rgba(59,130,246,.05);border:1.5px solid rgba(59,130,246,.2);border-radius:8px;padding:14px 18px;margin-bottom:12px">
-    <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">👤 Customer Details</div>
+    <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">?? Customer Details</div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
       <div class="form-group" style="margin:0"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Customer Name *</label><input type="text" id="hwmsCustName" style="font-size:14px;padding:9px 12px;width:100%;box-sizing:border-box"></div>
       <div class="form-group" style="margin:0"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Supplier Code</label><input type="text" id="hwmsCustSupplierCode" style="font-size:14px;padding:9px 12px;font-family:var(--mono);width:100%;box-sizing:border-box" placeholder="e.g. SUP-001"></div>
@@ -1055,12 +1055,12 @@
   </div>
   <!-- SECTION 2: Consignees (green tint) -->
   <div style="background:rgba(34,197,94,.05);border:1.5px solid rgba(34,197,94,.2);border-radius:8px;padding:14px 18px;margin-bottom:12px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">🧾 Consignees (Max 3)</div><button class="btn" style="font-size:10px;padding:3px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer" onclick="_hwmsCustAddConsignee()">+ Add</button></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:1px">?? Consignees (Max 3)</div><button class="btn" style="font-size:10px;padding:3px 10px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;font-weight:700;border-radius:4px;cursor:pointer" onclick="_hwmsCustAddConsignee()">+ Add</button></div>
     <div id="hwmsCustConsignees"></div>
   </div>
   <!-- SECTION 3: Defaults (amber tint) -->
   <div style="background:rgba(234,179,8,.05);border:1.5px solid rgba(234,179,8,.25);border-radius:8px;padding:14px 18px">
-    <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">⚙️ Defaults</div>
+    <div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px">?? Defaults</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group" style="margin:0"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Transport</label><select id="hwmsCustTransport" style="font-size:14px;padding:9px 10px;width:100%;box-sizing:border-box"><option value="By Sea">By Sea</option><option value="By Air">By Air</option><option value="By Road">By Road</option></select></div>
       <div class="form-group" style="margin:0"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Delivery Terms</label><select id="hwmsCustDelivery" style="font-size:14px;padding:9px 10px;width:100%;box-sizing:border-box"><option value="">--</option><option value="DDP">DDP</option><option value="DAP">DAP</option><option value="Ex-Works">Ex-Works</option></select></div>
@@ -1072,7 +1072,7 @@
   <!-- SECTION 4: Steel & Forex Rates (teal) -->
   <div id="hwmsCustSteelSection" style="display:none;background:rgba(42,154,160,.04);border:1.5px solid rgba(42,154,160,.2);border-radius:8px;padding:12px 16px;margin-top:10px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px">💱 Steel &amp; Forex Rate History</div>
+      <div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px">?? Steel &amp; Forex Rate History</div>
       <button class="btn" style="font-size:10px;padding:3px 12px;background:rgba(42,154,160,.12);border:1px solid rgba(42,154,160,.35);color:var(--accent);font-weight:700;border-radius:4px;cursor:pointer" onclick="_hwmsCustOpenSteelModal()">+ Add Period</button>
     </div>
     <div id="hwmsCustSteelTable"></div>
@@ -1082,7 +1082,7 @@
 
 <!-- HWMS STEEL & FOREX RATE MODAL -->
 <div class="modal-overlay" id="mHwmsSteelRate"><div class="modal" style="width:480px;padding:0">
-  <div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsSteelRateTitle">Add Steel &amp; Forex Rate</div><div class="modal-close" onclick="cm('mHwmsSteelRate')">×</div></div>
+  <div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsSteelRateTitle">Add Steel &amp; Forex Rate</div><div class="modal-close" onclick="cm('mHwmsSteelRate')">�</div></div>
   <input type="hidden" id="eHwmsSteelRateId">
   <div style="padding:20px 32px 8px">
     <div class="form-group" style="margin-bottom:16px">
@@ -1091,11 +1091,11 @@
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
       <div class="form-group" style="margin:0">
-        <label style="font-size:11px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Steel Rate (₹/Kg) *</label>
+        <label style="font-size:11px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Steel Rate (?/Kg) *</label>
         <input type="number" id="hwmsSteelRateVal" step="0.01" placeholder="e.g. 68.50" style="font-size:15px;font-weight:800;padding:9px 12px;border:2px solid #94a3b8;background:#fff;width:100%;box-sizing:border-box;border-radius:8px;text-align:right;font-family:var(--mono)">
       </div>
       <div class="form-group" style="margin:0">
-        <label style="font-size:11px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Forex Rate (₹/USD) *</label>
+        <label style="font-size:11px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Forex Rate (?/USD) *</label>
         <input type="number" id="hwmsForexRateVal" step="0.01" placeholder="e.g. 84.20" style="font-size:15px;font-weight:800;padding:9px 12px;border:2px solid #94a3b8;background:#fff;width:100%;box-sizing:border-box;border-radius:8px;text-align:right;font-family:var(--mono)">
       </div>
     </div>
@@ -1114,7 +1114,7 @@
 </div></div>
 
 <!-- HWMS PORT OF DISCHARGE MODAL -->
-<div class="modal-overlay" id="mHwmsPortDisch"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortDischTitle">Add Port of Discharge</div><div class="modal-close" onclick="cm('mHwmsPortDisch')">×</div></div>
+<div class="modal-overlay" id="mHwmsPortDisch"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortDischTitle">Add Port of Discharge</div><div class="modal-close" onclick="cm('mHwmsPortDisch')">�</div></div>
   <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPortDischId">
   <div class="form-group"><label>Port Name *</label><input type="text" id="hwmsPortDischName"></div>
@@ -1124,7 +1124,7 @@
 </div></div>
 
 <!-- HWMS PORT OF LOADING MODAL -->
-<div class="modal-overlay" id="mHwmsPortLoad"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortLoadTitle">Add Port of Loading</div><div class="modal-close" onclick="cm('mHwmsPortLoad')">×</div></div>
+<div class="modal-overlay" id="mHwmsPortLoad"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPortLoadTitle">Add Port of Loading</div><div class="modal-close" onclick="cm('mHwmsPortLoad')">�</div></div>
   <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPortLoadId">
   <div class="form-group"><label>Port Name *</label><input type="text" id="hwmsPortLoadName"></div>
@@ -1134,18 +1134,18 @@
 </div></div>
 
 <!-- HWMS CARRIER MODAL -->
-<div class="modal-overlay" id="mHwmsCarrier"><div class="modal" style="width:560px;padding:20px 24px"><div class="modal-header" style="margin-bottom:14px"><div class="modal-title" id="mHwmsCarrierTitle">Add Carrier</div><div class="modal-close" onclick="cm('mHwmsCarrier')">×</div></div>
+<div class="modal-overlay" id="mHwmsCarrier"><div class="modal" style="width:560px;padding:20px 24px"><div class="modal-header" style="margin-bottom:14px"><div class="modal-title" id="mHwmsCarrierTitle">Add Carrier</div><div class="modal-close" onclick="cm('mHwmsCarrier')">�</div></div>
   <input type="hidden" id="eHwmsCarrierId">
   <div class="form-group" style="margin-bottom:12px"><label style="font-size:12px;font-weight:700;margin-bottom:4px;display:block">Carrier Name *</label><input type="text" id="hwmsCarrierName" style="padding:8px 10px;font-size:14px;font-weight:700"></div>
   <div class="form-group" style="margin-bottom:14px"><label style="font-size:12px;font-weight:700;margin-bottom:4px;display:block">Address</label><textarea id="hwmsCarrierAddr" rows="2" style="resize:vertical;min-height:50px;padding:8px 10px;font-size:13px"></textarea></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
     <div style="background:rgba(234,88,12,.06);border:1.5px solid rgba(234,88,12,.2);border-radius:8px;padding:12px 14px">
-      <div style="font-size:10px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🇮🇳 India Contact</div>
+      <div style="font-size:10px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">???? India Contact</div>
       <div class="form-group" style="margin-bottom:10px"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Phone</label><input type="tel" id="hwmsCarrierInPhone" maxlength="15" placeholder="+91 XXXXX XXXXX" style="padding:7px 10px;font-family:var(--mono);font-size:13px"></div>
       <div class="form-group" style="margin:0"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Email</label><input type="email" id="hwmsCarrierInEmail" placeholder="contact@example.com" style="padding:7px 10px;font-size:13px"></div>
     </div>
     <div style="background:rgba(37,99,235,.06);border:1.5px solid rgba(37,99,235,.2);border-radius:8px;padding:12px 14px">
-      <div style="font-size:10px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🇺🇸 USA Contact</div>
+      <div style="font-size:10px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">???? USA Contact</div>
       <div class="form-group" style="margin-bottom:10px"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Phone</label><input type="tel" id="hwmsCarrierUsPhone" maxlength="15" placeholder="+1 XXX XXX XXXX" style="padding:7px 10px;font-family:var(--mono);font-size:13px"></div>
       <div class="form-group" style="margin:0"><label style="font-size:11px;font-weight:700;margin-bottom:4px;display:block">Email</label><input type="email" id="hwmsCarrierUsEmail" placeholder="contact@example.com" style="padding:7px 10px;font-size:13px"></div>
     </div>
@@ -1154,17 +1154,17 @@
 </div></div>
 
 <!-- HWMS HSN MODAL -->
-<div class="modal-overlay" id="mHwmsHsn"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsHsnTitle">Add HSN</div><div class="modal-close" onclick="cm('mHwmsHsn')">×</div></div>
+<div class="modal-overlay" id="mHwmsHsn"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsHsnTitle">Add HSN</div><div class="modal-close" onclick="cm('mHwmsHsn')">�</div></div>
   <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsHsnId">
   <div class="form-group"><label>HSN Number *</label><input type="text" id="hwmsHsnNum" placeholder="e.g. 7318.15"></div>
-  <div class="form-group"><label>Description</label><input type="text" id="hwmsHsnDesc" placeholder="e.g. Screws, bolts, nuts…"></div>
+  <div class="form-group"><label>Description</label><input type="text" id="hwmsHsnDesc" placeholder="e.g. Screws, bolts, nuts�"></div>
   </div>
   <div class="modal-footer" style="flex-wrap:wrap;padding:14px 32px 20px"><div class="modal-err" id="merr_mHwmsHsn"></div><button class="btn btn-secondary" onclick="cm('mHwmsHsn')">Cancel</button><button class="btn btn-primary" onclick="saveHwmsHsn()">Save</button></div>
 </div></div>
 
 <!-- HWMS UOM MODAL -->
-<div class="modal-overlay" id="mHwmsUom"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsUomTitle">Add UOM</div><div class="modal-close" onclick="cm('mHwmsUom')">×</div></div>
+<div class="modal-overlay" id="mHwmsUom"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsUomTitle">Add UOM</div><div class="modal-close" onclick="cm('mHwmsUom')">�</div></div>
   <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsUomId">
   <div class="form-group"><label>UOM *</label><input type="text" id="hwmsUomVal" placeholder="e.g. Pcs, Kg, Set"></div>
@@ -1174,7 +1174,7 @@
 </div></div>
 
 <!-- HWMS PACKAGING MODAL -->
-<div class="modal-overlay" id="mHwmsPacking"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPackingTitle">Add Packaging</div><div class="modal-close" onclick="cm('mHwmsPacking')">×</div></div>
+<div class="modal-overlay" id="mHwmsPacking"><div class="modal" style="width:420px;padding:0"><div class="modal-header" style="padding:16px 20px 14px"><div class="modal-title" id="mHwmsPackingTitle">Add Packaging</div><div class="modal-close" onclick="cm('mHwmsPacking')">�</div></div>
   <div style="padding:20px 32px 8px">
   <input type="hidden" id="eHwmsPackingId">
   <div class="form-group"><label>Packaging Name *</label><input type="text" id="hwmsPackingName" placeholder="e.g. Wooden, Steelage"></div>
@@ -1184,13 +1184,13 @@
 </div></div>
 
 <!-- SECURITY CHECKPOINT MODAL -->
-<div class="modal-overlay" id="mCheckpoint"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">×</div></div></div></div>
+<div class="modal-overlay" id="mCheckpoint"><div class="modal" style="width:480px"><div class="modal-header"><div class="modal-title" id="mCPTitle">Add Checkpoint</div><div class="modal-close" onclick="cm('mCheckpoint')">�</div></div></div></div>
 
 <!-- COMMON -->
 <!-- CONFIRM DELETE MODAL -->
 <div class="modal-overlay" id="mConfirm">
   <div class="modal" style="width:380px;max-width:92vw;text-align:center;padding:32px">
-    <div id="confirmIcon" style="font-size:40px;margin-bottom:8px">❓</div>
+    <div id="confirmIcon" style="font-size:40px;margin-bottom:8px">?</div>
     <div id="confirmTitle" style="font-size:17px;font-weight:800;margin-bottom:6px">Are you sure?</div>
     <div id="confirmMsg" style="font-size:13px;color:#64748b;margin-bottom:20px">This action cannot be undone.</div>
     <div style="display:flex;justify-content:center;gap:12px">
@@ -1202,21 +1202,21 @@
 <!-- PAYMENT RECEIPT VIEW MODAL -->
 <div class="modal-overlay" id="mHwmsPayReceiptView">
   <div class="modal" style="max-width:720px;width:96vw;max-height:90vh;overflow-y:auto;padding:0">
-    <div class="modal-header"><span class="modal-title">📄 Payment Receipt</span><span class="modal-close" onclick="cm('mHwmsPayReceiptView')">&times;</span></div>
+    <div class="modal-header"><span class="modal-title">?? Payment Receipt</span><span class="modal-close" onclick="cm('mHwmsPayReceiptView')">&times;</span></div>
     <div id="hwmsPayReceiptViewBody" style="padding:20px"></div>
   </div>
 </div>
 <!-- ERROR MODAL -->
 <div class="modal-overlay" id="mError">
   <div class="modal" style="width:420px;max-width:92vw;padding:32px">
-    <div style="font-size:17px;font-weight:800;margin-bottom:12px">⚠️ Cannot Delete</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:12px">?? Cannot Delete</div>
     <div id="errorMsg" style="font-size:13px;color:#64748b;margin-bottom:20px"></div>
     <div style="text-align:right"><button onclick="cm('mError')" style="padding:10px 24px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;cursor:pointer">OK</button></div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260508-V5"></script>
-<script src="js/hwms-logic.js?v=260508-V5"></script>
-<script src="js/hwms-ui.js?v=260508-V5"></script>
+<script src="js/common.js?v=260508-V6"></script>
+<script src="js/hwms-logic.js?v=260508-V6"></script>
+<script src="js/hwms-ui.js?v=260508-V6"></script>
 </body>
 </html>

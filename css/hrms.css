@@ -125,8 +125,25 @@
 #pageHrmsAttSal.hrms-month-locked label[for]:has(input[type="file"]):not(.hrms-allow-locked){
   opacity:0.5!important;pointer-events:none!important;cursor:not-allowed!important;
 }
+/* Print Muster panel is read/print-only and edits print-format
+   templates (global config, not month data). Locking should never
+   disable its controls — override the section above so every form
+   element inside #hrmsAttTabPrintformats stays interactive on locked
+   months without needing per-element .hrms-allow-locked tags. */
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats button,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats input,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats select,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats textarea,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats label.btn,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats label[for]:has(input[type="file"]){
+  opacity:1!important;pointer-events:auto!important;cursor:auto!important;
+}
 .no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .no-spin{-moz-appearance:textfield}
+/* Advances tab — advance input where the amount came from an Excel
+   import (vs. manually-entered). Amber tint signals "fetched, not
+   typed" so the operator can spot import-driven values at a glance. */
+.hrms-adv-imported{background:#fef3c7!important;border-color:#f59e0b!important;color:#92400e!important;font-weight:800}
 /* Standard HRMS search-box style (matches the Salary-tab search). Used
    across all standalone search inputs so they share the same look. */
 .hrms-search{font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text)}
