@@ -1810,7 +1810,7 @@ var _PERM_KEYS={
     {key:'settings.manual',label:'Manual Overrides',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.importOB',label:'Import Opening Bal.',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.tds',label:'TDS',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.salrevision',label:'OR Salary Rev',group:'⚙️ Settings & Sub-tabs'},
+    {key:'settings.salrevision',label:'KAP Sal Rev',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.bulkSalRevision',label:'Import Salary Excel',group:'⚙️ Settings & Sub-tabs'},
     {key:'settings.otrules',label:'OT Rules',group:'⚙️ Settings & Sub-tabs'},
     {key:'action.editOtRules',label:'Edit OT Rules',group:'⚙️ Settings & Sub-tabs'},

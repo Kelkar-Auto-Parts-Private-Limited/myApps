@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260509-V76">
+<meta name="app-build" content="260509-V87">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260509-V76">
+<link rel="stylesheet" href="css/hrms.css?v=260509-V87">
 </head>
 <body>
 
@@ -50,7 +50,6 @@
   <div id="hrmsUtilsGroup" style="display:none;padding-left:12px">
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
     <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
-    <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
     <div class="nav-item" id="navUtilUpdateEmp" onclick="hrmsGo('pageHrmsUtilUpdateEmp')" style="font-size:12px;padding:7px 16px">✏️ Update Employee</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
@@ -383,23 +382,6 @@
     </div>
   </div>
 
-  <!-- UTILITIES: Monthly Headcount Graph -->
-  <div class="page" id="pageHrmsUtilMonthlyHc" style="flex-direction:column">
-    <div class="card" style="flex:1;display:flex;flex-direction:column">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">📈 Monthly Headcount Graph</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:12px;font-weight:700;color:var(--text2)">Month:</span>
-          <select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>
-        </div>
-      </div>
-      <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-        Daily presence (any IN punch) rolled up by plant, grouped by employment type. One chart per plant; three overlapping lines: <b style="color:#15803d">On Roll</b>, <b style="color:#1d4ed8">Contract</b>, <b style="color:#7c3aed">Piece Rate</b>. Data comes from attendance records already imported for the selected month.
-      </div>
-      <div id="hrmsMhgCharts" style="flex:1;overflow:auto"></div>
-    </div>
-  </div>
-
   <!-- UTILITIES: Update Employee (compact, mobile-friendly) -->
   <div class="page" id="pageHrmsUtilUpdateEmp" style="flex-direction:column">
     <div class="card" style="max-width:480px;margin:0 auto;width:100%;padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))">
@@ -414,7 +396,7 @@
            Hidden after selection; revealed again after Save / Clear. -->
       <div id="hrmsUpdEmpPickerWrap" style="margin-bottom:14px;position:relative">
         <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Select Employee</label>
-        <input id="hrmsUpdEmpPicker" autocomplete="off" inputmode="numeric" placeholder="Type emp code or name, then pick…" oninput="_hrmsUpdEmpPickerFilter()" onblur="setTimeout(_hrmsUpdEmpPickerHide,180)" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff;font-family:var(--mono)">
+        <input id="hrmsUpdEmpPicker" autocomplete="off" inputmode="numeric" placeholder="Click to view list, or type emp code / name…" oninput="_hrmsUpdEmpPickerFilter()" onfocus="_hrmsUpdEmpPickerFilter()" onclick="_hrmsUpdEmpPickerFilter()" onblur="setTimeout(_hrmsUpdEmpPickerHide,180)" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff;font-family:var(--mono)">
         <div id="hrmsUpdEmpPickerList" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;border:1.5px solid var(--border);border-top:none;border-radius:0 0 6px 6px;background:#fff;z-index:30;box-shadow:0 8px 24px rgba(0,0,0,0.15)"></div>
       </div>
       <!-- Picked-employee banner (emp code, name, plant w/ background colour) -->
@@ -514,7 +496,7 @@
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances">Advances</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds">TDS</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">OR Salary Rev</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">KAP Sal Rev</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev">Contract Salary Rev</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('statutory')" id="hrmsSetTabStatutory">Statutory</div>
       </div>
@@ -1082,8 +1064,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260509-V76"></script>
-<script src="js/hrms-logic.js?v=260509-V76"></script>
-<script src="js/hrms-ui.js?v=260509-V76"></script>
+<script src="js/common.js?v=260509-V87"></script>
+<script src="js/hrms-logic.js?v=260509-V87"></script>
+<script src="js/hrms-ui.js?v=260509-V87"></script>
 </body>
 </html>

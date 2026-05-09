@@ -51,6 +51,10 @@ function _hrmsLaunch(){
   _onRefreshViews=function(){};
   _hrmsLoadPermissions();
   _hrmsEnforcePermissions();
+  // Idempotent gender-case repair: 'male' → 'Male' etc. so the dashboard
+  // diversity chart doesn't split a single bucket across casings. Runs
+  // in the background; only elevated users actually persist the fix.
+  setTimeout(function(){try{_hrmsRepairGenderCase();}catch(_){}},800);
   renderHrmsDashboard();
   renderHrmsEmployees();
   _hrmsUpdateChangeReqBadge();
@@ -899,6 +903,54 @@ function modalErr(mid,msg){
   var el=document.getElementById(mid+'Err');if(el){el.textContent='';el.style.display='none';}
 }
 
+// One-time gender-case normaliser. Walks DB.hrmsEmployees in place and
+// rewrites any 'male'/'MALE'/'female'/'FEMALE'/'other'/'OTHER' value to
+// the title-case form so the diversity chart, Update Employee defaults,
+// and exports all see one canonical value per gender. Idempotent: once
+// every row is title-cased the function does nothing on subsequent
+// runs. Persists via _dbSaveBulk so a few hundred edits cost a couple
+// of round-trips, not one per row. Only Super Admin / HR Manager /
+// HRMS Admin roles persist the fix — others just see the in-memory
+// normalisation for the current session, since they likely lack write
+// access to hrmsEmployees anyway.
+async function _hrmsRepairGenderCase(){
+  var emps=DB.hrmsEmployees||[];
+  if(!emps.length) return 0;
+  var canon={male:'Male',female:'Female',other:'Other'};
+  var changed=[];
+  for(var i=0;i<emps.length;i++){
+    var e=emps[i];if(!e||!e.gender) continue;
+    var raw=String(e.gender);
+    var trimmed=raw.trim();
+    if(!trimmed) continue;
+    var target=canon[trimmed.toLowerCase()];
+    if(!target) continue; // unknown variant (e.g. 'M', 'F') — leave alone
+    if(trimmed===target&&raw===target) continue;
+    e.gender=target;
+    changed.push(e);
+  }
+  if(!changed.length) return 0;
+  // Persist only when the logged-in user can write hrmsEmployees.
+  var roles=(typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[];
+  var canWrite=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+    ||roles.indexOf('HR Manager')>=0||roles.indexOf('HRMS Admin')>=0;
+  if(canWrite&&typeof _dbSaveBulk==='function'){
+    try{
+      await _dbSaveBulk('hrmsEmployees',changed,'Repairing gender case…');
+      if(typeof notify==='function') notify('🔧 Repaired gender case for '+changed.length+' employee(s)');
+      if(typeof renderHrmsDashboard==='function') renderHrmsDashboard();
+      if(typeof renderHrmsEmployees==='function') renderHrmsEmployees();
+    }catch(err){
+      console.warn('Gender case repair failed:',err);
+    }
+  } else {
+    // No write access — still re-render so the in-memory normalisation
+    // shows up in this session's UI.
+    if(typeof renderHrmsDashboard==='function') renderHrmsDashboard();
+  }
+  return changed.length;
+}
+
 // ═══ DASHBOARD ══════════════════════════════════════════════════════════
 function renderHrmsDashboard(){
   var el=document.getElementById('hrmsDashContent');if(!el)return;
@@ -910,10 +962,9 @@ function renderHrmsDashboard(){
   var contract=emps.filter(function(e){return(e.employmentType||'').toLowerCase()==='contract';}).length;
   var pieceRate=emps.filter(function(e){return(e.employmentType||'').toLowerCase()==='piece rate';}).length;
 
-  // Last-month present counts in brackets (e.g. "(Apr-26 : 642)"). Pulled
-  // from the attendance cache for the previous calendar month — when the
-  // cache isn't populated yet we kick off the fetch and re-render once
-  // the data arrives, showing "…" in the meantime.
+  // Cards lead with LAST MONTH PRESENT count (big), with the active
+  // headcount shown as a smaller subtitle. Re-fetches the prior month's
+  // attendance the first time it isn't cached.
   var _lastMk=_hrmsPrevMonth(_hrmsCurMonth());
   var _lastLabel=_hrmsMonthLabel(_lastMk);
   var _attLoaded=(typeof _hrmsAttCache!=='undefined'&&_hrmsAttCache&&_hrmsAttCache[_lastMk]);
@@ -937,14 +988,21 @@ function renderHrmsDashboard(){
       else _done();
     }catch(_){window._hrmsDashLastFetchInflight=false;}
   }
-  var _bk=function(n){return _attLoaded?(' <span style="font-size:11px;font-weight:700;color:rgba(0,0,0,.55)">('+_lastLabel+' : '+n+')</span>'):(' <span style="font-size:11px;font-weight:700;color:rgba(0,0,0,.4)">('+_lastLabel+' : …)</span>');};
+  // Big = last-month present count (or "…" while loading); small line
+  // below shows the active headcount + the month label.
+  var _bigPresent=function(present,active,clr){
+    var bigTxt=_attLoaded?String(present):'…';
+    return '<div style="font-size:30px;font-weight:900;color:'+clr+';line-height:1.1">'+bigTxt+'</div>'
+      +'<div style="font-size:10px;font-weight:700;color:rgba(0,0,0,.55);margin-top:2px">'+_lastLabel+' present · Active: '+active+'</div>';
+  };
 
   var h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
-  h+='<div style="flex:1;min-width:100px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Total Active</div><div style="font-size:26px;font-weight:900;color:#2563eb">'+active+_bk(_pTotal)+'</div></div>';
-  h+='<div style="flex:1;min-width:100px;background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase">On Roll</div><div style="font-size:26px;font-weight:900;color:#16a34a">'+onRoll+_bk(_pOnRoll)+'</div></div>';
-  h+='<div style="flex:1;min-width:100px;background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Contract</div><div style="font-size:26px;font-weight:900;color:#2563eb">'+contract+_bk(_pContract)+'</div></div>';
-  h+='<div style="flex:1;min-width:100px;background:#f3e8ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#7c3aed;text-transform:uppercase">Piece Rate</div><div style="font-size:26px;font-weight:900;color:#7c3aed">'+pieceRate+_bk(_pPieceRate)+'</div></div>';
-  h+='<div style="flex:1;min-width:100px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase">Left</div><div style="font-size:26px;font-weight:900;color:#dc2626">'+left+'</div></div>';
+  h+='<div style="flex:1;min-width:120px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Total Active</div>'+_bigPresent(_pTotal,active,'#2563eb')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:4px">On Roll</div>'+_bigPresent(_pOnRoll,onRoll,'#16a34a')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Contract</div>'+_bigPresent(_pContract,contract,'#2563eb')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#f3e8ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#7c3aed;text-transform:uppercase;margin-bottom:4px">Piece Rate</div>'+_bigPresent(_pPieceRate,pieceRate,'#7c3aed')+'</div>';
+  // Left: no last-month-present concept, so the count IS the headline.
+  h+='<div style="flex:1;min-width:120px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase;margin-bottom:4px">Left</div><div style="font-size:30px;font-weight:900;color:#dc2626;line-height:1.1">'+left+'</div><div style="font-size:10px;font-weight:700;color:rgba(0,0,0,.55);margin-top:2px">cumulative</div></div>';
   h+='</div>';
 
   // Team counts
@@ -959,48 +1017,104 @@ function renderHrmsDashboard(){
   h+='<div style="flex:1;min-width:140px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase">Piece Rate Teams</div><div style="font-size:22px;font-weight:900;color:#7c3aed">'+Object.keys(prTeams).length+'</div></div>';
   h+='</div>';
 
-  // Plant-wise breakdown table
-  var plants={};
+  // ── Monthly Headcount Graphs (moved from Utilities → here on the dashboard).
+  // The container IDs match what _hrmsMhgInit / _hrmsMhgRenderCharts expect
+  // (`hrmsMhgMonth` select + `hrmsMhgCharts` div), so the existing renderer
+  // can draw straight into the dashboard with no other wiring.
+  h+='<div style="margin-bottom:18px">';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+  h+='<div style="font-size:14px;font-weight:900">📈 Monthly Headcount Graph</div>';
+  h+='<select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>';
+  h+='</div>';
+  h+='<div id="hrmsMhgCharts"></div>';
+  h+='</div>';
+
+  // ── Diversity charts: Region (state of origin) and Gender. Both are
+  // rendered as horizontal bars from active emps only. Counts that are
+  // unset on an employee are bucketed under "Unknown" so they're visible
+  // (and easy to clean up) rather than silently dropped.
+  var byState={},byGender={};
   emps.forEach(function(e){
-    var p=e.location||'Unassigned';
-    if(!plants[p]) plants[p]={onRoll:0,contract:0,pieceRate:0,total:0};
-    plants[p].total++;
-    var et=(e.employmentType||'').toLowerCase();
-    if(et==='on roll') plants[p].onRoll++;
-    else if(et==='contract') plants[p].contract++;
-    else if(et==='piece rate') plants[p].pieceRate++;
+    var s=(e.stateOrigin||'').trim()||'Unknown';
+    byState[s]=(byState[s]||0)+1;
+    var g=(e.gender||'').trim()||'Unknown';
+    byGender[g]=(byGender[g]||0)+1;
   });
-  var plantKeys=Object.keys(plants).sort();
-  if(plantKeys.length){
-    var _th='padding:8px 10px;font-size:11px;font-weight:800;border-bottom:2px solid #94a3b8';
-    h+='<div style="font-size:14px;font-weight:900;margin-bottom:8px">Plant-wise Employee Count (Active)</div>';
-    h+='<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#1e293b;color:#fff">';
-    h+='<th style="'+_th+';text-align:left;color:#fff">Plant</th>';
-    h+='<th style="'+_th+';text-align:right;color:#86efac">On Roll</th>';
-    h+='<th style="'+_th+';text-align:right;color:#93c5fd">Contract</th>';
-    h+='<th style="'+_th+';text-align:right;color:#c4b5fd">Piece Rate</th>';
-    h+='<th style="'+_th+';text-align:right;color:#fff">Total</th>';
-    h+='</tr></thead><tbody>';
-    var gOnRoll=0,gContract=0,gPR=0,gTotal=0;
-    plantKeys.forEach(function(pk){
-      var d=plants[pk];gOnRoll+=d.onRoll;gContract+=d.contract;gPR+=d.pieceRate;gTotal+=d.total;
-      var pClr=_hrmsGetPlantColor(pk);
-      h+='<tr style="border-bottom:1px solid #e2e8f0">'
-        +'<td style="padding:6px 10px;font-weight:700"><span style="background:'+pClr+';padding:2px 8px;border-radius:4px">'+pk+'</span></td>'
-        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:#15803d">'+d.onRoll+'</td>'
-        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:#1d4ed8">'+d.contract+'</td>'
-        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:700;color:#7c3aed">'+d.pieceRate+'</td>'
-        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:900">'+d.total+'</td>'
-        +'</tr>';
-    });
-    h+='<tr style="background:#1e293b;color:#fff"><td style="padding:6px 10px;font-weight:900;color:#fff">Total</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:900;color:#86efac">'+gOnRoll+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:900;color:#93c5fd">'+gContract+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:900;color:#c4b5fd">'+gPR+'</td>'
-      +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-weight:900;color:#fff">'+gTotal+'</td></tr>';
-    h+='</tbody></table></div>';
-  }
+  h+='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px">';
+  h+='<div style="flex:1;min-width:340px">'+_hrmsDashDiversityCard('🗺️ Diversity — Region (State)',byState,active,'state')+'</div>';
+  h+='<div style="flex:1;min-width:280px">'+_hrmsDashDiversityCard('👥 Diversity — Gender',byGender,active,'gender')+'</div>';
+  h+='</div>';
+
   el.innerHTML=h;
+
+  // After the dashboard HTML lands, wire up the Monthly Headcount Graph.
+  // If the MHG state is already cached from a prior load, re-fill the
+  // month select from the cached index and re-render charts directly
+  // (avoids the network round-trip + spinner). Otherwise initialise.
+  setTimeout(function(){
+    try{
+      var sel=document.getElementById('hrmsMhgMonth');
+      if(!sel) return;
+      if(typeof _hrmsMhgState!=='undefined'&&_hrmsMhgState
+         &&typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex&&_hrmsAttMonthIndex.length){
+        var months=_hrmsAttMonthIndex.map(function(m){return m.monthKey;});
+        sel.innerHTML=months.map(function(mk){return '<option value="'+mk+'">'+_hrmsMonthLabel(mk)+'</option>';}).join('');
+        sel.value=_hrmsMhgState.mk;
+        if(typeof _hrmsMhgRenderCharts==='function') _hrmsMhgRenderCharts();
+      } else if(typeof _hrmsMhgInit==='function'){
+        _hrmsMhgInit();
+      }
+    }catch(_){}
+  },0);
+}
+
+// Diversity bar chart: horizontal bars sorted desc by count, each row
+// labelled with the bucket name and count + % of active. `kind` is just
+// a colour-palette switch — 'state' uses a deterministic hash, 'gender'
+// uses fixed colours so Male/Female render with familiar tones.
+function _hrmsDashDiversityCard(title,counts,total,kind){
+  var keys=Object.keys(counts);
+  if(!keys.length){
+    return '<div class="card" style="padding:14px"><div style="font-size:14px;font-weight:900;margin-bottom:8px">'+title+'</div>'
+      +'<div style="font-size:12px;color:var(--text3);padding:12px 0">No data yet.</div></div>';
+  }
+  keys.sort(function(a,b){return counts[b]-counts[a]||a.localeCompare(b);});
+  var max=0;keys.forEach(function(k){if(counts[k]>max) max=counts[k];});
+  var _color=function(k){
+    if(kind==='gender'){
+      var g=(k||'').toLowerCase();
+      if(g==='male') return '#1d4ed8';
+      if(g==='female') return '#db2777';
+      if(g==='other') return '#6b7280';
+      return '#94a3b8';
+    }
+    // Deterministic palette for states — hash → HSL so colours stay
+    // stable across renders without maintaining a master list.
+    var hash=0;for(var i=0;i<k.length;i++){hash=((hash<<5)-hash)+k.charCodeAt(i);hash|=0;}
+    var hue=Math.abs(hash)%360;
+    return 'hsl('+hue+',62%,46%)';
+  };
+  var h='<div class="card" style="padding:14px;height:100%;box-sizing:border-box">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:10px">';
+  h+='<div style="font-size:14px;font-weight:900">'+title+'</div>';
+  h+='<div style="font-size:11px;color:var(--text3);font-weight:700">'+keys.length+' bucket(s) · '+total+' active</div>';
+  h+='</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding-right:4px">';
+  keys.forEach(function(k){
+    var c=counts[k];
+    var pctOfMax=max?Math.round(c*100/max):0;
+    var pctOfTotal=total?Math.round(c*1000/total)/10:0;
+    var clr=_color(k);
+    h+='<div style="display:grid;grid-template-columns:130px 1fr 90px;gap:8px;align-items:center;font-size:12px">';
+    h+='<div style="font-weight:700;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+(k.replace(/"/g,'&quot;'))+'">'+k+'</div>';
+    h+='<div style="background:#f1f5f9;border-radius:6px;height:18px;position:relative;overflow:hidden">'
+      +'<div style="background:'+clr+';height:100%;width:'+pctOfMax+'%;border-radius:6px;transition:width .3s"></div>'
+      +'</div>';
+    h+='<div style="font-family:var(--mono);font-weight:800;color:#0f172a;text-align:right;font-size:12px">'+c+' <span style="color:#64748b;font-weight:600;font-size:11px">('+pctOfTotal.toFixed(1)+'%)</span></div>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+  return h;
 }
 
 // ═══ EMPLOYEES (list, edit, modal, period tracking) ═════════════════════
@@ -5529,7 +5643,10 @@ function openHrmsEmpModal(id){
   // Initial IN/OUT tab visibility — recomputed on open and whenever the
   // user changes the Date of Joining field (see input handler below).
   if(typeof _hrmsRefreshInitialTabVisibility==='function') _hrmsRefreshInitialTabVisibility();
-  _hrmsEmpModalTab(id?'orgsal':'details');
+  // Always land on the Details tab so personal info / addresses /
+  // photo / state are the first thing shown. Operators can switch to
+  // Org & Sal Revisions manually when needed.
+  _hrmsEmpModalTab('details');
 }
 
 // Sanitize employee data: trim all strings, title case names
@@ -10729,6 +10846,17 @@ function _hrmsUpdEmpInit(){
   // Reset state every time the page is opened so prior selections don't
   // bleed across sessions.
   _hrmsUpdEmpReset();
+  // Auto-focus the picker so the page opens with a clear prompt to
+  // pick an employee. The full list pops up on focus (see
+  // `_hrmsUpdEmpPickerFilter`) so the user sees their options
+  // immediately without typing.
+  setTimeout(function(){
+    var pk=document.getElementById('hrmsUpdEmpPicker');
+    if(pk){
+      try{pk.focus({preventScroll:false});}catch(_){pk.focus();}
+      if(typeof _hrmsUpdEmpPickerFilter==='function') _hrmsUpdEmpPickerFilter();
+    }
+  },120);
   // Populate State dropdown.
   var stSel=document.getElementById('hrmsUpdEmpState');
   if(stSel){
@@ -10942,20 +11070,20 @@ function _hrmsUpdEmpSetFieldsEnabled(on){
 }
 
 // Filter the custom dropdown by the current input value and render
-// matching rows. Only opens once the user starts typing — empty input
-// keeps the dropdown closed so the screen stays calm on mobile.
+// matching rows. Click/focus on the input opens the dropdown with the
+// full pool (capped) so operators can browse without typing first; as
+// soon as they type, the same render path narrows the list.
 function _hrmsUpdEmpPickerFilter(){
   var inp=document.getElementById('hrmsUpdEmpPicker');
   var box=document.getElementById('hrmsUpdEmpPickerList');
   if(!inp||!box) return;
   var pool=window._hrmsUpdEmpPickerPool||[];
   var q=String(inp.value||'').trim().toLowerCase();
-  if(!q){box.style.display='none';box.innerHTML='';return;}
-  var matches=pool.filter(function(e){
+  var matches=q?pool.filter(function(e){
     var code=String(e.empCode||'').toLowerCase();
     var name=String(e.name||'').toLowerCase();
     return code.indexOf(q)>=0||name.indexOf(q)>=0;
-  });
+  }):pool;
   if(!matches.length){
     box.innerHTML='<div style="padding:10px 12px;color:var(--text3);font-size:13px">No matches</div>';
     box.style.display='block';
@@ -11089,12 +11217,48 @@ function _hrmsUpdEmpPick(empId){
       }
     }
     hdr.style.position='relative';
-    hdr.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:24px">'
-      +'<span style="font-family:var(--mono);font-weight:900;color:var(--accent);font-size:21px">'+_hrmsEsc(emp.empCode||'')+'</span>'
-      +'<span style="font-weight:800;font-size:17px;color:var(--text)">'+_hrmsEsc(emp.name||'')+'</span>'
-      +'</div>'
-      +'<button type="button" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="position:absolute;top:-8px;right:-8px;width:22px;height:22px;padding:0;font-size:12px;font-weight:900;line-height:1;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15)">✕</button>';
-    hdr.style.background='#f8fafc';
+    // Three coloured sections so emp code / name / role / salary each
+    // stand on their own visual band. Worker categories get all three;
+    // Staff hides the role+salary row since the role/rate model
+    // doesn't apply.
+    var _isStaffCat=String(emp.category||'').toLowerCase().indexOf('staff')>=0;
+    var rollName='—', sdLabel='—';
+    if(!_isStaffCat){
+      var ap=(emp.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      var rollCode=(ap&&ap.roll)||emp.roll||'';
+      if(rollCode&&typeof _hrmsGetRolls==='function'){
+        var rec=_hrmsGetRolls().find(function(r){return r.code===rollCode;});
+        rollName=(rec&&rec.name)||rollCode;
+      } else if(rollCode){
+        rollName=rollCode;
+      }
+      var sd=+(((ap&&ap.salaryDay)||emp.salaryDay)||0);
+      sdLabel=sd?('₹ '+sd.toLocaleString('en-IN')+' / day'):'—';
+    }
+    var top='<div style="background:#dbeafe;border:1.5px solid #93c5fd;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:relative">'
+      +'<span style="font-family:var(--mono);font-weight:900;color:#1d4ed8;font-size:21px">'+_hrmsEsc(emp.empCode||'')+'</span>'
+      +'<span style="font-weight:800;font-size:17px;color:#0f172a">'+_hrmsEsc(emp.name||'')+'</span>'
+      +'<button type="button" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="position:absolute;top:-8px;right:-8px;width:22px;height:22px;padding:0;font-size:12px;font-weight:900;line-height:1;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15)">✕</button>'
+      +'</div>';
+    var bottom='';
+    if(!_isStaffCat){
+      bottom='<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+        +'<div style="flex:1;min-width:160px;background:#dcfce7;border:1.5px solid #86efac;border-radius:8px;padding:10px 14px">'
+          +'<div style="font-size:11px;font-weight:800;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Role</div>'
+          +'<div style="font-size:15px;font-weight:800;color:#0f172a">'+_hrmsEsc(rollName)+'</div>'
+        +'</div>'
+        +'<div style="flex:1;min-width:140px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:8px;padding:10px 14px">'
+          +'<div style="font-size:11px;font-weight:800;color:#a16207;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Sal/Day</div>'
+          +'<div style="font-family:var(--mono);font-size:15px;font-weight:800;color:#0f172a">'+_hrmsEsc(sdLabel)+'</div>'
+        +'</div>'
+      +'</div>';
+    }
+    hdr.innerHTML=top+bottom;
+    // Each child band carries its own background, so let the wrapper
+    // stay neutral. (Earlier versions painted hdr itself.)
+    hdr.style.background='transparent';
+    hdr.style.border='none';
+    hdr.style.padding='0';
     hdr.style.display='';
   }
   // Prefill — photo
@@ -11375,9 +11539,17 @@ async function _hrmsMhgLoad(mk){
   }catch(e){hideSpinner();notify('⚠ Load failed: '+e.message,true);console.error(e);}
 }
 
+function _hrmsMhgSelectPlant(p){
+  window._hrmsMhgSelPlant=p||'__ALL__';
+  if(typeof _hrmsMhgRenderCharts==='function') _hrmsMhgRenderCharts();
+}
+
 function _hrmsMhgRenderCharts(){
   var el=document.getElementById('hrmsMhgCharts');
   if(!el) return;
+  // Reset click registry so stale indices from a prior render can't
+  // resolve to the wrong scope after a month change.
+  window._hrmsMhgClickCtx=[];
   if(!_hrmsMhgState){
     el.innerHTML='<div class="empty-state" style="padding:40px">Select a month above to load data.</div>';
     return;
@@ -11395,49 +11567,84 @@ function _hrmsMhgRenderCharts(){
     el.innerHTML='<div class="empty-state" style="padding:40px">No attendance data (with a recognised On Roll / Contract / Piece Rate employee) for '+_hrmsMonthLabel(st.mk)+'.</div>';
     return;
   }
-  var h='';
-  // Combined (All Plants) chart FIRST — gives the operator the
-  // headline view before drilling into individual plants. Only show
-  // when more than one plant is present, otherwise it duplicates the
-  // sole plant's card.
-  if(plants.length>1){
-    var combined={
-      staff:new Array(st.daysInMonth+1).fill(0),
-      onroll:new Array(st.daysInMonth+1).fill(0),
-      contract:new Array(st.daysInMonth+1).fill(0),
-      piecerate:new Array(st.daysInMonth+1).fill(0)
-    };
-    plants.forEach(function(p){
-      var pd=st.byPlant[p];
-      for(var d=1;d<=st.daysInMonth;d++){
-        combined.staff[d]+=pd.staff[d]||0;
-        combined.onroll[d]+=pd.onroll[d]||0;
-        combined.contract[d]+=pd.contract[d]||0;
-        combined.piecerate[d]+=pd.piecerate[d]||0;
-      }
-    });
-    // Combined history = sum of each plant's history entry for the same mk.
-    var combinedHist=(st.histMonths||[]).map(function(hmk){
-      var sS=0,sOR=0,sC=0,sPR=0,anyData=false;
-      plants.forEach(function(p){
-        var hE=((st.histByPlant||{})[p]||[]).find(function(e){return e.mk===hmk;});
-        if(hE){sS+=hE.avgS||0;sOR+=hE.avgOR||0;sC+=hE.avgC||0;sPR+=hE.avgPR||0;if(hE.hasData) anyData=true;}
-      });
-      return {mk:hmk,avgS:sS,avgOR:sOR,avgC:sC,avgPR:sPR,workDays:0,hasData:anyData};
-    }).filter(function(e){return e.hasData;});
-    // Plant name '' tells _hrmsGetDayType to fall back to Sunday=WO (no
-    // plant-specific calendar for the combined view).
-    h+=_hrmsMhgPlantCard('All Plants (Combined)',combined,st.daysInMonth,st.yr,st.mo,combinedHist,st.histMonths||[]);
-  }
-  // Individual plants — alphabetical, HO pushed to the end (sort above).
-  plants.forEach(function(pl){
-    var hist=(st.histByPlant&&st.histByPlant[pl])||[];
-    h+=_hrmsMhgPlantCard(pl,st.byPlant[pl],st.daysInMonth,st.yr,st.mo,hist,st.histMonths||[]);
+  // Plant selector button-row. "All" stacks the combined card on top
+  // of every plant card (the previous default); a specific plant
+  // collapses to that single card. Selection persists in
+  // window._hrmsMhgSelPlant across re-renders / month changes so the
+  // operator's view doesn't reset.
+  var sel=window._hrmsMhgSelPlant||'__ALL__';
+  if(sel!=='__ALL__'&&plants.indexOf(sel)<0) sel='__ALL__';
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var btnRow='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center">';
+  var allActive=(sel==='__ALL__');
+  btnRow+='<button onclick="_hrmsMhgSelectPlant(\'__ALL__\')" '
+    +'style="padding:6px 14px;border-radius:6px;font-weight:800;font-size:12px;cursor:pointer;border:1.5px solid '
+      +(allActive?'#0f172a':'var(--border)')+';background:'+(allActive?'#0f172a':'#fff')+';color:'+(allActive?'#fff':'#0f172a')+'">All</button>';
+  plants.forEach(function(p){
+    var active=(sel===p);
+    var clr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(p):'#e2e8f0';
+    // Every plant button uses the master plant colour as its background
+    // so the row reads as a colour-coded legend. Active state is
+    // signalled by a dark border + thicker outline ring rather than a
+    // background swap.
+    btnRow+='<button title="'+_esc(p)+'" onclick="_hrmsMhgSelectPlant(\''+String(p).replace(/'/g,"\\'")+'\')" '
+      +'style="padding:6px 12px;border-radius:6px;font-weight:800;font-size:12px;cursor:pointer;'
+      +'background:'+clr+';color:#0f172a;'
+      +'border:'+(active?'2px solid #0f172a':'1.5px solid rgba(0,0,0,.18)')+';'
+      +(active?'box-shadow:0 0 0 2px #fff,0 0 0 4px '+clr+';':'')
+      +'">'
+      +_esc(p)+'</button>';
   });
+  btnRow+='</div>';
+
+  var h=btnRow;
+  if(sel==='__ALL__'){
+    // "All" renders only the combined card (no per-plant cards
+    // beneath). Operators reach individual plants by clicking the
+    // dedicated plant button above.
+    if(plants.length===1){
+      // Single-plant tenants: combined would just duplicate the only
+      // plant card, so render that one directly.
+      var only=plants[0];
+      var hist0=(st.histByPlant&&st.histByPlant[only])||[];
+      h+=_hrmsMhgPlantCard(only,st.byPlant[only],st.daysInMonth,st.yr,st.mo,hist0,st.histMonths||[],only);
+    } else {
+      var combined={
+        staff:new Array(st.daysInMonth+1).fill(0),
+        onroll:new Array(st.daysInMonth+1).fill(0),
+        contract:new Array(st.daysInMonth+1).fill(0),
+        piecerate:new Array(st.daysInMonth+1).fill(0)
+      };
+      plants.forEach(function(p){
+        var pd=st.byPlant[p];
+        for(var d=1;d<=st.daysInMonth;d++){
+          combined.staff[d]+=pd.staff[d]||0;
+          combined.onroll[d]+=pd.onroll[d]||0;
+          combined.contract[d]+=pd.contract[d]||0;
+          combined.piecerate[d]+=pd.piecerate[d]||0;
+        }
+      });
+      // Combined history = sum of each plant's history entry for the same mk.
+      var combinedHist=(st.histMonths||[]).map(function(hmk){
+        var sS=0,sOR=0,sC=0,sPR=0,anyData=false;
+        plants.forEach(function(p){
+          var hE=((st.histByPlant||{})[p]||[]).find(function(e){return e.mk===hmk;});
+          if(hE){sS+=hE.avgS||0;sOR+=hE.avgOR||0;sC+=hE.avgC||0;sPR+=hE.avgPR||0;if(hE.hasData) anyData=true;}
+        });
+        return {mk:hmk,avgS:sS,avgOR:sOR,avgC:sC,avgPR:sPR,workDays:0,hasData:anyData};
+      }).filter(function(e){return e.hasData;});
+      h+=_hrmsMhgPlantCard('All Plants (Combined)',combined,st.daysInMonth,st.yr,st.mo,combinedHist,st.histMonths||[],'__ALL__');
+    }
+  } else {
+    // Single-plant view.
+    var hist1=(st.histByPlant&&st.histByPlant[sel])||[];
+    h+=_hrmsMhgPlantCard(sel,st.byPlant[sel],st.daysInMonth,st.yr,st.mo,hist1,st.histMonths||[],sel);
+  }
   el.innerHTML=h;
 }
 
-function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths){
+function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths,plantId){
+  if(!plantId) plantId=plant;// callers pre V78 fallback
   var plClr=(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0');
 
   // Pre-compute day type for every day (plant-specific calendar).
@@ -11491,21 +11698,32 @@ function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths){
   var svg=_hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,{
     avgS:avgS,avgOR:avgOR,avgC:avgC,avgPR:avgPR,
     workDays:workDays,dayTypes:dayTypes,
-    history:history||[],histMonths:histMonths||[]
+    history:history||[],histMonths:histMonths||[],
+    mk:mk,plantId:plantId
   });
+
+  // Register click contexts for the top-line summary pills. Clicking a
+  // bucket pill lists every employee in that bucket on this plant for
+  // any day in the month; clicking the plant name lists all buckets.
+  var ctxAll=_hrmsMhgRegCtx({mk:mk,plant:plantId,bucket:'all',day:0});
+  var ctxStaff=_hrmsMhgRegCtx({mk:mk,plant:plantId,bucket:'staff',day:0});
+  var ctxOR=_hrmsMhgRegCtx({mk:mk,plant:plantId,bucket:'onroll',day:0});
+  var ctxC=_hrmsMhgRegCtx({mk:mk,plant:plantId,bucket:'contract',day:0});
+  var ctxPR=_hrmsMhgRegCtx({mk:mk,plant:plantId,bucket:'piecerate',day:0});
+  var pillStyle='cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px';
 
   var h='<div class="card" style="margin-bottom:16px;padding:14px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px">';
   h+='<div style="display:flex;align-items:center;gap:10px">';
   h+='<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:'+plClr+';border:1px solid rgba(0,0,0,.15)"></span>';
-  h+='<span style="font-size:16px;font-weight:900">'+plant+'</span>';
+  h+='<span title="Click to list all employees in this plant for the month" onclick="_hrmsMhgShowEmpsByIdx('+ctxAll+')" style="font-size:16px;font-weight:900;'+pillStyle+'">'+plant+'</span>';
   h+='<span style="font-size:11px;font-weight:700;color:var(--text3)">· avg over '+workDays+' working day(s) with data (excluded '+hpDays+' H/P'+(noDataDays?', '+noDataDays+' no-data':'')+')</span>';
   h+='</div>';
   h+='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap">';
-  h+='<span style="color:#d97706;font-weight:700">● Staff · peak '+peakS+' · avg '+_r(avgS)+'</span>';
-  h+='<span style="color:#15803d;font-weight:700">● On Roll · peak '+peakOR+' · avg '+_r(avgOR)+'</span>';
-  h+='<span style="color:#1d4ed8;font-weight:700">● Contract · peak '+peakC+' · avg '+_r(avgC)+'</span>';
-  h+='<span style="color:#7c3aed;font-weight:700">● Piece Rate · peak '+peakPR+' · avg '+_r(avgPR)+'</span>';
+  h+='<span title="Click to list Staff employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxStaff+')" style="color:#d97706;font-weight:700;'+pillStyle+'">● Staff · peak '+peakS+' · avg '+_r(avgS)+'</span>';
+  h+='<span title="Click to list On Roll employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxOR+')" style="color:#15803d;font-weight:700;'+pillStyle+'">● On Roll · peak '+peakOR+' · avg '+_r(avgOR)+'</span>';
+  h+='<span title="Click to list Contract employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxC+')" style="color:#1d4ed8;font-weight:700;'+pillStyle+'">● Contract · peak '+peakC+' · avg '+_r(avgC)+'</span>';
+  h+='<span title="Click to list Piece Rate employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxPR+')" style="color:#7c3aed;font-weight:700;'+pillStyle+'">● Piece Rate · peak '+peakPR+' · avg '+_r(avgPR)+'</span>';
   h+='</div>';
   h+='</div>';
   h+=svg;
@@ -11654,15 +11872,17 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
       if(seg.v<=0) return;
       var segH=(seg.v/maxY)*plotH;
       var yTop=hCumBottom-segH;
-      s+='<rect x="'+hX+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+seg.color+'" fill-opacity="0.7" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"><title>'+_hrmsMonthLabel(hEntry.mk)+' avg — '+seg.label+': '+seg.v+'</title></rect>';
+      var hsIdx=_hrmsMhgRegCtx({mk:hEntry.mk,plant:avgs.plantId,bucket:seg.key,day:0,histAvg:true});
+      s+='<rect x="'+hX+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+seg.color+'" fill-opacity="0.7" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2" style="cursor:pointer" onclick="_hrmsMhgShowEmpsByIdx('+hsIdx+')"><title>'+_hrmsMonthLabel(hEntry.mk)+' avg — '+seg.label+': '+seg.v+' (click for list)</title></rect>';
       if(segH>=12){
-        s+='<text x="'+(hX+barW/2)+'" y="'+(yTop+segH/2+3)+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">'+seg.v+'</text>';
+        s+='<text x="'+(hX+barW/2)+'" y="'+(yTop+segH/2+3)+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">'+seg.v+'</text>';
       }
       hCumBottom=yTop;
     });
     if(hTotal>0){
       var hTopY=padT+plotH-(hTotal/maxY)*plotH;
-      s+='<text x="'+hXC+'" y="'+(hTopY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#92400e">'+hTotal+'</text>';
+      var htIdx=_hrmsMhgRegCtx({mk:hEntry.mk,plant:avgs.plantId,bucket:'all',day:0,histAvg:true});
+      s+='<text x="'+hXC+'" y="'+(hTopY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#92400e" style="cursor:pointer" onclick="_hrmsMhgShowEmpsByIdx('+htIdx+')"><title>Click to view employees in '+_hrmsMonthLabel(hEntry.mk)+'</title>'+hTotal+'</text>';
     } else if(!hEntry.hasData){
       // Show a faint "N/A" placeholder so the column position isn't mistaken for a zero day.
       var midY=padT+plotH/2;
@@ -11689,16 +11909,18 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
       if(v<=0) return;
       var segH=(v/maxY)*plotH;
       var yTop=cumBottom-segH;
-      s+='<rect x="'+x+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+b.color+'" stroke="#fff" stroke-width="0.5"><title>Day '+d+' — '+b.label+': '+v+'</title></rect>';
+      var rIdx=_hrmsMhgRegCtx({mk:avgs.mk,plant:avgs.plantId,bucket:b.key,day:d});
+      s+='<rect x="'+x+'" y="'+yTop+'" width="'+barW+'" height="'+segH+'" fill="'+b.color+'" stroke="#fff" stroke-width="0.5" style="cursor:pointer" onclick="_hrmsMhgShowEmpsByIdx('+rIdx+')"><title>Day '+d+' — '+b.label+': '+v+' (click for list)</title></rect>';
       if(segH>=12){
         var ty=yTop+segH/2+3;
-        s+='<text x="'+(x+barW/2)+'" y="'+ty+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">'+v+'</text>';
+        s+='<text x="'+(x+barW/2)+'" y="'+ty+'" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" style="pointer-events:none">'+v+'</text>';
       }
       cumBottom=yTop;
     });
     if(total>0){
       var topY=padT+plotH-(total/maxY)*plotH;
-      s+='<text x="'+xDayCenter(d)+'" y="'+(topY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#1e293b">'+total+'</text>';
+      var tIdx=_hrmsMhgRegCtx({mk:avgs.mk,plant:avgs.plantId,bucket:'all',day:d});
+      s+='<text x="'+xDayCenter(d)+'" y="'+(topY-4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#1e293b" style="cursor:pointer" onclick="_hrmsMhgShowEmpsByIdx('+tIdx+')"><title>Day '+d+' total: '+total+' (click for list)</title>'+total+'</text>';
     }
   }
 
@@ -11720,6 +11942,257 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
 
   s+='</svg>';
   return s;
+}
+
+// ── Click-to-list-employees + Excel export for the headcount graph ──
+// Each clickable element on a plant card (top-line bucket pills, daily
+// stacked-bar segments, daily totals, historical month avg totals)
+// registers a {mk, plant, bucket, day} context in this registry. The
+// SVG and HTML carry only a numeric index, so plant names with quotes /
+// apostrophes never have to be escaped into onclick attributes.
+function _hrmsMhgRegCtx(ctx){
+  if(!window._hrmsMhgClickCtx) window._hrmsMhgClickCtx=[];
+  return window._hrmsMhgClickCtx.push(ctx)-1;
+}
+
+// Resolve {mk, plant, bucket, day} into a list of employees who were
+// present on at least one day matching the scope. Reuses the same
+// employment-type / category bucketing as `_hrmsMhgAggMonth` so the
+// numbers shown in the popup match the chart exactly.
+//   plant  — exact plant name, or '__ALL__' to skip the plant filter
+//   bucket — 'staff' | 'onroll' | 'contract' | 'piecerate' | 'all'
+//   day    — 0 for "any day in month", or 1..daysInMonth for a single day
+function _hrmsMhgEmpsForScope(mk,plant,bucket,day){
+  if(!mk) return [];
+  var attRecs=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
+  var altRecs=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
+  var parts=mk.split('-');
+  var yr=+parts[0], mo=+parts[1];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var empByCode={};
+  (DB.hrmsEmployees||[]).forEach(function(e){if(e.empCode) empByCode[String(e.empCode).trim()]=e;});
+  var presDays={};
+  // dayIO[code][d] = {inTime, outTime} — alteration entries override
+  // attendance for the same day so manual punches win, mirroring the
+  // muster's display logic.
+  var dayIO={};
+  var absorb=function(code,daysObj,override){
+    if(!code||!daysObj) return;
+    for(var dk in daysObj){
+      var d=+dk;if(isNaN(d)||d<1||d>daysInMonth) continue;
+      var entry=daysObj[dk];if(!entry) continue;
+      if(entry.in||entry['in']){
+        if(!presDays[code]) presDays[code]={};
+        presDays[code][d]=true;
+      }
+      if(entry.in||entry.out){
+        if(!dayIO[code]) dayIO[code]={};
+        if(override||!dayIO[code][d]){
+          dayIO[code][d]={inTime:entry.in||'',outTime:entry.out||''};
+        }
+      }
+    }
+  };
+  attRecs.forEach(function(a){absorb(a.empCode,a.days,false);});
+  altRecs.forEach(function(a){absorb(a.empCode,a.days,true);});
+  var allPlants=(plant==='__ALL__');
+  var bucketAll=(!bucket||bucket==='all');
+  var bucketLabels={staff:'Staff',onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate'};
+  var out=[];
+  Object.keys(presDays).forEach(function(code){
+    var e=empByCode[code];if(!e) return;
+    var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var cat=(((ap&&ap.category)||e.category||'')+'').toLowerCase();
+    var et =(((ap&&ap.employmentType)||e.employmentType||'')+'').toLowerCase().replace(/\s/g,'');
+    var b=null;
+    if(cat.indexOf('staff')>=0) b='staff';
+    else if(et==='onroll') b='onroll';
+    else if(et==='contract') b='contract';
+    else if(et==='piecerate') b='piecerate';
+    if(!b) return;
+    var empPlant=(ap&&ap.location)||e.location||'— Unassigned —';
+    if(!allPlants&&empPlant!==plant) return;
+    if(!bucketAll&&b!==bucket) return;
+    if(day&&!presDays[code][day]) return;
+    // Day-specific click → use that day's in/out. Month-wide click →
+    // use the most recent day they were present in the scope so the
+    // operator at least sees representative timings.
+    var inTime='',outTime='';
+    if(dayIO[code]){
+      if(day&&dayIO[code][day]){
+        inTime=dayIO[code][day].inTime||'';
+        outTime=dayIO[code][day].outTime||'';
+      } else if(!day){
+        var presentDays=Object.keys(presDays[code]).map(Number).sort(function(a,b){return b-a;});
+        for(var i=0;i<presentDays.length;i++){
+          if(dayIO[code][presentDays[i]]){
+            inTime=dayIO[code][presentDays[i]].inTime||'';
+            outTime=dayIO[code][presentDays[i]].outTime||'';
+            break;
+          }
+        }
+      }
+    }
+    out.push({
+      empCode:code,
+      name:(typeof _hrmsDispName==='function'?_hrmsDispName(e):(e.name||'')),
+      plant:empPlant,
+      team:(ap&&ap.teamName)||e.teamName||'',
+      department:(ap&&ap.department)||e.department||'',
+      designation:(ap&&ap.designation)||e.designation||'',
+      bucket:b,
+      bucketLabel:bucketLabels[b]||b,
+      employmentType:(ap&&ap.employmentType)||e.employmentType||'',
+      inTime:inTime,
+      outTime:outTime
+    });
+  });
+  out.sort(function(a,b){
+    if(a.plant!==b.plant) return String(a.plant).localeCompare(String(b.plant));
+    return String(a.empCode).localeCompare(String(b.empCode),undefined,{numeric:true});
+  });
+  return out;
+}
+
+// Plant-name short form for the headcount popup chip. "Plant 1" → "P1",
+// "Head Office" → "HO", "Kelkar Auto Parts" → "KAP", single words →
+// first three characters upper-cased. Stable / deterministic so a given
+// plant always renders with the same chip text.
+function _hrmsPlantShortForm(plant){
+  if(!plant) return '';
+  var s=String(plant).trim();
+  if(/^—?\s*unassigned/i.test(s)) return 'UNA';
+  var m=s.match(/^(plant|unit)\s*[-_ ]?\s*(\d+)/i);
+  if(m) return (m[1][0]+m[2]).toUpperCase();
+  if(/^head\s*office$/i.test(s)) return 'HO';
+  var words=s.split(/[\s\-_]+/).filter(Boolean);
+  if(words.length>=2) return words.slice(0,3).map(function(w){return (w[0]||'').toUpperCase();}).join('');
+  return s.slice(0,3).toUpperCase();
+}
+
+function _hrmsMhgShowEmpsByIdx(idx){
+  var ctx=(window._hrmsMhgClickCtx||[])[idx];
+  if(!ctx){notify('Click context expired — re-render the chart',true);return;}
+  _hrmsMhgShowEmps(ctx);
+}
+
+function _hrmsMhgShowEmps(ctx){
+  var emps=_hrmsMhgEmpsForScope(ctx.mk,ctx.plant,ctx.bucket,ctx.day||0);
+  var bucketLabels={staff:'Staff',onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',all:'All Buckets'};
+  var bucketLabel=bucketLabels[ctx.bucket||'all']||'All Buckets';
+  var plantLabel=(ctx.plant==='__ALL__')?'All Plants (Combined)':ctx.plant;
+  var scopeLabel;
+  if(ctx.day) scopeLabel='Day '+ctx.day+' · '+_hrmsMonthLabel(ctx.mk);
+  else if(ctx.histAvg) scopeLabel=_hrmsMonthLabel(ctx.mk)+' (historical · any day)';
+  else scopeLabel=_hrmsMonthLabel(ctx.mk)+' · any day';
+  window._hrmsMhgEmpRows=emps;
+  window._hrmsMhgEmpCtx={
+    bucketLabel:bucketLabel,plantLabel:plantLabel,scopeLabel:scopeLabel,
+    mk:ctx.mk,day:ctx.day||0,bucket:ctx.bucket||'all',plant:ctx.plant
+  };
+  var existing=document.getElementById('_hrmsMhgEmpModal');
+  if(existing) existing.remove();
+  var ov=document.createElement('div');
+  ov.id='_hrmsMhgEmpModal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;padding:16px 18px;width:1020px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 14px 44px rgba(0,0,0,.4)">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px">'
+    +'<div>'
+    +'<div style="font-size:16px;font-weight:900">'+_esc(plantLabel)+' · '+_esc(bucketLabel)+'</div>'
+    +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+_esc(scopeLabel)+' · <b>'+emps.length+'</b> employee(s)</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="_hrmsMhgEmpExport()" style="padding:7px 14px;font-weight:800;font-size:12px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Export to Excel</button>'
+    +'<button onclick="document.getElementById(\'_hrmsMhgEmpModal\').remove()" style="padding:7px 14px;font-weight:800;font-size:12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer">✕ Close</button>'
+    +'</div>'
+    +'</div>'
+    +'<input id="_hrmsMhgEmpSearch" type="search" placeholder="Search emp code, name, plant, department…" oninput="_hrmsMhgEmpFilter()" style="font-size:13px;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;margin-bottom:10px">'
+    +'<div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:6px">'
+    +'<table id="_hrmsMhgEmpTbl" style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead style="position:sticky;top:0;background:#1e2028;color:#fff;z-index:1">'
+    +'<tr>'
+    +'<th style="padding:8px 6px;text-align:left">#</th>'
+    +'<th style="padding:8px 6px;text-align:left">Emp Code</th>'
+    +'<th style="padding:8px 6px;text-align:left">Name</th>'
+    +'<th style="padding:8px 6px;text-align:center">Plant</th>'
+    +'<th style="padding:8px 6px;text-align:left">Team</th>'
+    +'<th style="padding:8px 6px;text-align:left">Department</th>'
+    +'<th style="padding:8px 6px;text-align:left">Designation</th>'
+    +'<th style="padding:8px 6px;text-align:left">Bucket</th>'
+    +'<th style="padding:8px 6px;text-align:left">Emp Type</th>'
+    +'<th style="padding:8px 6px;text-align:center">In Time</th>'
+    +'<th style="padding:8px 6px;text-align:center">Out Time</th>'
+    +'</tr>'
+    +'</thead>'
+    +'<tbody id="_hrmsMhgEmpBody"></tbody>'
+    +'</table>'
+    +'</div>'
+    +'<div id="_hrmsMhgEmpCount" style="font-size:11px;color:#64748b;margin-top:8px"></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',function(ev){if(ev.target===ov) ov.remove();});
+  _hrmsMhgEmpFilter();
+}
+
+function _hrmsMhgEmpFilter(){
+  var rows=window._hrmsMhgEmpRows||[];
+  var q=((document.getElementById('_hrmsMhgEmpSearch')||{}).value||'').toLowerCase().trim();
+  var body=document.getElementById('_hrmsMhgEmpBody');if(!body) return;
+  var filtered=q?rows.filter(function(r){
+    return (r.empCode+'').toLowerCase().indexOf(q)>=0
+      || (r.name||'').toLowerCase().indexOf(q)>=0
+      || (r.plant||'').toLowerCase().indexOf(q)>=0
+      || (r.team||'').toLowerCase().indexOf(q)>=0
+      || (r.department||'').toLowerCase().indexOf(q)>=0
+      || (r.designation||'').toLowerCase().indexOf(q)>=0
+      || (r.employmentType||'').toLowerCase().indexOf(q)>=0;
+  }):rows;
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  var html='';
+  filtered.forEach(function(r,i){
+    var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant):(r.plant||'').slice(0,3).toUpperCase();
+    var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#e2e8f0';
+    var plantChip='<span title="'+_esc(r.plant)+'" style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:'+pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.12);min-width:34px;text-align:center">'+_esc(sf)+'</span>';
+    html+='<tr style="border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:6px;color:#64748b">'+(i+1)+'</td>'
+      +'<td style="padding:6px;font-weight:700">'+_esc(r.empCode)+'</td>'
+      +'<td style="padding:6px">'+_esc(r.name)+'</td>'
+      +'<td style="padding:6px;text-align:center">'+plantChip+'</td>'
+      +'<td style="padding:6px">'+_esc(r.team)+'</td>'
+      +'<td style="padding:6px">'+_esc(r.department)+'</td>'
+      +'<td style="padding:6px">'+_esc(r.designation)+'</td>'
+      +'<td style="padding:6px">'+_esc(r.bucketLabel)+'</td>'
+      +'<td style="padding:6px">'+_esc(r.employmentType)+'</td>'
+      +'<td style="padding:6px;text-align:center;font-family:var(--mono);font-weight:700;color:#15803d">'+_esc(r.inTime||'—')+'</td>'
+      +'<td style="padding:6px;text-align:center;font-family:var(--mono);font-weight:700;color:#b91c1c">'+_esc(r.outTime||'—')+'</td>'
+      +'</tr>';
+  });
+  body.innerHTML=html||'<tr><td colspan="11" style="padding:18px;text-align:center;color:#94a3b8">No employees match.</td></tr>';
+  var cnt=document.getElementById('_hrmsMhgEmpCount');
+  if(cnt) cnt.textContent=(q?('Showing '+filtered.length+' of '+rows.length):('Showing all '+rows.length))+' employee(s).';
+}
+
+function _hrmsMhgEmpExport(){
+  var rows=window._hrmsMhgEmpRows||[];
+  var ctx=window._hrmsMhgEmpCtx||{};
+  if(!rows.length){if(typeof notify==='function') notify('No rows to export',true);return;}
+  var headers=['#','Emp Code','Name','Plant','Plant Short','Team','Department','Designation','Bucket','Emp Type','In Time','Out Time'];
+  var data=[headers];
+  rows.forEach(function(r,i){
+    var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant):'';
+    data.push([
+      i+1,r.empCode,r.name,r.plant,sf,
+      r.team||'',
+      r.department||'',r.designation||'',
+      r.bucketLabel,r.employmentType||'',
+      r.inTime||'',r.outTime||''
+    ]);
+  });
+  var safe=function(s){return String(s||'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'');};
+  var fname='Headcount_'+safe(ctx.plantLabel||'Plant')+'_'+safe(ctx.bucketLabel||'')+'_'+(ctx.mk||'')+(ctx.day?'_D'+ctx.day:'')+'.xlsx';
+  if(typeof _downloadAsXlsx==='function') _downloadAsXlsx(data,'Headcount',fname);
+  else if(typeof notify==='function') notify('Export utility unavailable',true);
 }
 
 // Effective employmentType for `mk` (yyyy-mm). Mirrors the period
