@@ -25,6 +25,43 @@ function _hrmsCurMonth(){var n=new Date();return n.getFullYear()+'-'+String(n.ge
  * @returns {string} Previous month in YYYY-MM format
  */
 function _hrmsPrevMonth(ym){var d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+/**
+ * Oldest unlocked month — the earliest YYYY-MM in the att-index whose
+ * lock flag is OFF. Falls back to the previous month if no index data is
+ * loaded yet, and to current month if the previous month doesn't exist.
+ * Used as the floor for new-employee DOJ + first-revision month so a
+ * fresh add can never reach back into a month whose payroll has already
+ * been frozen.
+ * @returns {string} Oldest unlocked month in YYYY-MM format
+ */
+function _hrmsOldestUnlockedMonth(){
+  var idx=(typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex)||[];
+  var sorted=idx.slice().sort(function(a,b){return String(a.monthKey||'').localeCompare(String(b.monthKey||''));});
+  for(var i=0;i<sorted.length;i++){
+    var mk=sorted[i].monthKey;
+    if(mk&&!(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk))) return mk;
+  }
+  // No index loaded — assume the previous calendar month is unlocked.
+  return _hrmsPrevMonth(_hrmsCurMonth());
+}
+/**
+ * Compute the first revision month for a new employee from their DOJ.
+ * Capped at current month (no future revisions); floored at the oldest
+ * unlocked month (so retroactive adds can't backdate into a locked
+ * payroll).
+ * @param {string} doj - YYYY-MM-DD
+ * @returns {string} YYYY-MM
+ */
+function _hrmsFirstRevMonthForNewEmp(doj){
+  var cur=_hrmsCurMonth();
+  var oldest=_hrmsOldestUnlockedMonth();
+  if(!doj) return cur;
+  var dojMk=String(doj).slice(0,7);
+  var picked=dojMk;
+  if(picked>cur) picked=cur;
+  if(picked<oldest) picked=oldest;
+  return picked;
+}
 
 /**
  * Migrate legacy flat employee fields into a periods array.

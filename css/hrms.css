@@ -144,6 +144,15 @@
    import (vs. manually-entered). Amber tint signals "fetched, not
    typed" so the operator can spot import-driven values at a glance. */
 .hrms-adv-imported{background:#fef3c7!important;border-color:#f59e0b!important;color:#92400e!important;font-weight:800}
+/* Mandatory-field accent on the Employee Details modal. Soft red
+   left bar + matching outline so required inputs read as "fill me"
+   without being noisy. The * in the label still carries the same
+   colour. */
+.hrms-required input,.hrms-required select,.hrms-required textarea,
+input.hrms-required,select.hrms-required,textarea.hrms-required{
+  border-left:3px solid #dc2626!important;
+  box-shadow:inset 1px 0 0 #fee2e2;
+}
 /* Standard HRMS search-box style (matches the Salary-tab search). Used
    across all standalone search inputs so they share the same look. */
 .hrms-search{font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text)}

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260508-V8">
+<meta name="app-build" content="260509-V9">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260508-V8">
+<link rel="stylesheet" href="css/hrms.css?v=260509-V9">
 </head>
 <body>
 
@@ -83,6 +83,7 @@
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
       <button id="hrmsEmpTabList" onclick="_hrmsEmpSetTab('list')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid var(--accent);background:var(--accent-light);color:var(--accent);cursor:pointer;border-radius:6px 6px 0 0">👤 Employees</button>
       <button id="hrmsEmpTabEcr" onclick="_hrmsEmpSetTab('ecr')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">📋 Change Requests <span id="cChangeReqTab" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;display:none">0</span></button>
+      <button id="hrmsEmpTabDiversity" onclick="_hrmsEmpSetTab('diversity')" style="padding:8px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:transparent;color:var(--text3);cursor:pointer;border-radius:6px 6px 0 0">🥧 Diversity</button>
     </div>
     <!-- Employee List Tab -->
     <div id="hrmsEmpListSection">
@@ -103,9 +104,9 @@
         </div>
       </div>
       <div class="table-wrap">
-        <table style="table-layout:fixed;width:100%"><colgroup>
+        <table style="table-layout:fixed;width:1227px;max-width:1227px;border-collapse:collapse"><colgroup>
           <col style="width:34px"><col style="width:70px"><col style="width:180px"><col style="width:60px"><col style="width:85px">
-          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:55px"><col style="width:70px"><col style="width:70px">
+          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:55px"><col style="width:178px"><col style="width:70px"><col style="width:60px">
         </colgroup>
         <thead>
         <tr style="background:#fff">
@@ -120,6 +121,7 @@
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFDept" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFRoll" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFStateOrigin" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
         </tr>
@@ -135,8 +137,9 @@
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('department')">Department <span id="hrmsEmpSortI_department" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Role <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
+          <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('stateOrigin')">State (Origin) <span id="hrmsEmpSortI_stateOrigin" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">⇅</span></th>
-          <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)">Actions</th>
+          <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 2px;border-bottom:1px solid var(--border);white-space:nowrap">Actions</th>
         </tr>
         </thead><tbody id="hrmsEmpBody"></tbody></table>
       </div>
@@ -147,6 +150,20 @@
     <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius)">
       <div style="font-size:18px;font-weight:900;margin-bottom:12px">📋 Employee Change Requests</div>
       <div id="hrmsChangeReqContent"></div>
+    </div>
+    </div>
+    <!-- Diversity Tab -->
+    <div id="hrmsEmpDiversitySection" style="display:none">
+    <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="font-size:18px;font-weight:900">🥧 Diversity by State (Origin)</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <label for="hrmsDivMonth" style="font-size:12px;font-weight:700;color:var(--text2)">Month:</label>
+          <select id="hrmsDivMonth" onchange="_hrmsDiversityMonthChanged()" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;background:#fff;cursor:pointer"></select>
+          <span id="hrmsDivCount" style="font-size:12px;font-weight:700;color:var(--text3)"></span>
+        </div>
+      </div>
+      <div id="hrmsDiversityContent"></div>
     </div>
     </div>
   </div>
@@ -413,12 +430,12 @@
     <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column;padding-top:0">
       <!-- Settings sub-tabs -->
       <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
-        <div class="hrms-settings-tab active" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
+        <div class="hrms-settings-tab hrms-allow-locked active" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt">ESSL Data</div>
-        <div class="hrms-settings-tab hrms-allow-locked" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration">Manual Alt</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual">Manual P &amp; OT</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances">Advances</div>
+        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds">TDS</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">OR Salary Rev</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev">Contract Salary Rev</div>
@@ -481,19 +498,6 @@
 
       <!-- Sub-tab: Salary Revision (On-Roll employees only) -->
       <div id="hrmsSetPanelSalrevision" style="display:none">
-        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Salary Revision (On Roll)</div>
-        <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
-          Applies only to <b>On-Roll</b> employees. Each approved row creates a new revision effective from the given month; every other period field is copied forward.
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
-          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('onroll',this)" style="display:none"></label>
-          <span id="hrmsSalImpSummary_onroll" style="font-size:11px;color:var(--text3)"></span>
-          <span style="flex:1"></span>
-          <button id="hrmsSalImpApproveSelBtn_onroll" onclick="_hrmsSalImpApprove('onroll',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
-          <button id="hrmsSalImpApproveAllBtn_onroll" onclick="_hrmsSalImpApprove('onroll',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
-          <button id="hrmsSalImpCancelBtn_onroll" onclick="_hrmsSalImpCancel('onroll')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
-        </div>
         <div id="hrmsSalImpPreview_onroll"></div>
       </div>
 
@@ -552,14 +556,6 @@
           <button id="hrmsAltAddBtn" onclick="_hrmsAddManualAlteration()" style="padding:6px 16px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add Alteration</button>
           <button id="hrmsAltCancelBtn" onclick="_hrmsAltAddCancel()" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer">Cancel</button>
         </div>
-        <!-- ── Manual Alteration list (current month) ── -->
-        <div style="margin-top:14px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <span style="font-size:13px;font-weight:900;color:var(--text)">Alterations — Current Month</span>
-            <span style="font-size:11px;color:var(--text3)">Manual entries for the selected month</span>
-          </div>
-          <div id="hrmsAltManualList"></div>
-        </div>
       </div>
 
       <!-- Sub-tab: Manual Overrides -->
@@ -583,91 +579,60 @@
 
       <!-- Sub-tab: Statutory -->
       <div id="hrmsSetPanelStatutory" style="display:none">
-        <div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:12px">Statutory Settings</div>
-        <!-- Two-column layout — left: OT Rules + PL Rules, right: Formula
-             card + PT card. Flex-wrap collapses to a single column on
-             narrower screens (< ~880px). -->
-        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px;align-items:flex-start">
-          <!-- LEFT COLUMN -->
-          <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:12px">
-            <!-- OT Rules -->
-            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
-              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">OT Rules <span style="font-size:10px;font-weight:600;color:var(--text3)">— per-month overrides</span></div>
-              <div id="hrmsOtRulesBody"></div>
-            </div>
-            <!-- PL Rules -->
-            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
-              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">Paid Leave Allocation Rules</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Confirmation = 3 months after joining date + 1 day</div>
-              <table style="border-collapse:collapse;font-size:11px;width:100%">
-                <thead><tr style="background:#f8fafc"><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Category</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Condition</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">PL Allocation</th></tr></thead>
-                <tbody>
-                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&ge; 60 months post confirmation</td>
-                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffSenior" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/year (April)</td></tr>
-                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&lt; 60 months post confirmation</td>
-                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffJunior" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
-                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Worker</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">After probation (3 months)</td>
-                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLWorker" step="0.5" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
-                  <tr><td style="padding:4px 6px" colspan="2">Confirmation threshold (senior staff)</td>
-                    <td style="padding:4px 6px"><input type="number" id="hrmsPLSeniorMonths" step="1" min="0" style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> months</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <!-- RIGHT COLUMN -->
-          <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:12px">
-            <!-- PT (Professional Tax) -->
-            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
-              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">PT (Professional Tax)</div>
-              <div id="hrmsPtRules"></div>
-              <button onclick="_hrmsAddPtRule()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--accent);cursor:pointer;font-weight:700;margin-top:4px">+ Add Rule</button>
-            </div>
-          </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:15px;font-weight:900;color:var(--text)">Statutory Settings</div>
+          <span style="flex:1"></span>
+          <!-- Save / Reset live at the top of the panel and stay disabled
+               until any value inside #hrmsSetPanelStatutory is edited.
+               _hrmsStatToggleDirty wires the listeners on first paint. -->
+          <button id="hrmsStatSaveBtn" onclick="_hrmsSaveStatutory()" disabled style="padding:6px 16px;font-size:13px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:0.45">💾 Save Statutory Settings</button>
+          <button id="hrmsStatResetBtn" onclick="_hrmsStatReset()" disabled title="Discard unsaved changes and revert to the last saved values" style="padding:6px 14px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;opacity:0.45">↺ Reset</button>
+          <span id="hrmsStatSaveStatus" style="font-size:12px;font-weight:700"></span>
         </div>
-        <!-- ESI / PF Basic + DA calculation Formulas — full width, two-column inner layout -->
+        <!-- ESI / PF Basic + DA calculation Formulas — full width, two-column inner layout. Moved to the top of the Statutory tab so the most-edited block is visible without scrolling. -->
         <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px">ESI / PF Basic + DA calculation Formulas</div>
+          <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:10px">ESI / PF Basic + DA calculation Formulas</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
             <!-- LEFT: Inputs -->
             <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:8px">
               <!-- PF / ESI percentages -->
               <div style="display:flex;flex-wrap:wrap;gap:10px">
                 <div style="border:1.5px dashed var(--border);border-radius:6px;padding:8px;flex:1;min-width:170px">
-                  <div style="font-size:10px;font-weight:800;color:#7c3aed;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">PF (Provident Fund)</div>
-                  <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:70px">Worker %</label><input type="number" id="hrmsPfWorker" step="0.01" min="0" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
-                  <div style="display:flex;gap:6px;align-items:center"><label style="font-size:10px;font-weight:700;color:var(--text3);width:70px">Company %</label><input type="number" id="hrmsPfCompany" step="0.01" min="0" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
+                  <div style="font-size:11px;font-weight:800;color:#7c3aed;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">PF (Provident Fund)</div>
+                  <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label><input type="number" class="no-spin" id="hrmsPfWorker" step="0.01" min="0" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
+                  <div style="display:flex;gap:6px;align-items:center"><label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label><input type="number" class="no-spin" id="hrmsPfCompany" step="0.01" min="0" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
                 </div>
                 <div style="border:1.5px dashed var(--border);border-radius:6px;padding:8px;flex:1;min-width:170px">
-                  <div style="font-size:10px;font-weight:800;color:#dc2626;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">ESI</div>
-                  <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:70px">Worker %</label><input type="number" id="hrmsEsiWorker" step="0.01" min="0" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
-                  <div style="display:flex;gap:6px;align-items:center"><label style="font-size:10px;font-weight:700;color:var(--text3);width:70px">Company %</label><input type="number" id="hrmsEsiCompany" step="0.01" min="0" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
+                  <div style="font-size:11px;font-weight:800;color:#dc2626;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">ESI</div>
+                  <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Worker %</label><input type="number" class="no-spin" id="hrmsEsiWorker" step="0.01" min="0" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
+                  <div style="display:flex;gap:6px;align-items:center"><label style="font-size:11px;font-weight:700;color:var(--text3);width:70px">Company %</label><input type="number" class="no-spin" id="hrmsEsiCompany" step="0.01" min="0" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;width:60px;text-align:right"></div>
                 </div>
               </div>
               <!-- OR Worker -->
               <div style="border:1.5px dashed var(--border);border-radius:6px;padding:8px">
-                <div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">OR Worker</div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDays" placeholder="e.g., floor((P+PL)*2+0.5)/2" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPf" placeholder="formula" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsi" placeholder="formula" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">OR Worker</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDays" placeholder="e.g., floor((P+PL)*2+0.5)/2" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPf" placeholder="formula" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsi" placeholder="formula" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
               </div>
               <!-- OR Staff -->
               <div style="border:1.5px dashed var(--border);border-radius:6px;padding:8px">
-                <div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">OR Staff</div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDaysStaff" placeholder="formula for Staff" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPfStaff" placeholder="formula for Staff" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsiStaff" placeholder="formula for Staff" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">OR Staff</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDaysStaff" placeholder="formula for Staff" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPfStaff" placeholder="formula for Staff" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsiStaff" placeholder="formula for Staff" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
               </div>
               <!-- Contract Emp -->
               <div style="border:1.5px dashed var(--border);border-radius:6px;padding:8px">
-                <div style="font-size:10px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Contract Emp</div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDaysContract" placeholder="formula for Contract" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPfContract" placeholder="formula for Contract" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
-                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:10px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsiContract" placeholder="formula for Contract" style="font-size:11px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="font-size:11px;font-weight:800;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Contract Emp</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Payable Days</label><input type="text" id="hrmsFormulaPayableDaysContract" placeholder="formula for Contract" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (PF) Capped</label><input type="text" id="hrmsFormulaBasicDaPfContract" placeholder="formula for Contract" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
+                <div style="display:flex;gap:6px;align-items:center"><label style="font-size:11px;font-weight:700;color:var(--text3);width:130px">Basic + DA (ESI)</label><input type="text" id="hrmsFormulaBasicDaEsiContract" placeholder="formula for Contract" style="font-size:12px;padding:3px 5px;border:1.5px solid var(--border);border-radius:4px;flex:1;min-width:0;font-family:var(--mono)"></div>
               </div>
             </div>
             <!-- RIGHT: Rules / help text -->
-            <div style="flex:1;min-width:320px;background:#f8fafc;border:1.5px solid var(--border);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);line-height:1.7">
-              <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Rules &amp; Reference</div>
+            <div style="flex:1;min-width:320px;background:#f8fafc;border:1.5px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.7">
+              <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Rules &amp; Reference</div>
               <div style="margin-bottom:8px"><b>Variables:</b> <b>GS</b> = Gross Salary,&nbsp; <b>TD</b> = Total Days (W + PH),&nbsp; <b>P</b> = Present Days,&nbsp; <b>PL</b> = Paid Leave (incl. PH),&nbsp; <b>PD</b> = Payable Days (output of formula 1, available in formulas 2 &amp; 3).</div>
               <div style="margin-bottom:8px"><b>Functions:</b> <b>if(cond, then, else)</b>, <b>floor(x [, sig])</b>, <b>ceiling(x [, sig])</b>, <b>round(x [, digits])</b>, <b>min(...)</b>, <b>max(...)</b>.</div>
               <div style="margin-bottom:8px"><b>Operators:</b> <code>+ &minus; * / ( ) &lt; &gt; &lt;= &gt;= == != &amp;&amp; ||</code></div>
@@ -676,39 +641,63 @@
             </div>
           </div>
         </div>
-        <button onclick="_hrmsSaveStatutory()" style="padding:6px 16px;font-size:12px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">Save Statutory Settings</button>
-        <span id="hrmsStatSaveStatus" style="font-size:11px;font-weight:700;margin-left:8px"></span>
+        <!-- Two-column layout — left: OT Rules + PL Rules, right: PT card.
+             Flex-wrap collapses to a single column on narrower screens. -->
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px;align-items:flex-start">
+          <!-- LEFT COLUMN -->
+          <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:12px">
+            <!-- OT Rules -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
+              <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">OT Rules <span style="font-size:11px;font-weight:600;color:var(--text3)">— per-month overrides</span></div>
+              <div id="hrmsOtRulesBody"></div>
+            </div>
+            <!-- PL Rules -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
+              <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">Paid Leave Allocation Rules</div>
+              <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Confirmation = 3 months after joining date + 1 day</div>
+              <table style="border-collapse:collapse;font-size:12px;width:100%">
+                <thead><tr style="background:#f8fafc"><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Category</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">Condition</th><th style="padding:4px 6px;text-align:left;border-bottom:1px solid var(--border)">PL Allocation</th></tr></thead>
+                <tbody>
+                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&ge; 60 months post confirmation</td>
+                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffSenior" step="0.5" min="0" style="font-size:12px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/year (April)</td></tr>
+                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Staff</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">&lt; 60 months post confirmation</td>
+                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLStaffJunior" step="0.5" min="0" style="font-size:12px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
+                  <tr><td style="padding:4px 6px;border-bottom:1px solid var(--border)">Worker</td><td style="padding:4px 6px;border-bottom:1px solid var(--border)">After probation (3 months)</td>
+                    <td style="padding:4px 6px;border-bottom:1px solid var(--border)"><input type="number" id="hrmsPLWorker" step="0.5" min="0" style="font-size:12px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> PL/month</td></tr>
+                  <tr><td style="padding:4px 6px" colspan="2">Confirmation threshold (senior staff)</td>
+                    <td style="padding:4px 6px"><input type="number" id="hrmsPLSeniorMonths" step="1" min="0" style="font-size:12px;padding:3px 4px;border:1px solid var(--border);border-radius:3px;width:40px;text-align:right"> months</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <!-- RIGHT COLUMN -->
+          <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:12px">
+            <!-- PT (Professional Tax) -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:12px">
+              <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">PT (Professional Tax)</div>
+              <div id="hrmsPtRules"></div>
+              <button onclick="_hrmsAddPtRule()" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--accent);cursor:pointer;font-weight:700;margin-top:4px">+ Add Rule</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Sub-tab: TDS -->
       <div id="hrmsSetPanelTds" style="display:none">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:900;color:var(--text)">TDS Deductions</span>
-          <span style="font-size:11px;color:var(--text3)">Monthly TDS amount per employee. Continues to next month unless deleted.</span>
+          <span style="font-size:15px;font-weight:900;color:var(--text)">TDS Deductions</span>
+          <span style="font-size:12px;color:var(--text3)">Monthly TDS amount per employee. Continues to next month unless deleted.</span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap">
-          <div style="position:relative"><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsTdsCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsTdsCode');},200)" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsTdsCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
-          <div><label style="font-size:10px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">TDS Amount</label><input type="number" id="hrmsTdsAmount" step="100" min="0" placeholder="0" style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:90px"></div>
-          <button onclick="_hrmsTdsAdd()" style="padding:5px 14px;font-size:12px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
+          <div style="position:relative"><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">Emp Code / Name</label><input type="text" id="hrmsTdsCode" placeholder="Type code or name…" autocomplete="off" oninput="_hrmsEmpAC(this)" onfocus="_hrmsEmpAC(this)" onblur="setTimeout(function(){_hrmsEmpACClose('hrmsTdsCode');},200)" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:180px"><div id="ac_hrmsTdsCode" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1.5px solid var(--accent);border-radius:6px;max-height:240px;overflow-y:auto;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:2px">TDS Amount</label><input type="number" id="hrmsTdsAmount" step="100" min="0" placeholder="0" style="font-size:13px;padding:4px 8px;border:1.5px solid var(--border);border-radius:4px;width:90px"></div>
+          <button onclick="_hrmsTdsAdd()" style="padding:5px 14px;font-size:13px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">+ Add</button>
         </div>
         <div id="hrmsTdsList" style="max-height:400px;overflow-y:auto"></div>
       </div>
 
-      <!-- Sub-tab: Contract Salary Revision (Excel import + selective approve) -->
+      <!-- Sub-tab: Contract Salary Revision -->
       <div id="hrmsSetPanelContractrev" style="display:none">
-        <div style="font-size:13px;font-weight:800;color:var(--accent);margin-bottom:8px">📥 Import Contract Salary Revision</div>
-        <div style="padding:10px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e40af;line-height:1.55;margin-bottom:10px">
-          Upload an Excel with columns: <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Emp Code</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Role</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Day</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Sal/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Allowance/Month</code> · <code style="background:#dbeafe;padding:1px 5px;border-radius:3px">Effective Month</code>.<br>
-          Each approved row creates a new revision with the given Effective Month (defaulting to the current month); every other period field is copied from the active period.
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 0 10px;font-size:12px;margin-bottom:10px">
-          <label class="btn btn-primary" style="padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsSalImport('contract',this)" style="display:none"></label>
-          <span id="hrmsSalImpSummary_contract" style="font-size:11px;color:var(--text3)"></span>
-          <span style="flex:1"></span>
-          <button id="hrmsSalImpApproveSelBtn_contract" onclick="_hrmsSalImpApprove('contract',true)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve Selected</button>
-          <button id="hrmsSalImpApproveAllBtn_contract" onclick="_hrmsSalImpApprove('contract',false)" style="display:none;padding:6px 14px;font-size:12px;font-weight:800;background:#0ea5e9;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ Approve All</button>
-          <button id="hrmsSalImpCancelBtn_contract" onclick="_hrmsSalImpCancel('contract')" style="display:none;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface2);border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">✕ Clear</button>
-        </div>
         <div id="hrmsSalImpPreview_contract"></div>
       </div>
 
@@ -762,9 +751,8 @@
             <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
               <span id="hrmsAttCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
               <button id="hrmsAttToggleBtn" onclick="_hrmsAttToggleMode()" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent-light);color:var(--accent);font-weight:800;cursor:pointer">Actual</button>
-              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMonth()" style="font-size:11px;padding:5px 12px">📤 Export</button>
-              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMuster()" style="font-size:11px;padding:5px 12px" title="Export the muster grid as displayed (mirrors active filters)">📥 Export Muster</button>
-              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsMusterPdfFiltered()" style="font-size:11px;padding:5px 12px" title="Download a PDF of the muster grid as currently sorted and filtered">📄 PDF Filtered Data</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsAttExportMuster()" style="font-size:11px;padding:5px 12px" title="Excel of the muster grid as currently sorted and filtered">📥 Excel Filtered Data</button>
+              <button class="btn btn-secondary hrms-allow-locked" onclick="_hrmsMusterPdfFiltered()" style="font-size:11px;padding:5px 12px" title="PDF of the muster grid as currently sorted and filtered">📄 PDF Filtered Data</button>
             </div>
           </div>
           <div id="hrmsAttGrid" style="overflow:auto;flex:1;position:relative"></div>
@@ -1023,8 +1011,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260508-V8"></script>
-<script src="js/hrms-logic.js?v=260508-V8"></script>
-<script src="js/hrms-ui.js?v=260508-V8"></script>
+<script src="js/common.js?v=260509-V9"></script>
+<script src="js/hrms-logic.js?v=260509-V9"></script>
+<script src="js/hrms-ui.js?v=260509-V9"></script>
 </body>
 </html>
