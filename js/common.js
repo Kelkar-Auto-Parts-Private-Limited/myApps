@@ -1741,7 +1741,7 @@ const PLATFORM_ROLES=['Super Admin','Admin','Read Only'];
 // HRMS Admin / MTTS Admin) plus a Read Only.
 const ROLES=['VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'];
 const HWMS_ROLES=['HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'];
-const HRMS_ROLES=['HRMS Admin','HR Manager','Employee','Read Only'];
+const HRMS_ROLES=['HRMS Admin','HR Manager','Contractor Supervisor','Employee','Read Only'];
 const MTTS_ROLES=['MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only'];
 
 // ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
@@ -1757,7 +1757,7 @@ var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'r
 var _PERM_MODULE_ROLES={
   VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'],
   HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'],
-  HRMS:['Super Admin','HRMS Admin','HR Manager','Employee','Read Only'],
+  HRMS:['Super Admin','HRMS Admin','HR Manager','Contractor Supervisor','Employee','Read Only'],
   Security:['Super Admin','Guard','Viewer','Read Only'],
   MTTS:['Super Admin','MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only']
 };
@@ -1852,6 +1852,7 @@ var _PERM_KEYS={
     {key:'page.utilAttConv',label:'Attendance Excel Converter',group:'🛠 Utilities'},
     {key:'page.utilDailyAttSum',label:'Daily Attendance Summary',group:'🛠 Utilities'},
     {key:'page.utilMonthlyHc',label:'Monthly Headcount Graph',group:'🛠 Utilities'},
+    {key:'page.utilUpdateEmp',label:'Update Employee',group:'🛠 Utilities'},
     {key:'page.utilContractFromFix',label:'Contract From-Month Fix',group:'🛠 Utilities'}
   ],
   VMS:[
@@ -1976,7 +1977,7 @@ var _PERM_UMBRELLA={
                    'action.addMonth','action.saveLock','action.unlock'],
     'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
                     'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','page.masterAllocation','masters.edit'],
-    'page.utilities':['page.utilAttConv','page.utilDailyAttSum','page.utilMonthlyHc']
+    'page.utilities':['page.utilAttConv','page.utilDailyAttSum','page.utilMonthlyHc','page.utilUpdateEmp']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
@@ -2008,7 +2009,12 @@ var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'
 var _PERM_DEFAULTS_FULL={
   HRMS:{
     'page.masterAllocation':['HR Manager'],
-    'action.addPrintFormat':['HR Manager']
+    'action.addPrintFormat':['HR Manager'],
+    // Contractor Supervisor — single-purpose role: only the Update
+    // Employee utility page (and its umbrella). Everything else under
+    // HRMS stays denied, so the side menu shows just that one entry.
+    'page.utilities':['Contractor Supervisor'],
+    'page.utilUpdateEmp':['Contractor Supervisor']
   }
 };
 function permLevel(mod,pageTabKey,_visited){

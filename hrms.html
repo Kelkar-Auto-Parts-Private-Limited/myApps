@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260509-V17">
+<meta name="app-build" content="260509-V38">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260509-V17">
+<link rel="stylesheet" href="css/hrms.css?v=260509-V38">
 </head>
 <body>
 
@@ -30,8 +30,8 @@
   <div class="nav-section">HRMS</div>
   <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
   <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
-  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary</div>
-  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance &amp; Approvals</div>
+  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary <span id="cNavAttSal" title="Pending items inside Attendance &amp; Salary" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
+  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance &amp; Approvals <span id="cNavMyAtt" title="Pending My Approvals" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
@@ -51,6 +51,7 @@
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
     <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
     <div class="nav-item" id="navUtilMonthlyHc" onclick="hrmsGo('pageHrmsUtilMonthlyHc')" style="font-size:12px;padding:7px 16px">📈 Monthly Headcount Graph</div>
+    <div class="nav-item" id="navUtilUpdateEmp" onclick="hrmsGo('pageHrmsUtilUpdateEmp')" style="font-size:12px;padding:7px 16px">✏️ Update Employee</div>
   </div>
   <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
   <!-- Bottom: Connection + Sign Out -->
@@ -399,6 +400,66 @@
     </div>
   </div>
 
+  <!-- UTILITIES: Update Employee (compact, mobile-friendly) -->
+  <div class="page" id="pageHrmsUtilUpdateEmp" style="flex-direction:column">
+    <div class="card" style="max-width:480px;margin:0 auto;width:100%;padding:16px">
+      <div style="font-size:20px;font-weight:900;margin-bottom:12px">✏️ Update Employee</div>
+      <!-- Employee picker — editable input with datalist autocomplete.
+           Hidden after selection; revealed again after Save / Clear. -->
+      <div id="hrmsUpdEmpPickerWrap" style="margin-bottom:14px">
+        <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Select Employee</label>
+        <input id="hrmsUpdEmpPicker" list="hrmsUpdEmpDatalist" autocomplete="off" placeholder="Type emp code or name, then pick from list…" onchange="_hrmsUpdEmpPickerInput()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff;font-family:var(--mono)">
+        <datalist id="hrmsUpdEmpDatalist"></datalist>
+      </div>
+      <!-- Picked-employee banner (emp code, name, plant w/ background colour) -->
+      <div id="hrmsUpdEmpHeader" style="display:none;margin-bottom:14px;padding:14px 16px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:16px"></div>
+      <!-- Form (always visible) -->
+      <input type="hidden" id="hrmsUpdEmpId">
+      <!-- Photo block on the left, DOB + Phone stacked on the right -->
+      <div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-start">
+        <!-- Photo block -->
+        <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <label style="font-size:14px;font-weight:700;color:var(--text2);align-self:flex-start">Photo <span style="color:#dc2626">*</span></label>
+          <div id="hrmsUpdEmpPhotoPreview" style="width:160px;height:160px;border:1.5px dashed var(--border);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;overflow:hidden">No photo</div>
+          <div style="display:flex;gap:6px">
+            <label style="display:inline-block;padding:6px 12px;font-size:14px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📷 Upload<input type="file" id="hrmsUpdEmpPhotoInput" accept="image/*" capture="environment" onchange="_hrmsUpdEmpPhotoChange(this)" style="display:none"></label>
+            <button type="button" onclick="_hrmsUpdEmpPhotoRemove()" style="padding:6px 10px;font-size:14px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🗑 Remove</button>
+          </div>
+          <div id="hrmsUpdEmpPhotoStatus" style="font-size:12px;color:var(--text3);margin-top:2px;text-align:center">Auto-compressed to &lt;100 KB</div>
+        </div>
+        <!-- DOB + Phone stacked beside photo -->
+        <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Date of Birth</label>
+            <input type="date" id="hrmsUpdEmpDOB" onchange="_hrmsUpdEmpMarkDirty()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Phone Number</label>
+            <div style="display:flex;gap:6px">
+              <select id="hrmsUpdEmpMobileCode" onchange="_hrmsUpdEmpMarkDirty()" style="flex:0 0 100px;font-size:15px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <input type="tel" id="hrmsUpdEmpMobile" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:1;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;min-width:0;font-family:var(--mono)">
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- State -->
+      <div style="margin-bottom:12px">
+        <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">State (Origin) <span style="color:#dc2626">*</span></label>
+        <select id="hrmsUpdEmpState" onchange="_hrmsUpdEmpMarkDirty()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff"></select>
+      </div>
+      <!-- Department -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Department</label>
+        <select id="hrmsUpdEmpDept" onchange="_hrmsUpdEmpMarkDirty()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff"></select>
+      </div>
+      <!-- Buttons -->
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="hrmsUpdEmpSaveBtn" onclick="_hrmsUpdEmpSave()" style="flex:1;padding:10px 14px;font-size:16px;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">💾 Save</button>
+        <button id="hrmsUpdEmpClearBtn" onclick="_hrmsUpdEmpReset()" style="flex:0 0 auto;padding:10px 14px;font-size:16px;font-weight:700;background:#fff;border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer">↺ Clear</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ATTENDANCE & SALARY (Combined) -->
   <div class="page" id="pageHrmsAttSal" style="flex-direction:column">
     <!-- Top header: Select Month + label -->
@@ -417,12 +478,12 @@
     <div id="hrmsRecalcDiff" style="display:none;margin:8px 0;padding:10px 12px;background:#fff7ed;border:1.5px solid #fdba74;border-radius:8px"></div>
     <!-- 3 Main Tabs: Settings | Attendance | Salary -->
     <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--border)">
-      <button class="hrms-main-tab active" onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings">⚙️ Settings &amp; Data</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance">📅 Attendance</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary">💰 OR Salary</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments">🏦 OR Sal Payments</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf">📋 OR ESI/PF List</button>
-      <button class="hrms-main-tab" onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt">🧾 OR PT Summary</button>
+      <button class="hrms-main-tab active" onclick="_hrmsMainTab('settings')" id="hrmsMainTabSettings">⚙️ Settings &amp; Data <span id="cMainTabSettings" title="Pending under Settings &amp; Data" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:6px">0</span></button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('attendance')" id="hrmsMainTabAttendance">📅 Attendance <span id="cMainTabAttendance" title="Pending under Attendance" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:6px">0</span></button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('salary')" id="hrmsMainTabSalary">💰 KAP Salary</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('payments')" id="hrmsMainTabPayments">🏦 KAP Sal Payment</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('esipf')" id="hrmsMainTabEsipf">📋 KAP ESI/PF Report</button>
+      <button class="hrms-main-tab" onclick="_hrmsMainTab('pt')" id="hrmsMainTabPt">🧾 KAP PT Summary</button>
       <button class="hrms-main-tab" onclick="_hrmsMainTab('contract')" id="hrmsMainTabContract" style="display:none">📋 Contract Salary</button>
     </div>
 
@@ -1014,8 +1075,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260509-V17"></script>
-<script src="js/hrms-logic.js?v=260509-V17"></script>
-<script src="js/hrms-ui.js?v=260509-V17"></script>
+<script src="js/common.js?v=260509-V38"></script>
+<script src="js/hrms-logic.js?v=260509-V38"></script>
+<script src="js/hrms-ui.js?v=260509-V38"></script>
 </body>
 </html>
