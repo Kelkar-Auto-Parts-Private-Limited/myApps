@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260509-V38">
+<meta name="app-build" content="260509-V42">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260509-V38">
+<link rel="stylesheet" href="css/hrms.css?v=260509-V42">
 </head>
 <body>
 
@@ -402,42 +402,58 @@
 
   <!-- UTILITIES: Update Employee (compact, mobile-friendly) -->
   <div class="page" id="pageHrmsUtilUpdateEmp" style="flex-direction:column">
-    <div class="card" style="max-width:480px;margin:0 auto;width:100%;padding:16px">
-      <div style="font-size:20px;font-weight:900;margin-bottom:12px">✏️ Update Employee</div>
-      <!-- Employee picker — editable input with datalist autocomplete.
+    <div class="card" style="max-width:480px;margin:0 auto;width:100%;padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="font-size:20px;font-weight:900">✏️ Update Employee</div>
+        <span id="hrmsUpdEmpTitlePlant" style="margin-left:auto;display:none"></span>
+      </div>
+      <!-- Employee picker — editable input with a CUSTOM dropdown list
+           (not <datalist>, which renders as horizontal cards on mobile
+           browsers). The list shows filtered employees as a proper
+           vertical scrollable list — same on desktop and mobile.
            Hidden after selection; revealed again after Save / Clear. -->
-      <div id="hrmsUpdEmpPickerWrap" style="margin-bottom:14px">
+      <div id="hrmsUpdEmpPickerWrap" style="margin-bottom:14px;position:relative">
         <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Select Employee</label>
-        <input id="hrmsUpdEmpPicker" list="hrmsUpdEmpDatalist" autocomplete="off" placeholder="Type emp code or name, then pick from list…" onchange="_hrmsUpdEmpPickerInput()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff;font-family:var(--mono)">
-        <datalist id="hrmsUpdEmpDatalist"></datalist>
+        <input id="hrmsUpdEmpPicker" autocomplete="off" placeholder="Type emp code or name, then pick…" oninput="_hrmsUpdEmpPickerFilter()" onfocus="_hrmsUpdEmpPickerFilter()" onblur="setTimeout(_hrmsUpdEmpPickerHide,180)" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;background:#fff;font-family:var(--mono)">
+        <div id="hrmsUpdEmpPickerList" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:260px;overflow-y:auto;border:1.5px solid var(--border);border-top:none;border-radius:0 0 6px 6px;background:#fff;z-index:30;box-shadow:0 8px 24px rgba(0,0,0,0.15)"></div>
       </div>
       <!-- Picked-employee banner (emp code, name, plant w/ background colour) -->
       <div id="hrmsUpdEmpHeader" style="display:none;margin-bottom:14px;padding:14px 16px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:16px"></div>
       <!-- Form (always visible) -->
       <input type="hidden" id="hrmsUpdEmpId">
-      <!-- Photo block on the left, DOB + Phone stacked on the right -->
-      <div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-start">
+      <!-- Photo block on the left, DOB + Phone stacked on the right.
+           Compact widths so the right column stays beside the photo
+           even on narrow phone viewports — the country code + number
+           wrap onto two lines when there's no horizontal space left. -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-start">
         <!-- Photo block -->
         <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px">
           <label style="font-size:14px;font-weight:700;color:var(--text2);align-self:flex-start">Photo <span style="color:#dc2626">*</span></label>
-          <div id="hrmsUpdEmpPhotoPreview" style="width:160px;height:160px;border:1.5px dashed var(--border);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;overflow:hidden">No photo</div>
-          <div style="display:flex;gap:6px">
-            <label style="display:inline-block;padding:6px 12px;font-size:14px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📷 Upload<input type="file" id="hrmsUpdEmpPhotoInput" accept="image/*" capture="environment" onchange="_hrmsUpdEmpPhotoChange(this)" style="display:none"></label>
-            <button type="button" onclick="_hrmsUpdEmpPhotoRemove()" style="padding:6px 10px;font-size:14px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">🗑 Remove</button>
+          <div style="position:relative;width:120px;height:120px">
+            <div id="hrmsUpdEmpPhotoPreview" style="width:120px;height:120px;border:1.5px dashed var(--border);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;overflow:hidden">No photo</div>
+            <button id="hrmsUpdEmpPhotoRemoveBtn" type="button" onclick="_hrmsUpdEmpPhotoRemove()" title="Remove photo" style="display:none;position:absolute;top:-6px;right:-6px;width:22px;height:22px;padding:0;font-size:12px;font-weight:900;line-height:1;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15)">✕</button>
           </div>
-          <div id="hrmsUpdEmpPhotoStatus" style="font-size:12px;color:var(--text3);margin-top:2px;text-align:center">Auto-compressed to &lt;100 KB</div>
+          <div style="display:flex;gap:6px;justify-content:center">
+            <label style="display:inline-block;padding:5px 10px;font-size:13px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📷 Upload<input type="file" id="hrmsUpdEmpPhotoInput" accept="image/*" capture="environment" onchange="_hrmsUpdEmpPhotoChange(this)" style="display:none"></label>
+          </div>
+          <div id="hrmsUpdEmpPhotoStatus" style="font-size:11px;color:var(--text3);margin-top:2px;text-align:center">Auto-compressed to &lt;100 KB</div>
         </div>
         <!-- DOB + Phone stacked beside photo -->
-        <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:10px">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
           <div>
             <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Date of Birth</label>
-            <input type="date" id="hrmsUpdEmpDOB" onchange="_hrmsUpdEmpMarkDirty()" style="width:100%;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box">
+            <div style="display:flex;gap:6px">
+              <select id="hrmsUpdEmpDOBDay" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <select id="hrmsUpdEmpDOBMonth" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.4;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <select id="hrmsUpdEmpDOBYear" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.2;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+            </div>
+            <input type="hidden" id="hrmsUpdEmpDOB">
           </div>
           <div>
             <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Phone Number</label>
-            <div style="display:flex;gap:6px">
-              <select id="hrmsUpdEmpMobileCode" onchange="_hrmsUpdEmpMarkDirty()" style="flex:0 0 100px;font-size:15px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
-              <input type="tel" id="hrmsUpdEmpMobile" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:1;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;min-width:0;font-family:var(--mono)">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <select id="hrmsUpdEmpMobileCode" onchange="_hrmsUpdEmpMarkDirty()" style="flex:0 0 100px;font-size:15px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:90px"></select>
+              <input type="tel" id="hrmsUpdEmpMobile" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:1;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;min-width:130px;font-family:var(--mono)">
             </div>
           </div>
         </div>
@@ -1075,8 +1091,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260509-V38"></script>
-<script src="js/hrms-logic.js?v=260509-V38"></script>
-<script src="js/hrms-ui.js?v=260509-V38"></script>
+<script src="js/common.js?v=260509-V42"></script>
+<script src="js/hrms-logic.js?v=260509-V42"></script>
+<script src="js/hrms-ui.js?v=260509-V42"></script>
 </body>
 </html>

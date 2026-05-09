@@ -87,10 +87,19 @@ function _hrmsLaunch(){
     },50);
     return;
   }
+  // Contractor Supervisor — single-purpose role. Land on Update Employee
+  // straight away so they see the only screen they need.
+  var _hrmsRolesNow=(CU&&CU.hrmsRoles)||[];
+  var _isContractorSup=_hrmsRolesNow.indexOf('Contractor Supervisor')>=0;
+  var _isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+                 ||_hrmsRolesNow.indexOf('HRMS Admin')>=0||_hrmsRolesNow.indexOf('HR Manager')>=0;
+  if(_isContractorSup&&!_isElevated&&_hrmsHasAccess('page.utilUpdateEmp')){
+    hrmsGo('pageHrmsUtilUpdateEmp');return;
+  }
   // Navigate to first allowed page — every HRMS page is a candidate so a
   // user whose only access is e.g. My Attendance still lands somewhere.
-  var _firstPage=['pageHrmsDashboard','pageHrmsEmployees','pageHrmsAttSal','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules'];
-  var _pagePerms={'pageHrmsDashboard':'page.dashboard','pageHrmsEmployees':'page.employees','pageHrmsAttSal':'page.attSal','pageHrmsMyAtt':'page.myAttendance','pageHrmsMyApprovals':'page.myApprovals','pageHrmsOrgStructure':'page.orgStructure','pageHrmsAttRules':'page.attRules'};
+  var _firstPage=['pageHrmsDashboard','pageHrmsEmployees','pageHrmsAttSal','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules','pageHrmsUtilUpdateEmp'];
+  var _pagePerms={'pageHrmsDashboard':'page.dashboard','pageHrmsEmployees':'page.employees','pageHrmsAttSal':'page.attSal','pageHrmsMyAtt':'page.myAttendance','pageHrmsMyApprovals':'page.myApprovals','pageHrmsOrgStructure':'page.orgStructure','pageHrmsAttRules':'page.attRules','pageHrmsUtilUpdateEmp':'page.utilUpdateEmp'};
   var _startPage=null;
   for(var _pi=0;_pi<_firstPage.length;_pi++){if(_hrmsHasAccess(_pagePerms[_firstPage[_pi]])){_startPage=_firstPage[_pi];break;}}
   if(_startPage){hrmsGo(_startPage);return;}
@@ -10652,12 +10661,13 @@ function _hrmsUpdEmpInit(){
   // Initial department list — Worker (hrmsDepartments). Repopulated per
   // employee in _hrmsUpdEmpPick once we know whether the emp is Staff.
   _hrmsUpdEmpFillDeptList(false,'');
-  // Employee datalist — editable input with type-ahead. Each option's
-  // visible value is "EMP_CODE — Name" (no plant). The user types into
-  // the input and the browser filters the datalist; on selection the
-  // input value matches an option, and _hrmsUpdEmpPickerInput resolves
-  // it back to the employee record.
-  var dl=document.getElementById('hrmsUpdEmpDatalist');
+  // DOB selects (Day / Month / Year) — empty by default; prefilled when
+  // an employee is picked.
+  _hrmsUpdEmpFillDOBLists('');
+  // Employee picker — backing pool is stored on window so the custom
+  // dropdown can re-filter without rebuilding. Pool is sorted by code
+  // (numeric where possible) and scoped per the logged-in user's role.
+  var dl=document.getElementById('hrmsUpdEmpPickerList');
   if(dl){
     var pool=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;}).slice();
     pool.sort(function(a,b){
@@ -10694,13 +10704,10 @@ function _hrmsUpdEmpInit(){
     if(_supTeamNames){
       pool=pool.filter(function(e){return e&&e.teamName&&_supTeamNames[e.teamName];});
     }
-    window._hrmsUpdEmpPickerIndex={};
-    var opts=pool.map(function(e){
-      var label=(e.empCode||'')+' — '+(e.name||'');
-      window._hrmsUpdEmpPickerIndex[label.toLowerCase()]=e.id;
-      return '<option value="'+_hrmsEsc(label)+'"></option>';
-    }).join('');
-    dl.innerHTML=opts;
+    window._hrmsUpdEmpPickerPool=pool;
+    // Render once with the unfiltered pool so the dropdown is ready
+    // the moment the user focuses the input.
+    if(typeof _hrmsUpdEmpPickerFilter==='function') _hrmsUpdEmpPickerFilter();
   }
   // Reset dirty tracker on every page open.
   window._hrmsUpdEmpDirty=false;
@@ -10710,6 +10717,57 @@ function _hrmsUpdEmpInit(){
 
 // Mark the form dirty so Clear / pick-different prompts before discarding.
 function _hrmsUpdEmpMarkDirty(){window._hrmsUpdEmpDirty=true;}
+
+// ─── DOB three-dropdown helpers ──────────────────────────────────────────
+// Mobile-friendly DOB picker: Day | Month | Year selects. Internal hidden
+// input #hrmsUpdEmpDOB carries the ISO YYYY-MM-DD value the rest of the
+// app expects. Year list spans 80 years back, descending so the most
+// likely DOB years (30-50 years ago) are reachable with a small scroll.
+function _hrmsUpdEmpFillDOBLists(iso){
+  var dEl=document.getElementById('hrmsUpdEmpDOBDay');
+  var mEl=document.getElementById('hrmsUpdEmpDOBMonth');
+  var yEl=document.getElementById('hrmsUpdEmpDOBYear');
+  if(!dEl||!mEl||!yEl) return;
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dHtml='<option value="">DD</option>';
+  for(var d=1;d<=31;d++) dHtml+='<option value="'+d+'">'+(d<10?'0'+d:d)+'</option>';
+  dEl.innerHTML=dHtml;
+  var mHtml='<option value="">Month</option>';
+  for(var m=1;m<=12;m++) mHtml+='<option value="'+m+'">'+months[m-1]+'</option>';
+  mEl.innerHTML=mHtml;
+  var thisYr=(new Date()).getFullYear();
+  var yHtml='<option value="">YYYY</option>';
+  for(var y=thisYr;y>=thisYr-80;y--) yHtml+='<option value="'+y+'">'+y+'</option>';
+  yEl.innerHTML=yHtml;
+  // Prefill from ISO if provided.
+  if(iso&&/^\d{4}-\d{2}-\d{2}/.test(iso)){
+    yEl.value=String(+iso.slice(0,4));
+    mEl.value=String(+iso.slice(5,7));
+    dEl.value=String(+iso.slice(8,10));
+    var hid=document.getElementById('hrmsUpdEmpDOB');if(hid) hid.value=iso.slice(0,10);
+  } else {
+    var hid2=document.getElementById('hrmsUpdEmpDOB');if(hid2) hid2.value='';
+  }
+}
+
+// Called whenever Day / Month / Year changes. Builds the ISO string and
+// stores it in the hidden #hrmsUpdEmpDOB field. Marks form dirty.
+function _hrmsUpdEmpDOBChanged(){
+  var dEl=document.getElementById('hrmsUpdEmpDOBDay');
+  var mEl=document.getElementById('hrmsUpdEmpDOBMonth');
+  var yEl=document.getElementById('hrmsUpdEmpDOBYear');
+  var hid=document.getElementById('hrmsUpdEmpDOB');
+  if(!dEl||!mEl||!yEl||!hid) return;
+  _hrmsUpdEmpMarkDirty();
+  var d=+dEl.value||0,m=+mEl.value||0,y=+yEl.value||0;
+  if(!d||!m||!y){hid.value='';return;}
+  // Day-of-month sanity (e.g. 31 Feb is invalid). If the picked day
+  // exceeds the days in that month/year, snap the day select back to
+  // the valid max so the user notices.
+  var maxDay=new Date(y,m,0).getDate();
+  if(d>maxDay){d=maxDay;dEl.value=String(d);}
+  hid.value=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
 
 // ─── Contractor Supervisor team mapping ─────────────────────────────────
 // Stored in hrmsSettings.data (key 'teamSupervisors') as {teamId: userId}.
@@ -10779,7 +10837,7 @@ function _hrmsUpdEmpFillDeptList(isStaff,selectedValue){
 // Enable / disable every editable field + button on the form. Called
 // with `false` until an employee is selected, `true` once one is bound.
 function _hrmsUpdEmpSetFieldsEnabled(on){
-  var ids=['hrmsUpdEmpDOB','hrmsUpdEmpMobile','hrmsUpdEmpMobileCode','hrmsUpdEmpState','hrmsUpdEmpDept','hrmsUpdEmpPhotoInput'];
+  var ids=['hrmsUpdEmpDOBDay','hrmsUpdEmpDOBMonth','hrmsUpdEmpDOBYear','hrmsUpdEmpMobile','hrmsUpdEmpMobileCode','hrmsUpdEmpState','hrmsUpdEmpDept','hrmsUpdEmpPhotoInput'];
   ids.forEach(function(id){var el=document.getElementById(id);if(el) el.disabled=!on;});
   // Photo Upload + Remove buttons live next to the photo preview — find
   // them by walking the photo block. Use a dedicated query so we don't
@@ -10795,26 +10853,64 @@ function _hrmsUpdEmpSetFieldsEnabled(on){
   if(card) card.style.opacity=on?'1':'0.95';
 }
 
-function _hrmsUpdEmpPickerInput(){
+// Filter the custom dropdown by the current input value and render
+// matching rows. Called from oninput / onfocus.
+function _hrmsUpdEmpPickerFilter(){
   var inp=document.getElementById('hrmsUpdEmpPicker');
-  if(!inp) return;
-  var v=String(inp.value||'').trim().toLowerCase();
-  if(!v) return;
-  var idx=window._hrmsUpdEmpPickerIndex||{};
-  var empId=idx[v];
-  if(!empId) return; // partial match — wait for full pick
+  var box=document.getElementById('hrmsUpdEmpPickerList');
+  if(!inp||!box) return;
+  var pool=window._hrmsUpdEmpPickerPool||[];
+  var q=String(inp.value||'').trim().toLowerCase();
+  var matches=pool.filter(function(e){
+    if(!q) return true;
+    var code=String(e.empCode||'').toLowerCase();
+    var name=String(e.name||'').toLowerCase();
+    return code.indexOf(q)>=0||name.indexOf(q)>=0;
+  });
+  if(!matches.length){
+    box.innerHTML='<div style="padding:10px 12px;color:var(--text3);font-size:13px">No matches</div>';
+    box.style.display='block';
+    return;
+  }
+  var capped=matches.slice(0,80);
+  box.innerHTML=capped.map(function(e){
+    var ec=String(e.empCode||'');
+    var nm=String(e.name||'');
+    return '<div onmousedown="_hrmsUpdEmpPickerSelect(\''+_hrmsEsc(e.id)+'\')" ontouchstart="_hrmsUpdEmpPickerSelect(\''+_hrmsEsc(e.id)+'\')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:14px;display:flex;gap:10px;align-items:center" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'#fff\'">'
+      +'<span style="font-family:var(--mono);font-weight:800;color:var(--accent);min-width:60px">'+_hrmsEsc(ec)+'</span>'
+      +'<span style="font-weight:600;flex:1">'+_hrmsEsc(nm)+'</span>'
+      +'</div>';
+  }).join('')+(matches.length>capped.length?'<div style="padding:6px 12px;font-size:11px;color:var(--text3);font-style:italic;text-align:center">+'+(matches.length-capped.length)+' more — keep typing to narrow</div>':'');
+  box.style.display='block';
+}
+
+function _hrmsUpdEmpPickerHide(){
+  var box=document.getElementById('hrmsUpdEmpPickerList');
+  if(box) box.style.display='none';
+}
+
+// Called when the user clicks (or taps) an item in the dropdown.
+function _hrmsUpdEmpPickerSelect(empId){
+  if(!empId) return;
+  var inp=document.getElementById('hrmsUpdEmpPicker');
   // If a different employee is already loaded with unsaved edits, confirm.
   var curId=document.getElementById('hrmsUpdEmpId').value;
   if(curId&&curId!==empId&&window._hrmsUpdEmpDirty){
     if(!confirm('Discard unsaved changes for the current employee and switch?')){
-      // Restore picker to whatever was loaded.
-      var curEmp=byId(DB.hrmsEmployees||[],curId);
-      if(curEmp) inp.value=(curEmp.empCode||'')+' — '+(curEmp.name||'');
+      _hrmsUpdEmpPickerHide();
       return;
     }
   }
+  _hrmsUpdEmpPickerHide();
+  // Pre-set input value so the user sees what was picked while the
+  // form populates.
+  var emp=byId(DB.hrmsEmployees||[],empId);
+  if(inp&&emp) inp.value=(emp.empCode||'')+' — '+(emp.name||'');
   _hrmsUpdEmpPick(empId);
 }
+
+// Compatibility shim — older onchange handlers still call this.
+function _hrmsUpdEmpPickerInput(){_hrmsUpdEmpPickerFilter();}
 
 function _hrmsUpdEmpReset(skipDirtyCheck){
   // If form has unsaved touches, confirm. Skip the check when called
@@ -10825,13 +10921,16 @@ function _hrmsUpdEmpReset(skipDirtyCheck){
   var pk=document.getElementById('hrmsUpdEmpPicker');if(pk) pk.value='';
   var pkw=document.getElementById('hrmsUpdEmpPickerWrap');if(pkw) pkw.style.display='';
   var hd=document.getElementById('hrmsUpdEmpHeader');if(hd){hd.innerHTML='';hd.style.display='none';}
+  var tp=document.getElementById('hrmsUpdEmpTitlePlant');if(tp){tp.innerHTML='';tp.style.display='none';}
   var idEl=document.getElementById('hrmsUpdEmpId');if(idEl) idEl.value='';
   window._hrmsUpdEmpPhotoBuf='';
   window._hrmsUpdEmpDirty=false;
   // Clear all form fields so the form looks blank but stays visible.
   var pv=document.getElementById('hrmsUpdEmpPhotoPreview');if(pv) pv.innerHTML='No photo';
+  var rb=document.getElementById('hrmsUpdEmpPhotoRemoveBtn');if(rb) rb.style.display='none';
   var ps=document.getElementById('hrmsUpdEmpPhotoStatus');if(ps) ps.textContent='Auto-compressed to <100 KB';
   ['hrmsUpdEmpDOB','hrmsUpdEmpMobile'].forEach(function(id){var el=document.getElementById(id);if(el) el.value='';});
+  if(typeof _hrmsUpdEmpFillDOBLists==='function') _hrmsUpdEmpFillDOBLists('');
   var st=document.getElementById('hrmsUpdEmpState');if(st) st.value='';
   var cc=document.getElementById('hrmsUpdEmpMobileCode');if(cc) cc.value='+91';
   // Reset Department list back to the Worker list (default) and clear it.
@@ -10847,6 +10946,7 @@ function _hrmsUpdEmpPhotoRemove(){
   var pv=document.getElementById('hrmsUpdEmpPhotoPreview');if(pv) pv.innerHTML='No photo';
   var ps=document.getElementById('hrmsUpdEmpPhotoStatus');if(ps) ps.textContent='Photo removed';
   var inp=document.getElementById('hrmsUpdEmpPhotoInput');if(inp) inp.value='';
+  var rb=document.getElementById('hrmsUpdEmpPhotoRemoveBtn');if(rb) rb.style.display='none';
 }
 
 function _hrmsUpdEmpSearchInput(){
@@ -10888,12 +10988,21 @@ function _hrmsUpdEmpPick(empId){
   if(hdr){
     var plant=emp.location||'';
     var pClr=(typeof _hrmsGetPlantColor==='function'&&plant)?_hrmsGetPlantColor(plant):'#e2e8f0';
-    var plantPill=plant?('<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:15px;font-weight:800;background:'+pClr+';color:#1e293b">'+_hrmsEsc(plant)+'</span>'):'';
+    // Plant pill moved to the page title (top-right), so the banner
+    // carries just emp code + name (font-size −1px each).
+    var titlePlant=document.getElementById('hrmsUpdEmpTitlePlant');
+    if(titlePlant){
+      if(plant){
+        titlePlant.innerHTML='<span style="display:inline-block;padding:4px 12px;border-radius:6px;font-size:14px;font-weight:800;background:'+pClr+';color:#1e293b">'+_hrmsEsc(plant)+'</span>';
+        titlePlant.style.display='';
+      } else {
+        titlePlant.innerHTML='';titlePlant.style.display='none';
+      }
+    }
     hdr.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
-      +'<span style="font-family:var(--mono);font-weight:900;color:var(--accent);font-size:22px">'+_hrmsEsc(emp.empCode||'')+'</span>'
-      +'<span style="font-weight:800;font-size:18px;color:var(--text)">'+_hrmsEsc(emp.name||'')+'</span>'
-      +plantPill
-      +'<a href="javascript:void(0)" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="margin-left:auto;font-size:14px;color:var(--text2);text-decoration:underline">Clear</a>'
+      +'<span style="font-family:var(--mono);font-weight:900;color:var(--accent);font-size:21px">'+_hrmsEsc(emp.empCode||'')+'</span>'
+      +'<span style="font-weight:800;font-size:17px;color:var(--text)">'+_hrmsEsc(emp.name||'')+'</span>'
+      +'<a href="javascript:void(0)" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="margin-left:auto;font-size:13px;color:var(--text2);text-decoration:underline">Clear</a>'
       +'</div>';
     hdr.style.background='#f8fafc';
     hdr.style.display='';
@@ -10906,6 +11015,7 @@ function _hrmsUpdEmpPick(empId){
     if(photoBuf) pv.innerHTML='<img src="'+photoBuf+'" style="width:100%;height:100%;object-fit:cover">';
     else pv.innerHTML='No photo';
   }
+  var rb=document.getElementById('hrmsUpdEmpPhotoRemoveBtn');if(rb) rb.style.display=photoBuf?'block':'none';
   var ps=document.getElementById('hrmsUpdEmpPhotoStatus');if(ps) ps.textContent=photoBuf?'Existing photo loaded':'No photo on file';
   // Prefill — state, mobile, dob, dept
   var stSel=document.getElementById('hrmsUpdEmpState');
@@ -10918,8 +11028,8 @@ function _hrmsUpdEmpPick(empId){
     mb.value=raw;
     if(raw.length>0) _hrmsUpdEmpMobileFormat(mb);
   }
-  var db=document.getElementById('hrmsUpdEmpDOB');
-  if(db) db.value=String(emp.dateOfBirth||'').slice(0,10);
+  // DOB — re-populate the three dropdowns from the saved ISO value.
+  if(typeof _hrmsUpdEmpFillDOBLists==='function') _hrmsUpdEmpFillDOBLists(String(emp.dateOfBirth||'').slice(0,10));
   // Department list switches by category — Staff → hrmsSubDepartments,
   // everyone else → hrmsDepartments. Prefilled from the right field.
   var isStaff=String(emp.category||'').toLowerCase().indexOf('staff')>=0;
@@ -10946,15 +11056,17 @@ function _hrmsUpdEmpPhotoChange(inp){
   if(status) status.textContent='Compressing…';
   var pv=document.getElementById('hrmsUpdEmpPhotoPreview');
   // Reuse the modal's compressor so behaviour stays identical.
+  var rb=document.getElementById('hrmsUpdEmpPhotoRemoveBtn');
   if(typeof _hrmsCompressEmpPhoto==='function'){
     _hrmsCompressEmpPhoto(file,function(dataUrl,sizeKb){
       window._hrmsUpdEmpPhotoBuf=dataUrl||'';
       if(pv&&dataUrl) pv.innerHTML='<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover">';
+      if(rb) rb.style.display=dataUrl?'block':'none';
       if(status) status.textContent=dataUrl?('✓ '+sizeKb+' KB'):'Failed to compress';
     });
   } else {
     var rd=new FileReader();
-    rd.onload=function(e){window._hrmsUpdEmpPhotoBuf=e.target.result||'';if(pv) pv.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';if(status) status.textContent='✓ uploaded';};
+    rd.onload=function(e){window._hrmsUpdEmpPhotoBuf=e.target.result||'';if(pv) pv.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';if(rb) rb.style.display='block';if(status) status.textContent='✓ uploaded';};
     rd.readAsDataURL(file);
   }
   inp.value='';
