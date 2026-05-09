@@ -10705,9 +10705,8 @@ function _hrmsUpdEmpInit(){
       pool=pool.filter(function(e){return e&&e.teamName&&_supTeamNames[e.teamName];});
     }
     window._hrmsUpdEmpPickerPool=pool;
-    // Render once with the unfiltered pool so the dropdown is ready
-    // the moment the user focuses the input.
-    if(typeof _hrmsUpdEmpPickerFilter==='function') _hrmsUpdEmpPickerFilter();
+    // Don't pre-render — the dropdown stays closed until the user
+    // types at least one character (keeps the page calm on mobile).
   }
   // Reset dirty tracker on every page open.
   window._hrmsUpdEmpDirty=false;
@@ -10829,9 +10828,10 @@ function _hrmsUpdEmpFillDeptList(isStaff,selectedValue){
   sel.innerHTML='<option value="">-- Select '+(isStaff?'department-staff':'department')+' --</option>'
     +items.map(function(d){return '<option value="'+_hrmsEsc(d.name||'')+'">'+_hrmsEsc(d.name||'')+'</option>';}).join('');
   if(selectedValue) sel.value=selectedValue;
-  // Update label too so it's clear which list this is.
+  // Update label too so it's clear which list this is. Use innerHTML
+  // (not textContent) so the mandatory-marker `*` span is preserved.
   var lbl=sel.parentElement&&sel.parentElement.querySelector('label');
-  if(lbl) lbl.textContent=isStaff?'Department-Staff':'Department';
+  if(lbl) lbl.innerHTML=(isStaff?'Department-Staff':'Department')+' <span style="color:#dc2626">*</span>';
 }
 
 // Enable / disable every editable field + button on the form. Called
@@ -10854,15 +10854,16 @@ function _hrmsUpdEmpSetFieldsEnabled(on){
 }
 
 // Filter the custom dropdown by the current input value and render
-// matching rows. Called from oninput / onfocus.
+// matching rows. Only opens once the user starts typing — empty input
+// keeps the dropdown closed so the screen stays calm on mobile.
 function _hrmsUpdEmpPickerFilter(){
   var inp=document.getElementById('hrmsUpdEmpPicker');
   var box=document.getElementById('hrmsUpdEmpPickerList');
   if(!inp||!box) return;
   var pool=window._hrmsUpdEmpPickerPool||[];
   var q=String(inp.value||'').trim().toLowerCase();
+  if(!q){box.style.display='none';box.innerHTML='';return;}
   var matches=pool.filter(function(e){
-    if(!q) return true;
     var code=String(e.empCode||'').toLowerCase();
     var name=String(e.name||'').toLowerCase();
     return code.indexOf(q)>=0||name.indexOf(q)>=0;
@@ -11083,10 +11084,12 @@ async function _hrmsUpdEmpSave(){
   var mobileRaw=(document.getElementById('hrmsUpdEmpMobile').value||'').replace(/\D/g,'').slice(0,10);
   var dob=(document.getElementById('hrmsUpdEmpDOB').value||'').trim();
   var dept=(document.getElementById('hrmsUpdEmpDept').value||'').trim();
-  // Mandatory: photo + state.
+  // Mandatory: photo + state + mobile (10 digits) + department.
   if(!photo){notify('⚠ Photo is required',true);document.getElementById('hrmsUpdEmpPhotoPreview').style.borderColor='#dc2626';return;}
   if(!state){notify('⚠ State is required',true);document.getElementById('hrmsUpdEmpState').style.borderColor='#dc2626';return;}
-  if(mobileRaw&&mobileRaw.length!==10){notify('⚠ Mobile must be a 10-digit number',true);return;}
+  if(!mobileRaw){notify('⚠ Mobile number is required',true);var mb=document.getElementById('hrmsUpdEmpMobile');if(mb){mb.style.borderColor='#dc2626';mb.focus();}return;}
+  if(mobileRaw.length!==10){notify('⚠ Mobile must be a 10-digit number',true);var mb2=document.getElementById('hrmsUpdEmpMobile');if(mb2) mb2.style.borderColor='#dc2626';return;}
+  if(!dept){notify('⚠ Department is required',true);document.getElementById('hrmsUpdEmpDept').style.borderColor='#dc2626';return;}
   emp.photo=photo;
   emp.stateOrigin=state;
   if(mobileRaw){emp.mobile=mobileRaw;emp.mobileCode=ccVal||'+91';}
