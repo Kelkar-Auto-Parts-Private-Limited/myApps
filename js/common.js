@@ -3122,19 +3122,31 @@ async function _parseXLSX(arrayBuffer){
   };
 
   // ── 9. Parse rows ────────────────────────────────────────────────────────
-  const rawRows=[];
-  const rowRe=/<row[^>]*>([\s\S]*?)<\/row>/g;
+  // Keep rows keyed by their sheet-row number so merged-cell ranges
+  // (which reference 1-based row numbers like A1:G3) can later splat the
+  // top-left value across the rest of the range.
+  const rowsByNum={};
+  const rowOrder=[];
+  const rowRe=/<row([^>]*)>([\s\S]*?)<\/row>/g;
   let rowM;
   while((rowM=rowRe.exec(shXml))!==null){
+    const rAttrs=rowM[1]||'';
+    const rNumAttr=(rAttrs.match(/\br="(\d+)"/)||[])[1];
+    const rowNum=rNumAttr?parseInt(rNumAttr,10):(rowOrder.length+1);
     const cells={};
-    const cellRe=/<c\s+r="([A-Z]+)\d+"([^>\/]*)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    let posCol=0;
+    const cellRe=/<c\b([^>\/]*)(?:\/>|>([\s\S]*?)<\/c>)/g;
     let cm;
-    while((cm=cellRe.exec(rowM[1]))!==null){
-      const colRef=cm[1];
-      const attrs=cm[2]||'';
-      const inner=cm[3]||'';
+    while((cm=cellRe.exec(rowM[2]))!==null){
+      const attrs=cm[1]||'';
+      const inner=cm[2]||'';
+      // r="A1" → letters→0-based col index. Some writers omit r= and rely
+      // on positional ordering — fall back to running counter.
+      const rRef=(attrs.match(/\br="([A-Z]+)\d+"/)||[])[1];
+      const col=rRef?colIdx(rRef):posCol;
+      posCol=col+1;
       let val='';
-      const vm=inner.match(/<v>([^<]*)<\/v>/);
+      const vm=inner.match(/<v>([\s\S]*?)<\/v>/);
       const rawVal=vm?vm[1]:'';
       const tAttr=(attrs.match(/\bt="([^"]+)"/)||[])[1]||'';
       const sAttr=+(attrs.match(/\bs="(\d+)"/)||[0,'-1'])[1];
@@ -3143,7 +3155,7 @@ async function _parseXLSX(arrayBuffer){
         // Shared string
         val=ss[+rawVal]||'';
       } else if(tAttr==='inlineStr'){
-        const im=inner.match(/<t[^>]*>([^<]*)<\/t>/);
+        const im=inner.match(/<t[^>]*>([\s\S]*?)<\/t>/);
         val=im?unesc(im[1]):'';
       } else if(tAttr==='b'){
         val=rawVal==='1'?'TRUE':'FALSE';
@@ -3159,17 +3171,78 @@ async function _parseXLSX(arrayBuffer){
       }
       // Strip leading apostrophe (Excel text prefix) from values
       if(typeof val==='string'&&val.charAt(0)==="'") val=val.substring(1);
-      cells[colIdx(colRef)]=val;
+      cells[col]=val;
     }
-    rawRows.push(cells);
+    if(!rowsByNum[rowNum]) rowOrder.push(rowNum);
+    rowsByNum[rowNum]=cells;
   }
+
+  // ── 9b. Propagate merged-cell values ────────────────────────────────────
+  // In XLSX, the value of a merged range is stored only in the top-left
+  // cell. ESSL exports often merge a "Date" or "Plant" header across many
+  // columns, or merge employee-name across rows; without propagation, the
+  // header row appears mostly empty and "No data in file" is reported.
+  const mergeRe=/<mergeCell\s+ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g;
+  let mm;
+  while((mm=mergeRe.exec(shXml))!==null){
+    const c1=colIdx(mm[1]), r1=parseInt(mm[2],10);
+    const c2=colIdx(mm[3]), r2=parseInt(mm[4],10);
+    const srcRow=rowsByNum[r1];
+    const srcVal=srcRow?srcRow[c1]:undefined;
+    if(srcVal===undefined||srcVal==='') continue;
+    for(let rr=r1;rr<=r2;rr++){
+      if(!rowsByNum[rr]){ rowsByNum[rr]={}; rowOrder.push(rr); }
+      for(let cc=c1;cc<=c2;cc++){
+        if(rowsByNum[rr][cc]===undefined||rowsByNum[rr][cc]==='') rowsByNum[rr][cc]=srcVal;
+      }
+    }
+  }
+
+  rowOrder.sort((a,b)=>a-b);
+  const rawRows=rowOrder.map(n=>rowsByNum[n]||{});
 
   if(!rawRows.length) return [];
 
-  // ── 10. Build objects from header row ────────────────────────────────────
+  // ── 10. Locate header row (skip merged-cell preamble) ───────────────────
+  // Many exports prepend banner rows: company name, report title, "From
+  // <date> To <date>", etc. These banners are usually merged across many
+  // columns, which after merge propagation look like rows full of values.
+  // Counting non-empty cells therefore picks the banner instead of the
+  // real header row. We instead score each candidate row by how many
+  // typical header keywords it carries (code, name, date, time, in, out,
+  // employee, …) and pick the highest-scoring row in the first 30. Falls
+  // back to "first row with ≥2 distinct non-empty values" then row 0.
   const maxCol=rawRows.reduce((m,r)=>Math.max(m,...Object.keys(r).map(Number)),0);
+  const _hdrKws=/(emp|employee|user|personnel)\s*(code|id|name|no)|(\bcode\b|\bid\b|\bname\b|\bdate\b|\btime\b|\bday\b|\bmonth\b|\bplant\b|\bdept|\bdesignation|\bcategory|\brate|\bhour|\btotal|punch|in\s*time|out\s*time|time\s*in|time\s*out|attendance|location|salary|gross|net)/i;
+  const _scoreRow=(r)=>{
+    let score=0,distinct=new Set();
+    for(let ci=0;ci<=maxCol;ci++){
+      const v=String(r[ci]||'').trim();
+      if(!v) continue;
+      distinct.add(v.toLowerCase());
+      if(_hdrKws.test(v)) score++;
+    }
+    return {score,distinct:distinct.size};
+  };
+  let headerRowIdx=-1,bestScore=0;
+  for(let hi=0;hi<Math.min(rawRows.length,30);hi++){
+    const{score,distinct}=_scoreRow(rawRows[hi]);
+    // A real header carries multiple keyword matches AND multiple
+    // distinct values. Banner rows fail the distinct test — merged
+    // cells repeat the same value many times.
+    if(score>=2&&distinct>=2&&score>bestScore){headerRowIdx=hi;bestScore=score;}
+  }
+  // Fallback: first row with ≥2 distinct non-empty values.
+  if(headerRowIdx<0){
+    for(let hi=0;hi<Math.min(rawRows.length,30);hi++){
+      const{distinct}=_scoreRow(rawRows[hi]);
+      if(distinct>=2){headerRowIdx=hi;break;}
+    }
+  }
+  if(headerRowIdx<0) headerRowIdx=0;
   const headers=[];
-  for(let i=0;i<=maxCol;i++) headers.push(String(rawRows[0][i]||'').trim());
+  for(let i=0;i<=maxCol;i++) headers.push(String(rawRows[headerRowIdx][i]||'').trim());
+  console.log('[_parseXLSX] header detected at row '+headerRowIdx+' (score='+bestScore+'):',headers.filter(Boolean).slice(0,15));
 
   // Detect "date" columns by header name — auto-convert numeric values to YYYY-MM-DD
   // This catches Excel serial numbers in date columns that weren't detected by cell style
@@ -3179,7 +3252,7 @@ async function _parseXLSX(arrayBuffer){
   });
 
   const result=[];
-  for(let ri=1;ri<rawRows.length;ri++){
+  for(let ri=headerRowIdx+1;ri<rawRows.length;ri++){
     const obj={};
     let hasVal=false;
     headers.forEach((h,i)=>{

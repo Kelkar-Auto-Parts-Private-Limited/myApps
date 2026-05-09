@@ -6680,7 +6680,7 @@ var _MON3=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 function _hrmsAttSetTab(tab){
   _hrmsAttCurrentTab=tab;
   // Permission check for attendance sub-tabs
-  var _attTabPerm={summary:'att.summary',attendance:'att.muster',alteration:'att.alteration',pot:'att.pot',entry:'att.entry',exit:'att.exit',printformats:'att.printformats'};
+  var _attTabPerm={summary:'att.summary',attendance:'att.muster',alteration:'att.alteration',pot:'att.pot',entry:'att.entry',exit:'att.exit',unknown:'att.entry',printformats:'att.printformats'};
   if(_attTabPerm[tab]&&!_hrmsHasAccess(_attTabPerm[tab])){notify('Access denied',true);return;}
   document.querySelectorAll('.hrms-att-tab').forEach(function(t){t.classList.remove('active');});
   document.querySelectorAll('.hrms-att-panel').forEach(function(p){p.style.display='none';});
@@ -6697,6 +6697,7 @@ function _hrmsAttSetTab(tab){
     return;
   }
   _hrmsUpdateAttEtCounts();
+  if(typeof _hrmsUpdateUnknownBadge==='function') _hrmsUpdateUnknownBadge();
   // Keep the Type dropdown in sync with the button filter
   var ddt=document.getElementById('hrmsAttFType');
   if(ddt&&_hrmsAttEtFilter&&ddt.value!==_hrmsAttEtFilter) ddt.value=_hrmsAttEtFilter;
@@ -6719,6 +6720,9 @@ function _hrmsAttSetTab(tab){
   } else if(tab==='exit'){
     document.getElementById('hrmsAttTabExit').style.display='block';
     _hrmsRenderExitTab(yr,mo);
+  } else if(tab==='unknown'){
+    document.getElementById('hrmsAttTabUnknown').style.display='block';
+    _hrmsRenderUnknownTab(yr,mo);
   } else if(tab==='printformats'){
     document.getElementById('hrmsAttTabPrintformats').style.display='block';
     _hrmsPrintFmtRenderList();
@@ -7612,6 +7616,170 @@ async function _hrmsMarkEmpStatus(empCode,newStatus){
   renderHrmsEmployees();
 }
 
+// Build a comprehensive set of unknown emp codes for the selected month —
+// every empCode appearing in attendance / alteration cache that has no
+// matching employee record. Wider than `allUnknown` from compute (which
+// only covers entry/exit transitions). Returns {code → {days, hasIn}}.
+function _hrmsCollectUnknownForMonth(mk){
+  var out={};
+  if(!mk) return out;
+  var empMap={};
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    var k=String(e&&e.empCode||'').trim().toUpperCase();
+    if(k) empMap[k]=true;
+  });
+  var scan=function(rec){
+    var ec=String(rec.empCode||'').trim();
+    if(!ec) return;
+    if(empMap[ec.toUpperCase()]) return;
+    var days=rec.days||{};
+    var dayCount=0,hasIn=false;
+    for(var dk in days){
+      var d=days[dk]||{};
+      if((d['in']&&String(d['in']).trim())||(d['out']&&String(d['out']).trim())){
+        dayCount++;
+        if(d['in']&&String(d['in']).trim()) hasIn=true;
+      }
+    }
+    if(!out[ec]) out[ec]={code:ec,name:rec.name||'',days:0,hasIn:false};
+    out[ec].days+=dayCount;
+    if(hasIn) out[ec].hasIn=true;
+  };
+  ((typeof _hrmsAttCache!=='undefined'&&_hrmsAttCache&&_hrmsAttCache[mk])||[]).forEach(scan);
+  ((typeof _hrmsAltCache!=='undefined'&&_hrmsAltCache&&_hrmsAltCache[mk])||[]).forEach(scan);
+  return out;
+}
+
+// Update the red count badge on the Unknown sub-tab.
+function _hrmsUpdateUnknownBadge(){
+  var badge=document.getElementById('cAttUnknown');
+  if(!badge) return;
+  var mk=_hrmsAttSelectedMonth||_hrmsMonth||'';
+  var u=_hrmsCollectUnknownForMonth(mk);
+  var n=Object.keys(u).length;
+  badge.textContent=n;
+  badge.style.display=n?'inline-block':'none';
+}
+
+async function _hrmsRenderUnknownTab(yr,mo){
+  var el=document.getElementById('hrmsAttTabUnknown');if(!el) return;
+  el.innerHTML='<div class="empty-state">Loading…</div>';
+  var mk=yr+'-'+String(mo).padStart(2,'0');
+  // Make sure attendance + alteration caches for this month are loaded
+  // before we scan — otherwise the list looks empty on first land.
+  if(typeof _hrmsAttFetchMonth==='function'){
+    try{ await _hrmsAttFetchMonth(mk); }catch(_){}
+  }
+  var u=_hrmsCollectUnknownForMonth(mk);
+  var codes=Object.keys(u).sort(function(a,b){
+    var na=parseInt(a,10),nb=parseInt(b,10);
+    if(!isNaN(na)&&!isNaN(nb)) return na-nb;
+    return a.localeCompare(b);
+  });
+  _hrmsUpdateUnknownBadge();
+  var canAdd=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.addEmployee'):true;
+  if(!codes.length){
+    el.innerHTML='<div class="empty-state" style="padding:30px 20px;text-align:center;color:var(--text3)">'+
+      '<div style="font-size:32px;margin-bottom:6px">✅</div>'+
+      '<div style="font-size:14px;font-weight:700;color:#15803d">No unknown employee codes for '+_hrmsMonthLabel(mk)+'</div>'+
+      '<div style="font-size:12px;margin-top:4px">Every emp code in this month\'s attendance / alterations matches an employee on file.</div>'+
+    '</div>';
+    return;
+  }
+  var h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
+  h+='<div style="font-size:14px;font-weight:900;color:#dc2626">⚠ '+codes.length+' unknown emp code'+(codes.length>1?'s':'')+' in '+_hrmsMonthLabel(mk)+'</div>';
+  h+='<div style="flex:1"></div>';
+  h+='<button class="hrms-allow-locked" onclick="_hrmsExportUnknownCodes()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:6px;cursor:pointer">📤 Export</button>';
+  h+='</div>';
+  h+='<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Click an emp code to add a new employee with that code pre-filled. The new employee is created via the regular Add Employee modal — DOJ defaults to the start of '+_hrmsMonthLabel(mk)+'.</div>';
+  var _th='padding:8px 10px;font-size:12px;font-weight:800;background:#f1f5f9;border-bottom:2px solid #cbd5e1;text-align:left';
+  var _td='padding:6px 10px;font-size:13px;border-bottom:1px solid #e2e8f0';
+  h+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden">';
+  h+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
+  h+='<th style="'+_th+';width:60px;text-align:center">#</th>';
+  h+='<th style="'+_th+'">Emp Code</th>';
+  h+='<th style="'+_th+'">Name (from file)</th>';
+  h+='<th style="'+_th+';width:120px;text-align:right">Days w/ Punch</th>';
+  h+='<th style="'+_th+';width:90px;text-align:center">Action</th>';
+  h+='</tr></thead><tbody>';
+  codes.forEach(function(ec,i){
+    var info=u[ec]||{};
+    var ecEsc=ec.replace(/'/g,"\\'");
+    var codeCell=canAdd
+      ?'<a href="javascript:void(0)" onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="font-family:var(--mono);font-weight:800;color:var(--accent);text-decoration:underline" title="Click to add a new employee with this code">'+ec+'</a>'
+      :'<span style="font-family:var(--mono);font-weight:800;color:var(--text2)">'+ec+'</span>';
+    var actionBtn=canAdd
+      ?'<button onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dcfce7;border:1px solid #86efac;color:#15803d;border-radius:4px;cursor:pointer">+ Add</button>'
+      :'<span style="color:var(--text3);font-size:11px">—</span>';
+    h+='<tr>';
+    h+='<td style="'+_td+';text-align:center;color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
+    h+='<td style="'+_td+'">'+codeCell+'</td>';
+    h+='<td style="'+_td+';color:var(--text2)">'+(info.name?_hrmsEsc(info.name):'<span style="color:var(--text3)">—</span>')+'</td>';
+    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:700">'+(info.days||0)+'</td>';
+    h+='<td style="'+_td+';text-align:center">'+actionBtn+'</td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
+
+// Lightweight popup that lists a set of employees in a table — used by
+// the Piece-Rate count cards on Joinee/Rejoinee + Absent FTM tabs. The
+// host div is created on first call and reused on subsequent calls.
+function _hrmsShowEmpListPopup(title,list){
+  var hostId='hrmsEmpListPopup';
+  var host=document.getElementById(hostId);
+  if(!host){
+    host=document.createElement('div');
+    host.id=hostId;
+    host.style.cssText='display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:9000;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto';
+    host.onclick=function(ev){if(ev.target===host) host.style.display='none';};
+    document.body.appendChild(host);
+  }
+  var rows=Array.isArray(list)?list:[];
+  var _td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+  var _th='padding:7px 10px;font-size:11px;font-weight:800;background:#f5f3ff;border-bottom:2px solid #c4b5fd;text-align:left;color:#6d28d9;position:sticky;top:0;z-index:1';
+  var inner='<div style="background:#fff;border-radius:10px;width:min(900px,95vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.35)">'+
+    '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:2px solid #c4b5fd;background:linear-gradient(180deg,#f5f3ff,#ede9fe)">'+
+      '<div style="font-size:15px;font-weight:900;color:#6d28d9">'+_hrmsEsc(title||'Details')+'</div>'+
+      '<div style="font-size:11px;font-weight:700;color:#7c3aed">'+rows.length+' record(s)</div>'+
+      '<div style="flex:1"></div>'+
+      '<button onclick="document.getElementById(\''+hostId+'\').style.display=\'none\'" style="padding:5px 12px;font-size:12px;font-weight:700;background:#fff;border:1.5px solid #c4b5fd;color:#6d28d9;border-radius:6px;cursor:pointer">✕ Close</button>'+
+    '</div>'+
+    '<div style="flex:1;overflow:auto">';
+  if(!rows.length){
+    inner+='<div class="empty-state" style="padding:40px 20px;text-align:center;color:var(--text3)">No records to show</div>';
+  } else {
+    inner+='<table style="width:100%;border-collapse:collapse"><thead><tr>'+
+      '<th style="'+_th+';width:50px">#</th>'+
+      '<th style="'+_th+'">Emp Code</th>'+
+      '<th style="'+_th+'">Name</th>'+
+      '<th style="'+_th+'">Plant</th>'+
+      '<th style="'+_th+'">Team</th>'+
+      '<th style="'+_th+'">Category</th>'+
+      '<th style="'+_th+'">Role</th>'+
+      '<th style="'+_th+';text-align:right">Sal/Day</th>'+
+    '</tr></thead><tbody>';
+    rows.forEach(function(e,i){
+      var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(e.location):'#fff';
+      inner+='<tr>'+
+        '<td style="'+_td+';text-align:center;color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
+        '<td style="'+_td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+_hrmsEsc(e.empCode||'')+'</td>'+
+        '<td style="'+_td+';font-weight:700">'+_hrmsEsc(e.name||(e._unmatched?'Employee NA':''))+'</td>'+
+        '<td style="'+_td+'"><span style="display:inline-block;padding:1px 6px;border-radius:3px;background:'+pClr+';font-weight:700;font-size:11px">'+_hrmsEsc(e.location||'—')+'</span></td>'+
+        '<td style="'+_td+'">'+_hrmsEsc(e.teamName||'—')+'</td>'+
+        '<td style="'+_td+'">'+_hrmsEsc(e.category||'—')+'</td>'+
+        '<td style="'+_td+';font-family:var(--mono)">'+_hrmsEsc(e.roll||'—')+'</td>'+
+        '<td style="'+_td+';text-align:right;font-family:var(--mono)">'+(e.salaryDay?(+e.salaryDay).toLocaleString('en-IN'):'—')+'</td>'+
+      '</tr>';
+    });
+    inner+='</tbody></table>';
+  }
+  inner+='</div></div>';
+  host.innerHTML=inner;
+  host.style.display='flex';
+}
+
 function _hrmsUnknownBanner(count){
   if(!count) return '';
   var h='<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px">';
@@ -7774,7 +7942,24 @@ async function _hrmsRenderEntryTab(yr,mo){
   var focusSnap=_hrmsCaptureFilterFocus();
   if(!focusSnap) el.innerHTML='<div class="empty-state">Loading…</div>';
   var d=await _hrmsComputeEntryExit(yr,mo);
-  var allNew=(d.newEmps||[]).slice();
+  // Restrict the New Joinee / Rejoinee tab to On-Roll + Contract employees
+  // (Piece-Rate is broken out into its own summary card with a popup,
+  // Visitor is excluded). Unknown / unmatched empCodes are also kept here
+  // so the user can spot bad attendance data and add the missing record.
+  var _newRaw=(d.newEmps||[]).slice();
+  var allNew=_newRaw.filter(function(e){
+    if(!e) return false;
+    if(e._unmatched) return true;
+    var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    return et==='onroll'||et==='contract';
+  });
+  // Piece-Rate joiners — surfaced via the summary card popup, not the table.
+  var _pieceRateNew=_newRaw.filter(function(e){
+    if(!e||e._unmatched) return false;
+    var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    return et==='piecerate';
+  });
+  window._hrmsEntryPieceRate=_pieceRateNew;
 
   // Pre-fetch the 6-month window (5 prior + currently selected) so the
   // per-month P columns can resolve. _hrmsAttFetchMonth + saved-month
@@ -7919,6 +8104,19 @@ async function _hrmsRenderEntryTab(yr,mo){
   h+=_summaryCard('📋 Total &middot; '+allNew.length,'var(--accent)',allNew,'var(--accent)','');
   h+=_summaryCard('★ New Joinee &middot; '+_newList.length,'#15803d',_newList,'#16a34a','New Joinee');
   h+=_summaryCard('↺ Rejoinee &middot; '+_rejList.length,'#92400e',_rejList,'#d97706','Rejoinee');
+  // Piece-Rate count card — count only, not in the table. Clicking opens
+  // a popup with the full breakdown by team / plant / category.
+  if(_pieceRateNew.length){
+    h+='<div style="flex:0 0 auto;min-width:160px">'+
+      '<div onclick="_hrmsShowEmpListPopup(\'Piece Rate · New Joinee/Rejoinee · '+_hrmsMonthLabel(_curMk).replace(/\'/g,"\\\'")+'\',(window._hrmsEntryPieceRate||[]))" '+
+      'title="Click to view Piece-Rate joiner details" '+
+      'style="cursor:pointer;border:1.5px solid #c4b5fd;background:#f5f3ff;border-radius:8px;padding:10px 14px;text-align:center">'+
+      '<div style="font-size:11px;font-weight:900;color:#6d28d9;text-transform:uppercase;letter-spacing:0.5px">▶ Piece Rate</div>'+
+      '<div style="font-size:24px;font-weight:900;color:#7c3aed;margin-top:2px">'+_pieceRateNew.length+'</div>'+
+      '<div style="font-size:10px;color:#7c3aed;font-weight:700;margin-top:2px">Click for details</div>'+
+      '</div>'+
+    '</div>';
+  }
   h+='<div style="display:flex;align-items:flex-start;padding-top:18px">'+
     '<button class="hrms-allow-locked" onclick="_hrmsEntryExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;white-space:nowrap">📤 Export All</button>'+
   '</div>';
@@ -8093,26 +8291,28 @@ async function _hrmsRenderExitTab(yr,mo){
   // Absent FTM rule:
   //   Present in the previous month for ≥ 1 day  AND  zero presence in
   //   the selected month.
-  // _hrmsComputeEntryExit returns that set as `leftEmps`
-  // (prevPresence \ curPresence), enriched with master data (or marked
-  // _unmatched). Status gate:
-  //   • Contract / Piece-Rate → no status check (status was retired for
-  //     these categories).
-  //   • Unmatched empCodes    → kept (surface unknown attendance codes
-  //     so the user can clean them up).
-  //   • Everyone else (On-Roll etc.) → must be currently Active on both
-  //     the flat field and the active period; otherwise the employee
-  //     has formally left and shouldn't appear here.
-  var exitEmps=(d.leftEmps||[]).filter(function(e){
-    if(!e) return false;
-    if(e._unmatched) return true;
+  // Restricted to On-Roll + Contract only (Piece-Rate is broken out into
+  // its own summary card with a popup; Visitor and unmatched codes are
+  // dropped). On-Roll status gate still applies: currently-Active flat
+  // status AND active period status.
+  var _exitRaw=(d.leftEmps||[]).slice();
+  var exitEmps=_exitRaw.filter(function(e){
+    if(!e||e._unmatched) return false;
     var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
-    if(et==='contract'||et==='piecerate') return true;
+    if(et!=='onroll'&&et!=='contract') return false;
+    if(et==='contract') return true;// no status check for contract
     if((e.status||'Active')!=='Active') return false;
     var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     if(ap&&(ap.status||'Active')!=='Active') return false;
     return true;
   });
+  // Piece-Rate exits — count only, surfaced via summary card popup.
+  var _pieceRateExit=_exitRaw.filter(function(e){
+    if(!e||e._unmatched) return false;
+    var et=String(e.employmentType||'').toLowerCase().replace(/\s/g,'');
+    return et==='piecerate';
+  });
+  window._hrmsExitPieceRate=_pieceRateExit;
 
   // Default sort: category → team → empCode. Re-applied first so a
   // sticky user-chosen sort layers cleanly on top.
@@ -8209,6 +8409,19 @@ async function _hrmsRenderExitTab(yr,mo){
   // the right of the same row.
   h+='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin-bottom:10px">';
   h+='<div style="flex:1;min-width:200px">'+_hrmsHeadcountSummaryHTML(allExit,'#dc2626',{compact:true,filterFn:'_hrmsExitFilterChange'})+'</div>';
+  // Piece-Rate count card — count only, click for full breakdown popup.
+  if(_pieceRateExit&&_pieceRateExit.length){
+    var _exitMk=yr+'-'+String(mo).padStart(2,'0');
+    h+='<div style="flex:0 0 auto;min-width:160px">'+
+      '<div onclick="_hrmsShowEmpListPopup(\'Piece Rate · Absent FTM · '+_hrmsMonthLabel(_exitMk).replace(/\'/g,"\\\'")+'\',(window._hrmsExitPieceRate||[]))" '+
+      'title="Click to view Piece-Rate absent details" '+
+      'style="cursor:pointer;border:1.5px solid #c4b5fd;background:#f5f3ff;border-radius:8px;padding:10px 14px;text-align:center">'+
+      '<div style="font-size:11px;font-weight:900;color:#6d28d9;text-transform:uppercase;letter-spacing:0.5px">▶ Piece Rate</div>'+
+      '<div style="font-size:24px;font-weight:900;color:#7c3aed;margin-top:2px">'+_pieceRateExit.length+'</div>'+
+      '<div style="font-size:10px;color:#7c3aed;font-weight:700;margin-top:2px">Click for details</div>'+
+      '</div>'+
+    '</div>';
+  }
   h+='<div style="display:flex;align-items:flex-start;padding-top:6px">'+
     '<button class="hrms-allow-locked" onclick="_hrmsExitExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;white-space:nowrap">📤 Export All</button>'+
   '</div>';
@@ -8622,23 +8835,31 @@ function _hrmsAttConvBuildRows(sheets){
         console.log('  row '+k+':',JSON.stringify(s.rows[k]));
       }
     }
-    // Find a header row in the first ~10 rows. A row qualifies when at
-    // least Emp Code + Date + one of Time IN/Out can be matched. Common
-    // synonyms covered for different machine vendors.
+    // Find a header row anywhere in the first ~25 rows — files with title
+    // banners + merged "Department:" / "Date:" rows can push the real
+    // header further down. A row qualifies when Emp Code + (Date OR sheet
+    // name parseable as date) + one of Time IN/Out can be matched. Header
+    // matching uses substring tests so "Punch Date", "Att Date (DD/MM)",
+    // "Employee ID No." etc. all get detected. Date is optional when the
+    // sheet name itself is a parseable date (eSSL one-day-per-sheet
+    // exports) — we'll seed the date from the sheet name in that case.
+    var sheetDate=_hrmsAttConvFmtDate(s.name);
     var hdr=null,hdrRow=-1;
-    for(var hr=0;hr<Math.min(10,s.rows.length);hr++){
+    for(var hr=0;hr<Math.min(25,s.rows.length);hr++){
       var rr=s.rows[hr]||[];
       var col={code:-1,name:-1,date:-1,tin:-1,tout:-1};
       for(var ci=0;ci<rr.length;ci++){
         var n=_normHdr(rr[ci]);
         if(!n) continue;
-        if(col.code<0&&(n==='empcode'||n==='employeecode'||n==='empid'||n==='userid'||n==='userno'||n==='personnelid'||n==='attid')) col.code=ci;
-        else if(col.name<0&&(n==='employeename'||n==='empname'||n==='name'||n==='username'||n==='personnelname')) col.name=ci;
-        else if(col.date<0&&(n==='date'||n==='atndate'||n==='attendancedate'||n==='punchdate')) col.date=ci;
-        else if(col.tin<0&&(n==='timein'||n==='intime'||n==='clockin'||n==='checkin'||n==='firstin'||n==='in')) col.tin=ci;
-        else if(col.tout<0&&(n==='timeout'||n==='outtime'||n==='clockout'||n==='checkout'||n==='lastout'||n==='out')) col.tout=ci;
+        // Substring-based detection so vendor-specific labels still match.
+        if(col.code<0&&(n.indexOf('empcode')>=0||n.indexOf('employeecode')>=0||n.indexOf('empid')>=0||n.indexOf('employeeid')>=0||n.indexOf('userid')>=0||n.indexOf('userno')>=0||n.indexOf('personnelid')>=0||n.indexOf('attid')>=0||n==='code'||n==='id')) col.code=ci;
+        else if(col.name<0&&(n.indexOf('employeename')>=0||n.indexOf('empname')>=0||n.indexOf('username')>=0||n.indexOf('personnelname')>=0||n==='name')) col.name=ci;
+        else if(col.date<0&&n.indexOf('date')>=0) col.date=ci;
+        else if(col.tin<0&&(n.indexOf('timein')>=0||n.indexOf('intime')>=0||n.indexOf('clockin')>=0||n.indexOf('checkin')>=0||n.indexOf('firstin')>=0||n==='in')) col.tin=ci;
+        else if(col.tout<0&&(n.indexOf('timeout')>=0||n.indexOf('outtime')>=0||n.indexOf('clockout')>=0||n.indexOf('checkout')>=0||n.indexOf('lastout')>=0||n==='out')) col.tout=ci;
       }
-      if(col.code>=0&&col.date>=0&&(col.tin>=0||col.tout>=0)){ hdr=col; hdrRow=hr; break; }
+      var hasDate=col.date>=0||!!sheetDate;
+      if(col.code>=0&&hasDate&&(col.tin>=0||col.tout>=0)){ hdr=col; hdrRow=hr; break; }
     }
     if(!hdr){
       // No detectable header — fall back to the original eSSL positional
@@ -8647,26 +8868,34 @@ function _hrmsAttConvBuildRows(sheets){
       hdrRow=0;
       console.warn('[ESSL Convert] sheet "'+s.name+'": no header detected, using legacy positional layout (A/C/D/F/G)');
     } else if(si===0){
-      console.log('[ESSL Convert] sheet "'+s.name+'": header at row '+hdrRow,hdr);
+      console.log('[ESSL Convert] sheet "'+s.name+'": header at row '+hdrRow+' sheetDate='+sheetDate,hdr);
     }
-    var sheetIn=0,sheetOut=0;
+    var sheetIn=0,sheetOut=0,skippedNoCode=0;
     for(var i=hdrRow+1;i<s.rows.length;i++){
       sheetIn++;
       var r=s.rows[i]||[];
       var code=((r[hdr.code]==null?'':r[hdr.code])+'').trim();
       var name=hdr.name>=0?((r[hdr.name]==null?'':r[hdr.name])+'').trim():'';
-      var date=_hrmsAttConvFmtDate(r[hdr.date]);
+      // Date: from the row's date column if present, otherwise from the
+      // sheet name (one-day-per-sheet exports).
+      var date=hdr.date>=0?_hrmsAttConvFmtDate(r[hdr.date]):'';
+      if(!date) date=sheetDate||'';
       var tin=hdr.tin>=0?_hrmsAttConvFmtTime(r[hdr.tin]):'';
       var tout=hdr.tout>=0?_hrmsAttConvFmtTime(r[hdr.tout]):'';
-      if(!code&&!name&&!date&&!tin&&!tout){ skipped.blankRow++; continue; }
+      if(!code&&!name&&!tin&&!tout){ skipped.blankRow++; continue; }
+      // Drop rows that don't carry an emp code — without a code they
+      // can't be matched to an employee downstream and would fail
+      // validation anyway.
+      if(!code){ skippedNoCode++; continue; }
       if(!tin&&!tout){ skipped.bothTimesBlank++; continue; }
       var codeLc=code.toLowerCase().replace(/\s+/g,'');
-      var isHeaderish=(codeLc==='empcode');
+      var isHeaderish=(codeLc==='empcode'||codeLc==='code'||codeLc==='employeecode'||codeLc==='empid');
       var isTestNum=/^\d+$/.test(code)&&(+code)>=1&&(+code)<=99;
       if(isHeaderish||isTestNum){ skipped.placeholderCode++; continue; }
       rows.push({code:code,name:name,date:date,timeIn:tin,timeOut:tout,_sheet:s.name});
       sheetOut++;
     }
+    if(skippedNoCode) skipped.noCode=(skipped.noCode||0)+skippedNoCode;
     if(si<3) console.log('[ESSL Convert] sheet "'+s.name+'": '+sheetIn+' data rows → '+sheetOut+' converted');
   });
   console.log('[ESSL Convert] total: rows='+rows.length+', skipped=',skipped);
@@ -12824,6 +13053,20 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
           parsedRows.slice(0,5).map(function(p){return p.empCode+' → day '+p.day+' ('+p.attDate+')';}));
         // Check: must be single month
         var monthKeys=Object.keys(importedMonths);
+        // Lock guard — enforce that EVERY distinct month touched by the
+        // file is unlocked. We check all months (not just the first) so a
+        // multi-month file is rejected with the offending months listed,
+        // and so this remains correct even if the single-month rule below
+        // is ever relaxed.
+        if(typeof _hrmsIsMonthLocked==='function'){
+          var lockedMks=monthKeys.filter(function(k){return _hrmsIsMonthLocked(k);});
+          if(lockedMks.length){
+            hideSpinner();
+            var lockedLabels=lockedMks.map(function(k){return typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(k):k;}).join(', ');
+            notify('⚠ Cannot import — '+lockedLabels+' '+(lockedMks.length>1?'are':'is')+' locked. Unlock the month(s) first or import an unlocked-month file.',true);
+            return;
+          }
+        }
         if(monthKeys.length>1){
           hideSpinner();
           notify('⚠ File contains records from multiple months: '+monthKeys.join(', ')+'. Import only one month at a time.',true);
@@ -12837,16 +13080,13 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
         if(!parsedRows.length){hideSpinner();notify('No valid data rows found',true);return;}
 
         var mk=monthKeys[0];
-        if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
-          hideSpinner();notify('⚠ '+(typeof _hrmsMonthLabel==='function'?_hrmsMonthLabel(mk):mk)+' is locked. Unlock to import.',true);return;
-        }
         // Group by empCode → days. Use the same normalized header lookup
         // so "Time IN (HH:MM)" etc. still resolve.
         var grouped={};
         for(var i=0;i<parsedRows.length;i++){
           var pr=parsedRows[i];
-          var timeIn=_ft(_getRow(pr.r,['Time IN','Time In','TimeIn','IN','In'])||'');
-          var timeOut=_ft(_getRow(pr.r,['Time Out','TimeOut','Time OUT','OUT','Out'])||'');
+          var timeIn=_ft(_getRow(pr.r,['In Time','InTime','Time IN','Time In','TimeIn','In','IN','InTm','PunchIn','Clock In','First In','First Punch'])||'');
+          var timeOut=_ft(_getRow(pr.r,['Out Time','OutTime','Time Out','TimeOut','Time OUT','Out','OUT','OutTm','PunchOut','Clock Out','Last Out','Last Punch'])||'');
           if(!grouped[pr.empCode]) grouped[pr.empCode]={};
           grouped[pr.empCode][String(pr.day)]={'in':timeIn,'out':timeOut};
         }
