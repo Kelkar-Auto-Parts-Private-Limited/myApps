@@ -2393,6 +2393,11 @@ function _hrmsBuildMonthTable(){
       d.esiApplicable=pickField('esiApplicable')||'Yes';
       d.remarks=pickField('remarks')||'';
       _hrmsMonthEditDraft=d;
+      // Stash a baseline snapshot of the draft AT SEED TIME so the save
+      // flow can decide "did the user actually edit anything?" — without
+      // this, comparing draft to the saved snapshot reports a change
+      // for any pre-existing pending values that bled into the draft.
+      window._hrmsMonthEditDraftBase=Object.assign({},d);
       _hrmsEditingMonthMk=mk;
     }
     var canEdit=isEditing;
@@ -2624,6 +2629,9 @@ function _hrmsMonthEditOpen(mk){
   draft.remarks=pickField('remarks');
   if(draft.remarks==null) draft.remarks='';
   _hrmsMonthEditDraft=draft;
+  // Baseline for change detection — see _hrmsBuildMonthTable's lazy
+  // draft-build for the same pattern.
+  window._hrmsMonthEditDraftBase=Object.assign({},draft);
   _hrmsBuildMonthTable();
 }
 
@@ -3760,6 +3768,18 @@ function _hrmsApplyEmpEditModeToForm(){
   }
   // Keep header status toggle in sync with edit mode
   var sh=document.getElementById('hrmsEmpStatusHeader');if(sh) sh.disabled=!editing;
+  // Photo Upload + Remove — editable only in edit mode. The file input
+  // inside the label gets disabled by the inputs loop above; we also
+  // dim/disable the wrapping label and the Remove button so the user
+  // can't trigger them in view mode.
+  var upl=document.getElementById('hrmsEmpPhotoUploadLabel');
+  if(upl){
+    upl.style.opacity=editing?'1':'0.5';
+    upl.style.pointerEvents=editing?'':'none';
+    upl.style.cursor=editing?'pointer':'not-allowed';
+  }
+  var rmBtn=document.getElementById('hrmsEmpPhotoRmBtn');
+  if(rmBtn) rmBtn.disabled=!editing;
   // Tab-level toolbar (Edit / Save / Reset) replaced the old header
   // view/edit button blocks. Visibility + disabled state derive from
   // _hrmsEmpEditMode + _hrmsDetailsDirty via _hrmsUpdateDetailsToolbar.
@@ -3913,10 +3933,23 @@ async function _hrmsDetailsSave(){
     orgEmp=_idV?byId(DB.hrmsEmployees||[],_idV):null;
     if(orgEmp&&orgEmp.salaryMonths&&orgEmp.salaryMonths[orgMk]){
       orgS=orgEmp.salaryMonths[orgMk];
+      // Compare the current draft to the baseline that was captured
+      // when the row went into edit mode — that's the only way to
+      // detect "did the user actually edit something?". Comparing to
+      // orgS would falsely report a change whenever a pending /
+      // proposed value was seeded into the draft (because those
+      // values, by definition, differ from what's saved).
+      var base=window._hrmsMonthEditDraftBase||{};
       Object.keys(_hrmsMonthEditDraft).forEach(function(k){
         var nv=_hrmsMonthEditDraft[k];
-        var cv=(orgS[k]==null?'':orgS[k]);
-        if(String(nv)!==String(cv)){orgChanges[k]=nv;orgChanged=true;}
+        var bv=(base[k]==null?'':base[k]);
+        if(String(nv)!==String(bv)){
+          // User edited this field. Record the new value relative to
+          // the saved snapshot so the approval queue shows an accurate
+          // diff (orgS[k] is the current authoritative value).
+          orgChanges[k]=nv;
+          orgChanged=true;
+        }
       });
     }
   }
@@ -5306,7 +5339,7 @@ function openHrmsEmpModal(id){
     +'<img id="hrmsEmpPhotoPreview" alt="Employee photo" style="display:none;width:100%;height:100%;object-fit:cover">'
     +'<div id="hrmsEmpPhotoPlaceholder" style="font-size:38px;color:var(--text3)">👤</div>'
     +'</div>'
-    +'<label class="btn btn-secondary" style="font-size:11px;padding:5px 10px;cursor:pointer;margin:0;width:118px;text-align:center;box-sizing:border-box" title="Upload / replace photo (auto-compressed below 100 KB)">📷 Photo<input type="file" accept="image/*" onchange="_hrmsEmpPhotoChange(this)" style="display:none"></label>'
+    +'<label id="hrmsEmpPhotoUploadLabel" class="btn btn-secondary" style="font-size:11px;padding:5px 10px;cursor:pointer;margin:0;width:118px;text-align:center;box-sizing:border-box" title="Upload / replace photo (auto-compressed below 100 KB)">📷 Photo<input type="file" id="hrmsEmpPhotoFileInput" accept="image/*" onchange="_hrmsEmpPhotoChange(this)" style="display:none"></label>'
     +'<button type="button" id="hrmsEmpPhotoRmBtn" onclick="_hrmsEmpPhotoRemove()" style="display:none;font-size:10px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer;width:118px;box-sizing:border-box">🗑 Remove</button>'
     +'</div>'
     // ── Fields column ──
@@ -5635,7 +5668,9 @@ async function saveHrmsEmp(){
     if((_isOnRoll||_isContract)&&!(_firstP.roll||'').trim()) _missing.push('Role');
     if((_isOnRoll||_isContract)&&_isWorker&&!(+_firstP.salaryDay)) _missing.push('Sal/Day');
     if((_isOnRoll||_isContract)&&_isStaff &&!(+_firstP.salaryMonth)) _missing.push('Sal/Month');
-    if(!(_firstP.remarks||'').trim())        _missing.push('Remarks');
+    // Remarks intentionally NOT mandatory — only required when the user
+    // actually changes a field (handled in the Org & Sal change-detection
+    // flow inside _hrmsDetailsSave, not here).
     if(_missing.length){
       modalErr('mHrmsEmp','Please fill the following required field(s) in Organization & Salary (Revisions): '+_missing.join(', '));
       return false;
@@ -11000,11 +11035,12 @@ function _hrmsUpdEmpPick(empId){
         titlePlant.innerHTML='';titlePlant.style.display='none';
       }
     }
-    hdr.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    hdr.style.position='relative';
+    hdr.innerHTML='<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:24px">'
       +'<span style="font-family:var(--mono);font-weight:900;color:var(--accent);font-size:21px">'+_hrmsEsc(emp.empCode||'')+'</span>'
       +'<span style="font-weight:800;font-size:17px;color:var(--text)">'+_hrmsEsc(emp.name||'')+'</span>'
-      +'<a href="javascript:void(0)" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="margin-left:auto;font-size:13px;color:var(--text2);text-decoration:underline">Clear</a>'
-      +'</div>';
+      +'</div>'
+      +'<button type="button" onclick="_hrmsUpdEmpReset()" title="Clear selection" style="position:absolute;top:-8px;right:-8px;width:22px;height:22px;padding:0;font-size:12px;font-weight:900;line-height:1;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15)">✕</button>';
     hdr.style.background='#f8fafc';
     hdr.style.display='';
   }
