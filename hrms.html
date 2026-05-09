@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260509-V47">
+<meta name="app-build" content="260509-V76">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260509-V47">
+<link rel="stylesheet" href="css/hrms.css?v=260509-V76">
 </head>
 <body>
 
@@ -964,20 +964,11 @@
     <label>Employee</label>
     <input id="orgEditEmpDisp" readonly style="background:#f8f9fb">
   </div>
-  <div class="form-group">
-    <label>Org Role</label>
-    <select id="orgEditRole">
-      <option value="employee">Employee</option>
-      <option value="manager">Manager</option>
-      <option value="plant_head">Plant Head</option>
-      <option value="hr_manager">HR Manager</option>
-    </select>
-  </div>
+  <input type="hidden" id="orgEditRole" value="employee">
   <div class="form-group">
     <label>Reports To</label>
-    <select id="orgEditReportsTo">
-      <option value="">— None (top of tree) —</option>
-    </select>
+    <input type="text" id="orgEditReportsTo" list="orgEditReportsToDl" autocomplete="off" placeholder="Type emp code or name (blank = top of tree)" style="font-family:var(--mono)">
+    <datalist id="orgEditReportsToDl"></datalist>
   </div>
   <div class="modal-error" id="orgEditErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -1091,8 +1082,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260509-V47"></script>
-<script src="js/hrms-logic.js?v=260509-V47"></script>
-<script src="js/hrms-ui.js?v=260509-V47"></script>
+<script src="js/common.js?v=260509-V76"></script>
+<script src="js/hrms-logic.js?v=260509-V76"></script>
+<script src="js/hrms-ui.js?v=260509-V76"></script>
 </body>
 </html>

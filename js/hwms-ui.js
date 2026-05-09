@@ -214,6 +214,14 @@ function _hwmsRole(){
 function _hwmsConfiguredAccess(key){
   if(!CU) return null;
   if((CU.roles||[]).includes('Super Admin')||(CU.hwmsRoles||[]).includes('Super Admin')) return true;
+  // HWMS Admin (module admin) — full access to every HWMS page/key,
+  // mirrors how _PERM_MODULE_ADMIN bypass works in permLevel.
+  if((CU.hwmsRoles||[]).includes('HWMS Admin')) return true;
+  // Configure Access overrides hardcoded role defaults for non-admin
+  // roles. permLevel returns 'full'/'view'/'none' based on saved perms;
+  // we surface 'full' OR 'view' as access here. If permConfigured says
+  // no perms have been set for this user's roles, fall back to caller's
+  // legacy default by returning null.
   if(typeof permConfigured==='function'&&permConfigured('HWMS')){
     return typeof permCanView==='function'&&permCanView('HWMS',key);
   }
@@ -289,10 +297,16 @@ function _hwmsCan(action){
   if(!allowed) return false;
   return allowed.includes(role);
 }
-// Apply nav visibility based on role
+// Apply nav visibility based on role + Configure Access permissions.
+// Roles outside the legacy SA/HA/WA/WU set still get evaluated — the
+// fallback is "no access via legacy" but Configure Access can grant
+// per-key visibility so admin-configured Suppliers / Buyers / Read
+// Only / etc. see what was granted.
 function _hwmsApplyPermissions(){
-  var role=_hwmsRole();
-  if(!role) return;
+  var role=_hwmsRole();// '' for roles outside SA/HA/WA/WU
+  // Don't early-return on empty role — _hwmsPageAllowed honours
+  // Configure Access regardless and the fallback boolean will be false
+  // for an unknown role, which simply leaves the legacy default off.
   var show=function(id,v){var el=document.getElementById(id);if(el) el.style.display=v?'':'none';};
   // Nav pages — rolePermissions config overrides hardcoded defaults when present
   var pa=_hwmsPageAllowed;
@@ -2791,7 +2805,7 @@ function renderHwmsContainers(){
     +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#64748b;font-family:var(--mono)">'+cDraft+'</div><div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase">Draft</div></div>'
     +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+cTransit+'</div><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Transit</div></div>'
     +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#15803d;font-family:var(--mono)">'+cWH+'</div><div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase">Warehouse</div></div>';
-  var _contSA=_hwmsIsSA();
+  var _contSA=_hwmsIsAdmin();// SA + HWMS Admin both get the per-row checkbox + delete column
   document.getElementById('hwmsContBody').innerHTML=conts.length?conts.map(c=>{
     const invs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===c.id);
     const st=_hwmsContStatus(c);
@@ -2831,7 +2845,7 @@ function renderHwmsContainers(){
     var _rowBg=st.label==='Warehouse'?'background:#dcfce7;border-left:6px solid #16a34a':(st.label==='In Transit'?'background:#dbeafe;border-left:6px solid #2563eb':'background:#fff;border-left:6px solid #cbd5e1');
     return `<tr style="${_rowBg}">
       ${_contSA?'<td style="text-align:center"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:20px;cursor:pointer;text-decoration:underline" onclick="openHwmsContModal('${c.id}')">${c.containerNumber}</td>
+      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:18px;cursor:pointer;text-decoration:underline" onclick="openHwmsContModal('${c.id}')">${c.containerNumber}</td>
       <td>${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td style="font-weight:600">${c.carrierName||'—'}</td>
@@ -2877,7 +2891,7 @@ function _hwmsContUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsContChk:checked').length;
   var btn=document.getElementById('btnHwmsContDelSel');
   var cntEl=document.getElementById('hwmsContDelCount');
-  if(btn) btn.style.display=(count>0&&_hwmsIsSA())?'inline-flex':'none';
+  if(btn) btn.style.display=(count>0&&_hwmsIsAdmin())?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   var all=document.querySelectorAll('.hwmsContChk');
   var selAll=document.getElementById('hwmsContSelectAll');
@@ -2886,7 +2900,7 @@ function _hwmsContUpdateDelBtn(){
 async function _hwmsContDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsContChk:checked')];
   if(!checked.length){notify('No containers selected',true);return;}
-  if(!_hwmsIsSA()){notify('Only Super Admin can delete containers',true);return;}
+  if(!_hwmsIsAdmin()){notify('Only Admin can delete containers',true);return;}
   var ids=checked.map(function(cb){return cb.value;});
   var contDetails=[];
   ids.forEach(function(id){
@@ -5163,7 +5177,7 @@ async function saveHwmsSi(){
   renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();notify('Sub-Invoice saved!');
 }
 async function _hwmsDelSi(id){
-  if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete sub-invoices',true);return;}
+  if(!_hwmsIsAdmin()){notify('⚠ Only Admin can delete sub-invoices',true);return;}
   if(!confirm('Delete this sub-invoice?')) return;
   var si=byId(DB.hwmsSubInvoices||[],id);
   var mrId=_hwmsSiGetMrId(si);
@@ -5242,7 +5256,7 @@ function _hwmsSiDownloadSelected(){
   notify('📥 Downloaded '+ids.length+' SI(s) — '+rows.length+' line items');
 }
 async function _hwmsSiBulkDel(){
-  if(!_hwmsIsSA()){notify('⚠ Only Super Admin can delete',true);return;}
+  if(!_hwmsIsAdmin()){notify('⚠ Only Admin can delete',true);return;}
   var cbs=document.querySelectorAll('.hwmsSiCb:checked');
   var ids=[];cbs.forEach(function(cb){ids.push(cb.dataset.id);});
   if(!ids.length) return;
@@ -8781,7 +8795,7 @@ function renderHwmsInvoices(){
     const contHtml=isUnalloc?'<span style="color:#dc2626;font-weight:700">Unallocated</span>':'<span style="font-family:var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="_hwmsNavToContainer(\''+inv.containerId+'\')">'+(cont?.containerNumber||'—')+'</span>';
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
-    const invNumStyle=isDraft?'font-family:var(--inv-mono);font-weight:400;color:#dc2626;font-size:18px;max-width:130px;word-break:break-all':'font-family:var(--inv-mono);font-weight:400;color:var(--accent);font-size:18px;max-width:130px;word-break:break-all';
+    const invNumStyle=isDraft?'font-family:var(--inv-mono);font-weight:400;color:#dc2626;font-size:16px;max-width:130px;word-break:break-all':'font-family:var(--inv-mono);font-weight:400;color:var(--accent);font-size:16px;max-width:130px;word-break:break-all';
     const _miSt=_hwmsMiSt(inv);
     const _siSt=_hwmsSiAggSt(inv);
     const _paySt=_hwmsPayAggSt(inv);
@@ -8847,7 +8861,7 @@ function _hwmsInvUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsInvChk:checked').length;
   var btn=document.getElementById('btnHwmsInvDelSel');
   var cntEl=document.getElementById('hwmsInvDelCount');
-  if(btn) btn.style.display=(count>0&&_hwmsIsSA())?'inline-flex':'none';
+  if(btn) btn.style.display=(count>0&&_hwmsIsAdmin())?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   // Download + Cancel buttons
   var dlBtn=document.getElementById('btnHwmsInvDownloadSel');
@@ -8904,7 +8918,7 @@ function _hwmsInvDownloadSelected(){
 async function _hwmsInvDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsInvChk:checked')];
   if(!checked.length){notify('No invoices selected',true);return;}
-  if(!_hwmsIsSA()){notify('Only Super Admin can delete invoices',true);return;}
+  if(!_hwmsIsAdmin()){notify('Only Admin can delete invoices',true);return;}
   // Gather all selected invoice IDs and details
   var ids=checked.map(function(cb){return cb.value;});
   var invDetails=[];

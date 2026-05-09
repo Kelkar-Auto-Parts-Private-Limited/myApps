@@ -1410,14 +1410,19 @@ async function bootDB(){
   _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
+  // Single-use cache, populated by `_navigateTo` and consumed once on
+  // boot. Per-user keyed via the session user so a previous user's
+  // cached subset doesn't bleed into a different login.
+  var _cacheUser=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
+  var _cacheKey='kap_db_cache'+(_cacheUser?('_'+String(_cacheUser).toLowerCase()):'');
   try{
-    var _cached = localStorage.getItem('kap_db_cache');
+    var _cached = localStorage.getItem(_cacheKey);
     if(_cached){
       var _cObj = JSON.parse(_cached);
       var _age = Date.now() - (_cObj.ts||0);
       if(_age < 60000){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
-        localStorage.removeItem('kap_db_cache');
+        localStorage.removeItem(_cacheKey);
         console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
         if(!_sbReady) _initSupabase();
         // hrmsSettings holds role permissions — if empty or missing in cache,
@@ -1472,7 +1477,7 @@ async function bootDB(){
         }
         return;
       } else {
-        localStorage.removeItem('kap_db_cache');
+        try{localStorage.removeItem(_cacheKey);}catch(_){}
       }
     }
   }catch(e){ console.warn('bootDB: cache read failed:', e.message); }
@@ -1526,7 +1531,14 @@ async function bootDB(){
           return {tbl, rows: data||[]};
         }catch(e){ console.warn('bootDB: table '+tbl+' exception:', e.message); return {tbl, rows:[]}; }
       }));
-      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },20000));
+      // 60s timeout — HWMS table fetches go through the hwms_read RPC
+      // which does row-level filtering server-side. With many tables
+      // (containers / invoices / sub-invoices / parts / MR / payments)
+      // the parallel fan-out can take 30-50s on a cold connection.
+      // The previous 20s ceiling cut it short and forced bgSync to run
+      // a duplicate round, which is what made HWMS feel like it took
+      // 1-2 minutes to populate. 60s keeps the boot in a single pass.
+      const _sbTimeout = new Promise(resolve=>setTimeout(()=>{ _timedOut=true; resolve('timeout'); },60000));
       const raceResult = await Promise.race([_sbFetch, _sbTimeout]);
       if(raceResult==='timeout'){
         // Some tables may have loaded — proceed with what we have, sync rest in background
@@ -2404,9 +2416,14 @@ function _navigateTo(url){
   // destination needs — e.g. Portal has no HWMS tables in DB).
   try{
     if(typeof DB!=='undefined' && typeof DB_TABLES!=='undefined' && DB.users && DB.users.length){
+      // Per-user cache key — avoids leaking one user's filtered data
+      // (e.g. HWMS Buyer's row-scoped subset) into another user's
+      // session. The boot reader uses the same per-user key.
+      var _navUser=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
+      var _navKey='kap_db_cache'+(_navUser?('_'+String(_navUser).toLowerCase()):'');
       var cache={};
       try{
-        var raw=localStorage.getItem('kap_db_cache');
+        var raw=localStorage.getItem(_navKey);
         if(raw){
           var ec=JSON.parse(raw)||{};
           Object.keys(ec).forEach(function(k){
@@ -2420,7 +2437,7 @@ function _navigateTo(url){
         else if(!cache[t]) cache[t]=[];
       });
       cache.ts=Date.now();
-      localStorage.setItem('kap_db_cache', JSON.stringify(cache));
+      localStorage.setItem(_navKey, JSON.stringify(cache));
     }
   }catch(e){ console.warn('_navigateTo: cache write failed', e.message); }
   var ov=document.createElement('div');
