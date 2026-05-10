@@ -31,6 +31,151 @@
 #pageHrmsMDept thead th{position:sticky;top:0;z-index:3;background:#f1f5f9}
 #pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
 #pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
+
+/* ── Mobile polish: Team-wise Attendance Record + Dept-wise MP Details
+   ───────────────────────────────────────────────────────────────────
+   Both tabs lean on dense flex layouts that work on desktop but feel
+   cramped on small screens. The rules below tighten paddings, push
+   selectors to full width, and force tables into a horizontal-scroll
+   container so users can pan instead of having columns squashed. */
+@media (max-width: 720px){
+  #pageHrmsUtilDailyAtt > .card{padding:10px}
+  #pageHrmsUtilDailyAtt #hrmsDasDateLabel{font-size:14px}
+  /* Tab strip — slimmer pills so all four fit a phone row before
+     overflow-x kicks in. */
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_manpower,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_deptdetails,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_teamwise,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_rolegrouping,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_alloc{padding:7px 10px;font-size:11px}
+  /* Dept-wise MP Details — Plant & Dept selectors take full row. */
+  #hrmsDasDeptDetailsBody select{flex:1;min-width:0;width:100%}
+  #hrmsDasDeptDetailsBody label{font-size:11px}
+  /* Filter pills — taller for touch, slightly larger font. */
+  #hrmsDasDeptDetailsBody button,#hrmsDasTwBody button{min-height:34px}
+  /* Tables on both tabs — tighter cells, horizontal scroll. */
+  #hrmsDasDeptDetailsBody table,
+  #hrmsDasTwBody table{font-size:11px}
+  #hrmsDasDeptDetailsBody table th,#hrmsDasDeptDetailsBody table td,
+  #hrmsDasTwBody table th,#hrmsDasTwBody table td{padding:4px 5px}
+  /* Team-wise: emp-type & team strips wrap; "Show hidden" toggle and
+     export button take their own line so they don't crush the strip. */
+  #hrmsDasTwBody label[style*="Show hidden"]{margin-left:0}
+  /* Plant tiles already 66×42 (60% sized) — keep as-is. */
+  /* Team-wise: stack the role-group summary ABOVE the employee table
+     (default desktop layout puts them side-by-side). `order` swaps the
+     visual sequence without touching the DOM. */
+  .hrms-tw-split{flex-direction:column!important;gap:8px!important}
+  .hrms-tw-roleg{flex:0 0 auto!important;order:0!important;max-height:220px}
+  .hrms-tw-emp{flex:1 1 auto!important;order:1!important;min-height:0}
+  /* Hide low-priority columns on mobile to free horizontal space for
+     emp code / name / plant / dept / role / P/A. Team + emp-type are
+     baked into the combined "Plant / Team / Type" cell, so we hide
+     just the spans (keeping the plant chip). In/Out time columns get
+     hidden via the `hrms-tw-col-*` class hooks on both <th> and <td>. */
+  .hrms-tw-team,.hrms-tw-sep,.hrms-tw-et{display:none!important}
+  .hrms-tw-col-inTime,.hrms-tw-col-outTime{display:none!important}
+  /* ── Card-mode: convert the team-wise employee table into stacked
+     cards so each row reads cleanly on a phone. The thead is hidden;
+     each tr becomes a 3-column grid card with: row1 = empCode | name |
+     plant-chip · row2 = department · row3 = role · row4 = P/A | last
+     45d | TI checkbox. Cells with their own inline backgrounds (P/A,
+     Last 45d, TI) keep them. Absent rows keep their pinkish wash via
+     the inline `background:#fef2f2` on the <tr>. */
+  .hrms-tw-emp table{display:block;border:0!important}
+  .hrms-tw-emp table thead{display:none}
+  .hrms-tw-emp table tbody{display:block}
+  .hrms-tw-emp table tr{
+    display:grid!important;
+    grid-template-columns:auto 1fr auto;
+    align-items:center;
+    column-gap:8px;row-gap:3px;
+    padding:8px 10px;margin:0 0 8px;
+    border:1px solid #cbd5e1!important;border-radius:8px;
+  }
+  .hrms-tw-emp table tr td{
+    border:0!important;
+    padding:0!important;
+    width:auto!important;min-width:0!important;max-width:none!important;
+    text-align:left!important;
+  }
+  /* 1: # — hidden in card mode */
+  .hrms-tw-emp table tr td:nth-child(1){display:none}
+  /* 2: Emp Code — row 1 col 1 */
+  .hrms-tw-emp table tr td:nth-child(2){grid-row:1;grid-column:1;font-size:12px;font-weight:800}
+  /* 3: Name (+ ABSENT chip) — row 1 col 2 */
+  .hrms-tw-emp table tr td:nth-child(3){grid-row:1;grid-column:2;font-size:13px;font-weight:700}
+  /* 4: Plant chip cluster — row 1 col 3 */
+  .hrms-tw-emp table tr td:nth-child(4){grid-row:1;grid-column:3;justify-self:end}
+  /* 5: Department — row 2, span full width */
+  .hrms-tw-emp table tr td:nth-child(5){grid-row:2;grid-column:1 / -1;color:#475569;font-size:11px}
+  .hrms-tw-emp table tr td:nth-child(5)::before{content:"Dept: ";color:#94a3b8;font-weight:700;margin-right:4px}
+  /* 6: Role — row 3, span full width */
+  .hrms-tw-emp table tr td:nth-child(6){grid-row:3;grid-column:1 / -1;color:#475569;font-size:11px}
+  .hrms-tw-emp table tr td:nth-child(6)::before{content:"Role: ";color:#94a3b8;font-weight:700;margin-right:4px}
+  /* 7-8: In/Out — already display:none */
+  /* 9: P/A — row 4 col 1, becomes a pill */
+  .hrms-tw-emp table tr td:nth-child(9){grid-row:4;grid-column:1;padding:2px 12px!important;border-radius:12px!important;border:0!important;font-size:12px}
+  /* 10: Last 45d badges — row 4 col 2 */
+  .hrms-tw-emp table tr td:nth-child(10){grid-row:4;grid-column:2;justify-self:start;background:transparent!important;border:0!important}
+  /* 11: TI checkbox — row 4 col 3 */
+  .hrms-tw-emp table tr td:nth-child(11){grid-row:4;grid-column:3;justify-self:end;background:transparent!important;border:0!important;padding:0 4px!important}
+  /* Empty / no-data row — colspan doesn't carry through grid, so let
+     the single placeholder cell span the whole card width. */
+  .hrms-tw-emp table tr td[colspan]{grid-column:1 / -1!important;text-align:center!important;padding:14px 8px!important}
+  /* ── Card-mode for Dept-wise MP Details. Same approach as the
+     team-wise table above: hide thead, turn each tr into a 3-column
+     grid card, and place each td via :nth-child. Columns are:
+     1: #  ·  2: Emp Code  ·  3: Name  ·  4: Plant chip  ·
+     5: Emp Type  ·  6: Role  ·  7: Status badge  ·  8: In  ·  9: Out */
+  .hrms-dd-table{border:0!important}
+  .hrms-dd-table table{display:block;border:0!important}
+  .hrms-dd-table table thead{display:none}
+  .hrms-dd-table table tbody{display:block}
+  .hrms-dd-table table tr{
+    display:grid!important;
+    grid-template-columns:auto 1fr auto;
+    align-items:center;
+    column-gap:8px;row-gap:3px;
+    padding:8px 10px;margin:0 0 8px;
+    border:1px solid #cbd5e1!important;border-radius:8px;
+    background:#fff;
+  }
+  .hrms-dd-table table tr td{
+    border:0!important;background:transparent!important;
+    padding:0!important;
+    width:auto!important;min-width:0!important;max-width:none!important;
+    text-align:left!important;
+  }
+  /* Columns (1=# 2=EmpCode 3=Name 4=Plant 5=Team 6=EmpType 7=Role
+     8=Status 9=In 10=Out). Card layout:
+       Row 1: empCode | name              | status
+       Row 2: plant   | emp type          | role
+       Row 3: Team: <team> (full width)
+       Row 4: In: ...                     | Out: ... */
+  .hrms-dd-table table tr td:nth-child(1){display:none}
+  .hrms-dd-table table tr td:nth-child(2){grid-row:1;grid-column:1;font-size:12px;font-weight:800}
+  .hrms-dd-table table tr td:nth-child(3){grid-row:1;grid-column:2;font-size:13px;font-weight:700;color:#0f172a}
+  .hrms-dd-table table tr td:nth-child(8){grid-row:1;grid-column:3;justify-self:end}
+  .hrms-dd-table table tr td:nth-child(4){grid-row:2;grid-column:1;justify-self:start}
+  .hrms-dd-table table tr td:nth-child(6){grid-row:2;grid-column:2;color:#475569;font-size:11px}
+  .hrms-dd-table table tr td:nth-child(7){grid-row:2;grid-column:3;color:#475569;font-size:11px;justify-self:end}
+  .hrms-dd-table table tr td:nth-child(5){grid-row:3;grid-column:1 / -1;color:#475569;font-size:11px}
+  .hrms-dd-table table tr td:nth-child(5)::before{content:"Team: ";color:#94a3b8;font-weight:700;margin-right:4px;font-size:10px}
+  .hrms-dd-table table tr td:nth-child(9){grid-row:4;grid-column:2;justify-self:start}
+  .hrms-dd-table table tr td:nth-child(9)::before{content:"In: ";color:#94a3b8;font-weight:700;margin-right:4px;font-size:10px}
+  .hrms-dd-table table tr td:nth-child(10){grid-row:4;grid-column:3;justify-self:end}
+  .hrms-dd-table table tr td:nth-child(10)::before{content:"Out: ";color:#94a3b8;font-weight:700;margin-right:4px;font-size:10px}
+  /* Empty-state row spans the full card width. */
+  .hrms-dd-table table tr td[colspan]{grid-column:1 / -1!important;text-align:center!important;padding:14px 8px!important}
+}
+@media (max-width: 480px){
+  /* On the smallest phones, drop the date-selector buttons inline so
+     the row wraps cleanly. */
+  #pageHrmsUtilDailyAtt #hrmsDasHistDate{font-size:12px;padding:4px 6px}
+  /* Plant tiles shrink slightly so two-per-row works on 360px. */
+  #hrmsDasTwBody button[style*="height:42px"]{width:60px;height:38px}
+}
 /* Advances sub-tab — panel fills its parent and contains its own scroll
    inside the table wrapper so the page itself doesn't get a second
    vertical scrollbar. Inline display:none (set on inactive panels) wins

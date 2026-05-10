@@ -1769,7 +1769,7 @@ var _PERM_ROLE_FIELDS={HRMS:'hrmsRoles',VMS:'roles',HWMS:'hwmsRoles',Security:'r
 var _PERM_MODULE_ROLES={
   VMS:['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'],
   HWMS:['Super Admin','HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'],
-  HRMS:['Super Admin','HRMS Admin','HR Manager','Contractor Supervisor','Employee','Read Only'],
+  HRMS:['Super Admin','HRMS Admin','HR Manager','Department Head','Contractor Supervisor','Employee','Read Only'],
   Security:['Super Admin','Guard','Viewer','Read Only'],
   MTTS:['Super Admin','MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only']
 };
@@ -1863,6 +1863,11 @@ var _PERM_KEYS={
     {key:'page.utilities',label:'Utilities Menu',group:'🛠 Utilities'},
     {key:'page.utilAttConv',label:'Attendance Excel Converter',group:'🛠 Utilities'},
     {key:'page.utilDailyAttSum',label:'Daily Attendance Summary',group:'🛠 Utilities'},
+    {key:'tab.das.manpower',label:'Tab — Dept-wise MP Alloc Status',group:'📊 Daily Attendance Summary Tabs'},
+    {key:'tab.das.deptdetails',label:'Tab — Dept-wise MP Details',group:'📊 Daily Attendance Summary Tabs'},
+    {key:'tab.das.teamwise',label:'Tab — Team-wise Attendance Record',group:'📊 Daily Attendance Summary Tabs'},
+    {key:'tab.das.rolegrouping',label:'Tab — Role Grouping',group:'📊 Daily Attendance Summary Tabs'},
+    {key:'tab.das.alloc',label:'Tab — MP Alloc Setting',group:'📊 Daily Attendance Summary Tabs'},
     {key:'page.utilMonthlyHc',label:'Monthly Headcount Graph',group:'🛠 Utilities'},
     {key:'page.utilUpdateEmp',label:'Update Employee',group:'🛠 Utilities'},
     {key:'page.utilContractFromFix',label:'Contract From-Month Fix',group:'🛠 Utilities'}

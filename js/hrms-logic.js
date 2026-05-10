@@ -111,17 +111,21 @@ function _hrmsHasAccess(featureKey){
   // access — they need it to view their team's Teamwise Data tab.
   // Granted regardless of admin-configured perms (UI restricts them
   // to their teams only inside the page).
-  if(featureKey==='page.utilDailyAttSum'&&CU){
-    var _csRoles=CU.hrmsRoles||[];
-    var _csIsContractorSup=_csRoles.indexOf('Contractor Supervisor')>=0;
-    var _csIsElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
-                     ||_csRoles.indexOf('HRMS Admin')>=0||_csRoles.indexOf('HR Manager')>=0;
-    if(_csIsContractorSup&&!_csIsElevated){
-      try{
-        var _supMap=(typeof _hrmsGetTeamSupervisorMap==='function')?_hrmsGetTeamSupervisorMap():{};
-        for(var _tid in _supMap){if(_supMap[_tid]===CU.id) return true;}
-      }catch(_){}
-    }
+  // Auto-grants for single-purpose roles so they can reach their one
+  // page even before admin configures access. Each role unlocks the
+  // page itself, the parent Utilities menu, and the specific sub-tab
+  // they're allowed to use; tab-level scope is enforced inside the
+  // renderer.
+  if(CU){
+    var _agRoles=CU.hrmsRoles||[];
+    var _agIsCS=_agRoles.indexOf('Contractor Supervisor')>=0;
+    var _agIsDH=_agRoles.indexOf('Department Head')>=0;
+    var _agElev=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+               ||_agRoles.indexOf('HRMS Admin')>=0||_agRoles.indexOf('HR Manager')>=0;
+    var _agCsKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.teamwise':1};
+    var _agDhKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.deptdetails':1};
+    if(_agIsCS&&!_agElev&&_agCsKeys[featureKey]) return true;
+    if(_agIsDH&&!_agElev&&_agDhKeys[featureKey]) return true;
   }
   // If admin has saved ANY permissions for one of the user's HRMS roles,
   // those are AUTHORITATIVE — items admin didn't grant are hidden.
@@ -160,6 +164,49 @@ function _hrmsHasAccess(featureKey){
     if(rp&&rp[featureKey]===true) return true;
   }
   return false;
+}
+
+// Debug helper — run from the browser console to trace why a user
+// can or can't see the Daily Attendance Summary tabs. Logs the
+// current user, their roles, the auto-grant inputs, and the access
+// decision for each relevant permission key.
+function _hrmsDebugAccess(){
+  try{
+    var u=(typeof CU!=='undefined')?CU:null;
+    console.group('HRMS access debug');
+    console.log('CU =',u);
+    console.log('CU.id =',u&&u.id);
+    console.log('CU.name =',u&&(u.fullName||u.name));
+    console.log('CU.hrmsRoles =',u&&u.hrmsRoles);
+    console.log('CU.roles =',u&&u.roles);
+    var sa=(typeof _hrmsIsSA==='function')&&_hrmsIsSA();
+    console.log('_hrmsIsSA() =',sa);
+    var roles=(u&&u.hrmsRoles)||[];
+    console.log('Has Department Head role =',roles.indexOf('Department Head')>=0);
+    console.log('Has Contractor Supervisor role =',roles.indexOf('Contractor Supervisor')>=0);
+    console.log('Has HR Manager role =',roles.indexOf('HR Manager')>=0);
+    console.log('Has HRMS Admin role =',roles.indexOf('HRMS Admin')>=0);
+    var dhMap=(typeof _hrmsGetDeptHeadMap==='function')?_hrmsGetDeptHeadMap():{};
+    console.log('Dept head map =',dhMap);
+    var mappedDepts=[];
+    Object.keys(dhMap||{}).forEach(function(did){
+      var v=dhMap[did];
+      var hit=Array.isArray(v)?(v.indexOf(u&&u.id)>=0):(v===(u&&u.id));
+      if(hit) mappedDepts.push(did);
+    });
+    console.log('Depts mapped to this user =',mappedDepts);
+    var keys=['page.utilities','page.utilDailyAttSum','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.rolegrouping','tab.das.alloc'];
+    keys.forEach(function(k){
+      console.log('_hrmsHasAccess('+k+') =',_hrmsHasAccess(k));
+    });
+    console.log('permConfigured(HRMS) =',(typeof permConfigured==='function')?permConfigured('HRMS'):'(not loaded)');
+    var dhScope=(typeof _hrmsDeptHeadScope==='function')?_hrmsDeptHeadScope():null;
+    console.log('_hrmsDeptHeadScope() =',dhScope);
+    console.log('Tab btn — deptdetails =',document.getElementById('hrmsDasTabBtn_deptdetails'));
+    var btn=document.getElementById('hrmsDasTabBtn_deptdetails');
+    if(btn) console.log('Tab btn deptdetails display =',btn.style.display||'(default)');
+    console.groupEnd();
+  }catch(e){console.error('debug failed',e);}
 }
 
 // HRMS_PERMISSION_KEYS now defined in portal-ui.js (_PERM_KEYS.HRMS) and shared at runtime

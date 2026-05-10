@@ -103,12 +103,44 @@ function _hrmsLaunch(){
   if(_isContractorSup&&!_isElevated&&_hrmsHasAccess('page.utilUpdateEmp')){
     hrmsGo('pageHrmsUtilUpdateEmp');return;
   }
-  // ── TESTING OVERRIDE — land on Departments (Worker) master so the
-  // developer can iterate on the plant-specific dept migration without
-  // re-clicking through the nav. Remove this block once iteration on
-  // that page is finished.
-  if(typeof _hrmsHasAccess!=='function'||_hrmsHasAccess('page.masterDept')){
-    hrmsGo('pageHrmsMDept');
+  // Department Head — single-purpose role (when not elevated). Land
+  // straight on Daily Attendance Summary; the Dept-wise MP Details tab
+  // is the only one visible to this role and is auto-selected by
+  // _hrmsDasSetTab.
+  var _isDeptHead=_hrmsRolesNow.indexOf('Department Head')>=0;
+  if(_isDeptHead&&!_isElevated&&_hrmsHasAccess('page.utilDailyAttSum')){
+    hrmsGo('pageHrmsUtilDailyAtt');return;
+  }
+  // ── TESTING OVERRIDE — land on Daily Attendance Summary's
+  // Dept-wise MP Details tab with date 2026-05-07 and the plant whose
+  // short-form is "P2" pre-selected. Department picking remains a
+  // user step. Remove once done.
+  if(typeof _hrmsHasAccess!=='function'||_hrmsHasAccess('page.utilDailyAttSum')){
+    hrmsGo('pageHrmsUtilDailyAtt');
+    setTimeout(function(){
+      var di=document.getElementById('hrmsDasHistDate');
+      if(di) di.value='2026-05-07';
+      // Pick the plant whose short-form (Plant-1 → P1, etc.) is "P2"
+      // and the "Fabrication JCB" department within that plant if it
+      // exists, so the table loads ready to inspect on refresh.
+      try{
+        if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+        var p2=(DB.hrmsCompanies||[]).find(function(c){
+          if(!c||c.inactive) return false;
+          var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(c.name||''):'';
+          return sf==='P2';
+        });
+        if(p2){
+          _hrmsDasDdPlant=p2.name;
+          var dh=(DB.hrmsDepartments||[]).find(function(d){
+            return d&&!d.inactive&&(d.plant||'')===p2.name&&(d.name||'').toLowerCase()==='fabrication jcb';
+          });
+          _hrmsDasDdDept=dh?dh.name:null;
+        }
+      }catch(_){}
+      if(typeof _hrmsDasSetTab==='function') _hrmsDasSetTab('deptdetails');
+      if(typeof _hrmsDasLoadFromHistory==='function') _hrmsDasLoadFromHistory();
+    },200);
     return;
   }
   // Navigate to first allowed page — every HRMS page is a candidate so a
@@ -338,11 +370,12 @@ function hrmsGo(pid){
     if(pid==='pageHrmsMRoll') _hrmsRenderRollMaster();
     else if(pid==='pageHrmsMAllocation') _hrmsRenderAllocationMaster();
     else renderHrmsMaster(pid);
-    // Keep the Masters group collapsed by default — user toggles it manually.
+    // Keep the Masters group expanded so the user can switch between
+    // siblings without re-opening it. Toggle stays under user control.
     var _mg=document.getElementById('hrmsMastersGroup');
     var _ma=document.getElementById('hrmsMastersArrow');
-    if(_mg) _mg.style.display='none';
-    if(_ma) _ma.textContent='▶';
+    if(_mg) _mg.style.display='block';
+    if(_ma) _ma.textContent='▼';
   }
   if(pid.indexOf('pageHrmsUtil')===0){
     var _ug=document.getElementById('hrmsUtilsGroup');if(_ug) _ug.style.display='block';
@@ -844,11 +877,13 @@ function renderHrmsMaster(pid){
       h+='<td><span onclick="_hrmsPickTeamSupervisor(\''+it.id+'\')" title="Click to assign / change Contractor Supervisor" style="display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:'+(supUser?'#dcfce7':'#f1f5f9')+';color:'+supColor+';border:1px dashed rgba(0,0,0,.15)">'+_hrmsEsc(supName)+'</span></td>';
     }
     if(isWorkerDept){
-      var dhId=_hrmsGetDeptHead(it.id);
-      var dhUser=dhId?byId(DB.users||[],dhId):null;
-      var dhName=dhUser?(dhUser.fullName||dhUser.name||dhId):'—';
-      var dhColor=dhUser?'#15803d':'var(--text3)';
-      h+='<td><span onclick="_hrmsPickDeptHead(\''+it.id+'\')" title="Click to assign / change Department Head" style="display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:'+(dhUser?'#dcfce7':'#f1f5f9')+';color:'+dhColor+';border:1px dashed rgba(0,0,0,.15)">'+_hrmsEsc(dhName)+'</span></td>';
+      var dhIds=_hrmsGetDeptHeadIds(it.id);
+      var dhNames=dhIds.map(function(uid){var u=byId(DB.users||[],uid);return u?(u.fullName||u.name||uid):uid;}).filter(Boolean);
+      var dhCount=dhNames.length;
+      var dhLabel=dhCount?(dhCount===1?_hrmsEsc(dhNames[0]):dhCount+' assigned'):'—';
+      var dhTitle=dhCount?('Heads:\n'+dhNames.join('\n')+'\n\nClick to edit'):'Click to assign Department Head(s) (max 3)';
+      var dhColor=dhCount?'#15803d':'var(--text3)';
+      h+='<td><span onclick="_hrmsPickDeptHead(\''+it.id+'\',event)" title="'+_hrmsEsc(dhTitle)+'" style="display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:'+(dhCount?'#dcfce7':'#f1f5f9')+';color:'+dhColor+';border:1px dashed rgba(0,0,0,.15);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle">'+dhLabel+'</span></td>';
     }
     if(isDept){
       var nameEsc=String(it.name||'').replace(/'/g,"\\'");
@@ -893,14 +928,9 @@ function renderHrmsMaster(pid){
       // if the same name is in use at another plant. `_rowAnyCnt` was
       // pre-computed above for the bulk-select gate.
       var anyCnt=(typeof _rowAnyCnt!=='undefined')?_rowAnyCnt:(anyCounts[(c.tbl==='hrmsDepartments')?(it.name+'|||'+(it.plant||'')):it.name]||0);
-      // Bulk-move: only when this Worker Dept has ACTIVE employees
-      // (closed periods don't count — `anyCnt` includes historical
-      // references which can't be moved). The popup count must match
-      // what's visible in the headcount Total column.
+      // Bulk-move ("↔ Move all employees") button hidden per request —
+      // single-employee dept changes via the headcount popup remain.
       var _activeCnt=(typeof br!=='undefined'&&br)?(+br.Total||0):0;
-      if(isWorkerDept&&_activeCnt>0){
-        h+=' <button onclick="_hrmsDeptBulkMoveOpen(\''+it.id+'\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer" title="Move all employees from this department to another in the same plant">↔ Move ('+_activeCnt+')</button>';
-      }
       // Delete visibility — Worker Dept uses the ACTIVE-period count so
       // it matches the visible Total column. Closed periods are
       // intentionally ignored (orphan refs are accepted as historical).
@@ -9928,21 +9958,11 @@ function _hrmsDasShiftHistDate(delta){
 function _hrmsDasUpdateDateLabel(){
   var lbl=document.getElementById('hrmsDasDateLabel');
   if(!lbl) return;
-  var inp=document.getElementById('hrmsDasHistDate');
-  var v=inp&&inp.value;
-  if(!v){lbl.innerHTML='';return;}
-  var p=String(v).split('-');
-  if(p.length<3){lbl.innerHTML='';return;}
-  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var dd=String(+p[2]).padStart(2,'0');
-  var mm=MON[+p[1]-1]||'';
-  var yy=String(p[0]).slice(-2);
-  var html='📅 '+dd+'-'+mm+'-'+yy;
+  // The active date is now visible inside the date-selector control
+  // itself, so this label only surfaces the "no data" warning when the
+  // selected day has no attendance records.
   var noData=(typeof _hrmsDasState!=='undefined'&&_hrmsDasState&&_hrmsDasState.noData);
-  if(noData){
-    html+='<span style="color:#dc2626;font-weight:800;margin-left:14px;font-size:15px">⚠ No Data uploaded for this day</span>';
-  }
-  lbl.innerHTML=html;
+  lbl.innerHTML=noData?'⚠ No Data uploaded for this day':'';
 }
 
 // Switch between Manpower Data, Teamwise Data and Allocation Settings
@@ -9951,10 +9971,32 @@ function _hrmsDasUpdateDateLabel(){
 function _hrmsDasSetTab(tab){
   // Contractor Supervisor users only get the Teamwise Data tab —
   // Manpower Data + Role Grouping + Allocation Settings are hidden.
+  // Department Head users (when not elevated) only get Dept-wise MP
+  // Details, scoped to the depts they own.
   var supScope=(typeof _hrmsDasContractorSupScope==='function')?_hrmsDasContractorSupScope():null;
-  if(supScope) tab='teamwise';
+  var dhScope=(typeof _hrmsDeptHeadScope==='function')?_hrmsDeptHeadScope():null;
+  // A user may carry BOTH scope roles (Contractor Supervisor + Dept
+  // Head) — combine their allowed tabs into one set so neither role
+  // hides the other's tab.
+  var _scopedSet={};
+  if(supScope) _scopedSet.teamwise=1;
+  if(dhScope)  _scopedSet.deptdetails=1;
+  var _hasScope=Object.keys(_scopedSet).length>0;
+  // Force the active tab into the scoped set when the requested tab
+  // isn't allowed for this user. Prefer deptdetails when both roles
+  // are present so Dept-wise MP Details lands first.
+  if(_hasScope&&!_scopedSet[tab]){
+    tab=_scopedSet.deptdetails?'deptdetails':'teamwise';
+  }
   if(tab!=='alloc'&&tab!=='teamwise'&&tab!=='rolegrouping'&&tab!=='deptdetails') tab='manpower';
   window._hrmsDasActiveTab=tab;
+  // Per-tab admin-configured permissions. Honoured for users without a
+  // scope role (Contractor Sup / Dept Head retain their hard scope) and
+  // who aren't elevated (SA / HR Manager get every tab).
+  var _tabPerms={manpower:'tab.das.manpower',deptdetails:'tab.das.deptdetails',teamwise:'tab.das.teamwise',rolegrouping:'tab.das.rolegrouping',alloc:'tab.das.alloc'};
+  var _isElevatedTabs=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+    ||(CU&&(CU.hrmsRoles||[]).indexOf('HR Manager')>=0)
+    ||(CU&&(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0);
   var pairs=[['manpower','#hrmsDasTab_manpower','#hrmsDasTabBtn_manpower','flex'],
              ['deptdetails','#hrmsDasTab_deptdetails','#hrmsDasTabBtn_deptdetails','flex'],
              ['teamwise','#hrmsDasTab_teamwise','#hrmsDasTabBtn_teamwise','flex'],
@@ -9968,7 +10010,13 @@ function _hrmsDasSetTab(tab){
     var on=(key===tab);
     if(pane){pane.style.display=on?disp:'none';}
     if(btn){
-      if(supScope&&key!=='teamwise'){btn.style.display='none';return;}
+      // For users with one or more scope roles, hide tabs that aren't
+      // in their combined scope set. (Single-role users still see only
+      // their own tab; dual-role users see both their tabs.)
+      if(_hasScope&&!_scopedSet[key]){btn.style.display='none';return;}
+      // Admin-configured tab key — enforced only for non-elevated users.
+      // SA / HR Manager / HRMS Admin always see every tab.
+      if(!_isElevatedTabs&&typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess(_tabPerms[key])){btn.style.display='none';return;}
       btn.style.display='';
       btn.style.borderBottom='3px solid '+(on?'var(--accent)':'transparent');
       btn.style.color=on?'var(--accent)':'var(--text3)';
@@ -10282,6 +10330,10 @@ function _hrmsDasTwRender(){
     })).then(function(){
       window._hrmsDasTwFetchInflight=false;
       try{_hrmsDasTwRender();}catch(_){}
+      // Dept-wise MP Details reads the same TI marks; refresh it
+      // once the 45-day window finishes loading so any newly-set
+      // marks take effect there too.
+      try{if(typeof _hrmsDasDeptDetailsRender==='function') _hrmsDasDeptDetailsRender();}catch(_){}
     });
   }
   // Build {empCode → Set of yyyy-mm-dd ISO strings present} from every
@@ -10806,8 +10858,8 @@ function _hrmsDasTwRender(){
   // into two side-by-side panes — the wide employee table on the
   // left and the narrow role-group P/A summary on the right.
   h+='</div>';// end of flex:0 0 auto head
-  h+='<div style="flex:1;min-height:0;display:flex;gap:12px;overflow:hidden">';
-  h+='<div style="flex:1;min-width:0;overflow:auto;border:1px solid var(--border);border-radius:8px">';
+  h+='<div class="hrms-tw-split" style="flex:1;min-height:0;display:flex;gap:12px;overflow:hidden">';
+  h+='<div class="hrms-tw-emp" style="flex:1;min-width:0;overflow:auto;border:1px solid var(--border);border-radius:8px">';
   h+='<table style="width:auto;border-collapse:collapse;font-size:12px">'
     +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
     +'<tr>';
@@ -10838,7 +10890,7 @@ function _hrmsDasTwRender(){
     var wStyle='';
     if(c.width) wStyle=';width:'+c.width+'px;min-width:'+c.width+'px;max-width:'+c.width+'px';
     else if(c.minWidth) wStyle=';min-width:'+c.minWidth+'px';
-    h+='<th style="padding:6px 8px;text-align:'+c.align+';font-weight:800;white-space:nowrap;vertical-align:top;color:#000'+wStyle+'">'
+    h+='<th class="hrms-tw-col-'+(c.key||'idx')+'" style="padding:6px 8px;text-align:'+c.align+';font-weight:800;white-space:nowrap;vertical-align:top;color:#000'+wStyle+'">'
       +'<div>'+labelHtml+'</div>'
       +(filterHtml?'<div style="margin-top:4px">'+filterHtml+'</div>':'')
       +'</th>';
@@ -10848,7 +10900,7 @@ function _hrmsDasTwRender(){
   h+='<th style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:top">'
     +'<div>P/A</div><div style="margin-top:4px">'+paFilterHtml+'</div></th>';
   h+='<th style="padding:6px 6px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top;width:104px;min-width:104px;max-width:104px"><div>Last 45d</div></th>';
-  h+='<th title="Mark an absent employee as Temp Inactive to hide them. Auto-clears the next time they\'re present, and auto-sets for Contract / Piece Rate emps absent for 45 continuous days." style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top"><div>Temp Inactive</div></th>';
+  h+='<th title="Mark this employee temporary Inactive" style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top"><div>TI</div></th>';
   h+='</tr></thead><tbody>';
   // Sort strictly by the active rule (default = plantwise → empCode);
   // P/A status does NOT split the rows. Absent rows are visually
@@ -10862,11 +10914,13 @@ function _hrmsDasTwRender(){
     var plantChip=r.plant
       ?'<span title="'+_esc(r.plant)+'" style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:'+pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.12);min-width:30px;text-align:center">'+_esc(sf)+'</span>'
       :'<span style="color:#cbd5e1">—</span>';
+    // Class hooks let mobile CSS hide the team + emp-type fragments
+    // (and the dot separator) so only the plant chip remains.
     var plantTeamType='<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +plantChip
-      +'<span style="font-weight:700;color:#0f172a">'+_esc(r.team||'—')+'</span>'
-      +'<span style="color:#64748b;font-size:11px">·</span>'
-      +'<span style="color:#475569;font-size:11px">'+_esc(r.et||'—')+'</span>'
+      +'<span class="hrms-tw-team" style="font-weight:700;color:#0f172a">'+_esc(r.team||'—')+'</span>'
+      +'<span class="hrms-tw-sep" style="color:#64748b;font-size:11px">·</span>'
+      +'<span class="hrms-tw-et" style="color:#475569;font-size:11px">'+_esc(r.et||'—')+'</span>'
       +'</span>';
     h+='<tr style="border-bottom:1px solid #e2e8f0;background:'+rowBg+';opacity:'+rowOpac+'">'
       +'<td style="padding:6px 8px;color:#64748b">'+(i+1)+'</td>'
@@ -10875,8 +10929,8 @@ function _hrmsDasTwRender(){
       +'<td style="padding:6px 8px;white-space:nowrap">'+plantTeamType+'</td>'
       +'<td style="padding:6px 8px">'+_esc(r.dept)+'</td>'
       +'<td style="padding:6px 8px">'+_esc(r.roll)+'</td>'
-      +'<td style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.inTime||'—')+'</td>'
-      +'<td style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.outTime||'—')+'</td>';
+      +'<td class="hrms-tw-col-inTime" style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.inTime||'—')+'</td>'
+      +'<td class="hrms-tw-col-outTime" style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.outTime||'—')+'</td>';
     // Selected day P/A — single coloured cell.
     h+='<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border-left:2px solid #e2e8f0">'+(r.presentToday?'P':'A')+'</td>';
     // Last 45 Days History — green/red badge pair (count-based).
@@ -10895,7 +10949,7 @@ function _hrmsDasTwRender(){
       var marked=!!leftMarks[r.empCode];
       h+='<input type="checkbox" '+(marked?'checked':'')
         +' onclick="_hrmsDasTwSetLeft(\''+ecEsc+'\',this.checked)"'
-        +' title="Mark this absent employee as Temp Inactive"'
+        +' title="Mark this employee temporary Inactive"'
         +' style="cursor:pointer;width:16px;height:16px">';
     } else {
       h+='<span style="color:#cbd5e1">—</span>';
@@ -10918,7 +10972,7 @@ function _hrmsDasTwRender(){
   // absent in each group. Only shows groups that have at least one
   // employee in the current scope, plus an "(Ungrouped)" bucket for
   // emps whose role doesn't map to any group, and a Total row.
-  h+='<div style="flex:0 0 280px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
+  h+='<div class="hrms-tw-roleg" style="flex:0 0 280px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
   h+='<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
     +'<tr>'
@@ -11172,7 +11226,13 @@ function _hrmsDasDeptDetailsRender(){
   // Plant first → then dept (scoped to plant). Worker dept master is
   // plant-specific so we hydrate first, then build the per-plant list.
   if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+  // Department Head scope — when the logged-in user is a non-elevated
+  // Department Head, restrict the plant + dept lists to the depts they
+  // own. Elevated users (Super Admin / HRMS Admin / HR Manager) get
+  // null here and see the unrestricted view.
+  var _dhScope=(typeof _hrmsDeptHeadScope==='function')?_hrmsDeptHeadScope():null;
   var plantList=(DB.hrmsCompanies||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;});
+  if(_dhScope) plantList=plantList.filter(function(p){return _dhScope.plants[p];});
   // Reorder: HO first, then numerical short-form (P1, P2, …).
   var _isHO=function(s){return /^h\.?o\.?$|head\s*office/i.test(String(s||'').trim());};
   plantList.sort(function(a,b){
@@ -11192,14 +11252,20 @@ function _hrmsDasDeptDetailsRender(){
     (DB.hrmsDepartments||[]).forEach(function(d){
       if(!d||d.inactive) return;
       if((d.plant||'')!==_hrmsDasDdPlant) return;
+      // Dept Head scoping — only show depts this head owns.
+      if(_dhScope&&!_dhScope.deptIds[d.id]) return;
       var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
       deptSeen[n]=1;deptList.push(n);
     });
-    (DB.hrmsSubDepartments||[]).forEach(function(d){
-      if(!d||d.inactive) return;
-      var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
-      deptSeen[n]=1;deptList.push(n);
-    });
+    // Staff sub-depts are not plant-bound and have no head mapping;
+    // hide them entirely for scoped Dept Heads.
+    if(!_dhScope){
+      (DB.hrmsSubDepartments||[]).forEach(function(d){
+        if(!d||d.inactive) return;
+        var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
+        deptSeen[n]=1;deptList.push(n);
+      });
+    }
     deptList.sort(function(a,b){return a.localeCompare(b);});
   }
   if(_hrmsDasDdDept&&deptList.indexOf(_hrmsDasDdDept)<0) _hrmsDasDdDept=null;
@@ -11210,15 +11276,28 @@ function _hrmsDasDeptDetailsRender(){
     var sp=String(st.historyDate).split('-');
     if(sp.length>=3) dateLbl=String(+sp[2]).padStart(2,'0')+'-'+(MON[+sp[1]-1]||'')+'-'+String(sp[0]).slice(-2);
   }
-  // Plant selector — required first step.
+  // Plant selector — square tile buttons only. P/A counts are shown
+  // separately, scoped to the selected plant + department only.
   var h='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px">';
   h+='<label style="font-size:12px;font-weight:800;color:var(--text2)">Plant <span style="color:#dc2626">*</span>:</label>';
-  h+='<select onchange="_hrmsDasDdSetPlant(this.value)" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:200px">';
-  h+='<option value=""'+(!_hrmsDasDdPlant?' selected':'')+'>— Select plant —</option>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+  if(!plantList.length){
+    h+='<span style="font-size:12px;color:var(--text3);font-style:italic">— No plants configured —</span>';
+  }
   plantList.forEach(function(p){
-    h+='<option value="'+_esc(p)+'"'+(p===_hrmsDasDdPlant?' selected':'')+'>'+_esc(p)+'</option>';
+    var on=(p===_hrmsDasDdPlant);
+    var clr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(p):'#e2e8f0';
+    var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(p):p.slice(0,3).toUpperCase();
+    var pEsc=String(p).replace(/'/g,"\\'");
+    h+='<button title="'+_esc(p)+'" onclick="_hrmsDasDdSetPlant(\''+pEsc+'\')" '
+      +'style="display:flex;align-items:center;justify-content:center;'
+      +'width:42px;height:42px;border-radius:6px;cursor:pointer;line-height:1;padding:0;'
+      +'background:'+clr+';color:#0f172a;'
+      +'border:'+(on?'2px solid #0f172a':'1.5px solid rgba(0,0,0,.18)')+';'
+      +(on?'box-shadow:0 0 0 1.5px #fff,0 0 0 3px '+clr+',0 1px 4px rgba(0,0,0,.12);':'box-shadow:0 1px 2px rgba(0,0,0,.08);')
+      +'font-size:14px;font-weight:900;letter-spacing:.3px;font-family:var(--mono)">'+_esc(sf)+'</button>';
   });
-  h+='</select>';
+  h+='</div>';
   // Dept selector — disabled until a plant is picked.
   h+='<label style="font-size:12px;font-weight:800;color:var(--text2);margin-left:8px">Department <span style="color:#dc2626">*</span>:</label>';
   if(!_hrmsDasDdPlant){
@@ -11233,7 +11312,6 @@ function _hrmsDasDeptDetailsRender(){
     });
     h+='</select>';
   }
-  if(dateLbl) h+='<span style="font-size:12px;color:var(--text3);font-weight:700">📅 '+dateLbl+'</span>';
   h+='</div>';
   // Gates: plant first, dept next, then state.
   if(!_hrmsDasDdPlant){
@@ -11276,16 +11354,19 @@ function _hrmsDasDeptDetailsRender(){
     var etRaw=((ap&&ap.employmentType)||e.employmentType||'').trim();
     var _etCanon={onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',visitor:'Visitor'};
     var et=_etCanon[etRaw.toLowerCase().replace(/\s+/g,'')]||etRaw||'—';
-    etCounts[et]=(etCounts[et]||0)+1;
     var plant=((ap&&ap.location)||e.location||'').trim();
+    var team=(((ap&&ap.teamName)||e.teamName||'')+'').trim();
     var rollCode=((ap&&ap.roll)||e.roll||'').trim();
     var rollName=rollCode?(rollNameByCode[rollCode]||rollCode):'—';
     var io=ioByCode[e.empCode]||{inTime:'',outTime:''};
     var present=!!presentCodes[e.empCode]||!!io.inTime;
+    if(!etCounts[et]) etCounts[et]={total:0,p:0,a:0};
+    etCounts[et].total++;
+    if(present) etCounts[et].p++; else etCounts[et].a++;
     rows.push({
       empCode:e.empCode||'',
       name:(typeof _hrmsDispName==='function'?_hrmsDispName(e):(e.fullName||e.name||'')),
-      et:et,plant:plant,roll:rollName,
+      et:et,plant:plant,team:team,roll:rollName,
       inTime:present?(io.inTime||''):'',
       outTime:present?(io.outTime||''):'',
       present:present
@@ -11300,24 +11381,36 @@ function _hrmsDasDeptDetailsRender(){
   });
   var totalP=rows.reduce(function(n,r){return n+(r.present?1:0);},0);
   var totalA=rows.length-totalP;
-  // Filter chips: employment-type (All + each present et) and status.
+  // Employment-type pills — label + total (per-type colour) + P/A
+  // counts in green / red pills next to the total.
   var etKeys=Object.keys(etCounts).sort();
-  var pillBtn=function(label,key,active,onClick){
+  var _etPalette={
+    'On Roll':{bg:'#dcfce7',fg:'#15803d',bd:'#86efac'},
+    'Contract':{bg:'#dbeafe',fg:'#1d4ed8',bd:'#93c5fd'},
+    'Piece Rate':{bg:'#f3e8ff',fg:'#7c3aed',bd:'#c4b5fd'},
+    'Visitor':{bg:'#fef9c3',fg:'#a16207',bd:'#fde047'}
+  };
+  var _allPal={bg:'#e0e7ff',fg:'#3730a3',bd:'#a5b4fc'};
+  var countBadge=function(n,pal){
+    return '<span style="display:inline-block;background:'+pal.bg+';color:'+pal.fg+';border:1px solid '+pal.bd+';padding:0 7px;border-radius:9px;font-weight:900;font-size:11px;margin-left:6px">'+n+'</span>';
+  };
+  var paBadges=function(p,a){
+    return '<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px;margin-left:5px">P-'+p+'</span>'
+      +'<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px;margin-left:3px">A-'+a+'</span>';
+  };
+  var pillBtn=function(labelHtml,key,active,onClick){
     return '<button onclick="'+onClick+'" style="padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer;border-radius:14px;'
       +'background:'+(active?'var(--accent)':'#fff')+';color:'+(active?'#fff':'var(--text)')+';'
-      +'border:1.5px solid '+(active?'var(--accent)':'var(--border)')+'">'+label+'</button>';
+      +'border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';display:inline-flex;align-items:center">'+labelHtml+'</button>';
   };
   h+='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">';
-  h+='<span style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-right:4px">Employment:</span>';
-  h+=pillBtn('All ('+rows.length+')','__ALL__',(_hrmsDasDdEt==='__ALL__'),"_hrmsDasDdSetEt('__ALL__')");
+  h+=pillBtn('All'+countBadge(rows.length,_allPal)+paBadges(totalP,totalA),'__ALL__',(_hrmsDasDdEt==='__ALL__'),"_hrmsDasDdSetEt('__ALL__')");
   etKeys.forEach(function(et){
     var etEsc=String(et).replace(/'/g,"\\'");
-    h+=pillBtn(_esc(et)+' ('+etCounts[et]+')',et,(_hrmsDasDdEt===et),"_hrmsDasDdSetEt('"+etEsc+"')");
+    var c=etCounts[et]||{total:0,p:0,a:0};
+    var pal=_etPalette[et]||_allPal;
+    h+=pillBtn(_esc(et)+countBadge(c.total||0,pal)+paBadges(c.p||0,c.a||0),et,(_hrmsDasDdEt===et),"_hrmsDasDdSetEt('"+etEsc+"')");
   });
-  h+='<span style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin:0 4px 0 14px">Status:</span>';
-  h+=pillBtn('All','__ALL__',(_hrmsDasDdStatus==='__ALL__'),"_hrmsDasDdSetStatus('__ALL__')");
-  h+=pillBtn('Present ('+totalP+')','P',(_hrmsDasDdStatus==='P'),"_hrmsDasDdSetStatus('P')");
-  h+=pillBtn('Absent ('+totalA+')','A',(_hrmsDasDdStatus==='A'),"_hrmsDasDdSetStatus('A')");
   h+='</div>';
   // Apply filters.
   var fRows=rows.filter(function(r){
@@ -11330,7 +11423,8 @@ function _hrmsDasDeptDetailsRender(){
   // this tab already scopes data to a single plant, so the plant tiles
   // were redundant.)
   // Table — bounded scroll wrapper so the header stays visible.
-  h+='<div style="flex:1;min-height:0;max-height:calc(100vh - 260px);overflow:auto;border:2px solid #94a3b8;border-radius:8px">';
+  // The `hrms-dd-table` class hooks the mobile card-mode override.
+  h+='<div class="hrms-dd-table" style="flex:1;min-height:0;max-height:calc(100vh - 260px);overflow:auto;border:2px solid #94a3b8;border-radius:8px">';
   h+='<table class="hrms-das-plant-tbl" style="width:100%;border-collapse:collapse;font-size:12px">';
   var thBg='linear-gradient(180deg,#f8fafc,#e2e8f0)';
   var thSt='padding:7px 8px;text-align:left;font-weight:800;color:#0f172a;background:'+thBg+';position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 #94a3b8';
@@ -11339,6 +11433,7 @@ function _hrmsDasDeptDetailsRender(){
     +'<th style="'+thSt+'">Emp Code</th>'
     +'<th style="'+thSt+'">Name</th>'
     +'<th style="'+thSt+'">Plant</th>'
+    +'<th style="'+thSt+'">Team</th>'
     +'<th style="'+thSt+'">Emp Type</th>'
     +'<th style="'+thSt+'">Role</th>'
     +'<th style="'+thSt+';text-align:center">Status</th>'
@@ -11346,7 +11441,7 @@ function _hrmsDasDeptDetailsRender(){
     +'<th style="'+thSt+';text-align:center">Out</th>'
     +'</tr></thead><tbody>';
   if(!fRows.length){
-    h+='<tr><td colspan="9" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
+    h+='<tr><td colspan="10" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
   } else {
     fRows.forEach(function(r,i){
       var statusBg=r.present?'#dcfce7':'#fee2e2';
@@ -11364,6 +11459,7 @@ function _hrmsDasDeptDetailsRender(){
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline">'+_esc(r.empCode)+'</a></td>'
         +'<td style="padding:5px 8px;font-weight:700">'+_esc(r.name||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:center">'+plChip+'</td>'
+        +'<td style="padding:5px 8px">'+_esc(r.team||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.et||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.roll||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:1px 10px;border-radius:10px;font-weight:800;font-size:11px">'+statusLbl+'</span></td>'
@@ -12985,19 +13081,28 @@ function _hrmsHydrateDeptPlants(){
   });
 }
 
-// ─── Department Head mapping (Worker departments) ───────────────────────
-// Stored in hrmsSettings.data (key 'deptHeads') as {deptId: userId}.
-// Same shape as the Contractor Supervisor map; avoids a schema change
-// on hrmsDepartments.
+// ─── Department Heads mapping (Worker departments) ──────────────────────
+// Stored in hrmsSettings.data (key 'deptHeads') as {deptId: userId | userId[]}.
+// Each dept supports up to 3 heads. Legacy scalar entries are read as
+// single-element arrays for back-compat; new writes use arrays.
+var _HRMS_DEPT_HEAD_MAX=3;
 function _hrmsGetDeptHeadMap(){
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptHeads';});
   return (rec&&rec.data)||{};
 }
-function _hrmsGetDeptHead(deptId){
+function _hrmsGetDeptHeadIds(deptId){
   var m=_hrmsGetDeptHeadMap();
-  return m[deptId]||'';
+  var v=m[deptId];
+  if(!v) return [];
+  if(Array.isArray(v)) return v.filter(Boolean).slice(0,_HRMS_DEPT_HEAD_MAX);
+  return [v];
 }
-async function _hrmsSetDeptHead(deptId,userId){
+// Back-compat scalar reader — returns the first assigned head id (or '').
+function _hrmsGetDeptHead(deptId){
+  var ids=_hrmsGetDeptHeadIds(deptId);
+  return ids[0]||'';
+}
+async function _hrmsSetDeptHeadIds(deptId,ids){
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptHeads';});
   if(!rec){
     rec={id:'hs_deptHeads',key:'deptHeads',data:{}};
@@ -13005,35 +13110,200 @@ async function _hrmsSetDeptHead(deptId,userId){
     DB.hrmsSettings.push(rec);
   }
   if(!rec.data) rec.data={};
-  if(userId) rec.data[deptId]=userId;
+  var clean=(ids||[]).filter(Boolean).slice(0,_HRMS_DEPT_HEAD_MAX);
+  if(clean.length) rec.data[deptId]=clean;
   else delete rec.data[deptId];
   showSpinner('Saving Department Head…');
   var ok=await _dbSave('hrmsSettings',rec);
   hideSpinner();
   return ok;
 }
-// Click handler — pick a user with the 'Department Head' HRMS role.
-// Mirrors _hrmsPickTeamSupervisor for parity.
-async function _hrmsPickDeptHead(deptId){
+// Back-compat scalar writer — accepts a single id (or '') and stores it
+// as a one-element array (or clears).
+async function _hrmsSetDeptHead(deptId,userId){
+  return await _hrmsSetDeptHeadIds(deptId,userId?[userId]:[]);
+}
+
+// Returns null for elevated users (Super Admin / HRMS Admin / HR
+// Manager) so they see the unrestricted view; returns an object with
+// the set of dept-ids and a derived plant-name set when the logged-in
+// user is a Department Head (and only that, no elevation). Used to
+// scope the Dept-wise MP Details tab to the user's mapped depts.
+function _hrmsDeptHeadScope(){
+  if(typeof CU==='undefined'||!CU) return null;
+  var roles=CU.hrmsRoles||[];
+  var isDH=roles.indexOf('Department Head')>=0;
+  var isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+                ||roles.indexOf('HRMS Admin')>=0||roles.indexOf('HR Manager')>=0;
+  if(!isDH||isElevated) return null;
+  var deptIds={},plants={};
+  try{
+    if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+    var map=(typeof _hrmsGetDeptHeadMap==='function')?_hrmsGetDeptHeadMap():{};
+    Object.keys(map||{}).forEach(function(did){
+      var v=map[did];
+      var hit=Array.isArray(v)?(v.indexOf(CU.id)>=0):(v===CU.id);
+      if(!hit) return;
+      var d=byId(DB.hrmsDepartments||[],did);
+      if(!d||d.inactive) return;
+      deptIds[did]=1;
+      var pl=(d.plant||'').trim();
+      if(pl) plants[pl]=1;
+    });
+  }catch(_){}
+  return {deptIds:deptIds,plants:plants};
+}
+
+// Resolve the HRMS plant name for a portal user. The user record's
+// `plant` field is a VMS location id (from Manage Users), which often
+// doesn't match the HRMS plant naming. We try:
+//   1. The linked HRMS employee's `location` (= HRMS plant name) —
+//      matched by explicit userId, then by name (fullName/name).
+//   2. The location.name from DB.locations (only if it matches an
+//      hrmsCompanies entry).
+//   3. The raw value as a last resort.
+function _hrmsPlantNameForUser(u){
+  if(!u) return '';
+  var emps=DB.hrmsEmployees||[];
+  // 1a. Direct user-id link.
+  var linked=emps.find(function(e){return e&&e.userId===u.id;});
+  // 1b. Match by full name / name (case-insensitive trim) — same loose
+  //     resolver pattern used elsewhere in HRMS.
+  if(!linked){
+    var nm=String(u.fullName||u.name||'').trim().toLowerCase();
+    if(nm){
+      linked=emps.find(function(e){
+        if(!e) return false;
+        var en=String(e.fullName||e.name||'').trim().toLowerCase();
+        return en&&en===nm;
+      });
+    }
+  }
+  if(linked){
+    var ap=(linked.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var loc=(((ap&&ap.location)||linked.location||'')+'').trim();
+    if(loc) return loc;
+  }
+  // 2. Location → name → match against hrmsCompanies.
+  var rawPl=String(u.plant||'').trim();
+  if(rawPl){
+    var locRec=byId(DB.locations||[],rawPl);
+    var locName=(locRec&&locRec.name)||rawPl;
+    if(locName){
+      var hit=(DB.hrmsCompanies||[]).find(function(c){return c&&c.name===locName;});
+      if(hit) return hit.name;
+      return locName;
+    }
+  }
+  return '';
+}
+
+// Chip handler — opens a small popover anchored to the clicked element
+// with checkboxes for every active 'Department Head' user. Up to
+// _HRMS_DEPT_HEAD_MAX selections allowed; Save persists, Cancel closes.
+function _hrmsPickDeptHead(deptId,ev){
   if(!deptId) return;
+  if(!_hrmsHasAccess('masters.edit')){notify('⚠ View-only access',true);return;}
   var dept=byId(DB.hrmsDepartments||[],deptId);
   if(!dept){notify('Department not found',true);return;}
   var users=(DB.users||[]).filter(function(u){return u&&!u.inactive&&(u.hrmsRoles||[]).indexOf('Department Head')>=0;}).slice();
   users.sort(function(a,b){return(a.fullName||a.name||'').localeCompare(b.fullName||b.name||'');});
   if(!users.length){notify('No active users with the Department Head role yet — assign the role first',true);return;}
-  var current=_hrmsGetDeptHead(deptId);
-  var menu=users.map(function(u,i){var nm=u.fullName||u.name||u.id;return (i+1)+'. '+nm+(u.id===current?' (current)':'');}).join('\n');
-  var ans=prompt('Assign Department Head for "'+(dept.name||'')+'"\n\n'+menu+'\n\nEnter row number (or 0 to clear):',current?'':'1');
-  if(ans==null) return;
-  var idx=parseInt(ans,10);
-  var newId='';
-  if(idx===0) newId='';
-  else if(idx>=1&&idx<=users.length) newId=users[idx-1].id;
-  else { notify('Invalid selection',true); return; }
-  var ok=await _hrmsSetDeptHead(deptId,newId);
-  if(!ok){notify('⚠ Save failed',true);return;}
-  notify(newId?'✓ Department Head assigned':'✓ Department Head cleared');
-  if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMDept');
+  if(ev&&typeof ev.stopPropagation==='function') ev.stopPropagation();
+  var anchor=ev&&(ev.currentTarget||ev.target);
+  var current=_hrmsGetDeptHeadIds(deptId);
+  var prior=document.getElementById('_hrmsDeptHeadPop');
+  if(prior) prior.remove();
+  var pop=document.createElement('div');
+  pop.id='_hrmsDeptHeadPop';
+  pop.style.cssText='position:absolute;z-index:10000;background:#fff;border:1.5px solid #94a3b8;border-radius:8px;box-shadow:0 14px 40px rgba(15,23,42,.22);width:280px;max-width:94vw;font-size:12px;overflow:hidden';
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var rowsHtml=users.map(function(u){
+    var nm=u.fullName||u.name||u.id;
+    var on=current.indexOf(u.id)>=0;
+    // Plant chip — resolve the user's HRMS plant via (in order):
+    //   1. Linked HRMS employee → emp.location (= HRMS plant name)
+    //   2. Location lookup by id → location.name (matched against
+    //      hrmsCompanies if possible)
+    //   3. Raw u.plant string
+    var plName=_hrmsPlantNameForUser(u);
+    var pClr=plName&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plName):'#e2e8f0';
+    var pSf=plName?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plName):plName.slice(0,3).toUpperCase()):'—';
+    var plantChip='<span title="'+_esc(plName||'No plant')+'" style="display:inline-block;background:'+pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 6px;border-radius:8px;font-family:var(--mono);font-weight:800;font-size:10px;letter-spacing:.3px;min-width:24px;text-align:center">'+_esc(pSf)+'</span>';
+    return '<label data-uid="'+_esc(u.id)+'" style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9">'
+      +'<input type="checkbox" class="_hrmsDhItem" value="'+_esc(u.id)+'"'+(on?' checked':'')+' style="width:15px;height:15px;cursor:pointer">'
+      +plantChip
+      +'<span style="font-weight:700;color:#0f172a;flex:1">'+_esc(nm)+'</span>'
+      +'</label>';
+  }).join('');
+  pop.innerHTML=''
+    +'<div style="padding:8px 10px;background:linear-gradient(180deg,#f8fafc,#e2e8f0);border-bottom:1px solid #cbd5e1">'
+    +'<div style="font-weight:900;font-size:13px;color:#0f172a">Assign Department Head</div>'
+    +'<div style="font-size:10px;color:#64748b;font-weight:700;margin-top:2px">'+_esc(dept.name||'')+(dept.plant?' · '+_esc(dept.plant):'')+' · max '+_HRMS_DEPT_HEAD_MAX+'</div>'
+    +'</div>'
+    +'<div id="_hrmsDhList" style="max-height:240px;overflow:auto">'+rowsHtml+'</div>'
+    +'<div id="_hrmsDhWarn" style="padding:0 10px;color:#b91c1c;font-size:11px;font-weight:700;min-height:0;display:none"></div>'
+    +'<div style="display:flex;gap:6px;justify-content:flex-end;padding:8px 10px;border-top:1px solid #e2e8f0;background:#f8fafc">'
+    +'<button type="button" data-act="cancel" style="padding:5px 10px;font-size:12px;font-weight:800;background:#fff;border:1.5px solid var(--border);color:#475569;border-radius:5px;cursor:pointer">Cancel</button>'
+    +'<button type="button" data-act="save" style="padding:5px 12px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">Save</button>'
+    +'</div>';
+  document.body.appendChild(pop);
+  // Anchor near the click. Default below; flip above if it would
+  // overflow; clamp horizontally.
+  var ax=8,ay=8;
+  if(anchor&&anchor.getBoundingClientRect){
+    var r=anchor.getBoundingClientRect();
+    var pw=pop.offsetWidth,ph=pop.offsetHeight;
+    var sx=window.scrollX||window.pageXOffset||0;
+    var sy=window.scrollY||window.pageYOffset||0;
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    var x=r.left+sx;
+    var y=r.bottom+sy+4;
+    if(r.bottom+ph+8>vh) y=r.top+sy-ph-4;
+    if(x+pw>vw+sx-8) x=vw+sx-pw-8;
+    if(x<sx+8) x=sx+8;
+    ax=x;ay=y;
+  }
+  pop.style.left=ax+'px';pop.style.top=ay+'px';
+  // Enforce the max-selection cap by disabling the unchecked items
+  // when the cap is hit. Re-evaluates on every change.
+  var enforce=function(){
+    var boxes=pop.querySelectorAll('._hrmsDhItem');
+    var on=0;boxes.forEach(function(b){if(b.checked) on++;});
+    var warn=document.getElementById('_hrmsDhWarn');
+    if(warn){
+      if(on>=_HRMS_DEPT_HEAD_MAX){warn.style.display='block';warn.textContent='Limit '+_HRMS_DEPT_HEAD_MAX+' reached — uncheck one to swap.';}
+      else warn.style.display='none';
+    }
+    boxes.forEach(function(b){
+      if(!b.checked) b.disabled=(on>=_HRMS_DEPT_HEAD_MAX);
+    });
+  };
+  pop.querySelectorAll('._hrmsDhItem').forEach(function(b){b.addEventListener('change',enforce);});
+  enforce();
+  var commit=async function(save){
+    document.removeEventListener('mousedown',outside,true);
+    document.removeEventListener('keydown',keyHandler,true);
+    if(save){
+      var picks=[];
+      pop.querySelectorAll('._hrmsDhItem').forEach(function(b){if(b.checked) picks.push(b.value);});
+      var ok=await _hrmsSetDeptHeadIds(deptId,picks);
+      if(!ok){notify('⚠ Save failed',true);return;}
+      notify(picks.length?'✓ '+picks.length+' Department Head'+(picks.length>1?'s':'')+' assigned':'✓ Department Heads cleared');
+      if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMDept');
+    }
+    var cur=document.getElementById('_hrmsDeptHeadPop');if(cur) cur.remove();
+  };
+  var outside=function(e){if(!pop.contains(e.target)) commit(false);};
+  var keyHandler=function(e){
+    if(e.key==='Escape'){e.preventDefault();commit(false);}
+    else if(e.key==='Enter'){e.preventDefault();commit(true);}
+  };
+  pop.querySelector('button[data-act="save"]').addEventListener('click',function(){commit(true);});
+  pop.querySelector('button[data-act="cancel"]').addEventListener('click',function(){commit(false);});
+  document.addEventListener('mousedown',outside,true);
+  document.addEventListener('keydown',keyHandler,true);
 }
 
 // Per-employee dept change — opens an inline modal anchored centre-of-

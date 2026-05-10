@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260510-V103">
+<meta name="app-build" content="260510-V128">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260510-V103">
+<link rel="stylesheet" href="css/hrms.css?v=260510-V128">
 </head>
 <body>
 
@@ -71,7 +71,7 @@
 
   <!-- DASHBOARD -->
   <div class="page active" id="pageHrmsDashboard">
-    <div class="card"><div style="font-size:18px;font-weight:900;margin-bottom:12px">📊 HRMS Dashboard</div>
+    <div class="card">
       <div id="hrmsDashContent"><div class="empty-state">Loading…</div></div>
     </div>
   </div>
@@ -181,8 +181,7 @@
       </div>
       <!-- Default attendance view -->
       <div id="hrmsMyAttPaneAtt" style="flex:1;display:flex;flex-direction:column;min-height:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div style="font-size:18px;font-weight:900">🗓 My Attendance</div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:8px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
               <span style="font-size:12px;font-weight:700;color:var(--text2)">Employee:</span>
@@ -205,7 +204,6 @@
            items they've already acted on). -->
       <div id="hrmsMyAttPaneAppr" style="display:none;flex:1;flex-direction:column;min-height:0">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <div style="font-size:18px;font-weight:900">✅ My Approvals</div>
           <div style="font-size:11px;color:var(--text3)">Approvals routed to you via the HR org-structure chain. Revoke is allowed only on unlocked months.</div>
           <div style="flex:1"></div>
           <span id="hrmsMyAttApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
@@ -222,11 +220,6 @@
   <!-- ORG STRUCTURE -->
   <div class="page" id="pageHrmsOrgStructure" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px">
-          🌳 HR Organisation Structure
-        </div>
-      </div>
       <div id="hrmsOrgSummary" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
       <div id="hrmsOrgBody" style="flex:1;min-height:0;overflow:auto"></div>
     </div>
@@ -235,8 +228,6 @@
   <!-- ATTENDANCE RULES -->
   <div class="page" id="pageHrmsAttRules">
     <div class="card">
-      <div style="font-size:18px;font-weight:900;margin-bottom:16px">📏 Attendance Rules</div>
-
       <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px">Day Types</div>
       <table style="width:auto;margin-bottom:20px"><thead><tr><th>Badge</th><th>Type</th><th>Description</th></tr></thead><tbody>
         <tr><td><span style="padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:#fef3c7;color:#b45309">W</span></td><td style="font-weight:700">Working Day</td><td>Regular working day. Standard shift = 8 hours.</td></tr>
@@ -335,8 +326,7 @@
   <!-- UTILITIES: Attendance Excel Converter -->
   <div class="page" id="pageHrmsUtilAttConv" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:18px;font-weight:900">📗 Attendance Excel Converter</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;gap:8px;align-items:center">
           <label class="btn btn-primary" style="font-size:13px;padding:8px 16px;cursor:pointer;margin:0">📥 Upload Excel<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsAttConvUpload(this)" style="display:none"></label>
           <button id="hrmsAttConvImpBtn" onclick="_hrmsAttConvImportToEssl()" style="display:none;padding:8px 16px;font-size:13px;font-weight:800;background:#2a9aa0;color:#fff;border:none;border-radius:6px;cursor:pointer">📥 Import / Update ESSL Data (Current Month)</button>
@@ -357,21 +347,18 @@
   <!-- UTILITIES: Daily Attendance Summary -->
   <div class="page" id="pageHrmsUtilDailyAtt" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
-      <!-- Page-level header — date selector lives here so it stays
-           visible regardless of which sub-tab is active. -->
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
-          <div style="font-size:18px;font-weight:900">📊 Daily Attendance Summary</div>
-          <div id="hrmsDasDateLabel" style="font-size:18px;font-weight:900;color:var(--accent);letter-spacing:.4px"></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px">
-            <span style="font-size:12px;font-weight:700;color:var(--text2)">📅 Date:</span>
-            <button onclick="_hrmsDasShiftHistDate(-1)" title="Previous day" style="padding:4px 10px;font-size:13px;font-weight:800;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;line-height:1">◀</button>
-            <input type="date" id="hrmsDasHistDate" onchange="_hrmsDasLoadFromHistory()" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;font-family:var(--sans)">
-            <button onclick="_hrmsDasShiftHistDate(1)" title="Next day" style="padding:4px 10px;font-size:13px;font-weight:800;background:#fff;border:1px solid var(--border);border-radius:5px;cursor:pointer;line-height:1">▶</button>
-          </span>
-        </div>
+      <!-- Page-level header — date selector is now the visual anchor.
+           The redundant date label was dropped (the selector itself
+           shows the active date), but the element stays as a hook for
+           the "no data" warning. -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">
+        <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:2px solid var(--accent);border-radius:10px;box-shadow:0 2px 6px rgba(67,56,202,.18)">
+          <span style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:.4px">📅 Date</span>
+          <button onclick="_hrmsDasShiftHistDate(-1)" title="Previous day" style="padding:6px 12px;font-size:16px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;cursor:pointer;line-height:1">◀</button>
+          <input type="date" id="hrmsDasHistDate" onchange="_hrmsDasLoadFromHistory()" style="font-size:16px;font-weight:800;padding:6px 10px;border:1.5px solid var(--accent);border-radius:6px;font-family:var(--sans);color:#0f172a;background:#fff">
+          <button onclick="_hrmsDasShiftHistDate(1)" title="Next day" style="padding:6px 12px;font-size:16px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;cursor:pointer;line-height:1">▶</button>
+        </span>
+        <div id="hrmsDasDateLabel" style="font-size:14px;font-weight:800;color:#dc2626;letter-spacing:.3px;text-align:center"></div>
       </div>
       <!-- Tab strip -->
       <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:nowrap;overflow-x:auto">
@@ -424,7 +411,6 @@
   <div class="page" id="pageHrmsUtilUpdateEmp" style="flex-direction:column">
     <div class="card" style="max-width:480px;margin:0 auto;width:100%;padding:16px;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <div style="font-size:20px;font-weight:900">✏️ Update Employee</div>
         <span id="hrmsUpdEmpTitlePlant" style="margin-left:auto;display:none"></span>
       </div>
       <!-- Employee picker — editable input with a CUSTOM dropdown list
@@ -1124,8 +1110,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260510-V103"></script>
-<script src="js/hrms-logic.js?v=260510-V103"></script>
-<script src="js/hrms-ui.js?v=260510-V103"></script>
+<script src="js/common.js?v=260510-V128"></script>
+<script src="js/hrms-logic.js?v=260510-V128"></script>
+<script src="js/hrms-ui.js?v=260510-V128"></script>
 </body>
 </html>
