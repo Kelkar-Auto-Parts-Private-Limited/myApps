@@ -106,6 +106,23 @@ function _hrmsLoadPermissions(){
 
 function _hrmsHasAccess(featureKey){
   if(_hrmsIsSA()) return true;
+  // Contractor Supervisor scoping: a user mapped as supervisor of at
+  // least one team is automatically granted Daily Attendance Summary
+  // access — they need it to view their team's Teamwise Data tab.
+  // Granted regardless of admin-configured perms (UI restricts them
+  // to their teams only inside the page).
+  if(featureKey==='page.utilDailyAttSum'&&CU){
+    var _csRoles=CU.hrmsRoles||[];
+    var _csIsContractorSup=_csRoles.indexOf('Contractor Supervisor')>=0;
+    var _csIsElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+                     ||_csRoles.indexOf('HRMS Admin')>=0||_csRoles.indexOf('HR Manager')>=0;
+    if(_csIsContractorSup&&!_csIsElevated){
+      try{
+        var _supMap=(typeof _hrmsGetTeamSupervisorMap==='function')?_hrmsGetTeamSupervisorMap():{};
+        for(var _tid in _supMap){if(_supMap[_tid]===CU.id) return true;}
+      }catch(_){}
+    }
+  }
   // If admin has saved ANY permissions for one of the user's HRMS roles,
   // those are AUTHORITATIVE — items admin didn't grant are hidden.
   // This matches VMS/HWMS/Security semantics.

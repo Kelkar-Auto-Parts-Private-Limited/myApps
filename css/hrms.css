@@ -25,6 +25,10 @@
 #pageHrmsEmployees #hrmsChangeReqContent{flex:1;min-height:0;overflow:auto}
 #pageHrmsUtilDailyAtt.active{display:flex!important;flex-direction:column;overflow:hidden}
 #pageHrmsUtilDailyAtt > .card{min-height:0}
+#pageHrmsMDept.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsMDept > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0;overflow:hidden}
+#pageHrmsMDept .table-wrap{flex:1;min-height:0;overflow:auto;max-height:none!important}
+#pageHrmsMDept thead th{position:sticky;top:0;z-index:3;background:#f1f5f9}
 #pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
 #pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
 /* Advances sub-tab — panel fills its parent and contains its own scroll
@@ -169,6 +173,10 @@ input.hrms-required,select.hrms-required,textarea.hrms-required{
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border:1.5px solid #475569;font-size:13px}
+/* Per-plant Allocation Comparison table — light slate hairlines as
+   the default cell border. Inline styles can override individual
+   sides for the dark header / footer / group dividers. */
+.hrms-das-plant-tbl th,.hrms-das-plant-tbl td{border:1px solid #e2e8f0}
 th{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;background:#f8fafc;position:sticky;top:0;z-index:1}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
 .badge-green{background:#dcfce7;color:#16a34a}.badge-red{background:#fee2e2;color:#dc2626}.badge-yellow{background:#fef3c7;color:#92400e}

@@ -350,6 +350,10 @@ function showPortal(){
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
+  // One-time housekeeping: backfill users.fullName from
+  // hrmsEmployees.empCode for legacy numeric usernames whose record
+  // pre-dates the modal's auto-fill. Idempotent + privilege-gated.
+  setTimeout(function(){try{_repairUsernamesFromHrms();}catch(_){}},1500);
   // Hook: refresh views when bgSync updates data
   _onRefreshViews = function(){
     try{
@@ -883,6 +887,47 @@ function openApp(id,file){
   });
 }
 
+// One-time repair: for every user whose `name` (username) is purely
+// numeric and matches an HRMS empCode, copy the employee's name into
+// `fullName`. Mirrors the modal's auto-fill behaviour for legacy
+// rows. Idempotent — when `fullName` already equals the emp's name,
+// nothing happens. Runs only for Super Admin / Admin since others
+// can't write to `users`.
+async function _repairUsernamesFromHrms(){
+  if(typeof CU==='undefined'||!CU) return 0;
+  if(!Array.isArray(DB.users)||!Array.isArray(DB.hrmsEmployees)) return 0;
+  if(!DB.hrmsEmployees.length) return 0;
+  var roles=CU.roles||[];
+  var canWrite=roles.indexOf('Super Admin')>=0||roles.indexOf('Admin')>=0;
+  if(!canWrite) return 0;
+  var empByCode={};
+  DB.hrmsEmployees.forEach(function(e){
+    if(e&&e.empCode) empByCode[String(e.empCode).trim()]=e;
+  });
+  var changed=[];
+  DB.users.forEach(function(u){
+    if(!u||!u.name) return;
+    var n=String(u.name).trim();
+    if(!/^\d+$/.test(n)) return;
+    var emp=empByCode[n];
+    if(!emp||!emp.name) return;
+    var newFull=String(emp.name).trim();
+    var curFull=String(u.fullName||'').trim();
+    if(newFull===curFull||!newFull) return;
+    u.fullName=newFull;
+    changed.push(u);
+  });
+  if(!changed.length) return 0;
+  if(typeof _dbSaveBulk==='function'){
+    try{
+      await _dbSaveBulk('users',changed,'Repairing user full names…');
+      if(typeof notify==='function') notify('🔧 Updated full name for '+changed.length+' user(s)');
+      if(typeof renderPortalUsers==='function') renderPortalUsers();
+    }catch(e){console.warn('Username repair failed:',e);}
+  }
+  return changed.length;
+}
+
 // ═══ USER MANAGEMENT (table, modal, save, delete, reset) ════════════════
 // Sort state for the users table — clicking a sortable header toggles
 // ASC ↔ DESC; clicking a different column resets to ASC.
@@ -972,14 +1017,145 @@ function renderPortalUsers(){
   }).join(''):'<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3)">No users found</td></tr>';
 }
 
+// When the username field is filled with a numeric value that matches
+// an HRMS empCode, auto-populate Full Name from the employee record
+// and auto-select the corresponding KAP location:
+//   Plant-1 / HO → KAP-1     Plant-2 → KAP-2     Plant-N → KAP-N
+// If the username later stops matching, only fields that we
+// auto-populated are reset (`data-mu-auto="1"`); anything the user
+// typed by hand is preserved. Manual edits to those fields drop the
+// flag so they're never overwritten back to blank.
+function _muAutoFillFromEmpCode(){
+  try{
+    var nameInp=document.getElementById('muName');
+    var fullInp=document.getElementById('muFull');
+    var locSel=document.getElementById('muLoc');
+    var note  =document.getElementById('muAutofillNote');
+    if(!nameInp) return;
+    var v=String(nameInp.value||'').trim();
+    var isNumeric=/^\d+$/.test(v);
+    // Numeric usernames are bound to HRMS empCodes — lock the auto-
+    // filled fields and surface a hint banner so the operator knows
+    // typing in them won't take effect. Non-numeric usernames flip
+    // back to free-text editing on both fields.
+    if(fullInp){fullInp.disabled=isNumeric;fullInp.style.background=isNumeric?'#f1f5f9':'';}
+    if(locSel){locSel.disabled=isNumeric;locSel.style.background=isNumeric?'#f1f5f9':'';}
+    if(note) note.style.display=isNumeric?'block':'none';
+    if(!v||!isNumeric) return;
+    // hrmsEmployees may not be loaded yet on a fresh portal boot —
+    // schedule a retry so the autofill kicks in once data arrives.
+    var emps=DB.hrmsEmployees||[];
+    if(!emps.length){
+      if(!window._muAutofillRetried){
+        window._muAutofillRetried=true;
+        setTimeout(function(){window._muAutofillRetried=false;_muAutoFillFromEmpCode();},1200);
+      }
+      return;
+    }
+    var emp=emps.find(function(e){return e&&String(e.empCode||'').trim()===v;});
+    if(emp){
+      var empName=String(emp.name||'').trim();
+      if(fullInp&&empName){
+        fullInp.value=empName;
+        fullInp.setAttribute('data-mu-auto','1');
+      }
+      var plant=String(emp.location||'').trim();
+      var kapName=null;
+      if(/^h\.?o\.?$|head\s*office/i.test(plant)) kapName='KAP-1';
+      else {
+        var m=plant.match(/plant\s*[-_ ]?\s*(\d+)/i);
+        if(m) kapName='KAP-'+m[1];
+      }
+      var loc=null;
+      if(kapName){
+        loc=(DB.locations||[]).find(function(l){
+          return l&&l.type==='KAP'&&!l.inactive&&String(l.name||'').toLowerCase()===kapName.toLowerCase();
+        });
+      }
+      if(locSel&&loc){
+        locSel.value=loc.id;
+        locSel.setAttribute('data-mu-auto','1');
+      }
+    } else {
+      // Numeric username but no matching empCode — clear any value we
+      // previously auto-populated so it's obvious the new username
+      // isn't bound to a known employee. Manual values (no auto flag)
+      // are preserved.
+      if(fullInp&&fullInp.getAttribute('data-mu-auto')==='1'){
+        fullInp.value='';
+        fullInp.removeAttribute('data-mu-auto');
+      }
+      if(locSel&&locSel.getAttribute('data-mu-auto')==='1'){
+        locSel.value='';
+        locSel.removeAttribute('data-mu-auto');
+      }
+    }
+  }catch(e){console.warn('muAutoFill error:',e);}
+}
+
+// User manually edited Full Name or Location after auto-fill — drop
+// the auto flag so subsequent username changes don't overwrite them.
+function _muClearAutoFlag(el){
+  if(el&&el.removeAttribute) el.removeAttribute('data-mu-auto');
+}
+
+// Keyboard shortcuts for the Add/Edit User modal:
+//   Esc   → cancel (close the modal)
+//   Enter → save, except inside a <textarea> (multiline editing)
+// Registered once at script load on the document so the shortcut
+// works regardless of whether focus is currently inside the modal
+// (it's gated by checking the modal's open state on every keydown).
+(function(){
+  if(typeof document==='undefined') return;
+  document.addEventListener('keydown',function(ev){
+    if(!ev) return;
+    var modal=document.getElementById('mUser');
+    if(!modal||!modal.classList.contains('open')) return;// only when open
+    if(ev.key==='Escape'){
+      ev.preventDefault();ev.stopPropagation();
+      if(typeof cm==='function') cm('mUser');
+      return;
+    }
+    if(ev.key==='Enter'){
+      var t=ev.target&&ev.target.tagName||'';
+      if(t==='TEXTAREA') return;
+      ev.preventDefault();ev.stopPropagation();
+      if(typeof puSaveUser==='function') puSaveUser();
+    }
+  });
+})();
+
 // ── User modal ──────────────────────────────────────────────────────────────
 function puOpenModal(id){
   const u=id?byId(DB.users,id):null;
   document.getElementById('muId').value=id||'';
   document.getElementById('muName').value=u?.name||'';
+  // Reset auto-fill flags — values shown for an existing user are
+  // their saved values, not auto-populated, so they must NOT clear
+  // when the username later changes.
+  document.getElementById('muFull')?.removeAttribute('data-mu-auto');
+  document.getElementById('muLoc')?.removeAttribute('data-mu-auto');
   // Password field removed — new users get _PORTAL_RESET_PWD automatically.
   document.getElementById('muFull').value=u?.fullName||'';
-  document.getElementById('muMobile').value=u?.mobile||'';
+  // Country-code dropdown — populated from the shared list. The saved
+  // mobile string is "+CC XXXX XX XXXX" (or just "XXXX XX XXXX" if
+  // legacy); split it apart so the dropdown holds the dial code and
+  // the input holds only digits.
+  const ccSel=document.getElementById('muMobileCode');
+  if(ccSel&&typeof _COUNTRY_CODES!=='undefined'){
+    ccSel.innerHTML=_COUNTRY_CODES.map(c=>`<option value="${c.d}" title="${c.n}">${c.d} ${c.c}</option>`).join('');
+  }
+  const rawMob=String(u?.mobile||'').trim();
+  let mCode='+91',mDigits='';
+  const mMatch=rawMob.match(/^(\+\d{1,4})\s*(.*)$/);
+  if(mMatch){mCode=mMatch[1];mDigits=mMatch[2].replace(/\D/g,'').slice(-10);}
+  else mDigits=rawMob.replace(/\D/g,'').slice(-10);
+  if(ccSel) ccSel.value=mCode||'+91';
+  const mInp=document.getElementById('muMobile');
+  if(mInp){mInp.value=mDigits;if(mDigits&&typeof _formatMobile10==='function') _formatMobile10(mInp);}
+  // Email — optional; existing legacy users may have it blank.
+  const eInp=document.getElementById('muEmail');
+  if(eInp) eInp.value=u?.email||'';
   document.getElementById('muTitle').textContent=id?'Edit User':'Add User';
   // Location dropdown
   const locs=(DB.locations||[]).filter(l=>l&&l.type==='KAP'&&!l.inactive).sort((a,b)=>a.name.localeCompare(b.name));
@@ -1016,6 +1192,16 @@ function puOpenModal(id){
   document.getElementById('muMttsRoles').style.display=ua.includes('maintenance')?'block':'none';
   document.getElementById('muInactive').checked=u?.inactive===true;
   om('mUser');
+  // Apply autofill / disabled state to Full Name + Location now that
+  // the username is set (covers numeric edit-mode users).
+  if(typeof _muAutoFillFromEmpCode==='function') _muAutoFillFromEmpCode();
+  // Focus the Username input so Enter saves on first keystroke / Esc
+  // cancels without an extra click. setTimeout ensures the modal's
+  // CSS transition has flushed before we focus.
+  setTimeout(function(){
+    var first=document.getElementById('muName');
+    if(first){try{first.focus();first.select&&first.select();}catch(_){}}
+  },50);
 }
 function puAppChange(cb){
   cb.closest('label').style.background=cb.checked?'rgba(42,154,160,.07)':'var(--surface2)';
@@ -1033,7 +1219,15 @@ async function puSaveUser(){
   const name=document.getElementById('muName').value.trim().toLowerCase().replace(/[\s!@#$%^&*()+=\[\]{};':"\\|,.<>\/?]/g,'');
   const plant=document.getElementById('muLoc').value;
   const fullName=document.getElementById('muFull').value.trim();
-  const mobile=document.getElementById('muMobile').value;
+  // Mobile: capture digits only and re-attach the country code from the
+  // dropdown so the saved value is "+CC XXXX XX XXXX".
+  const mobileDigits=String(document.getElementById('muMobile').value||'').replace(/\D/g,'').slice(0,10);
+  const mobileCode=String(document.getElementById('muMobileCode')?.value||'+91');
+  const mobile=mobileDigits?(mobileCode+' '+
+    (mobileDigits.length>6?mobileDigits.slice(0,4)+' '+mobileDigits.slice(4,6)+' '+mobileDigits.slice(6)
+     :mobileDigits.length>4?mobileDigits.slice(0,4)+' '+mobileDigits.slice(4):mobileDigits)
+  ):'';
+  const email=String(document.getElementById('muEmail')?.value||'').trim();
   const apps=[...document.querySelectorAll('.muAppCb:checked')].map(i=>i.value);
   const vmsRoles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
   // Platform roles only visible to Super Admin — for non-SA editors keep
@@ -1065,7 +1259,8 @@ async function puSaveUser(){
   if(apps.includes('hrms')&&!hrmsRoles.length){modalErr('mUser','Select at least one HRMS role');return}
   if(apps.includes('maintenance')&&!mttsRoles.length){modalErr('mUser','Select at least one MTTS role');return}
   if(roles.includes('KAP Security')&&roles.length>1){modalErr('mUser','KAP Security cannot combine with other roles');return}
-  if(mobile&&mobile.length!==10){modalErr('mUser','Mobile must be 10 digits');return}
+  if(mobileDigits&&mobileDigits.length!==10){modalErr('mUser','Mobile must be 10 digits');return}
+  if(email&&typeof _isValidEmailOrBlank==='function'&&!_isValidEmailOrBlank(email)){modalErr('mUser','Email format invalid');return}
   // Guard last Super Admin
   const eu=id?byId(DB.users,id):null;
   if(eu?.roles?.includes('Super Admin')&&!roles.includes('Super Admin')){
@@ -1077,12 +1272,12 @@ async function puSaveUser(){
   if(id){
     // Edit: never touch password from this form. Password changes go
     // through Reset (Super Admin 🔑 button) or self-service login flow.
-    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive});
+    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
   } else {
     // New user: always assign the default password. User must change it
     // on first login (forced via password-strength check).
-    const nu={id:'u'+uid(),name,plant,fullName,mobile,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive,photo:'',email:''};
+    const nu={id:'u'+uid(),name,plant,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive,photo:''};
     if(!await _dbSave('users',nu)) return;
     await _authSetPassword(nu.id,_PORTAL_RESET_PWD);
   }
@@ -1381,8 +1576,11 @@ function doLogout(){
 
 // ═══ BOOT / INITIALISATION ═══════════════════════════════════════════════
 async function _portalBoot(){
-  // Portal only needs users and locations — not VMS/HWMS/Security operational tables
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings'];
+  // Portal needs users + locations + hrmsSettings, plus hrmsEmployees so
+  // the Add/Edit User modal can auto-fill Full Name / Location from a
+  // numeric username matching an HRMS empCode. Photos are excluded
+  // from the boot select for this table (handled in bootDB).
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings','hrmsEmployees'];
   // Check session
   var su,sp2;
   try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_token'); }catch(e){}

@@ -1753,7 +1753,7 @@ const PLATFORM_ROLES=['Super Admin','Admin','Read Only'];
 // HRMS Admin / MTTS Admin) plus a Read Only.
 const ROLES=['VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Read Only'];
 const HWMS_ROLES=['HWMS Admin','Supplier','WH Admin','WH User','Buyer','Buyer Coordinator','Read Only'];
-const HRMS_ROLES=['HRMS Admin','HR Manager','Contractor Supervisor','Employee','Read Only'];
+const HRMS_ROLES=['HRMS Admin','HR Manager','Department Head','Contractor Supervisor','Employee','Read Only'];
 const MTTS_ROLES=['MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only'];
 
 // ═══ ROLE PERMISSIONS — shared runtime helpers ════════════════════════════
@@ -2550,6 +2550,93 @@ function _buildZipBlob(files,mimeType){
   ev.setUint16(10,cd.length,true);ev.setUint32(12,cdSz,true);ev.setUint32(16,off,true);ev.setUint16(20,0,true);
   return new Blob([...parts,...cd,eocd],{type:mimeType||'application/octet-stream'});
 }
+// ITU-T E.164 country dialling codes — shared across portal user
+// modal, HRMS Add/Edit Employee, and Update Employee. India (+91) is
+// the default; rest sorted alphabetically by country name.
+var _COUNTRY_CODES=[
+  {c:'IN',n:'India',d:'+91'},
+  {c:'AF',n:'Afghanistan',d:'+93'},{c:'AL',n:'Albania',d:'+355'},{c:'DZ',n:'Algeria',d:'+213'},
+  {c:'AD',n:'Andorra',d:'+376'},{c:'AO',n:'Angola',d:'+244'},{c:'AR',n:'Argentina',d:'+54'},
+  {c:'AM',n:'Armenia',d:'+374'},{c:'AU',n:'Australia',d:'+61'},{c:'AT',n:'Austria',d:'+43'},
+  {c:'AZ',n:'Azerbaijan',d:'+994'},{c:'BH',n:'Bahrain',d:'+973'},{c:'BD',n:'Bangladesh',d:'+880'},
+  {c:'BY',n:'Belarus',d:'+375'},{c:'BE',n:'Belgium',d:'+32'},{c:'BZ',n:'Belize',d:'+501'},
+  {c:'BJ',n:'Benin',d:'+229'},{c:'BT',n:'Bhutan',d:'+975'},{c:'BO',n:'Bolivia',d:'+591'},
+  {c:'BA',n:'Bosnia and Herzegovina',d:'+387'},{c:'BW',n:'Botswana',d:'+267'},
+  {c:'BR',n:'Brazil',d:'+55'},{c:'BN',n:'Brunei',d:'+673'},{c:'BG',n:'Bulgaria',d:'+359'},
+  {c:'BF',n:'Burkina Faso',d:'+226'},{c:'BI',n:'Burundi',d:'+257'},{c:'KH',n:'Cambodia',d:'+855'},
+  {c:'CM',n:'Cameroon',d:'+237'},{c:'CA',n:'Canada',d:'+1'},{c:'CV',n:'Cape Verde',d:'+238'},
+  {c:'CF',n:'Central African Republic',d:'+236'},{c:'TD',n:'Chad',d:'+235'},
+  {c:'CL',n:'Chile',d:'+56'},{c:'CN',n:'China',d:'+86'},{c:'CO',n:'Colombia',d:'+57'},
+  {c:'KM',n:'Comoros',d:'+269'},{c:'CG',n:'Congo',d:'+242'},{c:'CD',n:'Congo (DRC)',d:'+243'},
+  {c:'CR',n:'Costa Rica',d:'+506'},{c:'CI',n:'Côte d’Ivoire',d:'+225'},{c:'HR',n:'Croatia',d:'+385'},
+  {c:'CU',n:'Cuba',d:'+53'},{c:'CY',n:'Cyprus',d:'+357'},{c:'CZ',n:'Czechia',d:'+420'},
+  {c:'DK',n:'Denmark',d:'+45'},{c:'DJ',n:'Djibouti',d:'+253'},{c:'DO',n:'Dominican Republic',d:'+1'},
+  {c:'EC',n:'Ecuador',d:'+593'},{c:'EG',n:'Egypt',d:'+20'},{c:'SV',n:'El Salvador',d:'+503'},
+  {c:'GQ',n:'Equatorial Guinea',d:'+240'},{c:'ER',n:'Eritrea',d:'+291'},{c:'EE',n:'Estonia',d:'+372'},
+  {c:'SZ',n:'Eswatini',d:'+268'},{c:'ET',n:'Ethiopia',d:'+251'},{c:'FJ',n:'Fiji',d:'+679'},
+  {c:'FI',n:'Finland',d:'+358'},{c:'FR',n:'France',d:'+33'},{c:'GA',n:'Gabon',d:'+241'},
+  {c:'GM',n:'Gambia',d:'+220'},{c:'GE',n:'Georgia',d:'+995'},{c:'DE',n:'Germany',d:'+49'},
+  {c:'GH',n:'Ghana',d:'+233'},{c:'GR',n:'Greece',d:'+30'},{c:'GT',n:'Guatemala',d:'+502'},
+  {c:'GN',n:'Guinea',d:'+224'},{c:'GW',n:'Guinea-Bissau',d:'+245'},{c:'GY',n:'Guyana',d:'+592'},
+  {c:'HT',n:'Haiti',d:'+509'},{c:'HN',n:'Honduras',d:'+504'},{c:'HK',n:'Hong Kong',d:'+852'},
+  {c:'HU',n:'Hungary',d:'+36'},{c:'IS',n:'Iceland',d:'+354'},{c:'ID',n:'Indonesia',d:'+62'},
+  {c:'IR',n:'Iran',d:'+98'},{c:'IQ',n:'Iraq',d:'+964'},{c:'IE',n:'Ireland',d:'+353'},
+  {c:'IL',n:'Israel',d:'+972'},{c:'IT',n:'Italy',d:'+39'},{c:'JM',n:'Jamaica',d:'+1'},
+  {c:'JP',n:'Japan',d:'+81'},{c:'JO',n:'Jordan',d:'+962'},{c:'KZ',n:'Kazakhstan',d:'+7'},
+  {c:'KE',n:'Kenya',d:'+254'},{c:'KW',n:'Kuwait',d:'+965'},{c:'KG',n:'Kyrgyzstan',d:'+996'},
+  {c:'LA',n:'Laos',d:'+856'},{c:'LV',n:'Latvia',d:'+371'},{c:'LB',n:'Lebanon',d:'+961'},
+  {c:'LS',n:'Lesotho',d:'+266'},{c:'LR',n:'Liberia',d:'+231'},{c:'LY',n:'Libya',d:'+218'},
+  {c:'LI',n:'Liechtenstein',d:'+423'},{c:'LT',n:'Lithuania',d:'+370'},{c:'LU',n:'Luxembourg',d:'+352'},
+  {c:'MO',n:'Macao',d:'+853'},{c:'MG',n:'Madagascar',d:'+261'},{c:'MW',n:'Malawi',d:'+265'},
+  {c:'MY',n:'Malaysia',d:'+60'},{c:'MV',n:'Maldives',d:'+960'},{c:'ML',n:'Mali',d:'+223'},
+  {c:'MT',n:'Malta',d:'+356'},{c:'MR',n:'Mauritania',d:'+222'},{c:'MU',n:'Mauritius',d:'+230'},
+  {c:'MX',n:'Mexico',d:'+52'},{c:'MD',n:'Moldova',d:'+373'},{c:'MC',n:'Monaco',d:'+377'},
+  {c:'MN',n:'Mongolia',d:'+976'},{c:'ME',n:'Montenegro',d:'+382'},{c:'MA',n:'Morocco',d:'+212'},
+  {c:'MZ',n:'Mozambique',d:'+258'},{c:'MM',n:'Myanmar',d:'+95'},{c:'NA',n:'Namibia',d:'+264'},
+  {c:'NP',n:'Nepal',d:'+977'},{c:'NL',n:'Netherlands',d:'+31'},{c:'NZ',n:'New Zealand',d:'+64'},
+  {c:'NI',n:'Nicaragua',d:'+505'},{c:'NE',n:'Niger',d:'+227'},{c:'NG',n:'Nigeria',d:'+234'},
+  {c:'KP',n:'North Korea',d:'+850'},{c:'MK',n:'North Macedonia',d:'+389'},{c:'NO',n:'Norway',d:'+47'},
+  {c:'OM',n:'Oman',d:'+968'},{c:'PK',n:'Pakistan',d:'+92'},{c:'PS',n:'Palestine',d:'+970'},
+  {c:'PA',n:'Panama',d:'+507'},{c:'PG',n:'Papua New Guinea',d:'+675'},{c:'PY',n:'Paraguay',d:'+595'},
+  {c:'PE',n:'Peru',d:'+51'},{c:'PH',n:'Philippines',d:'+63'},{c:'PL',n:'Poland',d:'+48'},
+  {c:'PT',n:'Portugal',d:'+351'},{c:'QA',n:'Qatar',d:'+974'},{c:'RO',n:'Romania',d:'+40'},
+  {c:'RU',n:'Russia',d:'+7'},{c:'RW',n:'Rwanda',d:'+250'},{c:'SA',n:'Saudi Arabia',d:'+966'},
+  {c:'SN',n:'Senegal',d:'+221'},{c:'RS',n:'Serbia',d:'+381'},{c:'SC',n:'Seychelles',d:'+248'},
+  {c:'SL',n:'Sierra Leone',d:'+232'},{c:'SG',n:'Singapore',d:'+65'},{c:'SK',n:'Slovakia',d:'+421'},
+  {c:'SI',n:'Slovenia',d:'+386'},{c:'SO',n:'Somalia',d:'+252'},{c:'ZA',n:'South Africa',d:'+27'},
+  {c:'KR',n:'South Korea',d:'+82'},{c:'SS',n:'South Sudan',d:'+211'},{c:'ES',n:'Spain',d:'+34'},
+  {c:'LK',n:'Sri Lanka',d:'+94'},{c:'SD',n:'Sudan',d:'+249'},{c:'SR',n:'Suriname',d:'+597'},
+  {c:'SE',n:'Sweden',d:'+46'},{c:'CH',n:'Switzerland',d:'+41'},{c:'SY',n:'Syria',d:'+963'},
+  {c:'TW',n:'Taiwan',d:'+886'},{c:'TJ',n:'Tajikistan',d:'+992'},{c:'TZ',n:'Tanzania',d:'+255'},
+  {c:'TH',n:'Thailand',d:'+66'},{c:'TL',n:'Timor-Leste',d:'+670'},{c:'TG',n:'Togo',d:'+228'},
+  {c:'TT',n:'Trinidad and Tobago',d:'+1'},{c:'TN',n:'Tunisia',d:'+216'},{c:'TR',n:'Türkiye',d:'+90'},
+  {c:'TM',n:'Turkmenistan',d:'+993'},{c:'UG',n:'Uganda',d:'+256'},{c:'UA',n:'Ukraine',d:'+380'},
+  {c:'AE',n:'United Arab Emirates',d:'+971'},{c:'GB',n:'United Kingdom',d:'+44'},
+  {c:'US',n:'United States',d:'+1'},{c:'UY',n:'Uruguay',d:'+598'},{c:'UZ',n:'Uzbekistan',d:'+998'},
+  {c:'VE',n:'Venezuela',d:'+58'},{c:'VN',n:'Vietnam',d:'+84'},{c:'YE',n:'Yemen',d:'+967'},
+  {c:'ZM',n:'Zambia',d:'+260'},{c:'ZW',n:'Zimbabwe',d:'+263'}
+];
+
+// Format raw mobile digits as "XXXX XX XXXX" (10 digits, 4-2-4 split).
+// Strips non-digits, caps at 10, inserts spaces.
+function _formatMobile10(inp){
+  if(!inp) return;
+  var raw=String(inp.value||'').replace(/\D/g,'').slice(0,10);
+  var out=raw;
+  if(raw.length>4&&raw.length<=6) out=raw.slice(0,4)+' '+raw.slice(4);
+  else if(raw.length>6) out=raw.slice(0,4)+' '+raw.slice(4,6)+' '+raw.slice(6);
+  inp.value=out;
+}
+
+// Basic email format check — `name@host.tld`. Returns true for blank
+// input so callers can mark email as optional and validate only when
+// the user has typed something.
+function _isValidEmailOrBlank(s){
+  s=String(s||'').trim();
+  if(!s) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 function _downloadAsXlsx(data,sheetName,filename){
   const ex=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   // Build shared string table for text cells
