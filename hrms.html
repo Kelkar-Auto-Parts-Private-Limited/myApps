@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260511-V12">
+<meta name="app-build" content="260511-V42">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260511-V12">
+<link rel="stylesheet" href="css/hrms.css?v=260511-V42">
 </head>
 <body>
 
@@ -985,6 +985,42 @@
   </div>
 </div></div>
 
+<div class="modal-overlay" id="mHrmsRoleGroupForm"><div class="modal" style="max-width:520px">
+  <div class="modal-header"><div class="modal-title" id="hrmsRoleGroupFormTitle">📋 Add Role Group</div><div class="modal-close" onclick="cm('mHrmsRoleGroupForm')">×</div></div>
+  <input type="hidden" id="hrmsRoleGroupFormId">
+  <div class="form-group">
+    <label>Group Name <span style="color:#dc2626">*</span></label>
+    <input type="text" id="hrmsRoleGroupFormName" placeholder="e.g. Welder" autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label>Member Roles <span style="color:var(--text3);font-weight:600;font-size:11px">(tick the roles that belong to this group — catch-all groups auto-collect everything else)</span></label>
+    <div id="hrmsRoleGroupFormRolesBox" style="max-height:280px;overflow:auto;border:1.5px solid var(--border);border-radius:6px;padding:6px"></div>
+  </div>
+  <div class="modal-error" id="hrmsRoleGroupFormErr"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-secondary" onclick="cm('mHrmsRoleGroupForm')">Cancel</button>
+    <button class="btn btn-primary" onclick="_hrmsRoleGroupFormSave()">Save</button>
+  </div>
+</div></div>
+
+<div class="modal-overlay" id="mHrmsRoleForm"><div class="modal" style="max-width:460px">
+  <div class="modal-header"><div class="modal-title" id="hrmsRoleFormTitle">🎖 Add Role</div><div class="modal-close" onclick="cm('mHrmsRoleForm')">×</div></div>
+  <input type="hidden" id="hrmsRoleFormOldCode">
+  <div class="form-group">
+    <label>Role Code <span style="color:#dc2626">*</span> <span style="color:var(--text3);font-weight:600;font-size:11px">(short identifier — e.g. WELDER)</span></label>
+    <input type="text" id="hrmsRoleFormCode" placeholder="e.g. WELDER" autocomplete="off" style="text-transform:uppercase">
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <input type="text" id="hrmsRoleFormDesc" placeholder="e.g. Welding operator" autocomplete="off">
+  </div>
+  <div class="modal-error" id="hrmsRoleFormErr"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-secondary" onclick="cm('mHrmsRoleForm')">Cancel</button>
+    <button class="btn btn-primary" onclick="_hrmsRoleFormSave()">Save</button>
+  </div>
+</div></div>
+
 <div class="modal-overlay" id="mOrgEdit"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title">🌳 Edit Reporting</div><div class="modal-close" onclick="cm('mOrgEdit')">×</div></div>
   <input type="hidden" id="orgEditEmpId">
@@ -1110,8 +1146,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260511-V12"></script>
-<script src="js/hrms-logic.js?v=260511-V12"></script>
-<script src="js/hrms-ui.js?v=260511-V12"></script>
+<script src="js/common.js?v=260511-V42"></script>
+<script src="js/hrms-logic.js?v=260511-V42"></script>
+<script src="js/hrms-ui.js?v=260511-V42"></script>
 </body>
 </html>
