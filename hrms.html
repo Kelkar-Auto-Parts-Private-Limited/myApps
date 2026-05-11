@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260510-V128">
+<meta name="app-build" content="260511-V12">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260510-V128">
+<link rel="stylesheet" href="css/hrms.css?v=260511-V12">
 </head>
 <body>
 
@@ -352,11 +352,11 @@
            shows the active date), but the element stays as a hook for
            the "no data" warning. -->
       <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">
-        <span style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:2px solid var(--accent);border-radius:10px;box-shadow:0 2px 6px rgba(67,56,202,.18)">
-          <span style="font-size:14px;font-weight:900;color:var(--accent);letter-spacing:.4px">📅 Date</span>
-          <button onclick="_hrmsDasShiftHistDate(-1)" title="Previous day" style="padding:6px 12px;font-size:16px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;cursor:pointer;line-height:1">◀</button>
-          <input type="date" id="hrmsDasHistDate" onchange="_hrmsDasLoadFromHistory()" style="font-size:16px;font-weight:800;padding:6px 10px;border:1.5px solid var(--accent);border-radius:6px;font-family:var(--sans);color:#0f172a;background:#fff">
-          <button onclick="_hrmsDasShiftHistDate(1)" title="Next day" style="padding:6px 12px;font-size:16px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:6px;cursor:pointer;line-height:1">▶</button>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 6px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 1px 3px rgba(67,56,202,.18)">
+          <span style="font-size:11px;font-weight:900;color:var(--accent);letter-spacing:.2px">📅</span>
+          <button onclick="_hrmsDasShiftHistDate(-1)" title="Previous day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>
+          <input type="date" id="hrmsDasHistDate" onchange="_hrmsDasLoadFromHistory()" style="font-size:11px;font-weight:800;padding:3px 5px;border:1px solid var(--accent);border-radius:4px;font-family:var(--sans);color:#0f172a;background:#fff">
+          <button onclick="_hrmsDasShiftHistDate(1)" title="Next day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">▶</button>
         </span>
         <div id="hrmsDasDateLabel" style="font-size:14px;font-weight:800;color:#dc2626;letter-spacing:.3px;text-align:center"></div>
       </div>
@@ -365,7 +365,7 @@
         <div id="hrmsDasTabBtn_manpower" onclick="_hrmsDasSetTab('manpower')" style="padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);background:var(--accent-light);white-space:nowrap">👷 Dept-wise MP Alloc Status</div>
         <div id="hrmsDasTabBtn_deptdetails" onclick="_hrmsDasSetTab('deptdetails')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">📋 Dept-wise MP Details</div>
         <div id="hrmsDasTabBtn_teamwise" onclick="_hrmsDasSetTab('teamwise')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">👥 Team-wise Attendance Record</div>
-        <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">📋 Role Grouping</div>
+        <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">📋 Role Group Setting</div>
         <div id="hrmsDasTabBtn_alloc" onclick="_hrmsDasSetTab('alloc')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">🎯 MP Alloc Setting</div>
       </div>
 
@@ -1110,8 +1110,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260510-V128"></script>
-<script src="js/hrms-logic.js?v=260510-V128"></script>
-<script src="js/hrms-ui.js?v=260510-V128"></script>
+<script src="js/common.js?v=260511-V12"></script>
+<script src="js/hrms-logic.js?v=260511-V12"></script>
+<script src="js/hrms-ui.js?v=260511-V12"></script>
 </body>
 </html>

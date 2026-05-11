@@ -111,36 +111,9 @@ function _hrmsLaunch(){
   if(_isDeptHead&&!_isElevated&&_hrmsHasAccess('page.utilDailyAttSum')){
     hrmsGo('pageHrmsUtilDailyAtt');return;
   }
-  // ── TESTING OVERRIDE — land on Daily Attendance Summary's
-  // Dept-wise MP Details tab with date 2026-05-07 and the plant whose
-  // short-form is "P2" pre-selected. Department picking remains a
-  // user step. Remove once done.
-  if(typeof _hrmsHasAccess!=='function'||_hrmsHasAccess('page.utilDailyAttSum')){
-    hrmsGo('pageHrmsUtilDailyAtt');
-    setTimeout(function(){
-      var di=document.getElementById('hrmsDasHistDate');
-      if(di) di.value='2026-05-07';
-      // Pick the plant whose short-form (Plant-1 → P1, etc.) is "P2"
-      // and the "Fabrication JCB" department within that plant if it
-      // exists, so the table loads ready to inspect on refresh.
-      try{
-        if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
-        var p2=(DB.hrmsCompanies||[]).find(function(c){
-          if(!c||c.inactive) return false;
-          var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(c.name||''):'';
-          return sf==='P2';
-        });
-        if(p2){
-          _hrmsDasDdPlant=p2.name;
-          var dh=(DB.hrmsDepartments||[]).find(function(d){
-            return d&&!d.inactive&&(d.plant||'')===p2.name&&(d.name||'').toLowerCase()==='fabrication jcb';
-          });
-          _hrmsDasDdDept=dh?dh.name:null;
-        }
-      }catch(_){}
-      if(typeof _hrmsDasSetTab==='function') _hrmsDasSetTab('deptdetails');
-      if(typeof _hrmsDasLoadFromHistory==='function') _hrmsDasLoadFromHistory();
-    },200);
+  // Default landing for everyone else — HRMS Dashboard.
+  if(typeof _hrmsHasAccess!=='function'||_hrmsHasAccess('page.dashboard')){
+    hrmsGo('pageHrmsDashboard');
     return;
   }
   // Navigate to first allowed page — every HRMS page is a candidate so a
@@ -2331,14 +2304,16 @@ function _hrmsBuildPeriodTableForNewEmp(){
   cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'teamName\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.team(p.teamName||'',p.employmentType||''):'<option value="">--</option>')+'</select></td>';
   // 11. Department (Worker → hrmsDepartments / Staff → hrmsSubDepartments)
   cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\''+deptField+'\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.sel(deptTbl,deptVal||'',p.location||''):'<option value="">--</option>')+'</select></td>';
-  // 12. Role
-  cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'roll\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.roll(p.roll||''):'<option value="">--</option>')+'</select></td>';
+  // 12. Role — Worker-only field; disabled (and shown blank) for Staff.
+  var disRole=canEdit?(isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':''):'disabled style="opacity:0.6;background:#f1f5f9"';
+  cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'roll\',this.value)" '+disRole+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(isStaff?'<option value="">--</option>':(opts?opts.roll(p.roll||''):'<option value="">--</option>'))+'</select></td>';
   // 13. Sal/Day
   cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(p.salaryDay||'')+'" step="5" min="0" onchange="_hrmsSnapSalary(this,5);_hrmsNewEmpPeriodSet(\'salaryDay\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disDay+'></td>';
   // 14. Sal/Mon
   cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(p.salaryMonth||'')+'" step="50" min="0" onchange="_hrmsSnapSalary(this,50);_hrmsNewEmpPeriodSet(\'salaryMonth\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disMon+'></td>';
-  // 15. Sp.Allow
-  cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(p.specialAllowance||'')+'" step="50" min="0" onchange="_hrmsNewEmpPeriodSet(\'specialAllowance\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right"></td>';
+  // 15. Sp.Allow — Staff-only; disabled for Worker.
+  var disSpa=canEdit?(isWorker?'disabled style="opacity:0.4;background:#f1f5f9"':''):'disabled style="opacity:0.6;background:#f1f5f9"';
+  cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(isWorker?'':(p.specialAllowance||''))+'" step="50" min="0" onchange="_hrmsNewEmpPeriodSet(\'specialAllowance\',this.value)" '+disSpa+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right"></td>';
   // 16. ESI
   cells+='<td style="padding:4px 3px;text-align:center"><select onchange="_hrmsNewEmpPeriodSet(\'esiApplicable\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;font-weight:700"><option value="Yes"'+((p.esiApplicable||'Yes')==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(p.esiApplicable==='No'?' selected':'')+'>No</option></select></td>';
   // 17. Remarks
@@ -2978,12 +2953,16 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'category\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsCategories',v.category||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'teamName\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.team(v.teamName||'',v.employmentType||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\''+deptField+'\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel(deptTbl,deptVal||'',v.location||'')+'</select></td>';
-      cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'roll\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.roll(v.roll||'')+'</select></td>';
+      // Role — Worker-only field; disabled for Staff and shown blank.
+      var disRoleM=isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':'';
+      cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'roll\',this.value)" '+disRoleM+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(isStaff?'<option value="">--</option>':opts.roll(v.roll||''))+'</select></td>';
       var disDay=isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':'';
       var disMon=isWorker?'disabled style="opacity:0.4;background:#f1f5f9"':'';
-      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(v.salaryDay||'')+'" step="5" min="0" onchange="_hrmsSnapSalary(this,5);_hrmsMonthDraftSet(\'salaryDay\',parseFloat(this.value)||0)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disDay+'></td>';
-      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(v.salaryMonth||'')+'" step="50" min="0" onchange="_hrmsSnapSalary(this,50);_hrmsMonthDraftSet(\'salaryMonth\',parseFloat(this.value)||0)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disMon+'></td>';
-      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(v.specialAllowance||'')+'" step="50" min="0" onchange="_hrmsMonthDraftSet(\'specialAllowance\',parseFloat(this.value)||0)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right"></td>';
+      // Sp.Allow — Staff-only; disabled for Worker.
+      var disSpaM=isWorker?'disabled style="opacity:0.4;background:#f1f5f9"':'';
+      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(isStaff?'':(v.salaryDay||''))+'" step="5" min="0" onchange="_hrmsSnapSalary(this,5);_hrmsMonthDraftSet(\'salaryDay\',parseFloat(this.value)||0)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disDay+'></td>';
+      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(isWorker?'':(v.salaryMonth||''))+'" step="50" min="0" onchange="_hrmsSnapSalary(this,50);_hrmsMonthDraftSet(\'salaryMonth\',parseFloat(this.value)||0)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right" '+disMon+'></td>';
+      cells+='<td style="padding:4px 3px"><input type="number" class="no-spin" value="'+(isWorker?'':(v.specialAllowance||''))+'" step="50" min="0" onchange="_hrmsMonthDraftSet(\'specialAllowance\',parseFloat(this.value)||0)" '+disSpaM+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;text-align:right"></td>';
       cells+='<td style="padding:4px 3px;text-align:center"><select onchange="_hrmsMonthDraftSet(\'esiApplicable\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%;font-weight:700"><option value="Yes"'+((v.esiApplicable||'Yes')==='Yes'?' selected':'')+'>Yes</option><option value="No"'+(v.esiApplicable==='No'?' selected':'')+'>No</option></select></td>';
       cells+='<td style="padding:4px 3px"><input type="text" value="'+_hrmsEsc(v.remarks||'')+'" placeholder="Reason for change…" onchange="_hrmsMonthDraftSet(\'remarks\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%"></td>';
       // Action cell — page-level Save / Cancel control this row now,
@@ -3143,10 +3122,38 @@ function _hrmsMonthEditCancel(){
 function _hrmsMonthDraftSet(field,value){
   if(!_hrmsMonthEditDraft) return;
   _hrmsMonthEditDraft[field]=value;
+  // Cascade: when plant changes, the dept list must re-filter and the
+  // current dept value may no longer belong to the new plant — clear
+  // it so the user picks again. When category changes, switch between
+  // Worker / Staff dept fields (the dropdown switches masters).
+  if(field==='location'){
+    // Only Worker depts are plant-specific; Staff sub-depts aren't.
+    _hrmsMonthEditDraft.department='';
+  } else if(field==='category'){
+    var cat=String(value||'').toLowerCase();
+    if(cat.indexOf('staff')>=0){
+      _hrmsMonthEditDraft.department='';
+      // Worker-only fields cleared when switching to Staff.
+      _hrmsMonthEditDraft.salaryDay=0;
+      _hrmsMonthEditDraft.roll='';
+    } else {
+      _hrmsMonthEditDraft.subDepartment='';
+      // Staff-only fields cleared when switching to Worker.
+      _hrmsMonthEditDraft.salaryMonth=0;
+      _hrmsMonthEditDraft.specialAllowance=0;
+    }
+  } else if(field==='employmentType'){
+    _hrmsMonthEditDraft.teamName='';
+  }
   // Org & Sal first-row edits feed the SAME page-level dirty flag the
   // Details fields use, so the header Save / Reset enable the moment
   // anything in the row changes.
   if(typeof _hrmsDetailsSetDirty==='function') _hrmsDetailsSetDirty(true);
+  // Re-render the row so the plant cell colour, dept dropdown filter,
+  // and any other dependent cells reflect the new value immediately.
+  if(field==='location'||field==='category'||field==='employmentType'){
+    if(typeof _hrmsBuildMonthTable==='function') _hrmsBuildMonthTable();
+  }
 }
 
 async function _hrmsMonthEditSave(){
@@ -3293,9 +3300,17 @@ function _hrmsPeriodFieldChange(idx,field,value){
     if(cat.indexOf('worker')>=0){
       _hrmsEmpPeriods[idx].esiApplicable='Yes';
       _hrmsEmpPeriods[idx].subDepartment='';
+      // Sal/Mon + Sp.Allow only apply to Staff — zero them out so the
+      // old Staff values don't carry over silently into a Worker row.
+      _hrmsEmpPeriods[idx].salaryMonth=0;
+      _hrmsEmpPeriods[idx].specialAllowance=0;
     } else if(cat.indexOf('staff')>=0){
       _hrmsEmpPeriods[idx].esiApplicable='No';
       _hrmsEmpPeriods[idx].department='';
+      // Sal/Day + Role only apply to Workers — clear them so old
+      // Worker values don't ride into a Staff row.
+      _hrmsEmpPeriods[idx].salaryDay=0;
+      _hrmsEmpPeriods[idx].roll='';
     }
   }
   // Clear team when employment type changes — teams are bucketed by emp type
@@ -3303,6 +3318,13 @@ function _hrmsPeriodFieldChange(idx,field,value){
   if(field==='employmentType'){
     _hrmsEmpPeriods[idx].teamName='';
     if(typeof _hrmsUpdateTitle==='function') _hrmsUpdateTitle();// label remap
+  }
+  // Clear Worker dept when plant (location) changes — Worker depts
+  // are plant-specific so the previous dept may not exist for the new
+  // plant. Staff dept (subDepartment) is NOT plant-bound and stays
+  // intact. Re-render is handled by the dropdown's inline onchange.
+  if(field==='location'){
+    _hrmsEmpPeriods[idx].department='';
   }
   // Status lives in the modal header now — refresh it live on every change.
   if(field==='status'&&typeof _hrmsUpdateTitle==='function') _hrmsUpdateTitle();
@@ -10592,15 +10614,23 @@ function _hrmsDasTwRender(){
   h+='<div style="display:flex;gap:0;flex-wrap:nowrap;overflow-x:auto;flex:1">';
   // Leading "All Teams" tab — captures every team for the active emp
   // type (or every team when emp type is also "All"). Total = sum of
-  // teamCounts for the visible team keys.
-  var _allTmCount=teamKeys.reduce(function(n,tm){return n+(teamCounts[tm]||0);},0);
-  var allTmOn=(_hrmsDasTwTeam==='__ALL__');
-  h+='<div onclick="_hrmsDasTwSetTeam(\'__ALL__\')" '
-    +'style="padding:7px 14px;font-size:12px;font-weight:'+(allTmOn?'800':'700')+';cursor:pointer;'
-    +'border-bottom:3px solid '+(allTmOn?'var(--accent)':'transparent')+';'
-    +'color:'+(allTmOn?'var(--accent)':'var(--text3)')+';'
-    +'background:'+(allTmOn?'var(--accent-light)':'transparent')+';white-space:nowrap">'
-    +'All Teams <span style="font-weight:600;font-size:11px;opacity:.8">('+_allTmCount+')</span></div>';
+  // teamCounts for the visible team keys. Hidden for Contractor
+  // Supervisors (their scope is a single team — "All Teams" would let
+  // them peek across teams they aren't mapped to).
+  if(!supScope){
+    var _allTmCount=teamKeys.reduce(function(n,tm){return n+(teamCounts[tm]||0);},0);
+    var allTmOn=(_hrmsDasTwTeam==='__ALL__');
+    h+='<div onclick="_hrmsDasTwSetTeam(\'__ALL__\')" '
+      +'style="padding:7px 14px;font-size:12px;font-weight:'+(allTmOn?'800':'700')+';cursor:pointer;'
+      +'border-bottom:3px solid '+(allTmOn?'var(--accent)':'transparent')+';'
+      +'color:'+(allTmOn?'var(--accent)':'var(--text3)')+';'
+      +'background:'+(allTmOn?'var(--accent-light)':'transparent')+';white-space:nowrap">'
+      +'All Teams <span style="font-weight:600;font-size:11px;opacity:.8">('+_allTmCount+')</span></div>';
+  } else if(_hrmsDasTwTeam==='__ALL__'&&teamKeys.length){
+    // CS with stale '__ALL__' from a previous role — coerce to first
+    // available team.
+    _hrmsDasTwTeam=teamKeys[0];
+  }
   teamKeys.forEach(function(tm){
     var on=(tm===_hrmsDasTwTeam);
     var tc=teamCounts[tm]||0;
@@ -10690,7 +10720,7 @@ function _hrmsDasTwRender(){
       h+=tile(on,clr,'#0f172a',_esc(sf),paLabel(pc.present,ab),clickAttr);
     });
     // Export button anchored to the right of the plant tile row.
-    h+='<button onclick="_hrmsDasTwExport()" '
+    h+='<button class="hrms-tw-export" onclick="_hrmsDasTwExport()" '
       +'style="margin-left:auto;align-self:center;padding:8px 18px;font-weight:800;font-size:13px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📤 Export to Excel</button>';
     h+='</div>';
   }
@@ -11172,7 +11202,10 @@ function _hrmsDasBuildPivot(){
     if(!pivot[org.dept]) pivot[org.dept]={};
     if(!pivot[org.dept][org.plant]) pivot[org.dept][org.plant]={};
     if(!pivot[org.dept][org.plant][org.bucket]) pivot[org.dept][org.plant][org.bucket]=[];
-    pivot[org.dept][org.plant][org.bucket].push({code:p.code,name:p.emp.name||p.emp.empCode,ts:p.ts});
+    // Stash the full emp ref so the drill-down popup can read team /
+    // emp type / role from the active period without re-resolving by
+    // code.
+    pivot[org.dept][org.plant][org.bucket].push({code:p.code,name:(typeof _hrmsDispName==='function'?_hrmsDispName(p.emp):(p.emp.fullName||p.emp.name||p.emp.empCode)),ts:p.ts,emp:p.emp});
     var d=new Date(p.ts);
     dateSet[String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()]=1;
   });
@@ -11218,6 +11251,70 @@ function _hrmsDasDdSetPlant(p){
 function _hrmsDasDdSetDept(d){_hrmsDasDdDept=d||null;_hrmsDasDeptDetailsRender();}
 function _hrmsDasDdSetEt(e){_hrmsDasDdEt=e||'__ALL__';_hrmsDasDeptDetailsRender();}
 function _hrmsDasDdSetStatus(s){_hrmsDasDdStatus=s||'__ALL__';_hrmsDasDeptDetailsRender();}
+
+// Generic radio-list picker popover anchored to the clicked button.
+// items: [{value, label, colour?}], current: selected value, onPick:
+// callback(value).
+function _hrmsDasDdOpenPicker(ev,title,items,current,onPick){
+  if(ev&&typeof ev.stopPropagation==='function') ev.stopPropagation();
+  var anchor=ev&&(ev.currentTarget||ev.target);
+  var prior=document.getElementById('_hrmsDdPickerPop');
+  if(prior) prior.remove();
+  if(!items||!items.length) return;
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var pop=document.createElement('div');
+  pop.id='_hrmsDdPickerPop';
+  pop.style.cssText='position:absolute;z-index:10000;background:#fff;border:1.5px solid #94a3b8;border-radius:8px;box-shadow:0 14px 40px rgba(15,23,42,.22);width:240px;max-width:94vw;font-size:12px;overflow:hidden';
+  var rows=items.map(function(it){
+    var on=(it.value===current);
+    var chip=it.colour?('<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:'+it.colour+';border:1px solid rgba(0,0,0,.18);margin-right:6px;flex:0 0 auto"></span>'):'';
+    return '<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;'+(on?'background:#eef2ff':'')+'">'
+      +'<input type="radio" name="_hrmsDdPicker" value="'+_esc(it.value)+'"'+(on?' checked':'')+' style="width:14px;height:14px;cursor:pointer">'
+      +chip
+      +'<span style="font-weight:700;color:#0f172a;flex:1">'+_esc(it.label)+'</span>'
+      +'</label>';
+  }).join('');
+  pop.innerHTML=''
+    +'<div style="padding:7px 10px;background:linear-gradient(180deg,#f8fafc,#e2e8f0);border-bottom:1px solid #cbd5e1;font-weight:900;font-size:12px;color:#0f172a">'+_esc(title)+'</div>'
+    +'<div style="max-height:280px;overflow:auto">'+rows+'</div>';
+  document.body.appendChild(pop);
+  // Anchor near the click.
+  if(anchor&&anchor.getBoundingClientRect){
+    var r=anchor.getBoundingClientRect();
+    var pw=pop.offsetWidth,ph=pop.offsetHeight;
+    var sx=window.scrollX||window.pageXOffset||0;
+    var sy=window.scrollY||window.pageYOffset||0;
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    var x=r.left+sx, y=r.bottom+sy+4;
+    if(r.bottom+ph+8>vh) y=r.top+sy-ph-4;
+    if(x+pw>vw+sx-8) x=vw+sx-pw-8;
+    if(x<sx+8) x=sx+8;
+    pop.style.left=x+'px';pop.style.top=y+'px';
+  }
+  var close=function(){
+    document.removeEventListener('mousedown',outside,true);
+    document.removeEventListener('keydown',keyHandler,true);
+    var cur=document.getElementById('_hrmsDdPickerPop');if(cur) cur.remove();
+  };
+  var outside=function(e){if(!pop.contains(e.target)) close();};
+  var keyHandler=function(e){if(e.key==='Escape'){e.preventDefault();close();}};
+  pop.querySelectorAll('input[type=radio]').forEach(function(rb){
+    rb.addEventListener('change',function(){if(rb.checked){close();onPick(rb.value);}});
+  });
+  document.addEventListener('mousedown',outside,true);
+  document.addEventListener('keydown',keyHandler,true);
+}
+function _hrmsDasDdOpenPlantPicker(ev){
+  var list=(window._hrmsDdPlantList||[]).map(function(p){
+    return {value:p,label:p,colour:(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(p):'#e2e8f0')};
+  });
+  _hrmsDasDdOpenPicker(ev,'Select Plant',list,_hrmsDasDdPlant,_hrmsDasDdSetPlant);
+}
+function _hrmsDasDdOpenDeptPicker(ev){
+  var list=(window._hrmsDdDeptList||[]).map(function(d){return {value:d,label:d};});
+  _hrmsDasDdOpenPicker(ev,'Select Department',list,_hrmsDasDdDept,_hrmsDasDdSetDept);
+}
 function _hrmsDasDeptDetailsRender(){
   var body=document.getElementById('hrmsDasDeptDetailsBody');
   if(!body) return;
@@ -11243,6 +11340,11 @@ function _hrmsDasDeptDetailsRender(){
     return sa.localeCompare(sb,undefined,{numeric:true});
   });
   if(_hrmsDasDdPlant&&plantList.indexOf(_hrmsDasDdPlant)<0) _hrmsDasDdPlant=null;
+  // Dept Head users — auto-pick the first eligible plant on entry so
+  // they don't have to open the picker. Only applies on initial open
+  // (when no selection yet); explicit clearing/user navigation
+  // continues to work afterwards.
+  if(_dhScope&&!_hrmsDasDdPlant&&plantList.length) _hrmsDasDdPlant=plantList[0];
   // Dept list scoped to selected plant. Includes Worker depts whose
   // plant matches, plus all Staff (sub-)depts since the staff master
   // isn't plant-bound yet.
@@ -11269,6 +11371,9 @@ function _hrmsDasDeptDetailsRender(){
     deptList.sort(function(a,b){return a.localeCompare(b);});
   }
   if(_hrmsDasDdDept&&deptList.indexOf(_hrmsDasDdDept)<0) _hrmsDasDdDept=null;
+  // Dept Head users — auto-pick the first eligible dept once the plant
+  // is set, so the table loads immediately on tab open.
+  if(_dhScope&&!_hrmsDasDdDept&&deptList.length) _hrmsDasDdDept=deptList[0];
   // Date label for the header.
   var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var dateLbl='';
@@ -11276,42 +11381,35 @@ function _hrmsDasDeptDetailsRender(){
     var sp=String(st.historyDate).split('-');
     if(sp.length>=3) dateLbl=String(+sp[2]).padStart(2,'0')+'-'+(MON[+sp[1]-1]||'')+'-'+String(sp[0]).slice(-2);
   }
-  // Plant selector — square tile buttons only. P/A counts are shown
-  // separately, scoped to the selected plant + department only.
-  var h='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px">';
-  h+='<label style="font-size:12px;font-weight:800;color:var(--text2)">Plant <span style="color:#dc2626">*</span>:</label>';
-  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
-  if(!plantList.length){
-    h+='<span style="font-size:12px;color:var(--text3);font-style:italic">— No plants configured —</span>';
-  }
-  plantList.forEach(function(p){
-    var on=(p===_hrmsDasDdPlant);
-    var clr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(p):'#e2e8f0';
-    var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(p):p.slice(0,3).toUpperCase();
-    var pEsc=String(p).replace(/'/g,"\\'");
-    h+='<button title="'+_esc(p)+'" onclick="_hrmsDasDdSetPlant(\''+pEsc+'\')" '
-      +'style="display:flex;align-items:center;justify-content:center;'
-      +'width:42px;height:42px;border-radius:6px;cursor:pointer;line-height:1;padding:0;'
-      +'background:'+clr+';color:#0f172a;'
-      +'border:'+(on?'2px solid #0f172a':'1.5px solid rgba(0,0,0,.18)')+';'
-      +(on?'box-shadow:0 0 0 1.5px #fff,0 0 0 3px '+clr+',0 1px 4px rgba(0,0,0,.12);':'box-shadow:0 1px 2px rgba(0,0,0,.08);')
-      +'font-size:14px;font-weight:900;letter-spacing:.3px;font-family:var(--mono)">'+_esc(sf)+'</button>';
-  });
-  h+='</div>';
-  // Dept selector — disabled until a plant is picked.
-  h+='<label style="font-size:12px;font-weight:800;color:var(--text2);margin-left:8px">Department <span style="color:#dc2626">*</span>:</label>';
-  if(!_hrmsDasDdPlant){
-    h+='<select disabled style="font-size:13px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:220px;opacity:.6"><option>— Pick plant first —</option></select>';
-  } else if(!deptList.length){
-    h+='<select disabled style="font-size:13px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:220px;opacity:.6"><option>— No departments in this plant —</option></select>';
-  } else {
-    h+='<select onchange="_hrmsDasDdSetDept(this.value)" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:220px">';
-    h+='<option value=""'+(!_hrmsDasDdDept?' selected':'')+'>— Select department —</option>';
-    deptList.forEach(function(d){
-      h+='<option value="'+_esc(d)+'"'+(d===_hrmsDasDdDept?' selected':'')+'>'+_esc(d)+'</option>';
-    });
-    h+='</select>';
-  }
+  // Plant + Department picker — single button each. Clicking opens a
+  // radio-list popover. Button label shows the current selection (or
+  // a "Select …" placeholder). Plant button is colour-coded once a
+  // plant is picked; Dept button stays disabled until plant is set.
+  var h='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px">';
+  // Plant trigger button.
+  var _curPlClr=_hrmsDasDdPlant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(_hrmsDasDdPlant):'#fff';
+  var _curPlLbl=_hrmsDasDdPlant?_esc(_hrmsDasDdPlant):'Select Plant';
+  h+='<button id="_hrmsDdPlantBtn" onclick="_hrmsDasDdOpenPlantPicker(event)" '
+    +'style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:800;'
+    +'background:'+_curPlClr+';color:#0f172a;'
+    +'border:1.5px solid '+(_hrmsDasDdPlant?'#0f172a':'var(--border)')+';'
+    +'border-radius:6px;cursor:'+(plantList.length?'pointer':'not-allowed')+';min-width:140px;justify-content:space-between"'
+    +(plantList.length?'':' disabled')+'>'
+    +'<span>'+_curPlLbl+'</span><span style="font-size:10px;opacity:.7">▼</span></button>';
+  // Department trigger button.
+  var _curDeptLbl=_hrmsDasDdDept?_esc(_hrmsDasDdDept):'Select Department';
+  var _deptDisabled=!_hrmsDasDdPlant||!deptList.length;
+  h+='<button id="_hrmsDdDeptBtn" onclick="_hrmsDasDdOpenDeptPicker(event)" '
+    +'style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:800;'
+    +'background:'+(_hrmsDasDdDept?'#e0e7ff':'#fff')+';color:#0f172a;'
+    +'border:1.5px solid '+(_hrmsDasDdDept?'#0f172a':'var(--border)')+';'
+    +'border-radius:6px;cursor:'+(_deptDisabled?'not-allowed':'pointer')+';min-width:180px;justify-content:space-between;'
+    +(_deptDisabled?'opacity:.55':'')+'"'
+    +(_deptDisabled?' disabled':'')+'>'
+    +'<span>'+_curDeptLbl+'</span><span style="font-size:10px;opacity:.7">▼</span></button>';
+  // Stash data for the pickers so they can read the latest lists.
+  window._hrmsDdPlantList=plantList.slice();
+  window._hrmsDdDeptList=deptList.slice();
   h+='</div>';
   // Gates: plant first, dept next, then state.
   if(!_hrmsDasDdPlant){
@@ -11334,6 +11432,53 @@ function _hrmsDasDeptDetailsRender(){
   // Team-wise tab) — these emps are excluded from Dept-wise MP Details
   // entirely, per spec.
   var tiMarks=(typeof _hrmsDasTwLoadLeftMarks==='function')?(_hrmsDasTwLoadLeftMarks()||{}):{};
+  // Build the rolling-45-day window relative to the selected date so
+  // each row can show a "Last 45d P" count. Months that aren't in
+  // _hrmsAttCache are fetched in the background; once they arrive we
+  // re-render to fill in the counts.
+  var _last45=[];
+  var _monthsNeededDd={};
+  if(st.historyDate){
+    var _sp45=String(st.historyDate).split('-');
+    var _selDate45=new Date(+_sp45[0],+_sp45[1]-1,+_sp45[2]);
+    for(var _i45=45;_i45>=1;_i45--){
+      var _d45=new Date(_selDate45);_d45.setDate(_d45.getDate()-_i45);
+      var _yy45=_d45.getFullYear(),_mm45=String(_d45.getMonth()+1).padStart(2,'0'),_dd45=String(_d45.getDate()).padStart(2,'0');
+      var _mk45=_yy45+'-'+_mm45;
+      _monthsNeededDd[_mk45]=true;
+      _last45.push({iso:_yy45+'-'+_mm45+'-'+_dd45});
+    }
+  }
+  var _missingMonthsDd=Object.keys(_monthsNeededDd).filter(function(mk){
+    return !(window._hrmsAttCache&&_hrmsAttCache[mk]);
+  });
+  if(_missingMonthsDd.length&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsDasDdFetchInflight){
+    window._hrmsDasDdFetchInflight=true;
+    Promise.all(_missingMonthsDd.map(function(mk){
+      return _hrmsAttFetchMonth(mk).catch(function(){return null;});
+    })).then(function(){
+      window._hrmsDasDdFetchInflight=false;
+      try{_hrmsDasDeptDetailsRender();}catch(_){}
+    });
+  }
+  // {empCode → {iso:true}} present-day set from cached attendance.
+  var presByEmpDd={};
+  Object.keys(_monthsNeededDd).forEach(function(mk){
+    var attR=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
+    var altR=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
+    var absorb=function(a){
+      if(!a||!a.empCode||!a.days) return;
+      if(!presByEmpDd[a.empCode]) presByEmpDd[a.empCode]={};
+      Object.keys(a.days).forEach(function(dk){
+        var entry=a.days[dk];
+        if(entry&&(entry.in||entry['in'])){
+          var iso=mk+'-'+String(dk).padStart(2,'0');
+          presByEmpDd[a.empCode][iso]=true;
+        }
+      });
+    };
+    attR.forEach(absorb);altR.forEach(absorb);
+  });
   // Resolve roll names from the rolls master so the table shows the
   // human-friendly name rather than the code alone.
   var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
@@ -11363,10 +11508,15 @@ function _hrmsDasDeptDetailsRender(){
     if(!etCounts[et]) etCounts[et]={total:0,p:0,a:0};
     etCounts[et].total++;
     if(present) etCounts[et].p++; else etCounts[et].a++;
+    // Count present days in the rolling 45-day window for this emp.
+    var _empPres=presByEmpDd[e.empCode]||{};
+    var _last45P=0;
+    for(var _li=0;_li<_last45.length;_li++){if(_empPres[_last45[_li].iso]) _last45P++;}
     rows.push({
       empCode:e.empCode||'',
       name:(typeof _hrmsDispName==='function'?_hrmsDispName(e):(e.fullName||e.name||'')),
       et:et,plant:plant,team:team,roll:rollName,
+      last45P:_last45P,
       inTime:present?(io.inTime||''):'',
       outTime:present?(io.outTime||''):'',
       present:present
@@ -11381,35 +11531,42 @@ function _hrmsDasDeptDetailsRender(){
   });
   var totalP=rows.reduce(function(n,r){return n+(r.present?1:0);},0);
   var totalA=rows.length-totalP;
-  // Employment-type pills — label + total (per-type colour) + P/A
-  // counts in green / red pills next to the total.
+  // Employment-type pills — two-row card layout:
+  //   Row 1: short label + total headcount badge
+  //   Row 2: P-N (green) and A-N (red) headcount badges
+  // Shortforms: On Roll → KAP, Contract → Con, Piece Rate → PR.
   var etKeys=Object.keys(etCounts).sort();
   var _etPalette={
-    'On Roll':{bg:'#dcfce7',fg:'#15803d',bd:'#86efac'},
-    'Contract':{bg:'#dbeafe',fg:'#1d4ed8',bd:'#93c5fd'},
-    'Piece Rate':{bg:'#f3e8ff',fg:'#7c3aed',bd:'#c4b5fd'},
-    'Visitor':{bg:'#fef9c3',fg:'#a16207',bd:'#fde047'}
+    'On Roll':{bg:'#dcfce7',fg:'#15803d',bd:'#86efac',sf:'KAP'},
+    'Contract':{bg:'#dbeafe',fg:'#1d4ed8',bd:'#93c5fd',sf:'Con'},
+    'Piece Rate':{bg:'#f3e8ff',fg:'#7c3aed',bd:'#c4b5fd',sf:'PR'},
+    'Visitor':{bg:'#fef9c3',fg:'#a16207',bd:'#fde047',sf:'Vis'}
   };
-  var _allPal={bg:'#e0e7ff',fg:'#3730a3',bd:'#a5b4fc'};
-  var countBadge=function(n,pal){
+  var _allPal={bg:'#e0e7ff',fg:'#3730a3',bd:'#a5b4fc',sf:'All'};
+  var totalBadge=function(n,pal){
     return '<span style="display:inline-block;background:'+pal.bg+';color:'+pal.fg+';border:1px solid '+pal.bd+';padding:0 7px;border-radius:9px;font-weight:900;font-size:11px;margin-left:6px">'+n+'</span>';
   };
-  var paBadges=function(p,a){
-    return '<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px;margin-left:5px">P-'+p+'</span>'
-      +'<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px;margin-left:3px">A-'+a+'</span>';
+  var paRow=function(p,a){
+    return '<div style="display:flex;gap:3px;margin-top:3px">'
+      +'<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px">P-'+p+'</span>'
+      +'<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 6px;border-radius:8px;font-weight:800;font-size:10px">A-'+a+'</span>'
+      +'</div>';
   };
-  var pillBtn=function(labelHtml,key,active,onClick){
-    return '<button onclick="'+onClick+'" style="padding:5px 12px;font-size:12px;font-weight:800;cursor:pointer;border-radius:14px;'
+  var pillBtn=function(label,total,pal,p,a,key,active,onClick){
+    return '<button onclick="'+onClick+'" style="padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;border-radius:8px;'
       +'background:'+(active?'var(--accent)':'#fff')+';color:'+(active?'#fff':'var(--text)')+';'
-      +'border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';display:inline-flex;align-items:center">'+labelHtml+'</button>';
+      +'border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';display:inline-flex;flex-direction:column;align-items:center;line-height:1.1">'
+      +'<div style="display:inline-flex;align-items:center">'+label+totalBadge(total,pal)+'</div>'
+      +paRow(p,a)
+      +'</button>';
   };
-  h+='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">';
-  h+=pillBtn('All'+countBadge(rows.length,_allPal)+paBadges(totalP,totalA),'__ALL__',(_hrmsDasDdEt==='__ALL__'),"_hrmsDasDdSetEt('__ALL__')");
+  h+='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;margin-bottom:8px">';
+  h+=pillBtn('All',rows.length,_allPal,totalP,totalA,'__ALL__',(_hrmsDasDdEt==='__ALL__'),"_hrmsDasDdSetEt('__ALL__')");
   etKeys.forEach(function(et){
     var etEsc=String(et).replace(/'/g,"\\'");
     var c=etCounts[et]||{total:0,p:0,a:0};
     var pal=_etPalette[et]||_allPal;
-    h+=pillBtn(_esc(et)+countBadge(c.total||0,pal)+paBadges(c.p||0,c.a||0),et,(_hrmsDasDdEt===et),"_hrmsDasDdSetEt('"+etEsc+"')");
+    h+=pillBtn(_esc(pal.sf||et),c.total||0,pal,c.p||0,c.a||0,et,(_hrmsDasDdEt===et),"_hrmsDasDdSetEt('"+etEsc+"')");
   });
   h+='</div>';
   // Apply filters.
@@ -11436,12 +11593,13 @@ function _hrmsDasDeptDetailsRender(){
     +'<th style="'+thSt+'">Team</th>'
     +'<th style="'+thSt+'">Emp Type</th>'
     +'<th style="'+thSt+'">Role</th>'
-    +'<th style="'+thSt+';text-align:center">Status</th>'
     +'<th style="'+thSt+';text-align:center">In</th>'
     +'<th style="'+thSt+';text-align:center">Out</th>'
+    +'<th style="'+thSt+';text-align:center">P/A</th>'
+    +'<th style="'+thSt+';text-align:center" title="Present / Absent days in the rolling 45-day window">Last 45d</th>'
     +'</tr></thead><tbody>';
   if(!fRows.length){
-    h+='<tr><td colspan="10" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
+    h+='<tr><td colspan="11" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
   } else {
     fRows.forEach(function(r,i){
       var statusBg=r.present?'#dcfce7':'#fee2e2';
@@ -11454,6 +11612,10 @@ function _hrmsDasDeptDetailsRender(){
       var plChip=r.plant
         ?('<span title="'+_esc(r.plant)+'" style="display:inline-block;background:'+plClr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;letter-spacing:.3px">'+_esc(plSf)+'</span>')
         :'<span style="color:#cbd5e1">—</span>';
+      var last45P=+r.last45P||0;
+      var last45A=Math.max(_last45.length-last45P,0);
+      var last45Cell='<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:1px 6px;border-radius:9px;font-weight:800;font-size:11px">'+last45P+'</span>'
+        +'<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:1px 6px;border-radius:9px;font-weight:800;font-size:11px;margin-left:3px">'+last45A+'</span>';
       h+='<tr>'
         +'<td style="padding:5px 8px;color:#64748b">'+(i+1)+'</td>'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline">'+_esc(r.empCode)+'</a></td>'
@@ -11462,9 +11624,10 @@ function _hrmsDasDeptDetailsRender(){
         +'<td style="padding:5px 8px">'+_esc(r.team||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.et||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.roll||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:1px 10px;border-radius:10px;font-weight:800;font-size:11px">'+statusLbl+'</span></td>'
         +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);color:'+(r.inTime?'#15803d':'#cbd5e1')+';font-weight:700">'+_esc(r.inTime||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';font-weight:700">'+_esc(r.outTime||'—')+'</td>'
+        +'<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:1px 10px;border-radius:10px;font-weight:800;font-size:11px">'+statusLbl+'</span></td>'
+        +'<td style="padding:5px 8px;text-align:center;white-space:nowrap">'+last45Cell+'</td>'
         +'</tr>';
     });
   }
@@ -11754,9 +11917,12 @@ function _hrmsDasRender(){
       }
       // Per-group column totals across all rendered departments so the
       // sticky Total row at the bottom mirrors the per-row total cells
-      // on the right.
-      var colAct={},colAlloc={};
-      var grandAct=0,grandAlloc=0;
+      // on the right. Shortages are accumulated separately (sum of
+      // per-cell / per-row shortages) — never derived from
+      // alloc - actual at the total level, because per-dept excess in
+      // one row would otherwise mask genuine shortages in others.
+      var colAct={},colAlloc={},colSh={};
+      var grandAct=0,grandAlloc=0,grandSh=0;
       var bodyCell=function(val,bg,clr,bold,extra){
         var w=bold?'900':'700';
         return '<td style="padding:4px 4px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+w+';font-family:var(--mono);border-bottom:'+hairBd+(extra||'')+'">'+(val||'—')+'</td>';
@@ -11773,6 +11939,7 @@ function _hrmsDasRender(){
           rowAct+=a; rowAlloc+=al;
           colAct[g.id]=(colAct[g.id]||0)+a;
           colAlloc[g.id]=(colAlloc[g.id]||0)+al;
+          colSh[g.id]=(colSh[g.id]||0)+sh;
           // Body cells use white backgrounds — the AL/P/S distinction
           // is carried by the coloured text alone. Coloured backgrounds
           // were creating an apparent vertical "box" around each
@@ -11799,7 +11966,7 @@ function _hrmsDasRender(){
         ph+=bodyCell(rowAct,'#fff','#15803d',true,';width:'+totW+'px;min-width:'+totW+'px');
         ph+=bodyCell(rowSh>0?rowSh:0,rowSh>0?'#fee2e2':'#fff',rowSh>0?'#b91c1c':'#cbd5e1',true,';width:'+totW+'px;min-width:'+totW+'px');
         ph+='</tr>';
-        grandAct+=rowAct; grandAlloc+=rowAlloc;
+        grandAct+=rowAct; grandAlloc+=rowAlloc; grandSh+=rowSh;
       });
       // Total row — sticky bottom. Distinguished purely by a slate
       // gradient background (no top border) so the row reads as a
@@ -11814,12 +11981,18 @@ function _hrmsDasRender(){
         ph+='<tr>';
         ph+='<td style="padding:7px 10px;font-weight:900;color:#0f172a;background:'+totBg+';width:'+deptW+'px;min-width:'+deptW+'px;border-top:'+freezeBd+';border-right:'+groupBd+totSticky+'">Total</td>';
         compGroups.forEach(function(g){
-          var a=colAct[g.id]||0, al=colAlloc[g.id]||0, sh=Math.max(al-a,0);
+          // Column shortage = sum of per-cell shortages, NOT
+          // max(alloc - actual, 0) — otherwise excess in one dept
+          // would silently cancel a shortage in another.
+          var a=colAct[g.id]||0, al=colAlloc[g.id]||0, sh=colSh[g.id]||0;
           ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#1d4ed8;font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+totSticky+'">'+(al||'—')+'</td>';
           ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#15803d;font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+totSticky+'">'+(a||'—')+'</td>';
           ph+='<td style="padding:6px 4px;text-align:center;background:'+(sh>0?'#fecaca':totBg)+';color:'+(sh>0?'#b91c1c':'#94a3b8')+';font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+';border-right:'+groupBd+totSticky+'">'+(sh>0?sh:'—')+'</td>';
         });
-        var gSh=Math.max(grandAlloc-grandAct,0);
+        // Grand shortage — accumulated row-level shortages (matches
+        // per-row Total triplet behaviour). Subtracting totals would
+        // hide shortages whenever some dept rows had excess actuals.
+        var gSh=grandSh;
         ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#1d4ed8;font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+';border-left:'+groupBd+totSticky+'">'+(grandAlloc||'—')+'</td>';
         ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#15803d;font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+totSticky+'">'+(grandAct||'—')+'</td>';
         ph+='<td style="padding:6px 4px;text-align:center;background:'+(gSh>0?'#fca5a5':totBg)+';color:'+(gSh>0?'#7f1d1d':'#94a3b8')+';font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+totSticky+'">'+(gSh>0?gSh:'—')+'</td>';
@@ -11876,17 +12049,27 @@ function _hrmsDasShowDetail(dept,plant,bucketKey){
   if(!_hrmsDasState||!_hrmsDasState.pivot) return;
   var list=(((_hrmsDasState.pivot[dept]||{})[plant]||{})[bucketKey])||[];
   list=list.slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
-  // Build a per-emp out-time lookup from the cached attendance/alteration
-  // records so the popup carries OUT alongside IN.
   var ioByCode=_hrmsDasIOLookup();
   var bucketLbl=_hrmsDasBucketLabel(bucketKey);
   var dateHdr=(_hrmsDasState.dateLabels||[]).join(', ');
+  // Pull team / emp type / role from each emp's active period so the
+  // popup shows complete context (the pivot stores the emp ref).
+  var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
+  var rollNameByCode={};rolls.forEach(function(r){if(r&&r.code) rollNameByCode[r.code]=r.name||r.code;});
   _hrmsDasOpenEmpListPopup({
     title:bucketLbl+' — '+list.length+' employee(s)',
     subtitle:(dateHdr?'📅 '+dateHdr+' · ':'')+dept+' · '+plant,
     rows:list.map(function(r){
       var io=ioByCode[r.code]||{inTime:'',outTime:''};
-      return {empCode:r.code,name:r.name,inTime:io.inTime,outTime:io.outTime};
+      var e=r.emp||{};
+      var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      var et=((ap&&ap.employmentType)||e.employmentType||'—');
+      var team=((ap&&ap.teamName)||e.teamName||'—');
+      var rollCode=((ap&&ap.roll)||e.roll||'').trim();
+      var role=rollCode?(rollNameByCode[rollCode]||rollCode):'—';
+      // P/A — Present if there's an IN timestamp for the rendered day.
+      var present=!!io.inTime;
+      return {empCode:r.code,name:r.name,et:et,team:team,role:role,present:present,inTime:io.inTime,outTime:io.outTime};
     })
   });
 }
@@ -11939,16 +12122,28 @@ function _hrmsDasOpenEmpListPopup(opts){
     return ac.localeCompare(bc);
   }).forEach(function(r,i){
     var codeEsc=String(r.empCode||'').replace(/'/g,"\\'");
+    var hasExt=(r.et!=null||r.team!=null||r.role!=null||r.present!=null);
+    var statusCell='';
+    if(hasExt){
+      var p=!!r.present;
+      var bg=p?'#dcfce7':'#fee2e2',fg=p?'#15803d':'#b91c1c',bd=p?'#86efac':'#fca5a5';
+      statusCell='<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;background:'+bg+';color:'+fg+';border:1px solid '+bd+';padding:1px 9px;border-radius:10px;font-weight:800;font-size:11px">'+(p?'P':'A')+'</span></td>';
+    }
     rowsHtml+='<tr style="border-bottom:1px solid #f1f5f9">'
       +'<td style="padding:5px 8px;color:#64748b;font-size:12px">'+(i+1)+'</td>'
       +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700;font-size:12px"><a href="javascript:void(0)" onclick="document.getElementById(\'_hrmsDasDetailOverlay\').remove();_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline;cursor:pointer" title="View / edit employee">'+_esc(r.empCode)+'</a></td>'
       +'<td style="padding:5px 8px;font-weight:700;font-size:12px">'+_esc(r.name||'—')+'</td>'
+      +(hasExt?('<td style="padding:5px 8px;font-size:12px">'+_esc(r.et||'—')+'</td>'+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.team||'—')+'</td>'+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.role||'—')+'</td>'+statusCell):'')
       +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-size:12px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';font-weight:700">'+_esc(r.inTime||'—')+'</td>'
       +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-size:12px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';font-weight:700">'+_esc(r.outTime||'—')+'</td>'
       +'</tr>';
   });
-  if(!rows.length) rowsHtml='<tr><td colspan="5" style="padding:30px;text-align:center;color:#94a3b8">No employees.</td></tr>';
-  ov.innerHTML='<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;width:min(680px,96vw);padding:18px 20px">'
+  var _firstRow=rows[0]||{};
+  var _showExt=(_firstRow.et!=null||_firstRow.team!=null||_firstRow.role!=null||_firstRow.present!=null);
+  var _emptyCols=_showExt?9:5;
+  if(!rows.length) rowsHtml='<tr><td colspan="'+_emptyCols+'" style="padding:30px;text-align:center;color:#94a3b8">No employees.</td></tr>';
+  var thSt='padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border)';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;width:min(820px,96vw);padding:18px 20px">'
     +'<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;gap:12px">'
     +'<div>'
     +(subtitle?'<div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.6px">'+_esc(subtitle)+'</div>':'')
@@ -11958,11 +12153,12 @@ function _hrmsDasOpenEmpListPopup(opts){
     +'</div>'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr>'
-    +'<th style="padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:left">#</th>'
-    +'<th style="padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:left">Emp Code</th>'
-    +'<th style="padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:left">Name</th>'
-    +'<th style="padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:center">In Time</th>'
-    +'<th style="padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border);text-align:center">Out Time</th>'
+    +'<th style="'+thSt+';text-align:left">#</th>'
+    +'<th style="'+thSt+';text-align:left">Emp Code</th>'
+    +'<th style="'+thSt+';text-align:left">Name</th>'
+    +(_showExt?('<th style="'+thSt+';text-align:left">Emp Type</th>'+'<th style="'+thSt+';text-align:left">Team</th>'+'<th style="'+thSt+';text-align:left">Role</th>'+'<th style="'+thSt+';text-align:center">P/A</th>'):'')
+    +'<th style="'+thSt+';text-align:center">In Time</th>'
+    +'<th style="'+thSt+';text-align:center">Out Time</th>'
     +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>'
     +'</div>';
   ov.addEventListener('click',function(ev){if(ev.target===ov) ov.remove();});
@@ -21195,7 +21391,10 @@ function _hrmsRenderAllocationMaster(){
   var allocations=rec.data.allocations||{};
   var rolesAll=((typeof _hrmsGetRolls==='function'?_hrmsGetRolls():[])||[]).slice()
     .sort(function(a,b){return(a.code||'').localeCompare(b.code||'');});
-  var plants=(DB.hrmsCompanies||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).sort();
+  // Hide HO (Head Office) from MP Alloc Setting — depts there aren't
+  // allocated like worker plants.
+  var _allocIsHO=function(s){return /^h\.?o\.?$|head\s*office/i.test(String(s||'').trim());};
+  var plants=(DB.hrmsCompanies||[]).filter(function(x){return !x.inactive&&!_allocIsHO(x.name);}).map(function(x){return x.name;}).sort();
   var depts=(DB.hrmsDepartments||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).sort();
 
   // Default tab — "groups" if no plants yet, otherwise the chosen tab if it
@@ -21209,7 +21408,7 @@ function _hrmsRenderAllocationMaster(){
   var _renderingRoleGroupingHdr=(window._hrmsDasActiveTab==='rolegrouping');
   var h='<div style="flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:14px">';
   h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;flex:0 0 auto">';
-  h+='<div style="font-size:11px;color:var(--text3);margin-right:auto">'+(_renderingRoleGroupingHdr?'Define role groups so the Allocation grid can target them.':'Plantwise + Departmentwise headcount target by role group')+'</div>';
+  h+='<div style="font-size:14px;font-weight:700;color:var(--text3);margin-right:auto">'+(_renderingRoleGroupingHdr?'Define role groups so the Allocation grid can target them.':'Allocate required manpower headcount under for each department & each role')+'</div>';
   if(canEdit){
     var _saveLabel=_renderingRoleGroupingHdr?'💾 Save Role Grouping':'💾 Save Allocations';
     h+='<button onclick="_hrmsAllocSaveGrid()" style="font-size:12px;padding:6px 16px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">'+_saveLabel+'</button>';
@@ -21267,8 +21466,20 @@ function _hrmsRenderAllocationMaster(){
   } else if(_hrmsAllocActiveTab.indexOf('plant:')===0){
     var plant=_hrmsAllocActiveTab.slice(6);
     var pClr=(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0');
+    // Worker depts are plant-specific (V90+). Hydrate first, then scope
+    // the row list to depts whose `plant` matches this tab's plant.
+    if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+    var _seenDeptName={};
+    depts=(DB.hrmsDepartments||[]).filter(function(d){
+      if(!d||d.inactive) return false;
+      if((d.plant||'')!==plant) return false;
+      var n=(d.name||'').trim();
+      if(!n||_seenDeptName[n]) return false;
+      _seenDeptName[n]=1;
+      return true;
+    }).map(function(d){return d.name;}).sort();
     if(!depts.length){
-      h+='<div class="empty-state" style="padding:24px">Add departments to the master first to start allocating.</div>';
+      h+='<div class="empty-state" style="padding:24px">No departments configured for this plant yet.</div>';
     } else {
       // Plant chip + descriptive blurb + drag-to-reorder tip removed
       // — the per-plant tab is now just the grid.
@@ -21284,11 +21495,14 @@ function _hrmsRenderAllocationMaster(){
       var _hdrBg='linear-gradient(180deg,#f8fafc,#e2e8f0)';
       var _hdrSh='inset 0 -2px 0 #94a3b8';
       h+='<thead><tr>';
-      h+='<th style="padding:6px 8px;text-align:left;min-width:120px;position:sticky;top:0;background:'+_hdrBg+';color:#0f172a;font-weight:800;z-index:2;box-shadow:'+_hdrSh+'">Department</th>';
+      h+='<th style="padding:6px 8px;text-align:left;min-width:120px;position:sticky;top:0;background:'+_hdrBg+';color:#0f172a;font-weight:800;z-index:2;box-shadow:'+_hdrSh+';white-space:normal;word-break:break-word">Department</th>';
       groups.forEach(function(g,gi){
-        h+='<th draggable="true" data-alloc-col="'+gi+'" ondragstart="_hrmsAllocColDragStart(event,'+gi+')" ondragover="_hrmsAllocColDragOver(event)" ondrop="_hrmsAllocColDrop(event,'+gi+')" ondragend="_hrmsAllocColDragEnd(event)" style="padding:6px 6px;text-align:center;min-width:62px;position:sticky;top:0;background:'+_hdrBg+';color:#0f172a;font-weight:800;z-index:2;box-shadow:'+_hdrSh+';cursor:grab;user-select:none" title="Drag to reorder">⋮⋮ '+g.name+'</th>';
+        // Header cells allow text wrap — role-group names can be long
+        // and would otherwise stretch the column. width capped so the
+        // grid stays compact; text wraps onto multiple lines instead.
+        h+='<th draggable="true" data-alloc-col="'+gi+'" ondragstart="_hrmsAllocColDragStart(event,'+gi+')" ondragover="_hrmsAllocColDragOver(event)" ondrop="_hrmsAllocColDrop(event,'+gi+')" ondragend="_hrmsAllocColDragEnd(event)" style="padding:6px 6px;text-align:center;min-width:62px;width:88px;max-width:120px;position:sticky;top:0;background:'+_hdrBg+';color:#0f172a;font-weight:800;z-index:2;box-shadow:'+_hdrSh+';cursor:grab;user-select:none;white-space:normal;word-break:break-word;line-height:1.2" title="Drag to reorder">⋮⋮ '+g.name+'</th>';
       });
-      h+='<th style="padding:6px 8px;text-align:center;min-width:60px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);color:#1e293b;font-weight:900;position:sticky;top:0;z-index:2;box-shadow:'+_hdrSh+'">Total</th>';
+      h+='<th style="padding:6px 8px;text-align:center;min-width:60px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);color:#1e293b;font-weight:900;position:sticky;top:0;z-index:2;box-shadow:'+_hdrSh+';white-space:normal;word-break:break-word">Total</th>';
       h+='</tr></thead><tbody>';
       var colTotals={},grandTotal=0;
       groups.forEach(function(g){colTotals[g.id]=0;});
