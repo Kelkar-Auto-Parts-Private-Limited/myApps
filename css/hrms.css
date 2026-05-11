@@ -31,6 +31,10 @@
 #pageHrmsMDept thead th{position:sticky;top:0;z-index:3;background:#f1f5f9}
 #pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
 #pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
+/* Bottom breathing room — keeps the final emp row off the page
+   edge on desktop (mobile gets its own padding for the browser
+   chrome inside the media query). */
+#hrmsDasDeptDetailsBody,#hrmsDasTwBody{padding-bottom:24px}
 /* Team-wise PIA label is only meaningful in card / narrow mode where
    the column header is hidden. Desktop table mode keeps the checkbox
    alone (column header conveys intent). */
@@ -70,7 +74,12 @@
      cards AND collapse all internal scrollbars so the whole tab body
      scrolls as a single column (header pills + tabs + plant tiles +
      role-group table + employee cards). */
-  #hrmsDasTwBody,#hrmsDasDeptDetailsBody{overflow:auto!important}
+  /* On phones the bottom address bar / system nav covers the last
+     ~60px of viewport, so the last few rows of the employee list
+     hide behind it. Pad the bottom of both tab bodies (using safe-
+     area-inset where available) so the final card is always
+     reachable above the chrome. */
+  #hrmsDasTwBody,#hrmsDasDeptDetailsBody{overflow:auto!important;padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))!important}
   /* `.hrms-tw-split` / `.hrms-dd-split` inherit `flex:1` from inline
      style; in column mode that reserves a tall fixed-height slot, and
      any sibling AFTER the split (e.g. the date label on team-wise)
@@ -148,15 +157,20 @@
   /* 6: Role — row 3, right half. +2px font. */
   .hrms-tw-emp table tr td:nth-child(6){grid-row:3;grid-column:3 / -1;color:#475569;font-size:13px;font-weight:600}
   .hrms-tw-emp table tr td:nth-child(6)::before{content:"Role: ";color:#94a3b8;font-weight:700;font-size:11px;margin-right:4px}
-  /* 7-8: In/Out — already display:none */
-  /* 9: P/A — top-right corner (row 1 col 4). Large, prominent pill. */
-  .hrms-tw-emp table tr td:nth-child(9){grid-row:1;grid-column:4;justify-self:end;padding:4px 14px!important;border-radius:14px!important;border:0!important;font-size:18px!important;font-weight:900!important;min-width:42px;text-align:center!important;letter-spacing:0.5px}
-  /* 10: Last-45d cell — full-width bar strip at the bottom of the
-     card. Desktop already shows the same strip in-line. */
-  .hrms-tw-emp table tr td:nth-child(10){grid-row:4;grid-column:1 / -1;background:#f8fafc!important;border:0!important;border-top:1px dashed #e2e8f0!important;padding:3px 4px 1px!important;white-space:normal!important;text-align:left!important;width:auto!important;min-width:0!important;max-width:none!important}
-  /* 11: PIA checkbox — sits directly under the P/A pill (row 2 col 4),
-     with the "Mark Partially Inactive" label visible. */
-  .hrms-tw-emp table tr td:nth-child(11){grid-row:2;grid-column:4;justify-self:end;background:transparent!important;border:0!important;padding:0!important}
+  /* 7: Merged Attendance cell — uses `display:contents` so its inner
+     pieces (In, Out, P/A pill, 45-day bar) become direct grid items
+     and can be card-placed individually. The P/A pill anchors the
+     top-right (row 1 col 4) and the bar spans full-width at row 4.
+     In + Out hidden on cards (the bar already conveys daily state). */
+  .hrms-tw-emp table tr td:nth-child(7){display:contents!important;background:transparent!important}
+  .hrms-tw-emp ._hrmsMcRow{display:contents!important}
+  .hrms-tw-emp ._hrmsMcIn,
+  .hrms-tw-emp ._hrmsMcOut{display:none!important}
+  .hrms-tw-emp ._hrmsMcPA{grid-row:1!important;grid-column:4!important;justify-self:end!important;padding:4px 14px!important;border-radius:14px!important;font-size:18px!important;font-weight:900!important;min-width:42px;text-align:center!important;letter-spacing:0.5px;margin:0!important}
+  .hrms-tw-emp ._hrmsMcBar{grid-row:4!important;grid-column:1 / -1!important;background:#f8fafc!important;border-top:1px dashed #e2e8f0!important;padding:3px 4px 1px!important;white-space:normal!important;text-align:left!important;line-height:1.1}
+  /* 8: PIA checkbox — sits directly under the P/A pill (row 2 col 4),
+     with the "Mark PIA" label visible. */
+  .hrms-tw-emp table tr td:nth-child(8){grid-row:2;grid-column:4;justify-self:end;background:transparent!important;border:0!important;padding:0!important}
   .hrms-tw-emp ._hrmsPiaLbl{display:inline-block!important;font-size:10px!important;white-space:nowrap!important;line-height:1.15!important;text-align:right}
   /* Empty / no-data row — colspan doesn't carry through grid, so let
      the single placeholder cell span the whole card width. */
@@ -208,16 +222,15 @@
   /* 7: Role — row 2 right half. */
   .hrms-dd-table table tr td:nth-child(7){grid-row:2;grid-column:3 / -1;color:#475569;font-size:13px;font-weight:600}
   .hrms-dd-table table tr td:nth-child(7)::before{content:"Role: ";color:#94a3b8;font-weight:700;font-size:11px;margin-right:4px}
-  /* 8-9: In/Out — hidden in card mode (P/A pill + history strip
-     already convey the day-level state). */
-  .hrms-dd-table table tr td:nth-child(8),
-  .hrms-dd-table table tr td:nth-child(9){display:none!important}
-  /* 10: P/A — top-right corner (row 1 col 4), prominent pill. */
-  .hrms-dd-table table tr td:nth-child(10){grid-row:1;grid-column:4;justify-self:end}
-  .hrms-dd-table table tr td:nth-child(10) > span{padding:4px 14px!important;border-radius:14px!important;font-size:18px!important;font-weight:900!important;min-width:42px;text-align:center;letter-spacing:0.5px}
-  /* 11: Last 45d — full-width P/A bar strip at the bottom of the
-     card. Desktop already shows the same strip in-line. */
-  .hrms-dd-table table tr td:nth-child(11){grid-row:3;grid-column:1 / -1;background:#f8fafc!important;border:0!important;border-top:1px dashed #e2e8f0!important;padding:3px 4px 1px!important;white-space:normal!important;text-align:left!important}
+  /* 8: Merged Attendance cell — `display:contents` lets the inner
+     P/A pill anchor top-right and the bar span row 3 full-width.
+     In + Out hidden on cards. */
+  .hrms-dd-table table tr td:nth-child(8){display:contents!important;background:transparent!important}
+  .hrms-dd-table ._hrmsMcRow{display:contents!important}
+  .hrms-dd-table ._hrmsMcIn,
+  .hrms-dd-table ._hrmsMcOut{display:none!important}
+  .hrms-dd-table ._hrmsMcPA{grid-row:1!important;grid-column:4!important;justify-self:end!important;padding:4px 14px!important;border-radius:14px!important;font-size:18px!important;font-weight:900!important;min-width:42px;text-align:center!important;letter-spacing:0.5px;margin:0!important}
+  .hrms-dd-table ._hrmsMcBar{grid-row:3!important;grid-column:1 / -1!important;background:#f8fafc!important;border-top:1px dashed #e2e8f0!important;padding:3px 4px 1px!important;white-space:normal!important;text-align:left!important;line-height:1.1}
   /* Empty-state row spans the full card width. */
   .hrms-dd-table table tr td[colspan]{grid-column:1 / -1!important;text-align:center!important;padding:14px 8px!important}
 }

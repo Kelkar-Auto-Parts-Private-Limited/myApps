@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260511-V42">
+<meta name="app-build" content="260511-V82">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260511-V42">
+<link rel="stylesheet" href="css/hrms.css?v=260511-V82">
 </head>
 <body>
 
@@ -18,7 +18,8 @@
 <div class="topbar" id="topbar" style="display:none">
   <button class="ham" onclick="_hrmsToggleSidebar()">☰</button>
   <div class="title" id="topbarTitle">HRMS</div>
-  <div class="user-info"><span id="hrmsUserName"></span></div>
+  <button id="topbarRefreshBtn" onclick="_hrmsManualRefresh()" title="Refresh data" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;font-weight:800;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;border-radius:8px;cursor:pointer">🔄 Refresh</button>
+  <div class="user-info" style="margin-left:8px"><span id="hrmsUserName"></span></div>
 </div>
 
 <!-- SIDEBAR -->
@@ -29,12 +30,20 @@
   <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
   <div class="nav-section">HRMS</div>
   <div class="nav-item active" id="navDashboard" onclick="hrmsGo('pageHrmsDashboard')">📊 Dashboard</div>
-  <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:11px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
+  <div class="nav-item" onclick="_hrmsToggleDasNav()" style="cursor:pointer">📊 Day-wise Attendance <span id="hrmsDasNavArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
+  <div id="hrmsDasNavGroup" style="display:none;padding-left:12px">
+    <div class="nav-item" id="navDasPlantwise" onclick="hrmsGo('pageHrmsPlantwiseAtt')" style="font-size:12px;padding:7px 16px">🏭 Plant-wise Attendance</div>
+    <div class="nav-item" id="navDasManpower" onclick="hrmsGo('pageHrmsUtilDailyAtt','manpower')" style="font-size:12px;padding:7px 16px">👷 Allocation vs Actual Manpower</div>
+    <div class="nav-item" id="navDasDeptDetails" onclick="hrmsGo('pageHrmsUtilDailyAtt','deptdetails')" style="font-size:12px;padding:7px 16px">📋 Departmentwise Attendance</div>
+    <div class="nav-item" id="navDasTeamwise" onclick="hrmsGo('pageHrmsUtilDailyAtt','teamwise')" style="font-size:12px;padding:7px 16px">👥 Team-wise Attendance Record</div>
+  </div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary <span id="cNavAttSal" title="Pending items inside Attendance &amp; Salary" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
-  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance &amp; Approvals <span id="cNavMyAtt" title="Pending My Approvals" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
+  <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
+  <div class="nav-item" id="navMyApprovals" onclick="hrmsGo('pageHrmsMyApprovals')">✅ My Approvals <span id="cNavMyAtt" title="Pending approvals routed to you" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
   <div class="nav-item" onclick="_hrmsToggleMasters()" style="cursor:pointer">📂 Masters <span id="hrmsMastersArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsMastersGroup" style="display:none;padding-left:12px">
+    <div class="nav-item" id="navEmployees" onclick="hrmsGo('pageHrmsEmployees')" style="font-size:12px;padding:7px 16px">👤 Employees <span id="cEmployees" style="margin-left:auto;font-size:10px;color:var(--text3)">0</span><span id="cEmployeesEcr" title="Pending Employee Change Requests" style="margin-left:6px;font-size:10px;background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-weight:800;display:none">0</span></div>
     <div class="nav-item" id="navOrgStructure" onclick="hrmsGo('pageHrmsOrgStructure')" style="font-size:12px;padding:7px 16px">🌳 HR Organisation Structure</div>
     <div class="nav-item" id="navMCompany" onclick="hrmsGo('pageHrmsMCompany')" style="font-size:12px;padding:7px 16px">🏭 Plant</div>
     <div class="nav-item" id="navMCategory" onclick="hrmsGo('pageHrmsMCategory')" style="font-size:12px;padding:7px 16px">🏷 Category</div>
@@ -48,10 +57,9 @@
   <div class="nav-item" onclick="_hrmsToggleUtilities()" style="cursor:pointer">🛠 Utilities <span id="hrmsUtilsArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsUtilsGroup" style="display:none;padding-left:12px">
     <div class="nav-item" id="navUtilAttConv" onclick="hrmsGo('pageHrmsUtilAttConv')" style="font-size:12px;padding:7px 16px">📗 Attendance Excel Converter</div>
-    <div class="nav-item" id="navUtilDailyAtt" onclick="hrmsGo('pageHrmsUtilDailyAtt')" style="font-size:12px;padding:7px 16px">📊 Daily Attendance Summary</div>
     <div class="nav-item" id="navUtilUpdateEmp" onclick="hrmsGo('pageHrmsUtilUpdateEmp')" style="font-size:12px;padding:7px 16px">✏️ Update Employee</div>
   </div>
-  <div class="nav-item" onclick="_hrmsManualRefresh()" style="color:#2563eb;font-weight:700">🔄 Refresh Data</div>
+  <!-- Refresh moved to the top bar. -->
   <!-- Bottom: Connection + Sign Out -->
   <div style="margin-top:auto;padding:8px 10px;padding-bottom:max(28px,env(safe-area-inset-bottom));border-top:1px solid var(--border)">
     <div class="nav-section" style="padding:4px 10px 6px">CONNECTION</div>
@@ -97,15 +105,19 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-size:18px;font-weight:900">👤 Employees <span id="hrmsEmpCount" style="font-size:13px;font-weight:700;color:var(--text3)"></span></div>
         <div style="display:flex;gap:8px;align-items:center">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text2);user-select:none;cursor:pointer">
+            <input type="checkbox" id="hrmsEmpHideInactive" onchange="renderHrmsEmployees()" style="width:14px;height:14px;cursor:pointer">
+            Hide Inactive
+          </label>
           <label id="btnImportEmployees" class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx,.xls,.csv" onchange="_hrmsImportEmployees(this)" style="display:none"></label>
           <button id="btnExportEmployees" class="btn btn-secondary" onclick="_hrmsExportEmployees()" style="font-size:12px;padding:7px 12px">📤 Export</button>
           <button id="btnAddEmployee" class="btn btn-primary" onclick="_hrmsOpenEmpPage()">+ Add Employee</button>
         </div>
       </div>
       <div class="table-wrap">
-        <table style="table-layout:fixed;width:1227px;max-width:1227px;border-collapse:collapse"><colgroup>
+        <table style="table-layout:fixed;width:1282px;max-width:1282px;border-collapse:collapse"><colgroup>
           <col style="width:34px"><col style="width:70px"><col style="width:180px"><col style="width:60px"><col style="width:85px">
-          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:55px"><col style="width:178px"><col style="width:70px"><col style="width:60px">
+          <col style="width:85px"><col style="width:85px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:55px"><col style="width:55px"><col style="width:178px"><col style="width:70px"><col style="width:60px">
         </colgroup>
         <thead>
         <tr style="background:#fff">
@@ -120,6 +132,7 @@
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFCat" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFDept" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFRoll" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
+          <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFTag" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option><option value="AC">AC</option><option value="IA">IA</option><option value="PIA">PIA</option></select></th>
           <th style="padding:3px;border-bottom:2px solid var(--border)"><select id="hrmsEmpFStateOrigin" onchange="renderHrmsEmployees()" style="font-size:13px;padding:2px 2px;border:1px solid var(--border);border-radius:3px;width:100%;box-sizing:border-box"><option value="">All</option></select></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
           <th style="padding:3px 2px;border-bottom:2px solid var(--border)"></th>
@@ -136,6 +149,7 @@
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('category')">Category <span id="hrmsEmpSortI_category" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('department')">Department <span id="hrmsEmpSortI_department" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('roll')">Role <span id="hrmsEmpSortI_roll" style="font-size:9px">⇅</span></th>
+          <th title="Current-month activity tag: AC=Active · IA=Inactive · PIA=Partially Inactive. OnRoll uses status; Contract/Piece Rate uses attendance + PIA mark." style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:center">Tag</th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border)" onclick="_hrmsEmpSort('stateOrigin')">State (Origin) <span id="hrmsEmpSortI_stateOrigin" style="font-size:9px">⇅</span></th>
           <th style="cursor:pointer;color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 4px;border-bottom:1px solid var(--border);text-align:right" onclick="_hrmsEmpSort('rateDay')">Rate/Day <span id="hrmsEmpSortI_rateDay" style="font-size:9px">⇅</span></th>
           <th style="color:var(--text);background:#f1f5f9;font-size:11px;padding:6px 2px;border-bottom:1px solid var(--border);white-space:nowrap">Actions</th>
@@ -214,6 +228,36 @@
       </div>
       <!-- Super Admin: cross-employee C-Off bank ledger -->
       <div id="hrmsMyAttPaneBank" style="display:none;flex:1;flex-direction:column;min-height:0"></div>
+    </div>
+  </div>
+
+  <!-- MY APPROVALS — unified queue shared by SA + non-SA users.
+       `_hrmsMyApprovalsRender` already scopes rows: SA sees the full
+       org-wide queue, everyone else sees only approvals routed to
+       them via the HR org structure. Moved here from Settings & Data
+       so it has a dedicated top-level entry. -->
+  <div class="page" id="pageHrmsMyApprovals" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:18px;font-weight:900">✅ My Approvals</div>
+        <div style="position:relative;margin-left:14px">
+          <input type="search" class="hrms-allow-locked hrms-search" id="hrmsApprSearch" oninput="_hrmsApprSearchChange(this.value)" placeholder="🔍 Emp Code / Name" autocomplete="off" style="width:240px">
+        </div>
+        <button class="hrms-allow-locked" onclick="_hrmsApprSearchClear()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
+        <div style="flex:1"></div>
+        <span id="hrmsApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
+        <button class="hrms-allow-locked" onclick="_hrmsApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
+      </div>
+      <div id="hrmsApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+      <div id="hrmsApprPanelUnified" style="flex:1;min-height:0;overflow:auto"></div>
+      <!-- Hidden panel anchors kept around so any orphaned legacy
+           renderer call lands on a no-op rather than throwing. -->
+      <div id="hrmsApprPanelAltreq" style="display:none"></div>
+      <div id="hrmsApprPanelManualAlt" style="display:none"></div>
+      <div id="hrmsApprPanelAltExcel" style="display:none"></div>
+      <div id="hrmsApprPanelInitial" style="display:none"></div>
+      <div id="hrmsApprPanelCoff" style="display:none"></div>
+      <div id="hrmsApprPanelOrgsal" style="display:none"></div>
     </div>
   </div>
 
@@ -344,7 +388,27 @@
     </div>
   </div>
 
-  <!-- UTILITIES: Daily Attendance Summary -->
+  <!-- PLANT-WISE ATTENDANCE — date-picker driven, plant × emp-type
+       breakdown with P / A / Total / % Absent for the selected day. -->
+  <div class="page" id="pageHrmsPlantwiseAtt" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+        <div style="font-size:18px;font-weight:900">🏭 Plant-wise Attendance</div>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:13px;font-weight:700">
+          <span style="color:var(--text3);font-size:11px">Date</span>
+          <button onclick="_hrmsPwAttShiftDate(-1)" title="Previous day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>
+          <input type="date" id="hrmsPwAttDate" onchange="_hrmsPwAttRender()" style="font-size:13px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-weight:700">
+          <button onclick="_hrmsPwAttShiftDate(1)" title="Next day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">▶</button>
+        </span>
+        <div id="hrmsPwAttDateLabel" style="font-size:14px;font-weight:800;color:#dc2626"></div>
+        <div style="flex:1"></div>
+        <button onclick="_hrmsPwAttExport()" style="padding:7px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Export to Excel</button>
+      </div>
+      <div id="hrmsPwAttBody" style="flex:1;min-height:0;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- UTILITIES: Day-wise Attendance -->
   <div class="page" id="pageHrmsUtilDailyAtt" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
       <!-- Page-level header — date selector is now the visual anchor.
@@ -360,13 +424,17 @@
         </span>
         <div id="hrmsDasDateLabel" style="font-size:14px;font-weight:800;color:#dc2626;letter-spacing:.3px;text-align:center"></div>
       </div>
-      <!-- Tab strip -->
-      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:nowrap;overflow-x:auto">
-        <div id="hrmsDasTabBtn_manpower" onclick="_hrmsDasSetTab('manpower')" style="padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;border-bottom:3px solid var(--accent);color:var(--accent);background:var(--accent-light);white-space:nowrap">👷 Dept-wise MP Alloc Status</div>
-        <div id="hrmsDasTabBtn_deptdetails" onclick="_hrmsDasSetTab('deptdetails')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">📋 Dept-wise MP Details</div>
-        <div id="hrmsDasTabBtn_teamwise" onclick="_hrmsDasSetTab('teamwise')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">👥 Team-wise Attendance Record</div>
-        <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">📋 Role Group Setting</div>
-        <div id="hrmsDasTabBtn_alloc" onclick="_hrmsDasSetTab('alloc')" style="padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);white-space:nowrap">🎯 MP Alloc Setting</div>
+      <!-- Tab strip — the three primary tabs are now sidebar
+           sub-menu items so the inline buttons are hidden. The
+           strip itself stays in flow so the Settings ⚙ button on
+           the right end remains reachable. -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:nowrap;overflow-x:auto;align-items:center">
+        <div id="hrmsDasTabBtn_manpower" onclick="_hrmsDasSetTab('manpower')" style="display:none">👷 Allocation vs Actual Manpower</div>
+        <div id="hrmsDasTabBtn_deptdetails" onclick="_hrmsDasSetTab('deptdetails')" style="display:none">📋 Departmentwise Attendance</div>
+        <div id="hrmsDasTabBtn_teamwise" onclick="_hrmsDasSetTab('teamwise')" style="display:none">👥 Team-wise Attendance Record</div>
+        <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="display:none">📋 Role Group Setting</div>
+        <div id="hrmsDasTabBtn_alloc" onclick="_hrmsDasSetTab('alloc')" style="display:none">🎯 MP Alloc Setting</div>
+        <button id="hrmsDasAllocSettingsBtn" onclick="_hrmsOpenAllocSettingsModal()" title="Manpower Allocation Settings" style="margin-left:auto;padding:6px 14px;font-size:13px;font-weight:800;background:#f1f5f9;border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;line-height:1;align-self:center;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="font-size:16px;line-height:1">⚙</span><span>Settings</span></button>
       </div>
 
       <!-- TAB: Manpower Data -->
@@ -398,12 +466,10 @@
         <div id="hrmsRoleGroupingBody" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden"></div>
       </div>
 
-      <!-- TAB: Department-wise Manpower Allocation (rendered by
-           _hrmsRenderAllocationMaster) — overflow:hidden so only the
-           inner table gets a scrollbar, not the tab pane itself. -->
-      <div id="hrmsDasTab_alloc" style="display:none;flex:1;min-height:0;overflow:hidden;flex-direction:column">
-        <div id="hrmsAllocSettingsBody" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden"></div>
-      </div>
+      <!-- Manpower Allocation Settings now lives in a modal popup
+           (Settings ⚙ button on the tab strip). The legacy tab pane
+           stays as an unused stub for any deep-link callers. -->
+      <div id="hrmsDasTab_alloc" style="display:none"></div>
     </div>
   </div>
 
@@ -513,7 +579,7 @@
     <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column;padding-top:0">
       <!-- Settings sub-tabs -->
       <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
-        <div class="hrms-settings-tab hrms-allow-locked active" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
+        <div class="hrms-settings-tab hrms-allow-locked" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals" style="display:none">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt">ESSL Data</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration">Manual Alt</div>
         <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual">Manual P &amp; OT</div>
@@ -548,31 +614,11 @@
         <div id="hrmsEsslImportLog"></div>
       </div>
 
-      <!-- Sub-tab: My Approvals — single unified table with type-counter
-           tiles at the top. Click any tile to filter the table; click
-           "All" to clear the filter. Search row + Export All sit above
-           the filter strip. -->
-      <div id="hrmsSetPanelMyapprovals" style="display:none">
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <div style="position:relative">
-            <input type="search" class="hrms-allow-locked hrms-search" id="hrmsApprSearch" oninput="_hrmsApprSearchChange(this.value)" placeholder="🔍 Emp Code / Name" autocomplete="off" style="width:240px">
-          </div>
-          <button class="hrms-allow-locked" onclick="_hrmsApprSearchClear()" style="font-size:11px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:#fee2e2;color:#dc2626;cursor:pointer;font-weight:700">✕ Clear</button>
-          <div style="flex:1"></div>
-          <span id="hrmsApprCount" style="font-size:11px;color:var(--text3);font-weight:700"></span>
-          <button class="hrms-allow-locked" onclick="_hrmsApprExport()" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid #93c5fd;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-weight:700">📤 Export All</button>
-        </div>
-        <div id="hrmsApprFilterStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
-        <div id="hrmsApprPanelUnified"></div>
-        <!-- Hidden panel anchors kept around so any orphaned legacy
-             renderer call lands on a no-op rather than throwing. -->
-        <div id="hrmsApprPanelAltreq" style="display:none"></div>
-        <div id="hrmsApprPanelManualAlt" style="display:none"></div>
-        <div id="hrmsApprPanelAltExcel" style="display:none"></div>
-        <div id="hrmsApprPanelInitial" style="display:none"></div>
-        <div id="hrmsApprPanelCoff" style="display:none"></div>
-        <div id="hrmsApprPanelOrgsal" style="display:none"></div>
-      </div>
+      <!-- Sub-tab: My Approvals — moved to top-level `pageHrmsMyApprovals`.
+           Empty placeholder kept so legacy `_hrmsSettingsSubTab('myapprovals')`
+           callers don't crash. Hidden #cMyApprovals badge anchor kept so
+           the existing counter updates still find a target. -->
+      <div id="hrmsSetPanelMyapprovals" style="display:none"><span id="cMyApprovals" style="display:none">0</span></div>
 
       <!-- Standalone Alteration sub-tab removed — its contents are now
            merged into the "Alteration & Overrides" panel below. The empty
@@ -807,7 +853,7 @@
           <div class="hrms-att-tab active" id="hrmsTabAttendance" onclick="_hrmsAttSetTab('attendance')">Muster Roll</div>
           <div class="hrms-att-tab" id="hrmsTabPot" onclick="_hrmsAttSetTab('pot')">P & OT</div>
           <div class="hrms-att-tab" id="hrmsTabSummary" onclick="_hrmsAttSetTab('summary')">Summary</div>
-          <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')">All Alterations &amp; C-off</div>
+          <div class="hrms-att-tab" id="hrmsTabAlteration" onclick="_hrmsAttSetTab('alteration')" style="display:none">All Alterations &amp; C-off</div>
           <div class="hrms-att-tab" id="hrmsTabEntry" onclick="_hrmsAttSetTab('entry')">New Joinee/Rejoinee</div>
           <div class="hrms-att-tab" id="hrmsTabExit" onclick="_hrmsAttSetTab('exit')">Absent Employees FTM</div>
           <div class="hrms-att-tab" id="hrmsTabUnknown" onclick="_hrmsAttSetTab('unknown')">Unknown <span id="cAttUnknown" style="display:none;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;margin-left:4px">0</span></div>
@@ -1021,6 +1067,22 @@
   </div>
 </div></div>
 
+<div class="modal-overlay" id="mHrmsRgSummary"><div class="modal" style="max-width:520px">
+  <div class="modal-header"><div class="modal-title" id="hrmsRgSummaryTitle">📊 Role Group P/A Summary</div><div class="modal-close" onclick="cm('mHrmsRgSummary')">×</div></div>
+  <div id="hrmsRgSummaryBody" style="max-height:60vh;overflow:auto"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-secondary" onclick="cm('mHrmsRgSummary')">Close</button>
+  </div>
+</div></div>
+
+<div class="modal-overlay" id="mHrmsAllocSettings" style="z-index:780"><div class="modal" style="max-width:1400px;width:96vw;height:90vh;display:flex;flex-direction:column;padding:0;position:relative">
+  <div class="modal-header" style="padding:12px 18px;border-bottom:1px solid var(--border);flex:0 0 auto">
+    <div class="modal-title">🎯 Manpower Allocation Settings</div>
+    <div class="modal-close" onclick="cm('mHrmsAllocSettings')">×</div>
+  </div>
+  <div id="hrmsAllocSettingsBody" style="flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 18px;overflow:hidden"></div>
+</div></div>
+
 <div class="modal-overlay" id="mOrgEdit"><div class="modal" style="max-width:480px">
   <div class="modal-header"><div class="modal-title">🌳 Edit Reporting</div><div class="modal-close" onclick="cm('mOrgEdit')">×</div></div>
   <input type="hidden" id="orgEditEmpId">
@@ -1146,8 +1208,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260511-V42"></script>
-<script src="js/hrms-logic.js?v=260511-V42"></script>
-<script src="js/hrms-ui.js?v=260511-V42"></script>
+<script src="js/common.js?v=260511-V82"></script>
+<script src="js/hrms-logic.js?v=260511-V82"></script>
+<script src="js/hrms-ui.js?v=260511-V82"></script>
 </body>
 </html>

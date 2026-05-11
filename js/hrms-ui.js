@@ -58,6 +58,10 @@ function _hrmsLaunch(){
   // Same idea for employment type — collapses 'Piece rate' / 'piece rate'
   // / 'piecerate' onto the canonical 'Piece Rate', etc.
   setTimeout(function(){try{_hrmsRepairEmpTypeCase();}catch(_){}},1000);
+  // NOTE: `_hrmsRepairResignedInactive()` is retained as a manual,
+  // console-callable repair, but is no longer fired on every login —
+  // the one-time migration has already swept the data, and re-running
+  // it on each boot is wasted work.
   renderHrmsDashboard();
   renderHrmsEmployees();
   _hrmsUpdateChangeReqBadge();
@@ -230,7 +234,8 @@ var _hrmsPageTitles={
   pageHrmsMRoll:'Masters — Role',
   pageHrmsMAllocation:'Masters — Allocation',
   pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
-  pageHrmsUtilDailyAtt:'Utilities — Daily Attendance Summary',
+  pageHrmsUtilDailyAtt:'Day-wise Attendance',
+  pageHrmsPlantwiseAtt:'Plant-wise Attendance',
   pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph',
   pageHrmsUtilUpdateEmp:'Utilities — Update Employee'
 };
@@ -259,6 +264,7 @@ var _HRMS_PAGE_PERMS={
   pageHrmsMSubDept:'page.masterSubDept',pageHrmsMDesig:'page.masterDesig',pageHrmsMRoll:'page.masterRoll',pageHrmsMAllocation:'page.masterAllocation',
   pageHrmsUtilAttConv:'page.utilAttConv',
   pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
+  pageHrmsPlantwiseAtt:'page.plantwiseAtt',
   pageHrmsUtilMonthlyHc:'page.utilMonthlyHc',
   pageHrmsUtilUpdateEmp:'page.utilUpdateEmp'
 };
@@ -270,16 +276,17 @@ function _hrmsEnforcePermissions(){
     var el=document.getElementById(navId);
     if(el) el.style.display=_hrmsHasAccess(navPerms[navId])?'':'none';
   });
-  // My Approvals nav. Strict: visible only when System Super Admin OR
-  // the user has page.myApprovals explicitly. Org-structure role no
-  // longer auto-reveals it — admin must grant access via Configure
-  // Access for Manager / Plant Head / HR Manager users to see it.
+  // My Approvals nav is now visible for ALL signed-in users. The
+  // renderer (`_hrmsMyApprovalsCanAct` + `_hrmsMyApprovalsCollect`)
+  // already scopes rows by user: SA / HR Manager see the org-wide
+  // queue, everyone else sees only the approvals routed to them via
+  // the HR chain. Admins can still hide the nav by removing the
+  // `page.myApprovals` permission from a role.
   (function(){
     var el=document.getElementById('navMyApprovals');
     if(!el) return;
-    var isSA=(typeof _hrmsIsSuperAdmin==='function')&&_hrmsIsSuperAdmin();
-    var hasPerm=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals');
-    el.style.display=(isSA||hasPerm)?'':'none';
+    var hasPerm=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('page.myApprovals'):true;
+    el.style.display=hasPerm?'':'none';
   })();
   // Masters menu
   var mastersNav=document.querySelector('[onclick*="_hrmsToggleMasters"]');
@@ -313,25 +320,21 @@ function _hrmsEnforcePermissions(){
   });
 }
 
-function hrmsGo(pid){
-  // My Approvals was migrated into Attendance & Salary → Settings & Data.
-  // Redirect any remaining call sites so deep links / role-based landings
-  // still arrive at the right place.
-  if(pid==='pageHrmsMyApprovals'){
-    var _allowApprovals=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())||
-                       ((typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.myApprovals'));
-    if(!_allowApprovals){notify('Access denied',true);return;}
-    _hrmsActiveSettingsTab='myapprovals';
-    _hrmsActiveMainTab='settings';
-    hrmsGo('pageHrmsAttSal');
-    return;
+function hrmsGo(pid,opt){
+  // Optional second arg lets the sidebar sub-menu items pre-select a
+  // tab inside Daily Attendance Summary (e.g. hrmsGo('pageHrmsUtilDailyAtt','teamwise')).
+  if(pid==='pageHrmsUtilDailyAtt'&&typeof opt==='string'&&opt){
+    window._hrmsDasInitialTab=opt;
   }
   var permKey=_HRMS_PAGE_PERMS[pid];
-  if(permKey&&!_hrmsHasAccess(permKey)){notify('Access denied',true);return;}
+  // pageHrmsMyApprovals is open to all signed-in users — internal
+  // scoping (chain-routed for non-elevated users, org-wide for
+  // SA / HR Manager) limits what each user actually sees.
+  if(pid!=='pageHrmsMyApprovals'&&permKey&&!_hrmsHasAccess(permKey)){notify('Access denied',true);return;}
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   var pg=document.getElementById(pid);if(pg)pg.classList.add('active');
-  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsMyAtt:'navMyAtt',pageHrmsMyApprovals:'navMyApprovals',pageHrmsOrgStructure:'navOrgStructure',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsMAllocation:'navMAllocation',pageHrmsUtilAttConv:'navUtilAttConv',pageHrmsUtilDailyAtt:'navUtilDailyAtt',pageHrmsUtilMonthlyHc:'navUtilMonthlyHc',pageHrmsUtilUpdateEmp:'navUtilUpdateEmp'};
+  var navMap={pageHrmsDashboard:'navDashboard',pageHrmsEmployees:'navEmployees',pageHrmsEmpEdit:'navEmployees',pageHrmsAttSal:'navAttSal',pageHrmsMyAtt:'navMyAtt',pageHrmsMyApprovals:'navMyApprovals',pageHrmsOrgStructure:'navOrgStructure',pageHrmsAttRules:'navAttRules',pageHrmsMCompany:'navMCompany',pageHrmsMCategory:'navMCategory',pageHrmsMEmpType:'navMEmpType',pageHrmsMTeam:'navMTeam',pageHrmsMDept:'navMDept',pageHrmsMSubDept:'navMSubDept',pageHrmsMDesig:'navMDesig',pageHrmsMRoll:'navMRoll',pageHrmsMAllocation:'navMAllocation',pageHrmsUtilAttConv:'navUtilAttConv',pageHrmsUtilDailyAtt:'navUtilDailyAtt',pageHrmsPlantwiseAtt:'navDasPlantwise',pageHrmsUtilMonthlyHc:'navUtilMonthlyHc',pageHrmsUtilUpdateEmp:'navUtilUpdateEmp'};
   var nid=navMap[pid];if(nid){var ne=document.getElementById(nid);if(ne)ne.classList.add('active');}
   _hrmsUpdateTopTitle();
   // Re-render the employee list whenever the user lands on the page — the
@@ -378,12 +381,20 @@ function hrmsGo(pid){
     if(pid==='pageHrmsMRoll') _hrmsRenderRollMaster();
     else if(pid==='pageHrmsMAllocation') _hrmsRenderAllocationMaster();
     else renderHrmsMaster(pid);
-    // Keep the Masters group expanded so the user can switch between
-    // siblings without re-opening it. Toggle stays under user control.
+  }
+  // Keep the Masters group expanded for every page that lives inside
+  // it — Employees + Org Structure + Master pages.
+  if(pid==='pageHrmsEmployees'||pid==='pageHrmsEmpEdit'||pid==='pageHrmsOrgStructure'||pid.indexOf('pageHrmsM')===0){
     var _mg=document.getElementById('hrmsMastersGroup');
     var _ma=document.getElementById('hrmsMastersArrow');
     if(_mg) _mg.style.display='block';
     if(_ma) _ma.textContent='▼';
+  }
+  // Expand the Day-wise Attendance sub-menu group when landing on
+  // any of its sub-pages (current DAS page or Plant-wise page).
+  if(pid==='pageHrmsUtilDailyAtt'||pid==='pageHrmsPlantwiseAtt'){
+    var _dg=document.getElementById('hrmsDasNavGroup');if(_dg) _dg.style.display='block';
+    var _da=document.getElementById('hrmsDasNavArrow');if(_da) _da.textContent='▼';
   }
   if(pid.indexOf('pageHrmsUtil')===0){
     var _ug=document.getElementById('hrmsUtilsGroup');if(_ug) _ug.style.display='block';
@@ -425,20 +436,36 @@ function hrmsGo(pid){
       if(typeof _hrmsDasLoadFromHistory==='function'){
         try{_hrmsDasLoadFromHistory();}catch(_){if(typeof _hrmsDasRender==='function') _hrmsDasRender();}
       } else if(typeof _hrmsDasRender==='function') _hrmsDasRender();
-      // ContractorSup-only users land directly on the Teamwise Data
-      // tab (the only tab they can use); everyone else defaults to
-      // Manpower Data on first entry.
+      // Sub-menu entry can pre-select a specific tab via
+      // window._hrmsDasInitialTab (set by hrmsGo(pid, tab)). Scope
+      // checks still apply — Contractor Sup users land on Teamwise
+      // regardless; otherwise honor the requested tab, falling back
+      // to Manpower for first-time entry.
       var _supScope=(typeof _hrmsDasContractorSupScope==='function')?_hrmsDasContractorSupScope():null;
+      var _initTab=window._hrmsDasInitialTab||'';
+      if(_initTab) window._hrmsDasInitialTab=null;
+      var _resolvedTab=null;
       if(typeof _hrmsDasSetTab==='function'){
-        if(_supScope) _hrmsDasSetTab('teamwise');
-        else if(!window._hrmsDasActiveTab) _hrmsDasSetTab('manpower');
+        if(_supScope){_hrmsDasSetTab('teamwise');_resolvedTab='teamwise';}
+        else if(_initTab){_hrmsDasSetTab(_initTab);_resolvedTab=_initTab;}
+        else if(!window._hrmsDasActiveTab){_hrmsDasSetTab('manpower');_resolvedTab='manpower';}
+        else _resolvedTab=window._hrmsDasActiveTab;
       }
+      // Highlight matching sidebar sub-item + expand the group.
+      var _dasGroup=document.getElementById('hrmsDasNavGroup');
+      var _dasArrow=document.getElementById('hrmsDasNavArrow');
+      if(_dasGroup) _dasGroup.style.display='block';
+      if(_dasArrow) _dasArrow.textContent='▼';
+      var _dasNavMap={manpower:'navDasManpower',deptdetails:'navDasDeptDetails',teamwise:'navDasTeamwise'};
+      var _subId=_dasNavMap[_resolvedTab];
+      if(_subId){var _sn=document.getElementById(_subId);if(_sn) _sn.classList.add('active');}
     }
     if(pid==='pageHrmsUtilMonthlyHc'&&typeof _hrmsMhgInit==='function') _hrmsMhgInit();
     if(pid==='pageHrmsUtilUpdateEmp'&&typeof _hrmsUpdEmpInit==='function') _hrmsUpdEmpInit();
   }
   if(pid==='pageHrmsMyAtt'&&typeof _hrmsMyAttInit==='function') _hrmsMyAttInit();
   if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
+  if(pid==='pageHrmsPlantwiseAtt'&&typeof _hrmsPwAttInit==='function') _hrmsPwAttInit();
   if(pid==='pageHrmsOrgStructure'&&typeof _hrmsOrgRender==='function') _hrmsOrgRender();
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelector('.sidebar-overlay').classList.remove('show');
@@ -455,6 +482,14 @@ function _hrmsToggleMasters(){
 function _hrmsToggleUtilities(){
   var g=document.getElementById('hrmsUtilsGroup');
   var a=document.getElementById('hrmsUtilsArrow');
+  if(!g||!a) return;
+  var open=g.style.display==='none';
+  g.style.display=open?'block':'none';
+  a.textContent=open?'▼':'▶';
+}
+function _hrmsToggleDasNav(){
+  var g=document.getElementById('hrmsDasNavGroup');
+  var a=document.getElementById('hrmsDasNavArrow');
   if(!g||!a) return;
   var open=g.style.display==='none';
   g.style.display=open?'block':'none';
@@ -1562,6 +1597,67 @@ async function _hrmsRepairGenderCase(){
   return changed.length;
 }
 
+// Idempotent migration: stamp `inactive=true` on every employee who is
+// effectively no longer active, even when their flat `status` field is
+// stale. Covers FOUR signals (any one is enough):
+//   1. flat status = Left / Resigned / Inactive
+//   2. dateOfLeft is set (they have a recorded exit date)
+//   3. NO active period (every period has a `to` close-date) — the emp
+//      has fully exited, regardless of what the flat status says
+//   4. Last approved period closed with status Resigned / Left / Inactive
+// The first two are direct signals; (3) + (4) catch records where the
+// status field was left as 'Active' after a resignation was processed
+// at the period level only.
+async function _hrmsRepairResignedInactive(){
+  var emps=DB.hrmsEmployees||[];
+  if(!emps.length) return 0;
+  var changed=[];
+  for(var i=0;i<emps.length;i++){
+    var e=emps[i];if(!e) continue;
+    if(e.inactive) continue;
+    var st=String(e.status||'Active').toLowerCase();
+    var byStatus=(st==='left'||st==='resigned'||st==='inactive');
+    var byDateOfLeft=!!(e.dateOfLeft&&String(e.dateOfLeft).trim());
+    var periods=(e.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+    var ap=periods.find(function(p){return !p.to;});
+    var hasActivePeriod=!!ap;
+    var apStatus=ap?String(ap.status||'').toLowerCase():'';
+    var byActivePeriodResigned=(hasActivePeriod&&(apStatus==='resigned'||apStatus==='left'||apStatus==='inactive'));
+    var lastClosed=periods.slice().reverse().find(function(p){return !!p.to;});
+    var lastClosedSt=lastClosed?String(lastClosed.status||'').toLowerCase():'';
+    var byLastPeriod=(!hasActivePeriod&&periods.length>0&&(lastClosedSt==='resigned'||lastClosedSt==='left'||lastClosedSt==='inactive'));
+    var byNoActive=(!hasActivePeriod&&periods.length>0);// fully exited regardless of period status
+    if(byStatus||byDateOfLeft||byLastPeriod||byNoActive||byActivePeriodResigned){
+      e.inactive=true;
+      // Also normalise the flat status so downstream code that checks
+      // `e.status` sees a consistent value. Prefer the existing closed
+      // period's status when meaningful; fallback to 'Resigned'.
+      if(!byStatus){
+        var resolvedSt=lastClosedSt||apStatus;
+        e.status=(resolvedSt==='left'?'Left':resolvedSt==='inactive'?'Inactive':'Resigned');
+      }
+      changed.push(e);
+    }
+  }
+  if(!changed.length) return 0;
+  var roles=(typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[];
+  var canWrite=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+    ||roles.indexOf('HR Manager')>=0||roles.indexOf('HRMS Admin')>=0;
+  if(canWrite&&typeof _dbSaveBulk==='function'){
+    try{
+      await _dbSaveBulk('hrmsEmployees',changed,'Marking resigned employees inactive…');
+      if(typeof notify==='function') notify('🔧 Marked '+changed.length+' resigned employee(s) as inactive');
+      if(typeof renderHrmsDashboard==='function') renderHrmsDashboard();
+      if(typeof renderHrmsEmployees==='function') renderHrmsEmployees();
+    }catch(err){
+      console.warn('Resigned→inactive repair failed:',err);
+    }
+  } else {
+    if(typeof renderHrmsEmployees==='function') renderHrmsEmployees();
+  }
+  return changed.length;
+}
+
 // Idempotent employment-type case repair. Walks DB.hrmsEmployees +
 // every period and rewrites variants like 'piece rate' / 'piecerate' /
 // 'PieceRate' onto the canonical 'Piece Rate', same for 'On Roll',
@@ -1614,14 +1710,79 @@ async function _hrmsRepairEmpTypeCase(){
 // ═══ DASHBOARD ══════════════════════════════════════════════════════════
 function renderHrmsDashboard(){
   var el=document.getElementById('hrmsDashContent');if(!el)return;
-  var emps=(DB.hrmsEmployees||[]).filter(function(e){return(e.status||'Active')==='Active';});
-  var allEmps=DB.hrmsEmployees||[];
+  // Active = monthly tag is AC. The AC/IA/PIA pipeline is the canonical
+  // active definition: for OnRoll emps it tracks resignation; for
+  // Contract / Piece Rate it tracks attendance + PIA marks. The
+  // simpler `_hrmsEmpIsInactive` flag check missed CR emps that had
+  // no PIA mark but also zero punches (auto-IA), counting them as
+  // active. This now matches every other AC-tagged page.
+  var _curMk=(typeof _hrmsCurMonth==='function')?_hrmsCurMonth():'';
+  var _empTag=(typeof _hrmsEmpMonthTag==='function')
+    ?function(e){return _hrmsEmpMonthTag(e,_curMk);}
+    :function(){return 'AC';};
+  // Pending-creation ECRs aren't official employees yet — exclude them.
+  var allEmps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;});
+  var emps=allEmps.filter(function(e){return _empTag(e)==='AC';});
   var active=emps.length;
-  var left=allEmps.filter(function(e){return e.status==='Left';}).length;
-  var onRoll=emps.filter(function(e){return(e.employmentType||'').toLowerCase()==='on roll';}).length;
-  var contract=emps.filter(function(e){return(e.employmentType||'').toLowerCase()==='contract';}).length;
-  var pieceRate=emps.filter(function(e){return(e.employmentType||'').toLowerCase()==='piece rate';}).length;
+  // Inactive bucket = anything not AC for the current month (covers
+  // OnRoll-Resigned, auto-IA CR emps, and PIA-marked emps alike).
+  var left=allEmps.length-active;
+  // Debug helper — call from console: `_hrmsDashCountDebug()` to see
+  // why a particular emp falls into Active vs Inactive. No-op in
+  // normal use; just an aid for spotting stale records.
+  window._hrmsDashCountDebug=function(){
+    var groups={inactive_flag:0,status_left:0,status_resigned:0,status_inactive:0,dateOfLeft:0,no_active_period:0,active_period_resigned:0,newEcr:0,active:0};
+    (DB.hrmsEmployees||[]).forEach(function(e){
+      if(!e) return;
+      if(e._isNewEcr){groups.newEcr++;return;}
+      if(e.inactive){groups.inactive_flag++;return;}
+      var st=String(e.status||'Active').toLowerCase();
+      if(st==='left'){groups.status_left++;return;}
+      if(st==='resigned'){groups.status_resigned++;return;}
+      if(st==='inactive'){groups.status_inactive++;return;}
+      if(e.dateOfLeft&&String(e.dateOfLeft).trim()){groups.dateOfLeft++;return;}
+      var periods=(e.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+      if(periods.length){
+        if(!periods.some(function(p){return !p.to;})){groups.no_active_period++;return;}
+        var ap=periods.find(function(p){return !p.to;});
+        var apSt=String((ap&&ap.status)||'').toLowerCase();
+        if(apSt==='resigned'||apSt==='left'||apSt==='inactive'){groups.active_period_resigned++;return;}
+      }
+      groups.active++;
+    });
+    console.table(groups);
+    return groups;
+  };
+  // Use the active period's employmentType so emps mid-conversion
+  // (e.g. Contract → On Roll, where the flat field hasn't caught up)
+  // get bucketed under their current type. Canonicalise spacing /
+  // casing — 'Onroll' / 'On Roll' / 'piecerate' all reduce to the
+  // canonical 4 buckets.
+  var _empTypeOf=function(e){
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var raw=String((ap&&ap.employmentType)||e.employmentType||'');
+    return raw.toLowerCase().replace(/\s+/g,'');
+  };
+  var onRoll=emps.filter(function(e){return _empTypeOf(e)==='onroll';}).length;
+  var contract=emps.filter(function(e){return _empTypeOf(e)==='contract';}).length;
+  var pieceRate=emps.filter(function(e){return _empTypeOf(e)==='piecerate';}).length;
 
+  // Pre-fetch the current month's attendance — AC tagging for
+  // Contract / Piece Rate emps reads it to derive auto-IA / running-
+  // month status. The fetch is async; once it lands we re-render so
+  // the cards pick up the now-loaded counts.
+  if(_curMk&&typeof _hrmsAttFetchMonth==='function'){
+    var _curAttLoaded=(typeof _hrmsAttCache!=='undefined'&&_hrmsAttCache&&_hrmsAttCache[_curMk]);
+    if(!_curAttLoaded&&!window._hrmsDashCurFetchInflight){
+      window._hrmsDashCurFetchInflight=true;
+      try{
+        var _rc=_hrmsAttFetchMonth(_curMk);
+        var _doneC=function(){window._hrmsDashCurFetchInflight=false;try{renderHrmsDashboard();}catch(_){}};
+        if(_rc&&typeof _rc.then==='function') _rc.then(_doneC).catch(_doneC);
+        else _doneC();
+      }catch(_){window._hrmsDashCurFetchInflight=false;}
+    }
+  }
   // Cards lead with LAST MONTH PRESENT count (big), with the active
   // headcount shown as a smaller subtitle. Re-fetches the prior month's
   // attendance the first time it isn't cached.
@@ -1634,10 +1795,10 @@ function renderHrmsDashboard(){
       var p=(typeof _hrmsCalcMonthlyP==='function')?_hrmsCalcMonthlyP(e,_lastMk):null;
       if(!(p>0)) return;
       _pTotal++;
-      var et=(e.employmentType||'').toLowerCase();
-      if(et==='on roll') _pOnRoll++;
+      var et=_empTypeOf(e);
+      if(et==='onroll') _pOnRoll++;
       else if(et==='contract') _pContract++;
-      else if(et==='piece rate') _pPieceRate++;
+      else if(et==='piecerate') _pPieceRate++;
     });
   } else if(typeof _hrmsAttFetchMonth==='function'&&!window._hrmsDashLastFetchInflight){
     window._hrmsDashLastFetchInflight=true;
@@ -1648,12 +1809,14 @@ function renderHrmsDashboard(){
       else _done();
     }catch(_){window._hrmsDashLastFetchInflight=false;}
   }
-  // Big = last-month present count (or "…" while loading); small line
-  // below shows the active headcount + the month label.
+  // Big = ACTIVE headcount. Sub-line shows the breakdown for the
+  // last completed month: P (present at least once) and A (active emp
+  // with zero P that month). Absent = Active − Present, never < 0.
+  // Sub-line removed per V81 — the card now shows just the active
+  // headcount headline. P/A figures live on the Plant-wise + Day-wise
+  // Attendance pages where they belong.
   var _bigPresent=function(present,active,clr){
-    var bigTxt=_attLoaded?String(present):'…';
-    return '<div style="font-size:30px;font-weight:900;color:'+clr+';line-height:1.1">'+bigTxt+'</div>'
-      +'<div style="font-size:10px;font-weight:700;color:rgba(0,0,0,.55);margin-top:2px">'+_lastLabel+' present · Active: '+active+'</div>';
+    return '<div style="font-size:30px;font-weight:900;color:'+clr+';line-height:1.1">'+active+'</div>';
   };
 
   var h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
@@ -1795,7 +1958,8 @@ function _hrmsEmpUpdateSortIcons(){
 function _hrmsEmpClearFilters(){
   var s1=document.getElementById('hrmsEmpCodeSearch');if(s1)s1.value='';
   var s2=document.getElementById('hrmsEmpNameSearch');if(s2)s2.value='';
-  ['hrmsEmpFPlant','hrmsEmpFType','hrmsEmpFTeam','hrmsEmpFCat','hrmsEmpFDept','hrmsEmpFRoll','hrmsEmpFStateOrigin'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  ['hrmsEmpFPlant','hrmsEmpFType','hrmsEmpFTeam','hrmsEmpFCat','hrmsEmpFDept','hrmsEmpFRoll','hrmsEmpFTag','hrmsEmpFStateOrigin'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var hi=document.getElementById('hrmsEmpHideInactive');if(hi)hi.checked=false;
   renderHrmsEmployees();
 }
 
@@ -2097,6 +2261,11 @@ function renderHrmsEmployees(){
     return((ap&&ap.department)||e.department||'');
   };
 
+  // Current month key (YYYY-MM) used for the per-month Activity Tag
+  // column. Stashed on window so the inline IIFE in the row map can
+  // read it without closing over a local — keeps the render path tidy.
+  var _now=new Date();
+  window._hrmsEmpTagMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
   var emps=allEmps.slice();
   var codeSearch=(document.getElementById('hrmsEmpCodeSearch')?.value||'').toLowerCase();
   var nameSearch=(document.getElementById('hrmsEmpNameSearch')?.value||'').toLowerCase();
@@ -2106,7 +2275,9 @@ function renderHrmsEmployees(){
   var fCat=(document.getElementById('hrmsEmpFCat')?.value||'');
   var fDept=(document.getElementById('hrmsEmpFDept')?.value||'');
   var fRoll=(document.getElementById('hrmsEmpFRoll')?.value||'');
+  var fTag=(document.getElementById('hrmsEmpFTag')?.value||'');
   var fState=(document.getElementById('hrmsEmpFStateOrigin')?.value||'');
+  var hideInactive=!!(document.getElementById('hrmsEmpHideInactive')&&document.getElementById('hrmsEmpHideInactive').checked);
   emps=emps.filter(function(e){
     if(codeSearch&&(e.empCode||'').toLowerCase().indexOf(codeSearch)<0) return false;
     if(nameSearch&&(e.name||'').toLowerCase().indexOf(nameSearch)<0) return false;
@@ -2116,7 +2287,16 @@ function renderHrmsEmployees(){
     if(fCat&&e.category!==fCat) return false;
     if(fDept&&_empDept(e)!==fDept) return false;
     if(fRoll&&(e.roll||'')!==fRoll) return false;
+    if(fTag&&typeof _hrmsEmpMonthTag==='function'){
+      var _empTag=_hrmsEmpMonthTag(e,window._hrmsEmpTagMk||'');
+      if(_empTag!==fTag) return false;
+    }
     if(fState&&(e.stateOrigin||'')!==fState) return false;
+    // "Hide Inactive" — uses the unified `_hrmsEmpIsInactive` check so
+    // OnRoll-Resigned (status=Resigned but inactive=false) is treated
+    // the same as a hard-deactivated record. Off by default so the
+    // table shows everyone (matches prior behaviour).
+    if(hideInactive&&typeof _hrmsEmpIsInactive==='function'&&_hrmsEmpIsInactive(e)) return false;
     return true;
   });
   var sk=_hrmsEmpSortKey,sa=_hrmsEmpSortAsc;
@@ -2156,17 +2336,115 @@ function renderHrmsEmployees(){
       +'<td style="padding:4px 3px;'+_ov+'"><span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;background:'+etStyle+';max-width:100%;'+_ov+'" title="'+(e.employmentType||'')+'">'+(e.employmentType||'—')+'</span></td>'
       +'<td style="padding:4px 6px;'+_ov+'" title="'+(e.teamName||'')+'">'+(e.teamName||'—')+'</td>'
       +'<td style="padding:4px 4px;'+_ov+'">'+(e.category||'—')+'</td>'
-      +(function(){var d=_empDept(e);return '<td style="padding:4px 4px;'+_ov+'" title="'+d+'">'+(d||'<span style="color:var(--text3)">—</span>')+'</td>';})()
+      +(function(){
+        var d=_empDept(e);
+        var canEdit=(typeof _hrmsHasAccess==='function')?(_hrmsHasAccess('action.editEmployee')||(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())):true;
+        if(!canEdit){
+          return '<td style="padding:4px 4px;'+_ov+'" title="'+d+'">'+(d||'<span style="color:var(--text3)">—</span>')+'</td>';
+        }
+        return '<td style="padding:4px 4px;'+_ov+';cursor:pointer;color:var(--accent);text-decoration:underline dotted;text-underline-offset:2px" title="Click to change department" onclick="event.stopPropagation();_hrmsEmpDeptPicker(event,\''+e.id+'\')">'+(d||'<span style="color:var(--text3);text-decoration:none">—</span>')+'</td>';
+      })()
       +'<td style="padding:4px 3px;text-align:center;font-family:var(--mono);font-weight:700;color:'+(e.roll?'var(--accent)':'var(--text3)')+';'+_ov+'" title="'+(e.roll||'')+'">'+(e.roll||'—')+'</td>'
+      +(function(){
+        // Current-month activity tag (AC/IA/PIA). `_hrmsRenderActivityTagCell`
+        // returns a fully-formed <td> — including padding + the coloured pill.
+        if(typeof _hrmsRenderActivityTagCell==='function'){
+          return _hrmsRenderActivityTagCell(e,_hrmsEmpTagMk||'');
+        }
+        return '<td style="padding:4px 3px;text-align:center;color:var(--text3)">—</td>';
+      })()
       +'<td id="hrmsEmpStateCell_'+e.id+'" style="padding:4px 4px;'+_ov+'" onclick="event.stopPropagation()">'+_hrmsEmpStateCellHTML(e)+'</td>'
       +'<td style="padding:4px 4px;text-align:right;font-family:var(--mono);font-weight:700;'+_ov+'">'+(function(){var rd=_empRateDay(e);return rd?rd.toLocaleString():'<span style="color:var(--text3);font-weight:400">—</span>';})()+'</td>'
       +'<td style="padding:4px 2px;white-space:nowrap;text-align:center;overflow:hidden" onclick="event.stopPropagation()"><button onclick="_hrmsOpenEmpPage(\''+e.id+'\')" style="padding:2px 5px;font-size:10px;font-weight:700;background:#fef3c7;border:1px solid #fde047;color:#a16207;border-radius:3px;cursor:pointer">✏️</button>'
       +(_hrmsEmpRecordReason(e)?'':' <button onclick="_hrmsDelEmp(\''+e.id+'\')" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button>')
       +'</td>'
       +'</tr>';
-  }).join(''):'<tr><td colspan="14" class="empty-state">No employees match filters.</td></tr>';
+  }).join(''):'<tr><td colspan="15" class="empty-state">No employees match filters.</td></tr>';
   var cEl=document.getElementById('cEmployees');if(cEl)cEl.textContent=allEmps.length;
   var cntEl=document.getElementById('hrmsEmpCount');if(cntEl)cntEl.textContent='(showing '+emps.length+' of '+allEmps.length+')';
+}
+
+// ── Inline department picker on the employee table ──────────────
+// Click the Department cell → radio-list popup of the depts that
+// match this employee's plant (for Worker) or the Staff sub-dept
+// master (for Staff / Department-Staff). Saving writes both the flat
+// field and the active period, then re-renders the list.
+function _hrmsEmpDeptPicker(ev,empId){
+  if(ev&&typeof ev.stopPropagation==='function') ev.stopPropagation();
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e&&e.id===empId;});
+  if(!emp){notify('Employee not found',true);return;}
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.editEmployee')&&!(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())){
+    notify('⚠ View-only access',true);return;
+  }
+  var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var cat=String((ap&&ap.category)||emp.category||'').toLowerCase();
+  var isStaff=cat.indexOf('staff')>=0;
+  var plant=String((ap&&ap.location)||emp.location||'').trim();
+  var seen={},names=[];
+  if(isStaff){
+    // Staff: Staff sub-department master (plant-agnostic).
+    (DB.hrmsSubDepartments||[]).forEach(function(d){
+      if(!d||d.inactive) return;
+      var n=(d.name||'').trim();if(!n||seen[n]) return;
+      seen[n]=1;names.push(n);
+    });
+  } else {
+    // Worker: Department master scoped to this emp's plant.
+    if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+    (DB.hrmsDepartments||[]).forEach(function(d){
+      if(!d||d.inactive) return;
+      if(plant&&(d.plant||'')!==plant) return;
+      var n=(d.name||'').trim();if(!n||seen[n]) return;
+      seen[n]=1;names.push(n);
+    });
+  }
+  names.sort(function(a,b){return a.localeCompare(b);});
+  if(!names.length){
+    notify(isStaff?'No Staff sub-departments configured':('No departments configured for plant "'+(plant||'—')+'"'),true);
+    return;
+  }
+  var cur=isStaff?((ap&&ap.subDepartment)||emp.subDepartment||''):((ap&&ap.department)||emp.department||'');
+  var items=names.map(function(n){return {value:n,label:n};});
+  var title=(isStaff?'Select Sub-Department (Staff)':'Select Department · '+(plant||'—'));
+  if(typeof _hrmsDasDdOpenPicker==='function'){
+    _hrmsDasDdOpenPicker(ev,title,items,cur,function(v){_hrmsEmpSetDept(empId,v);});
+  }
+}
+async function _hrmsEmpSetDept(empId,newDept){
+  if(!empId||!newDept) return;
+  var emp=(DB.hrmsEmployees||[]).find(function(e){return e&&e.id===empId;});
+  if(!emp) return;
+  var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var cat=String((ap&&ap.category)||emp.category||'').toLowerCase();
+  var isStaff=cat.indexOf('staff')>=0;
+  // Stamp dept on both the flat field and the active period so
+  // downstream code (which can read either) sees the new value.
+  if(isStaff){
+    emp.subDepartment=newDept;
+    if(ap) ap.subDepartment=newDept;
+  } else {
+    emp.department=newDept;
+    if(ap){
+      ap.department=newDept;
+      // Stamp departmentId on the active period for plant-rename safety
+      // (V19+ logic: dept-id link survives master renames).
+      var deptRec=(DB.hrmsDepartments||[]).find(function(d){
+        return d&&!d.inactive&&(d.name||'').trim()===newDept&&(!ap.location||(d.plant||'')===ap.location);
+      });
+      if(deptRec&&deptRec.id){
+        if(!emp.extra) emp.extra={};
+        emp.extra.departmentId=deptRec.id;
+        ap.departmentId=deptRec.id;
+      }
+    }
+  }
+  var ok=await _dbSave('hrmsEmployees',emp);
+  if(ok){
+    notify('Department updated → '+newDept);
+    if(typeof renderHrmsEmployees==='function') renderHrmsEmployees();
+  } else {
+    notify('⚠ Save failed',true);
+  }
 }
 
 // ── Inline State (Origin) cell on the employee table ────────────
@@ -3118,7 +3396,7 @@ function _hrmsBuildMonthTable(){
   var empId=document.getElementById('hrmsEmpId')?.value;
   var emp=empId?byId(DB.hrmsEmployees||[],empId):null;
   if(!emp){
-    body.innerHTML='<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Save the employee first, then assign monthly Org &amp; Salary data here.</td></tr>';
+    body.innerHTML='<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Save the employee first, then assign monthly Org &amp; Salary data here.</td></tr>';
     return;
   }
   if(!emp.salaryMonths||typeof emp.salaryMonths!=='object') emp.salaryMonths={};
@@ -3142,7 +3420,7 @@ function _hrmsBuildMonthTable(){
   // earlier than DOJ shows just the month label with empty cells.
   var _dojMk=emp.dateOfJoining?String(emp.dateOfJoining).slice(0,7):'';
   if(!monthKeys.length){
-    body.innerHTML='<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">No monthly snapshots yet — loading from Att &amp; Salary index…</td></tr>';
+    body.innerHTML='<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">No monthly snapshots yet — loading from Att &amp; Salary index…</td></tr>';
     return;
   }
   // Lazy-fetch attendance + saved-month snapshots for any visible month
@@ -3161,6 +3439,13 @@ function _hrmsBuildMonthTable(){
   // Tooltip text for the Data column / button — explains the 1-week-from-DOJ
   // window the popup itself enforces.
   var _dataNote='Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)';
+  // Editing-mode hint above the table — visible only while page edit
+  // mode is on. Lives on a dedicated div so the action column can stay
+  // empty and the hint reads cleanly at the top-right.
+  (function(){
+    var hint=document.getElementById('hrmsEmpEditingHint');
+    if(hint) hint.style.display=_hrmsEmpEditMode?'':'none';
+  })();
   var html=monthKeys.map(function(mk,rowIdx){
     // Pre-DOJ rows render as blank (just the month label) — basic rule:
     // an employee can't have any org/sal/attendance state before they
@@ -3169,7 +3454,7 @@ function _hrmsBuildMonthTable(){
     // overwritten) can also leave pre-DOJ snapshots in salaryMonths.
     if(_dojMk&&mk<_dojMk){
       var _bl='<td style="padding:4px 3px;text-align:center;font-weight:800;color:var(--text3)">'+_hrmsMonthLabel(mk)+'</td>';
-      for(var _bj=0;_bj<17;_bj++) _bl+='<td style="padding:4px 3px">&nbsp;</td>';
+      for(var _bj=0;_bj<16;_bj++) _bl+='<td style="padding:4px 3px">&nbsp;</td>';
       return '<tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;border-left:5px solid #e2e8f0">'+_bl+'</tr>';
     }
     var s=emp.salaryMonths[mk]||{};
@@ -3284,7 +3569,8 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'employmentType\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsEmpTypes',v.employmentType||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'category\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsCategories',v.category||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'teamName\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.team(v.teamName||'',v.employmentType||'')+'</select></td>';
-      cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\''+deptField+'\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel(deptTbl,deptVal||'',v.location||'')+'</select></td>';
+      // Department column removed — set Department from the employee
+      // table itself (Department cell on the main Employees list).
       // Role — Worker-only field; disabled for Staff and shown blank.
       var disRoleM=isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':'';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'roll\',this.value)" '+disRoleM+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(isStaff?'<option value="">--</option>':opts.roll(v.roll||''))+'</select></td>';
@@ -3299,14 +3585,17 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px"><input type="text" value="'+_hrmsEsc(v.remarks||'')+'" placeholder="Reason for change…" onchange="_hrmsMonthDraftSet(\'remarks\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%"></td>';
       // Action cell — page-level Save / Cancel control this row now,
       // so just show a status hint here.
-      cells+='<td style="padding:4px 3px;white-space:nowrap;text-align:center;font-size:10px;color:#92400e;font-style:italic">Editing — click <b>Save</b> at the top</td>';
+      // Action column kept empty — the "Editing — click Save…" hint
+      // moved to the top-right of the table (see _hrmsEmpEditMonthly).
+      cells+='<td style="padding:4px 3px">&nbsp;</td>';
     } else if(_isNewEcrLike){
       // New-joinee ECR awaiting first approval — only the editable inline
       // row carries data. The other visible months stay blank so the
       // operator doesn't see "On Leave" or duplicated org/sal values
       // copied from the proposed period. 16 empty cells to match column
-      // count after Month / P / Gross (was 15, +1 for the Tag column).
-      for(var _bi=0;_bi<16;_bi++) cells+='<td style="padding:4px 3px">&nbsp;</td>';
+      // count after Month / P / Gross (was 15, +1 for the Tag column,
+      // then −1 for the removed Department column).
+      for(var _bi=0;_bi<15;_bi++) cells+='<td style="padding:4px 3px">&nbsp;</td>';
     } else {
       // Read-mode cells with pending overlay.
       // Status + Rejoinee Date + Data sit before Plant — the operator's
@@ -3346,7 +3635,8 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px">'+_diff('employmentType',_hrmsEsc(v.employmentType||'—'))+'</td>';
       cells+='<td style="padding:4px 3px">'+_diff('category',_hrmsEsc(v.category||'—'))+'</td>';
       cells+='<td style="padding:4px 3px">'+_diff('teamName',_hrmsEsc(v.teamName||'—'))+'</td>';
-      cells+='<td style="padding:4px 3px">'+_diff(deptField,_hrmsEsc(deptVal||'—'))+'</td>';
+      // Department column removed from the Org & Sal Revisions table —
+      // set Department from the main Employees list instead.
       cells+='<td style="padding:4px 3px;font-family:var(--mono)">'+_diff('roll',_hrmsEsc(v.roll||'—'))+'</td>';
       cells+='<td style="padding:4px 3px;text-align:right;font-family:var(--mono)">'+_diff('salaryDay',v.salaryDay?Math.round(v.salaryDay).toLocaleString():'—')+'</td>';
       cells+='<td style="padding:4px 3px;text-align:right;font-family:var(--mono)">'+_diff('salaryMonth',v.salaryMonth?Math.round(v.salaryMonth).toLocaleString():'—')+'</td>';
@@ -3773,16 +4063,16 @@ function _hrmsRollupPendingBadges(){
   // ── Sub-tab → main-tab rollup ──────────────────────────────────────
   // Settings & Data → My Approvals (only leaf with pending today).
   var settingsPending=_read('cMyApprovals');
-  // Attendance → pending alterations / C-off across every loaded month
-  // PLUS the Unknown count. The All Alterations sub-tab no longer renders
-  // its own badge, so we compute the pending count directly here so it
-  // still bubbles up to the main tab and the sidebar.
-  var altPending=(typeof _hrmsAltCacheCountPending==='function')?_hrmsAltCacheCountPending():0;
-  var attPending=altPending+_read('cAttUnknown');
-  _set('cMainTabSettings',settingsPending,'inline-block');
+  // Attendance → just the Unknown count. The All Alterations & C-off
+  // sub-tab is hidden, so its pending alterations / C-off entries no
+  // longer roll up here (they still surface in My Approvals).
+  var attPending=_read('cAttUnknown');
+  _set('cMainTabSettings',0,'inline-block');// approvals tab no longer lives in Settings
   _set('cMainTabAttendance',attPending,'inline-block');
   // ── Main-tab → sidebar rollup ──────────────────────────────────────
-  _set('cNavAttSal',settingsPending+attPending,'inline-block');
+  // Attendance & Salary sidebar badge: only attendance-side pending
+  // (approvals moved to pageHrmsMyApprovals + use cNavMyAtt instead).
+  _set('cNavAttSal',attPending,'inline-block');
   _set('cNavMyAtt',settingsPending,'inline-block');
 }
 
@@ -6278,7 +6568,8 @@ function openHrmsEmpModal(id){
     // ── ORG & SAL REVISIONS PANEL ─────────────────────────────
     +'<div id="hrmsEmpTabPanel_orgsal" style="display:none">'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding-bottom:3px;border-bottom:2px solid var(--accent-light);display:flex;align-items:center;justify-content:space-between"><span>Organization &amp; Salary (Revisions)</span><div style="display:flex;gap:6px;text-transform:none;letter-spacing:0"><span style="font-size:10px;font-weight:600;color:var(--text3)">Edits per-month → approval queue</span><button type="button" id="hrmsRejoinBtn" onclick="_hrmsRejoinEmployee()" style="display:none;font-size:10px;padding:3px 12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">🔄 Rejoin</button></div></div>'
-    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9;color:#000"><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Month</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:right">P</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px;text-align:right">Gross</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Status</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:56px;text-align:center" title="Activity tag — AC: active · IA: inactive (absent the whole month or after a PIA mark) · PIA: month has a manual partial-inactive mark. Only Contract / Piece Rate employees carry a tag.">Tag</th><th style="padding:6px 4px;font-size:11px;font-weight:900;color:#000;width:78px;min-width:78px;max-width:78px;text-align:center;white-space:normal;line-height:1.15" title="For Rejoinee rows only — sets the start of the 7-day Initial IN/OUT window">Rejoinee<br>Date</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:70px;text-align:center" title="Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)">Data</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:55px;text-align:center">Plant</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Emp Type</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Category</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Team</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Department</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px">Role</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:88px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:center">ESI</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:100px">Remarks</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
+    +'<div id="hrmsEmpEditingHint" style="display:none;font-size:11px;font-weight:800;color:#dc2626;text-align:right;margin:-4px 0 4px;letter-spacing:.2px">Editing — click <b>Save</b> at the top</div>'
+    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9;color:#000"><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Month</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:right">P</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px;text-align:right">Gross</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Status</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:56px;text-align:center" title="Activity tag — AC: active · IA: inactive (absent the whole month or after a PIA mark) · PIA: month has a manual partial-inactive mark. Only Contract / Piece Rate employees carry a tag.">Tag</th><th style="padding:6px 4px;font-size:11px;font-weight:900;color:#000;width:78px;min-width:78px;max-width:78px;text-align:center;white-space:normal;line-height:1.15" title="For Rejoinee rows only — sets the start of the 7-day Initial IN/OUT window">Rejoinee<br>Date</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:70px;text-align:center" title="Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)">Data</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:55px;text-align:center">Plant</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Emp Type</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Category</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Team</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px">Role</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:88px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:center">ESI</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:100px">Remarks</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
     +'</div>'
     +'</div>';
   // Open as modal popup
@@ -10319,6 +10610,332 @@ function _hrmsDasClear(){
 // Bump the history-date input by ±N days and re-load the summary.
 // Wraps the input as a real Date so end-of-month / leap-year edges
 // resolve correctly (don't manipulate the yyyy-mm-dd string directly).
+// ═══ PLANT-WISE ATTENDANCE ═══════════════════════════════════════════
+// Date-picker driven page that breaks the current attendance roster
+// down by Plant × Employment Type, with P / A counts and % absenteeism.
+function _hrmsPwAttInit(){
+  var inp=document.getElementById('hrmsPwAttDate');
+  if(!inp) return;
+  if(!inp.value){
+    var d=new Date();
+    inp.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  _hrmsPwAttRender();
+}
+function _hrmsPwAttShiftDate(delta){
+  var inp=document.getElementById('hrmsPwAttDate');if(!inp) return;
+  var dt=inp.value?new Date(inp.value+'T00:00:00'):new Date();
+  if(isNaN(dt)) dt=new Date();
+  dt.setDate(dt.getDate()+(+delta||0));
+  inp.value=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  _hrmsPwAttRender();
+}
+// Build the Plant × Emp-Type matrix for the selected date. Lazy-fetches
+// the month's attendance cache if not loaded, then aggregates active
+// employees (e.inactive=false, active period, plant scope honoured).
+function _hrmsPwAttRender(){
+  var body=document.getElementById('hrmsPwAttBody');
+  var inp=document.getElementById('hrmsPwAttDate');
+  var lbl=document.getElementById('hrmsPwAttDateLabel');
+  if(!body||!inp) return;
+  var iso=inp.value||'';
+  if(!iso){body.innerHTML='<div class="empty-state" style="padding:40px">Pick a date.</div>';if(lbl) lbl.textContent='';return;}
+  var parts=iso.split('-');
+  var yy=+parts[0],mm=+parts[1],dd=+parts[2];
+  var mk=parts[0]+'-'+parts[1];
+  var _MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(lbl) lbl.textContent='📅 '+String(dd).padStart(2,'0')+'-'+(_MON[mm-1]||'')+'-'+String(yy).slice(-2);
+  // Lazy-fetch this month's attendance + alterations.
+  var attLoaded=!!(window._hrmsAttCache&&_hrmsAttCache[mk]);
+  if(!attLoaded&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsPwAttFetching){
+    window._hrmsPwAttFetching=true;
+    body.innerHTML='<div class="empty-state" style="padding:40px">Loading attendance for '+_MON[mm-1]+' '+yy+'…</div>';
+    var p=_hrmsAttFetchMonth(mk);
+    var done=function(){window._hrmsPwAttFetching=false;try{_hrmsPwAttRender();}catch(_){}};
+    if(p&&typeof p.then==='function') p.then(done).catch(done); else done();
+    return;
+  }
+  // Build {empCode: present?} for the selected day from att + alt caches.
+  var present={};
+  var absorb=function(arr){
+    (arr||[]).forEach(function(rec){
+      if(!rec||!rec.empCode||!rec.days) return;
+      var d=rec.days[dd]||rec.days[String(dd)]||rec.days[String(dd).padStart(2,'0')];
+      if(d&&(d.in||d['in'])) present[rec.empCode]=true;
+    });
+  };
+  absorb(window._hrmsAttCache&&_hrmsAttCache[mk]);
+  absorb(window._hrmsAltCache&&_hrmsAltCache[mk]);
+  // Active employees only (consistent with the rest of Day-wise pages):
+  // skip e.inactive, require an active period (or fall back to flat).
+  // Plant + emp-type read from the active period when possible.
+  // Per the spec: A (absent) counts ONLY when the employee's monthly
+  // activity tag is AC — IA and PIA emps are excluded from both P
+  // and A buckets so they don't inflate the absenteeism %.
+  var _etCanon=function(et){
+    var s=String(et||'').toLowerCase().replace(/\s+/g,'');
+    if(s==='onroll') return 'On Roll';
+    if(s==='contract') return 'Contract';
+    if(s==='piecerate') return 'Piece Rate';
+    if(s==='visitor') return 'Visitor';
+    return et||'—';
+  };
+  // Two parallel grids — one for Staff (category contains 'staff'),
+  // one for Workers (everyone else). Each grid is plant → et →
+  // {p,a,total,empsP:[],empsA:[]}. Storing the emp arrays here lets
+  // every count be clicked to open an employee-detail popup.
+  var gridStaff={},gridWorker={};
+  var plantSetS={},etSetS={},plantSetW={},etSetW={};
+  // Resolve roll codes once for the popup row labels.
+  var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
+  var rollNameByCode={};rolls.forEach(function(r){if(r&&r.code) rollNameByCode[r.code]=r.name||r.code;});
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||e.inactive) return;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    // Tag filter: only AC-tagged emps contribute to the matrix.
+    if(typeof _hrmsEmpMonthTag==='function'){
+      var _tag=_hrmsEmpMonthTag(e,mk);
+      if(_tag==='IA'||_tag==='PIA') return;
+    }
+    var plant=String((ap&&ap.location)||e.location||'').trim();
+    if(!plant) plant='— Unassigned —';
+    var et=_etCanon((ap&&ap.employmentType)||e.employmentType||'');
+    var cat=String((ap&&ap.category)||e.category||'').toLowerCase();
+    var isStaff=cat.indexOf('staff')>=0;
+    var g=isStaff?gridStaff:gridWorker;
+    var pSet=isStaff?plantSetS:plantSetW;
+    var eSet=isStaff?etSetS:etSetW;
+    pSet[plant]=1;eSet[et]=1;
+    if(!g[plant]) g[plant]={};
+    if(!g[plant][et]) g[plant][et]={p:0,a:0,total:0,empsP:[],empsA:[]};
+    // Build a row for the popup. Dept uses subDepartment for Staff,
+    // department for Workers; role resolved from the rolls master.
+    var deptStr=isStaff
+      ?String((ap&&ap.subDepartment)||e.subDepartment||'').trim()
+      :String((ap&&ap.department)||e.department||'').trim();
+    var rollCode=String((ap&&ap.roll)||e.roll||'').trim();
+    var rec={
+      empCode:e.empCode||'',
+      name:(typeof _hrmsDispName==='function'?_hrmsDispName(e):(e.fullName||e.name||'')),
+      team:String((ap&&ap.teamName)||e.teamName||'').trim()||'—',
+      dept:deptStr||'—',
+      role:rollCode?(rollNameByCode[rollCode]||rollCode):'—',
+      et:et,
+      present:!!present[e.empCode]
+    };
+    g[plant][et].total++;
+    if(present[e.empCode]){g[plant][et].p++;g[plant][et].empsP.push(rec);}
+    else {g[plant][et].a++;g[plant][et].empsA.push(rec);}
+  });
+  var _isHO=function(s){return /^h\.?o\.?$|head\s*office/i.test(String(s||'').trim());};
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  // Whole-number percentages — user wants no decimals here.
+  var _pct=function(a,t){if(!t) return '0%';return Math.round((a/t)*100)+'%';};
+  var _palette={'On Roll':{bg:'#dcfce7',fg:'#15803d',sf:'KAP'},'Contract':{bg:'#dbeafe',fg:'#1d4ed8',sf:'Con'},'Piece Rate':{bg:'#f3e8ff',fg:'#7c3aed',sf:'PR'},'Visitor':{bg:'#fef9c3',fg:'#a16207',sf:'Vis'}};
+  var _etOrder=['On Roll','Contract','Piece Rate','Visitor'];
+  // Stash an emp-list lookup so cells can open the popup without
+  // rebuilding the grid on click.
+  window._hrmsPwAttCellEmps={};
+  var renderTable=function(catKey,title,icon,g,pSet,eSet){
+    var plants=Object.keys(pSet).sort(function(a,b){
+      var aH=_isHO(a),bH=_isHO(b);
+      if(aH!==bH) return aH?-1:1;
+      var sa=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(a):a;
+      var sb=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(b):b;
+      return sa.localeCompare(sb,undefined,{numeric:true});
+    });
+    var ets=_etOrder.filter(function(k){return eSet[k];}).concat(Object.keys(eSet).filter(function(k){return _etOrder.indexOf(k)<0;}).sort());
+    if(!plants.length){
+      return '<div style="margin-bottom:18px"><div style="font-size:14px;font-weight:900;margin-bottom:6px">'+icon+' '+_esc(title)+'</div><div class="empty-state" style="padding:24px;border:1px dashed var(--border);border-radius:8px;color:var(--text3)">No active '+_esc(title.toLowerCase())+' on this date.</div></div>';
+    }
+    // Cell registration — store emp arrays under a stable key so the
+    // click handler can fetch them. Key shape: 'cat|plant|et|bucket'.
+    var regCell=function(plant,et,bucket,emps){
+      var k=catKey+'|'+plant+'|'+et+'|'+bucket;
+      window._hrmsPwAttCellEmps[k]={emps:emps,title:title,plant:plant,et:et,bucket:bucket};
+      return k;
+    };
+    // Aggregate row + grand totals first so the pie graph has the
+    // numbers ready; build the per-plant row HTML in the same pass.
+    var gP=0,gA=0,gT=0,gEt={};
+    var bodyHtml='';
+    plants.forEach(function(plant){
+      var plClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(plant):'#fff';
+      var rowP=0,rowA=0,rowT=0,cells='';
+      var rowEmpsP=[],rowEmpsA=[];
+      ets.forEach(function(et,i){
+        var c=(g[plant]&&g[plant][et])||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        rowP+=c.p;rowA+=c.a;rowT+=c.total;
+        rowEmpsP=rowEmpsP.concat(c.empsP||[]);
+        rowEmpsA=rowEmpsA.concat(c.empsA||[]);
+        gEt[et]=gEt[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        gEt[et].p+=c.p;gEt[et].a+=c.a;gEt[et].total+=c.total;
+        gEt[et].empsP=gEt[et].empsP.concat(c.empsP||[]);
+        gEt[et].empsA=gEt[et].empsA.concat(c.empsA||[]);
+        var bl=i===0?'border-left:1.5px solid #94a3b8;':'border-left:1px solid #e2e8f0;';
+        var dim=c.total===0?'opacity:.4;':'';
+        var pKey=regCell(plant,et,'p',c.empsP||[]);
+        var aKey=regCell(plant,et,'a',c.empsA||[]);
+        var tKey=regCell(plant,et,'t',(c.empsP||[]).concat(c.empsA||[]));
+        var clickP=c.p?(' onclick="_hrmsPwAttShowCell(\''+pKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+        var clickA=c.a?(' onclick="_hrmsPwAttShowCell(\''+aKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+        var clickT=c.total?(' onclick="_hrmsPwAttShowCell(\''+tKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+        cells+='<td '+(clickP?'class="_pwCell"':'')+' style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:700;font-size:13px;color:#15803d;'+bl+dim+'"'+clickP+'>'+c.p+'</td>'
+          +'<td '+(clickA?'class="_pwCell"':'')+' style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:700;font-size:13px;color:#b91c1c;'+dim+'"'+clickA+'>'+c.a+(c.total?' <span style="font-size:13px;color:#b45309;font-weight:800">('+_pct(c.a,c.total)+')</span>':'')+'</td>'
+          +'<td '+(clickT?'class="_pwCell"':'')+' style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;'+dim+'"'+clickT+'>'+c.total+'</td>';
+      });
+      gP+=rowP;gA+=rowA;gT+=rowT;
+      var rowPKey=regCell(plant,'__ALL__','p',rowEmpsP);
+      var rowAKey=regCell(plant,'__ALL__','a',rowEmpsA);
+      var rowTKey=regCell(plant,'__ALL__','t',rowEmpsP.concat(rowEmpsA));
+      var clickRP=rowP?(' onclick="_hrmsPwAttShowCell(\''+rowPKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      var clickRA=rowA?(' onclick="_hrmsPwAttShowCell(\''+rowAKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      var clickRT=rowT?(' onclick="_hrmsPwAttShowCell(\''+rowTKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      bodyHtml+='<tr style="border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:7px 14px;font-weight:800;font-size:13px;background:'+plClr+';color:#0f172a;border-right:1.5px solid #94a3b8;white-space:nowrap" title="'+_esc(plant)+'">'+_esc(plant)+'</td>'
+        +cells
+        +'<td style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;color:#15803d;border-left:1.5px solid #94a3b8;background:#f8fafc"'+clickRP+'>'+rowP+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;color:#b91c1c;background:#f8fafc"'+clickRA+'>'+rowA+(rowT?' <span style="font-size:13px;color:#b45309;font-weight:800">('+_pct(rowA,rowT)+')</span>':'')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;background:#f8fafc"'+clickRT+'>'+rowT+'</td>'
+        +'</tr>';
+    });
+    // Grand total row.
+    var totCells='';
+    ets.forEach(function(et,i){
+      var c=gEt[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+      var bl=i===0?'border-left:1.5px solid #94a3b8;':'border-left:1px solid #cbd5e1;';
+      var pKey=regCell('__ALL__',et,'p',c.empsP);
+      var aKey=regCell('__ALL__',et,'a',c.empsA);
+      var tKey=regCell('__ALL__',et,'t',c.empsP.concat(c.empsA));
+      var cP=c.p?(' onclick="_hrmsPwAttShowCell(\''+pKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      var cA=c.a?(' onclick="_hrmsPwAttShowCell(\''+aKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      var cT=c.total?(' onclick="_hrmsPwAttShowCell(\''+tKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      totCells+='<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:#15803d;'+bl+'"'+cP+'>'+c.p+'</td>'
+        +'<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:#b91c1c"'+cA+'>'+c.a+(c.total?' <span style="font-size:13px;color:#b45309;font-weight:800">('+_pct(c.a,c.total)+')</span>':'')+'</td>'
+        +'<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px"'+cT+'>'+c.total+'</td>';
+    });
+    var gPEmps=[];Object.keys(gEt).forEach(function(et){gPEmps=gPEmps.concat(gEt[et].empsP);});
+    var gAEmps=[];Object.keys(gEt).forEach(function(et){gAEmps=gAEmps.concat(gEt[et].empsA);});
+    var gPKey=regCell('__ALL__','__ALL__','p',gPEmps);
+    var gAKey=regCell('__ALL__','__ALL__','a',gAEmps);
+    var gTKey=regCell('__ALL__','__ALL__','t',gPEmps.concat(gAEmps));
+    var cgP=gP?(' onclick="_hrmsPwAttShowCell(\''+gPKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+    var cgA=gA?(' onclick="_hrmsPwAttShowCell(\''+gAKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+    var cgT=gT?(' onclick="_hrmsPwAttShowCell(\''+gTKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+    bodyHtml+='<tr style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);border-top:2px solid #94a3b8">'
+      +'<td style="padding:9px 14px;font-weight:900;font-size:13px;color:#0f172a;background:#e2e8f0;border-right:1.5px solid #94a3b8;white-space:nowrap">Total</td>'
+      +totCells
+      +'<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:#15803d;border-left:1.5px solid #94a3b8;background:#e0e7ff"'+cgP+'>'+gP+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:#b91c1c;background:#e0e7ff"'+cgA+'>'+gA+(gT?' <span style="font-size:13px;color:#b45309;font-weight:800">('+_pct(gA,gT)+')</span>':'')+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;background:#e0e7ff"'+cgT+'>'+gT+'</td>'
+      +'</tr>';
+    // Header rows — full emp-type names with a P / A / Total triple.
+    var thBg='linear-gradient(180deg,#f8fafc,#e2e8f0)';
+    var thBase='padding:8px 10px;text-align:center;font-weight:800;font-size:13px;color:#0f172a;background:'+thBg+';border-bottom:2px solid #94a3b8;white-space:nowrap';
+    var subTh='padding:5px 8px;text-align:center;font-weight:700;font-size:11px;color:#475569;background:#f8fafc;border-bottom:1.5px solid #cbd5e1';
+    var theadHtml='<thead><tr><th rowspan="2" style="'+thBase+';text-align:left;padding:8px 14px;background:#fff;min-width:120px">Plant</th>';
+    ets.forEach(function(et){
+      var pal=_palette[et]||{bg:'#f1f5f9',fg:'#475569',sf:et};
+      theadHtml+='<th colspan="3" style="'+thBase+';background:'+pal.bg+';color:'+pal.fg+';border-left:1.5px solid #94a3b8">'+_esc(et)+'</th>';
+    });
+    theadHtml+='<th colspan="3" style="'+thBase+';background:#e0e7ff;color:#3730a3;border-left:1.5px solid #94a3b8">Total</th></tr><tr>';
+    ets.forEach(function(et,i){
+      var bl=i===0?';border-left:1.5px solid #94a3b8':';border-left:1px solid #cbd5e1';
+      theadHtml+='<th style="'+subTh+bl+';color:#15803d">P</th>'
+        +'<th style="'+subTh+';color:#b91c1c" title="Absent (% absenteeism)">A</th>'
+        +'<th style="'+subTh+'">Total</th>';
+    });
+    theadHtml+='<th style="'+subTh+';border-left:1.5px solid #94a3b8;color:#15803d">P</th>'
+      +'<th style="'+subTh+';color:#b91c1c">A</th>'
+      +'<th style="'+subTh+'">Total</th></tr></thead>';
+    // Pie graph (CSS conic-gradient) — sits beside the table.
+    var pctPNum=gT?(gP/gT)*100:0;
+    var pieStyle='width:140px;height:140px;border-radius:50%;background:conic-gradient(#16a34a 0 '+pctPNum+'%, #dc2626 '+pctPNum+'% 100%);box-shadow:0 2px 8px rgba(0,0,0,.12);flex:0 0 140px';
+    var pieHtml=gT
+      ?'<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 8px"><div style="'+pieStyle+'"></div><div style="display:flex;gap:8px;font-size:11px;font-weight:800"><span style="color:#16a34a">● P&nbsp;'+gP+'</span><span style="color:#dc2626">● A&nbsp;'+gA+'</span></div><div style="font-size:10px;color:#475569;font-weight:700">Absenteeism: <span style="color:#b45309">'+_pct(gA,gT)+'</span></div></div>'
+      :'';
+    var h='<div style="margin-bottom:18px">';
+    h+='<div style="font-size:14px;font-weight:900;margin-bottom:6px">'+icon+' '+_esc(title)+'</div>';
+    h+='<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">';
+    h+='<div style="flex:1;min-width:520px;border:1.5px solid #94a3b8;border-radius:8px;overflow:auto"><table style="border-collapse:collapse;font-size:13px;width:100%">'+theadHtml+'<tbody>'+bodyHtml+'</tbody></table></div>';
+    if(pieHtml) h+=pieHtml;
+    h+='</div></div>';
+    return {html:h,plants:plants,ets:ets,grid:g,gEt:gEt,gP:gP,gA:gA,gT:gT};
+  };
+  var workersOut=renderTable('workers','Workers','👷',gridWorker,plantSetW,etSetW);
+  var staffOut=renderTable('staff','Staff','🧑‍💼',gridStaff,plantSetS,etSetS);
+  // Helper returns either an HTML string (no plants) or {html, …}.
+  var pickHtml=function(o){return typeof o==='string'?o:o.html;};
+  var pickCtx=function(o){return typeof o==='string'?null:o;};
+  var noData=(typeof workersOut==='string')&&(typeof staffOut==='string');
+  if(noData){body.innerHTML='<div class="empty-state" style="padding:40px">No active employees configured.</div>';window._hrmsPwAttExportCtx=null;return;}
+  // Hover styling for clickable count cells. Injected here so the
+  // sheet ships with the rendered tables rather than living in the
+  // global stylesheet.
+  var pwStyle='<style>'
+    +'#hrmsPwAttBody td[onclick]{transition:background .12s,box-shadow .12s,transform .12s}'
+    +'#hrmsPwAttBody td[onclick]:hover{background:#fde68a!important;box-shadow:inset 0 0 0 2px #f59e0b;cursor:pointer}'
+    +'#hrmsPwAttBody td[onclick]:active{transform:translateY(1px)}'
+    +'</style>';
+  body.innerHTML=pwStyle+pickHtml(workersOut)+pickHtml(staffOut);
+  // Stash both tables for the Excel export — two sheets, one per category.
+  window._hrmsPwAttExportCtx={
+    iso:iso,
+    dateLbl:lbl?lbl.textContent:'',
+    workers:pickCtx(workersOut),
+    staff:pickCtx(staffOut)
+  };
+}
+// Cell-click handler — opens the shared emp-details popup with the
+// rows stashed during render. Subtitle reflects the cell scope.
+function _hrmsPwAttShowCell(key){
+  var reg=window._hrmsPwAttCellEmps&&window._hrmsPwAttCellEmps[key];
+  if(!reg||!reg.emps||!reg.emps.length){if(typeof notify==='function') notify('No employees in this cell',true);return;}
+  var et=(reg.et==='__ALL__')?'All Emp Types':reg.et;
+  var plant=(reg.plant==='__ALL__')?'All Plants':reg.plant;
+  var bucketLbl=reg.bucket==='p'?'Present':(reg.bucket==='a'?'Absent':'Total');
+  var dateLbl=(window._hrmsPwAttExportCtx&&window._hrmsPwAttExportCtx.dateLbl)||'';
+  if(typeof _hrmsDasOpenEmpListPopup==='function'){
+    _hrmsDasOpenEmpListPopup({
+      title:reg.title+' · '+plant+' · '+et+' · '+bucketLbl+' ('+reg.emps.length+')',
+      subtitle:dateLbl,
+      rows:reg.emps
+    });
+  }
+}
+function _hrmsPwAttExport(){
+  var ctx=window._hrmsPwAttExportCtx;
+  if(!ctx||(!ctx.workers&&!ctx.staff)){notify('Nothing to export — load a date first',true);return;}
+  if(typeof XLSX==='undefined'){notify('Export requires XLSX library',true);return;}
+  var _pct=function(a,t){if(!t) return 0;return Math.round((a/t)*1000)/10;};
+  var buildSheet=function(sub){
+    var head1=['Plant'];var head2=[''];
+    sub.ets.forEach(function(et){head1.push(et,'','','');head2.push('P','A','Total','%Abs');});
+    head1.push('Total','','','');head2.push('P','A','Total','%Abs');
+    var rows=[head1,head2];
+    sub.plants.forEach(function(p){
+      var r=[p];var rP=0,rA=0,rT=0;
+      sub.ets.forEach(function(et){
+        var c=(sub.grid[p]&&sub.grid[p][et])||{p:0,a:0,total:0};
+        r.push(c.p,c.a,c.total,_pct(c.a,c.total));
+        rP+=c.p;rA+=c.a;rT+=c.total;
+      });
+      r.push(rP,rA,rT,_pct(rA,rT));
+      rows.push(r);
+    });
+    var gRow=['Grand Total'];
+    sub.ets.forEach(function(et){var c=sub.gEt[et]||{p:0,a:0,total:0};gRow.push(c.p,c.a,c.total,_pct(c.a,c.total));});
+    gRow.push(sub.gP,sub.gA,sub.gT,_pct(sub.gA,sub.gT));
+    rows.push(gRow);
+    return XLSX.utils.aoa_to_sheet(rows);
+  };
+  var wb=XLSX.utils.book_new();
+  if(ctx.workers) XLSX.utils.book_append_sheet(wb,buildSheet(ctx.workers),'Workers');
+  if(ctx.staff)   XLSX.utils.book_append_sheet(wb,buildSheet(ctx.staff),'Staff');
+  XLSX.writeFile(wb,'Plantwise_Attendance_'+ctx.iso+'.xlsx');
+  notify('📤 Exported Plant-wise Attendance');
+}
+
 function _hrmsDasShiftHistDate(delta){
   var inp=document.getElementById('hrmsDasHistDate');if(!inp) return;
   var v=inp.value;
@@ -10352,6 +10969,13 @@ function _hrmsDasUpdateDateLabel(){
 // tabs on the Daily Attendance Summary page. Lazy-renders Allocation
 // Settings + Teamwise Data the first time each tab is entered.
 function _hrmsDasSetTab(tab){
+  // 'alloc' and 'rolegrouping' are no longer in-page tabs — both live
+  // inside the Manpower Allocation Settings modal (Settings ⚙ button).
+  // Redirect either to the modal so legacy callers still land sensibly.
+  if(tab==='alloc'||tab==='rolegrouping'){
+    if(typeof _hrmsOpenAllocSettingsModal==='function') _hrmsOpenAllocSettingsModal(tab==='rolegrouping'?'groups':null);
+    return;
+  }
   // Contractor Supervisor users only get the Teamwise Data tab —
   // Manpower Data + Role Grouping + Allocation Settings are hidden.
   // Department Head users (when not elevated) only get Dept-wise MP
@@ -10393,6 +11017,10 @@ function _hrmsDasSetTab(tab){
     var on=(key===tab);
     if(pane){pane.style.display=on?disp:'none';}
     if(btn){
+      // alloc + rolegrouping live inside the Settings ⚙ modal.
+      // manpower / deptdetails / teamwise live as sidebar sub-menu
+      // items, so the in-page tab buttons stay hidden too.
+      if(key==='alloc'||key==='rolegrouping'||key==='manpower'||key==='deptdetails'||key==='teamwise'){btn.style.display='none';return;}
       // For users with one or more scope roles, hide tabs that aren't
       // in their combined scope set. (Single-role users still see only
       // their own tab; dual-role users see both their tabs.)
@@ -10407,6 +11035,16 @@ function _hrmsDasSetTab(tab){
       btn.style.fontWeight=on?'800':'700';
     }
   });
+  // Settings ⚙ button — only visible on Allocation vs Actual Manpower
+  // (its content is the allocation grid, which is meaningless on the
+  // attendance-focused tabs). Plus the existing role / scope gates.
+  var gear=document.getElementById('hrmsDasAllocSettingsBtn');
+  if(gear){
+    var gearOk=!_hasScope
+      &&(_isElevatedTabs||(typeof _hrmsHasAccess==='function'&&(_hrmsHasAccess('tab.das.alloc')||_hrmsHasAccess('tab.das.rolegrouping'))))
+      &&tab==='manpower';
+    gear.style.display=gearOk?'inline-flex':'none';
+  }
   if(tab==='rolegrouping'&&typeof _hrmsRenderAllocationMaster==='function'){
     _hrmsAllocActiveTab='groups';
     _hrmsRenderAllocationMaster();
@@ -10447,6 +11085,32 @@ function _hrmsDasTwAbsentEmps(presentRows,state,empType,team){
 }
 
 var _hrmsDasTwEmpType=null;// 'On Roll' | 'Contract' | 'Piece Rate' | 'Staff' | …
+// Multi-select state — null = "All" (every emp type), otherwise an
+// array of selected emp-type names. The legacy `_hrmsDasTwEmpType`
+// is kept in sync: '__ALL__' when array is null, the single value
+// when exactly one is selected, or the literal '__MULTI__' marker
+// when 2+ are selected (downstream subtitle / export paths show the
+// joined list themselves).
+var _hrmsDasTwSelEts=null;
+function _hrmsDasTwIsEtSelected(et){
+  if(_hrmsDasTwSelEts==null) return true;
+  return _hrmsDasTwSelEts.indexOf(et)>=0;
+}
+function _hrmsDasTwToggleEmpType(et){
+  var list=_hrmsDasTwSelEts?_hrmsDasTwSelEts.slice():[];
+  var i=list.indexOf(et);
+  if(i>=0) list.splice(i,1);
+  else list.push(et);
+  if(!list.length){
+    _hrmsDasTwSelEts=null;_hrmsDasTwEmpType='__ALL__';
+  } else if(list.length===1){
+    _hrmsDasTwSelEts=list;_hrmsDasTwEmpType=list[0];
+  } else {
+    _hrmsDasTwSelEts=list;_hrmsDasTwEmpType='__MULTI__';
+  }
+  _hrmsDasTwTeam='__ALL__';_hrmsDasTwPlant='__ALL__';
+  _hrmsDasTwRender();
+}
 var _hrmsDasTwTeam=null;
 var _hrmsDasTwPlant='__ALL__';// '__ALL__' = combined; otherwise exact plant name
 var _hrmsDasTwSort={key:'plant',asc:true};// default: plantwise → empCode
@@ -10553,8 +11217,87 @@ function _hrmsEmpRunningMonthStillActive(emp,mk){
 
 // Month-level tag — used for the Tag column in Org & Sal Rev table and
 // for top-level reporting buckets.
+// True when an employee should be treated as fully inactive (hide
+// from active rosters, headcounts, dept pickers, etc). Recognises
+// BOTH the master `inactive` flag AND the flat status field —
+// OnRoll-Resigned employees rarely have `inactive===true` set but
+// they ARE retired from active operations, so callers checking only
+// `e.inactive` would silently include them.
+function _hrmsEmpIsInactive(emp){
+  if(!emp) return false;
+  // (1) Master switch.
+  if(emp.inactive) return true;
+  // (2) Flat status.
+  var st=String(emp.status||'Active').toLowerCase();
+  if(st==='left'||st==='resigned'||st==='inactive') return true;
+  // (3) Exit date stamped.
+  if(emp.dateOfLeft&&String(emp.dateOfLeft).trim()) return true;
+  var periods=(emp.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+  if(periods.length){
+    var hasActive=periods.some(function(p){return !p.to;});
+    // (4) No active period at all — every period is closed.
+    if(!hasActive) return true;
+    // (5) Active period itself is marked Resigned / Left / Inactive.
+    var ap=periods.find(function(p){return !p.to;});
+    var apSt=String((ap&&ap.status)||'').toLowerCase();
+    if(apSt==='resigned'||apSt==='left'||apSt==='inactive') return true;
+  }
+  return false;
+}
+// True when an OnRoll employee should be tagged IA for the given
+// month. Recognises BOTH the per-period resignation marker AND the
+// flat `e.status` / `e.inactive` master flags, since most resignations
+// in this dataset are persisted at the employee level (status = Left
+// / Resigned / Inactive, dateOfLeft = the actual cut-off month).
+function _hrmsEmpIsOnRollResigned(emp,mk){
+  if(!emp) return false;
+  // Resolve the relevant employment type — prefer the month's snapshot,
+  // then the active period, then the flat field. Must be OnRoll for the
+  // IA tag to apply.
+  var et='';
+  if(mk&&emp.salaryMonths&&emp.salaryMonths[mk]&&emp.salaryMonths[mk].employmentType){
+    et=String(emp.salaryMonths[mk].employmentType);
+  } else {
+    var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    et=String((ap&&ap.employmentType)||emp.employmentType||'');
+    // If no active period (emp has fully exited), fall back to their
+    // most recent approved closed period so resigned OnRoll still
+    // resolves to OnRoll.
+    if(!et){
+      var lastP=(emp.periods||[]).slice().reverse().find(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+      et=String((lastP&&lastP.employmentType)||'');
+    }
+  }
+  if(String(et).toLowerCase().replace(/\s/g,'')!=='onroll') return false;
+  // Flag check — anything other than Active is treated as resigned.
+  var flat=String(emp.status||'Active').toLowerCase();
+  var perPeriodResigned=(emp.periods||[]).some(function(p){
+    if(!p||p._wfStatus==='rejected'||p._wfStatus==='pending') return false;
+    var st=String(p.status||'').toLowerCase();
+    return st==='resigned'||st==='left'||st==='inactive';
+  });
+  var resignedFlag=(flat==='left'||flat==='resigned'||flat==='inactive'||!!emp.inactive||perPeriodResigned);
+  if(!resignedFlag) return false;
+  // Respect the cut-off month — if dateOfLeft (or the closed period's
+  // `to`) sits AFTER mk, the emp was still active that month.
+  if(mk){
+    var cutMk='';
+    if(emp.dateOfLeft) cutMk=String(emp.dateOfLeft).slice(0,7);
+    if(!cutMk){
+      var closed=(emp.periods||[]).filter(function(p){return p&&p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      closed.forEach(function(p){var pt=String(p.to).slice(0,7);if(pt>cutMk) cutMk=pt;});
+    }
+    if(cutMk&&cutMk>mk) return false;
+  }
+  return true;
+}
 function _hrmsEmpMonthTag(emp,mk){
-  if(!_hrmsEmpIsContractOrPR(emp,mk)) return 'AC';
+  if(!_hrmsEmpIsContractOrPR(emp,mk)){
+    // OnRoll: IA when resigned by this month, AC otherwise. Other
+    // employment types (Visitor / blank / staff) stay AC.
+    if(_hrmsEmpIsOnRollResigned(emp,mk)) return 'IA';
+    return 'AC';
+  }
   var pres=_hrmsEmpPresentDaysInMonth(emp.empCode,mk);
   var pDays=Object.keys(pres).map(Number);
   var piaDay=_hrmsEmpPiaDay(emp,mk);
@@ -10612,11 +11355,33 @@ async function _hrmsSetEmpPIA(empId,mk,day){
 // neutral "…" instead of a misleading IA (which is the auto-assumed
 // state when no punches are visible).
 function _hrmsRenderActivityTagCell(emp,mk){
-  if(!emp||!_hrmsEmpIsContractOrPR(emp,mk)) return '<td style="padding:4px 3px;text-align:center;color:var(--text3)">—</td>';
-  var loadedAtt=!!(window._hrmsAttCache&&Object.prototype.hasOwnProperty.call(_hrmsAttCache,mk));
-  var loadedSaved=!!(window._hrmsSavedMonth&&_hrmsSavedMonth[mk]&&_hrmsSavedMonth[mk].employees);
-  if(!loadedAtt&&!loadedSaved){
-    return '<td style="padding:4px 3px;text-align:center;color:var(--text3)" title="Loading attendance for this month…">⋯</td>';
+  if(!emp) return '<td style="padding:4px 3px;text-align:center;color:var(--text3)">—</td>';
+  var isCR=_hrmsEmpIsContractOrPR(emp,mk);
+  // OnRoll tagging: AC unless resigned by this month → IA. Resolve
+  // the relevant employment type with the same fall-back chain as
+  // `_hrmsEmpIsOnRollResigned` — month snapshot → active period →
+  // flat field → most recent approved closed period (so fully-exited
+  // OnRoll emps still resolve to OnRoll).
+  var et='';
+  if(mk&&emp.salaryMonths&&emp.salaryMonths[mk]&&emp.salaryMonths[mk].employmentType){
+    et=String(emp.salaryMonths[mk].employmentType);
+  } else {
+    var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    et=String((ap&&ap.employmentType)||emp.employmentType||'');
+    if(!et){
+      var lastP=(emp.periods||[]).slice().reverse().find(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+      et=String((lastP&&lastP.employmentType)||'');
+    }
+  }
+  var etKey=et.toLowerCase().replace(/\s/g,'');
+  var isOR=etKey==='onroll';
+  if(!isCR&&!isOR) return '<td style="padding:4px 3px;text-align:center;color:var(--text3)">—</td>';
+  if(isCR){
+    var loadedAtt=!!(window._hrmsAttCache&&Object.prototype.hasOwnProperty.call(_hrmsAttCache,mk));
+    var loadedSaved=!!(window._hrmsSavedMonth&&_hrmsSavedMonth[mk]&&_hrmsSavedMonth[mk].employees);
+    if(!loadedAtt&&!loadedSaved){
+      return '<td style="padding:4px 3px;text-align:center;color:var(--text3)" title="Loading attendance for this month…">⋯</td>';
+    }
   }
   var tag=_hrmsEmpMonthTag(emp,mk);
   var pal=tag==='IA'?{bg:'#fee2e2',fg:'#b91c1c',bd:'#fca5a5'}
@@ -10712,13 +11477,66 @@ function _hrmsDasTwClearAll(){
   _hrmsDasTwSort={key:'plant',asc:true};
   _hrmsDasTwRender();
 }
-function _hrmsDasTwSetEmpType(et){_hrmsDasTwEmpType=et;_hrmsDasTwTeam=(et==='__ALL__')?'__ALL__':null;_hrmsDasTwPlant='__ALL__';_hrmsDasTwRender();}
+function _hrmsDasTwSetEmpType(et){
+  if(et==='__ALL__'){_hrmsDasTwSelEts=null;_hrmsDasTwEmpType='__ALL__';}
+  else {_hrmsDasTwSelEts=[et];_hrmsDasTwEmpType=et;}
+  _hrmsDasTwTeam=(et==='__ALL__')?'__ALL__':null;
+  _hrmsDasTwPlant='__ALL__';
+  _hrmsDasTwRender();
+}
 function _hrmsDasTwSetTeam(tm){_hrmsDasTwTeam=tm;_hrmsDasTwPlant='__ALL__';_hrmsDasTwRender();}
 function _hrmsDasTwSetPlant(pl){_hrmsDasTwPlant=pl||'__ALL__';_hrmsDasTwRender();}
 
 // Click-list popup for the Role-group P/A summary on the Teamwise
 // Data tab. `idx` indexes into window._hrmsDasTwGroupCtxs (set on
 // every render), `kind` is 'p' (Present) or 'a' (Absent).
+// Open the shared Role Group P/A Summary modal. `which` is 'tw' for
+// Team-wise (sources `window._hrmsDasTwRgSummary`) or 'dd' for
+// Dept-wise MP Details (`window._hrmsDasDdRgSummary`). Each summary
+// is an object { title, groups:[{name,p,a}], total:{p,a} }, stashed
+// during render so the popup can read the current numbers without
+// recomputing.
+function _hrmsDasShowRgSummary(which){
+  var src=(which==='dd')?window._hrmsDasDdRgSummary:window._hrmsDasTwRgSummary;
+  if(!src){notify('No summary available — open the tab and pick a date first',true);return;}
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var rows=src.groups||[];
+  var html='<table style="width:100%;border-collapse:collapse;font-size:13px">'
+    +'<thead style="background:linear-gradient(180deg,#f8fafc,#e2e8f0);border-bottom:1.5px solid #cbd5e1"><tr>'
+    +'<th style="padding:8px 12px;text-align:left;font-weight:800;color:#0f172a">Role Group</th>'
+    +'<th style="padding:8px 12px;text-align:center;font-weight:800;color:#15803d">P</th>'
+    +'<th style="padding:8px 12px;text-align:center;font-weight:800;color:#b91c1c">A</th>'
+    +'</tr></thead><tbody>';
+  if(!rows.length){
+    html+='<tr><td colspan="3" style="padding:18px;text-align:center;color:#94a3b8">No role groups configured. Open <b>Allocation Settings</b> to create groups.</td></tr>';
+  } else {
+    rows.forEach(function(g){
+      var rowBg=g.isStaff?'background:#fef9c3;':(g.isUngrouped?'background:#f1f5f9;':'');
+      var nameColor=g.isStaff?'#a16207':(g.isUngrouped?'#64748b':'#0f172a');
+      var nameStyle=g.isUngrouped?'font-style:italic;':'';
+      html+='<tr style="border-bottom:1px solid #f1f5f9;'+rowBg+'">'
+        +'<td style="padding:7px 12px;font-weight:'+(g.isStaff?'800':'700')+';color:'+nameColor+';'+nameStyle+'">'+_esc(g.name||'')+'</td>'
+        +'<td style="padding:7px 12px;text-align:center;font-family:var(--mono);font-weight:800;color:#15803d">'+(g.p||0)+'</td>'
+        +'<td style="padding:7px 12px;text-align:center;font-family:var(--mono);font-weight:800;color:#b91c1c">'+(g.a||0)+'</td>'
+        +'</tr>';
+    });
+    var tot=src.total||{p:0,a:0};
+    html+='<tr style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);border-top:2px solid #cbd5e1">'
+      +'<td style="padding:9px 12px;font-weight:900;color:#0f172a">Total</td>'
+      +'<td style="padding:9px 12px;text-align:center;font-family:var(--mono);font-weight:900;color:#15803d;font-size:14px">'+tot.p+'</td>'
+      +'<td style="padding:9px 12px;text-align:center;font-family:var(--mono);font-weight:900;color:#b91c1c;font-size:14px">'+tot.a+'</td>'
+      +'</tr>';
+  }
+  html+='</tbody></table>';
+  if(src.subtitle){
+    html='<div style="font-size:12px;color:#475569;margin-bottom:8px">'+_esc(src.subtitle)+'</div>'+html;
+  }
+  document.getElementById('hrmsRgSummaryBody').innerHTML=html;
+  var titleEl=document.getElementById('hrmsRgSummaryTitle');
+  if(titleEl) titleEl.textContent=(src.title||'📊 Role Group P/A Summary');
+  om('mHrmsRgSummary');
+}
+
 function _hrmsDasTwShowGroupEmps(idx,kind){
   var ctxs=window._hrmsDasTwGroupCtxs||[];
   var ctx=ctxs[idx];if(!ctx) return;
@@ -11031,8 +11849,18 @@ function _hrmsDasTwRender(){
   // shows a "No data" message inside its body.
   if(!etKeys.length) etKeys=['On Roll','Contract','Piece Rate'];
   // '__ALL__' is a valid emp-type selection (the leading "All" pill
-  // button) — captures every employment type at once.
-  if(_hrmsDasTwEmpType!=='__ALL__'&&etKeys.indexOf(_hrmsDasTwEmpType)<0) _hrmsDasTwEmpType=etKeys[0];
+  // button) — captures every employment type at once. Multi-select
+  // state lives in `_hrmsDasTwSelEts`; sanitise it against the
+  // currently-visible etKeys so stale selections don't leak.
+  if(_hrmsDasTwSelEts!=null){
+    var _validEtSet={};etKeys.forEach(function(k){_validEtSet[k]=1;});
+    _hrmsDasTwSelEts=_hrmsDasTwSelEts.filter(function(k){return _validEtSet[k];});
+    if(!_hrmsDasTwSelEts.length){_hrmsDasTwSelEts=null;_hrmsDasTwEmpType='__ALL__';}
+    else if(_hrmsDasTwSelEts.length===1) _hrmsDasTwEmpType=_hrmsDasTwSelEts[0];
+    else _hrmsDasTwEmpType='__MULTI__';
+  } else if(_hrmsDasTwEmpType!=='__ALL__'&&etKeys.indexOf(_hrmsDasTwEmpType)<0){
+    _hrmsDasTwEmpType='__ALL__';
+  }
   // The body is split into two regions: a non-scrolling navigation
   // header (emp-type / team / plant / export) and a scrolling table
   // region beneath. The selected date now lives in the page-level
@@ -11044,25 +11872,29 @@ function _hrmsDasTwRender(){
   // exclusively to Contract teams).
   if(etKeys.length>1){
     h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-    // "All" pill comes first — selects every employment type. Total
-    // count = sum across visible et keys.
+    // "All" pill — clears the multi-select. Total = sum across visible
+    // et keys. Active when no specific types are picked.
     var _allEtCount=etKeys.reduce(function(n,et){return n+(etCounts[et]||0);},0);
-    var allEtOn=(_hrmsDasTwEmpType==='__ALL__');
+    var allEtOn=(_hrmsDasTwSelEts==null);
     h+='<button onclick="_hrmsDasTwSetEmpType(\'__ALL__\')" '
       +'style="padding:8px 16px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px;'
       +'background:'+(allEtOn?'var(--accent)':'#fff')+';color:'+(allEtOn?'#fff':'var(--text)')+';'
       +'border:1.5px solid '+(allEtOn?'var(--accent)':'var(--border)')+'">'
       +'All <span style="opacity:.85;font-weight:600;font-size:11px">('+_allEtCount+')</span></button>';
-    // Display-only relabel: "On Roll" → "KAP" on the pill text. The
-    // underlying value (used as a filter key and elsewhere in the app)
-    // stays "On Roll".
+    // Display-only relabel: "On Roll" → "KAP" on the pill text.
     var _twEtLabel=function(et){return et==='On Roll'?'KAP':et;};
+    // Each pill is now a checkbox-style toggle — clicking it adds or
+    // removes that type from the selection (multi-select). The "All"
+    // pill auto-activates when nothing is picked.
     etKeys.forEach(function(et){
-      var on=(et===_hrmsDasTwEmpType);
-      h+='<button onclick="_hrmsDasTwSetEmpType(\''+et.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')" '
-        +'style="padding:8px 16px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px;'
+      var on=_hrmsDasTwIsEtSelected(et)&&!allEtOn;
+      var etEsc=et.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+      h+='<button onclick="_hrmsDasTwToggleEmpType(\''+etEsc+'\')" '
+        +'style="padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px;'
         +'background:'+(on?'var(--accent)':'#fff')+';color:'+(on?'#fff':'var(--text)')+';'
-        +'border:1.5px solid '+(on?'var(--accent)':'var(--border)')+'">'
+        +'border:1.5px solid '+(on?'var(--accent)':'var(--border)')+';'
+        +'display:inline-flex;align-items:center;gap:6px">'
+        +'<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:3px;border:1.5px solid '+(on?'#fff':'var(--border2)')+';background:'+(on?'transparent':'#fff')+';font-size:11px;font-weight:900;line-height:1;color:'+(on?'#fff':'transparent')+'">✓</span>'
         +_esc(_twEtLabel(et))+' <span style="opacity:.85;font-weight:600;font-size:11px">('+etCounts[et]+')</span></button>';
     });
     h+='</div>';
@@ -11077,11 +11909,12 @@ function _hrmsDasTwRender(){
   // mapping. For everyone else, etKeys matches the full data set so the
   // filter is effectively a no-op.
   var etRows;
-  if(_hrmsDasTwEmpType==='__ALL__'){
+  if(_hrmsDasTwSelEts==null){
     var _etSet={};etKeys.forEach(function(k){_etSet[k]=1;});
     etRows=rows.filter(function(r){return _etSet[r.et];});
   } else {
-    etRows=rows.filter(function(r){return r.et===_hrmsDasTwEmpType;});
+    var _selSet={};_hrmsDasTwSelEts.forEach(function(k){_selSet[k]=1;});
+    etRows=rows.filter(function(r){return _selSet[r.et];});
   }
   var teamCounts={};
   etRows.forEach(function(r){var t=r.team||'— No team —';teamCounts[t]=(teamCounts[t]||0)+1;});
@@ -11093,25 +11926,21 @@ function _hrmsDasTwRender(){
   // 'Contract Labour' still matches when the active emp type is
   // 'Contract'.
   var _normEt=function(s){return String(s||'').toLowerCase().replace(/[\s_-]+/g,'');};
-  var activeEtNorm=_normEt(_hrmsDasTwEmpType);
-  // When the user has picked the leading "All" employment-type pill,
-  // build a set of every visible et's normalised form so any team
-  // mapped to one of them passes through.
-  var allEtMode=(_hrmsDasTwEmpType==='__ALL__');
-  var allEtNormSet={};
-  if(allEtMode){etKeys.forEach(function(k){allEtNormSet[_normEt(k)]=1;});}
+  // Multi-select aware: when SelEts is null we match against every
+  // visible et key (the "All" pill); otherwise we match only against
+  // the explicit selection set.
+  var allEtMode=(_hrmsDasTwSelEts==null);
+  var activeEtNormSet={};
+  if(allEtMode) etKeys.forEach(function(k){activeEtNormSet[_normEt(k)]=1;});
+  else (_hrmsDasTwSelEts||[]).forEach(function(k){activeEtNormSet[_normEt(k)]=1;});
   var _etMatches=function(teamEt){
     if(!teamEt) return false;
     var a=_normEt(teamEt);
     if(!a) return false;
-    if(allEtMode){
-      if(allEtNormSet[a]) return true;
-      // Substring fallback to absorb 'Contract Labour' under 'Contract'.
-      for(var k in allEtNormSet){if(a.indexOf(k)>=0||k.indexOf(a)>=0) return true;}
-      return false;
-    }
-    if(!activeEtNorm) return false;
-    return a===activeEtNorm||a.indexOf(activeEtNorm)>=0||activeEtNorm.indexOf(a)>=0;
+    if(activeEtNormSet[a]) return true;
+    // Substring fallback to absorb 'Contract Labour' under 'Contract'.
+    for(var k in activeEtNormSet){if(a.indexOf(k)>=0||k.indexOf(a)>=0) return true;}
+    return false;
   };
   (DB.hrmsTeams||[]).forEach(function(t){
     if(!t||t.inactive) return;
@@ -11161,10 +11990,11 @@ function _hrmsDasTwRender(){
   var teamRowsAllPlants=(_hrmsDasTwTeam==='__ALL__')
     ?etRows.slice()
     :etRows.filter(function(r){return (r.team||'— No team —')===_hrmsDasTwTeam;});
-  // Count rows that would be hidden by default — anyone whose day-state
-  // is IA for the selected day (auto-IA or post-PIA effective state).
+  // Show PIA — count PIA-tagged rows so the toggle pill advertises
+  // how many would surface when enabled. Default behaviour shows
+  // active (AC) employees only; Show PIA flips to ONLY PIA rows.
   var hiddenCount=teamRowsAllPlants.reduce(function(n,r){
-    return (r.dayState==='IA')?n+1:n;
+    return (r.monthTag==='PIA')?n+1:n;
   },0);
   // Team tab strip — horizontal, scrollable when many teams. The
   // "Show hidden" toggle is anchored to the right end of the strip.
@@ -11218,7 +12048,9 @@ function _hrmsDasTwRender(){
   // the row total) when "Show hidden" is off.
   var plantCounts={};
   teamRowsAllPlants.forEach(function(r){
-    if(!_hrmsDasTwShowHidden&&r.dayState==='IA') return;
+    // Tag-based filter: default keeps AC only; Show PIA keeps PIA only.
+    if(_hrmsDasTwShowHidden){if(r.monthTag!=='PIA') return;}
+    else if(r.monthTag==='IA'||r.monthTag==='PIA') return;
     var pl=r.plant||'— Unassigned —';
     if(!plantCounts[pl]) plantCounts[pl]={present:0,total:0};
     plantCounts[pl].total++;
@@ -11277,9 +12109,12 @@ function _hrmsDasTwRender(){
       var clickAttr='title="'+_esc(pl)+'" onclick="_hrmsDasTwSetPlant(\''+pl.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')"';
       h+=tile(on,clr,'#0f172a',_esc(sf),paLabel(pc.present,ab),clickAttr);
     });
-    // Export button anchored to the right of the plant tile row.
+    // Show Summary + Export buttons anchored to the right of the plant
+    // tile row. Show Summary opens the Role Group P/A modal.
+    h+='<button onclick="_hrmsDasShowRgSummary(\'tw\')" '
+      +'style="margin-left:auto;align-self:center;padding:8px 16px;font-weight:800;font-size:13px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📊 Show Summary</button>';
     h+='<button class="hrms-tw-export" onclick="_hrmsDasTwExport()" '
-      +'style="margin-left:auto;align-self:center;padding:8px 18px;font-weight:800;font-size:13px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📤 Export to Excel</button>';
+      +'style="align-self:center;padding:8px 18px;font-weight:800;font-size:13px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📤 Export to Excel</button>';
     h+='</div>';
   }
   // Apply the plant scope. '__ALL__' keeps every plant; otherwise we
@@ -11288,10 +12123,13 @@ function _hrmsDasTwRender(){
   // absentees from the table (they're already excluded from counts).
   var teamRows=(_hrmsDasTwPlant==='__ALL__')?teamRowsAllPlants.slice()
     :teamRowsAllPlants.filter(function(r){return (r.plant||'— Unassigned —')===_hrmsDasTwPlant;});
-  if(!_hrmsDasTwShowHidden){
-    // Hide emps whose day-state is IA on the selected day (auto-IA from
-    // a zero-punch month, or post-PIA inactive window).
-    teamRows=teamRows.filter(function(r){return r.dayState!=='IA';});
+  // Tag filter: default = active only (drop IA + PIA); Show PIA flips
+  // to ONLY PIA rows so the operator can review the partial-inactive
+  // bucket without scrolling past everyone else.
+  if(_hrmsDasTwShowHidden){
+    teamRows=teamRows.filter(function(r){return r.monthTag==='PIA';});
+  } else {
+    teamRows=teamRows.filter(function(r){return r.monthTag!=='IA'&&r.monthTag!=='PIA';});
   }
   // Apply per-column header filters (substring for text, exact for P/A).
   var f=_hrmsDasTwFilters||{};
@@ -11318,7 +12156,7 @@ function _hrmsDasTwRender(){
   // groupCounts is built) so the second sheet stays in sync.
   window._hrmsDasTwExportRows=teamRows;
   window._hrmsDasTwExportCtx={
-    empType:_hrmsDasTwEmpType==='__ALL__'?'AllEmpTypes':_hrmsDasTwEmpType,
+    empType:_hrmsDasTwSelEts==null?'AllEmpTypes':_hrmsDasTwSelEts.join(' + '),
     team:_hrmsDasTwTeam==='__ALL__'?'AllTeams':_hrmsDasTwTeam,
     plant:_hrmsDasTwPlant==='__ALL__'?'AllPlants':_hrmsDasTwPlant,
     historyDate:st.historyDate||''
@@ -11354,9 +12192,7 @@ function _hrmsDasTwRender(){
     {key:'name',label:'Name',align:'left',filter:'text',minWidth:220},
     {key:'plant',label:'Plant / Team / Type',align:'left'},
     {key:'dept',label:'Department',align:'left',filter:'text'},
-    {key:'roll',label:'Role',align:'left',filter:'text'},
-    {key:'inTime',label:'In',align:'center',width:54},
-    {key:'outTime',label:'Out',align:'center',width:54}
+    {key:'roll',label:'Role',align:'left',filter:'text'}
   ];
   var indicator=function(k){
     if(_hrmsDasTwSort.key!==k) return ' <span style="opacity:.45">⇅</span>';
@@ -11370,8 +12206,10 @@ function _hrmsDasTwRender(){
   if(_hrmsDasTwPlant!=='__ALL__'){
     _baseRowsForFilter=_baseRowsForFilter.filter(function(r){return (r.plant||'— Unassigned —')===_hrmsDasTwPlant;});
   }
-  if(!_hrmsDasTwShowHidden){
-    _baseRowsForFilter=_baseRowsForFilter.filter(function(r){return r.dayState!=='IA';});
+  if(_hrmsDasTwShowHidden){
+    _baseRowsForFilter=_baseRowsForFilter.filter(function(r){return r.monthTag==='PIA';});
+  } else {
+    _baseRowsForFilter=_baseRowsForFilter.filter(function(r){return r.monthTag!=='IA'&&r.monthTag!=='PIA';});
   }
   var _distinctVals=function(getter){
     var seen={},list=[];
@@ -11408,7 +12246,7 @@ function _hrmsDasTwRender(){
       +datalist;
   };
   // Total column count = base + P/A (selected day) + Last 45 Days History + Left.
-  var totalCols=cols.length+3;
+  var totalCols=cols.length+2;// cols + merged Attendance cell + PIA
   // Role-group summary (computed from teamRows AFTER filters/hide so
   // the counts match what the employee table shows).
   var allocRec=(typeof _hrmsAllocationData==='function')?_hrmsAllocationData():null;
@@ -11463,7 +12301,9 @@ function _hrmsDasTwRender(){
   // into two side-by-side panes — the wide employee table on the
   // left and the narrow role-group P/A summary on the right.
   h+='</div>';// end of flex:0 0 auto head
-  h+='<div class="hrms-tw-split" style="flex:1;min-height:0;display:flex;gap:12px;overflow:hidden">';
+  // Single emp pane (summary moved to popup, accessed via the
+  // "📊 Show Summary" header button).
+  h+='<div class="hrms-tw-split" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">';
   h+='<div class="hrms-tw-emp" style="flex:1;min-width:0;overflow:auto;border:1px solid var(--border);border-radius:8px">';
   h+='<table style="width:auto;border-collapse:collapse;font-size:12px">'
     +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
@@ -11500,11 +12340,12 @@ function _hrmsDasTwRender(){
       +(filterHtml?'<div style="margin-top:4px">'+filterHtml+'</div>':'')
       +'</th>';
   });
-  // Selected day P/A + Last 45 Days History + Left checkbox columns.
+  // Merged Attendance column: In / Out / P/A on top row, 45-day P/A
+  // bar on the bottom row (one cell, two visual rows).
   var paFilterHtml=filterCell('pa','select',[{v:'',l:'All'},{v:'P',l:'P'},{v:'A',l:'A'}]);
-  h+='<th style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:top">'
-    +'<div>P/A</div><div style="margin-top:4px">'+paFilterHtml+'</div></th>';
-  h+='<th title="Last 45 days P/A history + selected-day tick (outlined) — green = Present, red = Absent (oldest on the left)" style="padding:6px 6px;text-align:left;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top;width:300px;min-width:300px;max-width:300px"><div>Last 45 Days P/A</div></th>';
+  h+='<th title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="padding:6px 8px;text-align:left;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:top;width:340px;min-width:340px;max-width:340px">'
+    +'<div style="display:flex;align-items:center;gap:8px"><span>Attendance · 45-day P/A</span><span style="font-size:10px;color:#475569;font-weight:700">P/A</span><span style="margin-left:auto">'+paFilterHtml+'</span></div>'
+    +'</th>';
   h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top"><div>PIA</div></th>';
   h+='</tr></thead><tbody>';
   // Sort strictly by the active rule (default = plantwise → empCode);
@@ -11535,16 +12376,12 @@ function _hrmsDasTwRender(){
       +'<td style="padding:6px 8px">'+_esc(r.name)+(r.presentToday?'':' <span class="_hrmsAbsChip" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fecaca;padding:1px 5px;border-radius:3px;margin-left:4px">ABSENT</span>')+'</td>'
       +'<td style="padding:6px 8px;white-space:nowrap">'+plantTeamType+'</td>'
       +'<td style="padding:6px 8px">'+_esc(r.dept)+'</td>'
-      +'<td style="padding:6px 8px">'+_esc(r.roll)+'</td>'
-      +'<td class="hrms-tw-col-inTime" style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.inTime||'—')+'</td>'
-      +'<td class="hrms-tw-col-outTime" style="padding:6px 4px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';width:54px;min-width:54px;max-width:54px">'+_esc(r.outTime||'—')+'</td>';
-    // Selected day P/A — single coloured cell.
-    h+='<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border-left:2px solid #e2e8f0">'+(r.presentToday?'P':'A')+'</td>';
-    // Last 45 Days History — per-day P/A bar strip (green = Present,
-    // red = Absent, oldest on the left). Same rendering in desktop
-    // and card / narrow mode. The selected day is appended at the
-    // end as a slightly larger, outlined tick so the bar reads as
-    // "history → today".
+      +'<td style="padding:6px 8px">'+_esc(r.roll)+'</td>';
+    // Merged Attendance cell — two visual rows in one <td>:
+    //   Row 1: In · Out · P/A pill
+    //   Row 2: 45-day P/A bar (oldest left, selected-day tick outlined)
+    // `display:contents` on the td + inner row lets card-mode CSS
+    // pluck out the P/A pill and bar as independent grid items.
     var _presR=presByEmp[r.empCode]||{};
     var _histSlice=last45.slice(-45);
     var _histHtml='';
@@ -11555,8 +12392,13 @@ function _hrmsDasTwRender(){
     }
     var _selHp=!!r.presentToday;
     _histHtml+='<span class="_hrmsHistTick _hrmsHistToday" title="'+(st.historyDate||'')+' (selected) · '+(_selHp?'P':'A')+'" style="display:inline-block;width:7px;height:14px;border-radius:1px;background:'+(_selHp?'#16a34a':'#dc2626')+';margin-left:4px;border:1.5px solid #0f172a;vertical-align:middle"></span>';
-    h+='<td style="padding:5px 6px;text-align:left;background:#f8fafc;border-left:1px solid #e2e8f0;white-space:nowrap;width:300px;min-width:300px;max-width:300px">'
-      +_histHtml
+    h+='<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;width:340px;min-width:340px;max-width:340px">'
+      +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px;margin-bottom:2px">'
+        +'<span class="_hrmsMcIn hrms-tw-col-inTime" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">In</span>'+_esc(r.inTime||'—')+'</span>'
+        +'<span class="_hrmsMcOut hrms-tw-col-outTime" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">Out</span>'+_esc(r.outTime||'—')+'</span>'
+        +'<span class="_hrmsMcPA" style="margin-left:auto;display:inline-block;padding:2px 12px;border-radius:12px;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border:1px solid '+(r.presentToday?'#86efac':'#fca5a5')+'">'+(r.presentToday?'P':'A')+'</span>'
+      +'</div>'
+      +'<div class="_hrmsMcBar">'+_histHtml+'</div>'
       +'</td>';
     // PIA checkbox — exposed for Contract / Piece Rate emps. Clicking
     // it writes `emp.extra.piaMonths[mk] = day` (selected date's day-
@@ -11604,73 +12446,33 @@ function _hrmsDasTwRender(){
     }
   }
   h+='</tbody></table></div>';
-  // ── Role-group P/A summary (right pane) ─────────────────────────
-  // Pulls from Allocation Settings → groups; counts present-today vs
-  // absent in each group. Only shows groups that have at least one
-  // employee in the current scope, plus an "(Ungrouped)" bucket for
-  // emps whose role doesn't map to any group, and a Total row.
-  h+='<div class="hrms-tw-roleg" style="flex:0 0 280px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
-  h+='<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
-    +'<tr>'
-    +'<th style="padding:7px 10px;text-align:left;font-weight:800">Role Group</th>'
-    +'<th style="padding:7px 8px;text-align:center;font-weight:800;color:#15803d">P</th>'
-    +'<th style="padding:7px 8px;text-align:center;font-weight:800;color:#b91c1c">A</th>'
-    +'</tr></thead><tbody>';
-  var totP=0,totA=0;
-  var orderedGroups=roleGroups.filter(function(g){return g&&groupCounts[g.id];});
-  var pCellStyle='padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#15803d';
-  var aCellStyle='padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#b91c1c';
-  var clickStyle=';cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px';
-  orderedGroups.forEach(function(g){
-    var c=groupCounts[g.id];
-    totP+=c.p;totA+=c.a;
-    var idx=window._hrmsDasTwGroupCtxs.push({name:g.name||g.id,presEmps:c.presEmps,absEmps:c.absEmps})-1;
-    var pAttr=c.p?(' onclick="_hrmsDasTwShowGroupEmps('+idx+',\'p\')"' ):'';
-    var aAttr=c.a?(' onclick="_hrmsDasTwShowGroupEmps('+idx+',\'a\')"' ):'';
-    h+='<tr style="border-bottom:1px solid #f1f5f9">'
-      +'<td style="padding:6px 10px;font-weight:700;color:#0f172a">'+_esc(g.name||g.id)+'</td>'
-      +'<td style="'+pCellStyle+(c.p?clickStyle:'')+'"'+pAttr+'>'+c.p+'</td>'
-      +'<td style="'+aCellStyle+(c.a?clickStyle:'')+'"'+aAttr+'>'+c.a+'</td>'
-      +'</tr>';
+  h+='</div>';// end split (now single-column wrapper)
+  // ── Role-group P/A summary is no longer rendered inline — the user
+  // opens it via the "📊 Show Summary" button (header strip, next to
+  // Export). Stash the data so the popup can read live counts.
+  var _rgRows=[];var _rgTotP=0,_rgTotA=0;
+  var _orderedGroups=roleGroups.filter(function(g){return g&&groupCounts[g.id];});
+  _orderedGroups.forEach(function(g){
+    var c=groupCounts[g.id];_rgTotP+=c.p;_rgTotA+=c.a;
+    _rgRows.push({name:g.name||g.id,p:c.p,a:c.a});
   });
   if(ungrouped.p||ungrouped.a){
-    totP+=ungrouped.p;totA+=ungrouped.a;
-    var uIdx=window._hrmsDasTwGroupCtxs.push({name:ungrouped.name,presEmps:ungrouped.presEmps,absEmps:ungrouped.absEmps})-1;
-    var uPAttr=ungrouped.p?(' onclick="_hrmsDasTwShowGroupEmps('+uIdx+',\'p\')"' ):'';
-    var uAAttr=ungrouped.a?(' onclick="_hrmsDasTwShowGroupEmps('+uIdx+',\'a\')"' ):'';
-    h+='<tr style="border-bottom:1px solid #f1f5f9">'
-      +'<td style="padding:6px 10px;font-weight:700;color:#64748b;font-style:italic">— Ungrouped —</td>'
-      +'<td style="'+pCellStyle+(ungrouped.p?clickStyle:'')+'"'+uPAttr+'>'+ungrouped.p+'</td>'
-      +'<td style="'+aCellStyle+(ungrouped.a?clickStyle:'')+'"'+uAAttr+'>'+ungrouped.a+'</td>'
-      +'</tr>';
+    _rgTotP+=ungrouped.p;_rgTotA+=ungrouped.a;
+    _rgRows.push({name:ungrouped.name,p:ungrouped.p,a:ungrouped.a,isUngrouped:true});
   }
-  // Staff row — always at the bottom, separately from role groups since
-  // Staff emps don't carry a Role assignment.
   if(staffBucket.p||staffBucket.a){
-    totP+=staffBucket.p;totA+=staffBucket.a;
-    var sIdx=window._hrmsDasTwGroupCtxs.push({name:staffBucket.name,presEmps:staffBucket.presEmps,absEmps:staffBucket.absEmps})-1;
-    var sPAttr=staffBucket.p?(' onclick="_hrmsDasTwShowGroupEmps('+sIdx+',\'p\')"' ):'';
-    var sAAttr=staffBucket.a?(' onclick="_hrmsDasTwShowGroupEmps('+sIdx+',\'a\')"' ):'';
-    h+='<tr style="border-bottom:1px solid #f1f5f9;background:#fef9c3">'
-      +'<td style="padding:6px 10px;font-weight:800;color:#a16207">Staff</td>'
-      +'<td style="'+pCellStyle+(staffBucket.p?clickStyle:'')+'"'+sPAttr+'>'+staffBucket.p+'</td>'
-      +'<td style="'+aCellStyle+(staffBucket.a?clickStyle:'')+'"'+sAAttr+'>'+staffBucket.a+'</td>'
-      +'</tr>';
+    _rgTotP+=staffBucket.p;_rgTotA+=staffBucket.a;
+    _rgRows.push({name:staffBucket.name,p:staffBucket.p,a:staffBucket.a,isStaff:true});
   }
-  if(!orderedGroups.length&&!ungrouped.p&&!ungrouped.a&&!staffBucket.p&&!staffBucket.a){
-    h+='<tr><td colspan="3" style="padding:14px 10px;text-align:center;color:#94a3b8;font-size:11px">No role groups configured. Open <b>Allocation Settings</b> to create groups.</td></tr>';
-  } else {
-    h+='<tr style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);border-top:2px solid #cbd5e1">'
-      +'<td style="padding:7px 10px;font-weight:900;color:#0f172a">Total</td>'
-      +'<td style="padding:7px 8px;text-align:center;font-family:var(--mono);font-weight:900;color:#15803d">'+totP+'</td>'
-      +'<td style="padding:7px 8px;text-align:center;font-family:var(--mono);font-weight:900;color:#b91c1c">'+totA+'</td>'
-      +'</tr>';
-  }
-  h+='</tbody></table></div>';
-  h+='</div>';// end flex 2-pane row
+  var _twDateLbl=(st&&st.dateLabels&&st.dateLabels.length)?st.dateLabels.join(', '):((st&&st.historyDate)||'');
+  window._hrmsDasTwRgSummary={
+    title:'📊 Team-wise · Role Group P/A',
+    subtitle:_twDateLbl+' · '+(_hrmsDasTwSelEts==null?'All':_hrmsDasTwSelEts.join(' + '))+' · '+(_hrmsDasTwTeam||'')+' · '+teamRows.length+' employee(s)',
+    groups:_rgRows,
+    total:{p:_rgTotP,a:_rgTotA}
+  };
   var dateLbl=(st.dateLabels&&st.dateLabels.length)?st.dateLabels.join(', '):(st.historyDate||'');
-  h+='<div style="font-size:11px;color:var(--text3);margin-top:6px">'+_esc(dateLbl)+' · '+_esc(_hrmsDasTwEmpType)+' · '+_esc(_hrmsDasTwTeam)+' · '+teamRows.length+' employee(s)</div>';
+  h+='<div style="font-size:11px;color:var(--text3);margin-top:6px">'+_esc(dateLbl)+' · '+_esc(_hrmsDasTwSelEts==null?'All':_hrmsDasTwSelEts.join(' + '))+' · '+_esc(_hrmsDasTwTeam)+' · '+teamRows.length+' employee(s)</div>';
   body.innerHTML=h;
   // Restore caret on the active filter input — re-rendering recreates
   // the element, so without this the user loses focus after every
@@ -11871,6 +12673,7 @@ function _hrmsDasDdSetPlant(p){
 function _hrmsDasDdSetDept(d){_hrmsDasDdDept=d||null;_hrmsDasDeptDetailsRender();}
 function _hrmsDasDdSetEt(e){_hrmsDasDdEt=e||'__ALL__';_hrmsDasDeptDetailsRender();}
 function _hrmsDasDdSetStatus(s){_hrmsDasDdStatus=s||'__ALL__';_hrmsDasDeptDetailsRender();}
+function _hrmsDasDdToggleShowPIA(on){window._hrmsDasDdShowPIA=!!on;_hrmsDasDeptDetailsRender();}
 
 // Generic radio-list picker popover anchored to the clicked button.
 // items: [{value, label, colour?}], current: selected value, onPick:
@@ -11932,7 +12735,24 @@ function _hrmsDasDdOpenPlantPicker(ev){
   _hrmsDasDdOpenPicker(ev,'Select Plant',list,_hrmsDasDdPlant,_hrmsDasDdSetPlant);
 }
 function _hrmsDasDdOpenDeptPicker(ev){
-  var list=(window._hrmsDdDeptList||[]).map(function(d){return {value:d,label:d};});
+  // Live read from the Department master scoped to the currently
+  // selected plant — bypasses the cached `window._hrmsDdDeptList`
+  // which could pick up seeded / stale Staff sub-dept entries that
+  // aren't plant-bound. Worker Depts only (plant === current plant).
+  if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+  var plant=_hrmsDasDdPlant;
+  if(!plant){return;}
+  var _dhScope=(typeof _hrmsDeptHeadScope==='function')?_hrmsDeptHeadScope():null;
+  var seen={},names=[];
+  (DB.hrmsDepartments||[]).forEach(function(d){
+    if(!d||d.inactive) return;
+    if((d.plant||'')!==plant) return;
+    if(_dhScope&&!_dhScope.deptIds[d.id]) return;
+    var n=(d.name||'').trim();if(!n||seen[n]) return;
+    seen[n]=1;names.push(n);
+  });
+  names.sort(function(a,b){return a.localeCompare(b);});
+  var list=names.map(function(n){return {value:n,label:n};});
   _hrmsDasDdOpenPicker(ev,'Select Department',list,_hrmsDasDdDept,_hrmsDasDdSetDept);
 }
 function _hrmsDasDeptDetailsRender(){
@@ -11960,14 +12780,17 @@ function _hrmsDasDeptDetailsRender(){
     return sa.localeCompare(sb,undefined,{numeric:true});
   });
   if(_hrmsDasDdPlant&&plantList.indexOf(_hrmsDasDdPlant)<0) _hrmsDasDdPlant=null;
-  // Dept Head users — auto-pick the first eligible plant on entry so
-  // they don't have to open the picker. Only applies on initial open
-  // (when no selection yet); explicit clearing/user navigation
-  // continues to work afterwards.
-  if(_dhScope&&!_hrmsDasDdPlant&&plantList.length) _hrmsDasDdPlant=plantList[0];
-  // Dept list scoped to selected plant. Includes Worker depts whose
-  // plant matches, plus all Staff (sub-)depts since the staff master
-  // isn't plant-bound yet.
+  // Auto-pick a plant on first open so the page loads with data.
+  // Default preference: Plant-1 (if present), else first in the list.
+  // Dept Head scope still applies — they only see their plants.
+  if(!_hrmsDasDdPlant&&plantList.length){
+    var _p1=plantList.find(function(p){return /^plant[\s\-_]*1$/i.test(String(p||'').trim());});
+    _hrmsDasDdPlant=_p1||plantList[0];
+  }
+  // Dept list scoped to selected plant — Worker Depts only (live from
+  // the Department master). Staff sub-departments are not plant-bound,
+  // so they're excluded from this picker entirely; staff data is
+  // viewed elsewhere.
   var deptList=[];
   var deptSeen={};
   if(_hrmsDasDdPlant){
@@ -11979,21 +12802,16 @@ function _hrmsDasDeptDetailsRender(){
       var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
       deptSeen[n]=1;deptList.push(n);
     });
-    // Staff sub-depts are not plant-bound and have no head mapping;
-    // hide them entirely for scoped Dept Heads.
-    if(!_dhScope){
-      (DB.hrmsSubDepartments||[]).forEach(function(d){
-        if(!d||d.inactive) return;
-        var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
-        deptSeen[n]=1;deptList.push(n);
-      });
-    }
     deptList.sort(function(a,b){return a.localeCompare(b);});
   }
   if(_hrmsDasDdDept&&deptList.indexOf(_hrmsDasDdDept)<0) _hrmsDasDdDept=null;
-  // Dept Head users — auto-pick the first eligible dept once the plant
-  // is set, so the table loads immediately on tab open.
-  if(_dhScope&&!_hrmsDasDdDept&&deptList.length) _hrmsDasDdDept=deptList[0];
+  // Auto-pick a department on first open so the table renders with
+  // data. Default preference: "Machining" (case-insensitive, if
+  // present in this plant's dept list), else first in the list.
+  if(!_hrmsDasDdDept&&deptList.length){
+    var _mach=deptList.find(function(n){return String(n||'').trim().toLowerCase()==='machining';});
+    _hrmsDasDdDept=_mach||deptList[0];
+  }
   // Date label for the header.
   var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var dateLbl='';
@@ -12027,18 +12845,31 @@ function _hrmsDasDeptDetailsRender(){
     +(_deptDisabled?'opacity:.55':'')+'"'
     +(_deptDisabled?' disabled':'')+'>'
     +'<span>'+_curDeptLbl+'</span><span style="font-size:10px;opacity:.7">▼</span></button>';
+  // Show Summary button — opens the Role Group P/A popup. Disabled
+  // until a dept is selected (no rows = nothing to summarise).
+  var _ddSumDisabled=!_hrmsDasDdDept;
+  h+='<button onclick="_hrmsDasShowRgSummary(\'dd\')" '
+    +(_ddSumDisabled?'disabled ':'')
+    +'style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;font-weight:800;'
+    +'background:'+(_ddSumDisabled?'#e2e8f0':'#1d4ed8')+';color:'+(_ddSumDisabled?'#94a3b8':'#fff')+';'
+    +'border:none;border-radius:6px;cursor:'+(_ddSumDisabled?'not-allowed':'pointer')+';white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12)">📊 Show Summary</button>';
   // Stash data for the pickers so they can read the latest lists.
   window._hrmsDdPlantList=plantList.slice();
   window._hrmsDdDeptList=deptList.slice();
   h+='</div>';
-  // Gates: plant first, dept next, then state.
-  if(!_hrmsDasDdPlant){
-    h+='<div class="empty-state" style="padding:40px">Select a plant to begin.</div>';
-    body.innerHTML=h;return;
-  }
-  if(!_hrmsDasDdDept){
-    h+='<div class="empty-state" style="padding:40px">Select a department to load employees for this plant.</div>';
-    body.innerHTML=h;return;
+  // Gates: plant first, dept next, then state. Show PIA mode bypasses
+  // both — the operator wants to see every PIA-tagged employee, so
+  // plant + dept selection is optional.
+  var _ddShowPIAEarly=!!window._hrmsDasDdShowPIA;
+  if(!_ddShowPIAEarly){
+    if(!_hrmsDasDdPlant){
+      h+='<div class="empty-state" style="padding:40px">Select a plant to begin.</div>';
+      body.innerHTML=h;return;
+    }
+    if(!_hrmsDasDdDept){
+      h+='<div class="empty-state" style="padding:40px">Select a department to load employees for this plant.</div>';
+      body.innerHTML=h;return;
+    }
   }
   if(!st){
     h+='<div class="empty-state" style="padding:40px">Pick a date above to load attendance.</div>';
@@ -12114,18 +12945,42 @@ function _hrmsDasDeptDetailsRender(){
     var _ddSp=String(st.historyDate).split('-');
     if(_ddSp.length>=3){_ddMk=_ddSp[0]+'-'+_ddSp[1];_ddDay=+_ddSp[2];}
   }
+  // "Show PIA" toggle flips the tag filter: instead of excluding
+  // IA/PIA emps, we keep ONLY PIA-tagged ones. Off (default) =
+  // active emps only; On = just PIA.
+  var _ddShowPIA=!!window._hrmsDasDdShowPIA;
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||e.inactive) return;
-    // Skip IA-on-day Contract/Piece-Rate emps — they're excluded from
-    // per-day P/A presentation by design.
-    if(_ddMk&&_ddDay&&typeof _hrmsEmpDayState==='function'){
+    // Tag-based filter. Default: drop IA and PIA. Show PIA mode: keep
+    // PIA only (everything else drops).
+    if(_ddMk&&typeof _hrmsEmpMonthTag==='function'){
+      var _ddTag=_hrmsEmpMonthTag(e,_ddMk);
+      if(_ddShowPIA){
+        if(_ddTag!=='PIA') return;
+      } else {
+        if(_ddTag==='IA'||_ddTag==='PIA') return;
+      }
+    } else if(_ddShowPIA){
+      // No monthTag helper → "Show PIA" can't determine which emps
+      // qualify; bail out so we don't surface AC rows incorrectly.
+      return;
+    }
+    // Belt-and-braces day-state skip for legacy code paths that pre-
+    // date the monthTag filter above. Skip when in Show-PIA mode so
+    // the dayState IA → exclude doesn't drop PIA rows we want to see.
+    if(!_ddShowPIA&&_ddMk&&_ddDay&&typeof _hrmsEmpDayState==='function'){
       if(_hrmsEmpDayState(e,_ddMk,_ddDay)==='IA') return;
     }
     var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     var dept=((ap&&ap.department)||e.department||'').trim();
-    if(dept!==_hrmsDasDdDept) return;
     var emPlant=(((ap&&ap.location)||e.location||'')+'').trim();
-    if(emPlant!==_hrmsDasDdPlant) return;// scope rows to the selected plant
+    // Show PIA mode: ignore plant + dept scope so every PIA-tagged emp
+    // surfaces. Default mode keeps the strict scope to the current
+    // plant + dept selection.
+    if(!_ddShowPIA){
+      if(_hrmsDasDdDept&&dept!==_hrmsDasDdDept) return;
+      if(_hrmsDasDdPlant&&emPlant!==_hrmsDasDdPlant) return;
+    }
     var etRaw=((ap&&ap.employmentType)||e.employmentType||'').trim();
     var _etCanon={onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',visitor:'Visitor'};
     var et=_etCanon[etRaw.toLowerCase().replace(/\s+/g,'')]||etRaw||'—';
@@ -12192,7 +13047,7 @@ function _hrmsDasDeptDetailsRender(){
       +paRow(p,a)
       +'</button>';
   };
-  h+='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;margin-bottom:8px">';
+  h+='<div style="flex:0 0 auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">';
   h+=pillBtn('All',rows.length,_allPal,totalP,totalA,'__ALL__',(_hrmsDasDdEt==='__ALL__'),"_hrmsDasDdSetEt('__ALL__')");
   etKeys.forEach(function(et){
     var etEsc=String(et).replace(/'/g,"\\'");
@@ -12200,6 +13055,13 @@ function _hrmsDasDeptDetailsRender(){
     var pal=_etPalette[et]||_allPal;
     h+=pillBtn(_esc(pal.sf||et),c.total||0,pal,c.p||0,c.a||0,et,(_hrmsDasDdEt===et),"_hrmsDasDdSetEt('"+etEsc+"')");
   });
+  // "Show PIA" toggle — flips the active-only filter to show ONLY
+  // PIA-tagged employees instead. Useful for reviewing the
+  // partial-inactive bucket on the selected day.
+  var _piaOn=!!window._hrmsDasDdShowPIA;
+  h+='<label style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;border-radius:8px;border:1.5px solid '+(_piaOn?'#f59e0b':'var(--border)')+';background:'+(_piaOn?'#fef3c7':'#fff')+';color:'+(_piaOn?'#92400e':'var(--text2)')+';white-space:nowrap">'
+    +'<input type="checkbox" '+(_piaOn?'checked':'')+' onchange="_hrmsDasDdToggleShowPIA(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:#d97706">'
+    +'👁 Show PIA</label>';
   h+='</div>';
   // Apply filters.
   var fRows=rows.filter(function(r){
@@ -12232,17 +13094,16 @@ function _hrmsDasDeptDetailsRender(){
     else{bucket.a++;bucket.absEmps.push(rec);}
   });
   window._hrmsDasDdGroupCtxs=[];
-  // ── Two-pane split (table on the left, role-group summary on the
-  // right). Dept-wise specific classes — the team-wise CSS targets
-  // `.hrms-tw-emp table ...` for card cell mapping, which would
-  // mis-place the dept-wise columns (they don't line up), so we use a
-  // sibling `.hrms-dd-emp` / `.hrms-dd-roleg` / `.hrms-dd-split` set
-  // that picks up the mobile-stack behaviour from its own CSS rules.
-  h+='<div class="hrms-dd-split" style="flex:1;min-height:0;display:flex;gap:12px;overflow:hidden">';
-  h+='<div class="hrms-dd-emp" style="flex:1;min-width:0;overflow:auto">';
+  // Single emp pane (summary moved to popup, accessed via the
+  // "📊 Show Summary" header button).
+  // Single-scroll layout — the .hrms-dd-emp wrapper is the only
+  // overflow container. The inner table wrapper drops its own
+  // max-height/overflow so we don't end up with stacked scrollbars.
+  h+='<div class="hrms-dd-split" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">';
+  h+='<div class="hrms-dd-emp" style="flex:1;min-height:0;min-width:0;overflow:auto">';
   // Table — bounded scroll wrapper so the header stays visible.
   // The `hrms-dd-table` class hooks the mobile card-mode override.
-  h+='<div class="hrms-dd-table" style="flex:1;min-height:0;max-height:calc(100vh - 260px);overflow:auto;border:2px solid #94a3b8;border-radius:8px">';
+  h+='<div class="hrms-dd-table" style="border:2px solid #94a3b8;border-radius:8px">';
   h+='<table class="hrms-das-plant-tbl" style="width:100%;border-collapse:collapse;font-size:12px">';
   var thBg='linear-gradient(180deg,#f8fafc,#e2e8f0)';
   var thSt='padding:7px 8px;text-align:left;font-weight:800;color:#0f172a;background:'+thBg+';position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 #94a3b8';
@@ -12254,13 +13115,10 @@ function _hrmsDasDeptDetailsRender(){
     +'<th style="'+thSt+'">Team</th>'
     +'<th style="'+thSt+'">Emp Type</th>'
     +'<th style="'+thSt+'">Role</th>'
-    +'<th style="'+thSt+';text-align:center">In</th>'
-    +'<th style="'+thSt+';text-align:center">Out</th>'
-    +'<th style="'+thSt+';text-align:center">P/A</th>'
-    +'<th style="'+thSt+';text-align:left;min-width:300px;width:300px" title="Last 45 days P/A history + selected-day tick (outlined) — green = Present, red = Absent (oldest on the left)">Last 45 Days P/A</th>'
+    +'<th style="'+thSt+';text-align:left;min-width:340px;width:340px" title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined)">Attendance · 45-day P/A</th>'
     +'</tr></thead><tbody>';
   if(!fRows.length){
-    h+='<tr><td colspan="11" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
+    h+='<tr><td colspan="8" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
   } else {
     fRows.forEach(function(r,i){
       var statusBg=r.present?'#dcfce7':'#fee2e2';
@@ -12295,62 +13153,42 @@ function _hrmsDasDeptDetailsRender(){
         +'<td style="padding:5px 8px">'+_esc(r.team||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.et||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.roll||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);color:'+(r.inTime?'#15803d':'#cbd5e1')+';font-weight:700">'+_esc(r.inTime||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';font-weight:700">'+_esc(r.outTime||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:1px 10px;border-radius:10px;font-weight:800;font-size:11px">'+statusLbl+'</span></td>'
-        +'<td style="padding:5px 6px;text-align:left;background:#f8fafc;border-left:1px solid #e2e8f0;white-space:nowrap;min-width:300px;width:300px">'+last45Cell+'</td>'
+        +'<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;min-width:340px;width:340px">'
+          +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px;margin-bottom:2px">'
+            +'<span class="_hrmsMcIn" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">In</span>'+_esc(r.inTime||'—')+'</span>'
+            +'<span class="_hrmsMcOut" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">Out</span>'+_esc(r.outTime||'—')+'</span>'
+            +'<span class="_hrmsMcPA" style="margin-left:auto;display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:2px 12px;border-radius:12px;font-weight:900;font-size:13px;font-family:var(--mono)">'+statusLbl+'</span>'
+          +'</div>'
+          +'<div class="_hrmsMcBar">'+last45Cell+'</div>'
+        +'</td>'
         +'</tr>';
     });
   }
   h+='</tbody></table></div>';
   h+='</div>';// end .hrms-dd-emp (left pane)
-  // ── Role-group summary pane (right). Mirrors Team-wise output.
-  h+='<div class="hrms-dd-roleg" style="flex:0 0 280px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
-  h+='<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
-    +'<tr>'
-    +'<th style="padding:7px 10px;text-align:left;font-weight:800">Role Group</th>'
-    +'<th style="padding:7px 8px;text-align:center;font-weight:800;color:#15803d">P</th>'
-    +'<th style="padding:7px 8px;text-align:center;font-weight:800;color:#b91c1c">A</th>'
-    +'</tr></thead><tbody>';
-  var _ddTotP=0,_ddTotA=0;
+  // ── Role-group summary moved to the popup (📊 Show Summary button
+  // in the header). Stash the data here so the popup reads live
+  // counts that match the table.
+  var _ddRgRows=[];var _ddTotP=0,_ddTotA=0;
   var _ddOrdered=_ddRoleGroups.filter(function(g){return g&&_ddGroupCounts[g.id];});
-  var _ddPCell='padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#15803d';
-  var _ddACell='padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#b91c1c';
   _ddOrdered.forEach(function(g){
     var c=_ddGroupCounts[g.id];_ddTotP+=c.p;_ddTotA+=c.a;
-    h+='<tr style="border-bottom:1px solid #f1f5f9">'
-      +'<td style="padding:6px 10px;font-weight:700;color:#0f172a">'+_esc(g.name||g.id)+'</td>'
-      +'<td style="'+_ddPCell+'">'+c.p+'</td>'
-      +'<td style="'+_ddACell+'">'+c.a+'</td>'
-      +'</tr>';
+    _ddRgRows.push({name:g.name||g.id,p:c.p,a:c.a});
   });
   if(_ddUngrouped.p||_ddUngrouped.a){
     _ddTotP+=_ddUngrouped.p;_ddTotA+=_ddUngrouped.a;
-    h+='<tr style="border-bottom:1px solid #f1f5f9">'
-      +'<td style="padding:6px 10px;font-weight:700;color:#64748b;font-style:italic">— Ungrouped —</td>'
-      +'<td style="'+_ddPCell+'">'+_ddUngrouped.p+'</td>'
-      +'<td style="'+_ddACell+'">'+_ddUngrouped.a+'</td>'
-      +'</tr>';
+    _ddRgRows.push({name:_ddUngrouped.name,p:_ddUngrouped.p,a:_ddUngrouped.a,isUngrouped:true});
   }
   if(_ddStaffBucket.p||_ddStaffBucket.a){
     _ddTotP+=_ddStaffBucket.p;_ddTotA+=_ddStaffBucket.a;
-    h+='<tr style="border-bottom:1px solid #f1f5f9;background:#fef9c3">'
-      +'<td style="padding:6px 10px;font-weight:800;color:#a16207">Staff</td>'
-      +'<td style="'+_ddPCell+'">'+_ddStaffBucket.p+'</td>'
-      +'<td style="'+_ddACell+'">'+_ddStaffBucket.a+'</td>'
-      +'</tr>';
+    _ddRgRows.push({name:_ddStaffBucket.name,p:_ddStaffBucket.p,a:_ddStaffBucket.a,isStaff:true});
   }
-  if(!_ddOrdered.length&&!_ddUngrouped.p&&!_ddUngrouped.a&&!_ddStaffBucket.p&&!_ddStaffBucket.a){
-    h+='<tr><td colspan="3" style="padding:14px 10px;text-align:center;color:#94a3b8;font-size:11px">No role groups configured. Open <b>Allocation Settings</b> to create groups.</td></tr>';
-  } else {
-    h+='<tr style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);border-top:2px solid #cbd5e1">'
-      +'<td style="padding:7px 10px;font-weight:900;color:#0f172a">Total</td>'
-      +'<td style="padding:7px 8px;text-align:center;font-family:var(--mono);font-weight:900;color:#15803d">'+_ddTotP+'</td>'
-      +'<td style="padding:7px 8px;text-align:center;font-family:var(--mono);font-weight:900;color:#b91c1c">'+_ddTotA+'</td>'
-      +'</tr>';
-  }
-  h+='</tbody></table></div>';
+  window._hrmsDasDdRgSummary={
+    title:'📊 Dept-wise · Role Group P/A',
+    subtitle:(_hrmsDasDdPlant||'')+' · '+(_hrmsDasDdDept||'')+' · '+fRows.length+' employee(s)',
+    groups:_ddRgRows,
+    total:{p:_ddTotP,a:_ddTotA}
+  };
   h+='</div>';// end .hrms-dd-split
   body.innerHTML=h;
 }
@@ -12853,14 +13691,15 @@ function _hrmsDasOpenEmpListPopup(opts){
       +'<td style="padding:5px 8px;color:#64748b;font-size:12px">'+(i+1)+'</td>'
       +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700;font-size:12px"><a href="javascript:void(0)" onclick="document.getElementById(\'_hrmsDasDetailOverlay\').remove();_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline;cursor:pointer" title="View / edit employee">'+_esc(r.empCode)+'</a></td>'
       +'<td style="padding:5px 8px;font-weight:700;font-size:12px">'+_esc(r.name||'—')+'</td>'
-      +(hasExt?('<td style="padding:5px 8px;font-size:12px">'+_esc(r.et||'—')+'</td>'+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.team||'—')+'</td>'+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.role||'—')+'</td>'+statusCell):'')
+      +(hasExt?('<td style="padding:5px 8px;font-size:12px">'+_esc(r.et||'—')+'</td>'+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.team||'—')+'</td>'+(r.dept!=null?'<td style="padding:5px 8px;font-size:12px">'+_esc(r.dept||'—')+'</td>':'')+'<td style="padding:5px 8px;font-size:12px">'+_esc(r.role||'—')+'</td>'+statusCell):'')
       +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-size:12px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';font-weight:700">'+_esc(r.inTime||'—')+'</td>'
       +'<td style="padding:5px 8px;text-align:center;font-family:var(--mono);font-size:12px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';font-weight:700">'+_esc(r.outTime||'—')+'</td>'
       +'</tr>';
   });
   var _firstRow=rows[0]||{};
   var _showExt=(_firstRow.et!=null||_firstRow.team!=null||_firstRow.role!=null||_firstRow.present!=null);
-  var _emptyCols=_showExt?9:5;
+  var _hasDept=_showExt&&_firstRow.dept!=null;
+  var _emptyCols=_showExt?(_hasDept?10:9):5;
   if(!rows.length) rowsHtml='<tr><td colspan="'+_emptyCols+'" style="padding:30px;text-align:center;color:#94a3b8">No employees.</td></tr>';
   var thSt='padding:7px 8px;background:#f1f5f9;font-size:11px;font-weight:800;border-bottom:1.5px solid var(--border)';
   ov.innerHTML='<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;width:min(820px,96vw);padding:18px 20px">'
@@ -12876,7 +13715,7 @@ function _hrmsDasOpenEmpListPopup(opts){
     +'<th style="'+thSt+';text-align:left">#</th>'
     +'<th style="'+thSt+';text-align:left">Emp Code</th>'
     +'<th style="'+thSt+';text-align:left">Name</th>'
-    +(_showExt?('<th style="'+thSt+';text-align:left">Emp Type</th>'+'<th style="'+thSt+';text-align:left">Team</th>'+'<th style="'+thSt+';text-align:left">Role</th>'+'<th style="'+thSt+';text-align:center">P/A</th>'):'')
+    +(_showExt?('<th style="'+thSt+';text-align:left">Emp Type</th>'+'<th style="'+thSt+';text-align:left">Team</th>'+(_hasDept?'<th style="'+thSt+';text-align:left">Department</th>':'')+'<th style="'+thSt+';text-align:left">Role</th>'+'<th style="'+thSt+';text-align:center">P/A</th>'):'')
     +'<th style="'+thSt+';text-align:center">In Time</th>'
     +'<th style="'+thSt+';text-align:center">Out Time</th>'
     +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>'
@@ -15522,9 +16361,30 @@ function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths,plant
       : (new Date(yr,mo-1,d).getDay()===0?'WO':'WD');
   }
 
-  // Average: exclude H/P days AND working days with zero recorded headcount
-  // (a zero means the day hasn't been seeded with attendance yet — counting
-  // it would drag the average below the actual daily minimum).
+  // Peaks — computed BEFORE filling PH days so they reflect the
+  // actual working-day maximum (not a synthetic full bar). Used both
+  // for the absent count above each bar and to fill PH days as P.
+  var peakS=Math.max.apply(Math,data.staff);
+  var peakOR=Math.max.apply(Math,data.onroll);
+  var peakC=Math.max.apply(Math,data.contract);
+  var peakPR=Math.max.apply(Math,data.piecerate);
+
+  // Paid Holiday (PH) days: mark every employee as Present by setting
+  // the bar height to the peak headcount across the month. This shows
+  // the operator that the workforce is on paid leave (not absent) on
+  // these days.
+  for(var d=1;d<=daysInMonth;d++){
+    if(dayTypes[d]==='PH'){
+      if(!data.staff[d])     data.staff[d]    =peakS;
+      if(!data.onroll[d])    data.onroll[d]   =peakOR;
+      if(!data.contract[d])  data.contract[d] =peakC;
+      if(!data.piecerate[d]) data.piecerate[d]=peakPR;
+    }
+  }
+
+  // Average: skip weekly-off (WO) and paid-holiday (PH) days entirely
+  // — the user's policy is "do not count P or H days in the average".
+  // Also skip working days with zero recorded headcount (un-seeded).
   var workDays=0, hpDays=0, noDataDays=0, sS=0, sOR=0, sC=0, sPR=0;
   for(var d=1;d<=daysInMonth;d++){
     if(dayTypes[d]==='WO'||dayTypes[d]==='PH'){ hpDays++; continue; }
@@ -15541,11 +16401,6 @@ function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths,plant
   var avgC=workDays?sC/workDays:0;
   var avgPR=workDays?sPR/workDays:0;
   var _r=function(x){return Math.round(x);};// integer rounding for display
-
-  var peakS=Math.max.apply(Math,data.staff);
-  var peakOR=Math.max.apply(Math,data.onroll);
-  var peakC=Math.max.apply(Math,data.contract);
-  var peakPR=Math.max.apply(Math,data.piecerate);
 
   // Max Y must fit the tallest daily stack AND the tallest historical avg stack.
   var maxY=1;
@@ -15565,7 +16420,10 @@ function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths,plant
     avgS:avgS,avgOR:avgOR,avgC:avgC,avgPR:avgPR,
     workDays:workDays,dayTypes:dayTypes,
     history:history||[],histMonths:histMonths||[],
-    mk:mk,plantId:plantId
+    mk:mk,plantId:plantId,
+    // Active headcount per bucket (peak across the month) — drives
+    // the per-day Absent overlay above each bar.
+    peakS:peakS,peakOR:peakOR,peakC:peakC,peakPR:peakPR
   });
 
   // Register click contexts for the top-line summary pills. Clicking a
@@ -20005,7 +20863,7 @@ async function _hrmsCalApplyAllSave(val){
 }
 
 // ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
-var _hrmsActiveSettingsTab='myapprovals';
+var _hrmsActiveSettingsTab='calendar';
 function _hrmsSettingsSubTab(tab){
   // Permission check for settings sub-tabs.
   var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',myapprovals:'page.myApprovals',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
@@ -20016,7 +20874,12 @@ function _hrmsSettingsSubTab(tab){
     var btn=document.getElementById('hrmsSetTab'+t.charAt(0).toUpperCase()+t.slice(1));
     var allowed=_hrmsHasAccess(_setTabPerm[t]);
     if(panel) panel.style.display=t===tab?'':'none';
-    if(btn){btn.style.display=allowed?'':'none';btn.classList.toggle('active',t===tab);}
+    if(btn){
+      // My Approvals has moved to a top-level page — keep its sub-tab
+      // permanently hidden inside Settings & Data.
+      if(t==='myapprovals'){btn.style.display='none';btn.classList.remove('active');return;}
+      btn.style.display=allowed?'':'none';btn.classList.toggle('active',t===tab);
+    }
   });
   if(tab==='statutory'){
     _hrmsLoadStatutory();
@@ -22063,10 +22926,7 @@ function _hrmsRenderRollMaster(){
   h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
   h+='<div style="font-size:18px;font-weight:900">🪪 Role Master</div>';
   h+='<div style="display:flex;gap:8px">';
-  // Quick-link to the Contract Salary Revision sub-tab where roles are consumed.
-  h+='<button class="btn btn-secondary" onclick="_hrmsRollMasterGoContractRev()" style="padding:7px 14px;font-size:12px;font-weight:700">💵 Contract Salary Revision →</button>';
   if(canEdit){
-    h+='<button class="btn" style="background:#fef3c7;color:#92400e;border:1.5px solid #fde047;margin-right:6px" onclick="_hrmsRollMasterStripStaffRoles()" title="Clear the Role field on every Staff employee (flat + all periods). Role doesn\'t apply to Staff per current rules.">🧹 Strip Staff Roles</button>';
     h+='<button class="btn btn-primary" onclick="_hrmsRollMasterAdd()">+ Add Role</button>';
   }
   else h+='<span style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1.5px dashed var(--border2);border-radius:6px;color:var(--text3);font-style:italic">🔒 View Only</span>';
@@ -22075,11 +22935,13 @@ function _hrmsRenderRollMaster(){
   h+='<div class="table-wrap" style="max-height:calc(100vh - 200px)"><table><thead><tr>';
   h+='<th>#</th><th>Role</th><th>Description</th><th>Employees</th><th>Actions</th>';
   h+='</tr></thead><tbody>';
+  var _rmTotal=0;
   if(!rolls.length){
     h+='<tr><td colspan="5" class="empty-state">No roles defined yet.</td></tr>';
   } else {
     rolls.forEach(function(r,i){
       var cnt=empCounts[r.code]||0;
+      _rmTotal+=cnt;
       var codeEsc=(r.code||'').replace(/'/g,"\\'");
       h+='<tr>';
       h+='<td style="font-family:var(--mono);color:var(--text3)">'+(i+1)+'</td>';
@@ -22101,7 +22963,18 @@ function _hrmsRenderRollMaster(){
       h+='</tr>';
     });
   }
-  h+='</tbody></table></div></div>';
+  h+='</tbody>';
+  if(rolls.length){
+    // Footer total row — sums the Employees column across all roles.
+    h+='<tfoot><tr style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);border-top:2px solid #94a3b8;font-weight:900">'
+      +'<td style="padding:8px;color:#0f172a">—</td>'
+      +'<td style="padding:8px;color:#0f172a">Total</td>'
+      +'<td style="padding:8px;color:#0f172a">'+rolls.length+' role(s)</td>'
+      +'<td style="padding:8px;font-family:var(--mono);color:#0f172a;font-size:14px">'+_rmTotal+'</td>'
+      +'<td></td>'
+      +'</tr></tfoot>';
+  }
+  h+='</table></div></div>';
   pg.innerHTML=h;
 }
 
@@ -22348,6 +23221,48 @@ function _hrmsAllocAssignedRoles(groups,exceptId){
 var _hrmsAllocActiveTab='groups';
 function _hrmsAllocSetTab(tab){_hrmsAllocActiveTab=tab;_hrmsRenderAllocationMaster();}
 
+// Open the Manpower Allocation Settings popup. The legacy in-page
+// "MP Alloc Setting" + "Role Group Setting" tabs are hidden; this
+// modal is the single entry point now (Settings ⚙ button on the
+// Daily Attendance Summary tab strip). Inner tabs: 📋 Role Groups,
+// then one per plant for allocations.
+//   `initialInnerTab` is optional — pass 'groups' to land on the
+//   Role Groups view, or a 'plant:<name>' string for a specific
+//   plant; omit to use the last active or default to first plant.
+function _hrmsOpenAllocSettingsModal(initialInnerTab){
+  var _elev=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin());
+  var _hasA=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('tab.das.alloc');
+  var _hasR=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('tab.das.rolegrouping');
+  if(!_elev&&!_hasA&&!_hasR){
+    if(typeof notify==='function') notify('⚠ Access denied',true);
+    return;
+  }
+  // The renderer dispatches on _hrmsDasActiveTab. Force it to 'alloc'
+  // so the modal body (#hrmsAllocSettingsBody, now inside the modal)
+  // is the target. Inner tabs now include 'groups'.
+  window._hrmsDasActiveTab='alloc';
+  // Always land on 📋 Role Groups when the modal is opened from the
+  // gear button — that's where "+ Add Group" lives, and is the most
+  // common entry point for settings work. Callers that need a
+  // specific plant tab pass it via `initialInnerTab`.
+  _hrmsAllocActiveTab=initialInnerTab||'groups';
+  if(typeof _hrmsRenderAllocationMaster==='function') _hrmsRenderAllocationMaster();
+  if(typeof om==='function') om('mHrmsAllocSettings');
+  // Escape-to-close — installed once, lasts until the modal hides.
+  if(!window._hrmsAllocEscBound){
+    window._hrmsAllocEscBound=true;
+    document.addEventListener('keydown',function _esc(e){
+      if(e.key!=='Escape') return;
+      var ov=document.getElementById('mHrmsAllocSettings');
+      if(!ov||ov.style.display==='none'||!ov.classList.contains('open')) return;
+      // Skip when a sub-popover owns the Escape (cell editor / picker).
+      if(document.getElementById('_hrmsAllocEditPop')) return;
+      if(document.getElementById('_hrmsDdPickerPop')) return;
+      e.preventDefault();
+      if(typeof cm==='function') cm('mHrmsAllocSettings');
+    });
+  }
+}
 function _hrmsRenderAllocationMaster(){
   // The groups view (Role Grouping) and the plant grids (Allocation
   // Settings) are now siblings on the Daily Attendance Summary page.
@@ -22382,7 +23297,9 @@ function _hrmsRenderAllocationMaster(){
   // Flex column so the inner table wrapper can fill the remaining
   // height and own the only scrollbar — the tab pane itself stays
   // overflow:hidden.
-  var _renderingRoleGroupingHdr=(window._hrmsDasActiveTab==='rolegrouping');
+  // Role Groups is the first inner tab in the modal — its header
+  // shows "+ Add Group" instead of "Save Allocations".
+  var _renderingRoleGroupingHdr=(_hrmsAllocActiveTab==='groups');
   var h='<div style="flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:14px">';
   h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;flex:0 0 auto">';
   // Role Group tab: "+ Add Group" sits at the top-left and add / edit
@@ -22392,32 +23309,23 @@ function _hrmsRenderAllocationMaster(){
   if(_renderingRoleGroupingHdr&&canEdit){
     h+='<button onclick="_hrmsAllocGroupAdd()" style="font-size:12px;padding:6px 14px;font-weight:700;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">+ Add Group</button>';
   }
-  h+='<div style="font-size:14px;font-weight:700;color:var(--text3);margin-right:auto;margin-left:'+(_renderingRoleGroupingHdr?'10px':'0')+'">'+(_renderingRoleGroupingHdr?'Define role groups so the Allocation grid can target them.':'Allocate required manpower headcount under for each department & each role')+'</div>';
-  if(canEdit&&!_renderingRoleGroupingHdr){
-    h+='<button onclick="_hrmsAllocSaveGrid()" style="font-size:12px;padding:6px 16px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">💾 Save Allocations</button>';
-  }
+  h+='<div style="font-size:14px;font-weight:700;color:var(--text3);margin-right:auto;margin-left:'+(_renderingRoleGroupingHdr?'10px':'0')+'">'+(_renderingRoleGroupingHdr?'Define role groups so the Allocation grid can target them.':'Allocate required manpower headcount under for each department & each role · changes auto-save')+'</div>';
   h+='</div>';
 
-  // Tab bar — only render plant sub-tabs when on the Allocation
-  // Settings outer tab. The Role Grouping outer tab has no sub-tabs
-  // (it's a single view), so the inner strip is hidden in that case.
-  var _renderingRoleGrouping=(window._hrmsDasActiveTab==='rolegrouping');
-  if(!_renderingRoleGrouping){
-    h+='<div style="display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid var(--border);overflow-x:auto;flex-wrap:nowrap">';
-    var renderTabBtn=function(key,label,colour){
-      var active=(_hrmsAllocActiveTab===key);
-      var keyEsc=key.replace(/'/g,"\\'");
-      return '<div onclick="_hrmsAllocSetTab(\''+keyEsc+'\')" style="padding:8px 16px;font-size:13px;font-weight:'+(active?'800':'700')+';cursor:pointer;border-bottom:3px solid '+(active?(colour||'var(--accent)'):'transparent')+';color:'+(active?(colour||'var(--accent)'):'var(--text3)')+';background:'+(active?'var(--accent-light)':'transparent')+';white-space:nowrap">'+label+'</div>';
-    };
-    plants.forEach(function(p){
-      h+=renderTabBtn('plant:'+p,'🏭 '+p,'#1e293b');
-    });
-    h+='</div>';
-  } else {
-    // Role Grouping is a single-view tab — force the active sub-tab
-    // so the body conditional below renders the groups view.
-    _hrmsAllocActiveTab='groups';
-  }
+  // Tab bar — inside the Manpower Allocation Settings modal we now
+  // show BOTH "Role Groups" and per-plant tabs as inner tabs. The old
+  // standalone Role Grouping outer tab has been folded in here.
+  h+='<div style="display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid var(--border);overflow-x:auto;flex-wrap:nowrap">';
+  var renderTabBtn=function(key,label,colour){
+    var active=(_hrmsAllocActiveTab===key);
+    var keyEsc=key.replace(/'/g,"\\'");
+    return '<div onclick="_hrmsAllocSetTab(\''+keyEsc+'\')" style="padding:8px 16px;font-size:13px;font-weight:'+(active?'800':'700')+';cursor:pointer;border-bottom:3px solid '+(active?(colour||'var(--accent)'):'transparent')+';color:'+(active?(colour||'var(--accent)'):'var(--text3)')+';background:'+(active?'var(--accent-light)':'transparent')+';white-space:nowrap">'+label+'</div>';
+  };
+  h+=renderTabBtn('groups','📋 Role Groups','var(--accent)');
+  plants.forEach(function(p){
+    h+=renderTabBtn('plant:'+p,'🏭 '+p,'#1e293b');
+  });
+  h+='</div>';
 
   // ── Tab body ──
   if(_hrmsAllocActiveTab==='groups'){
@@ -22588,8 +23496,22 @@ function _hrmsAllocPromptEdit(ev,key){
       var raw=String(input.value||'').trim();
       var v=parseInt(raw,10);
       if(isNaN(v)||v<0) v=0;
+      var prev=rec.data.allocations[key];
       if(v) rec.data.allocations[key]=v;
       else delete rec.data.allocations[key];
+      // Auto-save (the bulk "Save Allocations" button has been
+      // retired). Revert in-memory if the persist fails so the UI
+      // doesn't drift from the database.
+      if(typeof _hrmsAllocationSave==='function'){
+        _hrmsAllocationSave().then(function(ok){
+          if(!ok){
+            if(prev==null) delete rec.data.allocations[key];
+            else rec.data.allocations[key]=prev;
+            if(typeof notify==='function') notify('⚠ Save failed — change reverted',true);
+            if(typeof _hrmsRenderAllocationMaster==='function') _hrmsRenderAllocationMaster();
+          }
+        });
+      }
     }
     document.removeEventListener('mousedown',outside,true);
     document.removeEventListener('keydown',keyHandler,true);
@@ -27306,9 +28228,9 @@ function _hrmsMyAttSyncTabAccess(){
   var btnAppr=document.getElementById('hrmsMyAttTabBtnAppr');
   var isSA=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin());
   if(btnBank) btnBank.style.display=isSA?'':'none';
-  // My Approvals tab is for non-SA users — Super Admin already has the
-  // full queue under Settings → My Approvals.
-  if(btnAppr) btnAppr.style.display=isSA?'none':'';
+  // My Approvals has its own top-level page now — the in-page sub-tab
+  // is hidden for everyone.
+  if(btnAppr) btnAppr.style.display='none';
 }
 function _hrmsMyAttSetTab(tab){
   var btnAtt=document.getElementById('hrmsMyAttTabBtnAtt');
