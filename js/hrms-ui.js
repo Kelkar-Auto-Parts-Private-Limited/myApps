@@ -87,6 +87,11 @@ async function _hrmsLaunch(){
   // Same idea for employment type — collapses 'Piece rate' / 'piece rate'
   // / 'piecerate' onto the canonical 'Piece Rate', etc.
   setTimeout(function(){try{_hrmsRepairEmpTypeCase();}catch(_){}},1000);
+  // Calendar override scrubber — drops redundant entries (override
+  // equals weekday default) and empty records left over from prior
+  // testing. Also audits non-default overrides to the console so
+  // residual state like the May-4 WO incident is easy to spot.
+  setTimeout(function(){try{_hrmsScrubDayTypes();}catch(_){}},1200);
   // NOTE: `_hrmsRepairResignedInactive()` is retained as a manual,
   // console-callable repair, but is no longer fired on every login —
   // the one-time migration has already swept the data, and re-running
@@ -108,41 +113,21 @@ async function _hrmsLaunch(){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   // Role-based default landing:
-  //   HR Manager → My Approvals (page merges pending + history descending)
-  //   Employee-only user → My Attendance with their own emp pre-selected
-  //                         (empCode = login username links to the row)
-  //   Anyone else → first allowed page from the standard precedence list
-  var _meEmp=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
-  var _meRole=_meEmp?_hrmsOrgRoleOf(_meEmp):'';
-  if(_meEmp&&_meRole==='hr_manager'&&_hrmsHasAccess('page.myApprovals')){
-    hrmsGo('pageHrmsMyApprovals');
-    return;
-  }
-  if(_meEmp&&_hrmsIsEmployeeOnlyUser()&&_hrmsHasAccess('page.myAttendance')){
-    _hrmsMyAttState.empId=_meEmp.id;
-    hrmsGo('pageHrmsMyAtt');
-    setTimeout(function(){
-      var inp=document.getElementById('hrmsMyAttEmpSearch');
-      if(inp) inp.value=(_meEmp.empCode||'')+' — '+(_meEmp.name||'');
-    },50);
-    return;
-  }
-  // Contractor Supervisor — single-purpose role. Land on Update Employee
-  // straight away so they see the only screen they need.
+  //   Contractor Supervisor → Update Employee (their single-purpose screen)
+  //   Department Head       → Day-wise Attendance · Team-wise Attendance Record
+  //   Everyone else         → Dashboard
   var _hrmsRolesNow=(CU&&CU.hrmsRoles)||[];
-  var _isContractorSup=_hrmsRolesNow.indexOf('Contractor Supervisor')>=0;
   var _isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
                  ||_hrmsRolesNow.indexOf('HRMS Admin')>=0||_hrmsRolesNow.indexOf('HR Manager')>=0;
+  var _isContractorSup=_hrmsRolesNow.indexOf('Contractor Supervisor')>=0;
   if(_isContractorSup&&!_isElevated&&_hrmsHasAccess('page.utilUpdateEmp')){
     hrmsGo('pageHrmsUtilUpdateEmp');return;
   }
-  // Department Head — single-purpose role (when not elevated). Land
-  // straight on Daily Attendance Summary; the Dept-wise MP Details tab
-  // is the only one visible to this role and is auto-selected by
-  // _hrmsDasSetTab.
   var _isDeptHead=_hrmsRolesNow.indexOf('Department Head')>=0;
   if(_isDeptHead&&!_isElevated&&_hrmsHasAccess('page.utilDailyAttSum')){
-    hrmsGo('pageHrmsUtilDailyAtt');return;
+    // Land on the Team-wise sub-tab — `hrmsGo` with a tab arg seeds
+    // _hrmsDasInitialTab, which the renderer honours.
+    hrmsGo('pageHrmsUtilDailyAtt','teamwise');return;
   }
   // Default landing for everyone else — HRMS Dashboard.
   if(typeof _hrmsHasAccess!=='function'||_hrmsHasAccess('page.dashboard')){
@@ -291,6 +276,18 @@ var _hrmsParentMenu={
   pageHrmsUtilMonthlyHc:'Utilities',
   pageHrmsUtilUpdateEmp:'Utilities'
 };
+// Sub-tab labels for pages whose body is an in-page tabset. The active
+// sub-tab name is appended to the title so the operator can see which
+// sub-view is current straight from the topbar.
+var _hrmsSubTabTitles={
+  pageHrmsUtilDailyAtt:{
+    manpower:'Allocation vs Actual Manpower',
+    deptdetails:'Departmentwise Attendance',
+    teamwise:'Team-wise Attendance Record',
+    rolegrouping:'Role Group Setting',
+    alloc:'MP Alloc Setting'
+  }
+};
 function _hrmsUpdateTopTitle(){
   var el=document.getElementById('topbarTitle');if(!el) return;
   var pid=(document.querySelector('.page.active')||{}).id||'';
@@ -302,8 +299,21 @@ function _hrmsUpdateTopTitle(){
     var p=_hrmsMonth.split('-');
     suffix=' — '+_MONTH_NAMES[+p[1]]+' '+p[0];
   }
+  // Day-wise Attendance landing page hosts several sub-tabs — surface
+  // the active one in the title so the topbar reflects what the user
+  // is actually looking at.
+  if(_hrmsSubTabTitles[pid]){
+    var subTab=window._hrmsDasActiveTab||'';
+    var subName=_hrmsSubTabTitles[pid][subTab];
+    if(subName) suffix=' : '+subName+suffix;
+  }
   if(!base){el.textContent='HRMS';return;}
-  el.textContent='HRMS : '+(parent?(parent+' → '):'')+base+suffix;
+  // Suppress the parent prefix when it equals the page's own title —
+  // avoids redundant "Day-wise Attendance → Day-wise Attendance" on the
+  // section's landing page (and any future page where the entry is the
+  // parent itself rather than a true sub-item).
+  var prefix=(parent&&parent!==base)?(parent+' → '):'';
+  el.textContent='HRMS : '+prefix+base+suffix;
 }
 
 // Page → permission key mapping
@@ -502,9 +512,15 @@ function hrmsGo(pid,opt){
     if(pid==='pageHrmsUtilAttConv'&&typeof _hrmsAttConvRender==='function') _hrmsAttConvRender();
     if(pid==='pageHrmsUtilDailyAtt'){
       var _di=document.getElementById('hrmsDasHistDate');
-      if(_di&&!_di.value){
+      if(_di){
         var _dnow=new Date();
-        _di.value=_dnow.getFullYear()+'-'+String(_dnow.getMonth()+1).padStart(2,'0')+'-'+String(_dnow.getDate()).padStart(2,'0');
+        var _todayIso=_dnow.getFullYear()+'-'+String(_dnow.getMonth()+1).padStart(2,'0')+'-'+String(_dnow.getDate()).padStart(2,'0');
+        // Cap the picker so the browser's native UI disables future
+        // dates — defence-in-depth alongside the JS clamps in
+        // _hrmsDasShiftHistDate / _hrmsDasLoadFromHistory.
+        _di.max=_todayIso;
+        if(!_di.value) _di.value=_todayIso;
+        else if(_di.value>_todayIso) _di.value=_todayIso;
       }
       if(typeof _hrmsDasUpdateDateLabel==='function') _hrmsDasUpdateDateLabel();
       // Tab-revisit freshness — invalidate every month the visible
@@ -1868,6 +1884,475 @@ async function _hrmsRepairEmpTypeCase(){
   return changed.length;
 }
 
+// Defensive boot-time audit of plant-calendar overrides
+// (DB.hrmsDayTypes). Two responsibilities:
+//   1. Auto-clean overrides whose value equals the default for that
+//      weekday (Sun → WO, else → WD). These have no effect on
+//      _hrmsGetDayType but accumulate as noise that can confuse future
+//      audits and obscure real anomalies.
+//   2. Drop records left with an empty dayTypes object after pruning
+//      so the table stays compact.
+// Non-default overrides (e.g. Monday set to WO) are NOT auto-modified
+// — they're surfaced via console.log so the operator can decide.
+// Persistence is gated to elevated roles so non-admin sessions don't
+// silently mutate the DB.
+async function _hrmsScrubDayTypes(){
+  var recs=DB.hrmsDayTypes||[];
+  if(!recs.length) return 0;
+  var changedRecs=[];
+  var dropRecs=[];
+  var nonDefault=[];
+  for(var i=0;i<recs.length;i++){
+    var r=recs[i];if(!r||!r.monthKey) continue;
+    var sp=String(r.monthKey).split('-');
+    var yr=+sp[0],mo=+sp[1];
+    if(!yr||!mo) continue;
+    var dt=Object.assign({},r.dayTypes||{});
+    var pruned=false;
+    Object.keys(dt).forEach(function(k){
+      var dnum=+k;if(!dnum) return;
+      var dval=dt[k];
+      var defaultDt=new Date(yr,mo-1,dnum).getDay()===0?'WO':'WD';
+      if(dval===defaultDt){
+        delete dt[k];pruned=true;
+      } else {
+        nonDefault.push({monthKey:r.monthKey,plant:r.plant,day:dnum,override:dval,defaultIs:defaultDt});
+      }
+    });
+    // An originally-empty record (no overrides at all) is also junk.
+    var empty=Object.keys(dt).length===0;
+    if(pruned||empty){
+      if(empty) dropRecs.push(r);
+      else { r.dayTypes=dt; changedRecs.push(r); }
+    }
+  }
+  if(nonDefault.length){
+    console.log('[calendar audit] '+nonDefault.length+' non-default override(s) — review for stale testing data:',nonDefault);
+  }
+  var totalCleaned=changedRecs.length+dropRecs.length;
+  if(!totalCleaned) return 0;
+  var roles=(typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[];
+  var canWrite=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+    ||roles.indexOf('HR Manager')>=0||roles.indexOf('HRMS Admin')>=0;
+  if(!canWrite){
+    console.log('[scrubDayTypes] '+totalCleaned+' redundant override(s) cleaned in memory; no write access to persist');
+    return totalCleaned;
+  }
+  try{
+    for(var ci=0;ci<changedRecs.length;ci++){
+      await _dbSave('hrmsDayTypes',changedRecs[ci]);
+    }
+    // Empty records (no day overrides at all) get dropped from
+    // in-memory state only. We DO NOT attempt _dbDel — RLS routinely
+    // denies the delete and surfaces a "Delete blocked" toast every
+    // boot, which became annoying. The empty row in the DB has no
+    // effect on _hrmsGetDayType (no override → default weekday).
+    for(var di=0;di<dropRecs.length;di++){
+      var dr=dropRecs[di];
+      DB.hrmsDayTypes=DB.hrmsDayTypes.filter(function(x){return x!==dr;});
+    }
+    console.log('[scrubDayTypes] cleaned '+changedRecs.length+' record(s); dropped '+dropRecs.length+' empty record(s) from memory');
+  }catch(err){
+    console.warn('[scrubDayTypes] persist failed:',err);
+  }
+  return totalCleaned;
+}
+
+// Setter for the dashboard Team-wise Daily Headcount date picker.
+// Clamps to today (no future dates) and replaces only the team-strip
+// section in the DOM so the rest of the dashboard isn't re-rendered.
+function _hrmsDashTeamHcSetDate(iso){
+  var t=new Date();
+  var todayIso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  if(!iso) iso=todayIso;
+  if(iso>todayIso) iso=todayIso;
+  window._hrmsDashTeamHcDate=iso;
+  _hrmsDashTeamHcRerender();
+}
+// Shift the selected date by ±N days. Clamped at today (the input's
+// `max` does the same job for the native picker, but the prev/next
+// buttons bypass the picker so we re-check here).
+function _hrmsDashTeamHcShiftDate(delta){
+  var t=new Date();
+  var todayIso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  var cur=window._hrmsDashTeamHcDate||todayIso;
+  var d=new Date(cur+'T00:00:00');
+  if(isNaN(d)) d=new Date();
+  d.setDate(d.getDate()+(+delta||0));
+  var iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(iso>todayIso){
+    if(typeof notify==='function') notify('Future dates are not allowed.',true);
+    return;
+  }
+  window._hrmsDashTeamHcDate=iso;
+  _hrmsDashTeamHcRerender();
+}
+function _hrmsDashTeamHcRerender(){
+  var allEmps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;});
+  var wrap=document.getElementById('hrmsDashTeamHcWrap');
+  if(!wrap) return;
+  try{
+    var newHtml=_hrmsDashTeamHcSection(allEmps);
+    // The section's outer `<div id="hrmsDashTeamHcWrap">…</div>` is
+    // returned by the renderer; swap the wrap's outerHTML so the new
+    // ID-bearing element replaces the old one without duplication.
+    wrap.outerHTML=newHtml;
+  }catch(e){console.warn('TeamHc re-render failed:',e);}
+}
+
+// Team-wise daily headcount strip used on the dashboard. Builds one
+// horizontal bar chart per team — KAP (all currently-On-Roll emps
+// rolled into a single chart) plus one chart per Contract team — with
+// the current month's daily Present headcount and a 6-month historical
+// strip on top. Charts sit side-by-side in a horizontal-scroll row.
+// Background-fetches any missing historical month attendance and
+// re-renders the dashboard when the fetches land.
+function _hrmsDashTeamHcSection(allEmps){
+  if(!allEmps||!allEmps.length) return '';
+  // Selected date drives which month the chart focuses on. Defaults to
+  // today; the date picker is capped to today so future dates can't be
+  // selected. State lives on `window._hrmsDashTeamHcDate` (ISO date).
+  var _todayIso=function(){var t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}();
+  var selIso=window._hrmsDashTeamHcDate||_todayIso;
+  if(selIso>_todayIso) selIso=_todayIso;// guard against stale future state
+  var _sp=selIso.split('-');
+  var curYr=+_sp[0],curMo=+_sp[1];
+  var curMk=curYr+'-'+String(curMo).padStart(2,'0');
+  var daysInMonth=new Date(curYr,curMo,0).getDate();
+  var _periodOf=function(e){return (e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});};
+  // Bucket emps: KAP (every On Roll) + PR (every Piece Rate, aggregated
+  // across all PR teams) + one bucket per Contract team.
+  var teamMap={'__KAP__':[],'__PIECERATE__':[]};
+  allEmps.forEach(function(e){
+    if(!e||!e.empCode) return;
+    var ap=_periodOf(e);
+    var raw=String((ap&&ap.employmentType)||e.employmentType||'').toLowerCase().replace(/\s+/g,'');
+    if(raw==='onroll') teamMap['__KAP__'].push(e);
+    else if(raw==='piecerate') teamMap['__PIECERATE__'].push(e);
+    else if(raw==='contract'){
+      var team=((ap&&ap.teamName)||e.teamName||'').trim()||'— No team —';
+      if(!teamMap[team]) teamMap[team]=[];
+      teamMap[team].push(e);
+    }
+  });
+  // Order: KAP first, each Contract team alphabetical next (— No team —
+  // sinks to the end of that group), Piece Rate aggregate last.
+  var teamKeys=Object.keys(teamMap).filter(function(k){return teamMap[k].length>0;}).sort(function(a,b){
+    if(a==='__KAP__') return -1;
+    if(b==='__KAP__') return 1;
+    if(a==='__PIECERATE__') return 1;
+    if(b==='__PIECERATE__') return -1;
+    if(a==='— No team —') return 1;
+    if(b==='— No team —') return -1;
+    return a.localeCompare(b);
+  });
+  if(!teamKeys.length) return '';
+  // Background fetch for missing historical months (and the current
+  // month) so the section can populate as data arrives.
+  var monthsBack=6;
+  var needed=[];
+  for(var hh=0;hh<=monthsBack;hh++){
+    var hd=new Date(curYr,curMo-1-hh,1);
+    var hmk=hd.getFullYear()+'-'+String(hd.getMonth()+1).padStart(2,'0');
+    if(!(window._hrmsAttCache&&_hrmsAttCache[hmk])) needed.push(hmk);
+  }
+  if(needed.length&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsDashTeamHcFetchInflight){
+    window._hrmsDashTeamHcFetchInflight=true;
+    Promise.all(needed.map(function(m){return _hrmsAttFetchMonth(m).catch(function(){});})).then(function(){
+      window._hrmsDashTeamHcFetchInflight=false;
+      try{renderHrmsDashboard();}catch(_){}
+    });
+  }
+  // Per-month presence cache built on demand from _hrmsAttCache.
+  var _presCache={};
+  var _presOf=function(mk){
+    if(_presCache[mk]) return _presCache[mk];
+    var pres={};
+    var attR=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
+    var altR=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
+    [attR,altR].forEach(function(arr){
+      arr.forEach(function(a){
+        if(!a||!a.empCode||!a.days) return;
+        if(!pres[a.empCode]) pres[a.empCode]={};
+        Object.keys(a.days).forEach(function(dk){
+          var entry=a.days[dk];
+          if(entry&&(entry.in||entry['in'])) pres[a.empCode][+dk]=true;
+        });
+      });
+    });
+    _presCache[mk]=pres;return pres;
+  };
+  // Build chart data for one team.
+  var _teamData=function(teamEmps){
+    // Dominant plant for day-type resolution.
+    var pTally={};
+    teamEmps.forEach(function(e){var ap=_periodOf(e);var p=((ap&&ap.location)||e.location||'').trim();if(p)pTally[p]=(pTally[p]||0)+1;});
+    var dominantPlant='',best=0;Object.keys(pTally).forEach(function(p){if(pTally[p]>best){best=pTally[p];dominantPlant=p;}});
+    var activeCur=teamEmps.filter(function(e){var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,curMk):'AC';return tag!=='IA';});
+    // Current month per-day rows
+    var curPres=_presOf(curMk);
+    var dayRows=[];
+    for(var d=1;d<=daysInMonth;d++){
+      var dType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(curMk,d,curYr,curMo,dominantPlant):'WD';
+      var p=0,tot=0;
+      activeCur.forEach(function(e){
+        var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(e,curMk,d):'AC';
+        if(st==='IA') return;
+        tot++;
+        if(curPres[e.empCode]&&curPres[e.empCode][d]) p++;
+      });
+      dayRows.push({d:d,dType:dType,p:p,a:Math.max(0,tot-p),total:tot});
+    }
+    // 6 historical avg P / WD
+    var history=[];
+    for(var hi=monthsBack;hi>=1;hi--){
+      var hd2=new Date(curYr,curMo-1-hi,1);
+      var hYr=hd2.getFullYear(),hMo=hd2.getMonth()+1;
+      var hMk=hYr+'-'+String(hMo).padStart(2,'0');
+      var hDays=new Date(hYr,hMo,0).getDate();
+      var hCache=(window._hrmsAttCache&&_hrmsAttCache[hMk]);
+      if(!hCache){history.push({mk:hMk,avgP:0,avgA:0,hasData:false});continue;}
+      var hPres=_presOf(hMk);
+      var hActive=teamEmps.filter(function(e){var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,hMk):'AC';return tag!=='IA';});
+      var sP=0,sA=0,wd=0;
+      for(var dd=1;dd<=hDays;dd++){
+        var hType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(hMk,dd,hYr,hMo,dominantPlant):'WD';
+        if(hType!=='WD') continue;
+        var hP=0,hT=0;
+        hActive.forEach(function(e){
+          var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(e,hMk,dd):'AC';
+          if(st==='IA') return;
+          hT++;
+          if(hPres[e.empCode]&&hPres[e.empCode][dd]) hP++;
+        });
+        if(hT>0){sP+=hP;sA+=(hT-hP);wd++;}
+      }
+      history.push({mk:hMk,avgP:wd?Math.round(sP/wd):0,avgA:wd?Math.round(sA/wd):0,hasData:wd>0});
+    }
+    // maxY uses P+A (active denominator) for a consistent scale.
+    var maxY=0;
+    dayRows.forEach(function(r){var t=r.p+r.a;if(t>maxY) maxY=t;});
+    history.forEach(function(h){var t=h.avgP+h.avgA;if(t>maxY) maxY=t;});
+    if(maxY<10) maxY=10;
+    var step=Math.pow(10,Math.max(0,String(maxY).length-2));
+    maxY=Math.ceil(maxY/step)*step;
+    return {dayRows:dayRows,history:history,maxY:maxY,empCount:activeCur.length};
+  };
+  // Build chart data per team once so we can share row positions and
+  // dimensions across the whole strip.
+  var teamRows=teamKeys.map(function(tk){return {key:tk,data:_teamData(teamMap[tk])};});
+  // Pick the first non-empty dataset as the source of dayRows + history
+  // for the shared Y-axis column (every team has the same date list,
+  // they only differ on P counts).
+  var refRows=teamRows[0].data.dayRows;
+  var refHistory=teamRows[0].data.history;
+  // Build the section HTML — single horizontal-scrolling container with
+  // a sticky-left date column (the shared Y axis) and one bars-only
+  // column per team. Vertical scroll lives on the container so every
+  // column scrolls together.
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var html='<div style="margin-bottom:18px" id="hrmsDashTeamHcWrap">';
+  html+='<div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    +'<span>📊 Team-wise Daily Headcount</span>'
+    +'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 5px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:1.5px solid var(--accent);border-radius:6px">'
+      +'<button onclick="_hrmsDashTeamHcShiftDate(-1)" title="Previous day" style="padding:2px 8px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>'
+      +'<input type="date" id="hrmsDashTeamHcDate" value="'+selIso+'" max="'+_todayIso+'" onchange="_hrmsDashTeamHcSetDate(this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;font-weight:700;background:#fff;cursor:pointer" title="Select date">'
+      +'<button onclick="_hrmsDashTeamHcShiftDate(1)" title="Next day" style="padding:2px 8px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">▶</button>'
+    +'</span>'
+    +'<span style="font-size:11px;color:var(--text3);font-weight:600">'+(MON_NAMES[curMo-1]||'')+' '+curYr+' · 6-month trend · shared date axis</span>'
+    +'</div>';
+  // Outer wrapper — scrolls horizontally for many teams, vertically for
+  // the full date list. The date column inside is sticky-left so it
+  // stays visible while scrolling sideways.
+  html+='<div style="display:flex;overflow-x:auto;overflow-y:visible;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:0;-webkit-overflow-scrolling:touch">';
+  // Shared header row across all columns — fixed-position via sticky
+  // top so it stays visible while scrolling vertically.
+  // (Rendered inline at the top of each column so the layouts align.)
+  // Date column (sticky-left).
+  html+='<div style="flex:0 0 58px;position:sticky;left:0;background:#fff;z-index:3;border-right:1.5px solid #cbd5e1">';
+  html+='<div style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);padding:6px 4px;font-size:11px;font-weight:800;color:#0f172a;text-align:center;border-bottom:1px solid #cbd5e1;position:sticky;top:0;z-index:2">Date</div>';
+  html+=_hrmsDashTeamHcDatesOnly(refRows,refHistory,curYr,curMo);
+  html+='</div>';
+  // One column per team — bars only, no Y labels (shared with date col).
+  teamRows.forEach(function(tr){
+    var tk=tr.key;
+    var td=tr.data;
+    var teamLbl,teamBg,teamFg;
+    if(tk==='__KAP__'){teamLbl='KAP (On Roll)';teamBg='linear-gradient(180deg,#dcfce7,#bbf7d0)';teamFg='#15803d';}
+    else if(tk==='__PIECERATE__'){teamLbl='Piece Rate';teamBg='linear-gradient(180deg,#f3e8ff,#ddd6fe)';teamFg='#7c3aed';}
+    else {teamLbl=tk;teamBg='linear-gradient(180deg,#dbeafe,#bfdbfe)';teamFg='#1d4ed8';}
+    html+='<div style="flex:0 0 196px;border-right:1px solid #e2e8f0">';
+    html+='<div style="background:'+teamBg+';color:'+teamFg+';padding:6px 8px;font-size:11px;font-weight:800;border-bottom:1px solid #cbd5e1;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">'
+      +'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(teamLbl)+'</span>'
+      +'<span style="font-size:10px;font-weight:700;opacity:.85;flex:0 0 auto;margin-left:6px">'+td.empCount+'</span>'
+      +'</div>';
+    html+=_hrmsDashTeamHcBarsOnly(td.dayRows,curYr,curMo,td.maxY,td.history);
+    html+='</div>';
+  });
+  html+='</div></div>';
+  return html;
+}
+
+var MON_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Dashboard team strip — shared row dimensions. All columns (date axis
+// + bars per team) honour these so rows align across the strip.
+var _DASH_TEAM_ROW_H=20;
+var _DASH_TEAM_PAD_T=22;
+var _DASH_TEAM_PAD_B=6;
+// Y-axis column for the dashboard team strip — date labels only (every
+// row mirrors the bars columns). Rendered once at the sticky-left edge
+// of the strip so all team charts share the same Y axis.
+function _hrmsDashTeamHcDatesOnly(dayRows,history,yr,mo){
+  var DOW=['S','M','T','W','T','F','S'];
+  var n=dayRows.length;
+  history=history||[];
+  var histCount=history.length;
+  var gapRows=histCount>0?1:0;
+  var totalRows=histCount+gapRows+n;
+  var W=88, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
+  var H=totalRows*rowH+padT+padB;
+  var yC=function(i){return padT+rowH*(i+0.5);};
+  // Native pixel size — matches the bars columns so rows align exactly.
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMin meet" style="width:'+W+'px;height:'+H+'px;display:block;background:#fff">';
+  // Historical band wash + separator
+  if(histCount>0){
+    s+='<rect x="0" y="'+padT+'" width="'+W+'" height="'+(histCount*rowH)+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    var sepY=padT+(histCount*rowH)+(rowH/2);
+    s+='<line x1="0" y1="'+sepY+'" x2="'+W+'" y2="'+sepY+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>';
+  }
+  // Historical month labels
+  history.forEach(function(h,hi){
+    var cy=yC(hi);
+    var sp=h.mk.split('-');
+    var lblTxt=(MON_NAMES[+sp[1]-1]||'')+' '+String(sp[0]).slice(-2);
+    s+='<text x="'+(W-4)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="800" fill="#92400e">'+lblTxt+'</text>';
+  });
+  // Current month rows: optional PH/WO badge on the LEFT, then the
+  // "DD Day" label right-aligned. Working days just get the date label.
+  for(var ci=0;ci<n;ci++){
+    var r=dayRows[ci];if(!r) continue;
+    var rowIdx=histCount+gapRows+ci;
+    var cy=yC(rowIdx);
+    var dt=new Date(yr,mo-1,r.d);
+    var dow=DOW[dt.getDay()];
+    var excluded=(r.dType==='WO'||r.dType==='PH');
+    var fg=excluded?'#b91c1c':'#334155';
+    if(excluded){
+      var bg=r.dType==='PH'?'#dcfce7':'#dbeafe';
+      s+='<rect x="0" y="'+(padT+rowH*rowIdx)+'" width="'+W+'" height="'+rowH+'" fill="'+bg+'" fill-opacity="0.55"/>';
+      // Badge — green pill for PH, blue pill for WO — sits just inside
+      // the left edge so it precedes the date label.
+      var badgeTxt=r.dType==='PH'?'PH':'WO';
+      var badgeBg =r.dType==='PH'?'#15803d':'#1d4ed8';
+      var bw=22, bh=13;
+      s+='<rect x="2" y="'+(cy-bh/2)+'" width="'+bw+'" height="'+bh+'" rx="3.5" ry="3.5" fill="'+badgeBg+'"/>'
+        +'<text x="'+(2+bw/2)+'" y="'+(cy+3)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
+    }
+    s+='<text x="'+(W-4)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="700" fill="'+fg+'">'+r.d+' '+dow+'</text>';
+  }
+  s+='</svg>';
+  return s;
+}
+
+// Bars-only column for the dashboard team strip. Same row dimensions
+// as the dates column so rows align side-by-side. Each row's bar
+// length = Present headcount (scaled to the team's own maxY); the P
+// count sits as a label to the right of the bar tip.
+function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
+  var n=dayRows.length;
+  history=history||[];
+  var histCount=history.length;
+  var gapRows=histCount>0?1:0;
+  var totalRows=histCount+gapRows+n;
+  if(!totalRows){
+    return '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:11px">No data</div>';
+  }
+  // Wider viewBox — bars get ~95% more horizontal travel than the
+  // original baseline (70% + a 15% top-up per the latest request).
+  // padR carries the two pills (P green + A red); padL is just a
+  // left-edge gutter.
+  var W=196, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
+  var padL=4, padR=50;
+  var plotH=totalRows*rowH;
+  var H=plotH+padT+padB;
+  var plotW=W-padL-padR;
+  var barH=rowH*0.7;
+  var yC=function(i){return padT+rowH*(i+0.5);};
+  var xOf=function(v){return padL+(v/maxY)*plotW;};
+  // Compact rounded pill — used to label P (green) and A (red) at the
+  // tip of each bar. Width auto-grows with digit count; height is
+  // shared across P and A so the two pills stay vertically aligned.
+  var _pill=function(cx,cy,count,bg,fontSize){
+    var fs=fontSize||9;
+    var txt=String(count);
+    var w=Math.max(14, 5+txt.length*Math.max(fs-2.5,4));
+    var h=13;
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="6.5" ry="6.5" fill="'+bg+'"/>'
+      +'<text x="'+cx+'" y="'+(cy+fs*0.35)+'" text-anchor="middle" font-size="'+fs+'" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+  };
+  // P pill ~1px taller than A for visual hierarchy. Sizes bumped +1.5px
+  // each over the previous version per the readability request.
+  var _placeTwoPills=function(endX,cy,pCount,aCount){
+    var pCx=Math.min(endX+13, W-36);
+    var aCx=Math.min(pCx+24, W-13);
+    return _pill(pCx,cy,pCount,'#16a34a',9.5)+_pill(aCx,cy,aCount,'#dc2626',8.5);
+  };
+  // Column is now a fixed pixel width (matching the SVG's viewBox W),
+  // so the SVG renders at its native scale — pills keep their natural
+  // round shape and stay crisp instead of stretching with the column.
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMin meet" style="width:'+W+'px;height:'+H+'px;display:block;background:#fafafa">';
+  // Historical band wash
+  if(histCount>0){
+    s+='<rect x="0" y="'+padT+'" width="'+W+'" height="'+(histCount*rowH)+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    var sepY=padT+(histCount*rowH)+(rowH/2);
+    s+='<line x1="0" y1="'+sepY+'" x2="'+W+'" y2="'+sepY+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>';
+  }
+  // WO/PH row tints in current month
+  for(var i=0;i<n;i++){
+    var r=dayRows[i];
+    if(r&&(r.dType==='WO'||r.dType==='PH')){
+      var rowIdx=histCount+gapRows+i;
+      var by=padT+rowH*rowIdx;
+      var bg=r.dType==='PH'?'#dcfce7':'#dbeafe';
+      s+='<rect x="0" y="'+by+'" width="'+W+'" height="'+rowH+'" fill="'+bg+'" fill-opacity="0.5"/>';
+    }
+  }
+  // X grid + axis ticks (top) — 0, maxY/2, maxY
+  for(var gi=0;gi<=2;gi++){
+    var v=Math.round(maxY*gi/2);
+    var x=xOf(v);
+    s+='<line x1="'+x+'" y1="'+padT+'" x2="'+x+'" y2="'+(H-padB)+'" stroke="#e2e8f0" stroke-width="0.5"/>';
+    s+='<text x="'+x+'" y="'+(padT-3)+'" text-anchor="middle" font-size="9" fill="#64748b">'+v+'</text>';
+  }
+  // Historical bars — only drawn when there's actual data (avgP > 0).
+  // Months without working-day data leave the row blank instead of
+  // showing a misleading N/A or zero-bar.
+  history.forEach(function(h,hi){
+    if(!(h.avgP>0)) return;
+    var cy=yC(hi);
+    var ry=cy-barH/2;
+    var bw=(h.avgP/maxY)*plotW;
+    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" fill-opacity="0.78" stroke="#92400e" stroke-width="0.5" stroke-dasharray="2 1"><title>'+h.mk+' avg P: '+h.avgP+' · avg A: '+h.avgA+'</title></rect>';
+    s+=_placeTwoPills(padL+bw,cy,h.avgP,h.avgA);
+  });
+  // Current-month bars — drawn only on days with Present headcount > 0.
+  // No-data / future / zero-attendance days stay blank so the chart
+  // shows real activity, not auto-filled rows.
+  for(var ci=0;ci<n;ci++){
+    var r2=dayRows[ci];
+    if(!r2||!(r2.p>0)) continue;
+    var rowIdx=histCount+gapRows+ci;
+    var cy=yC(rowIdx);
+    var ry=cy-barH/2;
+    var bw=(r2.p/maxY)*plotW;
+    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.4"><title>'+r2.d+': P='+r2.p+' · A='+r2.a+'</title></rect>';
+    s+=_placeTwoPills(padL+bw,cy,r2.p,r2.a);
+  }
+  s+='</svg>';
+  return s;
+}
+
 // ═══ DASHBOARD ══════════════════════════════════════════════════════════
 function renderHrmsDashboard(){
   var el=document.getElementById('hrmsDashContent');if(!el)return;
@@ -1980,26 +2465,40 @@ function renderHrmsDashboard(){
     return '<div style="font-size:30px;font-weight:900;color:'+clr+';line-height:1.1">'+active+'</div>';
   };
 
-  var h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
-  h+='<div style="flex:1;min-width:120px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Total Active</div>'+_bigPresent(_pTotal,active,'#2563eb')+'</div>';
-  h+='<div style="flex:1;min-width:120px;background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:4px">On Roll</div>'+_bigPresent(_pOnRoll,onRoll,'#16a34a')+'</div>';
-  h+='<div style="flex:1;min-width:120px;background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Contract</div>'+_bigPresent(_pContract,contract,'#2563eb')+'</div>';
-  h+='<div style="flex:1;min-width:120px;background:#f3e8ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#7c3aed;text-transform:uppercase;margin-bottom:4px">Piece Rate</div>'+_bigPresent(_pPieceRate,pieceRate,'#7c3aed')+'</div>';
-  // Left: no last-month-present concept, so the count IS the headline.
-  h+='<div style="flex:1;min-width:120px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#991b1b;text-transform:uppercase;margin-bottom:4px">Left</div><div style="font-size:30px;font-weight:900;color:#dc2626;line-height:1.1">'+left+'</div><div style="font-size:10px;font-weight:700;color:rgba(0,0,0,.55);margin-top:2px">cumulative</div></div>';
-  h+='</div>';
-
-  // Team counts
+  // Team counts (used inline inside the Piece Rate tile below).
   var contractTeams={},prTeams={};
   emps.forEach(function(e){
     var t=(e.teamName||'').trim();if(!t)return;
     if((e.employmentType||'').toLowerCase()==='contract') contractTeams[t]=1;
     if((e.employmentType||'').toLowerCase()==='piece rate') prTeams[t]=1;
   });
-  h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
-  h+='<div style="flex:1;min-width:140px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Contractor Teams</div><div style="font-size:22px;font-weight:900;color:#2563eb">'+Object.keys(contractTeams).length+'</div></div>';
-  h+='<div style="flex:1;min-width:140px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase">Piece Rate Teams</div><div style="font-size:22px;font-weight:900;color:#7c3aed">'+Object.keys(prTeams).length+'</div></div>';
+  var _ctCount=Object.keys(contractTeams).length;
+  var _prCount=Object.keys(prTeams).length;
+
+  var h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">';
+  h+='<div style="flex:1;min-width:120px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Total Active</div>'+_bigPresent(_pTotal,active,'#2563eb')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:4px">On Roll</div>'+_bigPresent(_pOnRoll,onRoll,'#16a34a')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px">Contract</div>'+_bigPresent(_pContract,contract,'#2563eb')+'</div>';
+  h+='<div style="flex:1;min-width:120px;background:#f3e8ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:12px;text-align:center"><div style="font-size:9px;font-weight:700;color:#7c3aed;text-transform:uppercase;margin-bottom:4px">Piece Rate</div>'+_bigPresent(_pPieceRate,pieceRate,'#7c3aed')+'</div>';
+  // Cont Teams / PR Teams — small square chips next to the headline
+  // tiles. Match the row height of the bigger tiles so the line reads
+  // cleanly even when the larger tiles are taller than the squares.
+  var _teamChip=function(label,count,bg,bd,fg){
+    return '<div style="flex:0 0 auto;width:84px;height:84px;background:'+bg+';border:1.5px solid '+bd+';border-radius:10px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">'
+      +'<div style="font-size:9px;font-weight:700;color:'+fg+';text-transform:uppercase;line-height:1.1">'+label+'</div>'
+      +'<div style="font-size:24px;font-weight:900;color:'+fg+';line-height:1">'+count+'</div>'
+      +'</div>';
+  };
+  h+=_teamChip('Cont Teams',_ctCount,'#eff6ff','#bfdbfe','#2563eb');
+  h+=_teamChip('PR Teams',_prCount,'#faf5ff','#c4b5fd','#7c3aed');
   h+='</div>';
+
+  // Team-wise daily headcount strip — one horizontal bar chart per team
+  // (KAP On-Roll combined + each Contract team), with the current
+  // month's daily P count plus a 6-month historical strip on top for
+  // trend context. Sits above the Monthly Headcount Graph so the
+  // operator sees today-vs-trend before drilling into the monthly view.
+  try{ h+=_hrmsDashTeamHcSection(allEmps); }catch(e){ console.warn('team HC section failed:',e); }
 
   // ── Monthly Headcount Graphs (moved from Utilities → here on the dashboard).
   // The container IDs match what _hrmsMhgInit / _hrmsMhgRenderCharts expect
@@ -11161,6 +11660,14 @@ function _hrmsDasShiftHistDate(delta){
   var dt=v?new Date(v+'T00:00:00'):new Date();
   if(isNaN(dt)) dt=new Date();
   dt.setDate(dt.getDate()+(+delta||0));
+  // Clamp to today — Day-wise Attendance never operates on future
+  // dates, so the ▶ button silently stops at today and direct date
+  // input is also capped via the input's `max` attribute below.
+  var today=new Date();today.setHours(0,0,0,0);
+  if(dt>today){
+    if(typeof notify==='function') notify('Future dates are not allowed.',true);
+    return;
+  }
   var yy=dt.getFullYear();
   var mm=String(dt.getMonth()+1).padStart(2,'0');
   var dd=String(dt.getDate()).padStart(2,'0');
@@ -11206,13 +11713,15 @@ function _hrmsDasSetTab(tab){
   // hides the other's tab.
   var _scopedSet={};
   if(supScope) _scopedSet.teamwise=1;
-  if(dhScope)  _scopedSet.deptdetails=1;
+  // Dept Head — Team-wise Attendance Record is the primary screen, with
+  // Dept-wise MP Details available as a secondary view.
+  if(dhScope){_scopedSet.teamwise=1;_scopedSet.deptdetails=1;}
   var _hasScope=Object.keys(_scopedSet).length>0;
   // Force the active tab into the scoped set when the requested tab
-  // isn't allowed for this user. Prefer deptdetails when both roles
-  // are present so Dept-wise MP Details lands first.
+  // isn't allowed for this user. Prefer teamwise for Dept Head so they
+  // land on Team-wise Attendance Record by default.
   if(_hasScope&&!_scopedSet[tab]){
-    tab=_scopedSet.deptdetails?'deptdetails':'teamwise';
+    tab=_scopedSet.teamwise?'teamwise':'deptdetails';
   }
   if(tab!=='alloc'&&tab!=='teamwise'&&tab!=='rolegrouping'&&tab!=='deptdetails') tab='manpower';
   window._hrmsDasActiveTab=tab;
@@ -11283,6 +11792,8 @@ function _hrmsDasSetTab(tab){
   if(tab==='deptdetails'&&typeof _hrmsDasDeptDetailsRender==='function'){
     _hrmsDasDeptDetailsRender();
   }
+  // Refresh the topbar title so the active sub-tab name shows.
+  if(typeof _hrmsUpdateTopTitle==='function') _hrmsUpdateTopTitle();
 }
 
 // Teamwise Data: drill-down view of present employees grouped first by
@@ -11316,10 +11827,19 @@ function _hrmsDasTwIsEtSelected(et){
   return _hrmsDasTwSelEts.indexOf(et)>=0;
 }
 function _hrmsDasTwToggleEmpType(et){
-  var list=_hrmsDasTwSelEts?_hrmsDasTwSelEts.slice():[];
-  var i=list.indexOf(et);
-  if(i>=0) list.splice(i,1);
-  else list.push(et);
+  // null state = every type selected. Clicking a pill in null state
+  // should deselect just that one (not select-only-it), so we expand
+  // null into the visible et-key set before toggling.
+  var list;
+  if(_hrmsDasTwSelEts==null){
+    var visible=(window._hrmsDasTwEtKeysCache||['On Roll','Contract','Piece Rate']).slice();
+    list=visible.filter(function(k){return k!==et;});
+  } else {
+    list=_hrmsDasTwSelEts.slice();
+    var i=list.indexOf(et);
+    if(i>=0) list.splice(i,1);
+    else list.push(et);
+  }
   if(!list.length){
     _hrmsDasTwSelEts=null;_hrmsDasTwEmpType='__ALL__';
   } else if(list.length===1){
@@ -11821,16 +12341,15 @@ function _hrmsDasTwShowGroupEmps(idx,kind){
 }
 
 // ═══ Team-wise Monthly Data popup ═══════════════════════════════════
-// Daily P/A headcount for the selected team across the entire month,
-// with an SVG line chart. Month + team are user-selectable inside the
-// popup; access scope mirrors the main Team-wise page (ContractorSup,
-// emp-type filters, etc.).
+// Daily P/A headcount across an entire month for the SAME scope the
+// main Team-wise Attendance page is showing — emp-type pill selection
+// and team tab are read live from `_hrmsDasTwSelEts` / `_hrmsDasTwTeam`
+// so the graph always reflects the operator's current filter. Only
+// the month picker lives inside the popup.
 var _hrmsTwMdMonth=null;
-var _hrmsTwMdTeam=null;
-var _hrmsTwMdEmpType=null;
 
 function _hrmsDasTwShowMonthly(){
-  // Inherit defaults from main page on first open.
+  // Default the month from the main page's selected date on first open.
   if(!_hrmsTwMdMonth){
     var st=_hrmsDasState;
     if(st&&st.historyDate){
@@ -11840,11 +12359,6 @@ function _hrmsDasTwShowMonthly(){
       var n=new Date();
       _hrmsTwMdMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
     }
-  }
-  if(_hrmsTwMdTeam==null) _hrmsTwMdTeam=_hrmsDasTwTeam||'__ALL__';
-  if(_hrmsTwMdEmpType==null){
-    if(_hrmsDasTwSelEts&&_hrmsDasTwSelEts.length===1) _hrmsTwMdEmpType=_hrmsDasTwSelEts[0];
-    else _hrmsTwMdEmpType='__ALL__';
   }
   // Build the modal shell once; subsequent renders update its body.
   var ov=document.getElementById('_hrmsDasTwMdModal');
@@ -11865,8 +12379,6 @@ function _hrmsDasTwMdClose(){
 }
 
 function _hrmsDasTwMdSetMonth(mk){_hrmsTwMdMonth=mk;_hrmsDasTwMdRender();}
-function _hrmsDasTwMdSetTeam(tm){_hrmsTwMdTeam=tm;_hrmsDasTwMdRender();}
-function _hrmsDasTwMdSetEt(et){_hrmsTwMdEmpType=et;_hrmsDasTwMdRender();}
 
 function _hrmsDasTwMdRender(){
   var body=document.getElementById('_hrmsDasTwMdBody');
@@ -11899,20 +12411,13 @@ function _hrmsDasTwMdRender(){
   var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
   var _normEt=function(s){return String(s||'').toLowerCase().replace(/[\s_-]+/g,'');};
   var _etCanon={onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',visitor:'Visitor'};
-  // Pull the active period for each emp (relative to the selected month)
-  // — pick the period that's open or that overlaps the month.
-  var monthFirstIso=mk+'-01';
-  var monthLastIso=mk+'-'+String(daysInMonth).padStart(2,'0');
+  // Use the CURRENT open period for emp-type / team / plant resolution
+  // so the popup's filter scope matches exactly what the main Team-wise
+  // page is showing. (Using a month-overlapping period instead caused
+  // historical months to scope by a stale team membership, which broke
+  // the "show me this team's monthly trend" intent.)
   var _empCtx=function(e){
-    var ap=(e.periods||[]).find(function(p){
-      if(!p) return false;
-      if(p._wfStatus&&p._wfStatus!=='approved') return false;
-      var f=String(p.from||'');
-      var t=String(p.to||'');
-      if(f&&f>monthLastIso) return false;
-      if(t&&t<monthFirstIso) return false;
-      return true;
-    })||(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     var etRaw=((ap&&ap.employmentType)||e.employmentType||'').trim();
     var et=_etCanon[etRaw.toLowerCase().replace(/\s+/g,'')]||etRaw||'—';
     var team=((ap&&ap.teamName)||e.teamName||'').trim()||'— No team —';
@@ -11921,49 +12426,30 @@ function _hrmsDasTwMdRender(){
   };
   var ctxByCode={};
   allEmps.forEach(function(e){if(e&&e.empCode) ctxByCode[String(e.empCode).trim()]=_empCtx(e);});
-  // ── Build the team list, scoped to emp-type + ContractorSup. Same
-  // approach as the main page: start from masters then merge orphans.
+  // ── Filter scope from the MAIN page's current selection so the graph
+  // always reflects what the operator is looking at. `_hrmsDasTwSelEts`
+  // is the multi-select array (null = every type); `_hrmsDasTwTeam` is
+  // '__ALL__' or a specific team name.
+  var selEts=_hrmsDasTwSelEts;
+  var selTeam=_hrmsDasTwTeam||'__ALL__';
+  var selEtSet={};
+  if(selEts) selEts.forEach(function(k){selEtSet[_normEt(k)]=1;});
   var etFilter=function(et){
-    if(_hrmsTwMdEmpType==='__ALL__') return true;
-    return et===_hrmsTwMdEmpType;
+    if(!selEts) return true;
+    var n=_normEt(et);
+    if(selEtSet[n]) return true;
+    // Substring fallback to absorb 'Contract Labour' under 'Contract'.
+    for(var k in selEtSet){if(n.indexOf(k)>=0||k.indexOf(n)>=0) return true;}
+    return false;
   };
-  var teamSet={};
-  (DB.hrmsTeams||[]).forEach(function(t){
-    if(!t||t.inactive||!t.name) return;
-    var nT=_normEt(t.empType);
-    var ok=(_hrmsTwMdEmpType==='__ALL__')?true:(nT===_normEt(_hrmsTwMdEmpType)||nT.indexOf(_normEt(_hrmsTwMdEmpType))>=0||_normEt(_hrmsTwMdEmpType).indexOf(nT)>=0);
-    if(!ok) return;
-    if(supScope&&!supScope.teamNames[t.name]) return;
-    teamSet[t.name]=true;
-  });
-  // Merge orphan teams from employees too (only when not ContractorSup).
-  if(!supScope){
-    allEmps.forEach(function(e){
-      if(!e||!e.empCode) return;
-      var c=ctxByCode[String(e.empCode).trim()];
-      if(!c) return;
-      if(!etFilter(c.et)) return;
-      if(c.team) teamSet[c.team]=true;
-    });
-  }
-  var teamList=Object.keys(teamSet).sort(function(a,b){
-    if(a==='— No team —') return 1;
-    if(b==='— No team —') return -1;
-    return a.localeCompare(b);
-  });
-  if(!teamList.length) teamList=['— No team —'];
-  // Coerce stale team selection.
-  if(_hrmsTwMdTeam!=='__ALL__'&&teamList.indexOf(_hrmsTwMdTeam)<0){
-    _hrmsTwMdTeam=supScope?teamList[0]:'__ALL__';
-  }
-  // Scope rows to popup's emp-type + team + ContractorSup scope.
+  // Scope rows to main page's emp-type + team + ContractorSup scope.
   var scopeRows=[];
   allEmps.forEach(function(e){
     if(!e||!e.empCode) return;
     var c=ctxByCode[String(e.empCode).trim()];
     if(!c) return;
     if(!etFilter(c.et)) return;
-    if(_hrmsTwMdTeam!=='__ALL__'&&c.team!==_hrmsTwMdTeam) return;
+    if(selTeam!=='__ALL__'&&c.team!==selTeam) return;
     if(supScope&&!supScope.teamNames[c.team]) return;
     scopeRows.push({emp:e,empCode:String(e.empCode).trim(),et:c.et,team:c.team,plant:c.plant});
   });
@@ -12041,138 +12527,197 @@ function _hrmsDasTwMdRender(){
   var avgP=wdCount?Math.round(wdPSum/wdCount):0;
   var avgA=wdCount?Math.round(wdASum/wdCount):0;
   var avgTot=wdCount?Math.round(wdTotSum/wdCount):0;
-  var maxY=0;dayRows.forEach(function(r){if(r.total>maxY) maxY=r.total;});
+  // 6-month historical strip — average Present + Absent per working
+  // day for each of the prior six months, using the SAME scope (team /
+  // emp-type / supervisor restriction) as the current view so the
+  // operator can compare like-for-like. Months whose attendance isn't
+  // cached yet are fetched in the background; we re-render when they
+  // land. Months with no working-day data sit as N/A placeholders.
+  var historyMonthsBack=6;
+  var historyMksNeeded=[];
+  for(var hh=1;hh<=historyMonthsBack;hh++){
+    var hd=new Date(yr,mo-1-hh,1);
+    var hMk=hd.getFullYear()+'-'+String(hd.getMonth()+1).padStart(2,'0');
+    if(!(window._hrmsAttCache&&_hrmsAttCache[hMk])) historyMksNeeded.push(hMk);
+  }
+  if(historyMksNeeded.length&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsTwMdHistFetchInflight){
+    window._hrmsTwMdHistFetchInflight=true;
+    Promise.all(historyMksNeeded.map(function(m){return _hrmsAttFetchMonth(m).catch(function(){return null;});})).then(function(){
+      window._hrmsTwMdHistFetchInflight=false;
+      try{_hrmsDasTwMdRender();}catch(_){}
+    });
+  }
+  var historyAvg=[];
+  for(var hi=historyMonthsBack;hi>=1;hi--){
+    var hd2=new Date(yr,mo-1-hi,1);
+    var hYr=hd2.getFullYear(),hMo=hd2.getMonth()+1;
+    var hMk2=hYr+'-'+String(hMo).padStart(2,'0');
+    var hDays=new Date(hYr,hMo,0).getDate();
+    var hCache=(window._hrmsAttCache&&_hrmsAttCache[hMk2]);
+    if(!hCache){
+      historyAvg.push({mk:hMk2,avgP:0,avgA:0,hasData:false});
+      continue;
+    }
+    // Build presence map for this historical month.
+    var hPres={};
+    var hAtt=(window._hrmsAttCache&&_hrmsAttCache[hMk2])||[];
+    var hAlt=(window._hrmsAltCache&&_hrmsAltCache[hMk2])||[];
+    [hAtt,hAlt].forEach(function(arr){
+      arr.forEach(function(a){
+        if(!a||!a.empCode||!a.days) return;
+        if(!hPres[a.empCode]) hPres[a.empCode]={};
+        Object.keys(a.days).forEach(function(dk){
+          var entry=a.days[dk];
+          if(entry&&(entry.in||entry['in'])) hPres[a.empCode][+dk]=true;
+        });
+      });
+    });
+    var hActive=scopeRows.filter(function(r){
+      var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(r.emp,hMk2):'AC';
+      return tag!=='IA';
+    });
+    // WD-only averages — drop WO/PH days from the comparison.
+    var hSumP=0,hSumA=0,hWdCount=0;
+    for(var hd3=1;hd3<=hDays;hd3++){
+      var hType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(hMk2,hd3,hYr,hMo,dominantPlant):'WD';
+      if(hType!=='WD') continue;
+      var hP=0,hT=0;
+      hActive.forEach(function(r){
+        var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(r.emp,hMk2,hd3):'AC';
+        if(st==='IA') return;
+        hT++;
+        if(hPres[r.empCode]&&hPres[r.empCode][hd3]) hP++;
+      });
+      if(hT>0){hSumP+=hP;hSumA+=(hT-hP);hWdCount++;}
+    }
+    historyAvg.push({
+      mk:hMk2,
+      avgP:hWdCount?Math.round(hSumP/hWdCount):0,
+      avgA:hWdCount?Math.round(hSumA/hWdCount):0,
+      hasData:hWdCount>0
+    });
+  }
+  // Every day of the month appears as an x-axis slot so the calendar
+  // stays anchored. Days with no attendance data simply have no bar.
+  // maxY uses P+A (total active headcount) so the scale represents the
+  // full denominator for the day, not just the Present slice. Present
+  // bars therefore fill only part of each column with clear room above
+  // for the P/A badges.
+  var maxY=0;
+  dayRows.forEach(function(r){var tot=r.p+r.a;if(tot>maxY) maxY=tot;});
+  historyAvg.forEach(function(h){var tot=h.avgP+h.avgA;if(tot>maxY) maxY=tot;});
   if(maxY<10) maxY=10;
   // Round maxY up to a friendly grid.
   var step=Math.pow(10,Math.max(0,String(maxY).length-2));
   maxY=Math.ceil(maxY/step)*step;
-  // ── Header (title + close)
+  var anyP=dayRows.some(function(r){return r.p>0;});
+  // ── Header (title + close). The emp-type and team are read live from
+  // the main page so they're shown as read-only chips here.
+  var teamLbl=(selTeam==='__ALL__')?'All Teams':selTeam;
+  var etLbl;
+  if(!selEts) etLbl='All emp types';
+  else etLbl=selEts.map(function(k){return k==='On Roll'?'KAP':k;}).join(' + ');
   var hdr='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px">'
     +'<div>'
     +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Team-wise Attendance</div>'
-    +'<div style="font-size:17px;font-weight:900;color:#0f172a">📅 Monthly Data — '+_esc(_hrmsTwMdTeam==='__ALL__'?'All Teams':_hrmsTwMdTeam)+'</div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+_esc(MON[mo-1]+' '+yr)+' · '+(_hrmsTwMdEmpType==='__ALL__'?'All emp types':_esc(_hrmsTwMdEmpType==='On Roll'?'KAP':_hrmsTwMdEmpType))+' · '+activeRows.length+' employee(s) in scope</div>'
+    +'<div style="font-size:17px;font-weight:900;color:#0f172a">📅 Monthly Data — '+_esc(teamLbl)+'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+_esc(MON[mo-1]+' '+yr)+' · '+_esc(etLbl)+' · '+activeRows.length+' employee(s) in scope</div>'
     +'</div>'
     +'<button onclick="_hrmsDasTwMdClose()" style="padding:7px 14px;font-weight:800;font-size:12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer">✕ Close</button>'
     +'</div>';
-  // ── Picker row: emp type · team · month
-  var pickEt='<div style="display:inline-flex;gap:6px;align-items:center">'
-    +'<span style="font-size:11px;font-weight:800;color:#64748b">EMP TYPE</span>';
-  var etChoices=['__ALL__'].concat(etCanonOrder);
-  etChoices.forEach(function(et){
-    var on=(et===_hrmsTwMdEmpType);
-    var lbl=(et==='__ALL__')?'All':(et==='On Roll'?'KAP':et);
-    pickEt+='<button onclick="_hrmsDasTwMdSetEt(\''+et+'\')" '
-      +'style="padding:5px 10px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;'
-      +'background:'+(on?'#1d4ed8':'#fff')+';color:'+(on?'#fff':'#0f172a')+';'
-      +'border:1.5px solid '+(on?'#1d4ed8':'var(--border)')+'">'+_esc(lbl)+'</button>';
-  });
-  pickEt+='</div>';
-  // Team picker — dropdown (popup may have many teams).
-  var teamSelOpts='';
-  if(!supScope){
-    teamSelOpts+='<option value="__ALL__"'+(_hrmsTwMdTeam==='__ALL__'?' selected':'')+'>All Teams</option>';
-  }
-  teamList.forEach(function(tm){
-    teamSelOpts+='<option value="'+_esc(tm)+'"'+(tm===_hrmsTwMdTeam?' selected':'')+'>'+_esc(tm)+'</option>';
-  });
-  var pickTeam='<div style="display:inline-flex;gap:6px;align-items:center">'
+  // ── Picker row: read-only emp-type / team chips (mirroring the main
+  // page) + Month dropdown. To change emp-type or team, the operator
+  // adjusts the main page filters; the graph re-reads them on the next
+  // open.
+  var etChip='<span style="display:inline-flex;gap:6px;align-items:center">'
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">EMP TYPE</span>'
+    +'<span style="padding:5px 10px;font-size:11px;font-weight:800;border-radius:6px;background:#e0e7ff;color:#1d4ed8;border:1.5px solid #c7d2fe">'+_esc(etLbl)+'</span>'
+    +'</span>';
+  var teamChip='<span style="display:inline-flex;gap:6px;align-items:center">'
     +'<span style="font-size:11px;font-weight:800;color:#64748b">TEAM</span>'
-    +'<select onchange="_hrmsDasTwMdSetTeam(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:160px;cursor:pointer">'+teamSelOpts+'</select>'
-    +'</div>';
+    +'<span style="padding:5px 10px;font-size:11px;font-weight:800;border-radius:6px;background:#e0e7ff;color:#1d4ed8;border:1.5px solid #c7d2fe">'+_esc(teamLbl)+'</span>'
+    +'</span>';
   // Month picker — dropdown of months from attendance index (newest first).
   var monthSelOpts='';
   monthOpts.forEach(function(m){
     var p2=m.monthKey.split('-');
     monthSelOpts+='<option value="'+m.monthKey+'"'+(m.monthKey===mk?' selected':'')+'>'+(MON[+p2[1]-1]||'')+' '+p2[0]+'</option>';
   });
-  var pickMonth='<div style="display:inline-flex;gap:6px;align-items:center">'
+  var pickMonth='<span style="display:inline-flex;gap:6px;align-items:center">'
     +'<span style="font-size:11px;font-weight:800;color:#64748b">MONTH</span>'
     +'<select onchange="_hrmsDasTwMdSetMonth(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:130px;cursor:pointer">'+monthSelOpts+'</select>'
-    +'</div>';
+    +'</span>';
   var pickerRow='<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'
-    +pickEt+pickTeam+pickMonth+'</div>';
-  // ── Chart
-  var chart=_hrmsDasTwMdChartSvg(dayRows,daysInMonth,yr,mo,maxY,{avgP:avgP,avgA:avgA});
-  // ── KPI strip
-  var kpi='<div style="display:flex;gap:8px;flex-wrap:wrap">'
-    +'<div style="flex:1;min-width:140px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px">'
-      +'<div style="font-size:10px;font-weight:800;color:#15803d;letter-spacing:.3px;text-transform:uppercase">Avg Present (WD)</div>'
-      +'<div style="font-size:22px;font-weight:900;color:#15803d;font-family:var(--mono)">'+avgP+'</div>'
-    +'</div>'
-    +'<div style="flex:1;min-width:140px;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px">'
-      +'<div style="font-size:10px;font-weight:800;color:#b91c1c;letter-spacing:.3px;text-transform:uppercase">Avg Absent (WD)</div>'
-      +'<div style="font-size:22px;font-weight:900;color:#b91c1c;font-family:var(--mono)">'+avgA+'</div>'
-    +'</div>'
-    +'<div style="flex:1;min-width:140px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:8px 12px">'
-      +'<div style="font-size:10px;font-weight:800;color:#1d4ed8;letter-spacing:.3px;text-transform:uppercase">Avg Total (WD)</div>'
-      +'<div style="font-size:22px;font-weight:900;color:#1d4ed8;font-family:var(--mono)">'+avgTot+'</div>'
-    +'</div>'
-    +'<div style="flex:1;min-width:140px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px">'
-      +'<div style="font-size:10px;font-weight:800;color:#475569;letter-spacing:.3px;text-transform:uppercase">Month Total P / A</div>'
-      +'<div style="font-size:18px;font-weight:900;color:#0f172a;font-family:var(--mono)"><span style="color:#15803d">'+monthPSum+'</span> / <span style="color:#b91c1c">'+monthASum+'</span></div>'
-    +'</div>'
-    +'</div>';
-  // ── Daily table
-  var tbl='<div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:6px;min-height:0">'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<thead style="position:sticky;top:0;background:#1e2028;color:#fff;z-index:1"><tr>'
-    +'<th style="padding:7px 8px;text-align:center">Date</th>'
-    +'<th style="padding:7px 8px;text-align:center">Day</th>'
-    +'<th style="padding:7px 8px;text-align:center">Type</th>'
-    +'<th style="padding:7px 8px;text-align:center">Present</th>'
-    +'<th style="padding:7px 8px;text-align:center">Absent</th>'
-    +'<th style="padding:7px 8px;text-align:center">Total</th>'
-    +'</tr></thead><tbody>';
-  dayRows.forEach(function(r){
-    var dt=new Date(yr,mo-1,r.d);
-    var dow=DOW[dt.getDay()];
-    var excluded=(r.dType==='WO'||r.dType==='PH');
-    var rowBg=excluded?'background:#f1f5f9;':'';
-    var typeBadge=r.dType==='PH'
-      ?'<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">PH</span>'
-      :(r.dType==='WO'
-        ?'<span style="display:inline-block;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">WO</span>'
-        :'<span style="display:inline-block;background:#fff;color:#475569;border:1px solid #cbd5e1;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">WD</span>');
-    var dowFg=excluded?'#b91c1c':'#475569';
-    tbl+='<tr style="border-bottom:1px solid #e2e8f0;'+rowBg+'">'
-      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:'+(excluded?'#b91c1c':'#0f172a')+'">'+String(r.d).padStart(2,'0')+'</td>'
-      +'<td style="padding:6px 8px;text-align:center;font-size:11px;color:'+dowFg+';font-weight:700">'+dow+'</td>'
-      +'<td style="padding:6px 8px;text-align:center">'+typeBadge+'</td>'
-      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#15803d">'+r.p+'</td>'
-      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#b91c1c">'+r.a+'</td>'
-      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:700;color:#0f172a">'+r.total+'</td>'
-      +'</tr>';
-  });
-  tbl+='</tbody></table></div>';
+    +etChip+teamChip+pickMonth+'</div>';
+  // ── Chart. On narrow viewports (mobile), the axes flip — dates on
+  // the Y axis, headcount on the X axis — so the chart reads as a
+  // scrollable list of rows instead of a cramped horizontal strip.
+  var _twMdNarrow=((window.innerWidth||document.documentElement.clientWidth||1024)<700);
+  var _twMdSvg=_twMdNarrow
+    ?_hrmsDasTwMdChartSvgH(dayRows,yr,mo,maxY,{avgP:avgP,avgA:avgA,history:historyAvg})
+    :_hrmsDasTwMdChartSvg(dayRows,yr,mo,maxY,{avgP:avgP,avgA:avgA,history:historyAvg});
+  // In narrow mode the SVG can be taller than the viewport — the
+  // wrapper scrolls vertically rather than centering+clipping it.
+  var _chartWrapStyle=_twMdNarrow
+    ?'flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch'
+    :'flex:1;min-height:0;display:flex;align-items:center';
+  var chart='<div style="'+_chartWrapStyle+'">'+_twMdSvg+'</div>';
+  // Hint when no day in the month has any data yet (e.g., future month).
+  if(!anyP&&!historyAvg.some(function(h){return h.hasData;})){
+    chart='<div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#fafafa;border:1px solid var(--border);border-radius:6px;padding:32px;color:#94a3b8;font-weight:700">No attendance data for '+_esc(MON[mo-1]+' '+yr)+' yet.</div>';
+  }
   // ── Loading hint
   var loadingHint=hasMonth?'':'<div style="font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;font-weight:700">Loading attendance for '+_esc(MON[mo-1]+' '+yr)+'…</div>';
-  body.innerHTML=hdr+pickerRow+loadingHint+kpi+chart+tbl;
+  body.innerHTML=hdr+pickerRow+loadingHint+chart;
 }
 
-// Compact monthly P/A chart — present (green) and absent (red) lines
-// plus the active-headcount baseline.
-function _hrmsDasTwMdChartSvg(dayRows,daysInMonth,yr,mo,maxY,avgs){
+// Monthly Present bar chart. Each bar = day's Present headcount (green);
+// each bar's label shows P (green) and A (red) so both counts are
+// readable at a glance. A 6-month historical strip is rendered to the
+// left of the current month — one bar per month showing the average P
+// per working day for the same team/emp-type scope — so trends across
+// the past half-year are visible alongside the current month's daily
+// pattern. Off-days (PH / WO) get a soft background band AND a pill
+// badge below the date row.
+function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
   var DOW=['S','M','T','W','T','F','S'];
-  var W=1060,H=280;
-  var padL=44,padR=18,padT=20,padB=44;
+  var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var n=rows.length;
+  var history=(avgs&&avgs.history)||[];
+  var histCount=history.length;
+  var gapSlots=histCount>0?1:0;
+  if(!n&&!histCount){
+    return '<svg viewBox="0 0 1060 200" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px"><text x="530" y="100" text-anchor="middle" font-size="13" fill="#94a3b8" font-weight="700">No attendance data for this scope.</text></svg>';
+  }
+  var W=1060,H=320;
+  var padL=44,padR=18,padT=32,padB=64;
   var plotW=W-padL-padR,plotH=H-padT-padB;
-  var colW=plotW/daysInMonth;
-  var xC=function(d){return padL+colW*(d-0.5);};
+  var totalSlots=histCount+gapSlots+n;
+  var colW=plotW/totalSlots;
+  var barW=Math.min(colW*0.72,40);
+  var xHist=function(i){return padL+colW*(i+0.5);};
+  var xDay=function(i){return padL+colW*(histCount+gapSlots+i+0.5);};
   var yOf=function(v){return padT+plotH-(v/maxY)*plotH;};
   var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px">';
-  // WO/PH bands
-  for(var d=1;d<=daysInMonth;d++){
-    var r=dayRows[d-1];
+  // Soft amber wash behind historical columns to signal "comparison".
+  if(histCount>0){
+    s+='<rect x="'+padL+'" y="'+padT+'" width="'+(colW*histCount)+'" height="'+plotH+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    // Dashed separator between historical and current-month columns.
+    var sepX=padL+colW*histCount+colW/2;
+    s+='<line x1="'+sepX+'" y1="'+padT+'" x2="'+sepX+'" y2="'+(padT+plotH)+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 4"/>';
+  }
+  // WO/PH bands for current-month off-days.
+  for(var i=0;i<n;i++){
+    var r=rows[i];
     if(r&&(r.dType==='WO'||r.dType==='PH')){
-      var bx=padL+colW*(d-1);
+      var bx=padL+colW*(histCount+gapSlots+i);
       var bg=r.dType==='PH'?'#dcfce7':'#e2e8f0';
       s+='<rect x="'+bx+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="'+bg+'" fill-opacity="0.55"/>';
     }
   }
   // Y grid + labels
-  for(var i=0;i<=4;i++){
-    var v=Math.round(maxY*i/4);
+  for(var gi=0;gi<=4;gi++){
+    var v=Math.round(maxY*gi/4);
     var y=yOf(v);
     s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/>';
     s+='<text x="'+(padL-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+v+'</text>';
@@ -12180,52 +12725,246 @@ function _hrmsDasTwMdChartSvg(dayRows,daysInMonth,yr,mo,maxY,avgs){
   // Axes
   s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
   s+='<line x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(W-padR)+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
-  // Average line (Present)
-  if(avgs&&avgs.avgP>0){
+  // Average Present reference line — drawn only over current-month
+  // columns so it doesn't get confused with the historical averages
+  // (which already are averages by definition).
+  if(avgs&&avgs.avgP>0&&n>0){
+    var refStartX=padL+colW*(histCount+gapSlots);
     var ay=yOf(avgs.avgP);
-    s+='<line x1="'+padL+'" y1="'+ay+'" x2="'+(W-padR)+'" y2="'+ay+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"><title>Avg P (WD): '+avgs.avgP+'</title></line>';
-    s+='<text x="'+(W-padR-4)+'" y="'+(ay-3)+'" text-anchor="end" font-size="10" font-style="italic" fill="#475569">avg '+avgs.avgP+'</text>';
+    s+='<line x1="'+refStartX+'" y1="'+ay+'" x2="'+(W-padR)+'" y2="'+ay+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"><title>Avg Present (WD): '+avgs.avgP+'</title></line>';
+    s+='<text x="'+(W-padR-4)+'" y="'+(ay-3)+'" text-anchor="end" font-size="10" font-style="italic" fill="#475569">avg P '+avgs.avgP+'</text>';
   }
-  // Build path for P line and A line
-  var ptsP=[],ptsA=[],ptsT=[];
-  for(var d2=1;d2<=daysInMonth;d2++){
-    var r2=dayRows[d2-1];
-    if(!r2) continue;
-    ptsP.push(xC(d2)+','+yOf(r2.p));
-    ptsA.push(xC(d2)+','+yOf(r2.a));
-    ptsT.push(xC(d2)+','+yOf(r2.total));
+  var baseY=padT+plotH;
+  // Pill-shaped badge generator. Width grows with digit count so 3+
+  // digit numbers don't overflow. Stacked A-over-P pair sits above
+  // each bar; if the bar is so tall there's no clear space above, the
+  // badges overlay the bar's top (still readable since they're white-
+  // on-colour pills).
+  var _badge=function(cx,cy,count,bg){
+    var txt=String(count);
+    var w=Math.max(16, 8 + txt.length*7);
+    var h=14;
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7" ry="7" fill="'+bg+'" stroke="#0f172a" stroke-width="0.4"/>'
+      +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+  };
+  var _placeBadges=function(cx,barTopY,pCount,aCount){
+    var badgeH=14;
+    var pCy=barTopY-badgeH/2-3;
+    var aCy=pCy-badgeH-2;
+    var minCy=padT+badgeH/2+2;
+    if(aCy<minCy){
+      aCy=minCy;
+      pCy=aCy+badgeH+2;
+    }
+    return _badge(cx,aCy,aCount,'#dc2626')+_badge(cx,pCy,pCount,'#16a34a');
+  };
+  // Historical bars — dashed amber outline, one per prior month.
+  history.forEach(function(h,hi){
+    var cxH=xHist(hi);
+    var bxH=cxH-barW/2;
+    if(h.avgP>0){
+      var pH=(h.avgP/maxY)*plotH;
+      var topH=baseY-pH;
+      s+='<rect x="'+bxH+'" y="'+topH+'" width="'+barW+'" height="'+pH+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"><title>'+h.mk+' — Avg Present (WD): '+h.avgP+' · Avg Absent (WD): '+h.avgA+'</title></rect>';
+      // Stacked A (red, top) and P (green, below) badges above the bar.
+      s+=_placeBadges(cxH,topH,h.avgP,h.avgA);
+    } else {
+      // Placeholder for months with no data so the slot reads as a gap,
+      // not a zero.
+      var midY=padT+plotH/2;
+      s+='<text x="'+cxH+'" y="'+midY+'" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">N/A</text>';
+    }
+  });
+  // Current-month bars — Present green; the A (red) and P (green) pill
+  // badges sit above the bar, A on top, P just below.
+  for(var bi=0;bi<n;bi++){
+    var r2=rows[bi];
+    if(!r2||r2.p<=0) continue;
+    var cx=xDay(bi);
+    var bx2=cx-barW/2;
+    var pH=(r2.p/maxY)*plotH;
+    var topY=baseY-pH;
+    s+='<rect x="'+bx2+'" y="'+topY+'" width="'+barW+'" height="'+pH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"><title>'+r2.d+' — Present: '+r2.p+' · Absent: '+r2.a+'</title></rect>';
+    s+=_placeBadges(cx,topY,r2.p,r2.a);
   }
-  // Total (active headcount) — light blue, thin
-  s+='<polyline points="'+ptsT.join(' ')+'" fill="none" stroke="#1d4ed8" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.55"/>';
-  // Absent line — red
-  s+='<polyline points="'+ptsA.join(' ')+'" fill="none" stroke="#b91c1c" stroke-width="1.6" opacity="0.85"/>';
-  // Present line — green (drawn last so it sits on top)
-  s+='<polyline points="'+ptsP.join(' ')+'" fill="none" stroke="#15803d" stroke-width="2" opacity="0.95"/>';
-  // Day markers + count labels
-  for(var d3=1;d3<=daysInMonth;d3++){
-    var r3=dayRows[d3-1];
-    if(!r3) continue;
-    var cx=xC(d3),cy=yOf(r3.p);
-    s+='<circle cx="'+cx+'" cy="'+cy+'" r="2.8" fill="#15803d"><title>'+d3+' — P:'+r3.p+' A:'+r3.a+' Tot:'+r3.total+'</title></circle>';
-  }
-  // X labels — day number + DOW (smaller). Show every day; WO/PH in red.
-  for(var d4=1;d4<=daysInMonth;d4++){
-    var dt=new Date(yr,mo-1,d4);
+  // X labels for historical strip — month abbreviation + 2-digit year.
+  history.forEach(function(h,hi){
+    var cxH=xHist(hi);
+    var sp=h.mk.split('-');
+    var hyy=String(sp[0]).slice(-2),hMm=+sp[1];
+    var lbl=(MONS[hMm-1]||'')+' '+hyy;
+    s+='<text x="'+cxH+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="9" font-weight="800" fill="#92400e">'+lbl+'</text>';
+    s+='<text x="'+cxH+'" y="'+(H-padB+26)+'" text-anchor="middle" font-size="8" fill="#92400e">avg</text>';
+  });
+  // X labels for current month — day number (row 1), DOW (row 2),
+  // PH / H badge (row 3) for off-days.
+  for(var li=0;li<n;li++){
+    var rl=rows[li];if(!rl) continue;
+    var dt=new Date(yr,mo-1,rl.d);
     var dow=DOW[dt.getDay()];
-    var r4=dayRows[d4-1];
-    var excluded=r4&&(r4.dType==='WO'||r4.dType==='PH');
+    var dtype=rl.dType||'';
+    var excluded=(dtype==='WO'||dtype==='PH');
     var fg=excluded?'#b91c1c':'#334155';
-    var xl=xC(d4);
-    s+='<text x="'+xl+'" y="'+(H-padB+13)+'" text-anchor="middle" font-size="9" font-weight="700" fill="'+fg+'">'+d4+'</text>';
+    var xl=xDay(li);
+    s+='<text x="'+xl+'" y="'+(H-padB+13)+'" text-anchor="middle" font-size="9" font-weight="700" fill="'+fg+'">'+rl.d+'</text>';
     s+='<text x="'+xl+'" y="'+(H-padB+25)+'" text-anchor="middle" font-size="8" fill="'+(excluded?'#dc2626':'#64748b')+'">'+dow+'</text>';
+    if(excluded){
+      var badgeTxt=dtype==='PH'?'PH':'H';
+      var badgeBg =dtype==='PH'?'#15803d':'#1d4ed8';
+      var bw=Math.min(colW-2,20), bh=14;
+      var byTop=H-padB+32;
+      s+='<rect x="'+(xl-bw/2)+'" y="'+byTop+'" width="'+bw+'" height="'+bh+'" rx="4" ry="4" fill="'+badgeBg+'" stroke="#0f172a" stroke-width="0.5"/>'
+        +'<text x="'+xl+'" y="'+(byTop+10)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
+    }
   }
-  // Legend
-  var lx=padL+6,ly=padT+12;
+  // Legend — P/A above bars + PH / H badge meaning.
+  var lx=padL+6,ly=padT-12;
   s+='<g font-size="10" font-weight="800">'
-    +'<rect x="'+lx+'" y="'+(ly-9)+'" width="200" height="14" fill="#fff" fill-opacity="0.85" stroke="#e2e8f0"/>'
-    +'<line x1="'+(lx+6)+'" y1="'+(ly-2)+'" x2="'+(lx+22)+'" y2="'+(ly-2)+'" stroke="#15803d" stroke-width="2"/><text x="'+(lx+26)+'" y="'+(ly+1)+'" fill="#15803d">Present</text>'
-    +'<line x1="'+(lx+72)+'" y1="'+(ly-2)+'" x2="'+(lx+88)+'" y2="'+(ly-2)+'" stroke="#b91c1c" stroke-width="1.6"/><text x="'+(lx+92)+'" y="'+(ly+1)+'" fill="#b91c1c">Absent</text>'
-    +'<line x1="'+(lx+134)+'" y1="'+(ly-2)+'" x2="'+(lx+150)+'" y2="'+(ly-2)+'" stroke="#1d4ed8" stroke-width="1.2" stroke-dasharray="3 3"/><text x="'+(lx+154)+'" y="'+(ly+1)+'" fill="#1d4ed8">Total</text>'
+    +'<rect x="'+lx+'" y="'+(ly-10)+'" width="370" height="16" fill="#fff" fill-opacity="0.9" stroke="#e2e8f0"/>'
+    +'<rect x="'+(lx+6)+'" y="'+(ly-7)+'" width="10" height="10" fill="#16a34a" stroke="#15803d" stroke-width="0.5"/><text x="'+(lx+20)+'" y="'+(ly+1)+'" fill="#15803d">P</text>'
+    +'<text x="'+(lx+30)+'" y="'+(ly+1)+'" fill="#475569">/</text>'
+    +'<text x="'+(lx+38)+'" y="'+(ly+1)+'" fill="#b91c1c">A above bars</text>'
+    +'<rect x="'+(lx+128)+'" y="'+(ly-7)+'" width="14" height="10" rx="3" ry="3" fill="#15803d"/><text x="'+(lx+135)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">PH</text><text x="'+(lx+147)+'" y="'+(ly+1)+'" fill="#15803d">Public Holiday</text>'
+    +'<rect x="'+(lx+222)+'" y="'+(ly-7)+'" width="14" height="10" rx="3" ry="3" fill="#1d4ed8"/><text x="'+(lx+229)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">H</text><text x="'+(lx+241)+'" y="'+(ly+1)+'" fill="#1d4ed8">Weekly Off</text>'
+    +'<text x="'+(lx+304)+'" y="'+(ly+1)+'" fill="#92400e">Amber = prior-month avg</text>'
+    +'</g>';
+  s+='</svg>';
+  return s;
+}
+
+// Horizontal variant of the Monthly Data chart for narrow / mobile
+// viewports. Rows = dates (historical avg months first, then every day
+// of the current month); bars grow rightward; bar length = Present
+// headcount; the A count is a red pill to the right of the bar tip
+// (P count sits as a green pill just before it). The whole SVG is
+// designed to scroll vertically inside its wrapper.
+function _hrmsDasTwMdChartSvgH(rows,yr,mo,maxY,avgs){
+  var DOW=['S','M','T','W','T','F','S'];
+  var MONS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var n=rows.length;
+  var history=(avgs&&avgs.history)||[];
+  var histCount=history.length;
+  var gapRows=histCount>0?1:0;
+  var totalRows=histCount+gapRows+n;
+  if(!totalRows){
+    return '<svg viewBox="0 0 400 200" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px"><text x="200" y="100" text-anchor="middle" font-size="13" fill="#94a3b8" font-weight="700">No attendance data.</text></svg>';
+  }
+  var W=420;
+  var rowH=24;
+  var padT=46;
+  var padB=12;
+  var padL=66;
+  var padR=72;
+  var plotH=totalRows*rowH;
+  var H=plotH+padT+padB;
+  var plotW=W-padL-padR;
+  var barH=rowH*0.66;
+  var yC=function(i){return padT+rowH*(i+0.5);};
+  var xOf=function(v){return padL+(v/maxY)*plotW;};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMin meet" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px">';
+  // Historical band (soft amber wash)
+  if(histCount>0){
+    s+='<rect x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+(histCount*rowH)+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    var sepY=padT+(histCount*rowH)+(rowH/2);
+    s+='<line x1="'+padL+'" y1="'+sepY+'" x2="'+(W-padR)+'" y2="'+sepY+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 4"/>';
+  }
+  // WO/PH row bands in current month
+  for(var i=0;i<n;i++){
+    var r=rows[i];
+    if(r&&(r.dType==='WO'||r.dType==='PH')){
+      var rowIdx=histCount+gapRows+i;
+      var by=padT+rowH*rowIdx;
+      var bg=r.dType==='PH'?'#dcfce7':'#dbeafe';
+      s+='<rect x="0" y="'+by+'" width="'+W+'" height="'+rowH+'" fill="'+bg+'" fill-opacity="0.55"/>';
+    }
+  }
+  // X grid + labels (top)
+  for(var gi=0;gi<=4;gi++){
+    var v=Math.round(maxY*gi/4);
+    var x=xOf(v);
+    s+='<line x1="'+x+'" y1="'+padT+'" x2="'+x+'" y2="'+(H-padB)+'" stroke="#e2e8f0" stroke-width="1"/>';
+    s+='<text x="'+x+'" y="'+(padT-6)+'" text-anchor="middle" font-size="10" fill="#64748b">'+v+'</text>';
+  }
+  s+='<text x="'+(padL+plotW/2)+'" y="'+(padT-22)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#475569">Headcount →</text>';
+  // Axes
+  s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'" stroke="#94a3b8"/>';
+  s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+(W-padR)+'" y2="'+padT+'" stroke="#94a3b8"/>';
+  // Avg-P reference (vertical line through current-month rows)
+  if(avgs&&avgs.avgP>0&&n>0){
+    var ax=xOf(avgs.avgP);
+    var avgY1=padT+(histCount+gapRows)*rowH;
+    s+='<line x1="'+ax+'" y1="'+avgY1+'" x2="'+ax+'" y2="'+(H-padB)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"><title>Avg Present (WD): '+avgs.avgP+'</title></line>';
+    s+='<text x="'+(ax+4)+'" y="'+(avgY1+10)+'" font-size="9" font-style="italic" fill="#475569">avg '+avgs.avgP+'</text>';
+  }
+  // Pill badge helper (sized for narrow layout)
+  var _badge=function(cx,cy,count,bg){
+    var txt=String(count);
+    var w=Math.max(18, 8 + txt.length*7);
+    var h=14;
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7" ry="7" fill="'+bg+'" stroke="#0f172a" stroke-width="0.4"/>'
+      +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+  };
+  // Historical rows
+  history.forEach(function(h,hi){
+    var cy=yC(hi);
+    var ry=cy-barH/2;
+    if(h.avgP>0){
+      var bw=(h.avgP/maxY)*plotW;
+      s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"><title>'+h.mk+' — Avg P: '+h.avgP+' · Avg A: '+h.avgA+'</title></rect>';
+      var endX=padL+bw;
+      var pBadgeX=Math.min(endX+14, W-padR+18);
+      var aBadgeX=Math.min(pBadgeX+22, W-12);
+      s+=_badge(pBadgeX,cy,h.avgP,'#16a34a');
+      s+=_badge(aBadgeX,cy,h.avgA,'#dc2626');
+    } else {
+      s+='<text x="'+(padL+plotW/2)+'" y="'+(cy+3)+'" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">N/A</text>';
+    }
+    var sp=h.mk.split('-');
+    var lblTxt=(MONS[+sp[1]-1]||'')+' '+String(sp[0]).slice(-2);
+    s+='<text x="'+(padL-6)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="800" fill="#92400e">'+lblTxt+'</text>';
+  });
+  // Current-month rows
+  for(var ci=0;ci<n;ci++){
+    var r2=rows[ci];
+    if(!r2) continue;
+    var rowIdx=histCount+gapRows+ci;
+    var cy=yC(rowIdx);
+    var ry=cy-barH/2;
+    if(r2.p>0){
+      var bw=(r2.p/maxY)*plotW;
+      s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"><title>'+r2.d+' — P: '+r2.p+' · A: '+r2.a+'</title></rect>';
+      var endX2=padL+bw;
+      var pBadgeX2=Math.min(endX2+14, W-padR+18);
+      var aBadgeX2=Math.min(pBadgeX2+22, W-12);
+      s+=_badge(pBadgeX2,cy,r2.p,'#16a34a');
+      s+=_badge(aBadgeX2,cy,r2.a,'#dc2626');
+    }
+    var dt=new Date(yr,mo-1,r2.d);
+    var dow=DOW[dt.getDay()];
+    var dtype=r2.dType||'';
+    var excluded=(dtype==='WO'||dtype==='PH');
+    var fg=excluded?'#b91c1c':'#334155';
+    // Y label: "DD Sun" + optional PH/H pill on left edge.
+    if(excluded){
+      var badgeTxt=dtype==='PH'?'PH':'H';
+      var badgeBg =dtype==='PH'?'#15803d':'#1d4ed8';
+      // Date+DOW first
+      s+='<text x="'+(padL-30)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="800" fill="'+fg+'">'+r2.d+' '+dow+'</text>';
+      // PH/H pill
+      s+='<rect x="'+(padL-26)+'" y="'+(cy-7)+'" width="20" height="14" rx="4" ry="4" fill="'+badgeBg+'"/>'
+        +'<text x="'+(padL-16)+'" y="'+(cy+3)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
+    } else {
+      s+='<text x="'+(padL-6)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="800" fill="'+fg+'">'+r2.d+' '+dow+'</text>';
+    }
+  }
+  // Legend (top-left, compact for mobile)
+  var lx=4, ly=12;
+  s+='<g font-size="9" font-weight="800">'
+    +'<rect x="'+(lx+6)+'" y="'+(ly-6)+'" width="10" height="8" fill="#16a34a"/><text x="'+(lx+20)+'" y="'+(ly+1)+'" fill="#15803d">P pill</text>'
+    +'<rect x="'+(lx+56)+'" y="'+(ly-6)+'" width="10" height="8" fill="#dc2626"/><text x="'+(lx+70)+'" y="'+(ly+1)+'" fill="#b91c1c">A pill</text>'
+    +'<rect x="'+(lx+106)+'" y="'+(ly-6)+'" width="14" height="8" rx="2" ry="2" fill="#15803d"/><text x="'+(lx+113)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="7" font-weight="900" fill="#fff">PH</text>'
+    +'<rect x="'+(lx+126)+'" y="'+(ly-6)+'" width="14" height="8" rx="2" ry="2" fill="#1d4ed8"/><text x="'+(lx+133)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="7" font-weight="900" fill="#fff">H</text>'
+    +'<text x="'+(lx+148)+'" y="'+(ly+1)+'" fill="#92400e">Amber=prior mo</text>'
     +'</g>';
   s+='</svg>';
   return s;
@@ -12502,22 +13241,18 @@ function _hrmsDasTwRender(){
   // exclusively to Contract teams).
   if(etKeys.length>1){
     h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
-    // "All" pill — clears the multi-select. Total = sum across visible
-    // et keys. Active when no specific types are picked.
-    var _allEtCount=etKeys.reduce(function(n,et){return n+(etCounts[et]||0);},0);
-    var allEtOn=(_hrmsDasTwSelEts==null);
-    h+='<button onclick="_hrmsDasTwSetEmpType(\'__ALL__\')" '
-      +'style="padding:8px 16px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px;'
-      +'background:'+(allEtOn?'var(--accent)':'#fff')+';color:'+(allEtOn?'#fff':'var(--text)')+';'
-      +'border:1.5px solid '+(allEtOn?'var(--accent)':'var(--border)')+'">'
-      +'All <span style="opacity:.85;font-weight:600;font-size:11px">('+_allEtCount+')</span></button>';
-    // Display-only relabel: "On Roll" → "KAP" on the pill text.
+    // Per-type checkbox pills. The "All" state is implicit — when no
+    // explicit selection exists (`_hrmsDasTwSelEts == null`) every pill
+    // is shown as ticked. Clicking a ticked pill deselects it; clicking
+    // an unticked pill adds it back. The toggle handler snaps back to
+    // null (= every type selected) when the user empties the list.
+    // Stash the visible etKeys so the toggle handler can build the
+    // "all but this one" set without rebuilding the visible-types
+    // lookup itself.
+    window._hrmsDasTwEtKeysCache=etKeys.slice();
     var _twEtLabel=function(et){return et==='On Roll'?'KAP':et;};
-    // Each pill is now a checkbox-style toggle — clicking it adds or
-    // removes that type from the selection (multi-select). The "All"
-    // pill auto-activates when nothing is picked.
     etKeys.forEach(function(et){
-      var on=_hrmsDasTwIsEtSelected(et)&&!allEtOn;
+      var on=_hrmsDasTwIsEtSelected(et);
       var etEsc=et.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
       h+='<button onclick="_hrmsDasTwToggleEmpType(\''+etEsc+'\')" '
         +'style="padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;border-radius:8px;'
@@ -12703,15 +13438,15 @@ function _hrmsDasTwRender(){
       return sa.localeCompare(sb,undefined,{numeric:true});
     });
     var paLabel=function(p,a){
-      var pBadge='<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:0 5px;border-radius:7px;font-weight:800;font-size:9px">'+p+'</span>';
-      var aBadge='<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 5px;border-radius:7px;font-weight:800;font-size:9px;margin-left:3px">'+a+'</span>';
+      var pBadge='<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:0 5px;border-radius:7px;font-weight:800;font-size:11px">'+p+'</span>';
+      var aBadge='<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 5px;border-radius:7px;font-weight:800;font-size:11px;margin-left:3px">'+a+'</span>';
       return pBadge+aBadge;
     };
     // Compact rectangular tiles — wider than tall so P & A badges
     // sit on a single line without wrapping. Layout: All · HO · P1 · P2 · …
-    // Sized at 60% of the original (110×70 → 66×42) per user request.
+    // Slightly larger tiles to accommodate the +2px font bump.
     h+='<div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;margin-bottom:14px;align-items:center">';
-    var TILE_W=66, TILE_H=42;// rectangular: width > height (60% of 110×70)
+    var TILE_W=74, TILE_H=46;
     var tile=function(active,bg,fg,topLabel,paHtml,clickAttr){
       return '<button '+clickAttr+' '
         +'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;'
@@ -12719,7 +13454,7 @@ function _hrmsDasTwRender(){
         +'background:'+bg+';color:'+fg+';'
         +'border:'+(active?'2px solid #0f172a':'1.5px solid rgba(0,0,0,.18)')+';'
         +(active?'box-shadow:0 0 0 1.5px #fff,0 0 0 3px '+bg+',0 1px 4px rgba(0,0,0,.12);':'box-shadow:0 1px 2px rgba(0,0,0,.08);')
-        +'"><span style="font-size:10px;font-weight:900;letter-spacing:.3px">'+topLabel+'</span>'
+        +'"><span style="font-size:12px;font-weight:900;letter-spacing:.3px">'+topLabel+'</span>'
         +'<span style="white-space:nowrap">'+paHtml+'</span></button>';
     };
     var allActive=(_hrmsDasTwPlant==='__ALL__');
@@ -12938,9 +13673,15 @@ function _hrmsDasTwRender(){
   // "📊 Show Summary" header button).
   h+='<div class="hrms-tw-split" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden">';
   h+='<div class="hrms-tw-emp" style="flex:1;min-width:0;overflow:auto;border:1px solid var(--border);border-radius:8px">';
+  // Header background — darker than the pale Departmentwise default
+  // (slate-300 → slate-400) with an inset slate underline so the row
+  // reads as a distinct band even when the parent has its own bg.
+  // Applied to each <th> directly because some browsers don't paint the
+  // <thead>'s own background under position:sticky.
+  var _twThBg='background:linear-gradient(180deg,#cbd5e1,#94a3b8)';
+  var _twThSt='padding:6px 8px;font-weight:800;color:#0f172a;'+_twThBg+';position:sticky;top:0;z-index:1;box-shadow:inset 0 -2px 0 #475569';
   h+='<table style="width:auto;border-collapse:collapse;font-size:12px">'
-    +'<thead style="position:sticky;top:0;background:linear-gradient(180deg,#f8fafc,#e2e8f0);color:#000;z-index:1;border-bottom:1px solid #cbd5e1">'
-    +'<tr>';
+    +'<thead><tr>';
   // Active filters? Show the ✕ button highlighted when there's
   // anything to clear; otherwise leave it muted as a hint.
   var hasFilter=!!(fEC||fNM||fDP||fRL||fPA);
@@ -12950,36 +13691,20 @@ function _hrmsDasTwRender(){
     var isSort=(c.sortable!==false&&c.key!=='');
     var clk=isSort?(' onclick="_hrmsDasTwSetSort(\''+c.key+'\')"'):'';
     var cur=isSort?'cursor:pointer;':'';
-    var labelHtml;
-    if(c.key===''){
-      // Top-left corner — prominent ✕ button to clear all filters +
-      // reset sort. Always rendered in red so it reads at a glance,
-      // with a stronger pink wash + larger glyph when there's
-      // actually something to clear.
-      var clrBg=clearActive?'#dc2626':'#fee2e2';
-      var clrFg=clearActive?'#fff':'#dc2626';
-      var clrBd=clearActive?'#991b1b':'#fca5a5';
-      labelHtml='<button onclick="_hrmsDasTwClearAll()" title="Clear filters and reset sort" '
-        +'style="border:1.5px solid '+clrBd+';background:'+clrBg+';color:'+clrFg+';cursor:pointer;font-weight:900;font-size:16px;padding:3px 10px;border-radius:5px;line-height:1;box-shadow:0 1px 3px rgba(220,38,38,.18)">✕</button>';
-    } else {
-      labelHtml='<span'+clk+' style="'+cur+'user-select:none;color:#000">'+c.label+(isSort?indicator(c.key):'')+'</span>';
-    }
-    var filterHtml=c.filter?filterCell(c.key,c.filter):'';
+    var labelHtml='<span'+clk+' style="'+cur+'user-select:none;color:#0f172a">'+c.label+(isSort?indicator(c.key):'')+'</span>';
     var wStyle='';
     if(c.width) wStyle=';width:'+c.width+'px;min-width:'+c.width+'px;max-width:'+c.width+'px';
     else if(c.minWidth) wStyle=';min-width:'+c.minWidth+'px';
-    h+='<th class="hrms-tw-col-'+(c.key||'idx')+'" style="padding:6px 8px;text-align:'+c.align+';font-weight:800;white-space:nowrap;vertical-align:top;color:#000'+wStyle+'">'
-      +'<div>'+labelHtml+'</div>'
-      +(filterHtml?'<div style="margin-top:4px">'+filterHtml+'</div>':'')
+    h+='<th class="hrms-tw-col-'+(c.key||'idx')+'" style="'+_twThSt+';text-align:'+c.align+';white-space:nowrap;vertical-align:middle'+wStyle+'">'
+      +labelHtml
       +'</th>';
   });
   // Merged Attendance column: In / Out / P/A on top row, 45-day P/A
   // bar on the bottom row (one cell, two visual rows).
-  var paFilterHtml=filterCell('pa','select',[{v:'',l:'All'},{v:'P',l:'P'},{v:'A',l:'A'}]);
-  h+='<th title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="padding:6px 8px;text-align:left;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:top;width:340px;min-width:340px;max-width:340px">'
-    +'<div style="display:flex;align-items:center;gap:8px"><span>Attendance · 45-day P/A</span><span style="font-size:10px;color:#475569;font-weight:700">P/A</span><span style="margin-left:auto">'+paFilterHtml+'</span></div>'
+  h+='<th title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:340px;min-width:340px;max-width:340px">'
+    +'<span>Attendance · 45-day P/A</span> <span style="font-size:10px;color:#475569;font-weight:700">P/A</span>'
     +'</th>';
-  h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="padding:6px 8px;text-align:center;font-weight:800;font-size:11px;color:#000;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:top"><div>PIA</div></th>';
+  h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="'+_twThSt+';text-align:center;font-size:11px;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle">PIA</th>';
   h+='</tr></thead><tbody>';
   // Sort strictly by the active rule (default = plantwise → empCode);
   // P/A status does NOT split the rows. Absent rows are visually
@@ -13135,6 +13860,17 @@ function _hrmsDasTwRender(){
 async function _hrmsDasLoadFromHistory(){
   var di=document.getElementById('hrmsDasHistDate');
   if(!di||!di.value){notify('Pick a date first',true);return;}
+  // Reject future dates — Day-wise Attendance only makes sense for
+  // past / today. Clamp + restore the input so the user sees the
+  // correction, then bail before fetching.
+  var _today=new Date();_today.setHours(0,0,0,0);
+  var _picked=new Date(di.value+'T00:00:00');
+  if(!isNaN(_picked)&&_picked>_today){
+    var _yy=_today.getFullYear(),_mm=String(_today.getMonth()+1).padStart(2,'0'),_dd=String(_today.getDate()).padStart(2,'0');
+    di.value=_yy+'-'+_mm+'-'+_dd;
+    if(typeof notify==='function') notify('Future dates are not allowed.',true);
+    if(typeof _hrmsDasUpdateDateLabel==='function') _hrmsDasUpdateDateLabel();
+  }
   var parts=di.value.split('-');
   if(parts.length!==3){notify('Invalid date',true);return;}
   var yr=+parts[0], mo=+parts[1]-1, day=+parts[2];
@@ -18194,7 +18930,15 @@ function _hrmsRenderAttGrid(yr,mo){
           else if(st==='P/2') val='<span style="color:#f59e0b;font-weight:800;font-size:9px">P/2</span>';
           else if(st==='EL'){cellBg='#bfdbfe';val='<span style="color:#1d4ed8;font-weight:800;font-size:9px">EL</span>';}
           else if(st==='A') val='<span style="color:#dc2626;font-weight:800">A</span>';
-          else if(st==='H') val='<span style="color:#94a3b8;font-size:9px">H</span>';
+          else if(st==='H'){
+            // Distinguish Weekly Off vs Paid Holiday at the cell level —
+            // both share the internal 'H' status (so exports/PDF stay
+            // stable) but the muster display now spells them out.
+            var _dtN=ds.dayType;
+            var _hClr=(_dtN==='PH')?'#15803d':'#1d4ed8';
+            var _hLbl=(_dtN==='PH')?'PH':'WO';
+            val='<span style="color:'+_hClr+';font-size:10px;font-weight:800">'+_hLbl+'</span>';
+          }
           else val='<span style="color:#94a3b8;font-size:9px">'+st+'</span>';
         } else if(ri===3){
           if(!isStaff&&ds.worked>0){

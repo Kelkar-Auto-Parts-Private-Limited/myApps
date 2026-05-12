@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260512-V60">
+<meta name="app-build" content="260512-V95">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260512-V60">
+<link rel="stylesheet" href="css/hrms.css?v=260512-V95">
 </head>
 <body>
 
@@ -522,7 +522,7 @@
             <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Phone Number <span style="color:#dc2626">*</span></label>
             <div style="display:flex;gap:4px;flex-wrap:nowrap;align-items:center">
               <select id="hrmsUpdEmpMobileCode" class="_updEmpCC" onchange="_hrmsUpdEmpMarkDirty()" title="Click to change country code" style="flex:0 0 auto;font-size:15px;width:54px;min-width:54px;padding-left:0;padding-right:0"></select>
-              <input type="tel" id="hrmsUpdEmpMobile" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:0 0 auto;width:168px;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;font-family:var(--mono)">
+              <input type="tel" id="hrmsUpdEmpMobile" size="12" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:0 0 auto;width:12ch;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:content-box;font-family:var(--mono)">
             </div>
           </div>
         </div>
@@ -1205,8 +1205,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260512-V60"></script>
-<script src="js/hrms-logic.js?v=260512-V60"></script>
-<script src="js/hrms-ui.js?v=260512-V60"></script>
+<script src="js/common.js?v=260512-V95"></script>
+<script src="js/hrms-logic.js?v=260512-V95"></script>
+<script src="js/hrms-ui.js?v=260512-V95"></script>
 </body>
 </html>

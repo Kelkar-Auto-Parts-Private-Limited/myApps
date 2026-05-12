@@ -123,7 +123,7 @@ function _hrmsHasAccess(featureKey){
     var _agElev=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
                ||_agRoles.indexOf('HRMS Admin')>=0||_agRoles.indexOf('HR Manager')>=0;
     var _agCsKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.teamwise':1};
-    var _agDhKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.deptdetails':1};
+    var _agDhKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.deptdetails':1,'tab.das.teamwise':1};
     if(_agIsCS&&!_agElev&&_agCsKeys[featureKey]) return true;
     if(_agIsDH&&!_agElev&&_agDhKeys[featureKey]) return true;
   }

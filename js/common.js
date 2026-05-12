@@ -1544,6 +1544,60 @@ function _isInvalidSessionErr(err){
   return msg.indexOf('invalid session')>=0||err.code==='28000';
 }
 
+// ── Silent session keep-alive ───────────────────────────────────────
+// Pings `verify_session` on a short interval while a token is in
+// storage so the server-side session stays fresh and the user doesn't
+// hit the "Session Expired" prompt during a working day. A single
+// always-on interval covers every app without per-app hooks — the
+// timer is a no-op when no token is present.
+//   • Eager first ping on script load + after Supabase is ready, so
+//     the very first refresh after a clean sign-in proves the session
+//     immediately (no wait for the first interval tick).
+//   • Interval: 5 min — gives a comfortable margin under typical 15+
+//     min Supabase session TTLs while staying light on the network.
+//   • Tab focus: pings the moment the tab regains focus after being
+//     hidden, so a long-idle tab refreshes the token before the
+//     user's next action.
+//   • Failure handling: silent — if the ping returns invalid, the
+//     next real RPC still triggers the existing _promptReauth path
+//     so behaviour degrades gracefully.
+var _kapKeepAliveTimer=null;
+var _kapKeepAliveBusy=false;
+async function _kapSessionPing(){
+  if(_kapKeepAliveBusy) return;
+  _kapKeepAliveBusy=true;
+  try{
+    var u=null,t=null;
+    try{u=_sessionGet('kap_session_user');t=_sessionGet('kap_session_token');}catch(_){}
+    if(!u||!t){_kapKeepAliveBusy=false;return;}
+    // Wait briefly for Supabase to initialise on cold boot — the auth
+    // module loads asynchronously and the first ping can race ahead
+    // of it. Up to ~2 seconds of polling before giving up.
+    for(var w=0;w<8&&!_sb;w++){await new Promise(function(r){setTimeout(r,250);});}
+    if(!_sb||typeof _authVerifySession!=='function'){_kapKeepAliveBusy=false;return;}
+    await _authVerifySession(u,t);
+  }catch(_){/* ignore — failure is handled by real RPCs */}
+  _kapKeepAliveBusy=false;
+}
+function _kapStartSessionKeepAlive(){
+  if(_kapKeepAliveTimer) return;
+  _kapKeepAliveTimer=setInterval(_kapSessionPing, 5*60*1000);
+  // Visibility hook — ping the moment the tab regains focus so an idle
+  // tab doesn't surface a stale-token modal on the user's next click.
+  try{
+    document.addEventListener('visibilitychange',function(){
+      if(!document.hidden) _kapSessionPing();
+    });
+  }catch(_){}
+  // Eager first ping. Runs in the background (await chain inside the
+  // function handles the Supabase init wait), so it doesn't delay the
+  // rest of script load.
+  _kapSessionPing();
+}
+// Auto-start once the script loads; the ping is a no-op until a token
+// is present in storage.
+try{ _kapStartSessionKeepAlive(); }catch(_){}
+
 // ═══ CORE DB OPERATIONS ═══════════════════════════════════════════════════
 async function _dbSave(tbl, record){
   showSpinner('Saving…');
@@ -2554,7 +2608,9 @@ function permLevel(mod,pageTabKey,_visited){
     }
   }
   if(best==='full') return best;
-  // Umbrella inheritance — check cross-group children if this key declares any
+  // Umbrella inheritance (children → parent): a parent key is grantable
+  // when any of its children carries a permission. This is what lets a
+  // narrowly-scoped role still surface the parent menu item.
   var umb=_PERM_UMBRELLA[mod]&&_PERM_UMBRELLA[mod][pageTabKey];
   if(umb&&umb.length){
     _visited=_visited||{};
@@ -2567,6 +2623,23 @@ function permLevel(mod,pageTabKey,_visited){
         if(cl==='view'&&best!=='full') best='view';
       }
     }
+  }
+  if(best==='full') return best;
+  // Umbrella inheritance (parent → children): if the admin grants a
+  // permission on an umbrella/parent key, every child inherits it.
+  // This is what makes "give HR Assistant Full on Day-wise Attendance"
+  // automatically grant access to the manpower / deptdetails / teamwise
+  // sub-tabs without ticking each one individually.
+  var umbMod=_PERM_UMBRELLA[mod]||{};
+  for(var parent in umbMod){
+    var children=umbMod[parent]||[];
+    if(children.indexOf(pageTabKey)<0) continue;
+    _visited=_visited||{};
+    if(_visited[parent]) continue;
+    _visited[parent]=true;
+    var pl=permLevel(mod,parent,_visited);
+    if(pl==='full') return 'full';
+    if(pl==='view'&&best!=='full') best='view';
   }
   return best;
 }
