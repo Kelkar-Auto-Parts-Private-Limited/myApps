@@ -1958,33 +1958,21 @@ async function _hrmsScrubDayTypes(){
   return totalCleaned;
 }
 
-// Setter for the dashboard Team-wise Daily Headcount date picker.
-// Clamps to today (no future dates) and replaces only the team-strip
-// section in the DOM so the rest of the dashboard isn't re-rendered.
-function _hrmsDashTeamHcSetDate(iso){
+// Shift the selected month by ±N months. The ▶ button is disabled in
+// the header when we're already at the current month, but the JS still
+// guards so direct calls can't push past today's month either.
+function _hrmsDashTeamHcShiftMonth(delta){
   var t=new Date();
-  var todayIso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-  if(!iso) iso=todayIso;
-  if(iso>todayIso) iso=todayIso;
-  window._hrmsDashTeamHcDate=iso;
-  _hrmsDashTeamHcRerender();
-}
-// Shift the selected date by ±N days. Clamped at today (the input's
-// `max` does the same job for the native picker, but the prev/next
-// buttons bypass the picker so we re-check here).
-function _hrmsDashTeamHcShiftDate(delta){
-  var t=new Date();
-  var todayIso=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-  var cur=window._hrmsDashTeamHcDate||todayIso;
-  var d=new Date(cur+'T00:00:00');
-  if(isNaN(d)) d=new Date();
-  d.setDate(d.getDate()+(+delta||0));
-  var iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  if(iso>todayIso){
-    if(typeof notify==='function') notify('Future dates are not allowed.',true);
+  var todayMk=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+  var cur=window._hrmsDashTeamHcMonth||todayMk;
+  var sp=cur.split('-');
+  var d=new Date(+sp[0],+sp[1]-1+(+delta||0),1);
+  var mk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  if(mk>todayMk){
+    if(typeof notify==='function') notify('Future months are not allowed.',true);
     return;
   }
-  window._hrmsDashTeamHcDate=iso;
+  window._hrmsDashTeamHcMonth=mk;
   _hrmsDashTeamHcRerender();
 }
 function _hrmsDashTeamHcRerender(){
@@ -2009,16 +1997,18 @@ function _hrmsDashTeamHcRerender(){
 // re-renders the dashboard when the fetches land.
 function _hrmsDashTeamHcSection(allEmps){
   if(!allEmps||!allEmps.length) return '';
-  // Selected date drives which month the chart focuses on. Defaults to
-  // today; the date picker is capped to today so future dates can't be
-  // selected. State lives on `window._hrmsDashTeamHcDate` (ISO date).
-  var _todayIso=function(){var t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');}();
-  var selIso=window._hrmsDashTeamHcDate||_todayIso;
-  if(selIso>_todayIso) selIso=_todayIso;// guard against stale future state
-  var _sp=selIso.split('-');
+  // Selected month drives the chart. State lives on
+  // `window._hrmsDashTeamHcMonth` (YYYY-MM). Defaults to today's month;
+  // the ◀ ▶ navigator caps at today's month so future months can't be
+  // selected.
+  var _now=new Date();
+  var _todayMk=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0');
+  var curMk=window._hrmsDashTeamHcMonth||_todayMk;
+  if(curMk>_todayMk) curMk=_todayMk;
+  var _sp=curMk.split('-');
   var curYr=+_sp[0],curMo=+_sp[1];
-  var curMk=curYr+'-'+String(curMo).padStart(2,'0');
   var daysInMonth=new Date(curYr,curMo,0).getDate();
+  var _atToday=(curMk===_todayMk);
   var _periodOf=function(e){return (e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});};
   // Bucket emps: KAP (every On Roll) + PR (every Piece Rate, aggregated
   // across all PR teams) + one bucket per Contract team.
@@ -2152,14 +2142,16 @@ function _hrmsDashTeamHcSection(allEmps){
   // column scrolls together.
   var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
   var html='<div style="margin-bottom:18px" id="hrmsDashTeamHcWrap">';
+  var _nextDisStyle=_atToday?'opacity:.35;cursor:not-allowed;':'cursor:pointer;';
+  var _nextOnClick=_atToday?'':' onclick="_hrmsDashTeamHcShiftMonth(1)"';
   html+='<div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
     +'<span>📊 Team-wise Daily Headcount</span>'
     +'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 5px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:1.5px solid var(--accent);border-radius:6px">'
-      +'<button onclick="_hrmsDashTeamHcShiftDate(-1)" title="Previous day" style="padding:2px 8px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>'
-      +'<input type="date" id="hrmsDashTeamHcDate" value="'+selIso+'" max="'+_todayIso+'" onchange="_hrmsDashTeamHcSetDate(this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;font-weight:700;background:#fff;cursor:pointer" title="Select date">'
-      +'<button onclick="_hrmsDashTeamHcShiftDate(1)" title="Next day" style="padding:2px 8px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">▶</button>'
+      +'<button onclick="_hrmsDashTeamHcShiftMonth(-1)" title="Previous month" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>'
+      +'<span style="font-size:12px;font-weight:800;color:var(--accent);padding:3px 10px;border:1.5px solid var(--accent);border-radius:4px;background:#fff;min-width:96px;text-align:center;letter-spacing:.2px">'+(MON_NAMES[curMo-1]||'')+' '+curYr+'</span>'
+      +'<button'+_nextOnClick+(_atToday?' disabled':'')+' title="'+(_atToday?'Already at the current month':'Next month')+'" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;'+_nextDisStyle+'line-height:1">▶</button>'
     +'</span>'
-    +'<span style="font-size:11px;color:var(--text3);font-weight:600">'+(MON_NAMES[curMo-1]||'')+' '+curYr+' · 6-month trend · shared date axis</span>'
+    +'<span style="font-size:11px;color:var(--text3);font-weight:600">6-month trend · shared date axis</span>'
     +'</div>';
   // Outer wrapper — scrolls horizontally for many teams, vertically for
   // the full date list. The date column inside is sticky-left so it
@@ -2181,7 +2173,7 @@ function _hrmsDashTeamHcSection(allEmps){
     if(tk==='__KAP__'){teamLbl='KAP (On Roll)';teamBg='linear-gradient(180deg,#dcfce7,#bbf7d0)';teamFg='#15803d';}
     else if(tk==='__PIECERATE__'){teamLbl='Piece Rate';teamBg='linear-gradient(180deg,#f3e8ff,#ddd6fe)';teamFg='#7c3aed';}
     else {teamLbl=tk;teamBg='linear-gradient(180deg,#dbeafe,#bfdbfe)';teamFg='#1d4ed8';}
-    html+='<div style="flex:0 0 196px;border-right:1px solid #e2e8f0">';
+    html+='<div style="flex:0 0 176px;border-right:1px solid #e2e8f0">';
     html+='<div style="background:'+teamBg+';color:'+teamFg+';padding:6px 8px;font-size:11px;font-weight:800;border-bottom:1px solid #cbd5e1;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">'
       +'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(teamLbl)+'</span>'
       +'<span style="font-size:10px;font-weight:700;opacity:.85;flex:0 0 auto;margin-left:6px">'+td.empCount+'</span>'
@@ -2189,6 +2181,41 @@ function _hrmsDashTeamHcSection(allEmps){
     html+=_hrmsDashTeamHcBarsOnly(td.dayRows,curYr,curMo,td.maxY,td.history);
     html+='</div>';
   });
+  // ── Totals columns ───────────────────────────────────────────────
+  // Sum P / A across every team for each day (and each historical
+  // month average) so the operator sees a single roll-up at the end of
+  // the strip. Three columns: total P, total A, and absent %.
+  var totalsRows=refRows.map(function(r,i){
+    var p=0,a=0;
+    teamRows.forEach(function(tr){
+      var dr=tr.data.dayRows[i];
+      if(dr){p+=dr.p;a+=dr.a;}
+    });
+    return {d:r.d,dType:r.dType,p:p,a:a};
+  });
+  var totalsHistory=refHistory.map(function(h,hi){
+    var p=0,a=0,hasData=false;
+    teamRows.forEach(function(tr){
+      var hh=tr.data.history[hi];
+      if(hh&&hh.hasData){p+=hh.avgP;a+=hh.avgA;hasData=true;}
+    });
+    return {mk:h.mk,avgP:p,avgA:a,hasData:hasData};
+  });
+  var _totalsColHdr=function(label,bg,fg){
+    return '<div style="background:'+bg+';color:'+fg+';padding:6px 4px;font-size:11px;font-weight:800;border-bottom:1px solid #cbd5e1;text-align:center;position:sticky;top:0;z-index:1">'+label+'</div>';
+  };
+  html+='<div style="flex:0 0 40px;border-right:1px solid #e2e8f0;border-left:2px solid #cbd5e1">';
+  html+=_totalsColHdr('P','linear-gradient(180deg,#dcfce7,#bbf7d0)','#15803d');
+  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'p','#15803d');
+  html+='</div>';
+  html+='<div style="flex:0 0 40px;border-right:1px solid #e2e8f0">';
+  html+=_totalsColHdr('A','linear-gradient(180deg,#fee2e2,#fecaca)','#b91c1c');
+  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'a','#b91c1c');
+  html+='</div>';
+  html+='<div style="flex:0 0 46px">';
+  html+=_totalsColHdr('% Abs','linear-gradient(180deg,#fef3c7,#fde68a)','#92400e');
+  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'abs','#92400e');
+  html+='</div>';
   html+='</div></div>';
   return html;
 }
@@ -2268,11 +2295,10 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
   if(!totalRows){
     return '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:11px">No data</div>';
   }
-  // Wider viewBox — bars get ~95% more horizontal travel than the
-  // original baseline (70% + a 15% top-up per the latest request).
-  // padR carries the two pills (P green + A red); padL is just a
-  // left-edge gutter.
-  var W=196, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
+  // Wider viewBox — bars get ~76% more horizontal travel than the
+  // original baseline (after the latest -10% trim). padR carries the
+  // two pills (P green + A red); padL is just a left-edge gutter.
+  var W=176, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
   var padL=4, padR=50;
   var plotH=totalRows*rowH;
   var H=plotH+padT+padB;
@@ -2348,6 +2374,73 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
     var bw=(r2.p/maxY)*plotW;
     s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.4"><title>'+r2.d+': P='+r2.p+' · A='+r2.a+'</title></rect>';
     s+=_placeTwoPills(padL+bw,cy,r2.p,r2.a);
+  }
+  s+='</svg>';
+  return s;
+}
+
+// Summary numbers column for the dashboard team strip — same row
+// dimensions as the bars columns, but each row shows a single number
+// instead of a bar. `field` picks what to render: 'p' / 'a' for the
+// total presence counts; 'abs' for the rounded absent percentage.
+function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
+  var n=dayRows.length;
+  history=history||[];
+  var histCount=history.length;
+  var gapRows=histCount>0?1:0;
+  var totalRows=histCount+gapRows+n;
+  // % Abs column is a hair wider to fit "100%" comfortably; P / A
+  // columns are sized for 3-digit headcount counts.
+  var W=(field==='abs')?46:40,rowH=_DASH_TEAM_ROW_H,padT=_DASH_TEAM_PAD_T,padB=_DASH_TEAM_PAD_B;
+  var H=totalRows*rowH+padT+padB;
+  var yC=function(i){return padT+rowH*(i+0.5);};
+  var _valueOf=function(p,a){
+    if(field==='p') return p>0?p:'';
+    if(field==='a') return a>0?a:'';
+    if(field==='abs'){
+      var tot=p+a;
+      if(tot<=0) return '';
+      return Math.round(a/tot*100)+'%';
+    }
+    return '';
+  };
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMin meet" style="width:'+W+'px;height:'+H+'px;display:block;background:#fafafa">';
+  // Historical band wash
+  if(histCount>0){
+    s+='<rect x="0" y="'+padT+'" width="'+W+'" height="'+(histCount*rowH)+'" fill="#fef3c7" fill-opacity="0.45"/>';
+    var sepY=padT+(histCount*rowH)+(rowH/2);
+    s+='<line x1="0" y1="'+sepY+'" x2="'+W+'" y2="'+sepY+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>';
+  }
+  // WO/PH row tints in current month
+  for(var i=0;i<n;i++){
+    var r=dayRows[i];
+    if(r&&(r.dType==='WO'||r.dType==='PH')){
+      var rowIdx=histCount+gapRows+i;
+      var by=padT+rowH*rowIdx;
+      var bg=r.dType==='PH'?'#dcfce7':'#dbeafe';
+      s+='<rect x="0" y="'+by+'" width="'+W+'" height="'+rowH+'" fill="'+bg+'" fill-opacity="0.5"/>';
+    }
+  }
+  // Historical row values — only when data exists AND there was at
+  // least one present headcount on a working day (otherwise the row
+  // represents "no data in system" and stays blank).
+  history.forEach(function(h,hi){
+    if(!h.hasData||!(h.avgP>0)) return;
+    var cy=yC(hi);
+    var v=_valueOf(h.avgP,h.avgA);
+    if(v==='') return;
+    s+='<text x="'+(W/2)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+color+'"><title>'+h.mk+' avg</title>'+v+'</text>';
+  });
+  // Current-month row values — gated on Present > 0 so days without
+  // attendance data don't show a misleading A/% number.
+  for(var ci=0;ci<n;ci++){
+    var r2=dayRows[ci];
+    if(!r2||!(r2.p>0)) continue;
+    var rowIdx=histCount+gapRows+ci;
+    var cy=yC(rowIdx);
+    var v=_valueOf(r2.p,r2.a);
+    if(v==='') continue;
+    s+='<text x="'+(W/2)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+color+'">'+v+'</text>';
   }
   s+='</svg>';
   return s;
