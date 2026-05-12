@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260511-V82">
+<meta name="app-build" content="260512-V21">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260511-V82">
+<link rel="stylesheet" href="css/hrms.css?v=260512-V21">
 </head>
 <body>
 
@@ -37,7 +37,7 @@
     <div class="nav-item" id="navDasDeptDetails" onclick="hrmsGo('pageHrmsUtilDailyAtt','deptdetails')" style="font-size:12px;padding:7px 16px">📋 Departmentwise Attendance</div>
     <div class="nav-item" id="navDasTeamwise" onclick="hrmsGo('pageHrmsUtilDailyAtt','teamwise')" style="font-size:12px;padding:7px 16px">👥 Team-wise Attendance Record</div>
   </div>
-  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Attendance & Salary <span id="cNavAttSal" title="Pending items inside Attendance &amp; Salary" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
+  <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Monthly Attendance & Salary <span id="cNavAttSal" title="Pending items inside Monthly Attendance &amp; Salary" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
   <div class="nav-item" id="navMyApprovals" onclick="hrmsGo('pageHrmsMyApprovals')">✅ My Approvals <span id="cNavMyAtt" title="Pending approvals routed to you" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navAttRules" onclick="hrmsGo('pageHrmsAttRules')">📏 Attendance Rules</div>
@@ -479,6 +479,9 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <span id="hrmsUpdEmpTitlePlant" style="margin-left:auto;display:none"></span>
       </div>
+      <!-- Summary chips — three clickable counters limited to the
+           user's allocated team(s). Populated by _hrmsUpdEmpRenderSummary. -->
+      <div id="hrmsUpdEmpSummary" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>
       <!-- Employee picker — editable input with a CUSTOM dropdown list
            (not <datalist>, which renders as horizontal cards on mobile
            browsers). The list shows filtered employees as a proper
@@ -497,16 +500,25 @@
            Compact widths so the right column stays beside the photo
            even on narrow phone viewports — the country code + number
            wrap onto two lines when there's no horizontal space left. -->
+      <!-- Style helper — strips the native dropdown arrow on selects
+           tagged `_updEmpFlat`. Recovers ~14px of width per select so
+           DD / MMM / YY and the country-code dial all stay readable
+           in narrow viewports. Padding-right also drops because there
+           is no arrow to leave room for. -->
+      <style>
+        select._updEmpFlat{appearance:none;-webkit-appearance:none;-moz-appearance:none;background-image:none;padding-right:4px!important;text-align:center}
+        select._updEmpCC{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:none;border:none;color:#1d4ed8;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:6px 2px}
+      </style>
       <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-start">
-        <!-- Photo block -->
+        <!-- Photo block — preview IS the trigger now (no separate
+             upload button). Clicking it opens the file picker; the
+             placeholder reads "Click here to add Photo". -->
         <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px">
           <label style="font-size:14px;font-weight:700;color:var(--text2);align-self:flex-start">Photo <span style="color:#dc2626">*</span></label>
           <div style="position:relative;width:120px;height:120px">
-            <div id="hrmsUpdEmpPhotoPreview" style="width:120px;height:120px;border:1.5px dashed var(--border);border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;overflow:hidden">No photo</div>
+            <div id="hrmsUpdEmpPhotoPreview" onclick="document.getElementById('hrmsUpdEmpPhotoInput').click()" style="width:120px;height:120px;border:1.5px dashed #93c5fd;border-radius:10px;background:#eff6ff;display:flex;align-items:center;justify-content:center;color:#1d4ed8;font-size:12px;font-weight:700;overflow:hidden;cursor:pointer;text-align:center;padding:6px;box-sizing:border-box" title="Click to add a photo">📷 Click here to add Photo</div>
             <button id="hrmsUpdEmpPhotoRemoveBtn" type="button" onclick="_hrmsUpdEmpPhotoRemove()" title="Remove photo" style="display:none;position:absolute;top:-6px;right:-6px;width:22px;height:22px;padding:0;font-size:12px;font-weight:900;line-height:1;background:#fee2e2;border:1.5px solid #fca5a5;color:#dc2626;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15)">✕</button>
-          </div>
-          <div style="display:flex;gap:6px;justify-content:center">
-            <label style="display:inline-block;padding:5px 10px;font-size:13px;font-weight:700;background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📷 Upload<input type="file" id="hrmsUpdEmpPhotoInput" accept="image/*" capture="environment" onchange="_hrmsUpdEmpPhotoChange(this)" style="display:none"></label>
+            <input type="file" id="hrmsUpdEmpPhotoInput" accept="image/*" capture="environment" onchange="_hrmsUpdEmpPhotoChange(this)" style="display:none">
           </div>
           <div id="hrmsUpdEmpPhotoStatus" style="font-size:11px;color:var(--text3);margin-top:2px;text-align:center">Auto-compressed to &lt;100 KB</div>
         </div>
@@ -515,16 +527,16 @@
           <div>
             <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Date of Birth</label>
             <div style="display:flex;gap:6px">
-              <select id="hrmsUpdEmpDOBDay" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
-              <select id="hrmsUpdEmpDOBMonth" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.4;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
-              <select id="hrmsUpdEmpDOBYear" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.2;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <select id="hrmsUpdEmpDOBDay" class="_updEmpFlat" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <select id="hrmsUpdEmpDOBMonth" class="_updEmpFlat" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.4;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
+              <select id="hrmsUpdEmpDOBYear" class="_updEmpFlat" onchange="_hrmsUpdEmpDOBChanged()" style="flex:1.2;font-size:16px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:0"></select>
             </div>
             <input type="hidden" id="hrmsUpdEmpDOB">
           </div>
           <div>
             <label style="font-size:14px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px">Phone Number <span style="color:#dc2626">*</span></label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <select id="hrmsUpdEmpMobileCode" onchange="_hrmsUpdEmpMarkDirty()" style="flex:0 0 100px;font-size:15px;padding:8px 4px;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:90px"></select>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+              <select id="hrmsUpdEmpMobileCode" class="_updEmpCC" onchange="_hrmsUpdEmpMarkDirty()" title="Click to change country code" style="flex:0 0 auto;font-size:15px;min-width:60px"></select>
               <input type="tel" id="hrmsUpdEmpMobile" oninput="_hrmsUpdEmpMobileFormat(this);_hrmsUpdEmpMarkDirty()" inputmode="numeric" maxlength="13" placeholder="XXXX XX XXXX" style="flex:1;font-size:16px;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;box-sizing:border-box;min-width:130px;font-family:var(--mono)">
             </div>
           </div>
@@ -996,7 +1008,7 @@
 </div>
 
 <!-- EMPLOYEE EDIT/VIEW MODAL -->
-<div class="modal-overlay" id="mHrmsEmpEdit" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;height:92vh;display:flex;flex-direction:column;padding:0;position:relative">
+<div class="modal-overlay" id="mHrmsEmpEdit" data-confirm-close="true" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;height:92vh;display:flex;flex-direction:column;padding:0;position:relative">
   <button onclick="_hrmsEmpClose()" title="Close (Esc)" style="position:absolute;top:8px;right:10px;background:transparent;border:1.5px solid var(--border);width:30px;height:30px;font-size:18px;color:var(--text2);cursor:pointer;line-height:1;border-radius:50%;font-weight:800;z-index:30;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='transparent';this.style.color='var(--text2)';this.style.borderColor='var(--border)'">✕</button>
   <div id="hrmsEmpModalContent" style="overflow:auto;padding:16px 20px;flex:1"></div>
 </div></div>
@@ -1208,8 +1220,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260511-V82"></script>
-<script src="js/hrms-logic.js?v=260511-V82"></script>
-<script src="js/hrms-ui.js?v=260511-V82"></script>
+<script src="js/common.js?v=260512-V21"></script>
+<script src="js/hrms-logic.js?v=260512-V21"></script>
+<script src="js/hrms-ui.js?v=260512-V21"></script>
 </body>
 </html>

@@ -1783,95 +1783,116 @@ function _permModuleUserRoles(mod){
 }
 var _PERM_KEYS={
   HRMS:[
-    {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
-    {key:'page.employees',label:'Employees Page',group:'👤 Employees'},
-    {key:'action.addEmployee',label:'Add Employee',group:'👤 Employees'},
-    {key:'action.editEmployee',label:'Edit Employee',group:'👤 Employees'},
-    {key:'action.deleteEmployee',label:'Delete Employee',group:'👤 Employees'},
-    {key:'action.viewEmployee',label:'View Employee Details',group:'👤 Employees'},
-    {key:'action.showHistory',label:'Show History',group:'👤 Employees'},
-    {key:'action.newRevision',label:'New Salary Revision',group:'👤 Employees'},
-    {key:'action.approveReject',label:'Approve/Reject ECR',group:'👤 Employees'},
-    {key:'action.importEmployees',label:'Import Employees',group:'👤 Employees'},
-    {key:'action.exportEmployees',label:'Export Employees',group:'👤 Employees'},
-    {key:'page.attSal',label:'Attendance & Salary Page',group:'📅 Attendance & Salary'},
-    {key:'action.addMonth',label:'Add New Month',group:'📅 Attendance & Salary'},
-    {key:'action.saveLock',label:'Save & Lock Month',group:'📅 Attendance & Salary'},
-    {key:'action.unlock',label:'Unlock Month',group:'📅 Attendance & Salary'},
-    {key:'tab.settings',label:'Settings Tab',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.calendar',label:'Calendar',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.editCalendar',label:'Edit Calendar',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.esslatt',label:'ESSL Import',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.importEssl',label:'Import ESSL Data',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.altimport',label:'Alteration Import',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.importAlterations',label:'Import Alterations',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.advances',label:'Advances',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.importAdvances',label:'Import Advances',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.manual',label:'Manual Overrides',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.importOB',label:'Import Opening Bal.',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.tds',label:'TDS',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.salrevision',label:'KAP Sal Rev',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.bulkSalRevision',label:'Import Salary Excel',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.otrules',label:'OT Rules',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.editOtRules',label:'Edit OT Rules',group:'⚙️ Settings & Sub-tabs'},
-    {key:'settings.statutory',label:'Statutory',group:'⚙️ Settings & Sub-tabs'},
-    {key:'action.editStatutory',label:'Edit Statutory Rules',group:'⚙️ Settings & Sub-tabs'},
-    {key:'tab.attendance',label:'Attendance Tab',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.summary',label:'Summary',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.muster',label:'Muster Roll',group:'📋 Attendance & Sub-tabs'},
-    {key:'action.exportAttendance',label:'Export Attendance',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.alteration',label:'Alterations',group:'📋 Attendance & Sub-tabs'},
-    {key:'action.approveAlt',label:'Approve Alteration',group:'📋 Attendance & Sub-tabs'},
-    {key:'action.rejectAlt',label:'Reject Alteration',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.pot',label:'P & OT',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.entry',label:'New Joinee/Rejoinee',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.exit',label:'Absent Employees FTM',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.printformats',label:'Print Muster',group:'📋 Attendance & Sub-tabs'},
-    {key:'action.addPrintFormat',label:'Add/Edit Print Muster',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.coff',label:'C-Off Requests Tab',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.altRequest',label:'Submit Alteration Request',group:'📋 Attendance & Sub-tabs'},
-    {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📋 Attendance & Sub-tabs'},
-    {key:'tab.salary',label:'OR Salary Tab',group:'💰 OR Salary Tab'},
-    {key:'action.exportSalary',label:'Export Salary',group:'💰 Salary Tab'},
-    {key:'action.exportWorkerSlip',label:"Worker's Salary Slip PDF",group:'💰 Salary Tab'},
-    {key:'tab.payments',label:'OR Sal Payments Tab',group:'🏦 OR Sal Payments Tab'},
-    {key:'action.exportPayments',label:'Export Payments',group:'🏦 Payments Tab'},
-    {key:'tab.esipf',label:'OR ESI/PF List Tab',group:'📋 OR ESI/PF List Tab'},
-    {key:'action.exportEsiPf',label:'Export ESI/PF',group:'📋 ESI/PF List Tab'},
-    {key:'tab.pt',label:'OR PT Summary Tab',group:'🧾 OR PT Summary Tab'},
-    {key:'action.exportPt',label:'Export PT Details',group:'🧾 PT Details Tab'},
-    {key:'tab.contract',label:'Contract Salary Tab',group:'📋 Contract Salary Tab'},
-    {key:'action.exportContract',label:'Export Contract Sal.',group:'📋 Contract Salary Tab'},
-    {key:'page.contractRev',label:'Contract Salary Rev Page',group:'💵 Contract Salary Rev'},
-    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'💵 Contract Salary Revision'},
-    {key:'page.attRules',label:'Attendance Rules Page',group:'📏 Attendance Rules'},
-    {key:'page.myAttendance',label:'My Attendance Page',group:'🗓 My Attendance'},
-    {key:'page.myApprovals',label:'My Approvals Page (managers/plant heads)',group:'✅ My Approvals'},
-    {key:'page.orgStructure',label:'HR Organisation Structure Page',group:'🌳 HR Organisation Structure'},
-    {key:'org.edit',label:'Edit Reporting Hierarchy',group:'🌳 HR Organisation Structure'},
-    {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
-    {key:'page.masterPlant',label:'Plant',group:'📂 Masters'},
-    {key:'page.masterCategory',label:'Category',group:'📂 Masters'},
-    {key:'page.masterEmpType',label:'Employment Type',group:'📂 Masters'},
-    {key:'page.masterTeam',label:'Team',group:'📂 Masters'},
-    {key:'page.masterDept',label:'Departments (Worker)',group:'📂 Masters'},
-    {key:'page.masterSubDept',label:'Departments (Staff)',group:'📂 Masters'},
-    {key:'page.masterDesig',label:'Designation',group:'📂 Masters'},
-    {key:'page.masterRoll',label:'Role',group:'📂 Masters'},
-    {key:'page.masterAllocation',label:'Allocation',group:'📂 Masters'},
-    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'},
-    {key:'page.utilities',label:'Utilities Menu',group:'🛠 Utilities'},
-    {key:'page.utilAttConv',label:'Attendance Excel Converter',group:'🛠 Utilities'},
-    {key:'page.utilDailyAttSum',label:'Day-wise Attendance',group:'📊 Day-wise Attendance'},
-    {key:'page.plantwiseAtt',label:'Plant-wise Attendance',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.manpower',label:'Tab — Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.deptdetails',label:'Tab — Departmentwise Attendance',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.teamwise',label:'Tab — Team-wise Attendance Record',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.rolegrouping',label:'Modal — Role Groups (Manpower Allocation Settings)',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.alloc',label:'Modal — Manpower Allocation Settings',group:'📊 Day-wise Attendance'},
-    {key:'page.utilMonthlyHc',label:'Monthly Headcount Graph',group:'🛠 Utilities'},
-    {key:'page.utilUpdateEmp',label:'Update Employee',group:'🛠 Utilities'},
-    {key:'page.utilContractFromFix',label:'Contract From-Month Fix',group:'🛠 Utilities'}
+    // Sidebar — Dashboard
+    {key:'page.dashboard',label:'📊 Dashboard',group:'📊 Dashboard'},
+
+    // Sidebar — 📊 Day-wise Attendance (collapsible group + 4 sub-pages)
+    {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance'},
+    {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.deptdetails',label:'📋 Departmentwise Attendance',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings (modal)',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.rolegrouping',label:'📋 Role Groups (inner tab of Allocation Settings)',group:'📊 Day-wise Attendance'},
+
+    // Sidebar — 📅 Monthly Attendance & Salary (page-level + month actions)
+    {key:'page.attSal',label:'📅 Monthly Attendance & Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.addMonth',label:'+ Add New Month',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.saveLock',label:'🔒 Save & Lock Month',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.unlock',label:'🔓 Unlock Month',group:'📅 Monthly Attendance & Salary'},
+
+    // Monthly Attendance & Salary → main tab "⚙️ Settings & Data" + sub-tabs
+    {key:'tab.settings',label:'⚙️ Settings & Data (main tab)',group:'⚙️ Settings & Data'},
+    {key:'settings.esslatt',label:'ESSL Data (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.importEssl',label:'📥 Import / Update ESSL Attendance',group:'⚙️ Settings & Data'},
+    {key:'settings.altimport',label:'Manual Alt (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.importAlterations',label:'📥 Import Alterations',group:'⚙️ Settings & Data'},
+    {key:'settings.manual',label:'Manual P & OT (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.importOB',label:'📥 Import Opening Balance',group:'⚙️ Settings & Data'},
+    {key:'settings.advances',label:'Advances (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.importAdvances',label:'📥 Import Advances',group:'⚙️ Settings & Data'},
+    {key:'settings.calendar',label:'Calendar (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.editCalendar',label:'✏️ Edit Calendar / Save Calendar',group:'⚙️ Settings & Data'},
+    {key:'settings.tds',label:'TDS (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'settings.salrevision',label:'KAP Sal Rev (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.bulkSalRevision',label:'📥 Import Salary Excel (Bulk Sal Revision)',group:'⚙️ Settings & Data'},
+    {key:'page.contractRev',label:'Contract Salary Rev (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'⚙️ Settings & Data'},
+    {key:'settings.statutory',label:'Statutory (sub-tab)',group:'⚙️ Settings & Data'},
+    {key:'action.editStatutory',label:'✏️ Edit Statutory Rules',group:'⚙️ Settings & Data'},
+    {key:'settings.otrules',label:'OT Rules (legacy sub-tab, inside Statutory)',group:'⚙️ Settings & Data'},
+    {key:'action.editOtRules',label:'✏️ Edit OT Rules',group:'⚙️ Settings & Data'},
+
+    // Monthly Attendance & Salary → main tab "📅 Attendance" + sub-tabs
+    {key:'tab.attendance',label:'📅 Attendance (main tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.muster',label:'Muster Roll (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.pot',label:'P & OT (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.summary',label:'Summary (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'action.exportAttendance',label:'📤 Export Attendance',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.alteration',label:'All Alterations & C-off (sub-tab, hidden in UI)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'action.approveAlt',label:'Approve Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'action.rejectAlt',label:'Reject Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.entry',label:'New Joinee/Rejoinee (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.exit',label:'Absent Employees FTM (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.printformats',label:'🖨 Print Muster (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'action.addPrintFormat',label:'+ Add / Edit Print Muster Format',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.coff',label:'C-Off Requests (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.altRequest',label:'Submit Alteration Request (My Attendance)',group:'📅 Attendance (main tab) & Sub-tabs'},
+    {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📅 Attendance (main tab) & Sub-tabs'},
+
+    // Monthly Attendance & Salary → other main tabs
+    {key:'tab.salary',label:'💰 KAP Salary (main tab)',group:'💰 KAP Salary (main tab)'},
+    {key:'action.exportSalary',label:'📤 Export Salary',group:'💰 KAP Salary (main tab)'},
+    {key:'action.exportWorkerSlip',label:"🧾 Worker's Salary Slip PDF",group:'💰 KAP Salary (main tab)'},
+    {key:'tab.payments',label:'🏦 KAP Sal Payment (main tab)',group:'🏦 KAP Sal Payment (main tab)'},
+    {key:'action.exportPayments',label:'📤 Export Payments',group:'🏦 KAP Sal Payment (main tab)'},
+    {key:'tab.esipf',label:'📋 KAP ESI/PF Report (main tab)',group:'📋 KAP ESI/PF Report (main tab)'},
+    {key:'action.exportEsiPf',label:'📤 Export ESI/PF',group:'📋 KAP ESI/PF Report (main tab)'},
+    {key:'tab.pt',label:'🧾 KAP PT Summary (main tab)',group:'🧾 KAP PT Summary (main tab)'},
+    {key:'action.exportPt',label:'📤 Export PT Details',group:'🧾 KAP PT Summary (main tab)'},
+    {key:'tab.contract',label:'📋 Contract Salary (main tab)',group:'📋 Contract Salary (main tab)'},
+    {key:'action.exportContract',label:'📤 Export Contract Salary',group:'📋 Contract Salary (main tab)'},
+
+    // Sidebar — 🗓 My Attendance
+    {key:'page.myAttendance',label:'🗓 My Attendance',group:'🗓 My Attendance'},
+
+    // Sidebar — ✅ My Approvals
+    {key:'page.myApprovals',label:'✅ My Approvals',group:'✅ My Approvals'},
+
+    // Sidebar — 📏 Attendance Rules
+    {key:'page.attRules',label:'📏 Attendance Rules',group:'📏 Attendance Rules'},
+
+    // Sidebar — 📂 Masters (collapsible group — Employees + Org + masters)
+    {key:'page.masters',label:'📂 Masters (sidebar menu)',group:'📂 Masters'},
+    {key:'page.employees',label:'👤 Employees',group:'📂 Masters'},
+    {key:'action.addEmployee',label:'+ Add Employee',group:'📂 Masters'},
+    {key:'action.editEmployee',label:'✏️ Edit Employee',group:'📂 Masters'},
+    {key:'action.deleteEmployee',label:'🗑 Delete Employee',group:'📂 Masters'},
+    {key:'action.viewEmployee',label:'View Employee Details',group:'📂 Masters'},
+    {key:'action.showHistory',label:'Show History',group:'📂 Masters'},
+    {key:'action.newRevision',label:'New Salary Revision',group:'📂 Masters'},
+    {key:'action.approveReject',label:'Approve / Reject Employee Change Request (ECR)',group:'📂 Masters'},
+    {key:'action.importEmployees',label:'📥 Import Employees',group:'📂 Masters'},
+    {key:'action.exportEmployees',label:'📤 Export Employees',group:'📂 Masters'},
+    {key:'page.orgStructure',label:'🌳 HR Organisation Structure',group:'📂 Masters'},
+    {key:'org.edit',label:'✏️ Edit Reporting Hierarchy',group:'📂 Masters'},
+    {key:'page.masterPlant',label:'🏭 Plant',group:'📂 Masters'},
+    {key:'page.masterCategory',label:'🏷 Category',group:'📂 Masters'},
+    {key:'page.masterEmpType',label:'📋 Employment Type',group:'📂 Masters'},
+    {key:'page.masterTeam',label:'👥 Team',group:'📂 Masters'},
+    {key:'page.masterDept',label:'🏛 Departments (Worker)',group:'📂 Masters'},
+    {key:'page.masterSubDept',label:'📁 Departments (Staff)',group:'📂 Masters'},
+    {key:'page.masterDesig',label:'🎖 Designation',group:'📂 Masters'},
+    {key:'page.masterRoll',label:'🪪 Role',group:'📂 Masters'},
+    {key:'page.masterAllocation',label:'Allocation (legacy — replaced by Manpower Allocation Settings modal)',group:'📂 Masters'},
+    {key:'masters.edit',label:'✏️ Edit Masters',group:'📂 Masters'},
+
+    // Sidebar — 🛠 Utilities (collapsible group)
+    {key:'page.utilities',label:'🛠 Utilities (sidebar menu)',group:'🛠 Utilities'},
+    {key:'page.utilAttConv',label:'📗 Attendance Excel Converter',group:'🛠 Utilities'},
+    {key:'page.utilUpdateEmp',label:'✏️ Update Employee',group:'🛠 Utilities'},
+    {key:'page.utilMonthlyHc',label:'📈 Monthly Headcount Graph (legacy — now embedded on Dashboard)',group:'🛠 Utilities'},
+    {key:'page.utilContractFromFix',label:'Contract From-Month Fix (legacy)',group:'🛠 Utilities'}
   ],
   VMS:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -2380,6 +2401,50 @@ function modalErrClear(modalId){
 }
 function om(id){const el=document.getElementById(id);if(el){el.style.display='flex';el.classList.add('open');modalErrClear(id);}else console.error('om: missing modal id='+id);}
 function cm(id){const el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('open');}else console.error('cm: missing modal id='+id);}
+// ─── Global Escape-to-close for all popups ─────────────────────────
+// Walks the modal stack on Esc and closes the topmost open layer:
+//   1. Standard `.modal-overlay.open` modals (om / cm controlled).
+//   2. Custom inline overlays whose id ends in `Pop` / `Popup` /
+//      `Overlay` (the convention used by every ad-hoc popover in the
+//      app — pickers, emp-list dialogs, cell editors, etc.).
+// For modals that opt in via `data-confirm-close="true"`, we run a
+// confirm() guard before closing — used by forms with unsaved edits.
+// Installed once; subsequent script loads no-op via the global flag.
+if(!window._appEscapeBound){
+  window._appEscapeBound=true;
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(e.defaultPrevented) return;
+    // (1) Inline popovers come FIRST — pickers / cell editors /
+    // emp-list popups can nest inside a modal, and the user expects
+    // Escape to dismiss the popover before the outer modal.
+    var inline=[].slice.call(document.querySelectorAll(
+      '[id$="Overlay"]:not(.modal-overlay), [id$="Pop"], [id$="Popup"]'))
+      .filter(function(n){return n.offsetParent!==null||window.getComputedStyle(n).position==='fixed';});
+    if(inline.length){
+      var lastInline=inline[inline.length-1];
+      if(lastInline){
+        lastInline.remove();
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    }
+    // (2) Standard modals — pick the visually topmost open one.
+    var openModals=[].slice.call(document.querySelectorAll('.modal-overlay.open'))
+      .filter(function(m){return window.getComputedStyle(m).display!=='none';});
+    if(openModals.length){
+      var top=openModals[openModals.length-1];
+      if(top.getAttribute('data-confirm-close')==='true'){
+        if(!confirm('Discard unsaved changes?')) return;
+      }
+      if(typeof cm==='function') cm(top.id);
+      else {top.style.display='none';top.classList.remove('open');}
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  },true);
+}
 function showConfirm(msg, onOk, opts){
   // opts: {icon, title, btnLabel, btnColor}
   const o=opts||{};
