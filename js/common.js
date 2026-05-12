@@ -294,12 +294,37 @@ function _toRow(tbl, rec) {
     // salaryMonths + a few profile fields not yet promoted to columns are kept
     // inside `extra` so they round-trip without a DB schema change.
     var _ext=Object.assign({},r.extra||{});
-    if(r.salaryMonths&&typeof r.salaryMonths==='object') _ext.salaryMonths=r.salaryMonths;
+    // Salary lockdown: strip salaryDay / salaryMonth / specialAllowance from
+    // every salaryMonths snapshot before it reaches the public row. Salary
+    // is persisted separately via hrms_salary_upsert.
+    if(r.salaryMonths&&typeof r.salaryMonths==='object'){
+      var _scrubMonths={};
+      Object.keys(r.salaryMonths).forEach(function(mk){
+        var src=r.salaryMonths[mk]||{};
+        var dst={};
+        Object.keys(src).forEach(function(k){
+          if(k==='salaryDay'||k==='salaryMonth'||k==='specialAllowance') return;
+          dst[k]=src[k];
+        });
+        _scrubMonths[mk]=dst;
+      });
+      _ext.salaryMonths=_scrubMonths;
+    }
     if(r.stateOrigin!=null) _ext.stateOrigin=r.stateOrigin||'';
     if(r.currentAddress!=null) _ext.currentAddress=r.currentAddress||'';
     if(r.permanentAddress!=null) _ext.permanentAddress=r.permanentAddress||'';
     if(r.mobileCode!=null) _ext.mobileCode=r.mobileCode||'';
-    return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:r.salaryDay||0,salary_month:r.salaryMonth||0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:r.periods||[],no_pl:r.noPL||false,extra:_ext};
+    // Strip salary keys from every period element too.
+    var _scrubPeriods=(r.periods||[]).map(function(p){
+      if(!p||typeof p!=='object') return p;
+      var dst={};
+      Object.keys(p).forEach(function(k){
+        if(k==='salaryDay'||k==='salaryMonth'||k==='specialAllowance') return;
+        dst[k]=p[k];
+      });
+      return dst;
+    });
+    return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:0,salary_month:0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:_scrubPeriods,no_pl:r.noPL||false,extra:_ext};
   }
   if(tbl==='hrmsCompanies') return {code:r.id,name:r.name||'',color:r.color||''};
   if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {code:r.id,name:r.name||''};
@@ -833,6 +858,12 @@ function _rtApply(tbl, action, row){
       _enrichCU();
       _refreshCurrentUserUI();
     }
+    // The realtime payload for hrms_employees carries salary_day=0 from
+    // the public table (stripped by the lockdown migration). Re-merge from
+    // the salary cache so this row keeps showing the real numbers.
+    if(tbl==='hrmsEmployees'&&typeof _hrmsSalaryApplyToMemory==='function'){
+      try{ _hrmsSalaryApplyToMemory(); }catch(e){ console.warn('salary re-apply after RT upsert failed:',e.message); }
+    }
   } else if(action==='delete'){
     // payload.old.code exists when REPLICA IDENTITY FULL is set (preferred)
     // payload.old.id is the integer PK (always present but not the JS string id)
@@ -1059,6 +1090,337 @@ function _hwmsAuthArgs(){
   if(!u||!t) return null;
   return {u:u, t:t};
 }
+// HRMS uses the same session-token gate; alias kept distinct so future
+// HRMS RPCs read naturally.
+function _hrmsAuthArgs(){ return _hwmsAuthArgs(); }
+
+// ─── HRMS Salary lockdown (supabase_hrms_salary_lockdown.sql) ──────────────
+// Salary fields (salaryDay / salaryMonth / specialAllowance) on hrms_employees
+// are stripped before save and merged back in from the locked-down
+// hrms_employee_salary table on read. Access is split across four perms:
+//   page.viewStaffSalary / page.editStaffSalary
+//   page.viewWorkerSalary / page.editWorkerSalary
+// Super Admin / HRMS Admin always have all four. The server-side RPC filters
+// rows by emp.category so an HR Staff role won't see Worker comp and v.v.
+var _hrmsSalaryCache={};         // {empId:{salaryDay,salaryMonth,periodMap,monthMap}}
+var _hrmsSalaryAccess='unloaded';// 'unloaded' | 'ok' | 'denied'  — denied = no view perm at all
+
+// Returns true when the emp's category contains 'staff' (case-insensitive).
+// Mirrors _hrmsUpdEmpIsStaff / the Staff/Worker split used everywhere else.
+function _hrmsIsStaffEmp(emp){
+  return !!(emp&&String(emp.category||'').toLowerCase().indexOf('staff')>=0);
+}
+
+// True when the emp is in the masked subset — On-Roll category=Staff. Worker
+// emps and non-On-Roll Staff (Contract / Piece Rate) aren't masked because
+// they're paid by sal/day, which is never hidden.
+function _hrmsIsOnRollStaff(emp){
+  if(!emp) return false;
+  if(!_hrmsIsStaffEmp(emp)) return false;
+  // employmentType lives on the active period (preferred) and falls back to
+  // the flat field for older records.
+  var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var et=String(((ap&&ap.employmentType)||emp.employmentType||'')).toLowerCase().replace(/\s+/g,'');
+  return et==='onroll';
+}
+
+// Classify an emp / period / snapshot into one of four salary-visibility
+// buckets. Each bucket is gated independently in Access Management → HRMS
+// → 🔒 Salary Visibility. Falls back to 'other' for rows we don't
+// recognise — those rows are not masked.
+//   onrollStaff    — employmentType=On Roll  + category contains "staff"
+//   onrollWorker   — employmentType=On Roll  + otherwise
+//   contractStaff  — employmentType=Contract/Piece Rate + category staff
+//   contractWorker — employmentType=Contract/Piece Rate + otherwise
+function _hrmsSalaryBucket(obj){
+  if(!obj) return 'other';
+  var c=String(obj.category||'').toLowerCase();
+  var e=String(obj.employmentType||'').toLowerCase().replace(/\s+/g,'');
+  var isStaff=c.indexOf('staff')>=0;
+  if(e==='onroll')                    return isStaff?'onrollStaff':'onrollWorker';
+  if(e==='contract'||e==='piecerate') return isStaff?'contractStaff':'contractWorker';
+  return 'other';
+}
+
+// True when the caller is allowed to see salary numbers for this row.
+// UI calls this once per emp / period / snapshot and uses the result to
+// gate sal/day, sal/mon, Sp Allow and Gross display together.
+//
+// Bucket names are lowercase-first (onrollStaff, contractWorker) but the
+// permission keys carry the original CamelCase from _PERM_KEYS — naive
+// charAt(0).toUpperCase() would turn 'onrollStaff' into 'OnrollStaff'
+// and miss the saved 'OnRollStaff' grant. Hardcoded mapping keeps the
+// case in sync.
+var _HRMS_SALARY_PERM_KEYS={
+  onrollStaff:    'salary.showOnRollStaff',
+  onrollWorker:   'salary.showOnRollWorker',
+  contractStaff:  'salary.showContractStaff',
+  contractWorker: 'salary.showContractWorker'
+};
+function _hrmsCanShowSalary(obj){
+  var bucket=_hrmsSalaryBucket(obj);
+  if(bucket==='other') return true;
+  var key=_HRMS_SALARY_PERM_KEYS[bucket];
+  if(!key) return true;
+  return !!(typeof _hrmsHasAccess==='function'&&_hrmsHasAccess(key));
+}
+
+// Returns the displayable salary value. Field-name kept for back-compat
+// (salaryDay / salaryMonth / specialAllowance) — under the new gate, all
+// three are governed by the same bucket-level perm, so we just consult
+// _hrmsCanShowSalary.
+function _hrmsSalaryDisplay(field, val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
+function _hrmsSalMonDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
+function _hrmsSpAllowDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
+function _hrmsSalDayDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
+
+// Back-compat shims for older call sites. Both accept an optional emp /
+// snapshot — when supplied, they route through the bucket gate; when
+// missing, they fall back to a best-effort check of the matching bucket.
+function _hrmsCanViewOnRollStaffDetails(emp){
+  if(emp) return _hrmsCanShowSalary(emp);
+  return !!(typeof _hrmsHasAccess==='function'&&_hrmsHasAccess('salary.showOnRollStaff'));
+}
+function _hrmsCanViewWorkerSalDay(emp){
+  if(emp) return _hrmsCanShowSalary(emp);
+  return !!(typeof _hrmsHasAccess==='function'&&(
+    _hrmsHasAccess('salary.showOnRollWorker')||
+    _hrmsHasAccess('salary.showContractWorker')));
+}
+
+// True for any Worker-category emp (or any Contract / Piece Rate emp,
+// regardless of category). Used by legacy call sites to decide whether
+// to apply sal/day masking — modern sites use _hrmsCanShowSalary direct.
+function _hrmsIsWorkerEmp(emp){
+  if(!emp) return false;
+  if(String(emp.category||'').toLowerCase().indexOf('worker')>=0) return true;
+  var et=String(emp.employmentType||'').toLowerCase().replace(/\s+/g,'');
+  return et==='contract'||et==='piecerate';
+}
+
+// Pull every salary row the caller is authorized for and merge onto the
+// already-loaded employees array (DB.hrmsEmployees). Idempotent. Returns
+// 'ok' | 'denied' | 'error'.
+async function _hrmsSalaryFetchAll(){
+  if(!_sb){return 'error';}
+  var auth=_hrmsAuthArgs();
+  if(!auth){_hrmsSalaryAccess='denied';_hrmsSalaryStripFromMemory();return 'denied';}
+  try{
+    var res=await _sb.rpc('hrms_salary_read',{p_username:auth.u,p_token:auth.t});
+    if(res&&res.error){
+      if(_isInvalidSessionErr(res.error)){
+        var ok=await _promptReauth();
+        if(!ok){_hrmsSalaryAccess='denied';_hrmsSalaryStripFromMemory();return 'denied';}
+        auth=_hrmsAuthArgs();
+        if(!auth){_hrmsSalaryAccess='denied';return 'denied';}
+        res=await _sb.rpc('hrms_salary_read',{p_username:auth.u,p_token:auth.t});
+      }
+      if(res&&res.error){
+        var em=(res.error.message||'').toLowerCase();
+        if(res.error.code==='42501'||em.indexOf('no salary access')>=0||em.indexOf('insufficient_privilege')>=0){
+          _hrmsSalaryAccess='denied';
+          _hrmsSalaryStripFromMemory();
+          return 'denied';
+        }
+        console.warn('hrms_salary_read error:',res.error.message);
+        return 'error';
+      }
+    }
+    _hrmsSalaryCache={};
+    var rows=Array.isArray(res.data)?res.data:[];
+    rows.forEach(function(r){
+      if(!r||!r.emp_id) return;
+      var pMap={},mMap={};
+      var x=r.salary_extras||{};
+      var periods=Array.isArray(x.periods)?x.periods:[];
+      periods.forEach(function(p){
+        if(!p||p.idx==null) return;
+        pMap[+p.idx]={salaryDay:+p.salaryDay||0,salaryMonth:+p.salaryMonth||0,specialAllowance:+p.specialAllowance||0};
+      });
+      var months=(x.months&&typeof x.months==='object')?x.months:{};
+      Object.keys(months).forEach(function(mk){
+        var v=months[mk]||{};
+        mMap[mk]={salaryDay:+v.salaryDay||0,salaryMonth:+v.salaryMonth||0,specialAllowance:+v.specialAllowance||0};
+      });
+      _hrmsSalaryCache[r.emp_id]={
+        salaryDay:+r.salary_day||0,
+        salaryMonth:+r.salary_month||0,
+        periodMap:pMap,monthMap:mMap
+      };
+    });
+    _hrmsSalaryAccess='ok';
+    _hrmsSalaryApplyToMemory();
+    return 'ok';
+  }catch(e){
+    console.warn('_hrmsSalaryFetchAll exception:',e.message);
+    return 'error';
+  }
+}
+
+// Merge _hrmsSalaryCache → DB.hrmsEmployees. Emps WITH a cache row get the
+// cached numbers; emps WITHOUT a cache row get salary stripped (the RPC
+// already filtered by category, so a missing row means the caller can't view
+// that emp's category).
+function _hrmsSalaryApplyToMemory(){
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  emps.forEach(function(e){
+    if(!e||!e.id) return;
+    var s=_hrmsSalaryCache[e.id];
+    if(s){
+      e.salaryDay=s.salaryDay;
+      e.salaryMonth=s.salaryMonth;
+      if(Array.isArray(e.periods)){
+        e.periods.forEach(function(p,i){
+          var pv=s.periodMap[i];if(!pv||!p) return;
+          p.salaryDay=pv.salaryDay;p.salaryMonth=pv.salaryMonth;
+          if(pv.specialAllowance) p.specialAllowance=pv.specialAllowance;
+        });
+      }
+      if(e.salaryMonths&&typeof e.salaryMonths==='object'){
+        Object.keys(e.salaryMonths).forEach(function(mk){
+          var mv=s.monthMap[mk];if(!mv) return;
+          var sm=e.salaryMonths[mk];if(!sm) return;
+          sm.salaryDay=mv.salaryDay;sm.salaryMonth=mv.salaryMonth;
+          if(mv.specialAllowance) sm.specialAllowance=mv.specialAllowance;
+        });
+      }
+    } else {
+      // RPC didn't return a row for this emp — caller lacks view perm for
+      // its category. Scrub any leftover salary that might've come from the
+      // legacy public column so the UI shows 0/'—' uniformly.
+      e.salaryDay=0;e.salaryMonth=0;
+      if(Array.isArray(e.periods)) e.periods.forEach(function(p){if(p){delete p.salaryDay;delete p.salaryMonth;delete p.specialAllowance;}});
+      if(e.salaryMonths&&typeof e.salaryMonths==='object'){
+        Object.keys(e.salaryMonths).forEach(function(mk){var sm=e.salaryMonths[mk];if(sm){delete sm.salaryDay;delete sm.salaryMonth;delete sm.specialAllowance;}});
+      }
+    }
+  });
+}
+
+// Unauthorized callers — scrub salary keys from in-memory DB so UI never
+// shows leftover values from the public row (still present pre-migration).
+function _hrmsSalaryStripFromMemory(){
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  emps.forEach(function(e){
+    if(!e) return;
+    e.salaryDay=0;e.salaryMonth=0;
+    if(Array.isArray(e.periods)) e.periods.forEach(function(p){if(p){delete p.salaryDay;delete p.salaryMonth;delete p.specialAllowance;}});
+    if(e.salaryMonths&&typeof e.salaryMonths==='object'){
+      Object.keys(e.salaryMonths).forEach(function(mk){var s=e.salaryMonths[mk];if(s){delete s.salaryDay;delete s.salaryMonth;delete s.specialAllowance;}});
+    }
+  });
+}
+
+// Build the {emp_id, salary_day, salary_month, salary_extras:{periods,months}}
+// payload for the salary RPCs from an in-memory emp.
+function _hrmsSalaryPayload(emp){
+  if(!emp||!emp.id) return null;
+  var periods=[];
+  (emp.periods||[]).forEach(function(p,i){
+    if(!p) return;
+    if(p.salaryDay==null&&p.salaryMonth==null&&p.specialAllowance==null) return;
+    var entry={idx:i};
+    if(p.salaryDay!=null) entry.salaryDay=+p.salaryDay||0;
+    if(p.salaryMonth!=null) entry.salaryMonth=+p.salaryMonth||0;
+    if(p.specialAllowance!=null) entry.specialAllowance=+p.specialAllowance||0;
+    periods.push(entry);
+  });
+  var months={};
+  if(emp.salaryMonths&&typeof emp.salaryMonths==='object'){
+    Object.keys(emp.salaryMonths).forEach(function(mk){
+      var s=emp.salaryMonths[mk];if(!s) return;
+      if(s.salaryDay==null&&s.salaryMonth==null&&s.specialAllowance==null) return;
+      var entry={};
+      if(s.salaryDay!=null) entry.salaryDay=+s.salaryDay||0;
+      if(s.salaryMonth!=null) entry.salaryMonth=+s.salaryMonth||0;
+      if(s.specialAllowance!=null) entry.specialAllowance=+s.specialAllowance||0;
+      months[mk]=entry;
+    });
+  }
+  return {
+    emp_id:emp.id,
+    salary_day:+emp.salaryDay||0,
+    salary_month:+emp.salaryMonth||0,
+    salary_extras:{periods:periods,months:months}
+  };
+}
+
+async function _hrmsSalaryUpsertOne(emp){
+  if(_hrmsSalaryAccess==='denied') return false;// silently skip — user lacks access
+  if(!_sb) return false;
+  var payload=_hrmsSalaryPayload(emp);if(!payload) return false;
+  var auth=_hrmsAuthArgs();if(!auth) return false;
+  try{
+    var res=await _sb.rpc('hrms_salary_upsert',{p_username:auth.u,p_token:auth.t,p_row:payload});
+    if(res&&res.error){
+      if(_isInvalidSessionErr(res.error)){
+        var ok=await _promptReauth();if(!ok) return false;
+        auth=_hrmsAuthArgs();if(!auth) return false;
+        res=await _sb.rpc('hrms_salary_upsert',{p_username:auth.u,p_token:auth.t,p_row:payload});
+      }
+      if(res&&res.error){
+        if(res.error.code==='42501'){_hrmsSalaryAccess='denied';return false;}
+        console.warn('hrms_salary_upsert error:',res.error.message);return false;
+      }
+    }
+    // Refresh local cache so subsequent reads see what was just persisted.
+    var pMap={},mMap={};
+    payload.salary_extras.periods.forEach(function(p){pMap[+p.idx]={salaryDay:+p.salaryDay||0,salaryMonth:+p.salaryMonth||0,specialAllowance:+p.specialAllowance||0};});
+    Object.keys(payload.salary_extras.months).forEach(function(mk){var v=payload.salary_extras.months[mk];mMap[mk]={salaryDay:+v.salaryDay||0,salaryMonth:+v.salaryMonth||0,specialAllowance:+v.specialAllowance||0};});
+    _hrmsSalaryCache[emp.id]={salaryDay:payload.salary_day,salaryMonth:payload.salary_month,periodMap:pMap,monthMap:mMap};
+    return true;
+  }catch(e){console.warn('_hrmsSalaryUpsertOne exception:',e.message);return false;}
+}
+
+async function _hrmsSalaryUpsertManyEmps(emps){
+  if(!emps||!emps.length||_hrmsSalaryAccess==='denied') return 0;
+  if(!_sb) return 0;
+  var payloads=emps.map(_hrmsSalaryPayload).filter(Boolean);
+  if(!payloads.length) return 0;
+  var auth=_hrmsAuthArgs();if(!auth) return 0;
+  var saved=0,batchSize=50;
+  for(var i=0;i<payloads.length;i+=batchSize){
+    var batch=payloads.slice(i,i+batchSize);
+    try{
+      var res=await _sb.rpc('hrms_salary_upsert_bulk',{p_username:auth.u,p_token:auth.t,p_rows:batch});
+      if(res&&res.error){
+        if(_isInvalidSessionErr(res.error)){
+          var ok=await _promptReauth();if(!ok) break;
+          auth=_hrmsAuthArgs();if(!auth) break;
+          res=await _sb.rpc('hrms_salary_upsert_bulk',{p_username:auth.u,p_token:auth.t,p_rows:batch});
+        }
+        if(res&&res.error){
+          if(res.error.code==='42501'){_hrmsSalaryAccess='denied';break;}
+          console.warn('hrms_salary_upsert_bulk error:',res.error.message);break;
+        }
+      }
+      saved+=batch.length;
+      // Mirror into local cache.
+      batch.forEach(function(p){
+        var pMap={},mMap={};
+        (p.salary_extras&&p.salary_extras.periods||[]).forEach(function(pp){pMap[+pp.idx]={salaryDay:+pp.salaryDay||0,salaryMonth:+pp.salaryMonth||0,specialAllowance:+pp.specialAllowance||0};});
+        Object.keys((p.salary_extras&&p.salary_extras.months)||{}).forEach(function(mk){var v=p.salary_extras.months[mk];mMap[mk]={salaryDay:+v.salaryDay||0,salaryMonth:+v.salaryMonth||0,specialAllowance:+v.specialAllowance||0};});
+        _hrmsSalaryCache[p.emp_id]={salaryDay:p.salary_day,salaryMonth:p.salary_month,periodMap:pMap,monthMap:mMap};
+      });
+    }catch(e){console.warn('_hrmsSalaryUpsertManyEmps exception:',e.message);break;}
+  }
+  return saved;
+}
+
+async function _hrmsSalaryDelete(empId){
+  if(_hrmsSalaryAccess==='denied') return false;
+  if(!_sb||!empId) return false;
+  var auth=_hrmsAuthArgs();if(!auth) return false;
+  try{
+    var res=await _sb.rpc('hrms_salary_delete',{p_username:auth.u,p_token:auth.t,p_emp_id:empId});
+    if(res&&res.error){
+      if(res.error.code==='42501'){_hrmsSalaryAccess='denied';return false;}
+      console.warn('hrms_salary_delete error:',res.error.message);return false;
+    }
+    delete _hrmsSalaryCache[empId];
+    return true;
+  }catch(e){console.warn('_hrmsSalaryDelete exception:',e.message);return false;}
+}
 
 // ── Re-auth modal — invoked when an HWMS RPC returns "Invalid session" so
 // the user can refresh their token without logging out & losing context.
@@ -1184,6 +1546,13 @@ async function _dbSave(tbl, record){
   if(!DB[tbl]) DB[tbl] = [];
   const idx = DB[tbl].findIndex(r => r.id === record.id);
   if(idx >= 0) DB[tbl][idx] = record; else DB[tbl].push(record);
+  // Shadow-write salary into the locked-down hrms_employee_salary table.
+  // Fire-and-forget — failure is logged but doesn't fail the emp save. The
+  // public row was already scrubbed by _toRow so a missed shadow just means
+  // stale numbers in the salary table; the next save catches up.
+  if(tbl==='hrmsEmployees'&&typeof _hrmsSalaryUpsertOne==='function'){
+    try{ await _hrmsSalaryUpsertOne(record); }catch(e){ console.warn('salary shadow upsert failed:',e.message); }
+  }
   _sbSetStatus('ok');
   return true;
   }finally{ hideSpinner(); }
@@ -1324,6 +1693,11 @@ async function _dbSaveBulk(tbl, records, progressLabel){
     if(idx>=0)DB[tbl][idx]=r;else DB[tbl].push(r);
   });
   if(saved)_sbSetStatus('ok');
+  // Shadow-write salary in bulk after the public bulk-save settles. Same
+  // fire-and-forget posture as _dbSave's single-row path.
+  if(tbl==='hrmsEmployees'&&saved&&typeof _hrmsSalaryUpsertManyEmps==='function'){
+    try{ await _hrmsSalaryUpsertManyEmps(records); }catch(e){ console.warn('salary bulk shadow failed:',e.message); }
+  }
   if(progressLabel&&typeof clearSpinnerProgress==='function') clearSpinnerProgress();
   return saved;
 }
@@ -1395,6 +1769,10 @@ async function _dbDel(tbl, id){
     }
   }
   if(DB[tbl]) DB[tbl] = DB[tbl].filter(r => r.id !== id);
+  // Shadow-delete the salary row so the locked table doesn't grow orphans.
+  if(tbl==='hrmsEmployees'&&typeof _hrmsSalaryDelete==='function'){
+    try{ await _hrmsSalaryDelete(id); }catch(e){ console.warn('salary shadow delete failed:',e.message); }
+  }
   _sbSetStatus('ok');
   return true;
   }finally{ hideSpinner(); }
@@ -1604,13 +1982,22 @@ function _bgSyncFromSupabase(){
     return {tbl, rows: data||[]};
   })).then(results=>{
     if(!results) return;
+    var _hrmsEmpsRefreshed=false;
     results.filter(Boolean).forEach(({tbl,rows})=>{
       var _parsed=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
       // Preserve on-demand-loaded step photos for segments before merge
       if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
       if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
       else DB[tbl]=_parsed;
+      if(tbl==='hrmsEmployees') _hrmsEmpsRefreshed=true;
     });
+    // The public hrms_employees table carries salary_day=0 / salary_month=0
+    // after the lockdown migration. Whenever bgSync refreshes that table it
+    // would clobber the salary numbers the RPC had merged on boot. Re-apply
+    // from the salary cache so authorized users keep seeing real numbers.
+    if(_hrmsEmpsRefreshed&&typeof _hrmsSalaryApplyToMemory==='function'){
+      try{ _hrmsSalaryApplyToMemory(); }catch(e){ console.warn('salary re-apply after bgSync failed:',e.message); }
+    }
     console.log('bgSync: full — '+_getActiveTables().length+' tables, users='+(DB.users||[]).length);
     _bgSyncDone=true;
     // Always set status to 'ok' after a successful sync — especially important when
@@ -1777,9 +2164,22 @@ function _permModuleUserRoles(mod){
   if(typeof CU==='undefined'||!CU) return [];
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return [];
   var all=CU[field]||[];
-  var allow=_PERM_MODULE_ROLES[mod];
-  if(!allow) return all.slice();
-  return all.filter(function(r){return allow.indexOf(r)>=0;});
+  // Custom roles added via Configure Access live in CU[field] (e.g.
+  // CU.hrmsRoles) but aren't in the built-in _PERM_MODULE_ROLES whitelist.
+  // We must still honour them — filter out only roles that are built-in
+  // to a DIFFERENT module so VMS roles can't leak into HRMS.
+  var modList=_PERM_MODULE_ROLES[mod]||[];
+  return all.filter(function(r){
+    if(!r) return false;
+    if(modList.indexOf(r)>=0) return true;// built-in here
+    // Custom role unless it's built into another module.
+    var keys=Object.keys(_PERM_MODULE_ROLES||{});
+    for(var i=0;i<keys.length;i++){
+      if(keys[i]===mod) continue;
+      if(_PERM_MODULE_ROLES[keys[i]].indexOf(r)>=0) return false;
+    }
+    return true;
+  });
 }
 var _PERM_KEYS={
   HRMS:[
@@ -1820,8 +2220,6 @@ var _PERM_KEYS={
     {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'⚙️ Settings & Data'},
     {key:'settings.statutory',label:'Statutory (sub-tab)',group:'⚙️ Settings & Data'},
     {key:'action.editStatutory',label:'✏️ Edit Statutory Rules',group:'⚙️ Settings & Data'},
-    {key:'settings.otrules',label:'OT Rules (legacy sub-tab, inside Statutory)',group:'⚙️ Settings & Data'},
-    {key:'action.editOtRules',label:'✏️ Edit OT Rules',group:'⚙️ Settings & Data'},
 
     // Monthly Attendance & Salary → main tab "📅 Attendance" + sub-tabs
     {key:'tab.attendance',label:'📅 Attendance (main tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
@@ -1829,7 +2227,6 @@ var _PERM_KEYS={
     {key:'att.pot',label:'P & OT (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'att.summary',label:'Summary (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'action.exportAttendance',label:'📤 Export Attendance',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.alteration',label:'All Alterations & C-off (sub-tab, hidden in UI)',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'action.approveAlt',label:'Approve Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'action.rejectAlt',label:'Reject Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'att.entry',label:'New Joinee/Rejoinee (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
@@ -1839,6 +2236,15 @@ var _PERM_KEYS={
     {key:'att.coff',label:'C-Off Requests (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'att.altRequest',label:'Submit Alteration Request (My Attendance)',group:'📅 Attendance (main tab) & Sub-tabs'},
     {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📅 Attendance (main tab) & Sub-tabs'},
+
+    // Salary Visibility — four independent buckets. Tri-state: None = Hide
+    // (shown as XXX), View / Full = Show actual numbers. Each bucket gates
+    // sal/day, sal/mon, Sp Allow, and Gross for that employmentType+category
+    // combination. Super Admin / HRMS Admin bypass.
+    {key:'salary.showOnRollStaff',   label:'👤 On-Roll Staff — Show salary (None = Hide as XXX)',   group:'🔒 Salary Visibility'},
+    {key:'salary.showOnRollWorker',  label:'👷 On-Roll Worker — Show salary (None = Hide as XXX)',  group:'🔒 Salary Visibility'},
+    {key:'salary.showContractStaff', label:'🤝 Contract Staff — Show salary (None = Hide as XXX)',  group:'🔒 Salary Visibility'},
+    {key:'salary.showContractWorker',label:'🛠 Contract Worker — Show salary (None = Hide as XXX)', group:'🔒 Salary Visibility'},
 
     // Monthly Attendance & Salary → other main tabs
     {key:'tab.salary',label:'💰 KAP Salary (main tab)',group:'💰 KAP Salary (main tab)'},
@@ -1884,15 +2290,12 @@ var _PERM_KEYS={
     {key:'page.masterSubDept',label:'📁 Departments (Staff)',group:'📂 Masters'},
     {key:'page.masterDesig',label:'🎖 Designation',group:'📂 Masters'},
     {key:'page.masterRoll',label:'🪪 Role',group:'📂 Masters'},
-    {key:'page.masterAllocation',label:'Allocation (legacy — replaced by Manpower Allocation Settings modal)',group:'📂 Masters'},
     {key:'masters.edit',label:'✏️ Edit Masters',group:'📂 Masters'},
 
     // Sidebar — 🛠 Utilities (collapsible group)
     {key:'page.utilities',label:'🛠 Utilities (sidebar menu)',group:'🛠 Utilities'},
     {key:'page.utilAttConv',label:'📗 Attendance Excel Converter',group:'🛠 Utilities'},
-    {key:'page.utilUpdateEmp',label:'✏️ Update Employee',group:'🛠 Utilities'},
-    {key:'page.utilMonthlyHc',label:'📈 Monthly Headcount Graph (legacy — now embedded on Dashboard)',group:'🛠 Utilities'},
-    {key:'page.utilContractFromFix',label:'Contract From-Month Fix (legacy)',group:'🛠 Utilities'}
+    {key:'page.utilUpdateEmp',label:'✏️ Update Employee',group:'🛠 Utilities'}
   ],
   VMS:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -2014,9 +2417,12 @@ var _PERM_UMBRELLA={
   HRMS:{
     'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
                    'action.addMonth','action.saveLock','action.unlock'],
-    'page.masters':['page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
-                    'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','page.masterAllocation','masters.edit'],
-    'page.utilities':['page.utilAttConv','page.utilDailyAttSum','page.utilMonthlyHc','page.utilUpdateEmp']
+    'page.masters':['page.employees','page.orgStructure','page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
+                    'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','masters.edit'],
+    'page.utilities':['page.utilAttConv','page.utilUpdateEmp'],
+    // Day-wise Attendance is a sidebar collapsible — its parent menu
+    // (page.utilDailyAttSum) auto-derives from the sub-page perms.
+    'page.utilDailyAttSum':['page.plantwiseAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.alloc','tab.das.rolegrouping']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
@@ -2047,7 +2453,6 @@ var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'
 // permission is configured — admins can still revoke via Configure Access.
 var _PERM_DEFAULTS_FULL={
   HRMS:{
-    'page.masterAllocation':['HR Manager'],
     'action.addPrintFormat':['HR Manager'],
     // Contractor Supervisor — single-purpose role: only the Update
     // Employee utility page (and its umbrella). Everything else under

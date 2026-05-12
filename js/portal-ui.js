@@ -313,7 +313,11 @@ const APP_ACTIVE={vms:true,hwms:true,security:true,maintenance:true,review:false
 // ═══ PORTAL VIEW / APP GRID ══════════════════════════════════════════════
 function showPortal(){
   document.getElementById('loginPage').style.display='none';
-  document.getElementById('portalPage').style.display='block';
+  var _pp=document.getElementById('portalPage');
+  _pp.style.display='block';
+  // Sidebar visible by default on desktop. Mobile keeps its slide-in
+  // behaviour — the .open class is added/removed via the hamburger.
+  _pp.classList.remove('portal-sb-hidden');
   // Pre-fetch ALL tables in background so app opens instantly
   _portalPreFetchAll();
   // Retry pre-fetch after 2s if Supabase wasn't ready
@@ -373,7 +377,10 @@ function showTab(tab){
   document.getElementById('usersSection').style.display=tab==='users'?'flex':'none';
   document.getElementById('profileSection').style.display=tab==='profile'?'block':'none';
   var permSec=document.getElementById('permissionsSection');
-  if(permSec) permSec.style.display=tab==='permissions'?'block':'none';
+  // Use display:flex on the permissions tab so the body.tab-permissions
+  // flex chain engages — inline display:block has higher specificity
+  // than the CSS rule and would otherwise hide the chain.
+  if(permSec) permSec.style.display=tab==='permissions'?'flex':'none';
   document.getElementById('dbStorageSection').style.display=tab==='dbstorage'?'block':'none';
   // Sidebar nav highlighting
   document.querySelectorAll('.ps-nav').forEach(n=>n.classList.remove('active'));
@@ -392,33 +399,49 @@ function showTab(tab){
   if(tab==='users'&&!_canUsers){showTab('apps');return;}
   if(tab==='permissions'&&!_isSA){showTab('apps');return;}
   if(tab==='dbstorage'&&!_canDb){showTab('apps');return;}
-  // Toggle body.tab-users so the fixed-header layout (CSS) only applies on
-  // the users tab — other tabs keep their normal page-scroll behaviour.
-  // #portalPage carries an inline display:block from the login flow that
-  // would otherwise override the CSS flex layout, so flip it here.
+  // Users tab AND permissions tab both use a viewport-locked, contained-
+  // scroll layout. Body classes drive the CSS flex chain.
   document.body.classList.toggle('tab-users',tab==='users');
+  document.body.classList.toggle('tab-permissions',tab==='permissions');
   var _pp=document.getElementById('portalPage');
-  if(_pp) _pp.style.display=(tab==='users')?'flex':'block';
-  // Set the welcome heading + subtitle to match the active menu page —
-  // the "Welcome … select an application" line only shows on the Apps
-  // page; every other page shows its own title.
+  if(_pp) _pp.style.display=(tab==='users'||tab==='permissions')?'flex':'block';
+  // Page title routing:
+  //   Apps    → topbar empty, welcome heading on the page itself.
+  //   others  → topbar shows the page title, welcome heading hidden.
+  //   permissions → topbar shows the live Module · Role (handled by
+  //                 _permUpdateTitleBar after this block).
   var _wm=document.getElementById('welcomeMsg');
   var _ws=document.getElementById('welcomeSub');
+  var _tw=document.getElementById('portalWelcomeWrap')||document.querySelector('.portal-welcome');
+  var _ctxLbl=document.getElementById('portalTopbarContext');
   var _tabHeads={
     apps:        {h:CU?('Welcome, '+(CU.fullName||CU.name)):'Welcome', s:'Select an application to get started'},
-    users:       {h:'User Management',  s:'Manage users, app access and roles'},
-    profile:     {h:'My Profile',       s:'Update your account details'},
-    permissions: {h:'Access Management', s:'Role-based permissions per app'},
-    dbstorage:   {h:'DB Storage',       s:'Database tables and storage usage'}
+    users:       {h:'👥 User Management',  s:'Manage users, app access and roles'},
+    profile:     {h:'👤 My Profile',       s:'Update your account details'},
+    permissions: {h:'🔐 Access Management', s:''},
+    dbstorage:   {h:'📊 DB Storage',       s:'Database tables and storage usage'}
   };
   var _th=_tabHeads[tab]||_tabHeads.apps;
-  if(_wm) _wm.textContent=_th.h;
-  if(_ws) _ws.textContent=_th.s;
+  if(tab==='apps'){
+    if(_tw) _tw.style.display='';
+    if(_wm) _wm.textContent=_th.h;
+    if(_ws) _ws.textContent=_th.s;
+    if(_ctxLbl){ _ctxLbl.textContent=''; _ctxLbl.style.display='none'; }
+  } else {
+    if(_tw) _tw.style.display='none';
+    if(_ctxLbl){ _ctxLbl.textContent=_th.h; _ctxLbl.style.display='inline-block'; }
+  }
   if(tab==='users') renderPortalUsers();
   if(tab==='profile') ppLoadProfile();
   if(tab==='permissions') renderPermissions();
   if(tab==='dbstorage') renderPortalDbStorage();
 }
+
+// Title bar for Access Management is fixed at "🔐 Access Management" —
+// the live "Module · Role" context used to live here, but that confused
+// the page-title contract. Kept as a no-op so existing call sites don't
+// break.
+function _permUpdateTitleBar(){}
 
 // ── Background pre-fetch ALL tables so app opens fast ───────────────────────
 var _portalPreFetchDone=false;
@@ -1179,13 +1202,16 @@ function puOpenModal(id){
   } else if(platBoxes){
     platBoxes.innerHTML='';
   }
-  // VMS roles — Super Admin no longer appears here (it's a Platform role).
-  const vr=ROLES.filter(r=>r!=='Super Admin');
+  // Role lists — source from the Configure Access ordering so custom roles
+  // added there automatically show up here, and the sequence matches.
+  const vr=(typeof _permGetOrderedRoles==='function')?_permGetOrderedRoles('VMS'):ROLES.filter(r=>r!=='Super Admin');
+  const hwr=(typeof _permGetOrderedRoles==='function')?_permGetOrderedRoles('HWMS'):(HWMS_ROLES||[]);
+  const hrr=(typeof _permGetOrderedRoles==='function')?_permGetOrderedRoles('HRMS'):((typeof HRMS_ROLES!=='undefined')?HRMS_ROLES:[]);
+  const mtr=(typeof _permGetOrderedRoles==='function')?_permGetOrderedRoles('MTTS'):((typeof MTTS_ROLES!=='undefined')?MTTS_ROLES:[]);
   document.getElementById('muVmsBoxes').innerHTML=vr.map(r=>{const c=(u?.roles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:var(--surface2);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--accent)':'var(--border)'}"><input type="checkbox" class="muVmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
-  // HWMS roles
-  document.getElementById('muHwmsBoxes').innerHTML=HWMS_ROLES.map(r=>{const c=(u?.hwmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(139,92,246,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--purple)':'rgba(139,92,246,.25)'}"><input type="checkbox" class="muHwmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
-  document.getElementById('muHrmsBoxes').innerHTML=(typeof HRMS_ROLES!=='undefined'?HRMS_ROLES:[]).map(r=>{const c=(u?.hrmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(34,197,94,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#16a34a':'rgba(34,197,94,.25)'}"><input type="checkbox" class="muHrmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
-  document.getElementById('muMttsBoxes').innerHTML=(typeof MTTS_ROLES!=='undefined'?MTTS_ROLES:[]).map(r=>{const c=(u?.mttsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(245,158,11,.07);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#d97706':'rgba(245,158,11,.25)'}"><input type="checkbox" class="muMttsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
+  document.getElementById('muHwmsBoxes').innerHTML=hwr.map(r=>{const c=(u?.hwmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(139,92,246,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--purple)':'rgba(139,92,246,.25)'}"><input type="checkbox" class="muHwmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
+  document.getElementById('muHrmsBoxes').innerHTML=hrr.map(r=>{const c=(u?.hrmsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(34,197,94,.06);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#16a34a':'rgba(34,197,94,.25)'}"><input type="checkbox" class="muHrmsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
+  document.getElementById('muMttsBoxes').innerHTML=mtr.map(r=>{const c=(u?.mttsRoles||[]).includes(r);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:rgba(245,158,11,.07);padding:4px 10px;border-radius:5px;border:1px solid ${c?'#d97706':'rgba(245,158,11,.25)'}"><input type="checkbox" class="muMttsCb" value="${r}" ${c?'checked':''} style="width:auto"> ${r}</label>`}).join('');
   document.getElementById('muVmsRoles').style.display=ua.includes('vms')?'block':'none';
   document.getElementById('muHwmsRoles').style.display=ua.includes('hwms')?'block':'none';
   document.getElementById('muHrmsRoles').style.display=ua.includes('hrms')?'block':'none';
@@ -1678,28 +1704,52 @@ function _permModuleData(mod){
   if(!all[mod]) all[mod]={roles:[],permissions:{}};
   var md=all[mod];
   // Auto-merge: ensure all default/constant roles exist in the saved list
+  // — except defaults the admin has explicitly deleted (md.deletedDefaults).
+  // Without that exception, deleting "Read Only" would silently come back on
+  // the next render.
   var defaults=_permGetDefaultRoles(mod);
-  defaults.forEach(function(r){if(md.roles.indexOf(r)<0) md.roles.push(r);});
+  var deletedDefaults=(md.deletedDefaults||[]);
+  defaults.forEach(function(r){
+    if(deletedDefaults.indexOf(r)>=0) return;
+    if(md.roles.indexOf(r)<0) md.roles.push(r);
+  });
   // Also scan users for any custom roles assigned but not yet in the role list.
-  // Filter by _PERM_MODULE_ROLES so modules that share a user field (VMS and
-  // Security both use user.roles) don't leak each other's roles into the
-  // Role Settings editor.
+  // _belongsToAnotherModule blocks ONLY roles that are built into a *different*
+  // module — custom roles (added via "+ Add" in this editor) pass through.
   var field=_PERM_ROLE_FIELDS[mod];
   var allow=(typeof _PERM_MODULE_ROLES!=='undefined')&&_PERM_MODULE_ROLES[mod];
+  var _belongsToAnotherModule=function(r){
+    if(typeof _PERM_MODULE_ROLES==='undefined') return false;
+    if(allow&&allow.indexOf(r)>=0) return false; // already in this module's defaults
+    var mods=Object.keys(_PERM_MODULE_ROLES);
+    for(var i=0;i<mods.length;i++){
+      if(mods[i]===mod) continue;
+      if(_PERM_MODULE_ROLES[mods[i]].indexOf(r)>=0) return true;
+    }
+    return false;
+  };
   if(field){
     (DB.users||[]).forEach(function(u){
       var userRoles=u[field]||[];
       userRoles.forEach(function(r){
         if(!r||md.roles.indexOf(r)>=0) return;
-        if(allow&&allow.indexOf(r)<0) return;
+        if(_belongsToAnotherModule(r)) return;
+        // If this role is a built-in default that the admin explicitly
+        // deleted, don't resurrect it just because some user is still
+        // assigned to it. The user assignment is stale.
+        if(deletedDefaults.indexOf(r)>=0) return;
         md.roles.push(r);
       });
     });
   }
-  // Drop any previously-saved cross-module roles that no longer belong here
-  if(allow){
-    md.roles=md.roles.filter(function(r){return allow.indexOf(r)>=0;});
-  }
+  // Drop only roles built into another module, plus any deleted-default
+  // role that snuck in via some other path. Custom roles created via
+  // "+ Add" survive across reloads.
+  md.roles=md.roles.filter(function(r){
+    if(_belongsToAnotherModule(r)) return false;
+    if(deletedDefaults.indexOf(r)>=0) return false;
+    return true;
+  });
   // Ensure Super Admin is always first
   var saIdx=md.roles.indexOf('Super Admin');
   if(saIdx>0){md.roles.splice(saIdx,1);md.roles.unshift('Super Admin');}
@@ -1723,6 +1773,7 @@ function _permSelectModule(mod){
   _permActiveModule=mod;
   _permActiveRole='';
   renderPermissions();
+  if(typeof _permUpdateTitleBar==='function') _permUpdateTitleBar();
 }
 
 function _permRenderRoles(){
@@ -1736,7 +1787,15 @@ function _permRenderRoles(){
   roles.forEach(function(r){
     var isSA=r==='Super Admin';
     var active=r===_permActiveRole;
-    h+='<div onclick="_permSelectRole(\''+r.replace(/'/g,"\\'")+'\')" style="display:flex;align-items:center;gap:6px;padding:8px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:'+(active?'800':'600')+';background:'+(active?'var(--accent-light)':'#fff')+';border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';color:'+(active?'var(--accent)':'var(--text)')+'">';
+    // Super Admin is pinned at the top and not draggable — every module's
+    // canonical owner role must keep its position. Custom + built-in
+    // module roles are reorderable via HTML5 drag-and-drop.
+    var canDrag=!isSA;
+    var dragAttrs=canDrag
+      ?' draggable="true" ondragstart="_permDragStart(event,\''+r.replace(/'/g,"\\'")+'\')" ondragover="_permDragOver(event)" ondragenter="_permDragEnter(event)" ondragleave="_permDragLeave(event)" ondrop="_permDragDrop(event,\''+r.replace(/'/g,"\\'")+'\')" ondragend="_permDragEnd(event)"'
+      :'';
+    h+='<div'+dragAttrs+' onclick="_permSelectRole(\''+r.replace(/'/g,"\\'")+'\')" data-perm-role="'+r.replace(/"/g,'&quot;')+'" style="display:flex;align-items:center;gap:6px;padding:8px 10px;margin-bottom:4px;border-radius:6px;cursor:'+(canDrag?'grab':'pointer')+';font-size:12px;font-weight:'+(active?'800':'600')+';background:'+(active?'var(--accent-light)':'#fff')+';border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';color:'+(active?'var(--accent)':'var(--text)')+';user-select:none">';
+    if(canDrag) h+='<span title="Drag to reorder" style="color:var(--text3);font-size:13px;line-height:1;cursor:grab">⋮⋮</span>';
     h+='<span style="flex:1">'+r+'</span>';
     if(isSA) h+='<span style="font-size:9px;background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:3px;font-weight:700">Full Access</span>';
     else if(!isSA) h+='<span onclick="event.stopPropagation();_permDeleteRole(\''+r.replace(/'/g,"\\'")+'\')" style="font-size:11px;color:#dc2626;cursor:pointer;opacity:0.5" title="Delete role">✕</span>';
@@ -1747,12 +1806,71 @@ function _permRenderRoles(){
   else{
     if(header) header.innerHTML='<div style="font-size:13px;color:var(--text3)">← Select a role to configure permissions</div>';
     if(body) body.innerHTML='';
+    var saveSlot=document.getElementById('permSaveSlot');
+    if(saveSlot){ saveSlot.innerHTML=''; saveSlot.style.display='none'; }
   }
+}
+
+// ─── Role drag-and-drop reorder (Configure Access) ───────────────────────────
+// The drag handle and the row itself both trigger drag. On drop, the dragged
+// role is inserted ABOVE the drop target in md.roles. The change is persisted
+// via _permSaveData so the new order survives reload AND propagates to the
+// Add/Edit User modal (which pulls roles from _permGetOrderedRoles).
+var _permDragRole=null;
+function _permDragStart(ev,role){
+  _permDragRole=role;
+  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',role); }catch(_){}
+  if(ev.currentTarget&&ev.currentTarget.style) ev.currentTarget.style.opacity='0.5';
+}
+function _permDragOver(ev){ ev.preventDefault(); try{ ev.dataTransfer.dropEffect='move'; }catch(_){}}
+function _permDragEnter(ev){
+  if(!_permDragRole) return;
+  var t=ev.currentTarget;if(!t||!t.style) return;
+  if(t.getAttribute('data-perm-role')===_permDragRole) return;
+  t.style.borderTop='2px solid var(--accent)';
+}
+function _permDragLeave(ev){
+  var t=ev.currentTarget;if(!t||!t.style) return;
+  t.style.borderTop='';
+  // Selected rows keep their accent border; rebuild it for them.
+  var role=t.getAttribute('data-perm-role');
+  if(role===_permActiveRole) t.style.border='1.5px solid var(--accent)';
+}
+function _permDragEnd(ev){
+  if(ev.currentTarget&&ev.currentTarget.style) ev.currentTarget.style.opacity='';
+  _permDragRole=null;
+}
+async function _permDragDrop(ev,targetRole){
+  ev.preventDefault();
+  var src=_permDragRole;_permDragRole=null;
+  // Clear any hover-border that lingered.
+  var rows=document.querySelectorAll('#permRoleList [data-perm-role]');
+  rows.forEach(function(r){r.style.borderTop='';r.style.opacity='';});
+  if(!src||src===targetRole||src==='Super Admin'||targetRole==='Super Admin') return;
+  var md=_permModuleData(_permActiveModule);
+  var srcIdx=md.roles.indexOf(src);
+  var tgtIdx=md.roles.indexOf(targetRole);
+  if(srcIdx<0||tgtIdx<0) return;
+  md.roles.splice(srcIdx,1);
+  // After removing src, recompute target index.
+  var newTgt=md.roles.indexOf(targetRole);
+  md.roles.splice(newTgt,0,src);
+  await _permSaveData(md);
+}
+
+// Returns the role list for a module in the order persisted via Configure
+// Access. Super Admin is excluded — it's handled separately as a platform
+// role. Used by the Add/Edit User modal so the role boxes mirror the
+// Configure Access ordering and pick up custom roles automatically.
+function _permGetOrderedRoles(mod){
+  var md=_permModuleData(mod);
+  return (md.roles||[]).filter(function(r){return r&&r!=='Super Admin';});
 }
 
 function _permSelectRole(role){
   _permActiveRole=role;
   _permRenderRoles();
+  if(typeof _permUpdateTitleBar==='function') _permUpdateTitleBar();
 }
 
 // Classify a perm key: 'pageTab' (tri-state page/tab) or 'action' (checkbox).
@@ -1793,12 +1911,17 @@ function _permScopedChildren(items,index){
   return kids;
 }
 // Is this item an umbrella (no tri-state of its own, auto-derived)?
-//   Must have scoped children.
-//   page.* additionally requires it to be the sole page.* in the group —
-//   otherwise groups like "📂 Masters" (seven page.* siblings + one shared
-//   masters.edit action) would wrongly treat the last page as a parent.
+//   • Any key explicitly registered in _PERM_UMBRELLA[mod] is an umbrella,
+//     regardless of group siblings — sidebar parents like page.masters,
+//     page.utilities and page.utilDailyAttSum live here so the user can't
+//     toggle the menu-level key directly; it derives from the sub-items.
+//   • Otherwise it must have scoped children, and page.* keys still need
+//     to be the sole page.* in their group (legacy detection).
 function _permIsUmbrella(items,index){
   var item=items[index];
+  if(typeof _PERM_UMBRELLA!=='undefined'
+     &&_PERM_UMBRELLA[_permActiveModule]
+     &&_PERM_UMBRELLA[_permActiveModule][item.key]) return true;
   var kids=_permScopedChildren(items,index);
   if(!kids.length) return false;
   if(/^page\./.test(item.key)){
@@ -1820,8 +1943,17 @@ function _permRenderPerms(){
 
   header.innerHTML='<div style="font-size:15px;font-weight:900;color:var(--accent)">'+role+'</div>'
     +'<span style="font-size:11px;color:var(--text3)">'+_permActiveModule+'</span>'
-    +(isSA?'<span style="font-size:11px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700">Full access — cannot be modified</span>':'')
-    +(!isSA?'<button onclick="_permSaveRole()" style="margin-left:auto;font-size:12px;padding:5px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer">💾 Save</button>':'');
+    +(isSA?'<span style="font-size:11px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700">Full access — cannot be modified</span>':'');
+  // Save button lives on the tabs row (right-aligned). Hidden for
+  // Super Admin (whose perms are immutable) and when no role is selected.
+  var saveSlot=document.getElementById('permSaveSlot');
+  if(saveSlot){
+    if(isSA){ saveSlot.innerHTML=''; saveSlot.style.display='none'; }
+    else {
+      saveSlot.innerHTML='<button onclick="_permSaveRole()" style="font-size:12px;padding:6px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:800;cursor:pointer">💾 Save</button>';
+      saveSlot.style.display='';
+    }
+  }
 
   if(isSA){body.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">Super Admin has unrestricted access to all features. No configuration needed.</div>';return;}
 
@@ -1917,9 +2049,16 @@ function _permAddRole(){
   var md=_permModuleData(_permActiveModule);
   if(md.roles.indexOf(name)>=0){notify('Role "'+name+'" already exists',true);return;}
   md.roles.push(name);
-  // Also update the constant arrays so user management picks them up
+  // If this role was previously deleted from defaults, lift that gravestone
+  // so adding it back doesn't get vetoed by the deletedDefaults filter.
+  if(Array.isArray(md.deletedDefaults)) md.deletedDefaults=md.deletedDefaults.filter(function(r){return r!==name;});
+  // The user modal now reads via _permGetOrderedRoles so the role appears
+  // automatically. Mirror into the legacy constants too so any other code
+  // path that still reads them sees the new role.
   if(_permActiveModule==='HRMS'&&typeof HRMS_ROLES!=='undefined'&&HRMS_ROLES.indexOf(name)<0) HRMS_ROLES.push(name);
   if(_permActiveModule==='HWMS'&&typeof HWMS_ROLES!=='undefined'&&HWMS_ROLES.indexOf(name)<0) HWMS_ROLES.push(name);
+  if(_permActiveModule==='VMS' &&typeof ROLES     !=='undefined'&&ROLES.indexOf(name)<0)      ROLES.push(name);
+  if(_permActiveModule==='MTTS'&&typeof MTTS_ROLES!=='undefined'&&MTTS_ROLES.indexOf(name)<0) MTTS_ROLES.push(name);
   _permActiveRole=name;
   _permSaveData(md);
 }
@@ -1930,6 +2069,13 @@ function _permDeleteRole(role){
   var md=_permModuleData(_permActiveModule);
   md.roles=md.roles.filter(function(r){return r!==role;});
   if(md.permissions) delete md.permissions[role];
+  // If this role is one of the module's built-in defaults, remember the
+  // deletion so _permModuleData won't auto-restore it on the next render.
+  var defaults=_permGetDefaultRoles(_permActiveModule);
+  if(defaults.indexOf(role)>=0){
+    if(!Array.isArray(md.deletedDefaults)) md.deletedDefaults=[];
+    if(md.deletedDefaults.indexOf(role)<0) md.deletedDefaults.push(role);
+  }
   if(_permActiveRole===role) _permActiveRole='';
   _permSaveData(md);
 }
@@ -1969,14 +2115,27 @@ async function _permSaveRole(){
   });
   umbEls.forEach(function(el){
     var umbKey=el.getAttribute('data-perm-umbrella');
-    var groupName=el.getAttribute('data-perm-group-id');
-    var items=groupsByName[groupName]||[];
-    var idx=items.findIndex(function(k){return k.key===umbKey;});
-    if(idx<0) return;
-    var kids=_permScopedChildren(items,idx);
+    // Prefer the cross-group _PERM_UMBRELLA registry — covers sidebar
+    // parents (page.masters / page.utilities / page.utilDailyAttSum)
+    // whose children sit at the same depth as the umbrella itself, so
+    // _permScopedChildren wouldn't find them. Fall back to scoped lookup
+    // for nested umbrellas declared via the depth hierarchy alone.
+    var explicit=(typeof _PERM_UMBRELLA!=='undefined')
+                 &&_PERM_UMBRELLA[_permActiveModule]
+                 &&_PERM_UMBRELLA[_permActiveModule][umbKey];
+    var kidKeys;
+    if(explicit){
+      kidKeys=explicit.slice();
+    } else {
+      var groupName=el.getAttribute('data-perm-group-id');
+      var items=groupsByName[groupName]||[];
+      var idx=items.findIndex(function(k){return k.key===umbKey;});
+      if(idx<0) return;
+      kidKeys=_permScopedChildren(items,idx).map(function(c){return c.key;});
+    }
     var best='none';
-    kids.forEach(function(c){
-      var v=perms[c.key];
+    kidKeys.forEach(function(ck){
+      var v=perms[ck];
       if(v===true||v==='full') best='full';
       else if(v==='view'&&best!=='full') best='view';
     });

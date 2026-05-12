@@ -57,6 +57,18 @@ body.tab-users .portal-body{flex:1;min-height:0;overflow:hidden;display:flex;fle
 body.tab-users .portal-welcome{flex-shrink:0;margin-bottom:12px}
 body.tab-users .portal-tabs{flex-shrink:0}
 body.tab-users #usersSection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+/* Permissions tab — viewport-locked. Module tabs + role list stay
+   pinned; only the right permission list scrolls. body.tab-permissions
+   is set by showTab when this tab is active. */
+#portalTopbarContext{transition:opacity .2s}
+body.tab-permissions{overflow:hidden;height:100vh}
+body.tab-permissions #portalPage{height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body.tab-permissions .portal-topbar{flex-shrink:0}
+body.tab-permissions .portal-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-top:18px;padding-bottom:0}
+body.tab-permissions #permissionsSection{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+body.tab-permissions #permissionsCard{flex:1;min-height:0;display:flex;flex-direction:column}
+body.tab-permissions #permTabsRow{flex-shrink:0}
+body.tab-permissions #permColumns{flex:1;min-height:0}
 body.tab-users .users-section .toolbar{flex-shrink:0;background:var(--bg);padding:6px 0;margin-bottom:0}
 .users-section .puTableWrap{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:8px}
 .users-section .puTableWrap table{border-collapse:separate;border-spacing:0;border-radius:0;overflow:visible;box-shadow:none}
