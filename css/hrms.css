@@ -15,6 +15,10 @@
 @media(min-width:701px){.sidebar{left:0}.sidebar-overlay{display:none!important}.topbar{margin-left:260px}#hrmsApp{margin-left:260px}}
 .sidebar-logo{padding:10px 20px;margin-bottom:10px;border-bottom:1px solid var(--border)}.sidebar-logo h2{font-size:16px;color:var(--accent);font-weight:900}
 .nav-item{padding:10px 20px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s}.nav-item:hover{background:var(--accent-light);color:var(--accent)}.nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:800;border-right:3px solid var(--accent)}
+/* Parent nav items with sub-menu items — visually marked with a dotted
+   underline + bold so the user can tell at a glance which entries
+   expand. The ▶ / ▼ arrow stays as the open/closed indicator. */
+.nav-item.has-submenu{font-weight:800;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--text3);text-underline-offset:3px}
 .nav-section{padding:12px 20px 4px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
 .page{display:none;padding:16px;height:calc(100vh - 50px);overflow-y:auto;box-sizing:border-box}.page.active{display:block}#pageHrmsAttSal.active{display:flex!important;overflow:hidden}
 #pageHrmsEmployees.active{display:flex!important;flex-direction:column;overflow:hidden}

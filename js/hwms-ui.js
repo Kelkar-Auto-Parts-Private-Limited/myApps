@@ -13246,13 +13246,17 @@ function _hwmsInvBuildHtml(id){
   // pallet number, package dimensions and gross weight ONCE (rowspan) for
   // every part on that pallet. The pallet's gross weight = sum of parts'
   // net weights + the shared pkgWeight (counted once, not per row).
+  // HSN cell is rowspan'd across consecutive rows sharing the same code
+  // and also carries the HSN description from the HSN master.
   var _printGroups=[];var _printIdx={};
   lis.forEach(function(li){
     var pn=li.palletNumber||'';
     if(_printIdx[pn]===undefined){_printIdx[pn]=_printGroups.length;_printGroups.push({pallet:pn,items:[]});}
     _printGroups[_printIdx[pn]].items.push(li);
   });
-  var liRows='';var _rowsRendered=0;
+  var _hsnDescByCode={};(DB.hwmsHsn||[]).forEach(function(h){if(h&&h.hsnNumber) _hsnDescByCode[String(h.hsnNumber).trim()]=h.description||'';});
+  // Flatten with pallet rowspan metadata, then compute HSN spans.
+  var _flatRows=[];
   _printGroups.forEach(function(g){
     var first=g.items[0];
     var dims=[first.pkgL,first.pkgW,first.pkgH].filter(function(v){return v;});
@@ -13261,28 +13265,49 @@ function _hwmsInvBuildHtml(id){
     var palletNetSum=g.items.reduce(function(s,li){return s+(+(li.netWeight||0));},0);
     var palletGross=palletNetSum+palletPkg;
     g.items.forEach(function(li,gi){
-      var part=byId(DB.hwmsParts||[],li.partId);
-      var pn=part?.partNumber||'';
-      var desc=part?.description||'';
-      var amt=(li.rate||0)*(li.quantity||0);
-      liRows+='<tr style="height:22px">';
-      if(gi===0){
-        liRows+='<td rowspan="'+g.items.length+'" class="c b" style="width:32px;vertical-align:middle">'+(g.pallet||'P'+(_rowsRendered+1))+'</td>';
-        liRows+='<td rowspan="'+g.items.length+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(dimsStr)+'</td>';
-      }
-      liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
-        '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
-        '<td>'+(li.poNumber||'')+'</td>'+
-        '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
-        '<td class="r mono b">'+_fmt(li.rate||0)+'</td>'+
-        '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
-        '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
-      if(gi===0){
-        liRows+='<td rowspan="'+g.items.length+'" class="r mono b" style="vertical-align:middle">'+_m(palletGross?''+Math.round(palletGross):'')+'</td>';
-      }
-      liRows+='</tr>';
-      _rowsRendered++;
+      _flatRows.push({li:li,pallet:g.pallet,dimsStr:dimsStr,palletGross:palletGross,palletItems:g.items.length,gi:gi});
     });
+  });
+  // Adjacent rows with the same HSN code merge into one HSN cell.
+  var _hsnSpan=new Array(_flatRows.length);
+  for(var _hi=0;_hi<_flatRows.length;){
+    var _hc=String(_flatRows[_hi].li.hsnCode||'').trim();
+    var _hj=_hi+1;
+    while(_hj<_flatRows.length&&String(_flatRows[_hj].li.hsnCode||'').trim()===_hc) _hj++;
+    _hsnSpan[_hi]={first:true,span:_hj-_hi,code:_hc};
+    for(var _hk=_hi+1;_hk<_hj;_hk++) _hsnSpan[_hk]={first:false};
+    _hi=_hj;
+  }
+  var liRows='';var _rowsRendered=0;
+  _flatRows.forEach(function(r,idx){
+    var li=r.li;
+    var part=byId(DB.hwmsParts||[],li.partId);
+    var pn=part?.partNumber||'';
+    var desc=part?.description||'';
+    var amt=(li.rate||0)*(li.quantity||0);
+    liRows+='<tr style="height:22px">';
+    if(r.gi===0){
+      liRows+='<td rowspan="'+r.palletItems+'" class="c b" style="width:32px;vertical-align:middle">'+(r.pallet||'P'+(_rowsRendered+1))+'</td>';
+      liRows+='<td rowspan="'+r.palletItems+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(r.dimsStr)+'</td>';
+    }
+    liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>';
+    if(_hsnSpan[idx].first){
+      var _hd=_hsnDescByCode[_hsnSpan[idx].code]||'';
+      liRows+='<td rowspan="'+_hsnSpan[idx].span+'" class="c b" style="vertical-align:middle;line-height:1.2">'
+        +'<div class="mono" style="font-size:10px;font-weight:700">'+_m(_hsnSpan[idx].code)+'</div>'
+        +(_hd?'<div style="font-size:9px;color:#444;margin-top:1px;font-weight:600">'+_hd+'</div>':'')
+        +'</td>';
+    }
+    liRows+='<td>'+(li.poNumber||'')+'</td>'+
+      '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
+      '<td class="r mono b">'+_fmt(li.rate||0)+'</td>'+
+      '<td class="r mono b">'+_fmt(amt||0)+'</td>'+
+      '<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
+    if(r.gi===0){
+      liRows+='<td rowspan="'+r.palletItems+'" class="r mono b" style="vertical-align:middle">'+_m(r.palletGross?''+Math.round(r.palletGross):'')+'</td>';
+    }
+    liRows+='</tr>';
+    _rowsRendered++;
   });
   // Pad with blank rows so the items table keeps its A4 visual height.
   while(_rowsRendered<15){
@@ -13368,7 +13393,7 @@ function _hwmsInvBuildHtml(id){
       '<th style="width:32px">Pallet</th>'+
       '<th style="width:100px">Package<br>L×W×H (MM)</th>'+
       '<th>Part No. / Description</th>'+
-      '<th style="width:55px">HSN</th>'+
+      '<th style="width:90px">HSN /<br>Description</th>'+
       '<th style="width:75px">Buyer PO</th>'+
       '<th class="r" style="width:38px">Qty</th>'+
       '<th class="r" style="width:58px">Rate /<br>Num (USD)</th>'+
@@ -13464,18 +13489,20 @@ function _hwmsInvBuildHtmlUSA(id){
 
   // Build line items grouped by pallet (multi-parts-per-pallet rendering).
   // Pallet#, Pkg dims, Steelage Wt, Gross Wt are merged with rowspan; the
-  // per-part columns (Part, HSN, PO, Qty, Rate, Amount, Net Wt) stay
-  // per-row.
+  // per-part columns (Part, PO, Qty, Rate, Amount, Net Wt) stay per-row.
+  // HSN cell is rowspan'd across consecutive rows sharing the same code
+  // and also carries the HSN description from the HSN master.
   var _printGroupsU=[];var _printIdxU={};
   lis.forEach(function(li){
     var pn=li.palletNumber||'';
     if(_printIdxU[pn]===undefined){_printIdxU[pn]=_printGroupsU.length;_printGroupsU.push({pallet:pn,items:[]});}
     _printGroupsU[_printIdxU[pn]].items.push(li);
   });
-  var liRows='';
+  var _hsnDescByCodeU={};(DB.hwmsHsn||[]).forEach(function(h){if(h&&h.hsnNumber) _hsnDescByCodeU[String(h.hsnNumber).trim()]=h.description||'';});
+  // Flatten with pallet rowspan metadata + per-pallet steelage weight,
+  // then compute HSN spans.
+  var _flatRowsU=[];
   var totalSteelageWt=0;
-  var totalExWorksAmt=0;
-  var _rowsRenderedU=0;
   _printGroupsU.forEach(function(g){
     var first=g.items[0];
     var dims=[first.pkgL,first.pkgW,first.pkgH].filter(function(v){return v;});
@@ -13488,33 +13515,55 @@ function _hwmsInvBuildHtmlUSA(id){
     var palletSteelageWt=isSteelagePallet?Math.round(palletPkg):0;
     totalSteelageWt+=palletSteelageWt;
     g.items.forEach(function(li,gi){
-      var part=byId(DB.hwmsParts||[],li.partId);
-      var pn=part?.partNumber||'';
-      var desc=part?.description||'';
-      var exRate=part?.exWorksRate||0;
-      var amt=exRate*(li.quantity||0);
-      totalExWorksAmt+=amt;
-      liRows+='<tr style="height:22px">';
-      if(gi===0){
-        liRows+='<td rowspan="'+g.items.length+'" class="c b" style="width:32px;vertical-align:middle">'+(g.pallet||'P'+(_rowsRenderedU+1))+'</td>';
-        liRows+='<td rowspan="'+g.items.length+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(dimsStr)+'</td>';
-      }
-      liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>'+
-        '<td class="mono b" style="font-size:10px">'+_m(li.hsnCode)+'</td>'+
-        '<td>'+(li.poNumber||'')+'</td>'+
-        '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
-        '<td class="r mono b">'+_fmt(exRate||0)+'</td>'+
-        '<td class="r mono b">'+_fmt(amt||0)+'</td>';
-      if(gi===0){
-        liRows+='<td rowspan="'+g.items.length+'" class="r mono" style="vertical-align:middle">'+(palletSteelageWt||'')+'</td>';
-      }
-      liRows+='<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
-      if(gi===0){
-        liRows+='<td rowspan="'+g.items.length+'" class="r mono b" style="vertical-align:middle">'+_m(palletGross?''+Math.round(palletGross):'')+'</td>';
-      }
-      liRows+='</tr>';
-      _rowsRenderedU++;
+      _flatRowsU.push({li:li,pallet:g.pallet,dimsStr:dimsStr,palletGross:palletGross,palletSteelageWt:palletSteelageWt,palletItems:g.items.length,gi:gi});
     });
+  });
+  var _hsnSpanU=new Array(_flatRowsU.length);
+  for(var _hiU=0;_hiU<_flatRowsU.length;){
+    var _hcU=String(_flatRowsU[_hiU].li.hsnCode||'').trim();
+    var _hjU=_hiU+1;
+    while(_hjU<_flatRowsU.length&&String(_flatRowsU[_hjU].li.hsnCode||'').trim()===_hcU) _hjU++;
+    _hsnSpanU[_hiU]={first:true,span:_hjU-_hiU,code:_hcU};
+    for(var _hkU=_hiU+1;_hkU<_hjU;_hkU++) _hsnSpanU[_hkU]={first:false};
+    _hiU=_hjU;
+  }
+  var liRows='';
+  var totalExWorksAmt=0;
+  var _rowsRenderedU=0;
+  _flatRowsU.forEach(function(r,idx){
+    var li=r.li;
+    var part=byId(DB.hwmsParts||[],li.partId);
+    var pn=part?.partNumber||'';
+    var desc=part?.description||'';
+    var exRate=part?.exWorksRate||0;
+    var amt=exRate*(li.quantity||0);
+    totalExWorksAmt+=amt;
+    liRows+='<tr style="height:22px">';
+    if(r.gi===0){
+      liRows+='<td rowspan="'+r.palletItems+'" class="c b" style="width:32px;vertical-align:middle">'+(r.pallet||'P'+(_rowsRenderedU+1))+'</td>';
+      liRows+='<td rowspan="'+r.palletItems+'" class="c mono b" style="font-size:10px;vertical-align:middle">'+_m(r.dimsStr)+'</td>';
+    }
+    liRows+='<td><div class="mono b" style="font-size:12px">'+_m(pn)+'</div>'+(desc?'<div style="font-size:10px;color:#444;margin-top:1px">'+desc+'</div>':'')+'</td>';
+    if(_hsnSpanU[idx].first){
+      var _hdU=_hsnDescByCodeU[_hsnSpanU[idx].code]||'';
+      liRows+='<td rowspan="'+_hsnSpanU[idx].span+'" class="c b" style="vertical-align:middle;line-height:1.2">'
+        +'<div class="mono" style="font-size:10px;font-weight:700">'+_m(_hsnSpanU[idx].code)+'</div>'
+        +(_hdU?'<div style="font-size:9px;color:#444;margin-top:1px;font-weight:600">'+_hdU+'</div>':'')
+        +'</td>';
+    }
+    liRows+='<td>'+(li.poNumber||'')+'</td>'+
+      '<td class="r b">'+_m(li.quantity?''+li.quantity:'')+'</td>'+
+      '<td class="r mono b">'+_fmt(exRate||0)+'</td>'+
+      '<td class="r mono b">'+_fmt(amt||0)+'</td>';
+    if(r.gi===0){
+      liRows+='<td rowspan="'+r.palletItems+'" class="r mono" style="vertical-align:middle">'+(r.palletSteelageWt||'')+'</td>';
+    }
+    liRows+='<td class="r mono b">'+_m(li.netWeight?''+Math.round(li.netWeight):'')+'</td>';
+    if(r.gi===0){
+      liRows+='<td rowspan="'+r.palletItems+'" class="r mono b" style="vertical-align:middle">'+_m(r.palletGross?''+Math.round(r.palletGross):'')+'</td>';
+    }
+    liRows+='</tr>';
+    _rowsRenderedU++;
   });
   while(_rowsRenderedU<15){
     liRows+='<tr style="height:22px"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
@@ -13614,7 +13663,7 @@ function _hwmsInvBuildHtmlUSA(id){
       '<th style="width:30px">Plt</th>'+
       '<th style="width:112px">Pkg L×W×H</th>'+
       '<th style="min-width:147px">Part No. / Description</th>'+
-      '<th style="width:40px">HSN</th>'+
+      '<th style="width:78px">HSN /<br>Description</th>'+
       '<th style="width:70px">Buyer PO</th>'+
       '<th class="r" style="width:35px">Qty</th>'+
       '<th class="r" style="width:55px">Ex-Works<br>Rate (USD)</th>'+

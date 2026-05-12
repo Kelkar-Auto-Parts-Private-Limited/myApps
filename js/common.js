@@ -1349,6 +1349,29 @@ async function _hrmsSalaryUpsertOne(emp){
   if(_hrmsSalaryAccess==='denied') return false;// silently skip — user lacks access
   if(!_sb) return false;
   var payload=_hrmsSalaryPayload(emp);if(!payload) return false;
+  // Guard against in-memory glitches wiping the locked table. If the
+  // payload carries all-zero salary but the cache has a non-zero value
+  // for this emp, treat it as a memory glitch and skip. See the bulk
+  // upsert for the same protection logic.
+  var _allZero=(function(){
+    if(+payload.salary_day>0||+payload.salary_month>0) return false;
+    var pers=(payload.salary_extras&&payload.salary_extras.periods)||[];
+    for(var i=0;i<pers.length;i++){var x=pers[i];if(+x.salaryDay>0||+x.salaryMonth>0||+x.specialAllowance>0) return false;}
+    var mons=(payload.salary_extras&&payload.salary_extras.months)||{};
+    var mks=Object.keys(mons);
+    for(var j=0;j<mks.length;j++){var v=mons[mks[j]];if(+v.salaryDay>0||+v.salaryMonth>0||+v.specialAllowance>0) return false;}
+    return true;
+  })();
+  if(_allZero){
+    var c=_hrmsSalaryCache&&_hrmsSalaryCache[emp.id];
+    var hasCacheVal=false;
+    if(c){
+      if(+c.salaryDay>0||+c.salaryMonth>0) hasCacheVal=true;
+      var pm=c.periodMap||{};for(var k in pm){var px=pm[k];if(+px.salaryDay>0||+px.salaryMonth>0||+px.specialAllowance>0){hasCacheVal=true;break;}}
+      if(!hasCacheVal){var mm=c.monthMap||{};for(var mk in mm){var mx=mm[mk];if(+mx.salaryDay>0||+mx.salaryMonth>0||+mx.specialAllowance>0){hasCacheVal=true;break;}}}
+    }
+    if(hasCacheVal){console.warn('[salary-shadow] Skipped all-zero payload for '+emp.id+' to avoid wiping the locked table; cache has a non-zero value.');return false;}
+  }
   var auth=_hrmsAuthArgs();if(!auth) return false;
   try{
     var res=await _sb.rpc('hrms_salary_upsert',{p_username:auth.u,p_token:auth.t,p_row:payload});
@@ -1376,6 +1399,48 @@ async function _hrmsSalaryUpsertManyEmps(emps){
   if(!emps||!emps.length||_hrmsSalaryAccess==='denied') return 0;
   if(!_sb) return 0;
   var payloads=emps.map(_hrmsSalaryPayload).filter(Boolean);
+  // Guard against in-memory glitches wiping the locked salary table.
+  // _toRow strips salary fields off hrms_employees before a save, so the
+  // emp object passed to a bulk-save can transiently carry salaryDay=0
+  // even though the real value lives in the salary cache. If the payload
+  // is fully zero but the cache (or another payload in this batch) has
+  // a non-zero value for that emp, skip the upsert — treating it as a
+  // memory glitch rather than a legitimate "salary is now zero" save.
+  var _payloadIsAllZero=function(p){
+    if(+p.salary_day>0||+p.salary_month>0) return false;
+    var pers=(p.salary_extras&&p.salary_extras.periods)||[];
+    for(var i=0;i<pers.length;i++){
+      var x=pers[i];
+      if(+x.salaryDay>0||+x.salaryMonth>0||+x.specialAllowance>0) return false;
+    }
+    var mons=(p.salary_extras&&p.salary_extras.months)||{};
+    var mks=Object.keys(mons);
+    for(var j=0;j<mks.length;j++){
+      var v=mons[mks[j]];
+      if(+v.salaryDay>0||+v.salaryMonth>0||+v.specialAllowance>0) return false;
+    }
+    return true;
+  };
+  var _cacheHasValue=function(empId){
+    var c=_hrmsSalaryCache&&_hrmsSalaryCache[empId];
+    if(!c) return false;
+    if(+c.salaryDay>0||+c.salaryMonth>0) return true;
+    var pm=c.periodMap||{};
+    for(var k in pm){
+      var px=pm[k];if(+px.salaryDay>0||+px.salaryMonth>0||+px.specialAllowance>0) return true;
+    }
+    var mm=c.monthMap||{};
+    for(var mk in mm){
+      var mx=mm[mk];if(+mx.salaryDay>0||+mx.salaryMonth>0||+mx.specialAllowance>0) return true;
+    }
+    return false;
+  };
+  var _skipped=0;
+  payloads=payloads.filter(function(p){
+    if(_payloadIsAllZero(p)&&_cacheHasValue(p.emp_id)){ _skipped++; return false; }
+    return true;
+  });
+  if(_skipped) console.warn('[salary-shadow] Skipped '+_skipped+' all-zero payload(s) to avoid wiping the locked table; cache has non-zero values for those emps.');
   if(!payloads.length) return 0;
   var auth=_hrmsAuthArgs();if(!auth) return 0;
   var saved=0,batchSize=50;

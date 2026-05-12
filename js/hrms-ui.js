@@ -1492,6 +1492,17 @@ function _hrmsCanEditMasterPage(pid){
   return !!(perm&&typeof permLevel==='function'&&permLevel('HRMS',perm)==='full');
 }
 
+// Modify gate for the Manpower Allocation Settings modal. Pass 'groups'
+// for the Role Groups tab (gated by tab.das.rolegrouping) or 'alloc'
+// for the per-plant allocation tabs (gated by tab.das.alloc). Full
+// access on the inner-tab perm OR the cross-cutting masters.edit grants
+// edit. Mirrors _hrmsCanEditMasterPage for the masters grid.
+function _hrmsCanEditAllocFor(scope){
+  if(typeof _hrmsHasAccess==='function'&&_hrmsHasAccess('masters.edit')) return true;
+  var key=(scope==='groups')?'tab.das.rolegrouping':'tab.das.alloc';
+  return typeof permLevel==='function'&&permLevel('HRMS',key)==='full';
+}
+
 async function _hrmsSetPlantColor(plantId,color){
   if(!_hrmsCanEditMasterPage('pageHrmsMCompany')){notify('⚠ You have view-only access to masters.',true);return;}
   var it=byId(DB.hrmsCompanies||[],plantId);if(!it)return;
@@ -7988,16 +7999,23 @@ async function _hrmsAttFetchIndex(){
       var codes=manualByMonth[k];
       for(var c in codes) bucket.emps[c]=true;
     });
-    // Bucket each emp by the period-aware employmentType for that
-    // month — same resolver the muster uses, so the popup breakdown
-    // and the muster's type-counter agree.
+    // For the month picker we want AC-tagged emps only — not "anyone
+    // who left a punch". Walk every emp for every month seen so far,
+    // including months where the emp has no attendance (since OnRoll
+    // staff are AC by default even before the first punch lands).
     var empMapById={};
     (DB.hrmsEmployees||[]).forEach(function(e){if(e&&e.empCode) empMapById[e.empCode]=e;});
     Object.keys(months).forEach(function(k){
-      Object.keys(months[k].emps).forEach(function(code){
-        var emp=empMapById[code];
-        var raw=emp?_hrmsEtForMk(emp,k):'';
-        var et=String(raw||'').toLowerCase().replace(/\s/g,'');
+      // Reset bucket so we don't double-count.
+      months[k].byType={onroll:0,contract:0,piecerate:0,other:0};
+      months[k].acCount=0;
+      (DB.hrmsEmployees||[]).forEach(function(emp){
+        if(!emp||!emp.empCode) return;
+        var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(emp,k):'AC';
+        if(tag!=='AC') return;
+        months[k].acCount++;
+        var raw=_hrmsEtForMk(emp,k)||'';
+        var et=String(raw).toLowerCase().replace(/\s/g,'');
         if(et==='onroll') months[k].byType.onroll++;
         else if(et==='contract') months[k].byType.contract++;
         else if(et==='piecerate') months[k].byType.piecerate++;
@@ -8021,7 +8039,13 @@ async function _hrmsAttFetchIndex(){
     });
     _hrmsAttMonthIndex=Object.keys(months).sort().reverse().map(function(k){
       var m=months[k];
-      var total=m._snapTotal!=null?m._snapTotal:Object.keys(m.emps).length;
+      // Prefer the locked snapshot total when present; otherwise the
+      // AC-tagged count is the authoritative "active employees" figure
+      // for the month picker. Falls back to all-emps-with-data when
+      // _hrmsEmpMonthTag isn't available (very early boot).
+      var total=m._snapTotal!=null
+        ?m._snapTotal
+        :(typeof m.acCount==='number'?m.acCount:Object.keys(m.emps).length);
       return{monthKey:k,empCount:total,byType:m.byType};
     });
   }catch(e){console.error('Att index error:',e);}
@@ -11796,6 +11820,417 @@ function _hrmsDasTwShowGroupEmps(idx,kind){
   ov.addEventListener('click',function(ev){if(ev.target===ov) ov.remove();});
 }
 
+// ═══ Team-wise Monthly Data popup ═══════════════════════════════════
+// Daily P/A headcount for the selected team across the entire month,
+// with an SVG line chart. Month + team are user-selectable inside the
+// popup; access scope mirrors the main Team-wise page (ContractorSup,
+// emp-type filters, etc.).
+var _hrmsTwMdMonth=null;
+var _hrmsTwMdTeam=null;
+var _hrmsTwMdEmpType=null;
+
+function _hrmsDasTwShowMonthly(){
+  // Inherit defaults from main page on first open.
+  if(!_hrmsTwMdMonth){
+    var st=_hrmsDasState;
+    if(st&&st.historyDate){
+      var sp=String(st.historyDate).split('-');
+      _hrmsTwMdMonth=sp[0]+'-'+sp[1];
+    } else {
+      var n=new Date();
+      _hrmsTwMdMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+    }
+  }
+  if(_hrmsTwMdTeam==null) _hrmsTwMdTeam=_hrmsDasTwTeam||'__ALL__';
+  if(_hrmsTwMdEmpType==null){
+    if(_hrmsDasTwSelEts&&_hrmsDasTwSelEts.length===1) _hrmsTwMdEmpType=_hrmsDasTwSelEts[0];
+    else _hrmsTwMdEmpType='__ALL__';
+  }
+  // Build the modal shell once; subsequent renders update its body.
+  var ov=document.getElementById('_hrmsDasTwMdModal');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='_hrmsDasTwMdModal';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px';
+    ov.innerHTML='<div id="_hrmsDasTwMdCard" style="background:#fff;border-radius:12px;padding:14px 16px;width:1100px;max-width:98vw;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 14px 44px rgba(0,0,0,.4)"><div id="_hrmsDasTwMdBody" style="display:flex;flex-direction:column;gap:10px;min-height:0;flex:1"></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(ev){if(ev.target===ov) _hrmsDasTwMdClose();});
+  }
+  _hrmsDasTwMdRender();
+}
+
+function _hrmsDasTwMdClose(){
+  var ov=document.getElementById('_hrmsDasTwMdModal');
+  if(ov) ov.remove();
+}
+
+function _hrmsDasTwMdSetMonth(mk){_hrmsTwMdMonth=mk;_hrmsDasTwMdRender();}
+function _hrmsDasTwMdSetTeam(tm){_hrmsTwMdTeam=tm;_hrmsDasTwMdRender();}
+function _hrmsDasTwMdSetEt(et){_hrmsTwMdEmpType=et;_hrmsDasTwMdRender();}
+
+function _hrmsDasTwMdRender(){
+  var body=document.getElementById('_hrmsDasTwMdBody');
+  if(!body) return;
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var mk=_hrmsTwMdMonth;
+  var sp=mk.split('-');var yr=+sp[0],mo=+sp[1];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var supScope=(typeof _hrmsDasContractorSupScope==='function')?_hrmsDasContractorSupScope():null;
+  // ── Build month options from the attendance index (only months that
+  // actually have attendance data). Falls back to the current month if
+  // the index isn't ready yet.
+  var monthIdx=(typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex)?_hrmsAttMonthIndex:[];
+  var monthOpts=monthIdx.slice().sort(function(a,b){return String(b.monthKey).localeCompare(String(a.monthKey));});
+  if(!monthOpts.find(function(m){return m.monthKey===mk;})){
+    monthOpts.unshift({monthKey:mk,empCount:0});
+  }
+  // ── Build emp-type options. If main page has a multi-selection, allow
+  // toggling each separately inside the popup as well. Otherwise show
+  // the canonical ['On Roll','Contract','Piece Rate'] set.
+  var etCanonOrder=['On Roll','Contract','Piece Rate'];
+  // ── Resolve the set of "eligible" employees for this popup:
+  //  • employed in the selected month (period overlapping the month)
+  //  • emp-type matches the popup's emp-type pick
+  //  • team matches the popup's team pick (or __ALL__)
+  //  • ContractorSup scope is honoured
+  var allEmps=(DB.hrmsEmployees||[]);
+  var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
+  var _normEt=function(s){return String(s||'').toLowerCase().replace(/[\s_-]+/g,'');};
+  var _etCanon={onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',visitor:'Visitor'};
+  // Pull the active period for each emp (relative to the selected month)
+  // — pick the period that's open or that overlaps the month.
+  var monthFirstIso=mk+'-01';
+  var monthLastIso=mk+'-'+String(daysInMonth).padStart(2,'0');
+  var _empCtx=function(e){
+    var ap=(e.periods||[]).find(function(p){
+      if(!p) return false;
+      if(p._wfStatus&&p._wfStatus!=='approved') return false;
+      var f=String(p.from||'');
+      var t=String(p.to||'');
+      if(f&&f>monthLastIso) return false;
+      if(t&&t<monthFirstIso) return false;
+      return true;
+    })||(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var etRaw=((ap&&ap.employmentType)||e.employmentType||'').trim();
+    var et=_etCanon[etRaw.toLowerCase().replace(/\s+/g,'')]||etRaw||'—';
+    var team=((ap&&ap.teamName)||e.teamName||'').trim()||'— No team —';
+    var plant=((ap&&ap.location)||e.location||'').trim();
+    return {et:et,team:team,plant:plant,ap:ap};
+  };
+  var ctxByCode={};
+  allEmps.forEach(function(e){if(e&&e.empCode) ctxByCode[String(e.empCode).trim()]=_empCtx(e);});
+  // ── Build the team list, scoped to emp-type + ContractorSup. Same
+  // approach as the main page: start from masters then merge orphans.
+  var etFilter=function(et){
+    if(_hrmsTwMdEmpType==='__ALL__') return true;
+    return et===_hrmsTwMdEmpType;
+  };
+  var teamSet={};
+  (DB.hrmsTeams||[]).forEach(function(t){
+    if(!t||t.inactive||!t.name) return;
+    var nT=_normEt(t.empType);
+    var ok=(_hrmsTwMdEmpType==='__ALL__')?true:(nT===_normEt(_hrmsTwMdEmpType)||nT.indexOf(_normEt(_hrmsTwMdEmpType))>=0||_normEt(_hrmsTwMdEmpType).indexOf(nT)>=0);
+    if(!ok) return;
+    if(supScope&&!supScope.teamNames[t.name]) return;
+    teamSet[t.name]=true;
+  });
+  // Merge orphan teams from employees too (only when not ContractorSup).
+  if(!supScope){
+    allEmps.forEach(function(e){
+      if(!e||!e.empCode) return;
+      var c=ctxByCode[String(e.empCode).trim()];
+      if(!c) return;
+      if(!etFilter(c.et)) return;
+      if(c.team) teamSet[c.team]=true;
+    });
+  }
+  var teamList=Object.keys(teamSet).sort(function(a,b){
+    if(a==='— No team —') return 1;
+    if(b==='— No team —') return -1;
+    return a.localeCompare(b);
+  });
+  if(!teamList.length) teamList=['— No team —'];
+  // Coerce stale team selection.
+  if(_hrmsTwMdTeam!=='__ALL__'&&teamList.indexOf(_hrmsTwMdTeam)<0){
+    _hrmsTwMdTeam=supScope?teamList[0]:'__ALL__';
+  }
+  // Scope rows to popup's emp-type + team + ContractorSup scope.
+  var scopeRows=[];
+  allEmps.forEach(function(e){
+    if(!e||!e.empCode) return;
+    var c=ctxByCode[String(e.empCode).trim()];
+    if(!c) return;
+    if(!etFilter(c.et)) return;
+    if(_hrmsTwMdTeam!=='__ALL__'&&c.team!==_hrmsTwMdTeam) return;
+    if(supScope&&!supScope.teamNames[c.team]) return;
+    scopeRows.push({emp:e,empCode:String(e.empCode).trim(),et:c.et,team:c.team,plant:c.plant});
+  });
+  // Active-in-month set: emps whose monthTag is AC (drop IA — they
+  // were inactive the whole month). PIA emps remain in the denominator
+  // for the days they were still active; the per-day check below uses
+  // _hrmsEmpDayState so a PIA emp counts as "in" until the date they
+  // were marked inactive.
+  var activeRows=scopeRows.filter(function(r){
+    var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(r.emp,mk):'AC';
+    r._tag=tag;
+    return tag!=='IA';
+  });
+  // Fetch the month if not cached, then re-render once data lands.
+  var hasMonth=(window._hrmsAttCache&&_hrmsAttCache[mk]);
+  if(!hasMonth&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsTwMdFetchInflight){
+    window._hrmsTwMdFetchInflight=true;
+    Promise.resolve(_hrmsAttFetchMonth(mk)).catch(function(){}).then(function(){
+      window._hrmsTwMdFetchInflight=false;
+      try{_hrmsDasTwMdRender();}catch(_){}
+    });
+  }
+  // Build {empCode → {dayNum:true}} presence from cached attendance + alterations.
+  var presByEmp={};
+  var attR=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
+  var altR=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
+  var absorb=function(arr){
+    arr.forEach(function(a){
+      if(!a||!a.empCode||!a.days) return;
+      if(!presByEmp[a.empCode]) presByEmp[a.empCode]={};
+      Object.keys(a.days).forEach(function(dk){
+        var entry=a.days[dk];
+        if(entry&&(entry.in||entry['in'])){
+          presByEmp[a.empCode][+dk]=true;
+        }
+      });
+    });
+  };
+  absorb(attR);absorb(altR);
+  // Per-plant day-type lookup. When all emps share a plant we can use
+  // a single per-day classification; otherwise fall back to the most
+  // common plant in the scope (defensive — day types are configured
+  // per plant by the operator).
+  var plantTally={};
+  activeRows.forEach(function(r){if(r.plant) plantTally[r.plant]=(plantTally[r.plant]||0)+1;});
+  var dominantPlant='';var bestCount=0;
+  Object.keys(plantTally).forEach(function(pl){if(plantTally[pl]>bestCount){bestCount=plantTally[pl];dominantPlant=pl;}});
+  var dayTypeOf=function(d){
+    return (typeof _hrmsGetDayType==='function')?_hrmsGetDayType(mk,d,yr,mo,dominantPlant):'WD';
+  };
+  // Build per-day rows. For each day:
+  //   total = active rows whose day state is AC on that day
+  //   P     = active rows with a punch on that day
+  //   A     = total - P (but only counted on WD; WO/PH may still show P)
+  var dayRows=[];
+  for(var d=1;d<=daysInMonth;d++){
+    var dType=dayTypeOf(d);
+    var tot=0,p=0;
+    activeRows.forEach(function(r){
+      var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(r.emp,mk,d):'AC';
+      if(st==='IA') return;
+      tot++;
+      if(presByEmp[r.empCode]&&presByEmp[r.empCode][d]) p++;
+    });
+    var a=Math.max(0,tot-p);
+    dayRows.push({d:d,dType:dType,p:p,a:a,total:tot});
+  }
+  // Aggregate stats — averages across days WITH data; working days only.
+  var wdCount=0,wdPSum=0,wdASum=0,wdTotSum=0;
+  var monthPSum=0,monthASum=0,monthTotSum=0;
+  dayRows.forEach(function(r){
+    monthPSum+=r.p;monthASum+=r.a;monthTotSum+=r.total;
+    if(r.dType==='WD'&&r.total>0){wdCount++;wdPSum+=r.p;wdASum+=r.a;wdTotSum+=r.total;}
+  });
+  var avgP=wdCount?Math.round(wdPSum/wdCount):0;
+  var avgA=wdCount?Math.round(wdASum/wdCount):0;
+  var avgTot=wdCount?Math.round(wdTotSum/wdCount):0;
+  var maxY=0;dayRows.forEach(function(r){if(r.total>maxY) maxY=r.total;});
+  if(maxY<10) maxY=10;
+  // Round maxY up to a friendly grid.
+  var step=Math.pow(10,Math.max(0,String(maxY).length-2));
+  maxY=Math.ceil(maxY/step)*step;
+  // ── Header (title + close)
+  var hdr='<div style="display:flex;align-items:center;justify-content:space-between;gap:14px">'
+    +'<div>'
+    +'<div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Team-wise Attendance</div>'
+    +'<div style="font-size:17px;font-weight:900;color:#0f172a">📅 Monthly Data — '+_esc(_hrmsTwMdTeam==='__ALL__'?'All Teams':_hrmsTwMdTeam)+'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+_esc(MON[mo-1]+' '+yr)+' · '+(_hrmsTwMdEmpType==='__ALL__'?'All emp types':_esc(_hrmsTwMdEmpType==='On Roll'?'KAP':_hrmsTwMdEmpType))+' · '+activeRows.length+' employee(s) in scope</div>'
+    +'</div>'
+    +'<button onclick="_hrmsDasTwMdClose()" style="padding:7px 14px;font-weight:800;font-size:12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;cursor:pointer">✕ Close</button>'
+    +'</div>';
+  // ── Picker row: emp type · team · month
+  var pickEt='<div style="display:inline-flex;gap:6px;align-items:center">'
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">EMP TYPE</span>';
+  var etChoices=['__ALL__'].concat(etCanonOrder);
+  etChoices.forEach(function(et){
+    var on=(et===_hrmsTwMdEmpType);
+    var lbl=(et==='__ALL__')?'All':(et==='On Roll'?'KAP':et);
+    pickEt+='<button onclick="_hrmsDasTwMdSetEt(\''+et+'\')" '
+      +'style="padding:5px 10px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;'
+      +'background:'+(on?'#1d4ed8':'#fff')+';color:'+(on?'#fff':'#0f172a')+';'
+      +'border:1.5px solid '+(on?'#1d4ed8':'var(--border)')+'">'+_esc(lbl)+'</button>';
+  });
+  pickEt+='</div>';
+  // Team picker — dropdown (popup may have many teams).
+  var teamSelOpts='';
+  if(!supScope){
+    teamSelOpts+='<option value="__ALL__"'+(_hrmsTwMdTeam==='__ALL__'?' selected':'')+'>All Teams</option>';
+  }
+  teamList.forEach(function(tm){
+    teamSelOpts+='<option value="'+_esc(tm)+'"'+(tm===_hrmsTwMdTeam?' selected':'')+'>'+_esc(tm)+'</option>';
+  });
+  var pickTeam='<div style="display:inline-flex;gap:6px;align-items:center">'
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">TEAM</span>'
+    +'<select onchange="_hrmsDasTwMdSetTeam(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:160px;cursor:pointer">'+teamSelOpts+'</select>'
+    +'</div>';
+  // Month picker — dropdown of months from attendance index (newest first).
+  var monthSelOpts='';
+  monthOpts.forEach(function(m){
+    var p2=m.monthKey.split('-');
+    monthSelOpts+='<option value="'+m.monthKey+'"'+(m.monthKey===mk?' selected':'')+'>'+(MON[+p2[1]-1]||'')+' '+p2[0]+'</option>';
+  });
+  var pickMonth='<div style="display:inline-flex;gap:6px;align-items:center">'
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">MONTH</span>'
+    +'<select onchange="_hrmsDasTwMdSetMonth(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:130px;cursor:pointer">'+monthSelOpts+'</select>'
+    +'</div>';
+  var pickerRow='<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'
+    +pickEt+pickTeam+pickMonth+'</div>';
+  // ── Chart
+  var chart=_hrmsDasTwMdChartSvg(dayRows,daysInMonth,yr,mo,maxY,{avgP:avgP,avgA:avgA});
+  // ── KPI strip
+  var kpi='<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:140px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#15803d;letter-spacing:.3px;text-transform:uppercase">Avg Present (WD)</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#15803d;font-family:var(--mono)">'+avgP+'</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:140px;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#b91c1c;letter-spacing:.3px;text-transform:uppercase">Avg Absent (WD)</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#b91c1c;font-family:var(--mono)">'+avgA+'</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:140px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#1d4ed8;letter-spacing:.3px;text-transform:uppercase">Avg Total (WD)</div>'
+      +'<div style="font-size:22px;font-weight:900;color:#1d4ed8;font-family:var(--mono)">'+avgTot+'</div>'
+    +'</div>'
+    +'<div style="flex:1;min-width:140px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px">'
+      +'<div style="font-size:10px;font-weight:800;color:#475569;letter-spacing:.3px;text-transform:uppercase">Month Total P / A</div>'
+      +'<div style="font-size:18px;font-weight:900;color:#0f172a;font-family:var(--mono)"><span style="color:#15803d">'+monthPSum+'</span> / <span style="color:#b91c1c">'+monthASum+'</span></div>'
+    +'</div>'
+    +'</div>';
+  // ── Daily table
+  var tbl='<div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:6px;min-height:0">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead style="position:sticky;top:0;background:#1e2028;color:#fff;z-index:1"><tr>'
+    +'<th style="padding:7px 8px;text-align:center">Date</th>'
+    +'<th style="padding:7px 8px;text-align:center">Day</th>'
+    +'<th style="padding:7px 8px;text-align:center">Type</th>'
+    +'<th style="padding:7px 8px;text-align:center">Present</th>'
+    +'<th style="padding:7px 8px;text-align:center">Absent</th>'
+    +'<th style="padding:7px 8px;text-align:center">Total</th>'
+    +'</tr></thead><tbody>';
+  dayRows.forEach(function(r){
+    var dt=new Date(yr,mo-1,r.d);
+    var dow=DOW[dt.getDay()];
+    var excluded=(r.dType==='WO'||r.dType==='PH');
+    var rowBg=excluded?'background:#f1f5f9;':'';
+    var typeBadge=r.dType==='PH'
+      ?'<span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">PH</span>'
+      :(r.dType==='WO'
+        ?'<span style="display:inline-block;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">WO</span>'
+        :'<span style="display:inline-block;background:#fff;color:#475569;border:1px solid #cbd5e1;padding:1px 7px;border-radius:9px;font-weight:800;font-size:10px">WD</span>');
+    var dowFg=excluded?'#b91c1c':'#475569';
+    tbl+='<tr style="border-bottom:1px solid #e2e8f0;'+rowBg+'">'
+      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:'+(excluded?'#b91c1c':'#0f172a')+'">'+String(r.d).padStart(2,'0')+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;font-size:11px;color:'+dowFg+';font-weight:700">'+dow+'</td>'
+      +'<td style="padding:6px 8px;text-align:center">'+typeBadge+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#15803d">'+r.p+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:800;color:#b91c1c">'+r.a+'</td>'
+      +'<td style="padding:6px 8px;text-align:center;font-family:var(--mono);font-weight:700;color:#0f172a">'+r.total+'</td>'
+      +'</tr>';
+  });
+  tbl+='</tbody></table></div>';
+  // ── Loading hint
+  var loadingHint=hasMonth?'':'<div style="font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;font-weight:700">Loading attendance for '+_esc(MON[mo-1]+' '+yr)+'…</div>';
+  body.innerHTML=hdr+pickerRow+loadingHint+kpi+chart+tbl;
+}
+
+// Compact monthly P/A chart — present (green) and absent (red) lines
+// plus the active-headcount baseline.
+function _hrmsDasTwMdChartSvg(dayRows,daysInMonth,yr,mo,maxY,avgs){
+  var DOW=['S','M','T','W','T','F','S'];
+  var W=1060,H=280;
+  var padL=44,padR=18,padT=20,padB=44;
+  var plotW=W-padL-padR,plotH=H-padT-padB;
+  var colW=plotW/daysInMonth;
+  var xC=function(d){return padL+colW*(d-0.5);};
+  var yOf=function(v){return padT+plotH-(v/maxY)*plotH;};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px">';
+  // WO/PH bands
+  for(var d=1;d<=daysInMonth;d++){
+    var r=dayRows[d-1];
+    if(r&&(r.dType==='WO'||r.dType==='PH')){
+      var bx=padL+colW*(d-1);
+      var bg=r.dType==='PH'?'#dcfce7':'#e2e8f0';
+      s+='<rect x="'+bx+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="'+bg+'" fill-opacity="0.55"/>';
+    }
+  }
+  // Y grid + labels
+  for(var i=0;i<=4;i++){
+    var v=Math.round(maxY*i/4);
+    var y=yOf(v);
+    s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/>';
+    s+='<text x="'+(padL-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#64748b">'+v+'</text>';
+  }
+  // Axes
+  s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
+  s+='<line x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(W-padR)+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
+  // Average line (Present)
+  if(avgs&&avgs.avgP>0){
+    var ay=yOf(avgs.avgP);
+    s+='<line x1="'+padL+'" y1="'+ay+'" x2="'+(W-padR)+'" y2="'+ay+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"><title>Avg P (WD): '+avgs.avgP+'</title></line>';
+    s+='<text x="'+(W-padR-4)+'" y="'+(ay-3)+'" text-anchor="end" font-size="10" font-style="italic" fill="#475569">avg '+avgs.avgP+'</text>';
+  }
+  // Build path for P line and A line
+  var ptsP=[],ptsA=[],ptsT=[];
+  for(var d2=1;d2<=daysInMonth;d2++){
+    var r2=dayRows[d2-1];
+    if(!r2) continue;
+    ptsP.push(xC(d2)+','+yOf(r2.p));
+    ptsA.push(xC(d2)+','+yOf(r2.a));
+    ptsT.push(xC(d2)+','+yOf(r2.total));
+  }
+  // Total (active headcount) — light blue, thin
+  s+='<polyline points="'+ptsT.join(' ')+'" fill="none" stroke="#1d4ed8" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.55"/>';
+  // Absent line — red
+  s+='<polyline points="'+ptsA.join(' ')+'" fill="none" stroke="#b91c1c" stroke-width="1.6" opacity="0.85"/>';
+  // Present line — green (drawn last so it sits on top)
+  s+='<polyline points="'+ptsP.join(' ')+'" fill="none" stroke="#15803d" stroke-width="2" opacity="0.95"/>';
+  // Day markers + count labels
+  for(var d3=1;d3<=daysInMonth;d3++){
+    var r3=dayRows[d3-1];
+    if(!r3) continue;
+    var cx=xC(d3),cy=yOf(r3.p);
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="2.8" fill="#15803d"><title>'+d3+' — P:'+r3.p+' A:'+r3.a+' Tot:'+r3.total+'</title></circle>';
+  }
+  // X labels — day number + DOW (smaller). Show every day; WO/PH in red.
+  for(var d4=1;d4<=daysInMonth;d4++){
+    var dt=new Date(yr,mo-1,d4);
+    var dow=DOW[dt.getDay()];
+    var r4=dayRows[d4-1];
+    var excluded=r4&&(r4.dType==='WO'||r4.dType==='PH');
+    var fg=excluded?'#b91c1c':'#334155';
+    var xl=xC(d4);
+    s+='<text x="'+xl+'" y="'+(H-padB+13)+'" text-anchor="middle" font-size="9" font-weight="700" fill="'+fg+'">'+d4+'</text>';
+    s+='<text x="'+xl+'" y="'+(H-padB+25)+'" text-anchor="middle" font-size="8" fill="'+(excluded?'#dc2626':'#64748b')+'">'+dow+'</text>';
+  }
+  // Legend
+  var lx=padL+6,ly=padT+12;
+  s+='<g font-size="10" font-weight="800">'
+    +'<rect x="'+lx+'" y="'+(ly-9)+'" width="200" height="14" fill="#fff" fill-opacity="0.85" stroke="#e2e8f0"/>'
+    +'<line x1="'+(lx+6)+'" y1="'+(ly-2)+'" x2="'+(lx+22)+'" y2="'+(ly-2)+'" stroke="#15803d" stroke-width="2"/><text x="'+(lx+26)+'" y="'+(ly+1)+'" fill="#15803d">Present</text>'
+    +'<line x1="'+(lx+72)+'" y1="'+(ly-2)+'" x2="'+(lx+88)+'" y2="'+(ly-2)+'" stroke="#b91c1c" stroke-width="1.6"/><text x="'+(lx+92)+'" y="'+(ly+1)+'" fill="#b91c1c">Absent</text>'
+    +'<line x1="'+(lx+134)+'" y1="'+(ly-2)+'" x2="'+(lx+150)+'" y2="'+(ly-2)+'" stroke="#1d4ed8" stroke-width="1.2" stroke-dasharray="3 3"/><text x="'+(lx+154)+'" y="'+(ly+1)+'" fill="#1d4ed8">Total</text>'
+    +'</g>';
+  s+='</svg>';
+  return s;
+}
+
 // Export the currently-rendered Teamwise Data table (already scoped
 // to the active emp type / team / plant) to an Excel workbook.
 function _hrmsDasTwExport(){
@@ -12304,10 +12739,13 @@ function _hrmsDasTwRender(){
       var clickAttr='title="'+_esc(pl)+'" onclick="_hrmsDasTwSetPlant(\''+pl.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')"';
       h+=tile(on,clr,'#0f172a',_esc(sf),paLabel(pc.present,ab),clickAttr);
     });
-    // Show Summary + Export buttons anchored to the right of the plant
-    // tile row. Show Summary opens the Role Group P/A modal.
+    // Show Summary + Monthly Data + Export buttons anchored to the right
+    // of the plant tile row. Show Summary opens the Role Group P/A modal;
+    // Monthly Data opens the daily P/A headcount + chart popup.
     h+='<button onclick="_hrmsDasShowRgSummary(\'tw\')" '
       +'style="margin-left:auto;align-self:center;padding:8px 16px;font-weight:800;font-size:13px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📊 Show Summary</button>';
+    h+='<button onclick="_hrmsDasTwShowMonthly()" '
+      +'style="align-self:center;padding:8px 16px;font-weight:800;font-size:13px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📅 Monthly Data</button>';
     h+='<button class="hrms-tw-export" onclick="_hrmsDasTwExport()" '
       +'style="align-self:center;padding:8px 18px;font-weight:800;font-size:13px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📤 Export to Excel</button>';
     h+='</div>';
@@ -16922,12 +17360,8 @@ function _hrmsMhgPlantCard(plant,data,daysInMonth,yr,mo,history,histMonths,plant
   h+='<span title="Click to list all employees in this plant for the month" onclick="_hrmsMhgShowEmpsByIdx('+ctxAll+')" style="font-size:16px;font-weight:900;'+pillStyle+'">'+plant+'</span>';
   h+='<span style="font-size:11px;font-weight:700;color:var(--text3)">· avg over '+workDays+' working day(s) with data (excluded '+hpDays+' H/P'+(noDataDays?', '+noDataDays+' no-data':'')+')</span>';
   h+='</div>';
-  h+='<div style="display:flex;gap:14px;font-size:11px;flex-wrap:wrap">';
-  h+='<span title="Click to list Staff employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxStaff+')" style="color:#d97706;font-weight:700;'+pillStyle+'">● Staff · peak '+peakS+' · avg '+_r(avgS)+'</span>';
-  h+='<span title="Click to list On Roll employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxOR+')" style="color:#15803d;font-weight:700;'+pillStyle+'">● On Roll · peak '+peakOR+' · avg '+_r(avgOR)+'</span>';
-  h+='<span title="Click to list Contract employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxC+')" style="color:#1d4ed8;font-weight:700;'+pillStyle+'">● Contract · peak '+peakC+' · avg '+_r(avgC)+'</span>';
-  h+='<span title="Click to list Piece Rate employees" onclick="_hrmsMhgShowEmpsByIdx('+ctxPR+')" style="color:#7c3aed;font-weight:700;'+pillStyle+'">● Piece Rate · peak '+peakPR+' · avg '+_r(avgPR)+'</span>';
-  h+='</div>';
+  // Per-bucket peak/avg pills retired — the right-edge S/KAP/C/PR/T
+  // labels on the chart already carry the average figures.
   h+='</div>';
   h+=svg;
   h+='</div>';
@@ -17023,9 +17457,10 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
   if(avgs){
     var lineStartX=histCount>0?(padL+colW*(histCount+gapSlots-0.1)):padL;
     var lineEndX=W-padR+4;
+    // OR (On Roll) is labelled "KAP" in the chart per business preference.
     var stack=[
       {v:avgs.avgS||0, color:'#d97706',label:'S'},
-      {v:avgs.avgOR||0,color:'#15803d',label:'OR'},
+      {v:avgs.avgOR||0,color:'#15803d',label:'KAP'},
       {v:avgs.avgC||0, color:'#1d4ed8',label:'C'},
       {v:avgs.avgPR||0,color:'#7c3aed',label:'PR'}
     ];
@@ -17038,13 +17473,16 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
       }
       cum+=a.v;
     });
+    // Average lines — thin grey so they don't compete visually with the
+    // stacked bars. The right-edge labels still carry bucket colors.
+    var _avgLineStroke='#94a3b8';
     lines.forEach(function(l){
-      s+='<line x1="'+lineStartX+'" y1="'+l.y+'" x2="'+(W-padR)+'" y2="'+l.y+'" stroke="'+l.color+'" stroke-width="2" stroke-dasharray="6 4" stroke-linecap="round" opacity="0.9"><title>'+l.label+' avg (working days with data): '+_r0(l.v)+'</title></line>';
+      s+='<line x1="'+lineStartX+'" y1="'+l.y+'" x2="'+(W-padR)+'" y2="'+l.y+'" stroke="'+_avgLineStroke+'" stroke-width="1" stroke-dasharray="4 3" stroke-linecap="round" opacity="0.75"><title>'+l.label+' avg (working days with data): '+_r0(l.v)+'</title></line>';
     });
     var totalAvg=cum;
     if(totalAvg>0){
       var totalY=yOf(totalAvg);
-      s+='<line x1="'+lineStartX+'" y1="'+totalY+'" x2="'+(W-padR)+'" y2="'+totalY+'" stroke="#0f172a" stroke-width="3" stroke-linecap="round" opacity="0.95"><title>Total avg (working days with data): '+_r0(totalAvg)+'</title></line>';
+      s+='<line x1="'+lineStartX+'" y1="'+totalY+'" x2="'+(W-padR)+'" y2="'+totalY+'" stroke="#64748b" stroke-width="1.25" stroke-linecap="round" opacity="0.85"><title>Total avg (working days with data): '+_r0(totalAvg)+'</title></line>';
     }
     // Save for label rendering at the end of the SVG (after columns).
     avgLineState={lines:lines,totalAvg:totalAvg,lineEndX:lineEndX};
@@ -17132,14 +17570,18 @@ function _hrmsMhgChartSvg(data,daysInMonth,yr,mo,maxY,avgs){
   if(avgLineState){
     var _lines=avgLineState.lines, _totalAvg=avgLineState.totalAvg, _lineEndX=avgLineState.lineEndX;
     var allLbl=_lines.map(function(l){return {y:l.y,color:l.color,label:l.label,v:l.v,total:false};});
-    if(_totalAvg>0) allLbl.push({y:yOf(_totalAvg),color:'#0f172a',label:'Total',v:_totalAvg,total:true});
+    if(_totalAvg>0) allLbl.push({y:yOf(_totalAvg),color:'#475569',label:'T',v:_totalAvg,total:true});
     var sorted=allLbl.slice().sort(function(a,b){return a.y-b.y;});
     for(var i=1;i<sorted.length;i++){
       if(sorted[i].y-sorted[i-1].y<11) sorted[i].y=sorted[i-1].y+11;
     }
+    // Lighter labels — sans-serif italic, normal weight, smaller. Bucket
+    // colour still tints the label so they remain identifiable. "S : 84"
+    // / "KAP : 77" / "C : 12" / "PR : 5" / "T : 178" format.
     sorted.forEach(function(a){
-      var fs=a.total?11:10;
-      s+='<text x="'+_lineEndX+'" y="'+(a.y+4)+'" font-size="'+fs+'" font-weight="800" fill="#fff" stroke="'+a.color+'" stroke-width="3" paint-order="stroke">'+a.label+' '+_r0(a.v)+'</text>';
+      var fs=a.total?10:9;
+      var fw=a.total?700:500;
+      s+='<text x="'+_lineEndX+'" y="'+(a.y+4)+'" font-size="'+fs+'" font-weight="'+fw+'" font-style="italic" font-family="system-ui,sans-serif" fill="'+a.color+'">'+a.label+' : '+_r0(a.v)+'</text>';
     });
   }
 
@@ -20302,7 +20744,7 @@ async function _hrmsPickMonth(){
     var isSel=_hrmsMonth===m.monthKey;
     var bt=m.byType||{};
     var parts=[];
-    if(bt.onroll)    parts.push('<span style="color:#1d4ed8;font-weight:700">OR '+bt.onroll+'</span>');
+    if(bt.onroll)    parts.push('<span style="color:#1d4ed8;font-weight:700">KAP '+bt.onroll+'</span>');
     if(bt.contract)  parts.push('<span style="color:#92400e;font-weight:700">Con '+bt.contract+'</span>');
     if(bt.piecerate) parts.push('<span style="color:#7c3aed;font-weight:700">PR '+bt.piecerate+'</span>');
     if(bt.other)     parts.push('<span style="color:#475569;font-weight:700">Oth '+bt.other+'</span>');
@@ -20511,14 +20953,25 @@ async function _hrmsAddMonthConfirm(){
         emp.salaryMonths[mk]=_clone;
       }
     }
-    // Carry forward TDS — if the previous month had a TDS entry for this
-    // emp and the new month doesn't, copy it over. Additions / deletions
-    // made later in the new month stay scoped to that month and will, in
-    // turn, carry forward when the next month is created.
-    if(emp.extra&&emp.extra.tdsByMonth){
-      var _prevTds=emp.extra.tdsByMonth[prevMk];
-      if(_prevTds!==undefined&&_prevTds!==null&&_prevTds!==0&&emp.extra.tdsByMonth[mk]===undefined){
-        emp.extra.tdsByMonth[mk]=+_prevTds;
+    // Carry forward TDS — walk EVERY prior month-key on this emp and pick
+    // the most recent one that carries a non-zero TDS entry. Handles two
+    // edge cases the prevMk-only check missed:
+    //   • The new month was created before TDS was first added to a past
+    //     month (prevMk had no entry).
+    //   • Intervening months between the source TDS month and the new
+    //     month had no entries (a gap in tdsByMonth).
+    // Additions / deletions made later in the new month stay scoped to
+    // that month and carry forward to the NEXT month when it's created.
+    if(emp.extra&&emp.extra.tdsByMonth&&emp.extra.tdsByMonth[mk]===undefined){
+      var _tdsMonths=Object.keys(emp.extra.tdsByMonth)
+        .filter(function(m){return m<mk;})
+        .sort();
+      for(var _ti=_tdsMonths.length-1;_ti>=0;_ti--){
+        var _v=emp.extra.tdsByMonth[_tdsMonths[_ti]];
+        if(_v!==undefined&&_v!==null&&+_v>0){
+          emp.extra.tdsByMonth[mk]=+_v;
+          break;
+        }
       }
     }
   }
@@ -21526,8 +21979,12 @@ function _hrmsToggleApplyAll(checked){
 //     when no record/key existed, used to delete on revert).
 //   `_hrmsCalDraftWdFlips` = set of `mk|plant|day` flipped to WD —
 //     these trigger C-Off cleanup on save.
+//   `_hrmsCalDraftOffFlips` = set of `mk|plant|day` flipped to WO/PH —
+//     these trigger coffBlocked removal on save, so a date that was
+//     previously cleaned can again earn C-Off if it's marked as off.
 var _hrmsCalDraftBase={};
 var _hrmsCalDraftWdFlips={};
+var _hrmsCalDraftOffFlips={};
 function _hrmsCalDraftIsDirty(){
   return Object.keys(_hrmsCalDraftBase).length>0;
 }
@@ -21563,9 +22020,11 @@ function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
       var nr={id:'hdt'+uid(),monthKey:monthKey,plant:tp,dayTypes:dt,_calDraftNew:true};
       DB.hrmsDayTypes.push(nr);
     }
-    // Track WD flips for C-Off cleanup at save time.
-    if(next==='WD') _hrmsCalDraftWdFlips[draftKey]=1;
-    else delete _hrmsCalDraftWdFlips[draftKey];
+    // Track WD flips for C-Off cleanup AND WO/PH flips for coffBlocked
+    // removal at save time. Cycling clears the other-direction marker so
+    // only the current final state is acted on at save.
+    if(next==='WD'){ _hrmsCalDraftWdFlips[draftKey]=1; delete _hrmsCalDraftOffFlips[draftKey]; }
+    else            { _hrmsCalDraftOffFlips[draftKey]=1; delete _hrmsCalDraftWdFlips[draftKey]; }
     // If the user has cycled back to the original value, drop the
     // draft entry entirely (no actual change → no save needed).
     var orig=_hrmsCalDraftBase[draftKey];
@@ -21579,6 +22038,7 @@ function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
       }
       delete _hrmsCalDraftBase[draftKey];
       delete _hrmsCalDraftWdFlips[draftKey];
+      delete _hrmsCalDraftOffFlips[draftKey];
     }
   }
   _hrmsSalSettingsRender();
@@ -21622,7 +22082,7 @@ function _hrmsCalDiscardDraft(){
       }
     }
   });
-  _hrmsCalDraftBase={};_hrmsCalDraftWdFlips={};
+  _hrmsCalDraftBase={};_hrmsCalDraftWdFlips={};_hrmsCalDraftOffFlips={};
   _hrmsSalSettingsRender();
   try{
     if(_hrmsMhgState&&typeof _hrmsMhgRenderCharts==='function') _hrmsMhgRenderCharts();
@@ -21674,9 +22134,25 @@ async function _hrmsCalSaveDraft(){
     try{await _hrmsCleanupCoffsForDay(w.mk,w.day,w.plants);}
     catch(err){console.warn('coff cleanup',err);}
   }
+  // Reverse path — dates flipped TO WO/PH have their coffBlocked entry
+  // removed for emps at those plants, so auto-claim can fire again on
+  // the next My Attendance render.
+  var offByDay={};
+  Object.keys(_hrmsCalDraftOffFlips).forEach(function(k){
+    var parts=k.split('|');
+    var mk=parts[0],pl=parts[1],dKey=parts[2];
+    var bucket=mk+'|'+dKey;
+    if(!offByDay[bucket]) offByDay[bucket]={mk:mk,day:+dKey,plants:[]};
+    if(offByDay[bucket].plants.indexOf(pl)<0) offByDay[bucket].plants.push(pl);
+  });
+  for(var okey in offByDay){
+    var ow=offByDay[okey];
+    try{await _hrmsUnblockCoffsForDay(ow.mk,ow.day,ow.plants);}
+    catch(err){console.warn('coff unblock',err);}
+  }
   hideSpinner();
   var n=_hrmsCalDraftCount();
-  _hrmsCalDraftBase={};_hrmsCalDraftWdFlips={};
+  _hrmsCalDraftBase={};_hrmsCalDraftWdFlips={};_hrmsCalDraftOffFlips={};
   _hrmsSalSettingsRender();
   try{
     if(_hrmsMhgState&&typeof _hrmsMhgRenderCharts==='function') _hrmsMhgRenderCharts();
@@ -21696,31 +22172,44 @@ async function _hrmsForceRemoveCoffsForDate(iso,commit){
   if(!iso||!/^\d{4}-\d{2}-\d{2}$/.test(iso)){
     console.warn('Pass an ISO date like "2026-05-04"');return 0;
   }
-  var changedEmps=[],wouldRemove=0;
+  var changedEmps=[],wouldRemove=0,wouldBlock=0;
   (DB.hrmsEmployees||[]).forEach(function(e){
-    if(!e||!e.extra||!Array.isArray(e.extra.coffBank)||!e.extra.coffBank.length) return;
-    var before=e.extra.coffBank.length;
-    var kept=e.extra.coffBank.filter(function(c){return !(c&&c.earnedDate===iso);});
-    var dropped=before-kept.length;
-    if(dropped){
-      wouldRemove+=dropped;
-      console.log('[coff-force]',e.empCode,'→ drop',dropped,'entr'+(dropped===1?'y':'ies'),'for',iso);
-      if(commit){e.extra.coffBank=kept;changedEmps.push(e);}
+    if(!e||!e.extra) return;
+    var changed=false;
+    if(Array.isArray(e.extra.coffBank)&&e.extra.coffBank.length){
+      var before=e.extra.coffBank.length;
+      var kept=e.extra.coffBank.filter(function(c){return !(c&&c.earnedDate===iso);});
+      var dropped=before-kept.length;
+      if(dropped){
+        wouldRemove+=dropped;
+        console.log('[coff-force]',e.empCode,'→ drop',dropped,'entr'+(dropped===1?'y':'ies'),'for',iso);
+        if(commit){e.extra.coffBank=kept;changed=true;}
+      }
     }
+    // Always add the date to coffBlocked so the auto-claim sweep in
+    // _hrmsMyAttRender doesn't resurrect the entry next time the staff
+    // emp visits My Attendance. Without this, force-remove is purely
+    // transient — the calendar still says WO/PH so auto-claim re-fires.
+    if(!Array.isArray(e.extra.coffBlocked)) e.extra.coffBlocked=[];
+    if(e.extra.coffBlocked.indexOf(iso)<0){
+      wouldBlock++;
+      if(commit){ e.extra.coffBlocked.push(iso); changed=true; }
+    }
+    if(changed) changedEmps.push(e);
   });
-  console.log('[coff-force] total stale entries for '+iso+':',wouldRemove,'across',changedEmps.length,'emp(s)');
+  console.log('[coff-force] total stale entries for '+iso+':',wouldRemove,'· also will block',wouldBlock,'emp(s) from re-claiming this date');
   if(!commit){
-    console.log('[coff-force] Dry-run. Re-run with `_hrmsForceRemoveCoffsForDate(\''+iso+'\', true)` to delete + save.');
+    console.log('[coff-force] Dry-run. Re-run with `_hrmsForceRemoveCoffsForDate(\''+iso+'\', true)` to delete + block + save.');
     return wouldRemove;
   }
-  if(!changedEmps.length){notify('No C-Off entries earned on '+iso,false);return 0;}
+  if(!changedEmps.length){notify('No C-Off entries earned on '+iso+' (and nothing left to block)',false);return 0;}
   if(typeof _dbSaveBulk==='function'){
     try{await _dbSaveBulk('hrmsEmployees',changedEmps,'Removing C-Off entries for '+iso+'…');}
     catch(err){console.warn('coff force save',err);notify('Save failed: '+err.message,true);return 0;}
   } else {
     for(var i=0;i<changedEmps.length;i++){try{await _dbSave('hrmsEmployees',changedEmps[i]);}catch(_){}}
   }
-  notify('🧹 Removed '+wouldRemove+' C-Off entr'+(wouldRemove===1?'y':'ies')+' earned on '+iso);
+  notify('🧹 Removed '+wouldRemove+' C-Off entr'+(wouldRemove===1?'y':'ies')+' for '+iso+' (also blocked '+wouldBlock+' emp(s) from re-claiming)');
   return wouldRemove;
 }
 
@@ -21780,20 +22269,33 @@ async function _hrmsCleanupCoffsForDay(monthKey,day,targetPlants){
   var iso=monthKey+'-'+String(day).padStart(2,'0');
   var plantSet={};targetPlants.forEach(function(p){plantSet[String(p||'').trim()]=1;});
   var changedEmps=[],altUsedDates=[];
+  // Walk every Staff emp at the target plants — even if they have no
+  // coffBank entry yet, we need to add this date to coffBlocked so the
+  // auto-claim sweep in _hrmsMyAttRender doesn't re-create the entry
+  // next time it runs (e.g. when a Sunday's override gets cycled back
+  // to the default WO and the date once again resolves to an off day).
   (DB.hrmsEmployees||[]).forEach(function(e){
-    if(!e||!e.extra||!Array.isArray(e.extra.coffBank)||!e.extra.coffBank.length) return;
+    if(!e||!e.extra) return;
     var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     var empPlant=String((ap&&ap.location)||e.location||'').trim();
     if(empPlant&&!plantSet[empPlant]) return;
-    var before=e.extra.coffBank.length;
+    var changed=false;
+    var bank=Array.isArray(e.extra.coffBank)?e.extra.coffBank:[];
+    var before=bank.length;
     // Track usedForDate so we can null out the c-off-applied alterations.
-    e.extra.coffBank.forEach(function(c){
+    bank.forEach(function(c){
       if(c&&c.earnedDate===iso&&c.usedForDate){
         altUsedDates.push({empCode:e.empCode||'',dateIso:c.usedForDate});
       }
     });
-    e.extra.coffBank=e.extra.coffBank.filter(function(c){return !(c&&c.earnedDate===iso);});
-    if(e.extra.coffBank.length!==before) changedEmps.push(e);
+    e.extra.coffBank=bank.filter(function(c){return !(c&&c.earnedDate===iso);});
+    if(e.extra.coffBank.length!==before) changed=true;
+    // Block this date from future auto-claim. Only relevant for Staff
+    // emps (the only category that auto-claims), but the block is cheap
+    // to carry for everyone.
+    if(!Array.isArray(e.extra.coffBlocked)) e.extra.coffBlocked=[];
+    if(e.extra.coffBlocked.indexOf(iso)<0){ e.extra.coffBlocked.push(iso); changed=true; }
+    if(changed) changedEmps.push(e);
   });
   if(!changedEmps.length){return 0;}
   // Persist emp changes.
@@ -21833,6 +22335,33 @@ async function _hrmsCleanupCoffsForDay(monthKey,day,targetPlants){
     });
   }
   notify('🧹 Removed C-Off entries for '+iso+' across '+changedEmps.length+' employee(s) — calendar reverted to WD');
+  return changedEmps.length;
+}
+
+// Reverse of _hrmsCleanupCoffsForDay — removes `iso` from coffBlocked
+// for every emp at the target plants, so the auto-claim sweep can
+// surface this date again next time _hrmsMyAttRender runs. Fired when
+// the calendar cycles a date BACK to WO / PH after it had previously
+// been flipped to WD (which would have added the date to coffBlocked).
+async function _hrmsUnblockCoffsForDay(monthKey,day,targetPlants){
+  if(!Array.isArray(targetPlants)||!targetPlants.length) return 0;
+  var iso=monthKey+'-'+String(day).padStart(2,'0');
+  var plantSet={};targetPlants.forEach(function(p){plantSet[String(p||'').trim()]=1;});
+  var changedEmps=[];
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||!e.extra||!Array.isArray(e.extra.coffBlocked)||!e.extra.coffBlocked.length) return;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var empPlant=String((ap&&ap.location)||e.location||'').trim();
+    if(empPlant&&!plantSet[empPlant]) return;
+    var before=e.extra.coffBlocked.length;
+    e.extra.coffBlocked=e.extra.coffBlocked.filter(function(d){return d!==iso;});
+    if(e.extra.coffBlocked.length!==before) changedEmps.push(e);
+  });
+  if(!changedEmps.length) return 0;
+  try{
+    if(typeof _dbSaveBulk==='function') await _dbSaveBulk('hrmsEmployees',changedEmps);
+    else { for(var i=0;i<changedEmps.length;i++){ await _dbSave('hrmsEmployees',changedEmps[i]); } }
+  }catch(err){console.warn('coff unblock persist',err);}
   return changedEmps.length;
 }
 
@@ -24075,7 +24604,11 @@ function _hrmsRenderAllocationMaster(){
         ||document.getElementById('hrmsRoleGroupingBody')
         ||document.getElementById('pageHrmsMAllocation');
   if(!el) return;
-  var canEdit=typeof _hrmsHasAccess==='function'?_hrmsHasAccess('masters.edit'):true;
+  // Edit allowed by either masters.edit OR Full level on the active
+  // inner-tab perm (tab.das.rolegrouping for Role Groups,
+  // tab.das.alloc for the per-plant tabs).
+  var _allocScope=(activeTab==='rolegrouping'||_hrmsAllocActiveTab==='groups')?'groups':'alloc';
+  var canEdit=(typeof _hrmsCanEditAllocFor==='function')?_hrmsCanEditAllocFor(_allocScope):(typeof _hrmsHasAccess==='function'?_hrmsHasAccess('masters.edit'):true);
   var rec=_hrmsAllocationData();
   var groups=(rec.data.groups||[]).slice();
   var allocations=rec.data.allocations||{};
@@ -24241,7 +24774,7 @@ function _hrmsRenderAllocationMaster(){
 // refresh; Cancel just closes the popover.
 function _hrmsAllocPromptEdit(ev,key){
   if(!key) return;
-  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('masters.edit')){
+  if(typeof _hrmsCanEditAllocFor==='function'&&!_hrmsCanEditAllocFor('alloc')){
     notify('⚠ View-only access',true);return;
   }
   if(ev&&typeof ev.stopPropagation==='function') ev.stopPropagation();
@@ -24417,11 +24950,11 @@ async function _hrmsAllocSaveGrid(){
 // add and edit so the user picks roles via checkboxes instead of
 // chained prompts.
 function _hrmsAllocGroupAdd(){
-  if(!_hrmsHasAccess('masters.edit')){notify('⚠ View-only access',true);return;}
+  if(!_hrmsCanEditAllocFor('groups')){notify('⚠ View-only access',true);return;}
   _hrmsRoleGroupFormOpen(null);
 }
 function _hrmsAllocGroupEdit(gid){
-  if(!_hrmsHasAccess('masters.edit')){notify('⚠ View-only access',true);return;}
+  if(!_hrmsCanEditAllocFor('groups')){notify('⚠ View-only access',true);return;}
   _hrmsRoleGroupFormOpen(gid);
 }
 
@@ -24512,7 +25045,7 @@ async function _hrmsRoleGroupFormSave(){
 }
 
 function _hrmsAllocGroupDelete(gid){
-  if(!_hrmsHasAccess('masters.edit')){notify('⚠ View-only access',true);return;}
+  if(!_hrmsCanEditAllocFor('groups')){notify('⚠ View-only access',true);return;}
   var rec=_hrmsAllocationData();
   var g=rec.data.groups.find(function(x){return x.id===gid;});
   if(!g) return;
