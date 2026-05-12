@@ -1182,7 +1182,10 @@ function renderHrmsMaster(pid){
       items=items.filter(function(x){return (x.plant||'')===_curFilter;});
     }
   }
-  h+='<div class="table-wrap" style="max-height:calc(100vh - 200px)"><table><thead><tr>';
+  // Every master table is content-sized + gradient sticky header
+  // via the page-level CSS rules (css/hrms.css). The wrap no longer
+  // needs an explicit max-height (the flex chain provides bounds).
+  h+='<div class="table-wrap"><table><thead><tr>';
   if(isWorkerDept&&_canEditMaster) h+='<th title="Tick unused departments and click Delete Selected at top" style="width:28px"><input type="checkbox" onchange="_hrmsDeptToggleSelectAll(this.checked)" title="Select all unused"></th>';
   h+='<th>#</th>';
   if(isPlant) h+='<th>Color</th>';
@@ -1192,12 +1195,13 @@ function renderHrmsMaster(pid){
   if(isTeam) h+='<th>Contractor Supervisor</th>';
   if(isWorkerDept) h+='<th>Department Head</th>';
   if(isDept){
-    h+='<th style="text-align:center">On Roll</th><th style="text-align:center">Contract</th><th style="text-align:center">Piece Rate</th><th style="text-align:center;background:#f8fafc">Total</th>';
+    h+='<th style="text-align:center">On Roll</th><th style="text-align:center">Contract</th><th style="text-align:center">Piece Rate</th><th style="text-align:center">Total</th>';
   } else if(isTagMaster){
-    h+='<th style="text-align:center;color:#000" title="Active employees for the current month">Active</th>'
-      +'<th style="text-align:center;color:#000" title="Partially-inactive (manual mark) for the current month">Partially Inactive</th>'
-      +'<th style="text-align:center;color:#000" title="Inactive (auto: zero attendance this month) for the current month">Inactive</th>'
-      +'<th style="text-align:center;background:#f8fafc;color:#000">Total</th>';
+    var _tagThSty='text-align:center;width:92px;min-width:92px;max-width:92px';
+    h+='<th style="'+_tagThSty+'" title="Active employees for the current month">Active</th>'
+      +'<th style="'+_tagThSty+'" title="Partially-inactive (manual mark) for the current month">Partially Inactive</th>'
+      +'<th style="'+_tagThSty+'" title="Inactive (auto: zero attendance this month) for the current month">Inactive</th>'
+      +'<th style="'+_tagThSty+'">Total</th>';
   } else {
     h+='<th>Employees</th>';
   }
@@ -1210,8 +1214,10 @@ function renderHrmsMaster(pid){
   // visible in the table so the Total row reflects any active filter.
   var _deptTot={OnRoll:0,Contract:0,PieceRate:0,Total:0};
   var _tagTot={AC:0,PIA:0,IA:0,Total:0};
+  var _otherTot=0;// running sum for non-dept / non-tag masters (Team, Designation, etc.)
   if(items.length) items.forEach(function(it,i){
     var cnt=counts[it.name]||0;
+    _otherTot+=cnt;
     // Compute the per-row counts early so the bulk-select checkbox can
     // be gated on the same active-count rule the delete button uses.
     var _rowAnyKey=(c.tbl==='hrmsDepartments')?(it.name+'|||'+(it.plant||'')):it.name;
@@ -1257,7 +1263,7 @@ function renderHrmsMaster(pid){
       var supUser=supId?byId(DB.users||[],supId):null;
       var supName=supUser?(supUser.fullName||supUser.name||supId):'—';
       var supColor=supUser?'#15803d':'var(--text3)';
-      h+='<td><span onclick="_hrmsPickTeamSupervisor(\''+it.id+'\')" title="Click to assign / change Contractor Supervisor" style="display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:'+(supUser?'#dcfce7':'#f1f5f9')+';color:'+supColor+';border:1px dashed rgba(0,0,0,.15)">'+_hrmsEsc(supName)+'</span></td>';
+      h+='<td><span onclick="_hrmsPickTeamSupervisor(\''+it.id+'\',event)" title="Click to assign / change Contractor Supervisor" style="display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:'+(supUser?'#dcfce7':'#f1f5f9')+';color:'+supColor+';border:1px dashed rgba(0,0,0,.15)">'+_hrmsEsc(supName)+'</span></td>';
     }
     if(isWorkerDept){
       var dhIds=_hrmsGetDeptHeadIds(it.id);
@@ -1304,18 +1310,19 @@ function renderHrmsMaster(pid){
       _tagTot.PIA+=(+tb.PIA||0);
       _tagTot.IA+=(+tb.IA||0);
       _tagTot.Total+=(+tb.Total||0);
+      var _tagTdW='width:92px;min-width:92px;max-width:92px';
       var renderTag=function(n,clr){
-        if(n>0) return '<td style="text-align:center"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show employees">'+n+'</a></td>';
-        return '<td style="text-align:center;font-family:var(--mono);font-weight:700;color:var(--text3)">'+n+'</td>';
+        if(n>0) return '<td style="text-align:center;'+_tagTdW+'"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show employees">'+n+'</a></td>';
+        return '<td style="text-align:center;font-family:var(--mono);font-weight:700;color:var(--text3);'+_tagTdW+'">'+n+'</td>';
       };
       h+=renderTag(tb.AC||0,'#15803d');
       h+=renderTag(tb.PIA||0,'#92400e');
       h+=renderTag(tb.IA||0,'#b91c1c');
       var totT=tb.Total||0;
       if(totT>0){
-        h+='<td style="text-align:center;background:#f8fafc"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:900;color:var(--accent);text-decoration:underline;cursor:pointer" title="Show all employees">'+totT+'</a></td>';
+        h+='<td style="text-align:center;background:#f8fafc;'+_tagTdW+'"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:900;color:var(--accent);text-decoration:underline;cursor:pointer" title="Show all employees">'+totT+'</a></td>';
       } else {
-        h+='<td style="text-align:center;background:#f8fafc;font-family:var(--mono);font-weight:700;color:var(--text3)">'+totT+'</td>';
+        h+='<td style="text-align:center;background:#f8fafc;font-family:var(--mono);font-weight:700;color:var(--text3);'+_tagTdW+'">'+totT+'</td>';
       }
     } else if(cnt>0){
       var nameEsc=String(it.name||'').replace(/'/g,"\\'");
@@ -1369,6 +1376,21 @@ function renderHrmsMaster(pid){
     if(_canEditMaster) h+='<td style="padding:6px 8px'+_ftSty+'"></td>';
     h+='</tr>';
   }
+  // Sticky-footer Total row for simple masters (Team / Designation /
+  // Role-via-renderHrmsMaster). Single "Employees" total cell across
+  // every rendered row matches the body's only count column.
+  if(items.length&&!isDept&&!isTagMaster){
+    var _smFtBg='linear-gradient(180deg,#e2e8f0,#cbd5e1)';
+    var _smFtSty=';position:sticky;bottom:0;z-index:2;background:'+_smFtBg+';color:#0f172a;font-weight:900;box-shadow:inset 0 2px 0 #94a3b8';
+    h+='<tr>';
+    h+='<td style="padding:6px 8px'+_smFtSty+'"></td>';// # column
+    h+='<td style="padding:6px 8px;font-weight:900'+_smFtSty+'">Total</td>';
+    if(hasExtra) h+='<td style="padding:6px 8px'+_smFtSty+'"></td>';// extra
+    if(isTeam)   h+='<td style="padding:6px 8px'+_smFtSty+'"></td>';// supervisor
+    h+='<td style="padding:6px 8px;text-align:left;font-family:var(--mono);font-size:14px'+_smFtSty+'">'+_otherTot+'</td>';
+    if(_canEditMaster) h+='<td style="padding:6px 8px'+_smFtSty+'"></td>';
+    h+='</tr>';
+  }
   // Sticky-footer Total row for Plant / Category / Emp Type masters
   // with AC / PIA / IA / Total tallies across all rendered rows.
   if(isTagMaster&&items.length){
@@ -1380,10 +1402,11 @@ function renderHrmsMaster(pid){
     h+='<td style="padding:6px 8px;font-weight:900'+_tftSty+'">Total</td>';
     if(hasExtra) h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// extra
     if(isTeam)   h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// supervisor
-    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#15803d'+_tftSty+'">'+(_tagTot.AC||0)+'</td>';
-    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#92400e'+_tftSty+'">'+(_tagTot.PIA||0)+'</td>';
-    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#b91c1c'+_tftSty+'">'+(_tagTot.IA||0)+'</td>';
-    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);background:#0f172a;color:#fff;position:sticky;bottom:0;z-index:2;font-weight:900;box-shadow:inset 0 2px 0 #94a3b8">'+(_tagTot.Total||0)+'</td>';
+    var _tftW=';width:92px;min-width:92px;max-width:92px';
+    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#15803d'+_tftSty+_tftW+'">'+(_tagTot.AC||0)+'</td>';
+    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#92400e'+_tftSty+_tftW+'">'+(_tagTot.PIA||0)+'</td>';
+    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);color:#b91c1c'+_tftSty+_tftW+'">'+(_tagTot.IA||0)+'</td>';
+    h+='<td style="padding:6px 8px;text-align:center;font-family:var(--mono);background:#0f172a;color:#fff;position:sticky;bottom:0;z-index:2;font-weight:900;box-shadow:inset 0 2px 0 #94a3b8'+_tftW+'">'+(_tagTot.Total||0)+'</td>';
     if(_canEditMaster) h+='<td style="padding:6px 8px'+_tftSty+'"></td>';
     h+='</tr>';
   }
@@ -15060,25 +15083,37 @@ async function _hrmsSetTeamSupervisor(teamId,userId){
 }
 // Click handler — opens a prompt to pick a user with role 'Contractor
 // Supervisor'. Only Contractor Supervisor users are eligible.
-async function _hrmsPickTeamSupervisor(teamId){
+function _hrmsPickTeamSupervisor(teamId,ev){
   if(!teamId) return;
   var team=byId(DB.hrmsTeams||[],teamId);if(!team){notify('Team not found',true);return;}
   var users=(DB.users||[]).filter(function(u){return u&&!u.inactive&&(u.hrmsRoles||[]).indexOf('Contractor Supervisor')>=0;}).slice();
   users.sort(function(a,b){return(a.name||a.fullName||'').localeCompare(b.name||b.fullName||'');});
   if(!users.length){notify('No active users with the Contractor Supervisor role yet — assign the role first',true);return;}
-  var current=_hrmsGetTeamSupervisor(teamId);
-  var menu=users.map(function(u,i){var nm=u.fullName||u.name||u.id;return (i+1)+'. '+nm+(u.id===current?' (current)':'');}).join('\n');
-  var ans=prompt('Assign Contractor Supervisor for team "'+(team.name||'')+'"\n\n'+menu+'\n\nEnter row number (or 0 to clear):',current?'':'1');
-  if(ans==null) return;
-  var idx=parseInt(ans,10);
-  var newId='';
-  if(idx===0) newId='';
-  else if(idx>=1&&idx<=users.length) newId=users[idx-1].id;
-  else { notify('Invalid selection',true); return; }
-  var ok=await _hrmsSetTeamSupervisor(teamId,newId);
-  if(!ok){notify('⚠ Save failed',true);return;}
-  notify(newId?'✓ Supervisor assigned':'✓ Supervisor cleared');
-  if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMTeam');
+  var current=_hrmsGetTeamSupervisor(teamId)||'';
+  // Build the radio-list popover items — "None" first to deallocate,
+  // then the available Contractor Supervisor users.
+  var items=[{value:'',label:'— None (clear assignment) —'}].concat(users.map(function(u){
+    return {value:u.id,label:(u.fullName||u.name||u.id)};
+  }));
+  var onPick=function(val){
+    _hrmsSetTeamSupervisor(teamId,val).then(function(ok){
+      if(!ok){notify('⚠ Save failed',true);return;}
+      notify(val?'✓ Supervisor assigned':'✓ Supervisor cleared');
+      if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMTeam');
+    });
+  };
+  if(typeof _hrmsDasDdOpenPicker==='function'){
+    _hrmsDasDdOpenPicker(ev||null,'Assign Contractor Supervisor — '+(team.name||''),items,current,onPick);
+  } else {
+    // Defensive fallback when the picker helper isn't loaded yet —
+    // browser-native prompt with the same options.
+    var menu=items.map(function(it,i){return (i)+'. '+it.label+(it.value===current?' (current)':'');}).join('\n');
+    var ans=prompt('Assign Contractor Supervisor for team "'+(team.name||'')+'"\n\n'+menu+'\n\nEnter row number:','0');
+    if(ans==null) return;
+    var idx=parseInt(ans,10);
+    if(isNaN(idx)||idx<0||idx>=items.length){notify('Invalid selection',true);return;}
+    onPick(items[idx].value);
+  }
 }
 
 // ─── Worker Department → Plant mapping ──────────────────────────────────
@@ -23557,7 +23592,7 @@ function _hrmsRenderRollMaster(){
   else h+='<span style="font-size:11px;padding:6px 12px;background:var(--surface2);border:1.5px dashed var(--border2);border-radius:6px;color:var(--text3);font-style:italic">🔒 View Only</span>';
   h+='</div></div>';
 
-  h+='<div class="table-wrap" style="max-height:calc(100vh - 200px)"><table><thead><tr>';
+  h+='<div class="table-wrap"><table><thead><tr>';
   h+='<th>#</th><th>Role</th><th>Description</th><th>Employees</th><th>Actions</th>';
   h+='</tr></thead><tbody>';
   var _rmTotal=0;
