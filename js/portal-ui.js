@@ -214,7 +214,7 @@ function _portalUpdateLoginBtn(){
   // Spinner / connected dot
   if(spinner) spinner.style.display=loading?'block':'none';
   if(dot) dot.style.display=loading?'none':'inline-block';
-  if(label) label.textContent=loading?'Connecting to database…':'Connected — '+DB.users.length+' users loaded';
+  if(label) label.textContent=loading?'Connecting to database…':'Connected to Database Successfully';
   if(label) label.style.color=loading?'#475569':'#15803d';
   if(status){ status.style.background=loading?'#f8fafc':'rgba(34,197,94,.06)'; status.style.borderColor=loading?'#e2e8f0':'rgba(34,197,94,.25)'; }
 }
@@ -1931,6 +1931,167 @@ function _permIsUmbrella(items,index){
   return true;
 }
 
+// Tree expand/collapse state — keyed by group name (top level) and perm
+// key (interior nodes). Persists for the lifetime of the Access
+// Management screen; resets on a fresh page load. Default = collapsed.
+var _permTreeOpen={};
+
+// Walks every leaf descendant of a tree node, returning the aggregate
+// permission level: 'full' if every leaf is Full, 'none' if every leaf
+// is None, otherwise 'mixed'. Umbrella nodes are not leaves themselves
+// (they inherit from children) but the umbrella's children still count.
+function _permComputeNodeAggregate(node,rolePerms){
+  var allFull=true,allNone=true,any=false;
+  function walk(n){
+    if(!n.children||!n.children.length){
+      // Leaf
+      var lvl=_permReadLevel(rolePerms,n.item.key);
+      if(lvl!=='full') allFull=false;
+      if(lvl!=='none') allNone=false;
+      any=true;
+    } else {
+      n.children.forEach(walk);
+    }
+  }
+  walk(node);
+  if(!any) return 'none';
+  if(allFull) return 'full';
+  if(allNone) return 'none';
+  return 'mixed';
+}
+function _permAggregateColor(state){
+  if(state==='full') return '#15803d';// green
+  if(state==='none') return '#dc2626';// red
+  return '#a16207';                   // yellow/amber
+}
+
+// Build a tree from the flat items list. Honours two hierarchies:
+//   1) Explicit _PERM_UMBRELLA declarations — an item declared as a
+//      child of an umbrella becomes that umbrella's tree child
+//      whenever both are in the same group.
+//   2) Depth-based fallback — for items not covered by an umbrella
+//      declaration, the depth of the perm key (page/tab/sub-tab/action)
+//      determines nesting via the usual stack walk.
+function _permBuildTree(items){
+  var mod=_permActiveModule;
+  var umbDecl=(typeof _PERM_UMBRELLA!=='undefined'&&_PERM_UMBRELLA[mod])||{};
+  var treeParents=(typeof _PERM_TREE_PARENTS!=='undefined'&&_PERM_TREE_PARENTS[mod])||{};
+  var byKey={};items.forEach(function(it){byKey[it.key]=it;});
+  // child key → declared parent key (only when both are in this group).
+  // _PERM_TREE_PARENTS wins over _PERM_UMBRELLA so UI-only nesting
+  // hints (e.g. tab.das.alloc → tab.das.manpower) take precedence over
+  // the cascade-driven _PERM_UMBRELLA layout.
+  var nestedKeys={};
+  Object.keys(treeParents).forEach(function(childKey){
+    var pk=treeParents[childKey];
+    if(byKey[childKey]&&byKey[pk]) nestedKeys[childKey]=pk;
+  });
+  Object.keys(umbDecl).forEach(function(parentKey){
+    if(!byKey[parentKey]) return;
+    (umbDecl[parentKey]||[]).forEach(function(childKey){
+      if(byKey[childKey]&&!nestedKeys[childKey]) nestedKeys[childKey]=parentKey;
+    });
+  });
+  var nodeByKey={};
+  items.forEach(function(it){nodeByKey[it.key]={item:it,depth:_permDepth(it.key),children:[]};});
+  var roots=[];
+  var stack=[];
+  items.forEach(function(it){
+    var node=nodeByKey[it.key];
+    var parentKey=nestedKeys[it.key];
+    if(parentKey){
+      // Declared umbrella child — nest under the declared parent and
+      // reset the stack to this node so subsequent depth-based items
+      // can still nest under it if they have greater depth.
+      var parent=nodeByKey[parentKey];
+      if(parent) parent.children.push(node);
+      else roots.push(node);
+      // Rebuild stack so depth-based nesting under this node still works.
+      // Find the depth path to this node.
+      stack=[];
+      var cur=node;
+      while(cur){
+        stack.unshift(cur);
+        // climb to declared parent if any
+        var pk=nestedKeys[cur.item.key];
+        cur=pk?nodeByKey[pk]:null;
+      }
+    } else {
+      while(stack.length&&stack[stack.length-1].depth>=node.depth) stack.pop();
+      if(stack.length===0) roots.push(node);
+      else stack[stack.length-1].children.push(node);
+      stack.push(node);
+    }
+  });
+  return roots;
+}
+
+// True if an item's label is essentially the same as the group label
+// (after stripping emoji, punctuation, parenthetical suffixes). Used
+// to skip redundant umbrella rows when the group header already
+// serves as that umbrella's "row".
+function _permItemMirrorsGroup(item,groupName){
+  var clean=function(s){
+    return String(s||'')
+      .replace(/\([^)]*\)/g,'')      // drop "(main tab)" / "(sidebar menu)" etc.
+      .replace(/[^a-zA-Z0-9]/g,'')   // strip emoji, spaces, punctuation
+      .toLowerCase();
+  };
+  var iL=clean(item.label);
+  var gL=clean(groupName);
+  if(!iL||!gL) return false;
+  return iL===gL;
+}
+
+// Strip the noisy "(sub-tab)" / "(main tab)" / "(sidebar menu)"
+// annotations from a perm key's display label. The annotations were
+// useful when the tree was flat (the bracket disambiguated similarly-
+// named entries); inside the new collapsible tree they're redundant
+// because the hierarchy itself carries the meaning.
+function _permCleanLabel(label){
+  return String(label||'')
+    .replace(/\s*\(\s*sub[\s-]?tab\s*\)/ig,'')
+    .replace(/\s*\(\s*main\s*tab\s*\)/ig,'')
+    .replace(/\s*\(\s*sidebar\s*menu\s*\)/ig,'')
+    .replace(/\s*\(\s*modal\s*\)/ig,'')
+    .trim();
+}
+
+function _permToggleTree(key){
+  _permTreeOpen[key]=!_permTreeOpen[key];
+  _permRenderPerms();
+}
+
+// Copy every permission from a source role into the active role. Runs
+// in-memory only — admin must click Save to commit. Triggers a confirm
+// prompt because copying overwrites every existing setting on the
+// target role (including explicit None / View / Full grants).
+function _permCopyFromRole(sourceRole){
+  if(!sourceRole||sourceRole===_permActiveRole) return;
+  var role=_permActiveRole;
+  if(!role||role==='Super Admin') return;
+  if(!confirm('Copy ALL access settings from "'+sourceRole+'" into "'+role+'"?\n\nEvery existing setting on "'+role+'" will be overwritten.\n\nReview the result and click Save to commit, or switch roles to discard.')) return;
+  var md=_permModuleData(_permActiveModule);
+  if(!md.permissions) md.permissions={};
+  var src=md.permissions[sourceRole]||{};
+  // Deep-clone so the two roles don't share a reference.
+  var clone={};Object.keys(src).forEach(function(k){clone[k]=src[k];});
+  md.permissions[role]=clone;
+  _permRenderPerms();
+  if(typeof notify==='function') notify('Copied access settings from "'+sourceRole+'". Click Save to commit.');
+}
+function _permExpandAll(){
+  var keys=_PERM_KEYS[_permActiveModule]||[];
+  var groups={};keys.forEach(function(k){groups[k.group]=1;});
+  Object.keys(groups).forEach(function(g){_permTreeOpen[g]=true;});
+  keys.forEach(function(k){_permTreeOpen[k.key]=true;});
+  _permRenderPerms();
+}
+function _permCollapseAll(){
+  _permTreeOpen={};
+  _permRenderPerms();
+}
+
 function _permRenderPerms(){
   var header=document.getElementById('permHeader');
   var body=document.getElementById('permBody');
@@ -1944,13 +2105,20 @@ function _permRenderPerms(){
   header.innerHTML='<div style="font-size:15px;font-weight:900;color:var(--accent)">'+role+'</div>'
     +'<span style="font-size:11px;color:var(--text3)">'+_permActiveModule+'</span>'
     +(isSA?'<span style="font-size:11px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700">Full access — cannot be modified</span>':'');
-  // Save button lives on the tabs row (right-aligned). Hidden for
-  // Super Admin (whose perms are immutable) and when no role is selected.
   var saveSlot=document.getElementById('permSaveSlot');
   if(saveSlot){
     if(isSA){ saveSlot.innerHTML=''; saveSlot.style.display='none'; }
     else {
-      saveSlot.innerHTML='<button onclick="_permSaveRole()" style="font-size:12px;padding:6px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:800;cursor:pointer">💾 Save</button>';
+      // Build a "Copy from…" dropdown with every other role in the
+      // current module so an admin can clone an existing role's perms
+      // into the active one and tweak from there.
+      var otherRoles=(md.roles||[]).filter(function(r){return r&&r!==role&&r!=='Super Admin';});
+      var copyOpts='<option value="">Copy from…</option>'
+        +otherRoles.map(function(r){return '<option value="'+String(r).replace(/"/g,'&quot;')+'">'+r+'</option>';}).join('');
+      saveSlot.innerHTML='<select onchange="_permCopyFromRole(this.value);this.value=\'\'" style="font-size:11px;padding:6px 8px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Copy access settings from another role into '+role.replace(/"/g,'&quot;')+'">'+copyOpts+'</select>'
+        +'<button onclick="_permExpandAll()" style="font-size:11px;padding:6px 10px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Expand every menu">⊞ Expand</button>'
+        +'<button onclick="_permCollapseAll()" style="font-size:11px;padding:6px 10px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Collapse every menu">⊟ Collapse</button>'
+        +'<button onclick="_permSaveRole()" style="font-size:12px;padding:6px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:800;cursor:pointer">💾 Save</button>';
       saveSlot.style.display='';
     }
   }
@@ -1983,34 +2151,125 @@ function _permRenderPerms(){
     return out;
   }
 
+  // Recursive tree node renderer. ALWAYS emits every node (and every
+  // child wrapper) into the DOM, but applies display:none to the
+  // children wrapper when collapsed. This keeps the save logic happy
+  // — `_permSaveRole` reads from `[data-perm-ptkey]` and
+  // `[data-perm-umbrella]` selectors that traverse the full tree, so
+  // collapsing a group must NOT remove its controls from the DOM.
+  function renderNode(node,allItems){
+    var item=node.item;
+    var key=item.key;
+    var depth=node.depth;
+    var hasChildren=node.children.length>0;
+    var idxInFlat=allItems.indexOf(item);
+    var isUmbrella=_permIsUmbrella(allItems,idxInFlat);
+    var lvl=_permReadLevel(rolePerms,key);
+    var agg=hasChildren?_permComputeNodeAggregate(node,rolePerms):null;
+    var labelColor=hasChildren?_permAggregateColor(agg):
+      (depth===0?'var(--text)':depth===1?'var(--text)':depth===2?'var(--text2)':'var(--text3)');
+    var indent=depth*16;
+    // ── Single-leaf-child inline: if this node is an UMBRELLA (its
+    // own level is auto-derived, no separate tri-state) AND it has
+    // exactly one child with no further descendants, render on a
+    // single line as "Parent : Child" with the child's tri-state.
+    // Saves a row of vertical real-estate for cases like
+    //   settings.esslatt → action.importEssl  ("ESSL Data : Import…")
+    // Parents with their own grant control (e.g. tab.das.manpower →
+    // tab.das.alloc) stay as separate rows so both controls survive.
+    if(isUmbrella&&node.children.length===1&&node.children[0].children.length===0){
+      var only=node.children[0];
+      var onlyItem=only.item;
+      var onlyIdx=allItems.indexOf(onlyItem);
+      var onlyIsUmbrella=_permIsUmbrella(allItems,onlyIdx);
+      var onlyLvl=_permReadLevel(rolePerms,onlyItem.key);
+      var h='<div style="margin-left:'+indent+'px">';
+      h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px">';
+      h+='<span style="font-size:10px;color:var(--text3);width:12px;text-align:center;flex-shrink:0">•</span>';
+      h+='<span style="flex:1;font-size:'+(depth<=1?12:11)+'px;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+        +_permCleanLabel(item.label)
+        +' <span style="color:var(--text3);font-weight:500"> : </span>'
+        +_permCleanLabel(onlyItem.label)
+        +'</span>';
+      // Hidden parent umbrella marker for save (auto-derived level).
+      if(isUmbrella){
+        h+='<span data-perm-umbrella="'+key+'" data-perm-group-id="'+item.group.replace(/"/g,'&quot;')+'" data-perm-index="'+idxInFlat+'" style="display:none"></span>';
+      }
+      // Child's control — either the tri-state or its own umbrella marker.
+      if(onlyIsUmbrella){
+        h+='<span data-perm-umbrella="'+onlyItem.key+'" data-perm-group-id="'+onlyItem.group.replace(/"/g,'&quot;')+'" data-perm-index="'+onlyIdx+'" style="display:none"></span>';
+      } else {
+        h+=levelSeg(onlyItem,onlyLvl);
+      }
+      h+='</div></div>';
+      return h;
+    }
+    // ── Standard row (with optional expand toggle).
+    var isOpen=!!_permTreeOpen[key];
+    var icon=hasChildren?(isOpen?'▼':'▶'):'•';
+    var keyEsc=key.replace(/'/g,"\\'");
+    var rowBg=hasChildren?'background:#f8fafc;':'';
+    var rowClick=hasChildren?(' onclick="_permToggleTree(\''+keyEsc+'\')"'):'';
+    var cursor=hasChildren?'cursor:pointer;':'';
+    var h='<div style="margin-left:'+indent+'px">';
+    h+='<div'+rowClick+' style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;'+rowBg+cursor+'">';
+    h+='<span style="font-size:10px;color:var(--text3);width:12px;text-align:center;flex-shrink:0">'+icon+'</span>';
+    h+='<span style="flex:1;font-size:'+(depth<=1?12:11)+'px;color:'+labelColor+';font-weight:'+(hasChildren?'800':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_permCleanLabel(item.label)+'</span>';
+    if(isUmbrella||hasChildren){
+      var aggLbl=agg==='full'?'All Full':agg==='none'?'All None':agg==='mixed'?'Mixed':'';
+      h+='<span data-perm-umbrella="'+key+'" data-perm-group-id="'+item.group.replace(/"/g,'&quot;')+'" data-perm-index="'+idxInFlat+'" style="font-size:10px;color:'+labelColor+';font-style:italic;flex-shrink:0">'+aggLbl+'</span>';
+    } else {
+      h+=levelSeg(item,lvl);
+    }
+    h+='</div>';
+    if(hasChildren){
+      h+='<div style="display:'+(isOpen?'block':'none')+'">';
+      node.children.forEach(function(child){h+=renderNode(child,allItems);});
+      h+='</div>';
+    }
+    h+='</div>';
+    return h;
+  }
+
   var h='';
   groupOrder.forEach(function(g){
     var items=groups[g];
-    h+='<div style="margin-bottom:14px" data-perm-group="'+g.replace(/"/g,'&quot;')+'">';
-    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid var(--border)">';
-    h+='<span style="font-size:13px;font-weight:900;color:var(--text)">'+g+'</span>';
-    h+='</div>';
-    h+='<div style="display:flex;flex-direction:column;gap:4px">';
-    items.forEach(function(k,idx){
-      var depth=_permDepth(k.key);
-      var indent=depth*18; // slightly tighter now that we have 4 levels (0–3)
-      var lvl=_permReadLevel(rolePerms,k.key);
-      var icon=depth===0?'📄':depth===1?'📁':depth===2?'└─':'•';
-      var fontWeight=depth<=1?'700':'500';
-      var labelColor=depth===0?'var(--text)':depth===1?'var(--text)':depth===2?'var(--text2)':'var(--text3)';
-      var isUmbrella=_permIsUmbrella(items,idx);
-      // Fixed-width label (indent inside padding) so every tri-state lines up.
-      h+='<div style="display:flex;align-items:center;gap:10px;padding:3px 0">';
-      h+='<span style="font-size:'+(depth<=1?12:11)+'px;color:'+labelColor+';font-weight:'+fontWeight+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:280px;padding-left:'+indent+'px;flex-shrink:0;box-sizing:border-box">';
-      h+='<span style="opacity:0.5;margin-right:4px">'+icon+'</span>'+k.label;
-      h+='</span>';
-      if(isUmbrella){
-        h+='<span data-perm-umbrella="'+k.key+'" data-perm-group-id="'+g.replace(/"/g,'&quot;')+'" data-perm-index="'+idx+'" style="font-size:10px;color:var(--text3);font-style:italic">auto (from items below)</span>';
+    var roots=_permBuildTree(items);
+    var virtualGroup={item:{key:g,label:g,group:g},depth:-1,children:roots};
+    var groupAgg=_permComputeNodeAggregate(virtualGroup,rolePerms);
+    var groupColor=_permAggregateColor(groupAgg);
+    var isOpen=!!_permTreeOpen[g];
+    var groupEsc=g.replace(/'/g,"\\'");
+    var groupAggLbl=groupAgg==='full'?'All Full':groupAgg==='none'?'All None':'Mixed';
+    // Unwrap any root whose label essentially mirrors the group name
+    // and has children — the group header already serves as that
+    // umbrella's row, so we promote its children up to the group level.
+    // Other roots in the same group (siblings of the mirror) stay
+    // where they are. A hidden span with data-perm-umbrella is emitted
+    // for each unwrapped root so _permSaveRole still computes the
+    // umbrella's auto-derived value at save time.
+    var renderRoots=[];
+    var hiddenUmbMarker='';
+    roots.forEach(function(root){
+      if(root.children.length&&_permItemMirrorsGroup(root.item,g)){
+        var idxInFlat=items.indexOf(root.item);
+        hiddenUmbMarker+='<span data-perm-umbrella="'+root.item.key+'" data-perm-group-id="'+g.replace(/"/g,'&quot;')+'" data-perm-index="'+idxInFlat+'" style="display:none"></span>';
+        root.children.forEach(function(child){renderRoots.push(child);});
       } else {
-        h+=levelSeg(k,lvl);
+        renderRoots.push(root);
       }
-      h+='</div>';
     });
+    h+='<div style="margin-bottom:8px" data-perm-group="'+g.replace(/"/g,'&quot;')+'">';
+    h+='<div onclick="_permToggleTree(\''+groupEsc+'\')" style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;background:linear-gradient(180deg,#f8fafc,#f1f5f9);border:1px solid var(--border);border-radius:6px;user-select:none">';
+    h+='<span style="font-size:11px;color:var(--text3);width:12px;text-align:center;flex-shrink:0">'+(isOpen?'▼':'▶')+'</span>';
+    h+='<span style="flex:1;font-size:13px;font-weight:900;color:'+groupColor+'">'+_permCleanLabel(g)+'</span>';
+    h+='<span style="font-size:10px;color:'+groupColor+';font-weight:700;text-transform:uppercase;letter-spacing:.3px">'+groupAggLbl+'</span>';
+    h+='</div>';
+    // Always render the group's items so save selectors find them all;
+    // hide via display:none when collapsed.
+    h+='<div style="display:'+(isOpen?'block':'none')+';padding:6px 4px 6px 6px;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px">';
+    h+=hiddenUmbMarker;
+    renderRoots.forEach(function(root){h+=renderNode(root,items);});
     h+='</div>';
     h+='</div>';
   });

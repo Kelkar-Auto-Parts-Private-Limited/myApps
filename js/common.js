@@ -704,7 +704,7 @@ async function _testDbConn(){
           setTimeout(function(){ clearInterval(_wt); resolve(); }, 8000);
         });
       }catch(e){}
-      notify('✅ Connected to Supabase! ('+DB.users.length+' users)');
+      notify('✅ Connected to Database Successfully');
       console.log('✅ Sync complete from Supabase. users='+DB.users.length);
     }
   }catch(e){
@@ -2311,72 +2311,78 @@ var _PERM_KEYS={
     {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
     {key:'tab.das.deptdetails',label:'📋 Departmentwise Attendance',group:'📊 Day-wise Attendance'},
     {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings (modal)',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.rolegrouping',label:'📋 Role Groups (inner tab of Allocation Settings)',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings (modal, includes Role Groups add/edit/delete)',group:'📊 Day-wise Attendance'},
 
-    // Sidebar — 📅 Monthly Attendance & Salary (page-level + month actions)
+    // Sidebar — 📅 Monthly Attendance & Salary
+    // Everything that lives INSIDE the Monthly Attendance & Salary page
+    // (the month-level actions, every main tab + its sub-tabs, the
+    // salary-visibility buckets) is grouped here so the access-control
+    // tree nests them under a single top-level umbrella instead of
+    // spilling out as separate sibling groups.
     {key:'page.attSal',label:'📅 Monthly Attendance & Salary',group:'📅 Monthly Attendance & Salary'},
     {key:'action.addMonth',label:'+ Add New Month',group:'📅 Monthly Attendance & Salary'},
     {key:'action.saveLock',label:'🔒 Save & Lock Month',group:'📅 Monthly Attendance & Salary'},
     {key:'action.unlock',label:'🔓 Unlock Month',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → main tab "⚙️ Settings & Data" + sub-tabs
-    {key:'tab.settings',label:'⚙️ Settings & Data (main tab)',group:'⚙️ Settings & Data'},
-    {key:'settings.esslatt',label:'ESSL Data (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.importEssl',label:'📥 Import / Update ESSL Attendance',group:'⚙️ Settings & Data'},
-    {key:'settings.altimport',label:'Manual Alt (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.importAlterations',label:'📥 Import Alterations',group:'⚙️ Settings & Data'},
-    {key:'settings.manual',label:'Manual P & OT (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.importOB',label:'📥 Import Opening Balance',group:'⚙️ Settings & Data'},
-    {key:'settings.advances',label:'Advances (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.importAdvances',label:'📥 Import Advances',group:'⚙️ Settings & Data'},
-    {key:'settings.calendar',label:'Calendar (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.editCalendar',label:'✏️ Edit Calendar / Save Calendar',group:'⚙️ Settings & Data'},
-    {key:'settings.tds',label:'TDS (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'settings.salrevision',label:'KAP Sal Rev (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.bulkSalRevision',label:'📥 Import Salary Excel (Bulk Sal Revision)',group:'⚙️ Settings & Data'},
-    {key:'page.contractRev',label:'Contract Salary Rev (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'⚙️ Settings & Data'},
-    {key:'settings.statutory',label:'Statutory (sub-tab)',group:'⚙️ Settings & Data'},
-    {key:'action.editStatutory',label:'✏️ Edit Statutory Rules',group:'⚙️ Settings & Data'},
+    {key:'tab.settings',label:'⚙️ Settings & Data',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.esslatt',label:'ESSL Data',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.importEssl',label:'📥 Import / Update ESSL Attendance',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.altimport',label:'Manual Alt',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.importAlterations',label:'📥 Import Alterations',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.manual',label:'Manual P & OT',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.importOB',label:'📥 Import Opening Balance',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.advances',label:'Advances',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.importAdvances',label:'📥 Import Advances',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.calendar',label:'Calendar',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.editCalendar',label:'✏️ Edit Calendar / Save Calendar',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.tds',label:'TDS',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.salrevision',label:'KAP Sal Rev',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.bulkSalRevision',label:'📥 Import Salary Excel (Bulk Sal Revision)',group:'📅 Monthly Attendance & Salary'},
+    {key:'page.contractRev',label:'Contract Salary Rev',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'📅 Monthly Attendance & Salary'},
+    {key:'settings.statutory',label:'Statutory',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.editStatutory',label:'✏️ Edit Statutory Rules',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → main tab "📅 Attendance" + sub-tabs
-    {key:'tab.attendance',label:'📅 Attendance (main tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.muster',label:'Muster Roll (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.pot',label:'P & OT (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.summary',label:'Summary (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'action.exportAttendance',label:'📤 Export Attendance',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'action.approveAlt',label:'Approve Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'action.rejectAlt',label:'Reject Alteration',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.entry',label:'New Joinee/Rejoinee (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.exit',label:'Absent Employees FTM (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.printformats',label:'🖨 Print Muster (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'action.addPrintFormat',label:'+ Add / Edit Print Muster Format',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.coff',label:'C-Off Requests (sub-tab)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.altRequest',label:'Submit Alteration Request (My Attendance)',group:'📅 Attendance (main tab) & Sub-tabs'},
-    {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📅 Attendance (main tab) & Sub-tabs'},
-
-    // Salary Visibility — four independent buckets. Tri-state: None = Hide
-    // (shown as XXX), View / Full = Show actual numbers. Each bucket gates
-    // sal/day, sal/mon, Sp Allow, and Gross for that employmentType+category
-    // combination. Super Admin / HRMS Admin bypass.
-    {key:'salary.showOnRollStaff',   label:'👤 On-Roll Staff — Show salary (None = Hide as XXX)',   group:'🔒 Salary Visibility'},
-    {key:'salary.showOnRollWorker',  label:'👷 On-Roll Worker — Show salary (None = Hide as XXX)',  group:'🔒 Salary Visibility'},
-    {key:'salary.showContractStaff', label:'🤝 Contract Staff — Show salary (None = Hide as XXX)',  group:'🔒 Salary Visibility'},
-    {key:'salary.showContractWorker',label:'🛠 Contract Worker — Show salary (None = Hide as XXX)', group:'🔒 Salary Visibility'},
+    {key:'tab.attendance',label:'📅 Attendance',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.muster',label:'Muster Roll',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.pot',label:'P & OT',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.summary',label:'Summary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportAttendance',label:'📤 Export Attendance',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.approveAlt',label:'Approve Alteration',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.rejectAlt',label:'Reject Alteration',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.entry',label:'New Joinee/Rejoinee',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.exit',label:'Absent Employees FTM',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.printformats',label:'🖨 Print Muster',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.addPrintFormat',label:'+ Add / Edit Print Muster Format',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.coff',label:'C-Off Requests',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.altRequest',label:'Submit Alteration Request (My Attendance)',group:'📅 Monthly Attendance & Salary'},
+    {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → other main tabs
-    {key:'tab.salary',label:'💰 KAP Salary (main tab)',group:'💰 KAP Salary (main tab)'},
-    {key:'action.exportSalary',label:'📤 Export Salary',group:'💰 KAP Salary (main tab)'},
-    {key:'action.exportWorkerSlip',label:"🧾 Worker's Salary Slip PDF",group:'💰 KAP Salary (main tab)'},
-    {key:'tab.payments',label:'🏦 KAP Sal Payment (main tab)',group:'🏦 KAP Sal Payment (main tab)'},
-    {key:'action.exportPayments',label:'📤 Export Payments',group:'🏦 KAP Sal Payment (main tab)'},
-    {key:'tab.esipf',label:'📋 KAP ESI/PF Report (main tab)',group:'📋 KAP ESI/PF Report (main tab)'},
-    {key:'action.exportEsiPf',label:'📤 Export ESI/PF',group:'📋 KAP ESI/PF Report (main tab)'},
-    {key:'tab.pt',label:'🧾 KAP PT Summary (main tab)',group:'🧾 KAP PT Summary (main tab)'},
-    {key:'action.exportPt',label:'📤 Export PT Details',group:'🧾 KAP PT Summary (main tab)'},
-    {key:'tab.contract',label:'📋 Contract Salary (main tab)',group:'📋 Contract Salary (main tab)'},
-    {key:'action.exportContract',label:'📤 Export Contract Salary',group:'📋 Contract Salary (main tab)'},
+    {key:'tab.salary',label:'💰 KAP Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportSalary',label:'📤 Export Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportWorkerSlip',label:"🧾 Worker's Salary Slip PDF",group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.payments',label:'🏦 KAP Sal Payment',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportPayments',label:'📤 Export Payments',group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.esipf',label:'📋 KAP ESI/PF Report',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportEsiPf',label:'📤 Export ESI/PF',group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.pt',label:'🧾 KAP PT Summary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportPt',label:'📤 Export PT Details',group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.contract',label:'📋 Contract Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'action.exportContract',label:'📤 Export Contract Salary',group:'📅 Monthly Attendance & Salary'},
+
+    // Monthly Attendance & Salary → View Salary (umbrella over the 4
+    // salary-visibility buckets). Tri-state per bucket: None = Hide
+    // (shown as XXX), View / Full = Show actual numbers. Each bucket
+    // gates sal/day, sal/mon, Sp Allow and Gross for the matching
+    // employmentType + category combo.
+    {key:'tab.salaryVisibility',label:'🔒 View Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'salary.showOnRollStaff',   label:'👤 On-Roll Staff — Show salary',   group:'📅 Monthly Attendance & Salary'},
+    {key:'salary.showOnRollWorker',  label:'👷 On-Roll Worker — Show salary',  group:'📅 Monthly Attendance & Salary'},
+    {key:'salary.showContractStaff', label:'🤝 Contract Staff — Show salary',  group:'📅 Monthly Attendance & Salary'},
+    {key:'salary.showContractWorker',label:'🛠 Contract Worker — Show salary', group:'📅 Monthly Attendance & Salary'},
 
     // Sidebar — 🗓 My Attendance
     {key:'page.myAttendance',label:'🗓 My Attendance',group:'🗓 My Attendance'},
@@ -2532,16 +2538,28 @@ function _permKeyKind(key){ return /^(page|tab)\./.test(key)?'pageTab':'action';
 // see them). Needed because HRMS's page.attSal lives in "📅 Attendance &
 // Salary" but its tabs live in separate groups, and page.masters in HRMS
 // wraps page.masterX siblings that aren't auto-rollable.
+// UI-only parent→child layout hints for the Access Management tree.
+// Unlike _PERM_UMBRELLA, items declared here do NOT become auto-derived
+// umbrellas — both the parent and the child keep their own tri-state
+// controls so admins can grant them independently. Used to express
+// "Manpower Allocation Settings sits inside Allocation vs Actual
+// Manpower" without dropping either's grant control.
+var _PERM_TREE_PARENTS={
+  HRMS:{
+    'tab.das.alloc':'tab.das.manpower'
+  }
+};
 var _PERM_UMBRELLA={
   HRMS:{
     'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
-                   'action.addMonth','action.saveLock','action.unlock'],
+                   'action.addMonth','action.saveLock','action.unlock','tab.salaryVisibility'],
+    'tab.salaryVisibility':['salary.showOnRollStaff','salary.showOnRollWorker','salary.showContractStaff','salary.showContractWorker'],
     'page.masters':['page.employees','page.orgStructure','page.masterPlant','page.masterCategory','page.masterEmpType','page.masterTeam',
                     'page.masterDept','page.masterSubDept','page.masterDesig','page.masterRoll','masters.edit'],
     'page.utilities':['page.utilAttConv','page.utilUpdateEmp'],
     // Day-wise Attendance is a sidebar collapsible — its parent menu
     // (page.utilDailyAttSum) auto-derives from the sub-page perms.
-    'page.utilDailyAttSum':['page.plantwiseAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.alloc','tab.das.rolegrouping']
+    'page.utilDailyAttSum':['page.plantwiseAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
