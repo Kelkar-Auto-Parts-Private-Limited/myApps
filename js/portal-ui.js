@@ -1703,6 +1703,7 @@ function _permModuleData(mod){
   var all=_permLoadData();
   if(!all[mod]) all[mod]={roles:[],permissions:{}};
   var md=all[mod];
+  if(!Array.isArray(md.customRoles)) md.customRoles=[];
   // Auto-merge: ensure all default/constant roles exist in the saved list
   // — except defaults the admin has explicitly deleted (md.deletedDefaults).
   // Without that exception, deleting "Read Only" would silently come back on
@@ -1718,8 +1719,13 @@ function _permModuleData(mod){
   // module — custom roles (added via "+ Add" in this editor) pass through.
   var field=_PERM_ROLE_FIELDS[mod];
   var allow=(typeof _PERM_MODULE_ROLES!=='undefined')&&_PERM_MODULE_ROLES[mod];
+  var customs=md.customRoles||[];
   var _belongsToAnotherModule=function(r){
     if(typeof _PERM_MODULE_ROLES==='undefined') return false;
+    // Admin explicitly added this role here via "+ Add" — keep it even
+    // if the name collides with another module's built-ins (e.g. adding
+    // "Plant Head" to HRMS when it's also a VMS built-in).
+    if(customs.indexOf(r)>=0) return false;
     if(allow&&allow.indexOf(r)>=0) return false; // already in this module's defaults
     var mods=Object.keys(_PERM_MODULE_ROLES);
     for(var i=0;i<mods.length;i++){
@@ -1742,9 +1748,9 @@ function _permModuleData(mod){
       });
     });
   }
-  // Drop only roles built into another module, plus any deleted-default
-  // role that snuck in via some other path. Custom roles created via
-  // "+ Add" survive across reloads.
+  // Drop only roles built into another module (that weren't explicitly
+  // added here), plus any deleted-default role that snuck in via some
+  // other path. Custom roles created via "+ Add" survive across reloads.
   md.roles=md.roles.filter(function(r){
     if(_belongsToAnotherModule(r)) return false;
     if(deletedDefaults.indexOf(r)>=0) return false;
@@ -2109,14 +2115,10 @@ function _permRenderPerms(){
   if(saveSlot){
     if(isSA){ saveSlot.innerHTML=''; saveSlot.style.display='none'; }
     else {
-      // Build a "Copy from…" dropdown with every other role in the
-      // current module so an admin can clone an existing role's perms
-      // into the active one and tweak from there.
-      var otherRoles=(md.roles||[]).filter(function(r){return r&&r!==role&&r!=='Super Admin';});
-      var copyOpts='<option value="">Copy from…</option>'
-        +otherRoles.map(function(r){return '<option value="'+String(r).replace(/"/g,'&quot;')+'">'+r+'</option>';}).join('');
-      saveSlot.innerHTML='<select onchange="_permCopyFromRole(this.value);this.value=\'\'" style="font-size:11px;padding:6px 8px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Copy access settings from another role into '+role.replace(/"/g,'&quot;')+'">'+copyOpts+'</select>'
-        +'<button onclick="_permExpandAll()" style="font-size:11px;padding:6px 10px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Expand every menu">⊞ Expand</button>'
+      // Copy/reset between roles is handled by the dedicated "🔄 Change Access"
+      // button in the Roles panel header — keeps this header focused on
+      // the actions that act on the active role.
+      saveSlot.innerHTML='<button onclick="_permExpandAll()" style="font-size:11px;padding:6px 10px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Expand every menu">⊞ Expand</button>'
         +'<button onclick="_permCollapseAll()" style="font-size:11px;padding:6px 10px;background:#fff;color:var(--text2);border:1.5px solid var(--border);border-radius:6px;font-weight:700;cursor:pointer;margin-right:6px" title="Collapse every menu">⊟ Collapse</button>'
         +'<button onclick="_permSaveRole()" style="font-size:12px;padding:6px 18px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:800;cursor:pointer">💾 Save</button>';
       saveSlot.style.display='';
@@ -2133,21 +2135,48 @@ function _permRenderPerms(){
   });
 
   // Tri-state segmented control renderer — used for every permission entry.
+  // Keys can opt into custom labels for the View/Full positions via
+  // `scopeLabels:{view:'…',full:'…'}` (e.g. page.myAttendance uses
+  // "Only Logged-in User" / "All Users" instead of View / Full).
+  // Keys that need a separate row-level scope picker (which subset of
+  // records the role can see — all / mapped teams / own dept / etc.)
+  // declare `scopeOptions:[{v,lbl},…]` and optional
+  // `defaultScopeByRole:{role:value}` for migration fallbacks. The
+  // picker is rendered as a <select data-perm-scope="<key>"> right
+  // after the tri-state segment and its value is persisted as a
+  // sibling key (perms[role]['<key>.scope']).
   function levelSeg(k,currentLevel){
+    var sl=k&&k.scopeLabels||null;
     var levels=[
       {v:'none',lbl:'None',bg:'#f3f4f6',fg:'#6b7280',activeBg:'#9ca3af',activeFg:'#fff'},
-      {v:'view',lbl:'View',bg:'#eff6ff',fg:'#1d4ed8',activeBg:'#2563eb',activeFg:'#fff'},
-      {v:'full',lbl:'Full',bg:'#ecfdf5',fg:'#047857',activeBg:'#16a34a',activeFg:'#fff'}
+      {v:'view',lbl:(sl&&sl.view)||'View',bg:'#eff6ff',fg:'#1d4ed8',activeBg:'#2563eb',activeFg:'#fff'},
+      {v:'full',lbl:(sl&&sl.full)||'Full',bg:'#ecfdf5',fg:'#047857',activeBg:'#16a34a',activeFg:'#fff'}
     ];
+    var padX=sl?12:9;
     var out='<div data-perm-ptkey="'+k.key+'" data-level="'+currentLevel+'" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;flex-shrink:0">';
     levels.forEach(function(L){
       var on=(L.v===currentLevel);
       out+='<button type="button" onclick="_permSetLevel(\''+k.key+'\',\''+L.v+'\')" '
-        +'style="font-size:10px;font-weight:800;padding:3px 9px;border:none;cursor:pointer;'
+        +'style="font-size:10px;font-weight:800;padding:3px '+padX+'px;border:none;cursor:pointer;white-space:nowrap;'
         +'background:'+(on?L.activeBg:L.bg)+';color:'+(on?L.activeFg:L.fg)+';'
         +'transition:all .1s">'+L.lbl+'</button>';
     });
     out+='</div>';
+    var scopeOpts=(k&&Array.isArray(k.scopeOptions)&&k.scopeOptions.length)?k.scopeOptions:null;
+    if(!scopeOpts && typeof _permKeyAcceptsScope==='function' && _permKeyAcceptsScope(k)){
+      var modOpts=(typeof _PERM_DEFAULT_SCOPE_OPTIONS!=='undefined')?_PERM_DEFAULT_SCOPE_OPTIONS[_permActiveModule]:null;
+      scopeOpts=Array.isArray(modOpts)?modOpts:null;
+    }
+    if(scopeOpts&&scopeOpts.length){
+      var saved=rolePerms[k.key+'.scope'];
+      var defByRole=(k.defaultScopeByRole||{})[_permActiveRole]||'';
+      var sel=saved||defByRole||(scopeOpts[0]&&scopeOpts[0].v)||'';
+      out+='<select data-perm-scope="'+k.key+'" style="font-size:10px;font-weight:700;padding:3px 6px;margin-left:6px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text2);cursor:pointer;max-width:160px;flex-shrink:0">';
+      scopeOpts.forEach(function(O){
+        out+='<option value="'+String(O.v).replace(/"/g,'&quot;')+'"'+(O.v===sel?' selected':'')+'>'+(O.lbl||O.v)+'</option>';
+      });
+      out+='</select>';
+    }
     return out;
   }
 
@@ -2214,10 +2243,17 @@ function _permRenderPerms(){
     var h='<div style="margin-left:'+indent+'px">';
     h+='<div'+rowClick+' style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;'+rowBg+cursor+'">';
     h+='<span style="font-size:10px;color:var(--text3);width:12px;text-align:center;flex-shrink:0">'+icon+'</span>';
-    h+='<span style="flex:1;font-size:'+(depth<=1?12:11)+'px;color:'+labelColor+';font-weight:'+(hasChildren?'800':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_permCleanLabel(item.label)+'</span>';
-    if(isUmbrella||hasChildren){
-      var aggLbl=agg==='full'?'All Full':agg==='none'?'All None':agg==='mixed'?'Mixed':'';
-      h+='<span data-perm-umbrella="'+key+'" data-perm-group-id="'+item.group.replace(/"/g,'&quot;')+'" data-perm-index="'+idxInFlat+'" style="font-size:10px;color:'+labelColor+';font-style:italic;flex-shrink:0">'+aggLbl+'</span>';
+    h+='<span style="flex:1;min-width:140px;font-size:'+(depth<=1?12:11)+'px;color:'+labelColor+';font-weight:'+(hasChildren?'800':'500')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_permCleanLabel(item.label)+'</span>';
+    if(isUmbrella){
+      // Real umbrella key — its level is auto-derived from children, so
+      // emit only the hidden marker that _permSaveRole reads.
+      h+='<span data-perm-umbrella="'+key+'" data-perm-group-id="'+item.group.replace(/"/g,'&quot;')+'" data-perm-index="'+idxInFlat+'" style="display:none"></span>';
+    } else if(hasChildren){
+      // UI-only nested parent (e.g. tab.das.manpower nests tab.das.alloc
+      // via _PERM_TREE_PARENTS, but the parent itself is grantable in
+      // its own right). Show the tri-state so admin can grant the page
+      // directly.
+      h+=levelSeg(item,lvl);
     } else {
       h+=levelSeg(item,lvl);
     }
@@ -2240,7 +2276,14 @@ function _permRenderPerms(){
     var groupColor=_permAggregateColor(groupAgg);
     var isOpen=!!_permTreeOpen[g];
     var groupEsc=g.replace(/'/g,"\\'");
-    var groupAggLbl=groupAgg==='full'?'All Full':groupAgg==='none'?'All None':'Mixed';
+    // Coloured pill badge for the top-level collapsible group bar so
+    // the aggregate state of every child reads at a glance: solid
+    // green = every child Full, solid red = every child None, solid
+    // amber = mixed.
+    var groupBadge='';
+    if(groupAgg==='full')      groupBadge='<span style="font-size:10px;font-weight:800;background:#16a34a;color:#fff;border:1px solid #15803d;padding:2px 10px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;flex-shrink:0;box-shadow:0 1px 2px rgba(22,163,74,.25)">All Full</span>';
+    else if(groupAgg==='none') groupBadge='<span style="font-size:10px;font-weight:800;background:#dc2626;color:#fff;border:1px solid #b91c1c;padding:2px 10px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;flex-shrink:0;box-shadow:0 1px 2px rgba(220,38,38,.25)">All None</span>';
+    else                       groupBadge='<span style="font-size:10px;font-weight:800;background:#f59e0b;color:#fff;border:1px solid #d97706;padding:2px 10px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;flex-shrink:0;box-shadow:0 1px 2px rgba(245,158,11,.25)">Mixed</span>';
     // Unwrap any root whose label essentially mirrors the group name
     // and has children — the group header already serves as that
     // umbrella's row, so we promote its children up to the group level.
@@ -2263,7 +2306,7 @@ function _permRenderPerms(){
     h+='<div onclick="_permToggleTree(\''+groupEsc+'\')" style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;background:linear-gradient(180deg,#f8fafc,#f1f5f9);border:1px solid var(--border);border-radius:6px;user-select:none">';
     h+='<span style="font-size:11px;color:var(--text3);width:12px;text-align:center;flex-shrink:0">'+(isOpen?'▼':'▶')+'</span>';
     h+='<span style="flex:1;font-size:13px;font-weight:900;color:'+groupColor+'">'+_permCleanLabel(g)+'</span>';
-    h+='<span style="font-size:10px;color:'+groupColor+';font-weight:700;text-transform:uppercase;letter-spacing:.3px">'+groupAggLbl+'</span>';
+    h+=groupBadge;
     h+='</div>';
     // Always render the group's items so save selectors find them all;
     // hide via display:none when collapsed.
@@ -2301,25 +2344,137 @@ function _permSetLevel(pageTabKey,level){
 function _permItemChange(){}
 function _permToggleGroup(){}
 
+// Opens the Add Role modal (replaces the legacy prompt()). The modal only
+// asks for a name — copy-from / reset-to-none lives in the dedicated
+// "🔄 Change Access" popup so the two flows don't get tangled.
 function _permAddRole(){
-  var name=prompt('Enter new role name for '+_permActiveModule+':');
-  if(!name||!name.trim()) return;
-  name=name.trim();
+  var modLbl=document.getElementById('permAddRoleMod');
+  if(modLbl) modLbl.textContent='('+_permActiveModule+')';
+  var nameEl=document.getElementById('permAddRoleName');
+  if(nameEl) nameEl.value='';
+  var err=document.getElementById('merr_mPermAddRole');
+  if(err) err.textContent='';
+  om('mPermAddRole');
+  setTimeout(function(){try{nameEl.focus();}catch(_){}},30);
+}
+
+async function _permAddRoleSave(){
+  var nameEl=document.getElementById('permAddRoleName');
+  var err=document.getElementById('merr_mPermAddRole');
+  var setErr=function(m){if(err) err.textContent=m||'';};
+  setErr('');
+  var name=String((nameEl&&nameEl.value)||'').trim();
+  if(!name){setErr('Role name is required.');try{nameEl.focus();}catch(_){}return;}
   var md=_permModuleData(_permActiveModule);
-  if(md.roles.indexOf(name)>=0){notify('Role "'+name+'" already exists',true);return;}
+  if((md.roles||[]).some(function(r){return String(r).toLowerCase()===name.toLowerCase();})){
+    setErr('Role "'+name+'" already exists in '+_permActiveModule+'.');return;
+  }
   md.roles.push(name);
-  // If this role was previously deleted from defaults, lift that gravestone
-  // so adding it back doesn't get vetoed by the deletedDefaults filter.
+  // Tag as admin-added so the cross-module filter in _permModuleData
+  // doesn't strip it (e.g. "Plant Head" added to HRMS even though it's
+  // a VMS built-in).
+  if(!Array.isArray(md.customRoles)) md.customRoles=[];
+  if(md.customRoles.indexOf(name)<0) md.customRoles.push(name);
+  // Lift any gravestone so a re-added default isn't vetoed by deletedDefaults.
   if(Array.isArray(md.deletedDefaults)) md.deletedDefaults=md.deletedDefaults.filter(function(r){return r!==name;});
-  // The user modal now reads via _permGetOrderedRoles so the role appears
-  // automatically. Mirror into the legacy constants too so any other code
-  // path that still reads them sees the new role.
+  // Mirror into the legacy module-role constants so non-permission readers
+  // (e.g. user-modal checkbox lists that still use the constants directly)
+  // see the new role without a reload.
   if(_permActiveModule==='HRMS'&&typeof HRMS_ROLES!=='undefined'&&HRMS_ROLES.indexOf(name)<0) HRMS_ROLES.push(name);
   if(_permActiveModule==='HWMS'&&typeof HWMS_ROLES!=='undefined'&&HWMS_ROLES.indexOf(name)<0) HWMS_ROLES.push(name);
   if(_permActiveModule==='VMS' &&typeof ROLES     !=='undefined'&&ROLES.indexOf(name)<0)      ROLES.push(name);
   if(_permActiveModule==='MTTS'&&typeof MTTS_ROLES!=='undefined'&&MTTS_ROLES.indexOf(name)<0) MTTS_ROLES.push(name);
   _permActiveRole=name;
-  _permSaveData(md);
+  cm('mPermAddRole');
+  await _permSaveData(md);
+  // Belt-and-suspenders: _permSaveData already re-renders the role list,
+  // but force one more pass so the newly added role is guaranteed visible
+  // even if the await raced with a parallel render cycle.
+  _permRenderRoles();
+  if(typeof notify==='function') notify('Role "'+name+'" added');
+}
+
+// ─── Change Access popup ──────────────────────────────────────────────
+// Scope is the active module only (per user: "this button should be
+// application specific"). Two modes share a single modal: copy from a
+// source role into a destination role, or reset the destination role's
+// access to None. Picking modes via radio so the source dropdown can be
+// hidden in reset mode and the destructive intent is explicit.
+function _permChangeAccessOpen(){
+  var md=_permModuleData(_permActiveModule);
+  var roles=(md.roles||[]).filter(function(r){return r&&r!=='Super Admin';});
+  if(roles.length<1){
+    if(typeof notify==='function') notify('No editable roles in '+_permActiveModule+'.',true);
+    return;
+  }
+  var modLbl=document.getElementById('permChMod');
+  if(modLbl) modLbl.textContent='('+_permActiveModule+')';
+  var copyRadio=document.querySelector('input[name="permChMode"][value="copy"]');
+  if(copyRadio) copyRadio.checked=true;
+  var srcEl=document.getElementById('permChSrc');
+  var destEl=document.getElementById('permChDest');
+  var opts=roles.map(function(r){return '<option value="'+String(r).replace(/"/g,'&quot;')+'">'+r+'</option>';}).join('');
+  if(srcEl) srcEl.innerHTML=opts;
+  if(destEl) destEl.innerHTML=opts;
+  // Default destination to the role currently being edited (if any). Then
+  // default source to the first role that isn't the destination so the
+  // dropdowns aren't pointing at the same value out of the gate.
+  if(destEl){
+    if(_permActiveRole&&_permActiveRole!=='Super Admin'&&roles.indexOf(_permActiveRole)>=0){
+      destEl.value=_permActiveRole;
+    } else {
+      destEl.selectedIndex=0;
+    }
+  }
+  if(srcEl&&destEl){
+    var pick='';
+    for(var i=0;i<roles.length;i++){ if(roles[i]!==destEl.value){pick=roles[i];break;} }
+    if(pick) srcEl.value=pick;
+  }
+  var err=document.getElementById('merr_mPermChangeAccess');
+  if(err) err.textContent='';
+  _permChModeUpdate();
+  om('mPermChangeAccess');
+}
+
+function _permChModeUpdate(){
+  var mode=(document.querySelector('input[name="permChMode"]:checked')||{}).value||'copy';
+  var wrap=document.getElementById('permChSrcWrap');
+  if(wrap) wrap.style.display=(mode==='copy')?'':'none';
+}
+
+async function _permChangeAccessApply(){
+  var err=document.getElementById('merr_mPermChangeAccess');
+  var setErr=function(m){if(err) err.textContent=m||'';};
+  setErr('');
+  var mode=(document.querySelector('input[name="permChMode"]:checked')||{}).value||'copy';
+  var destEl=document.getElementById('permChDest');
+  var dest=String((destEl&&destEl.value)||'').trim();
+  if(!dest){setErr('Pick a destination role.');return;}
+  if(dest==='Super Admin'){setErr('Super Admin cannot be modified.');return;}
+  var md=_permModuleData(_permActiveModule);
+  if(!md.permissions) md.permissions={};
+  if(mode==='copy'){
+    var srcEl=document.getElementById('permChSrc');
+    var src=String((srcEl&&srcEl.value)||'').trim();
+    if(!src){setErr('Pick a source role.');return;}
+    if(src===dest){setErr('Source and destination must be different.');return;}
+    var srcPerms=md.permissions[src]||{};
+    var clone={};Object.keys(srcPerms).forEach(function(k){clone[k]=srcPerms[k];});
+    md.permissions[dest]=clone;
+    _permActiveRole=dest;
+    cm('mPermChangeAccess');
+    await _permSaveData(md);
+    _permRenderRoles();
+    if(typeof notify==='function') notify('Access copied from "'+src+'" → "'+dest+'"');
+  } else {
+    md.permissions[dest]={};
+    _permActiveRole=dest;
+    cm('mPermChangeAccess');
+    await _permSaveData(md);
+    _permRenderRoles();
+    if(typeof notify==='function') notify('All access reset to None for "'+dest+'"');
+  }
 }
 
 function _permDeleteRole(role){
@@ -2328,6 +2483,10 @@ function _permDeleteRole(role){
   var md=_permModuleData(_permActiveModule);
   md.roles=md.roles.filter(function(r){return r!==role;});
   if(md.permissions) delete md.permissions[role];
+  // Drop the custom-role flag too so the cross-module filter no longer
+  // whitelists this name (relevant if the deleted role collides with
+  // another module's built-in).
+  if(Array.isArray(md.customRoles)) md.customRoles=md.customRoles.filter(function(r){return r!==role;});
   // If this role is one of the module's built-in defaults, remember the
   // deletion so _permModuleData won't auto-restore it on the next render.
   var defaults=_permGetDefaultRoles(_permActiveModule);
@@ -2351,7 +2510,15 @@ async function _permSaveRole(){
     var lvl=seg.getAttribute('data-level')||'none';
     if(lvl==='full') perms[key]=true;
     else if(lvl==='view') perms[key]='view';
-    // None: key omitted — runtime falls through to role defaults for that key
+    else perms[key]='none'; // explicit None — overrides _PERM_DEFAULTS_FULL fallback
+  });
+  // Scope pickers (sibling control next to the tri-state). Persisted as
+  // perms[role]['<key>.scope']=<value> so the runtime resolver
+  // (_hrmsResolveScope) can read it.
+  body.querySelectorAll('[data-perm-scope]').forEach(function(sel){
+    var key=sel.getAttribute('data-perm-scope');
+    var val=String(sel.value||'').trim();
+    if(val) perms[key+'.scope']=val;
   });
   // Umbrella items (no visible control). Level is auto-computed from the
   // SCOPED children — items immediately nested under this umbrella in

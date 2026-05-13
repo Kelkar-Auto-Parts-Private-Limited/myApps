@@ -1157,22 +1157,55 @@ var _HRMS_SALARY_PERM_KEYS={
   contractStaff:  'salary.showContractStaff',
   contractWorker: 'salary.showContractWorker'
 };
-function _hrmsCanShowSalary(obj){
+// Tri-state salary visibility. 'full' shows actual numbers, 'view'
+// masks all digits except the last 2 (partial peek), 'none' hides
+// entirely as XXX. Super Admin / module admin always get 'full'.
+function _hrmsSalaryShowLevel(obj){
   var bucket=_hrmsSalaryBucket(obj);
-  if(bucket==='other') return true;
+  if(bucket==='other') return 'full';
   var key=_HRMS_SALARY_PERM_KEYS[bucket];
-  if(!key) return true;
-  return !!(typeof _hrmsHasAccess==='function'&&_hrmsHasAccess(key));
+  if(!key) return 'full';
+  if(typeof _hrmsIsSA==='function'&&_hrmsIsSA()) return 'full';
+  if(typeof CU!=='undefined'&&CU){
+    var roles=CU.hrmsRoles||[];
+    if(roles.indexOf('HRMS Admin')>=0||roles.indexOf('HR Manager')>=0) return 'full';
+  }
+  if(typeof permLevel==='function'){
+    var lvl=permLevel('HRMS',key);
+    return (lvl==='full'||lvl==='view'||lvl==='none')?lvl:'none';
+  }
+  return 'none';
 }
-
-// Returns the displayable salary value. Field-name kept for back-compat
-// (salaryDay / salaryMonth / specialAllowance) — under the new gate, all
-// three are governed by the same bucket-level perm, so we just consult
-// _hrmsCanShowSalary.
-function _hrmsSalaryDisplay(field, val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
-function _hrmsSalMonDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
-function _hrmsSpAllowDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
-function _hrmsSalDayDisplay(val, emp){ return _hrmsCanShowSalary(emp)?val:'XXX'; }
+// Back-compat boolean: any non-'none' level means the column is visible
+// (with or without masking). Call sites that gate column rendering
+// keep working — they just see "show something" vs "hide entirely".
+function _hrmsCanShowSalary(obj){
+  return _hrmsSalaryShowLevel(obj)!=='none';
+}
+// Mask all digits except the last 2 with asterisks so View users can
+// see roughly the magnitude/cluster without the real number. Preserves
+// commas / currency symbols. e.g. "₹25,000" → "₹**,*00", "8500" → "**00".
+function _hrmsMaskSalary(val){
+  if(val==null||val==='') return val;
+  var s=String(val);
+  var digits=s.match(/\d/g);
+  if(!digits||digits.length===0) return s;
+  if(digits.length<3) return s.replace(/\d/g,'*');
+  var toMask=digits.length-2;
+  var count=0;
+  return s.replace(/\d/g,function(d){count++;return count<=toMask?'*':d;});
+}
+// Returns the displayable salary value. 'full' → val, 'view' → masked
+// last-2-visible, 'none' → 'XXX'. Field name kept for back-compat.
+function _hrmsSalaryDisplay(field, val, emp){
+  var lvl=_hrmsSalaryShowLevel(emp);
+  if(lvl==='full') return val;
+  if(lvl==='view') return _hrmsMaskSalary(val);
+  return 'XXX';
+}
+function _hrmsSalMonDisplay(val, emp){ return _hrmsSalaryDisplay('salaryMonth',val,emp); }
+function _hrmsSpAllowDisplay(val, emp){ return _hrmsSalaryDisplay('specialAllowance',val,emp); }
+function _hrmsSalDayDisplay(val, emp){ return _hrmsSalaryDisplay('salaryDay',val,emp); }
 
 // Back-compat shims for older call sites. Both accept an optional emp /
 // snapshot — when supplied, they route through the bucket gate; when
@@ -2279,6 +2312,18 @@ var _PERM_MODULE_ROLES={
   Security:['Super Admin','Guard','Viewer','Read Only'],
   MTTS:['Super Admin','MTTS Admin','Maintenance Manager','Technician','Ticket Raiser','Read Only']
 };
+// Reads the admin-curated customRoles list for a module from the saved
+// rolePermissions record. These are roles added via "+ Add" in Access
+// Management — they trump the cross-module exclusion below, so admins
+// can add a name to one module even if it collides with another's
+// built-ins (e.g. "Plant Head" added to HRMS while still a VMS built-in).
+function _permModuleCustomRoles(mod){
+  if(typeof DB==='undefined'||!DB||!DB.hrmsSettings) return [];
+  var rec=(DB.hrmsSettings||[]).find?(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='rolePermissions';}):null;
+  if(!rec||!rec.data||!rec.data[mod]) return [];
+  var c=rec.data[mod].customRoles;
+  return Array.isArray(c)?c:[];
+}
 function _permModuleUserRoles(mod){
   if(typeof CU==='undefined'||!CU) return [];
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return [];
@@ -2288,10 +2333,12 @@ function _permModuleUserRoles(mod){
   // We must still honour them — filter out only roles that are built-in
   // to a DIFFERENT module so VMS roles can't leak into HRMS.
   var modList=_PERM_MODULE_ROLES[mod]||[];
+  var customs=_permModuleCustomRoles(mod);
   return all.filter(function(r){
     if(!r) return false;
     if(modList.indexOf(r)>=0) return true;// built-in here
-    // Custom role unless it's built into another module.
+    if(customs.indexOf(r)>=0) return true;// admin added it here — bypasses cross-module check
+    // Otherwise drop the role if it's a built-in elsewhere.
     var keys=Object.keys(_PERM_MODULE_ROLES||{});
     for(var i=0;i<keys.length;i++){
       if(keys[i]===mod) continue;
@@ -2299,6 +2346,40 @@ function _permModuleUserRoles(mod){
     }
     return true;
   });
+}
+// Module-specific scope-picker options applied to every page/tab/sub-tab
+// key that doesn't declare its own. Action buttons (action.*),
+// visibility toggles (salary.show*), and edit gates (masters.edit /
+// org.edit) are excluded — those use the plain tri-state. Keys that
+// repurpose the tri-state via scopeLabels (e.g. page.myAttendance) are
+// also skipped, because their own state already encodes the scope.
+// Wire into the runtime by calling _hrmsResolveScope(mod,key) at
+// row-filter time.
+//
+// Non-HRMS modules currently expose only "All" — extend them here when
+// the corresponding runtime joins (VMS plant scope, HWMS warehouse
+// scope, etc.) are ready to honour the picker.
+var _PERM_DEFAULT_SCOPE_OPTIONS={
+  HRMS:[
+    {v:'all',  lbl:'All'},
+    {v:'plant',lbl:'Mapped Plants Only'},
+    {v:'team', lbl:'Mapped Teams Only'},
+    {v:'dept', lbl:'Mapped Departments Only'},
+    {v:'self', lbl:'Only Logged-in User'}
+  ],
+  VMS:     [{v:'all',lbl:'All'}],
+  HWMS:    [{v:'all',lbl:'All'}],
+  Security:[{v:'all',lbl:'All'}],
+  MTTS:    [{v:'all',lbl:'All'}]
+};
+// True when a key should inherit _PERM_DEFAULT_SCOPE_OPTIONS in the
+// Access Management UI. Centralised so the editor and the runtime
+// resolver stay in sync.
+function _permKeyAcceptsScope(k){
+  if(!k||!k.key) return false;
+  if(Array.isArray(k.scopeOptions)) return true; // explicit override wins
+  if(k.scopeLabels) return false;                // tri-state already encodes scope
+  return /^(page|tab|att|settings)\./.test(k.key);
 }
 var _PERM_KEYS={
   HRMS:[
@@ -2309,9 +2390,16 @@ var _PERM_KEYS={
     {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance'},
     {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance'},
     {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.deptdetails',label:'📋 Departmentwise Attendance',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance'},
+    // scopeOptions exposes a per-role scope dropdown beside the
+    // None/View/Full segment in Access Management. The chosen value is
+    // persisted as a sibling key (perms[role]['tab.das.teamwise.scope'])
+    // and read at runtime by _hrmsResolveScope to filter the rendered
+    // team list. defaultScopeByRole supplies legacy fall-backs so
+    // existing roles keep their old implicit behaviour until admin
+    // explicitly overrides.
     {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings (modal, includes Role Groups add/edit/delete)',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings',group:'📊 Day-wise Attendance'},
 
     // Sidebar — 📅 Monthly Attendance & Salary
     // Everything that lives INSIDE the Monthly Attendance & Salary page
@@ -2324,25 +2412,25 @@ var _PERM_KEYS={
     {key:'action.saveLock',label:'🔒 Save & Lock Month',group:'📅 Monthly Attendance & Salary'},
     {key:'action.unlock',label:'🔓 Unlock Month',group:'📅 Monthly Attendance & Salary'},
 
-    // Monthly Attendance & Salary → main tab "⚙️ Settings & Data" + sub-tabs
+    // Monthly Attendance & Salary → main tab "⚙️ Settings & Data" + sub-tabs.
+    // Sub-tabs are controlled at the tab level only — the per-button
+    // action keys (Import ESSL, Import Alterations, Import OB, Import
+    // Advances, Edit Calendar, Bulk Sal Revision, Propose Contract
+    // Revision, Edit Statutory Rules) used to live here as separate
+    // Access Management entries. They've been collapsed: Full on the
+    // sub-tab grants the import / edit buttons, View grants read-only,
+    // None hides the sub-tab. _hrmsHasAccess redirects the legacy
+    // action keys to the sub-tab's level so existing call sites work.
     {key:'tab.settings',label:'⚙️ Settings & Data',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.esslatt',label:'ESSL Data',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.importEssl',label:'📥 Import / Update ESSL Attendance',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.altimport',label:'Manual Alt',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.importAlterations',label:'📥 Import Alterations',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.manual',label:'Manual P & OT',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.importOB',label:'📥 Import Opening Balance',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.advances',label:'Advances',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.importAdvances',label:'📥 Import Advances',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.calendar',label:'Calendar',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.editCalendar',label:'✏️ Edit Calendar / Save Calendar',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.tds',label:'TDS',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.salrevision',label:'KAP Sal Rev',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.bulkSalRevision',label:'📥 Import Salary Excel (Bulk Sal Revision)',group:'📅 Monthly Attendance & Salary'},
     {key:'page.contractRev',label:'Contract Salary Rev',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.proposeContractRev',label:'Propose Contract Revision',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.statutory',label:'Statutory',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.editStatutory',label:'✏️ Edit Statutory Rules',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → main tab "📅 Attendance" + sub-tabs
     {key:'tab.attendance',label:'📅 Attendance',group:'📅 Monthly Attendance & Salary'},
@@ -2361,17 +2449,19 @@ var _PERM_KEYS={
     {key:'att.altApprove',label:'Approve / Reject Alteration Requests',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → other main tabs
+    // KAP Salary / Sal Payment / ESI-PF / PT tabs are now controlled at
+    // the tab level only — the per-button action keys (Export Salary,
+    // Worker's Salary Slip PDF, Export Payments, Export ESI/PF, Export
+    // PT Details) used to live here as separate Access Management
+    // entries. They've been collapsed: Full on the tab grants the
+    // export buttons, View grants read-only, None hides the tab.
+    // _hrmsHasAccess redirects the legacy action keys to the tab's
+    // level so existing call sites keep working without touching them.
     {key:'tab.salary',label:'💰 KAP Salary',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportSalary',label:'📤 Export Salary',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportWorkerSlip',label:"🧾 Worker's Salary Slip PDF",group:'📅 Monthly Attendance & Salary'},
     {key:'tab.payments',label:'🏦 KAP Sal Payment',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportPayments',label:'📤 Export Payments',group:'📅 Monthly Attendance & Salary'},
     {key:'tab.esipf',label:'📋 KAP ESI/PF Report',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportEsiPf',label:'📤 Export ESI/PF',group:'📅 Monthly Attendance & Salary'},
     {key:'tab.pt',label:'🧾 KAP PT Summary',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportPt',label:'📤 Export PT Details',group:'📅 Monthly Attendance & Salary'},
     {key:'tab.contract',label:'📋 Contract Salary',group:'📅 Monthly Attendance & Salary'},
-    {key:'action.exportContract',label:'📤 Export Contract Salary',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → View Salary (umbrella over the 4
     // salary-visibility buckets). Tri-state per bucket: None = Hide
@@ -2384,7 +2474,11 @@ var _PERM_KEYS={
     {key:'salary.showContractStaff', label:'🤝 Contract Staff — Show salary',  group:'📅 Monthly Attendance & Salary'},
     {key:'salary.showContractWorker',label:'🛠 Contract Worker — Show salary', group:'📅 Monthly Attendance & Salary'},
 
-    // Sidebar — 🗓 My Attendance
+    // Sidebar — 🗓 My Attendance. Standard tri-state + the 5-option
+    // scope dropdown (All / Mapped Plants Only / Mapped Teams Only /
+    // Mapped Departments Only / Only Logged-in User) inherited from
+    // _PERM_DEFAULT_SCOPE_OPTIONS.HRMS. The earlier 2-option relabel
+    // via scopeLabels was retired in favour of the app-wide picker.
     {key:'page.myAttendance',label:'🗓 My Attendance',group:'🗓 My Attendance'},
 
     // Sidebar — ✅ My Approvals
@@ -2544,11 +2638,12 @@ function _permKeyKind(key){ return /^(page|tab)\./.test(key)?'pageTab':'action';
 // controls so admins can grant them independently. Used to express
 // "Manpower Allocation Settings sits inside Allocation vs Actual
 // Manpower" without dropping either's grant control.
-var _PERM_TREE_PARENTS={
-  HRMS:{
-    'tab.das.alloc':'tab.das.manpower'
-  }
-};
+// UI-only parent → child nesting hints for the Access Management tree.
+// Used to be `'tab.das.alloc':'tab.das.manpower'` so the Settings modal
+// rendered under Allocation vs Actual Manpower, but the user prefers
+// both rows as flat siblings under the Day-wise Attendance collapsible
+// so each grant control sits on its own row.
+var _PERM_TREE_PARENTS={HRMS:{}};
 var _PERM_UMBRELLA={
   HRMS:{
     'page.attSal':['tab.settings','tab.attendance','tab.salary','tab.payments','tab.esipf','tab.pt','tab.contract',
@@ -2586,18 +2681,14 @@ function _permLoadData(){
 // rollout. 'Admin' here means the platform-level Admin and is NOT a
 // per-module admin — it's added to canManageUsers separately.
 var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'],Security:[],MTTS:['MTTS Admin','Maintenance Manager']};
-// Per-key default-full role grants. Applied only when no explicit role
-// permission is configured — admins can still revoke via Configure Access.
-var _PERM_DEFAULTS_FULL={
-  HRMS:{
-    'action.addPrintFormat':['HR Manager'],
-    // Contractor Supervisor — single-purpose role: only the Update
-    // Employee utility page (and its umbrella). Everything else under
-    // HRMS stays denied, so the side menu shows just that one entry.
-    'page.utilities':['Contractor Supervisor'],
-    'page.utilUpdateEmp':['Contractor Supervisor']
-  }
-};
+// Per-key default-full role grants. Used to seed CS with Utilities +
+// Update Employee and HR Manager with the print-format action when
+// admin hadn't touched those keys — but that hid the real intent that
+// every grant should come from Access Management, not from a hardcoded
+// fallback. Cleared so admin's configuration is the ONLY source of
+// truth. Add entries here ONLY if you want admin-blind auto-grants
+// back in for a specific key.
+var _PERM_DEFAULTS_FULL={HRMS:{}};
 function permLevel(mod,pageTabKey,_visited){
   if(typeof CU==='undefined'||!CU) return 'none';
   var field=_PERM_ROLE_FIELDS[mod];if(!field) return 'none';
@@ -2648,16 +2739,23 @@ function permLevel(mod,pageTabKey,_visited){
   // This is what makes "give HR Assistant Full on Day-wise Attendance"
   // automatically grant access to the manpower / deptdetails / teamwise
   // sub-tabs without ticking each one individually.
-  var umbMod=_PERM_UMBRELLA[mod]||{};
-  for(var parent in umbMod){
-    var children=umbMod[parent]||[];
-    if(children.indexOf(pageTabKey)<0) continue;
-    _visited=_visited||{};
-    if(_visited[parent]) continue;
-    _visited[parent]=true;
-    var pl=permLevel(mod,parent,_visited);
-    if(pl==='full') return 'full';
-    if(pl==='view'&&best!=='full') best='view';
+  // CASCADE GUARD — only apply when the child has NO explicit setting.
+  // An explicit value on the child (Full, View, or None) is authoritative
+  // and must not be overridden by a parent grant; otherwise admin's
+  // "None" on a sub-page would be silently re-enabled by Full on its
+  // parent menu.
+  if(!hasExplicit){
+    var umbMod=_PERM_UMBRELLA[mod]||{};
+    for(var parent in umbMod){
+      var children=umbMod[parent]||[];
+      if(children.indexOf(pageTabKey)<0) continue;
+      _visited=_visited||{};
+      if(_visited[parent]) continue;
+      _visited[parent]=true;
+      var pl=permLevel(mod,parent,_visited);
+      if(pl==='full') return 'full';
+      if(pl==='view'&&best!=='full') best='view';
+    }
   }
   return best;
 }

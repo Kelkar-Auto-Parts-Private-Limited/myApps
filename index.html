@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260513-V14">
+<meta name="app-build" content="260513-V44">
 <title>KAP — myApps Portal</title>
-<link rel="stylesheet" href="css/portal.css?v=260513-V14">
+<link rel="stylesheet" href="css/portal.css?v=260513-V44">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -199,9 +199,12 @@
         <div id="permColumns" style="display:flex;gap:16px;align-items:stretch">
           <!-- Left: Roles -->
           <div id="permLeftPanel" style="width:200px;flex-shrink:0;border-right:1.5px solid var(--border);padding-right:16px;display:flex;flex-direction:column;min-height:0">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0;gap:6px">
               <div style="font-size:13px;font-weight:800;color:var(--text)">Roles</div>
-              <button onclick="_permAddRole()" style="font-size:11px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700">+ Add</button>
+              <div style="display:flex;gap:5px;flex-shrink:0">
+                <button onclick="_permChangeAccessOpen()" style="font-size:10px;padding:3px 8px;background:#fff;color:var(--accent);border:1.5px solid var(--accent);border-radius:4px;cursor:pointer;font-weight:700" title="Copy access between roles or reset a role to None (scope: current application tab)">🔄 Change Access</button>
+                <button onclick="_permAddRole()" style="font-size:11px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700">+ Add</button>
+              </div>
             </div>
             <div id="permRoleList" style="flex:1;min-height:0;overflow-y:auto"></div>
           </div>
@@ -227,6 +230,7 @@
     </div>
   </div>
 </div>
+<style>#mUser .form-group{margin-bottom:10px}#mUser .form-row{margin-bottom:10px}#mUser .modal-body{padding-top:12px;padding-bottom:12px}#mUser label{margin-bottom:3px}</style>
 <div class="modal-overlay" id="mUser">
   <div class="modal">
     <div class="modal-header"><div class="modal-title" id="muTitle">Add User</div><div class="modal-close" onclick="cm('mUser')">×</div></div>
@@ -248,25 +252,25 @@
         </div>
         <div class="form-group" style="min-width:0"><label>Email <span style="font-weight:400;color:var(--text3);font-size:11px">(optional)</span></label><input type="email" id="muEmail" placeholder="name@example.com" autocomplete="off" style="min-width:0"></div>
       </div>
-      <div id="muPlatformRoles" style="background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.18);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">⭐ Platform Access — granted by Super Admin only</div>
+      <div id="muPlatformRoles" style="background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.18);border-radius:10px;padding:7px 11px;margin-bottom:6px;display:none">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">⭐ Platform Access — granted by Super Admin only</div>
         <div id="muPlatformBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
       <div class="form-group"><label>Apps Access</label><div id="muApps" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div></div>
-      <div id="muVmsRoles" style="background:rgba(42,154,160,.04);border:1px solid rgba(42,154,160,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px">
-        <div style="font-size:10px;font-weight:700;color:#2a9aa0;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🚚 VMS — Role(s) *</div>
+      <div id="muVmsRoles" style="background:rgba(42,154,160,.04);border:1px solid rgba(42,154,160,.15);border-radius:10px;padding:7px 11px;margin-bottom:6px">
+        <div style="font-size:10px;font-weight:700;color:#2a9aa0;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">🚚 VMS — Role(s) *</div>
         <div id="muVmsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
-      <div id="muHwmsRoles" style="background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">📦 HWMS — Role(s) *</div>
+      <div id="muHwmsRoles" style="background:rgba(139,92,246,.04);border:1px solid rgba(139,92,246,.15);border-radius:10px;padding:7px 11px;margin-bottom:6px;display:none">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">📦 HWMS — Role(s) *</div>
         <div id="muHwmsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
-      <div id="muHrmsRoles" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">👥 HRMS — Role(s) *</div>
+      <div id="muHrmsRoles" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:7px 11px;margin-bottom:6px;display:none">
+        <div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">👥 HRMS — Role(s) *</div>
         <div id="muHrmsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
-      <div id="muMttsRoles" style="background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.15);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:none">
-        <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">🔧 MTTS — Role(s) *</div>
+      <div id="muMttsRoles" style="background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.15);border-radius:10px;padding:7px 11px;margin-bottom:6px;display:none">
+        <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">🔧 MTTS — Role(s) *</div>
         <div id="muMttsBoxes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
       <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;padding:4px 0"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600"><input type="checkbox" id="muInactive" style="width:16px;height:16px;accent-color:#dc2626"> <span style="color:#dc2626">Mark as Inactive</span></label></div>
@@ -279,6 +283,45 @@
 
 
 <!-- SHARED SCRIPTS -->
+<!-- ADD ROLE MODAL (Access Management) -->
+<div class="modal-overlay" id="mPermAddRole">
+  <div class="modal" style="width:min(420px,94vw)">
+    <div class="modal-header"><div class="modal-title">➕ Add Role <span id="permAddRoleMod" style="font-weight:600;color:var(--text3);font-size:12px;margin-left:6px"></span></div><div class="modal-close" onclick="cm('mPermAddRole')">×</div></div>
+    <div class="modal-body" style="padding:18px 22px">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">New Role Name</label>
+      <input type="text" id="permAddRoleName" maxlength="40" placeholder="e.g. Plant HR" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 10px;font-size:13px;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#e2e8f0'">
+      <div style="font-size:11px;color:#94a3b8;margin-top:8px;line-height:1.4">New role starts with no access. Use <b>🔄 Change Access</b> on the Roles panel to copy settings from another role or to reset access.</div>
+      <div class="modal-err" id="merr_mPermAddRole" style="margin-top:10px"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mPermAddRole')">Cancel</button><button class="btn btn-primary" onclick="_permAddRoleSave()">Add Role</button></div>
+  </div>
+</div>
+<!-- CHANGE ACCESS MODAL (Access Management — copy / reset role perms) -->
+<div class="modal-overlay" id="mPermChangeAccess">
+  <div class="modal" style="width:min(480px,94vw)">
+    <div class="modal-header"><div class="modal-title">🔄 Change Access <span id="permChMod" style="font-weight:600;color:var(--text3);font-size:12px;margin-left:6px"></span></div><div class="modal-close" onclick="cm('mPermChangeAccess')">×</div></div>
+    <div class="modal-body" style="padding:18px 22px">
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Action</label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="radio" name="permChMode" value="copy" checked onchange="_permChModeUpdate()" style="width:auto;accent-color:var(--accent)"> <span>Copy access from one role into another</span></label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="radio" name="permChMode" value="reset" onchange="_permChModeUpdate()" style="width:auto;accent-color:var(--accent)"> <span>Reset destination role's access to <b>None</b></span></label>
+        </div>
+      </div>
+      <div id="permChSrcWrap" style="margin-bottom:14px">
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Source Role <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8">(copy from)</span></label>
+        <select id="permChSrc" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 10px;font-size:13px;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#e2e8f0'"></select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Destination Role <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8">(apply to)</span></label>
+        <select id="permChDest" style="width:100%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 10px;font-size:13px;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='#e2e8f0'"></select>
+      </div>
+      <div style="font-size:11px;color:#dc2626;margin-top:10px;line-height:1.4">⚠ Destination role's current access settings will be overwritten.</div>
+      <div class="modal-err" id="merr_mPermChangeAccess" style="margin-top:6px"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="cm('mPermChangeAccess')">Cancel</button><button class="btn btn-primary" onclick="_permChangeAccessApply()">Apply</button></div>
+  </div>
+</div>
 <!-- CONFIRM MODAL -->
 <div class="modal-overlay" id="mConfirm">
   <div class="modal" style="width:380px;max-width:92vw;text-align:center;padding:32px">
@@ -353,8 +396,8 @@
 </div>
 </div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260513-V14"></script>
-<script src="js/portal-logic.js?v=260513-V14"></script>
-<script src="js/portal-ui.js?v=260513-V14"></script>
+<script src="js/common.js?v=260513-V44"></script>
+<script src="js/portal-logic.js?v=260513-V44"></script>
+<script src="js/portal-ui.js?v=260513-V44"></script>
 </body>
 </html>

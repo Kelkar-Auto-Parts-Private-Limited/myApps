@@ -112,38 +112,26 @@ async function _hrmsLaunch(){
   // because the active class never got cleared.
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
-  // Role-based default landing:
-  //   Contractor Supervisor → Update Employee (their single-purpose screen)
-  //   Department Head       → Day-wise Attendance · Team-wise Attendance Record
-  //   Everyone else         → Dashboard
-  // Multi-role union: when a user carries ContractorSup or DeptHead
-  // ALONGSIDE a broader role that grants dashboard access (e.g.
-  // HR Assistant), the broader role wins and they land on the
-  // dashboard — the scope-role landing is for users whose scope role
-  // is their primary screen.
-  var _hrmsRolesNow=(CU&&CU.hrmsRoles)||[];
-  var _isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
-                 ||_hrmsRolesNow.indexOf('HRMS Admin')>=0||_hrmsRolesNow.indexOf('HR Manager')>=0;
-  var _hasDashboardGrant=(typeof _hrmsHasAccess==='function')&&_hrmsHasAccess('page.dashboard');
-  var _isContractorSup=_hrmsRolesNow.indexOf('Contractor Supervisor')>=0;
-  if(_isContractorSup&&!_isElevated&&!_hasDashboardGrant&&_hrmsHasAccess('page.utilUpdateEmp')){
-    hrmsGo('pageHrmsUtilUpdateEmp');return;
-  }
-  var _isDeptHead=_hrmsRolesNow.indexOf('Department Head')>=0;
-  if(_isDeptHead&&!_isElevated&&!_hasDashboardGrant&&_hrmsHasAccess('page.utilDailyAttSum')){
-    // Land on the Team-wise sub-tab — `hrmsGo` with a tab arg seeds
-    // _hrmsDasInitialTab, which the renderer honours.
-    hrmsGo('pageHrmsUtilDailyAtt','teamwise');return;
-  }
-  // Default landing for everyone else — HRMS Dashboard.
-  if(typeof _hrmsHasAccess!=='function'||_hasDashboardGrant){
-    hrmsGo('pageHrmsDashboard');
-    return;
-  }
-  // Navigate to first allowed page — every HRMS page is a candidate so a
-  // user whose only access is e.g. My Attendance still lands somewhere.
-  var _firstPage=['pageHrmsDashboard','pageHrmsEmployees','pageHrmsAttSal','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules','pageHrmsUtilUpdateEmp'];
-  var _pagePerms={'pageHrmsDashboard':'page.dashboard','pageHrmsEmployees':'page.employees','pageHrmsAttSal':'page.attSal','pageHrmsMyAtt':'page.myAttendance','pageHrmsMyApprovals':'page.myApprovals','pageHrmsOrgStructure':'page.orgStructure','pageHrmsAttRules':'page.attRules','pageHrmsUtilUpdateEmp':'page.utilUpdateEmp'};
+  // Single landing strategy for every role: walk the page list in
+  // priority order and route to the first page the admin has granted.
+  // No more role-name-based shortcuts — those quietly bypassed admin's
+  // perm settings and made it impossible to revoke a page from a role
+  // that had a hardcoded auto-landing. Multi-role users get the same
+  // treatment: whichever accessible page sits earliest in the list.
+  if(typeof _hrmsHasAccess!=='function'){hrmsGo('pageHrmsDashboard');return;}
+  var _firstPage=['pageHrmsDashboard','pageHrmsUtilDailyAtt','pageHrmsPlantwiseAtt','pageHrmsAttSal','pageHrmsEmployees','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules','pageHrmsUtilUpdateEmp'];
+  var _pagePerms={
+    pageHrmsDashboard:'page.dashboard',
+    pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
+    pageHrmsPlantwiseAtt:'page.plantwiseAtt',
+    pageHrmsAttSal:'page.attSal',
+    pageHrmsEmployees:'page.employees',
+    pageHrmsMyAtt:'page.myAttendance',
+    pageHrmsMyApprovals:'page.myApprovals',
+    pageHrmsOrgStructure:'page.orgStructure',
+    pageHrmsAttRules:'page.attRules',
+    pageHrmsUtilUpdateEmp:'page.utilUpdateEmp'
+  };
   var _startPage=null;
   for(var _pi=0;_pi<_firstPage.length;_pi++){if(_hrmsHasAccess(_pagePerms[_firstPage[_pi]])){_startPage=_firstPage[_pi];break;}}
   if(_startPage){hrmsGo(_startPage);return;}
@@ -288,7 +276,7 @@ var _hrmsParentMenu={
 var _hrmsSubTabTitles={
   pageHrmsUtilDailyAtt:{
     manpower:'Allocation vs Actual Manpower',
-    deptdetails:'Departmentwise Attendance',
+    deptdetails:'Department-wise Attendance',
     teamwise:'Team-wise Attendance Record',
     rolegrouping:'Role Group Setting',
     alloc:'MP Alloc Setting'
@@ -11841,6 +11829,20 @@ function _hrmsDasSetTab(tab){
     if(!_explicit) tab=_scopedSet.teamwise?'teamwise':'deptdetails';
   }
   if(tab!=='alloc'&&tab!=='teamwise'&&tab!=='rolegrouping'&&tab!=='deptdetails') tab='manpower';
+  // Final access gate — if the user doesn't have permission for the
+  // resolved tab (e.g. CS landing on the page with scope=All so
+  // _hasScope was false, leaving the manpower fallback intact even
+  // though admin denied tab.das.manpower), pick the first sub-tab they
+  // do have access to. This way the page never silently shows content
+  // for a tab admin revoked.
+  if(typeof _hrmsHasAccess==='function'
+     &&_tabPerms[tab]
+     &&!_hrmsHasAccess(_tabPerms[tab])){
+    var _accCandidates=['manpower','deptdetails','teamwise','alloc','rolegrouping'];
+    for(var _ti=0;_ti<_accCandidates.length;_ti++){
+      if(_hrmsHasAccess(_tabPerms[_accCandidates[_ti]])){tab=_accCandidates[_ti];break;}
+    }
+  }
   window._hrmsDasActiveTab=tab;
   // Per-tab admin-configured permissions. Honoured for users without a
   // scope role (Contractor Sup / Dept Head retain their hard scope) and
@@ -12293,35 +12295,193 @@ function _hrmsDasTwToggleShowHidden(){
   _hrmsDasTwRender();
 }
 
-// Scope helper for Contractor Supervisor users — returns
-// {teamNames:{...}, etTypes:{...}} when the logged-in user is a
-// Contractor Supervisor (and not also elevated). Returns null for
-// elevated users so they see the full unrestricted view.
+// Recomputes permLevel for the current user while excluding one of
+// their roles from the union. Used by scope helpers so that the role
+// owning the scope (e.g. Contractor Supervisor) can't bypass its own
+// scope by being granted Full on the page — only OTHER roles can.
+// Mirrors permLevel's umbrella-inheritance logic.
+function _hrmsPermLevelExcluding(mod,key,excludeRole,_visited){
+  if(typeof CU==='undefined'||!CU) return 'none';
+  var field=(typeof _PERM_ROLE_FIELDS!=='undefined'?_PERM_ROLE_FIELDS[mod]:null);if(!field) return 'none';
+  var src=(typeof _permModuleUserRoles==='function')?_permModuleUserRoles(mod):(CU[field]||[]);
+  var userRoles=(src||[]).filter(function(r){return r!==excludeRole;});
+  if(!userRoles.length) return 'none';
+  if(userRoles.indexOf('Super Admin')>=0) return 'full';
+  var _ma=(typeof _PERM_MODULE_ADMIN!=='undefined'?_PERM_MODULE_ADMIN[mod]||[]:[]);
+  for(var i=0;i<_ma.length;i++){
+    if(userRoles.indexOf(_ma[i])>=0) return 'full';
+  }
+  var all=(typeof _permLoadData==='function'?_permLoadData():{})[mod]||{};
+  var perms=all.permissions||{};
+  var best='none',hasExplicit=false;
+  userRoles.forEach(function(r){
+    var v=(perms[r]||{})[key];
+    if(v!==undefined) hasExplicit=true;
+    if(v===true||v==='full') best='full';
+    else if(v==='view'&&best!=='full') best='view';
+  });
+  if(!hasExplicit){
+    var defs=((typeof _PERM_DEFAULTS_FULL!=='undefined'?_PERM_DEFAULTS_FULL[mod]:{})||{})[key]||[];
+    for(var di=0;di<defs.length;di++){
+      if(userRoles.indexOf(defs[di])>=0){best='full';break;}
+    }
+  }
+  if(best==='full') return best;
+  var umbMod=(typeof _PERM_UMBRELLA!=='undefined'?_PERM_UMBRELLA[mod]||{}:{});
+  var umb=umbMod[key];
+  if(umb&&umb.length){
+    _visited=_visited||{};
+    if(!_visited[key]){
+      _visited[key]=true;
+      for(var ci=0;ci<umb.length;ci++){
+        if(_visited[umb[ci]]) continue;
+        var cl=_hrmsPermLevelExcluding(mod,umb[ci],excludeRole,_visited);
+        if(cl==='full') return 'full';
+        if(cl==='view'&&best!=='full') best='view';
+      }
+    }
+  }
+  if(best==='full') return best;
+  for(var parent in umbMod){
+    var children=umbMod[parent]||[];
+    if(children.indexOf(key)<0) continue;
+    _visited=_visited||{};
+    if(_visited[parent]) continue;
+    _visited[parent]=true;
+    var pl=_hrmsPermLevelExcluding(mod,parent,excludeRole,_visited);
+    if(pl==='full') return 'full';
+    if(pl==='view'&&best!=='full') best='view';
+  }
+  return best;
+}
+
+// Data-driven row scope resolver. Reads the admin-set scope value
+// (perms[role]['<key>.scope']) for the current user's roles, picks the
+// broadest among them, and returns a populated membership set so
+// callers can filter rows without each one knowing about user→team/
+// dept/plant mappings. Falls back to the key's `defaultScopeByRole`
+// for roles the admin hasn't explicitly configured yet.
+//
+// Returns {kind, teamNames, deptIds, plants, empCodes}. kind is one of
+// 'all' | 'team' | 'dept' | 'plant' | 'self'. 'all' yields empty sets
+// (callers treat that as "no filter").
+//
+// Currently wired for tab.das.teamwise — additional keys can opt in by
+// declaring `scopeOptions` (and optional `defaultScopeByRole`) on the
+// key entry in _PERM_KEYS. No new code in this resolver needed.
+function _hrmsResolveScope(mod,key){
+  var out={kind:'all',teamNames:{},deptIds:{},plants:{},empCodes:{}};
+  if(typeof CU==='undefined'||!CU) return out;
+  // Elevated users bypass scope.
+  if(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin()) return out;
+  var roles=CU.hrmsRoles||[];
+  if(roles.indexOf('HRMS Admin')>=0||roles.indexOf('HR Manager')>=0) return out;
+  var meta=((typeof _PERM_KEYS!=='undefined'?_PERM_KEYS[mod]:[])||[]).find(function(k){return k&&k.key===key;});
+  if(!meta) return out;
+  var acceptsScope=Array.isArray(meta.scopeOptions)&&meta.scopeOptions.length
+                   ||(typeof _permKeyAcceptsScope==='function'&&_permKeyAcceptsScope(meta));
+  if(!acceptsScope) return out;
+  // Broader scope wins across the union of roles.
+  var rank={all:5,plant:4,dept:3,team:2,self:1};
+  var perms=((typeof _permLoadData==='function'?_permLoadData():{})[mod]||{}).permissions||{};
+  var bestKind='',bestRank=0,sawExplicit=false;
+  roles.forEach(function(r){
+    var v=(perms[r]||{})[key+'.scope'];
+    if(!v) return;
+    sawExplicit=true;
+    var rk=rank[v]||0;
+    if(rk>bestRank){bestRank=rk;bestKind=v;}
+  });
+  if(!sawExplicit){
+    var defs=meta.defaultScopeByRole||{};
+    roles.forEach(function(r){
+      var v=defs[r];
+      if(!v) return;
+      var rk=rank[v]||0;
+      if(rk>bestRank){bestRank=rk;bestKind=v;}
+    });
+  }
+  if(!bestKind||bestKind==='all'){out.kind='all';return out;}
+  out.kind=bestKind;
+  try{
+    if(bestKind==='team'){
+      var supMap=(typeof _hrmsGetTeamSupervisorMap==='function')?_hrmsGetTeamSupervisorMap():{};
+      Object.keys(supMap||{}).forEach(function(tid){
+        if(supMap[tid]!==CU.id) return;
+        var t=byId(DB.hrmsTeams||[],tid);
+        if(t&&t.name) out.teamNames[t.name]=true;
+      });
+    } else if(bestKind==='dept'){
+      var dhMap=(typeof _hrmsGetDeptHeadMap==='function')?_hrmsGetDeptHeadMap():{};
+      Object.keys(dhMap||{}).forEach(function(did){
+        var v=dhMap[did];
+        var hit=Array.isArray(v)?(v.indexOf(CU.id)>=0):(v===CU.id);
+        if(!hit) return;
+        out.deptIds[did]=true;
+        var d=byId(DB.hrmsDepartments||[],did);
+        if(d&&d.plant) out.plants[d.plant]=true;
+      });
+      // Map emps in those depts → team names so callers that filter
+      // by team still work.
+      var deptNameById={};(DB.hrmsDepartments||[]).forEach(function(d){if(d&&d.id) deptNameById[d.id]=d.name||'';});
+      var allowedDeptNames={};Object.keys(out.deptIds).forEach(function(id){var n=deptNameById[id];if(n) allowedDeptNames[n]=true;});
+      (DB.hrmsEmployees||[]).forEach(function(e){
+        if(!e) return;
+        var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+        var d=((ap&&ap.department)||e.department||'').trim();
+        var t=((ap&&ap.teamName)||e.teamName||'').trim();
+        if(t&&allowedDeptNames[d]) out.teamNames[t]=true;
+      });
+    } else if(bestKind==='plant'){
+      // Mapped Plants — locations where this user is the plantHead. The
+      // VMS Locations master already stores that link (loc.plantHead).
+      // Match by plant NAME against emp.location since the HRMS side
+      // identifies plants by name, not location.id.
+      (DB.locations||[]).forEach(function(l){
+        if(!l||l.inactive) return;
+        if(l.plantHead===CU.id&&l.name) out.plants[String(l.name).trim()]=true;
+      });
+      (DB.hrmsEmployees||[]).forEach(function(e){
+        if(!e) return;
+        var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+        var pl=((ap&&ap.location)||e.location||'').trim();
+        var t=((ap&&ap.teamName)||e.teamName||'').trim();
+        if(t&&out.plants[pl]) out.teamNames[t]=true;
+      });
+    } else if(bestKind==='self'){
+      var me=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+      if(me){
+        if(me.empCode) out.empCodes[me.empCode]=true;
+        var ap2=(me.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+        var tn=((ap2&&ap2.teamName)||me.teamName||'').trim();
+        if(tn) out.teamNames[tn]=true;
+      }
+    }
+  }catch(_){}
+  return out;
+}
+
+// Scope helper for the Team-wise Attendance Record table — now a thin
+// wrapper around the data-driven _hrmsResolveScope. Preserves the legacy
+// {teamNames, etTypes} | null contract so existing call sites at lines
+// 12620, 12826, 13405, 13519 keep working unchanged. Returning null
+// means "no filter" (admin set scope=All, or the user is elevated, or
+// another role grants Full to page.utilDailyAttSum).
 function _hrmsDasContractorSupScope(){
   if(typeof CU==='undefined'||!CU) return null;
-  var roles=CU.hrmsRoles||[];
-  var isContractorSup=roles.indexOf('Contractor Supervisor')>=0;
-  var isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
-                ||roles.indexOf('HRMS Admin')>=0||roles.indexOf('HR Manager')>=0;
-  if(!isContractorSup||isElevated) return null;
-  // Multi-role union: if the user also carries a permission-granted
-  // role with Full on Day-wise Attendance (e.g. HR Assistant + Contractor
-  // Sup), the broader role takes precedence and the team-scope filter
-  // is dropped entirely.
-  if(typeof permLevel==='function'&&permLevel('HRMS','page.utilDailyAttSum')==='full') return null;
-  var teamNames={},etTypes={};
-  try{
-    var supMap=(typeof _hrmsGetTeamSupervisorMap==='function')?_hrmsGetTeamSupervisorMap():{};
-    Object.keys(supMap||{}).forEach(function(tid){
-      if(supMap[tid]!==CU.id) return;
-      var t=byId(DB.hrmsTeams||[],tid);
-      if(!t||!t.name) return;
-      teamNames[t.name]=true;
-      var et=String(t.empType||'').trim();
-      if(et) etTypes[et]=true;
-    });
-  }catch(_){}
-  return {teamNames:teamNames,etTypes:etTypes};
+  // Multi-role union escape hatch: if a role OTHER than Contractor
+  // Supervisor grants Full on the parent page, drop scope entirely.
+  if(_hrmsPermLevelExcluding('HRMS','page.utilDailyAttSum','Contractor Supervisor')==='full') return null;
+  var sc=_hrmsResolveScope('HRMS','tab.das.teamwise');
+  if(!sc||sc.kind==='all') return null;
+  // Derive etTypes from the mapped teams so the emp-type buttons can be
+  // narrowed to types the user's scope actually covers.
+  var etTypes={};
+  Object.keys(sc.teamNames||{}).forEach(function(tn){
+    var t=(DB.hrmsTeams||[]).find(function(x){return x&&x.name===tn;});
+    if(t&&t.empType) etTypes[String(t.empType).trim()]=true;
+  });
+  return {teamNames:sc.teamNames||{},etTypes:etTypes};
 }
 
 // Per-column filter state (substring match for text columns, exact
@@ -13817,8 +13977,8 @@ function _hrmsDasTwRender(){
       +'style="width:100%;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:3px;box-sizing:border-box;font-weight:600">'
       +datalist;
   };
-  // Total column count = base + P/A (selected day) + Last 45 Days History + Left.
-  var totalCols=cols.length+2;// cols + merged Attendance cell + PIA
+  // Total column count = base + In Time + Out Time + P/A·45-day bar + PIA.
+  var totalCols=cols.length+4;
   // Role-group summary (computed from teamRows AFTER filters/hide so
   // the counts match what the employee table shows).
   var allocRec=(typeof _hrmsAllocationData==='function')?_hrmsAllocationData():null;
@@ -13903,10 +14063,14 @@ function _hrmsDasTwRender(){
       +labelHtml
       +'</th>';
   });
-  // Merged Attendance column: In / Out / P/A on top row, 45-day P/A
-  // bar on the bottom row (one cell, two visual rows).
-  h+='<th title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:340px;min-width:340px;max-width:340px">'
-    +'<span>Attendance · 45-day P/A</span> <span style="font-size:10px;color:#475569;font-weight:700">P/A</span>'
+  // In Time / Out Time are their own columns now, placed right before
+  // the P/A · 45-day bar so the bar lines up with the rest of the row
+  // without an embedded two-line layout.
+  h+='<th class="hrms-tw-col-inTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">In Time</th>';
+  h+='<th class="hrms-tw-col-outTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">Out Time</th>';
+  // P/A pill rendered inline with the 45-day P/A bar — single visual row.
+  h+='<th title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:300px;min-width:300px;max-width:300px">'
+    +'P/A · 45-day'
     +'</th>';
   h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="'+_twThSt+';text-align:center;font-size:11px;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle">PIA</th>';
   h+='</tr></thead><tbody>';
@@ -13935,9 +14099,9 @@ function _hrmsDasTwRender(){
     h+='<tr style="border-bottom:1px solid #e2e8f0;background:'+rowBg+';opacity:'+rowOpac+'">'
       +'<td style="padding:6px 8px;color:#64748b">'+(i+1)+'</td>'
       +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+_esc(r.empCode)+'</td>'
-      +'<td style="padding:6px 8px">'+_esc(r.name)+(r.presentToday?'':' <span class="_hrmsAbsChip" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fecaca;padding:1px 5px;border-radius:3px;margin-left:4px">ABSENT</span>')+'</td>'
+      +'<td style="padding:6px 8px;max-width:220px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.name)+(r.presentToday?'':' <span class="_hrmsAbsChip" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fecaca;padding:1px 5px;border-radius:3px;margin-left:4px">ABSENT</span>')+'</td>'
       +'<td style="padding:6px 8px;white-space:nowrap">'+plantTeamType+'</td>'
-      +'<td style="padding:6px 8px">'+_esc(r.dept)+'</td>'
+      +'<td style="padding:6px 8px;max-width:160px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.dept)+'</td>'
       +'<td style="padding:6px 8px">'+_esc(r.roll)+'</td>';
     // Merged Attendance cell — two visual rows in one <td>:
     //   Row 1: In · Out · P/A pill
@@ -13954,13 +14118,15 @@ function _hrmsDasTwRender(){
     }
     var _selHp=!!r.presentToday;
     _histHtml+='<span class="_hrmsHistTick _hrmsHistToday" title="'+(st.historyDate||'')+' (selected) · '+(_selHp?'P':'A')+'" style="display:inline-block;width:7px;height:14px;border-radius:1px;background:'+(_selHp?'#16a34a':'#dc2626')+';margin-left:4px;border:1.5px solid #0f172a;vertical-align:middle"></span>';
-    h+='<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;width:340px;min-width:340px;max-width:340px">'
-      +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px;margin-bottom:2px">'
-        +'<span class="_hrmsMcIn hrms-tw-col-inTime" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">In</span>'+_esc(r.inTime||'—')+'</span>'
-        +'<span class="_hrmsMcOut hrms-tw-col-outTime" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">Out</span>'+_esc(r.outTime||'—')+'</span>'
-        +'<span class="_hrmsMcPA" style="margin-left:auto;display:inline-block;padding:2px 12px;border-radius:12px;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border:1px solid '+(r.presentToday?'#86efac':'#fca5a5')+'">'+(r.presentToday?'P':'A')+'</span>'
+    // In Time / Out Time cells — own columns now, placed before the bar.
+    h+='<td class="hrms-tw-col-inTime" style="padding:6px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';border-left:1px solid #e2e8f0">'+_esc(r.inTime||'—')+'</td>'
+      +'<td class="hrms-tw-col-outTime" style="padding:6px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';border-left:1px solid #e2e8f0">'+_esc(r.outTime||'—')+'</td>';
+    // 45-day bar followed by the P/A pill — single visual row.
+    h+='<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;width:300px;min-width:300px;max-width:300px">'
+      +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px">'
+        +'<div class="_hrmsMcBar" style="flex:1;min-width:0;line-height:0">'+_histHtml+'</div>'
+        +'<span class="_hrmsMcPA" style="display:inline-block;padding:2px 12px;border-radius:12px;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border:1px solid '+(r.presentToday?'#86efac':'#fca5a5')+'">'+(r.presentToday?'P':'A')+'</span>'
       +'</div>'
-      +'<div class="_hrmsMcBar">'+_histHtml+'</div>'
       +'</td>';
     // PIA checkbox — exposed for Contract / Piece Rate emps. Clicking
     // it writes `emp.extra.piaMonths[mk] = day` (selected date's day-
@@ -14693,10 +14859,12 @@ function _hrmsDasDeptDetailsRender(){
     +'<th style="'+thSt+'">Team</th>'
     +'<th style="'+thSt+'">Emp Type</th>'
     +'<th style="'+thSt+'">Role</th>'
-    +'<th style="'+thSt+';text-align:left;min-width:340px;width:340px" title="Time In / Out + P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined)">Attendance · 45-day P/A</th>'
+    +'<th style="'+thSt+';text-align:center;width:70px;min-width:70px">In Time</th>'
+    +'<th style="'+thSt+';text-align:center;width:70px;min-width:70px">Out Time</th>'
+    +'<th style="'+thSt+';text-align:left;min-width:300px;width:300px" title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined)">P/A · 45-day</th>'
     +'</tr></thead><tbody>';
   if(!fRows.length){
-    h+='<tr><td colspan="8" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
+    h+='<tr><td colspan="10" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
   } else {
     fRows.forEach(function(r,i){
       var statusBg=r.present?'#dcfce7':'#fee2e2';
@@ -14726,18 +14894,18 @@ function _hrmsDasDeptDetailsRender(){
       h+='<tr>'
         +'<td style="padding:5px 8px;color:#64748b">'+(i+1)+'</td>'
         +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline">'+_esc(r.empCode)+'</a></td>'
-        +'<td style="padding:5px 8px;font-weight:700">'+_esc(r.name||'—')+'</td>'
+        +'<td style="padding:5px 8px;font-weight:700;max-width:220px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.name||'—')+'</td>'
         +'<td style="padding:5px 8px;text-align:center">'+plChip+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.team||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.et||'—')+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.roll||'—')+'</td>'
-        +'<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;min-width:340px;width:340px">'
-          +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px;margin-bottom:2px">'
-            +'<span class="_hrmsMcIn" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">In</span>'+_esc(r.inTime||'—')+'</span>'
-            +'<span class="_hrmsMcOut" style="font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'"><span style="color:#94a3b8;font-weight:600;margin-right:2px">Out</span>'+_esc(r.outTime||'—')+'</span>'
-            +'<span class="_hrmsMcPA" style="margin-left:auto;display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:2px 12px;border-radius:12px;font-weight:900;font-size:13px;font-family:var(--mono)">'+statusLbl+'</span>'
+        +'<td style="padding:5px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'">'+_esc(r.inTime||'—')+'</td>'
+        +'<td style="padding:5px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'">'+_esc(r.outTime||'—')+'</td>'
+        +'<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;min-width:300px;width:300px">'
+          +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px">'
+            +'<div class="_hrmsMcBar" style="flex:1;min-width:0;line-height:0">'+last45Cell+'</div>'
+            +'<span class="_hrmsMcPA" style="display:inline-block;background:'+statusBg+';color:'+statusFg+';border:1px solid '+statusBd+';padding:2px 12px;border-radius:12px;font-weight:900;font-size:13px;font-family:var(--mono)">'+statusLbl+'</span>'
           +'</div>'
-          +'<div class="_hrmsMcBar">'+last45Cell+'</div>'
         +'</td>'
         +'</tr>';
     });
@@ -16703,10 +16871,10 @@ function _hrmsDeptHeadScope(){
   var isElevated=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
                 ||roles.indexOf('HRMS Admin')>=0||roles.indexOf('HR Manager')>=0;
   if(!isDH||isElevated) return null;
-  // Multi-role union: a broader role grant (Full on the Day-wise
-  // Attendance umbrella) trumps the dept-scope filter so users with
-  // HR Assistant + Dept Head see everything HR Assistant unlocks.
-  if(typeof permLevel==='function'&&permLevel('HRMS','page.utilDailyAttSum')==='full') return null;
+  // Multi-role union: drop dept-scope only if a role OTHER than
+  // "Department Head" grants Full on the page. Granting Full to the
+  // Dept Head role itself doesn't bypass the dept-mapping filter.
+  if(_hrmsPermLevelExcluding('HRMS','page.utilDailyAttSum','Department Head')==='full') return null;
   var deptIds={},plants={};
   try{
     if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
@@ -20405,6 +20573,8 @@ function _hrmsRenderAltManualList(){
       '<th onclick="_hrmsAltListSortBy(\'reason\')" style="'+th+'">Remarks'+arrow('reason')+'</th>'+
       '<th style="'+thNoSort+';text-align:center">Action</th>'+
     '</tr></thead><tbody>';
+  // View-only users see the list read-only — Edit + Delete buttons hide.
+  var _altCanEdit=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importAlterations'):true;
   rows.forEach(function(r,i){
     var sun=(r.dayName==='Sun');
     var ecEsc=String(r.empCode||'').replace(/'/g,"\\'");
@@ -20417,6 +20587,8 @@ function _hrmsRenderAltManualList(){
       actions='<span title="Approved alteration request — manage from Alteration Requests sub-tab" style="font-size:10px;color:var(--text3)">Request</span>';
     } else if(r._initial){
       actions='<span title="Initial IN/OUT staging — edit from the employee\'s Initial IN/OUT tab" style="font-size:10px;color:#92400e">Initial</span>';
+    } else if(!_altCanEdit){
+      actions='<span style="color:var(--text3);font-size:10px" title="View-only access">👁</span>';
     } else {
       actions='<button onclick="_hrmsAltManualEdit(\''+ecEsc+'\',\''+dkEsc+'\')" style="font-size:10px;padding:3px 8px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer;margin-right:3px">✎ Edit</button>'
         +'<button onclick="_hrmsAltManualDelete(\''+ecEsc+'\',\''+dkEsc+'\')" style="font-size:10px;padding:3px 8px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;cursor:pointer">🗑 Delete</button>';
@@ -22795,15 +22967,38 @@ function _hrmsSettingsSubTab(tab){
   if(tab==='myapprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
   if(tab==='altimport') _hrmsRenderAltImportLog();
   if(tab==='alteration'){
+    // View-only users skip both the Manual Add Alteration form AND
+    // the top-bar Import Alteration button — Full on settings.altimport
+    // is required to mutate. Read-only users see the existing rows.
+    var _altCanEdit=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importAlterations'):true;
+    var _altAdd=document.getElementById('hrmsAltManualAddSection');
+    if(_altAdd) _altAdd.style.display=_altCanEdit?'':'none';
+    var _altImp=document.getElementById('hrmsAltImportBtn');
+    if(_altImp) _altImp.style.display=_altCanEdit?'':'none';
     _hrmsRenderAltImportLog();
     _hrmsAltAddSetDateBoundsToMonth();
     _hrmsRenderAltManualList();
   }
-  if(tab==='manual') _hrmsRenderManualPList();
+  if(tab==='manual'){
+    // View-only users see the list read-only — the Add form row hides.
+    var _manualCanEdit=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importOB'):true;
+    var _manualForm=document.getElementById('hrmsManualPAddRow');
+    if(_manualForm) _manualForm.style.display=_manualCanEdit?'':'none';
+    _hrmsRenderManualPList();
+  }
   if(tab==='salrevision') _hrmsSalImpRenderPreview('onroll');
   if(tab==='contractrev') _hrmsSalImpRenderPreview('contract');
   if(tab==='tds') _hrmsTdsRender();
-  if(tab==='advances') _hrmsRenderAdvances();
+  if(tab==='advances'){
+    // View-only users skip the Import + Export buttons on the
+    // Advances tab — Full on settings.advances is required for either.
+    var _advCanEdit=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importAdvances'):true;
+    var _advImp=document.getElementById('hrmsAdvImportBtn');
+    if(_advImp) _advImp.style.display=_advCanEdit?'':'none';
+    var _advExp=document.getElementById('hrmsAdvExportBtn');
+    if(_advExp) _advExp.style.display=_advCanEdit?'':'none';
+    _hrmsRenderAdvances();
+  }
 }
 
 
@@ -23778,6 +23973,8 @@ function _hrmsLoadManualP(){
 function _hrmsRenderManualPList(){
   var el=document.getElementById('hrmsManualPList');if(!el)return;
   var mk=_hrmsMonth;if(!mk){el.innerHTML='';return;}
+  // View-only users skip the Edit + Remove action buttons.
+  var canEdit=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importOB'):true;
   var pData=_hrmsManualPData[mk]||{};
   // Collect all emp codes that have any manual override field set this month.
   var allCodes={};
@@ -23812,14 +24009,19 @@ function _hrmsRenderManualPList(){
     h+='<td style="'+_th+';text-align:right;font-weight:700;color:#7c3aed">'+(ot!==undefined?ot:'—')+'</td>';
     h+='<td style="'+_th+';text-align:right;font-weight:700;color:#c2410c">'+(ots!==undefined?ots:'—')+'</td>';
     h+='<td style="'+_th+';color:var(--text2);font-style:italic;max-width:280px">'+(rem||'—')+'</td>';
-    h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsEditManualP(\''+ec+'\')" title="Edit — pre-fills the form so you can adjust and re-Add" style="font-size:10px;padding:2px 7px;border:1px solid #fcd34d;border-radius:3px;background:#fef3c7;color:#b45309;cursor:pointer;font-weight:700">✎ Edit</button></td>';
-    h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsRemoveManualP(\''+ec+'\')" title="Remove this employee\'s overrides for the month" style="font-size:10px;padding:2px 6px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer;font-weight:700">✕</button></td></tr>';
+    if(canEdit){
+      h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsEditManualP(\''+ec+'\')" title="Edit — pre-fills the form so you can adjust and re-Add" style="font-size:10px;padding:2px 7px;border:1px solid #fcd34d;border-radius:3px;background:#fef3c7;color:#b45309;cursor:pointer;font-weight:700">✎ Edit</button></td>';
+      h+='<td style="padding:4px 4px;border:1px solid var(--border)"><button onclick="_hrmsRemoveManualP(\''+ec+'\')" title="Remove this employee\'s overrides for the month" style="font-size:10px;padding:2px 6px;border:1px solid #fecaca;border-radius:3px;background:#fef2f2;color:#dc2626;cursor:pointer;font-weight:700">✕</button></td></tr>';
+    } else {
+      h+='<td colspan="2" style="padding:4px 4px;border:1px solid var(--border);text-align:center;color:var(--text3);font-size:10px" title="View-only access">👁</td></tr>';
+    }
   });
   h+='</tbody></table>';
   el.innerHTML=h;
 }
 
 async function _hrmsAddManualP(){
+  if(!_hrmsHasAccess('action.importOB')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to make changes.',true);return;}
   var code=_hrmsExtractEmpCode(document.getElementById('hrmsManualPCode').value);
@@ -23886,6 +24088,7 @@ function _hrmsClearManualP(){
 // code so the user can tweak and re-Add to update. Add already does an
 // upsert into emp.extra.manualP/PL/OT/OTS/Remarks for the active month.
 function _hrmsEditManualP(code){
+  if(!_hrmsHasAccess('action.importOB')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk){notify('Open a month first',true);return;}
   var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
   if(!emp){notify('Employee '+code+' not found',true);return;}
@@ -23912,6 +24115,7 @@ function _hrmsEditManualP(code){
   if(firstNum&&typeof firstNum.focus==='function'){firstNum.focus();firstNum.select&&firstNum.select();}
 }
 async function _hrmsRemoveManualP(code){
+  if(!_hrmsHasAccess('action.importOB')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk)return;
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
   var emp=(DB.hrmsEmployees||[]).find(function(e){return e.empCode===code;});
@@ -27535,6 +27739,11 @@ async function _hrmsRenderAdvances(){
   var totOB=0,totAdv=0,totDed=0,totCB=0;
   rows.forEach(function(r){totOB+=r.ob;totAdv+=r.adv;totDed+=r.ded;totCB+=r.cb;});
   var monthLocked=_hrmsIsMonthLocked(mk);
+  // View-only users (no Full on settings.advances) get the same locked
+  // inputs + hidden delete buttons as a locked month — keeps the data
+  // visible but stops every mutation path (inline edit + delete row).
+  var canEditAdv=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('action.importAdvances'):true;
+  var rowEditable=!monthLocked&&canEditAdv;
   // Summary tiles render into the dedicated #hrmsAdvSummary slot in the
   // toolbar — same row as the Import / Export buttons. Two-line layout
   // (small label / large value) gives them visual weight.
@@ -27596,12 +27805,15 @@ async function _hrmsRenderAdvances(){
     // values at a glance — first manual edit clears the import flag.
     var advCls=r._imported?' hrms-adv-imported':'';
     var advTitle=r._imported?' title="Imported from Excel — first manual edit clears the import marker"':'';
-    h+='<td style="padding:2px 4px;text-align:right"><input type="number" class="no-spin'+advCls+'" value="'+r.adv+'" min="0" step="100"'+(monthLocked?' disabled':'')+' data-code="'+r.code+'" data-field="advance" onchange="_hrmsAdvAdvChange(this)"'+advTitle+' style="width:80px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;text-align:right;font-family:var(--mono);font-weight:700"></td>';
+    h+='<td style="padding:2px 4px;text-align:right"><input type="number" class="no-spin'+advCls+'" value="'+r.adv+'" min="0" step="100"'+(rowEditable?'':' disabled')+' data-code="'+r.code+'" data-field="advance" onchange="_hrmsAdvAdvChange(this)"'+advTitle+' style="width:80px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;text-align:right;font-family:var(--mono);font-weight:700"></td>';
     // Action: just a delete now that advance is editable inline. Hidden
-    // on rows that only carry an OB (no record yet) and on locked months.
+    // on rows that only carry an OB (no record yet), on locked months,
+    // and for view-only users (no Full on settings.advances).
     var actions='';
     if(monthLocked){
       actions='<span style="color:var(--text3);font-size:10px" title="Month is locked">🔒</span>';
+    } else if(!canEditAdv){
+      actions='<span style="color:var(--text3);font-size:10px" title="View-only access">👁</span>';
     } else if(r.id){
       actions='<button onclick="_hrmsRemoveAdvance(\''+r.code+'\')" title="Remove this month\'s advance row" style="padding:2px 6px;font-size:10px;font-weight:700;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:3px;cursor:pointer">🗑</button>';
     } else {
@@ -27610,7 +27822,7 @@ async function _hrmsRenderAdvances(){
     h+='<td style="padding:4px 6px;text-align:center">'+actions+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:800">'+r.total+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);color:var(--text3)">'+r.emi+'</td>';
-    h+='<td style="padding:2px 4px;text-align:right"><input type="number" class="no-spin" value="'+r.ded+'" min="0" step="100"'+(monthLocked?' disabled':'')+' data-code="'+r.code+'" data-field="deduction" onchange="_hrmsAdvDedChange(this)" style="width:80px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;text-align:right;font-family:var(--mono);font-weight:700"></td>';
+    h+='<td style="padding:2px 4px;text-align:right"><input type="number" class="no-spin" value="'+r.ded+'" min="0" step="100"'+(rowEditable?'':' disabled')+' data-code="'+r.code+'" data-field="deduction" onchange="_hrmsAdvDedChange(this)" style="width:80px;padding:3px 6px;border:1.5px solid var(--accent);border-radius:4px;text-align:right;font-family:var(--mono);font-weight:700"></td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:800;'+cbClr+'">'+r.cb+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);font-weight:600" id="hrmsAdvNet_'+r.code+'">'+r.netSal.toLocaleString()+'</td>';
     h+='</tr>';
@@ -27690,6 +27902,7 @@ function _hrmsAdvScheduleOrSalaryRefresh(){
 // so the row sheds its amber tint — once the operator has touched
 // the value it's no longer purely fetched-from-Excel.
 async function _hrmsAdvAdvChange(input){
+  if(!_hrmsHasAccess('action.importAdvances')){notify('Access denied',true);return;}
   var code=input.dataset.code;
   var adv=parseFloat(input.value)||0;
   var mk=_hrmsMonth;if(!mk)return;
@@ -27748,6 +27961,7 @@ async function _hrmsAdvAdvChange(input){
 }
 
 async function _hrmsAdvDedChange(input){
+  if(!_hrmsHasAccess('action.importAdvances')){notify('Access denied',true);return;}
   var code=input.dataset.code;
   var ded=parseFloat(input.value)||0;
   var mk=_hrmsMonth;if(!mk)return;
@@ -27809,6 +28023,7 @@ async function _hrmsAdvDedChange(input){
 }
 
 async function _hrmsAddAdvance(){
+  if(!_hrmsHasAccess('action.importAdvances')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to add advances.',true);return;}
   var code=_hrmsExtractEmpCode(document.getElementById('hrmsAdvCode').value);
@@ -27842,6 +28057,7 @@ async function _hrmsAddAdvance(){
 }
 
 async function _hrmsRemoveAdvance(code){
+  if(!_hrmsHasAccess('action.importAdvances')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk)return;
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
   if(!confirm('Remove advance record for '+code+' in this month?'))return;
@@ -27856,6 +28072,7 @@ async function _hrmsRemoveAdvance(code){
 }
 
 async function _hrmsEditAdvance(code){
+  if(!_hrmsHasAccess('action.importAdvances')){notify('Access denied',true);return;}
   var mk=_hrmsMonth;if(!mk)return;
   if(_hrmsIsMonthLocked(mk)){notify('⚠ '+_hrmsMonthLabel(mk)+' is locked.',true);return;}
   var rec=(DB.hrmsAdvances||[]).find(function(a){return a.empCode===code&&a.monthKey===mk;});
@@ -29969,6 +30186,17 @@ var _hrmsMyAttState={empId:'',year:0};
 // switch employees. Username is assumed to be the empCode.
 function _hrmsIsEmployeeOnlyUser(){
   if(typeof CU==='undefined'||!CU) return false;
+  // Perm-driven first: if any of the user's roles has an explicit scope
+  // saved on page.myAttendance, honour it. 'self' → only own record;
+  // 'all' / 'plant' / 'team' / 'dept' → unrestricted picker. Lets
+  // Access Management expose the 5-option scope dropdown on any role,
+  // including admin-added custom roles like "Plant Head".
+  if(typeof _hrmsResolveScope==='function'){
+    var sc=_hrmsResolveScope('HRMS','page.myAttendance');
+    if(sc&&sc.kind==='self') return true;
+    if(sc&&sc.kind&&sc.kind!=='all') return false; // any broader scope = unrestricted picker
+  }
+  // Legacy fallback for roles that predate granular perms.
   var roles=CU.hrmsRoles||[];
   if(roles.indexOf('Super Admin')>=0||roles.indexOf('HR Manager')>=0) return false;
   return roles.indexOf('Employee')>=0;

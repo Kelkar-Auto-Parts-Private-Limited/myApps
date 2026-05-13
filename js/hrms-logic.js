@@ -106,30 +106,42 @@ function _hrmsLoadPermissions(){
 
 function _hrmsHasAccess(featureKey){
   if(_hrmsIsSA()) return true;
-  // Contractor Supervisor scoping: a user mapped as supervisor of at
-  // least one team is automatically granted Daily Attendance Summary
-  // access — they need it to view their team's Teamwise Data tab.
-  // Granted regardless of admin-configured perms (UI restricts them
-  // to their teams only inside the page).
-  // Auto-grants for single-purpose roles so they can reach their one
-  // page even before admin configures access. Each role unlocks the
-  // page itself, the parent Utilities menu, and the specific sub-tab
-  // they're allowed to use; tab-level scope is enforced inside the
-  // renderer.
-  if(CU){
-    var _agRoles=CU.hrmsRoles||[];
-    var _agIsCS=_agRoles.indexOf('Contractor Supervisor')>=0;
-    var _agIsDH=_agRoles.indexOf('Department Head')>=0;
-    var _agElev=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
-               ||_agRoles.indexOf('HRMS Admin')>=0||_agRoles.indexOf('HR Manager')>=0;
-    var _agCsKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.teamwise':1};
-    var _agDhKeys={'page.utilDailyAttSum':1,'page.utilities':1,'tab.das.deptdetails':1,'tab.das.teamwise':1};
-    if(_agIsCS&&!_agElev&&_agCsKeys[featureKey]) return true;
-    if(_agIsDH&&!_agElev&&_agDhKeys[featureKey]) return true;
+  // Tab-level collapse: some action keys (Export Salary, Worker Slip
+  // PDF, Export Payments, Export ESI/PF, Export PT) used to live as
+  // separate Access Management entries. They've been folded into the
+  // parent tab so admin only configures the tab. Full on the tab
+  // grants the action; View or None does not. The map is consulted
+  // here so existing call sites (_hrmsHasAccess('action.exportSalary')
+  // etc.) keep working unchanged.
+  var _tabCollapsedActs={
+    'action.exportSalary':'tab.salary',
+    'action.exportWorkerSlip':'tab.salary',
+    'action.exportPayments':'tab.payments',
+    'action.exportEsiPf':'tab.esipf',
+    'action.exportPt':'tab.pt',
+    'action.exportContract':'tab.contract',
+    // Settings & Data sub-tab → action collapse.
+    'action.importEssl':'settings.esslatt',
+    'action.importAlterations':'settings.altimport',
+    'action.importOB':'settings.manual',
+    'action.importAdvances':'settings.advances',
+    'action.editCalendar':'settings.calendar',
+    'action.bulkSalRevision':'settings.salrevision',
+    'action.proposeContractRev':'page.contractRev',
+    'action.editStatutory':'settings.statutory'
+  };
+  if(_tabCollapsedActs[featureKey]){
+    return (typeof permLevel==='function')
+      ? permLevel('HRMS', _tabCollapsedActs[featureKey])==='full'
+      : false;
   }
-  // If admin has saved ANY permissions for one of the user's HRMS roles,
-  // those are AUTHORITATIVE — items admin didn't grant are hidden.
-  // This matches VMS/HWMS/Security semantics.
+  // Access Management is the single source of truth. The earlier
+  // hardcoded auto-grants for Contractor Supervisor / Department Head
+  // (page.utilDailyAttSum / page.utilities / tab.das.teamwise /
+  // tab.das.deptdetails) were removed so admin-set None is actually
+  // honoured. CS and DH must be granted via Access Management now,
+  // and their built-in defaults under HRMS Admin / Super Admin still
+  // bypass this gate via the module-admin/Super-Admin checks above.
   if(typeof permConfigured==='function'&&permConfigured('HRMS')){
     // Action keys AND edit-level keys require Full (not View). View-level on
     // an action-like key means "no action allowed". e.g. masters.edit set
