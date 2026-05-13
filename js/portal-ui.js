@@ -2040,6 +2040,7 @@ function _permItemMirrorsGroup(item,groupName){
   var clean=function(s){
     return String(s||'')
       .replace(/\([^)]*\)/g,'')      // drop "(main tab)" / "(sidebar menu)" etc.
+      .replace(/\bpage\b/gi,'')      // drop the " Page" label-distinguisher suffix (HWMS)
       .replace(/[^a-zA-Z0-9]/g,'')   // strip emoji, spaces, punctuation
       .toLowerCase();
   };
@@ -2060,6 +2061,7 @@ function _permCleanLabel(label){
     .replace(/\s*\(\s*main\s*tab\s*\)/ig,'')
     .replace(/\s*\(\s*sidebar\s*menu\s*\)/ig,'')
     .replace(/\s*\(\s*modal\s*\)/ig,'')
+    .replace(/\s+page\s*$/i,'')          // drop trailing " Page" suffix (HWMS labels)
     .trim();
 }
 

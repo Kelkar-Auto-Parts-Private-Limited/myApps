@@ -51,6 +51,12 @@ async function _hrmsLaunch(){
   // sets _hrmsSalaryAccess to 'ok'/'denied' which the UI can read later.
   try{ if(typeof _hrmsSalaryFetchAll==='function') await _hrmsSalaryFetchAll(); }
   catch(e){ console.warn('salary fetch on boot failed:',e.message); }
+  // Plant FK — stamp emp.extra.locationId + period.locationId / monthly
+  // salaryMonths[mk].locationId for any legacy record that has a plant
+  // name but no id yet. In-memory only on boot; new writes persist the
+  // id via saveHrmsEmp, and plant renames cascade via _hrmsCascadePlantRename.
+  try{ if(typeof _hrmsBackfillLocationIds==='function') _hrmsBackfillLocationIds(); }
+  catch(e){ console.warn('plant locationId backfill failed:',e.message); }
   // Topbar avatar — photo if available, otherwise 2-letter initials.
   (function(){
     var av=document.getElementById('hrmsUserAvatar');if(!av) return;
@@ -343,13 +349,16 @@ function _hrmsEnforcePermissions(){
   _setByPerm('navAttSal','page.attSal');
   _setByPerm('navMyAtt','page.myAttendance');
   _setByPerm('navAttRules','page.attRules');
-  // My Approvals — visible for ALL signed-in users (renderer scopes
-  // rows internally). Admin can still hide by removing the perm.
+  // My Approvals — sidebar shows when admin has granted either key:
+  //   • page.myApprovals      (Own chain access)
+  //   • page.myApprovalsOthers (Other users' approvals access)
+  // Renderer scopes rows internally per row's own/others routing.
   (function(){
     var el=document.getElementById('navMyApprovals');
     if(!el) return;
-    var hasPerm=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('page.myApprovals'):true;
-    el.style.display=hasPerm?'':'none';
+    var hasOwn=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('page.myApprovals'):true;
+    var hasOthers=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('page.myApprovalsOthers'):false;
+    el.style.display=(hasOwn||hasOthers)?'':'none';
   })();
   // Masters group — Employees + Org Structure now live here too.
   var anyMasters=false;
@@ -1530,6 +1539,102 @@ async function _hrmsSetPlantColor(plantId,color){
   renderHrmsMaster('pageHrmsMCompany');
 }
 
+// ═══ PLANT FK — locationId tracking ═════════════════════════════════════
+// hrmsCompanies is the plant master; emp records traditionally only
+// carried the plant name string (emp.location) which made master
+// renames silently stale until each emp was edited + re-saved. These
+// helpers introduce a stable backing link (emp.extra.locationId +
+// period.locationId) and a cascade rename that propagates the new
+// name across every emp's top-level / period / salaryMonths snapshot.
+
+// In-memory backfill: stamp locationId on every emp/period that has
+// a location name but no locationId yet. Idempotent. Reads only
+// DB.hrmsEmployees + DB.hrmsCompanies; never saves.
+function _hrmsBackfillLocationIds(){
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  var companies=(typeof DB!=='undefined'&&DB.hrmsCompanies)||[];
+  if(!companies.length) return;
+  var idByName={};
+  companies.forEach(function(c){if(c&&c.name) idByName[String(c.name).trim()]=c.id;});
+  emps.forEach(function(e){
+    if(!e) return;
+    if(!e.extra) e.extra={};
+    if(!e.extra.locationId&&e.location){
+      var id=idByName[String(e.location).trim()];
+      if(id) e.extra.locationId=id;
+    }
+    (e.periods||[]).forEach(function(p){
+      if(!p) return;
+      if(!p.locationId&&p.location){
+        var pid=idByName[String(p.location).trim()];
+        if(pid) p.locationId=pid;
+      }
+    });
+    if(e.salaryMonths&&typeof e.salaryMonths==='object'){
+      Object.keys(e.salaryMonths).forEach(function(mk){
+        var sm=e.salaryMonths[mk];if(!sm) return;
+        if(!sm.locationId&&sm.location){
+          var sid=idByName[String(sm.location).trim()];
+          if(sid) sm.locationId=sid;
+        }
+      });
+    }
+  });
+}
+
+// Cascade rename helper — called by _hrmsEditMaster when a row in
+// hrmsCompanies is renamed. Updates every reference (emp.location,
+// emp.periods[].location, emp.salaryMonths[mk].location) AND each
+// changed emp gets saved. Match strategy: prefer locationId when
+// stamped; fall back to oldName match for legacy emps without an id.
+async function _hrmsCascadePlantRename(plantId,oldName,newName){
+  if(!plantId||!newName||oldName===newName) return 0;
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  var changedEmps=[];
+  emps.forEach(function(e){
+    if(!e) return;
+    var touched=false;
+    if(!e.extra) e.extra={};
+    // Top-level emp.location — match by locationId OR (legacy) by name.
+    var topMatchesId=(e.extra.locationId===plantId);
+    var topMatchesName=(!e.extra.locationId&&e.location===oldName);
+    if(topMatchesId||topMatchesName){
+      if(e.location!==newName){e.location=newName;touched=true;}
+      if(e.extra.locationId!==plantId){e.extra.locationId=plantId;touched=true;}
+    }
+    // Each period.
+    (e.periods||[]).forEach(function(p){
+      if(!p) return;
+      var pIdMatch=(p.locationId===plantId);
+      var pNameMatch=(!p.locationId&&p.location===oldName);
+      if(pIdMatch||pNameMatch){
+        if(p.location!==newName){p.location=newName;touched=true;}
+        if(p.locationId!==plantId){p.locationId=plantId;touched=true;}
+      }
+    });
+    // Each per-month salary snapshot.
+    if(e.salaryMonths&&typeof e.salaryMonths==='object'){
+      Object.keys(e.salaryMonths).forEach(function(mk){
+        var sm=e.salaryMonths[mk];if(!sm) return;
+        var sIdMatch=(sm.locationId===plantId);
+        var sNameMatch=(!sm.locationId&&sm.location===oldName);
+        if(sIdMatch||sNameMatch){
+          if(sm.location!==newName){sm.location=newName;touched=true;}
+          if(sm.locationId!==plantId){sm.locationId=plantId;touched=true;}
+        }
+      });
+    }
+    if(touched) changedEmps.push(e);
+  });
+  // Persist every emp that picked up the new name. Sequential save
+  // avoids overwhelming the RPC with parallel writes.
+  for(var i=0;i<changedEmps.length;i++){
+    try{ await _dbSave('hrmsEmployees',changedEmps[i]); }
+    catch(err){ console.warn('plant-rename cascade save failed for emp '+changedEmps[i].empCode+':',err.message); }
+  }
+  return changedEmps.length;
+}
+
 function _hrmsGetPlantColor(plantName){
   var p=(DB.hrmsCompanies||[]).find(function(c){return c.name===plantName;});
   return p&&p.color?p.color:'#e2e8f0';
@@ -1619,16 +1724,25 @@ function _hrmsEditMaster(pid,id){
   if(name!==oldName&&(DB[c.tbl]||[]).find(function(x){return x.name===name&&x.id!==id;})){notify(c.label+' "'+name+'" already exists',true);return;}
   it.name=name;
   var _doSave=function(){
-    _dbSave(c.tbl,it).then(function(ok){
-      if(ok){
-        if(name!==oldName){
+    _dbSave(c.tbl,it).then(async function(ok){
+      if(!ok) return;
+      if(name!==oldName){
+        if(c.tbl==='hrmsCompanies'){
+          // Plant rename — cascade through emp.location, every
+          // period.location and every salaryMonths[mk].location. Uses
+          // locationId match where present, falls back to old-name
+          // match for legacy emps.
+          var n=await _hrmsCascadePlantRename(it.id,oldName,name);
+          if(n) notify('Plant rename propagated to '+n+' employee(s)');
+        } else {
+          // Other masters — single denormalised field on emp.
           var field=c.empField;
           (DB.hrmsEmployees||[]).forEach(function(e){
             if(e[field]===oldName){e[field]=name;_dbSave('hrmsEmployees',e);}
           });
         }
-        renderHrmsMaster(pid);notify(c.label+' updated');
       }
+      renderHrmsMaster(pid);notify(c.label+' updated');
     });
   };
   if(c.extra==='empType'){
@@ -1639,18 +1753,6 @@ function _hrmsEditMaster(pid,id){
   } else {
     _doSave();
   }
-  _dbSave(c.tbl,it).then(function(ok){
-    if(ok){
-      // Update employee records that used the old name
-      if(name!==oldName){
-        var field=c.empField;
-        (DB.hrmsEmployees||[]).forEach(function(e){
-          if(e[field]===oldName){e[field]=name;_dbSave('hrmsEmployees',e);}
-        });
-      }
-      renderHrmsMaster(pid);notify(c.label+' updated');
-    }
-  });
 }
 
 async function _hrmsDelMaster(pid,id){
@@ -2964,6 +3066,11 @@ async function _hrmsMarkAbsentInactive(){
 }
 function renderHrmsEmployees(){
   var body=document.getElementById('hrmsEmpBody');if(!body)return;
+  // Salary lockdown safety net — same rationale as openHrmsEmpModal.
+  if(typeof _hrmsSalaryApplyToMemory==='function'
+     &&typeof _hrmsSalaryAccess!=='undefined'&&_hrmsSalaryAccess==='ok'){
+    try{ _hrmsSalaryApplyToMemory(); }catch(_){}
+  }
   var allEmps=DB.hrmsEmployees||[];
   // Update employment-type filter button counts (active employees only)
   _hrmsUpdateEtfCounts();
@@ -4907,8 +5014,8 @@ function _hrmsUpdateMyApprovalsBadge(){
   var n=0;
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||!e.extra) return;
-    (e.extra.altRequests||[]).forEach(function(r){if(_hrmsMyApprovalsCanAct(r)) n++;});
-    (e.extra.coffBank||[]).forEach(function(c){if(_hrmsMyApprovalsCanAct(c)) n++;});
+    (e.extra.altRequests||[]).forEach(function(r){if(_hrmsMyApprovalsCanAct(r,e)) n++;});
+    (e.extra.coffBank||[]).forEach(function(c){if(_hrmsMyApprovalsCanAct(c,e)) n++;});
   });
   // Manual + Excel alteration entries pending approval. The cumulative
   // side-nav badge isn't month-scoped, so we sweep every loaded month
@@ -4929,13 +5036,10 @@ function _hrmsUpdateMyApprovalsBadge(){
       });
     });
   }
-  // Pending Org & Salary changes — emp.salaryMonths[mk].pending entries.
-  (DB.hrmsEmployees||[]).forEach(function(e){
-    if(!e||!e.salaryMonths) return;
-    Object.keys(e.salaryMonths).forEach(function(_mk){
-      if(e.salaryMonths[_mk]&&e.salaryMonths[_mk].pending) n++;
-    });
-  });
+  // Org & Salary pending changes are approved from the Employee
+  // Details modal — _hrmsMyApprovalsRender deliberately excludes them
+  // from the My Approvals page. Counting them here would make the
+  // side-nav badge larger than what the page actually shows.
   nav.textContent=n;nav.style.display=n?'':'none';
   if(typeof _hrmsRollupPendingBadges==='function') _hrmsRollupPendingBadges();
   if(typeof _hrmsUpdateAltTabBadge==='function') _hrmsUpdateAltTabBadge();
@@ -5078,6 +5182,20 @@ function _hrmsEcrHistorySortBy(field){
 function _hrmsRenderChangeReq(){
   var el=document.getElementById('hrmsChangeReqContent');if(!el)return;
   var isSA=CU&&((CU.hrmsRoles||[]).indexOf('Super Admin')>=0||(CU.roles||[]).indexOf('Super Admin')>=0);
+  // ECR rows show emp salary values (Sal/Day, Sal/Mon, Sp.Allow) in
+  // both the pending timeline and the history table. Honour the same
+  // 3-state visibility policy used elsewhere: Full → real, View →
+  // masked (last 2 digits), None → XXX. The emp record (with its
+  // category / employmentType) drives the bucket.
+  var _ecrSalKeys={salaryDay:1,salaryMonth:1,specialAllowance:1};
+  var _ecrMaskSal=function(rawVal,emp){
+    if(!_ecrSalKeys || rawVal==null || rawVal==='' || rawVal==='—') return rawVal;
+    if(typeof _hrmsSalaryShowLevel!=='function') return rawVal;
+    var lvl=_hrmsSalaryShowLevel(emp||{});
+    if(lvl==='full') return rawVal;
+    if(lvl==='view') return (typeof _hrmsMaskSalary==='function')?_hrmsMaskSalary(rawVal):'***';
+    return 'XXX';
+  };
   var pendingReqs=[],historyReqs=[];
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e.periods||!e.periods.length) return;
@@ -5147,6 +5265,11 @@ function _hrmsRenderChangeReq(){
       var ov=String(cur[k]==null?'':cur[k]).trim();
       var nv=String(hp[k]==null?'':hp[k]).trim();
       if(ov===nv) return;
+      // Apply salary visibility for sal/day, sal/mon, sp.allow.
+      if(_ecrSalKeys[k]){
+        if(ov) ov=String(_ecrMaskSal(ov,emp));
+        if(nv) nv=String(_ecrMaskSal(nv,emp));
+      }
       rows.push('<div style="font-size:11px;line-height:1.4"><b style="color:#0f172a">'+lbl+':</b> <span style="color:#64748b;text-decoration:line-through">'+(ov||'—')+'</span> → <span style="color:#92400e;font-weight:700">'+(nv||'—')+'</span></div>');
     });
     var diffs=rows.length?rows.join(''):'<span style="color:var(--text3);font-style:italic">no field changes</span>';
@@ -5199,6 +5322,8 @@ function _hrmsRenderChangeReq(){
           if(_pClr){cellBg='background:'+_pClr+';';cellFg='color:#1e293b;font-weight:800;';}
         }
         if(changed){cellBg='background:#fef3c7;';cellFg='font-weight:800;color:#92400e;';}
+        // Salary visibility policy for sal/day, sal/mon, sp.allow.
+        if(_ecrSalKeys[c]&&val!=='—') val=String(_ecrMaskSal(val,e));
         h+='<td style="padding:4px 6px;font-family:var(--mono);'+(c==='salaryDay'||c==='salaryMonth'||c==='specialAllowance'?'text-align:right;':'')+cellBg+cellFg+'">'+val+'</td>';
       });
       h+='</tr>';
@@ -7269,6 +7394,15 @@ function openHrmsEmpModal(id){
     if(typeof notify==='function') notify('⚠ You don’t have access to view employee details',true);
     return;
   }
+  // Salary lockdown safety net — _hrmsSalaryApplyToMemory may have been
+  // clobbered by a later bgSync / refresh that re-loaded hrmsEmployees
+  // without re-running the merge. Re-apply right before reading the emp
+  // so periods[].salaryDay/Month show the actual numbers (when access
+  // is 'ok') instead of the public-row scrubbed undefined / 0.
+  if(typeof _hrmsSalaryApplyToMemory==='function'
+     &&typeof _hrmsSalaryAccess!=='undefined'&&_hrmsSalaryAccess==='ok'){
+    try{ _hrmsSalaryApplyToMemory(); }catch(_){}
+  }
   var e=id?byId(DB.hrmsEmployees||[],id):null;
   // Render form into the modal body
   var el=document.getElementById('hrmsEmpModalContent')||document.getElementById('hrmsEmpEditContent');
@@ -7667,15 +7801,24 @@ async function saveHrmsEmp(){
   // formatter follows the category: Staff is paid monthly so we show
   // Sal/Month, Worker (and anything else) shows Sal/Day. Falls back
   // to whichever value is non-zero when the category isn't set.
+  // Visibility policy applied: Full → real value, View → masked
+  // (last 2 digits visible), None → XXX. Matches the rest of the
+  // salary-display gates app-wide.
   var _confAp=_hrmsEmpPeriods[0]||{};
   var _confCat=String(_confAp.category||'').toLowerCase();
   var _confIsStaff=_confCat.indexOf('staff')>=0;
   var _confDay=+_confAp.salaryDay||0;
   var _confMon=+_confAp.salaryMonth||0;
-  var _confSal=_confIsStaff
+  var _confSalRaw=_confIsStaff
     ?(_confMon?('₹'+_confMon.toLocaleString('en-IN')+' / month'):'—')
     :(_confDay?('₹'+_confDay.toLocaleString('en-IN')+' / day')
               :(_confMon?('₹'+_confMon.toLocaleString('en-IN')+' / month'):'—'));
+  var _confSal=_confSalRaw;
+  if(_confSalRaw!=='—'&&typeof _hrmsSalaryShowLevel==='function'){
+    var _confLvl=_hrmsSalaryShowLevel(_confAp);
+    if(_confLvl==='view') _confSal=(typeof _hrmsMaskSalary==='function')?_hrmsMaskSalary(_confSalRaw):'***';
+    else if(_confLvl==='none') _confSal='XXX';
+  }
   var _confOk=await _hrmsConfirmEmpSave({
     code:code,name:name,
     plant:_confAp.location||'—',
@@ -7692,6 +7835,17 @@ async function saveHrmsEmp(){
   _hrmsSavePeriodToMemory();
   // Clean temp flags before saving to DB
   _hrmsEmpPeriods.forEach(function(p){delete p._saved;});
+  // Plant FK — stamp locationId on each period from the plant master.
+  // Future cascade renames key off this id rather than the name string.
+  (function(){
+    var idByName={};
+    (DB.hrmsCompanies||[]).forEach(function(c){if(c&&c.name) idByName[String(c.name).trim()]=c.id;});
+    _hrmsEmpPeriods.forEach(function(p){
+      if(!p) return;
+      var pid=idByName[String(p.location||'').trim()];
+      if(pid) p.locationId=pid;
+    });
+  })();
   // Active period = first (newest), sync flat fields for backward compat
   var ap=_hrmsEmpPeriods[0]||{};
   var data={empCode:code,name:name,lastName:lastName,firstName:firstName,middleName:middleName,gender:document.getElementById('hrmsEmpGender').value,dateOfBirth:document.getElementById('hrmsEmpDOB').value,dateOfJoining:document.getElementById('hrmsEmpDOJ').value,noPL:document.getElementById('hrmsEmpNoPL').checked,panNo:document.getElementById('hrmsEmpPan').value.trim(),aadhaarNo:document.getElementById('hrmsEmpAadhaar').value.trim(),esiNo:document.getElementById('hrmsEmpEsi').value.trim(),pfNo:document.getElementById('hrmsEmpPf').value.trim(),uan:document.getElementById('hrmsEmpUan').value.trim(),email:document.getElementById('hrmsEmpEmail').value.trim(),
@@ -9819,7 +9973,25 @@ function _hrmsCollectUnknownForMonth(mk){
 function _hrmsUpdateUnknownBadge(){
   var badge=document.getElementById('cAttUnknown');
   if(!badge) return;
-  var mk=_hrmsAttSelectedMonth||_hrmsMonth||'';
+  // Fall back to the current calendar month so the badge has a target
+  // month even before the user opens the Monthly Attendance page (which
+  // is what populates _hrmsAttSelectedMonth / _hrmsMonth).
+  var mk=_hrmsAttSelectedMonth||_hrmsMonth;
+  if(!mk&&typeof _hrmsCurMonth==='function'){mk=_hrmsCurMonth();}
+  if(!mk){badge.style.display='none';return;}
+  // _hrmsCollectUnknownForMonth reads from _hrmsAttCache / _hrmsAltCache.
+  // If neither cache holds this month yet, trigger an async fetch and
+  // re-run once it lands so the count reflects real data instead of
+  // staying at 0 until the user navigates to the Attendance page.
+  var hasCache=(typeof _hrmsAttCache!=='undefined'&&_hrmsAttCache[mk]!==undefined);
+  if(!hasCache&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsUnknownFetchInFlight){
+    window._hrmsUnknownFetchInFlight=true;
+    Promise.resolve(_hrmsAttFetchMonth(mk)).catch(function(){}).then(function(){
+      window._hrmsUnknownFetchInFlight=false;
+      _hrmsUpdateUnknownBadge();
+    });
+    return;
+  }
   var u=_hrmsCollectUnknownForMonth(mk);
   var n=Object.keys(u).length;
   badge.textContent=n;
@@ -12433,14 +12605,16 @@ function _hrmsResolveScope(mod,key){
         if(t&&allowedDeptNames[d]) out.teamNames[t]=true;
       });
     } else if(bestKind==='plant'){
-      // Mapped Plants — locations where this user is the plantHead. The
-      // VMS Locations master already stores that link (loc.plantHead).
-      // Match by plant NAME against emp.location since the HRMS side
-      // identifies plants by name, not location.id.
-      (DB.locations||[]).forEach(function(l){
-        if(!l||l.inactive) return;
-        if(l.plantHead===CU.id&&l.name) out.plants[String(l.name).trim()]=true;
-      });
+      // Mapped Plants — defined by the HRMS "Plant Head" role. Any
+      // user carrying that role is considered the plant head of THEIR
+      // OWN plant (the plant their HRMS emp record is assigned to via
+      // emp.location). No VMS Locations lookup, no Org Structure
+      // derivation — just the role + emp.location.
+      if((CU.hrmsRoles||[]).indexOf('Plant Head')>=0){
+        var _meEmp=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+        var _myPlant=String((_meEmp&&_meEmp.location)||'').trim();
+        if(_myPlant) out.plants[_myPlant]=true;
+      }
       (DB.hrmsEmployees||[]).forEach(function(e){
         if(!e) return;
         var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
@@ -13838,13 +14012,17 @@ function _hrmsDasTwRender(){
       var clickAttr='title="'+_esc(pl)+'" onclick="_hrmsDasTwSetPlant(\''+pl.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')"';
       h+=tile(on,clr,'#0f172a',_esc(sf),paLabel(pc.present,ab),clickAttr);
     });
-    // Show Summary + Monthly Data + Export buttons anchored to the right
-    // of the plant tile row. Show Summary opens the Role Group P/A modal;
-    // Monthly Data opens the daily P/A headcount + chart popup.
+    // Show Summary + Monthly Data + Export buttons anchored to the
+    // right of the plant tile row. Show Summary opens the Role Group
+    // P/A modal; Monthly Data opens the daily P/A headcount + chart
+    // popup. Both are icon-only 38×38 squares — labels live in their
+    // title tooltips.
     h+='<button onclick="_hrmsDasShowRgSummary(\'tw\')" '
-      +'style="margin-left:auto;align-self:center;padding:8px 16px;font-weight:800;font-size:13px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📊 Show Summary</button>';
+      +'title="Show Role Group P/A Summary" '
+      +'style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;font-weight:800;font-size:20px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)">📊</button>';
     h+='<button onclick="_hrmsDasTwShowMonthly()" '
-      +'style="align-self:center;padding:8px 16px;font-weight:800;font-size:13px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📅 Monthly Data</button>';
+      +'title="Monthly Data — daily P/A headcount + chart" '
+      +'style="align-self:center;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;font-weight:800;font-size:20px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)">📅</button>';
     h+='<button class="hrms-tw-export" onclick="_hrmsDasTwExport()" '
       +'style="align-self:center;padding:8px 18px;font-weight:800;font-size:13px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);white-space:nowrap">📤 Export to Excel</button>';
     h+='</div>';
@@ -14084,25 +14262,25 @@ function _hrmsDasTwRender(){
     var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant):(r.plant||'').slice(0,3).toUpperCase();
     var pClr=(r.plant&&typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#e2e8f0';
     var plantChip=r.plant
-      ?'<span title="'+_esc(r.plant)+'" style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:800;font-size:11px;background:'+pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.12);min-width:30px;text-align:center">'+_esc(sf)+'</span>'
+      ?'<span title="'+_esc(r.plant)+'" style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:800;font-size:13px;background:'+pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.12);min-width:30px;text-align:center">'+_esc(sf)+'</span>'
       :'<span style="color:#cbd5e1">—</span>';
     // Class hooks let mobile CSS hide the team + emp-type fragments
     // (and the dot separator) so only the plant chip remains.
-    var plantTeamType='<span class="_hrmsTwPTE" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    var plantTeamType='<span class="_hrmsTwPTE" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px">'
       +plantChip
       +'<span class="_hrmsTwTET" style="display:inline-flex;align-items:center;gap:4px">'
-        +'<span class="hrms-tw-team" style="font-weight:700;color:#0f172a">'+_esc(r.team||'—')+'</span>'
-        +'<span class="hrms-tw-sep" style="color:#64748b;font-size:11px">·</span>'
-        +'<span class="hrms-tw-et" style="color:#475569;font-size:11px">'+_esc(r.et==='On Roll'?'KAP':(r.et||'—'))+'</span>'
+        +'<span class="hrms-tw-team" style="font-weight:700;color:#0f172a;font-size:14px">'+_esc(r.team||'—')+'</span>'
+        +'<span class="hrms-tw-sep" style="color:#64748b;font-size:13px">·</span>'
+        +'<span class="hrms-tw-et" style="color:#475569;font-size:13px">'+_esc(r.et==='On Roll'?'KAP':(r.et||'—'))+'</span>'
       +'</span>'
       +'</span>';
     h+='<tr style="border-bottom:1px solid #e2e8f0;background:'+rowBg+';opacity:'+rowOpac+'">'
       +'<td style="padding:6px 8px;color:#64748b">'+(i+1)+'</td>'
-      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700">'+_esc(r.empCode)+'</td>'
-      +'<td style="padding:6px 8px;max-width:220px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.name)+(r.presentToday?'':' <span class="_hrmsAbsChip" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fecaca;padding:1px 5px;border-radius:3px;margin-left:4px">ABSENT</span>')+'</td>'
+      +'<td style="padding:6px 8px;font-family:var(--mono);font-weight:700;font-size:14px">'+_esc(r.empCode)+'</td>'
+      +'<td style="padding:6px 8px;max-width:220px;white-space:normal;word-break:break-word;overflow-wrap:anywhere;font-size:14px">'+_esc(r.name)+(r.presentToday?'':' <span class="_hrmsAbsChip" style="font-size:10px;font-weight:800;color:#b91c1c;background:#fecaca;padding:1px 5px;border-radius:3px;margin-left:4px">ABSENT</span>')+'</td>'
       +'<td style="padding:6px 8px;white-space:nowrap">'+plantTeamType+'</td>'
-      +'<td style="padding:6px 8px;max-width:160px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.dept)+'</td>'
-      +'<td style="padding:6px 8px">'+_esc(r.roll)+'</td>';
+      +'<td style="padding:6px 8px;max-width:160px;white-space:normal;word-break:break-word;overflow-wrap:anywhere;font-size:14px">'+_esc(r.dept)+'</td>'
+      +'<td style="padding:6px 8px;font-size:14px">'+_esc(r.roll)+'</td>';
     // Merged Attendance cell — two visual rows in one <td>:
     //   Row 1: In · Out · P/A pill
     //   Row 2: 45-day P/A bar (oldest left, selected-day tick outlined)
@@ -14589,14 +14767,16 @@ function _hrmsDasDeptDetailsRender(){
     +(_deptDisabled?'opacity:.55':'')+'"'
     +(_deptDisabled?' disabled':'')+'>'
     +'<span>'+_curDeptLbl+'</span><span style="font-size:10px;opacity:.7">▼</span></button>';
-  // Show Summary button — opens the Role Group P/A popup. Disabled
-  // until a dept is selected (no rows = nothing to summarise).
+  // Show Summary button — opens the Role Group P/A popup. Icon-only
+  // square (title tooltip carries the label). Disabled until a dept
+  // is selected.
   var _ddSumDisabled=!_hrmsDasDdDept;
   h+='<button onclick="_hrmsDasShowRgSummary(\'dd\')" '
     +(_ddSumDisabled?'disabled ':'')
-    +'style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:6px;padding:6px 14px;font-size:12px;font-weight:800;'
+    +'title="Show Role Group P/A Summary" '
+    +'style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;font-size:18px;font-weight:800;'
     +'background:'+(_ddSumDisabled?'#e2e8f0':'#1d4ed8')+';color:'+(_ddSumDisabled?'#94a3b8':'#fff')+';'
-    +'border:none;border-radius:6px;cursor:'+(_ddSumDisabled?'not-allowed':'pointer')+';white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12)">📊 Show Summary</button>';
+    +'border:none;border-radius:6px;cursor:'+(_ddSumDisabled?'not-allowed':'pointer')+';box-shadow:0 1px 3px rgba(0,0,0,.12)">📊</button>';
   // Stash data for the pickers so they can read the latest lists.
   window._hrmsDdPlantList=plantList.slice();
   window._hrmsDdDeptList=deptList.slice();
@@ -14853,18 +15033,14 @@ function _hrmsDasDeptDetailsRender(){
   var thSt='padding:7px 8px;text-align:left;font-weight:800;color:#0f172a;background:'+thBg+';position:sticky;top:0;z-index:2;box-shadow:inset 0 -2px 0 #94a3b8';
   h+='<thead><tr>'
     +'<th style="'+thSt+'">#</th>'
-    +'<th style="'+thSt+'">Emp Code</th>'
-    +'<th style="'+thSt+'">Name</th>'
-    +'<th style="'+thSt+'">Plant</th>'
-    +'<th style="'+thSt+'">Team</th>'
-    +'<th style="'+thSt+'">Emp Type</th>'
+    +'<th style="'+thSt+'">Employee</th>'
     +'<th style="'+thSt+'">Role</th>'
     +'<th style="'+thSt+';text-align:center;width:70px;min-width:70px">In Time</th>'
     +'<th style="'+thSt+';text-align:center;width:70px;min-width:70px">Out Time</th>'
     +'<th style="'+thSt+';text-align:left;min-width:300px;width:300px" title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined)">P/A · 45-day</th>'
     +'</tr></thead><tbody>';
   if(!fRows.length){
-    h+='<tr><td colspan="10" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
+    h+='<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8">No employees match the current filters.</td></tr>';
   } else {
     fRows.forEach(function(r,i){
       var statusBg=r.present?'#dcfce7':'#fee2e2';
@@ -14875,7 +15051,7 @@ function _hrmsDasDeptDetailsRender(){
       var plClr=(r.plant&&typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.plant):'#e2e8f0';
       var plSf=r.plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant):String(r.plant).slice(0,3).toUpperCase()):'';
       var plChip=r.plant
-        ?('<span title="'+_esc(r.plant)+'" style="display:inline-block;background:'+plClr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;letter-spacing:.3px">'+_esc(plSf)+'</span>')
+        ?('<span title="'+_esc(r.plant)+'" style="display:inline-block;background:'+plClr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:13px;letter-spacing:.3px">'+_esc(plSf)+'</span>')
         :'<span style="color:#cbd5e1">—</span>';
       // Per-day P/A bar strip for the last 45 days + the selected day
       // appended at the end as a slightly larger, outlined tick.
@@ -14891,13 +15067,28 @@ function _hrmsDasDeptDetailsRender(){
       var _ddSelHp=!!r.present;
       _ddHistHtml+='<span class="_hrmsHistTick _hrmsHistToday" title="'+(st.historyDate||'')+' (selected) · '+(_ddSelHp?'P':'A')+'" style="display:inline-block;width:7px;height:14px;border-radius:1px;background:'+(_ddSelHp?'#16a34a':'#dc2626')+';margin-left:4px;border:1.5px solid #0f172a;vertical-align:middle"></span>';
       var last45Cell=_ddHistHtml;
+      // Merged "Employee" card — two flat lines so narrow-mode CSS can
+      // hoist them into the row's grid:
+      //   Line 1: Plant chip · Emp Code · Emp Name
+      //   Line 2: Emp Type · Team Name
+      // On desktop both lines stack inside the cell; on narrow mode the
+      // CSS lifts line 2 to share its row with the P/A round badge.
+      var empCard='<div class="hrms-dd-ec" style="max-width:280px">'
+        +'<div class="hrms-dd-line1" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;line-height:1.3">'
+          +plChip
+          +'<a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="font-family:var(--mono);font-weight:800;color:var(--accent);text-decoration:underline">'+_esc(r.empCode)+'</a>'
+          +'<span style="color:#94a3b8;font-weight:500">·</span>'
+          +'<span style="font-weight:700;color:#0f172a;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.name||'—')+'</span>'
+        +'</div>'
+        +'<div class="hrms-dd-line2" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:#475569;font-weight:600;margin-top:3px">'
+          +'<span>'+_esc(r.et||'—')+'</span>'
+          +'<span style="color:#94a3b8;font-weight:500">·</span>'
+          +'<span>'+_esc(r.team||'—')+'</span>'
+        +'</div>'
+      +'</div>';
       h+='<tr>'
         +'<td style="padding:5px 8px;color:#64748b">'+(i+1)+'</td>'
-        +'<td style="padding:5px 8px;font-family:var(--mono);font-weight:700"><a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+codeEsc+'\')" style="color:var(--accent);text-decoration:underline">'+_esc(r.empCode)+'</a></td>'
-        +'<td style="padding:5px 8px;font-weight:700;max-width:220px;white-space:normal;word-break:break-word;overflow-wrap:anywhere">'+_esc(r.name||'—')+'</td>'
-        +'<td style="padding:5px 8px;text-align:center">'+plChip+'</td>'
-        +'<td style="padding:5px 8px">'+_esc(r.team||'—')+'</td>'
-        +'<td style="padding:5px 8px">'+_esc(r.et||'—')+'</td>'
+        +'<td style="padding:5px 8px">'+empCard+'</td>'
         +'<td style="padding:5px 8px">'+_esc(r.roll||'—')+'</td>'
         +'<td style="padding:5px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+'">'+_esc(r.inTime||'—')+'</td>'
         +'<td style="padding:5px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+'">'+_esc(r.outTime||'—')+'</td>'
@@ -34545,6 +34736,86 @@ function _hrmsIsHrManagerUser(){
   if(!me) return false;
   return (typeof _hrmsOrgRoleOf==='function')&&_hrmsOrgRoleOf(me)==='hr_manager';
 }
+// Returns the tri-state level for one of the My Approvals perm keys.
+// 'full' (can act), 'view' (read-only), or 'none' (hidden).
+function _hrmsApprOwnLevel(){
+  if(typeof permLevel!=='function') return 'none';
+  return permLevel('HRMS','page.myApprovals');
+}
+function _hrmsApprOthersLevel(){
+  if(typeof permLevel!=='function') return 'none';
+  return permLevel('HRMS','page.myApprovalsOthers');
+}
+
+// Scope object for page.myApprovalsOthers — drives WHICH other users'
+// approvals the current user can see. {kind:'all'|'plant'|'team'|'dept'|
+// 'self', teamNames, deptIds, plants, empCodes}. Honours all 5 standard
+// scope options.
+function _hrmsApprOthersScope(){
+  if(typeof _hrmsResolveScope==='function') return _hrmsResolveScope('HRMS','page.myApprovalsOthers');
+  return {kind:'all',teamNames:{},deptIds:{},plants:{},empCodes:{}};
+}
+
+// True when the request is routed to the logged-in user's own chain
+// at its current step.
+function _hrmsApprIsOwn(req,me){
+  if(!req||!me) return false;
+  var chain=req.approvalChain||[],lvl=req.approvalLevel||0;
+  return !!(chain[lvl]&&chain[lvl]===me.id);
+}
+
+// True when an employee falls into the "others" scope set by admin.
+// 'all' → always; 'plant'/'team'/'dept' → emp matches the mapped set;
+// 'self' on the OTHERS key collapses to false (it's not really "other").
+function _hrmsApprEmpInOthersScope(emp){
+  if(!emp) return false;
+  var sc=_hrmsApprOthersScope();
+  if(!sc) return false;
+  if(sc.kind==='all') return true;
+  var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  if(sc.kind==='plant'){
+    var pl=String(((ap&&ap.location)||emp.location||'')).trim();
+    return !!(pl&&sc.plants[pl]);
+  }
+  if(sc.kind==='team'){
+    var tn=String(((ap&&ap.teamName)||emp.teamName||'')).trim();
+    return !!(tn&&sc.teamNames[tn]);
+  }
+  if(sc.kind==='dept'){
+    var dn=String(((ap&&ap.department)||emp.department||'')).trim();
+    if(!dn) return false;
+    var d=(DB.hrmsDepartments||[]).find(function(dd){return dd&&dd.name===dn;});
+    return !!(d&&sc.deptIds[d.id]);
+  }
+  return false; // 'self' on others = nothing
+}
+
+// VISIBILITY check — admin's View OR Full grants visibility. Used by
+// _hrmsMyApprovalsCollect to decide whether to surface a row (with the
+// _viewOnly flag set when level<Full). A user without a matching HRMS
+// emp record still qualifies for the OTHERS path; they just can't have
+// any OWN-chain hits, so own-path returns false naturally.
+function _hrmsMyApprovalsCanSee(req,emp){
+  if(!req||req.status!=='pending') return false;
+  if(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin()) return true;
+  var me=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+  if(me&&_hrmsApprIsOwn(req,me)){
+    var lvl=_hrmsApprOwnLevel();
+    return lvl==='view'||lvl==='full';
+  }
+  var oLvl=_hrmsApprOthersLevel();
+  if(oLvl!=='view'&&oLvl!=='full') return false;
+  return _hrmsApprEmpInOthersScope(emp);
+}
+
+// Legacy back-compat alias. Some older call sites still ask "is this
+// user elevated to see everyone's queue?" — answer is now "do they
+// have ANY access to the OTHERS bucket?".
+function _hrmsCanSeeAllApprovals(){
+  if(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin()) return true;
+  var oLvl=_hrmsApprOthersLevel();
+  return oLvl==='view'||oLvl==='full';
+}
 
 // True when this request was submitted by the currently-logged-in user.
 // Used as a self-approval guard so nobody (not even Super Admin or HR
@@ -34553,6 +34824,94 @@ function _hrmsIsMyOwnRequest(req){
   if(!req||!req.requestedBy) return false;
   var keys=(typeof _hrmsMyApprovalsActorKeys==='function')?_hrmsMyApprovalsActorKeys():[];
   return keys.indexOf(String(req.requestedBy))>=0;
+}
+
+// Console diagnostic — call from the browser console as
+// `_hrmsDebugApprovals()` to see exactly why rows are/aren't surfacing
+// for the current user. Prints CU, resolved levels/scope on both keys,
+// the first pending altRequest / coffBank candidate from every emp,
+// and whether canSee/canAct return true for each.
+function _hrmsDebugApprovals(){
+  try{
+    console.group('My Approvals diagnostic');
+    console.log('CU =',(typeof CU!=='undefined')?CU:null);
+    console.log('CU.hrmsRoles =',(typeof CU!=='undefined'&&CU)?CU.hrmsRoles:null);
+    console.log('_hrmsLoggedInEmp() =',(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null);
+    console.log('_hrmsIsSuperAdmin() =',(typeof _hrmsIsSuperAdmin==='function')&&_hrmsIsSuperAdmin());
+    console.log('permLevel(page.myApprovals) =',(typeof permLevel==='function')?permLevel('HRMS','page.myApprovals'):'(no permLevel)');
+    console.log('permLevel(page.myApprovalsOthers) =',(typeof permLevel==='function')?permLevel('HRMS','page.myApprovalsOthers'):'(no permLevel)');
+    var _sc=(typeof _hrmsApprOthersScope==='function')?_hrmsApprOthersScope():null;
+    console.log('_hrmsApprOthersScope() =',_sc);
+    if(_sc){
+      console.log('  scope.kind =',_sc.kind);
+      console.log('  scope.plants =',JSON.stringify(_sc.plants||{}),'(count='+Object.keys(_sc.plants||{}).length+')');
+      console.log('  scope.teamNames =',JSON.stringify(_sc.teamNames||{}),'(count='+Object.keys(_sc.teamNames||{}).length+')');
+      console.log('  scope.deptIds =',JSON.stringify(_sc.deptIds||{}),'(count='+Object.keys(_sc.deptIds||{}).length+')');
+    }
+    // Plant-head mapping for the current user — drives scope=plant.
+    // HRMS 'Plant Head' role on the user → their own emp.location is
+    // their mapped plant.
+    var _isPH=(((typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[]).indexOf('Plant Head')>=0);
+    var _phEmp=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+    var _phPlant=String((_phEmp&&_phEmp.location)||'').trim();
+    console.log('Has HRMS role "Plant Head" =',_isPH);
+    console.log('CU emp.location =',_phPlant||'(none)');
+    console.log('Plants mapped to CU (drives scope=plant) =',(_isPH&&_phPlant)?[_phPlant]:[]);
+    var rec=(typeof DB!=='undefined'&&DB.hrmsSettings||[]).find(function(r){return r&&r.key==='rolePermissions';});
+    var permsHrms=((rec&&rec.data&&rec.data.HRMS)||{}).permissions||{};
+    console.log('Saved perms (HRMS) for each of CU.hrmsRoles:');
+    ((typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[]).forEach(function(r){
+      var p=permsHrms[r]||{};
+      console.log('  · '+r+':',{
+        'page.myApprovals':p['page.myApprovals'],
+        'page.myApprovalsOthers':p['page.myApprovalsOthers'],
+        'page.myApprovalsOthers.scope':p['page.myApprovalsOthers.scope']
+      });
+    });
+    var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+    var totalAltReq=0,totalPendingAltReq=0,totalCoff=0,totalPendingCoff=0;
+    emps.forEach(function(e){
+      if(!e||!e.extra) return;
+      (e.extra.altRequests||[]).forEach(function(r){
+        totalAltReq++;
+        if(r&&r.status==='pending') totalPendingAltReq++;
+      });
+      (e.extra.coffBank||[]).forEach(function(c){
+        totalCoff++;
+        if(c&&c.status==='pending') totalPendingCoff++;
+      });
+    });
+    console.log('System totals: altRequests='+totalAltReq+' (pending '+totalPendingAltReq+'), coffBank='+totalCoff+' (pending '+totalPendingCoff+')');
+    // Per-row trace for pending items (both altRequests and coffBank).
+    var me2=(typeof _hrmsLoggedInEmp==='function')?_hrmsLoggedInEmp():null;
+    var traced=0;
+    for(var ei=0;ei<emps.length&&traced<10;ei++){
+      var e=emps[ei];if(!e||!e.extra) continue;
+      var empPlant=(e.location||'').trim();
+      (e.extra.altRequests||[]).filter(function(r){return r&&r.status==='pending';}).forEach(function(r){
+        if(traced>=10) return;
+        console.log('AltReq #'+(traced+1)+' empCode='+e.empCode+' empPlant='+empPlant+
+          ' chain='+JSON.stringify(r.approvalChain)+' lvl='+r.approvalLevel+
+          ' isOwn='+(typeof _hrmsApprIsOwn==='function'?_hrmsApprIsOwn(r,me2):'?')+
+          ' inOthersScope='+(typeof _hrmsApprEmpInOthersScope==='function'?_hrmsApprEmpInOthersScope(e):'?')+
+          ' canSee='+(typeof _hrmsMyApprovalsCanSee==='function'?_hrmsMyApprovalsCanSee(r,e):'?')+
+          ' canAct='+(typeof _hrmsMyApprovalsCanAct==='function'?_hrmsMyApprovalsCanAct(r,e):'?'));
+        traced++;
+      });
+      (e.extra.coffBank||[]).filter(function(c){return c&&c.status==='pending';}).forEach(function(c){
+        if(traced>=10) return;
+        console.log('CoffBank #'+(traced+1)+' empCode='+e.empCode+' empPlant='+empPlant+
+          ' earnedDate='+c.earnedDate+' usedForDate='+c.usedForDate+
+          ' chain='+JSON.stringify(c.approvalChain)+' lvl='+c.approvalLevel+
+          ' isOwn='+(typeof _hrmsApprIsOwn==='function'?_hrmsApprIsOwn(c,me2):'?')+
+          ' inOthersScope='+(typeof _hrmsApprEmpInOthersScope==='function'?_hrmsApprEmpInOthersScope(e):'?')+
+          ' canSee='+(typeof _hrmsMyApprovalsCanSee==='function'?_hrmsMyApprovalsCanSee(c,e):'?')+
+          ' canAct='+(typeof _hrmsMyApprovalsCanAct==='function'?_hrmsMyApprovalsCanAct(c,e):'?'));
+        traced++;
+      });
+    }
+    console.groupEnd();
+  }catch(err){console.error('debug failed',err);}
 }
 
 // True when this request's CURRENT approver step is the system Super Admin
@@ -34577,17 +34936,26 @@ function _hrmsCurStepIsSysSA(req){
 //     the system Super Admin (HR Manager submissions — those need an
 //     actual Super Admin user to approve).
 //   • Other users: only when they are the chain[level] approver.
-function _hrmsMyApprovalsCanAct(req){
+// ACT check — Full required (on the relevant own/others key) AND, for
+// "others" requests, the emp must fall into the configured scope.
+// `emp` is the employee the request belongs to (caller supplies it
+// from the collect / badge loops since the request itself doesn't
+// carry the full emp record).
+function _hrmsMyApprovalsCanAct(req,emp){
   if(!req||req.status!=='pending') return false;
   if(_hrmsIsSuperAdmin()) return true;
-  if(_hrmsIsHrManagerUser()){
-    if(_hrmsCurStepIsSysSA(req)) return false;
-    return true;
-  }
+  // System SA escalation step — non-SA can never act, even with Full.
+  if(_hrmsCurStepIsSysSA(req)) return false;
   var me=_hrmsLoggedInEmp&&_hrmsLoggedInEmp();
-  if(!me) return false;
-  var chain=req.approvalChain||[],lvl=req.approvalLevel||0;
-  return chain[lvl]&&chain[lvl]===me.id;
+  // Users without a matching HRMS emp record fall through to the
+  // OTHERS path — their own-chain match returns false anyway.
+  if(me&&_hrmsApprIsOwn(req,me)){
+    // Own chain — Full on page.myApprovals.
+    return _hrmsApprOwnLevel()==='full';
+  }
+  // Other user — Full on page.myApprovalsOthers + scope match.
+  if(_hrmsApprOthersLevel()!=='full') return false;
+  return _hrmsApprEmpInOthersScope(emp);
 }
 
 // Aggregate entries across ALL employees relevant to the current user — both
@@ -34604,7 +34972,7 @@ function _hrmsMyApprovalsCollect(){
   // included regardless of who acted. Other users only see their own
   // historical actions. The HR Manager also sees every pending request
   // (handled inside _hrmsMyApprovalsCanAct).
-  var isElevated=_hrmsIsSuperAdmin()||_hrmsIsHrManagerUser();
+  var isElevated=_hrmsIsSuperAdmin()||_hrmsCanSeeAllApprovals();
   var pickAction=function(req){
     var a=_hrmsMyApprovalsMyAction(req);
     if(a) return a;
@@ -34613,25 +34981,25 @@ function _hrmsMyApprovalsCollect(){
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(!e||!e.extra) return;
     (e.extra.altRequests||[]).forEach(function(r){
-      if(_hrmsMyApprovalsCanAct(r)){
-        altP.push({emp:e,req:r,pending:true});
-      } else if(r&&r.status==='pending'&&isElevated){
-        // Super Admin / HR Manager can SEE any pending request they
-        // can't act on (e.g. HR Manager looking at a request whose
-        // current step is the system Super Admin). View-only — the
-        // renderer shows the chain + a "View only" badge instead of
-        // the Approve / Reject buttons.
-        altP.push({emp:e,req:r,pending:true,_viewOnly:true});
+      if(r&&r.status==='pending'){
+        if(_hrmsMyApprovalsCanAct(r,e)){
+          altP.push({emp:e,req:r,pending:true});
+        } else if(_hrmsMyApprovalsCanSee(r,e)){
+          altP.push({emp:e,req:r,pending:true,_viewOnly:true});
+        }
+        // else: outside both own and others scope — don't surface
       } else {
         var act=pickAction(r);
         if(act) altH.push({emp:e,req:r,pending:false,myAction:act});
       }
     });
     (e.extra.coffBank||[]).forEach(function(c){
-      if(_hrmsMyApprovalsCanAct(c)){
-        coffP.push({emp:e,coff:c,pending:true});
-      } else if(c&&c.status==='pending'&&isElevated){
-        coffP.push({emp:e,coff:c,pending:true,_viewOnly:true});
+      if(c&&c.status==='pending'){
+        if(_hrmsMyApprovalsCanAct(c,e)){
+          coffP.push({emp:e,coff:c,pending:true});
+        } else if(_hrmsMyApprovalsCanSee(c,e)){
+          coffP.push({emp:e,coff:c,pending:true,_viewOnly:true});
+        }
       } else {
         var act=pickAction(c);
         if(act) coffH.push({emp:e,coff:c,pending:false,myAction:act});
@@ -34913,6 +35281,15 @@ function _hrmsApprBuildUnified(data,orgSalRows){
 function _hrmsApprActionDispatch(idx,action){
   var rows=window._hrmsApprUnifiedRows||[];
   var row=rows[idx];if(!row||!row._src) return;
+  // Row-aware gate: own-chain requests need Full on page.myApprovals;
+  // other users' requests need Full on page.myApprovalsOthers AND the
+  // emp must fall into the configured scope. _viewOnly is set in
+  // collect when the user only has View — surface a friendly message
+  // and bail without firing the action.
+  if(row._viewOnly){
+    notify('⚠ View-only access — you cannot approve or reject this request.',true);
+    return;
+  }
   var src=row._src;
   var t=row.type,a=action==='approve';
   if(t==='altReq'){
@@ -35060,6 +35437,11 @@ function _hrmsMyApprovalsRender(){
     '<th style="'+th+'">Approval Chain</th>'+
     '<th style="'+th+';text-align:center">Status / Action</th>'+
   '</tr></thead><tbody>';
+  // Row-aware action gate: each row carries its own _viewOnly flag set
+  // by _hrmsMyApprovalsCollect — true when the user can SEE but not ACT
+  // on that specific request (own-chain with only View on
+  // page.myApprovals, or other-user with only View on
+  // page.myApprovalsOthers, or scope-mismatch corner cases).
   filtered.forEach(function(r,i){
     var emp=r.emp||{};
     var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
@@ -35068,10 +35450,8 @@ function _hrmsMyApprovalsRender(){
     var typeBadge='<span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap;background:'+ts.bg+';color:'+ts.fg+';border:1px solid '+ts.br+'">'+ts.short+'</span>';
     var statusOrAction;
     if(r.pending&&r._viewOnly){
-      // Pending but the current step belongs to another approver
-      // (typically a system Super Admin while the viewer is HR Mgr).
-      // Surface for visibility, no Approve / Reject.
-      statusOrAction='<span title="Pending — current step belongs to another approver" style="display:inline-block;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800">⏳ PENDING (view only)</span>';
+      // View-only — admin granted View (not Full) on the relevant key.
+      statusOrAction='<span title="View-only access" style="display:inline-block;padding:2px 8px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800">⏳ PENDING (view only)</span>';
     } else if(r.pending){
       statusOrAction='<button onclick="_hrmsApprActionDispatch('+i+',\'approve\')" title="Approve" style="font-size:10px;padding:3px 10px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-right:3px">✓ Approve</button>'+
         '<button onclick="_hrmsApprActionDispatch('+i+',\'reject\')" title="Reject" style="font-size:10px;padding:3px 10px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer">✕ Reject</button>';

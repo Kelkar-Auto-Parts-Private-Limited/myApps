@@ -2377,6 +2377,7 @@ var _PERM_DEFAULT_SCOPE_OPTIONS={
 // resolver stay in sync.
 function _permKeyAcceptsScope(k){
   if(!k||!k.key) return false;
+  if(k.noScope===true) return false;             // explicit opt-out (yes/no perm)
   if(Array.isArray(k.scopeOptions)) return true; // explicit override wins
   if(k.scopeLabels) return false;                // tri-state already encodes scope
   return /^(page|tab|att|settings)\./.test(k.key);
@@ -2482,7 +2483,18 @@ var _PERM_KEYS={
     {key:'page.myAttendance',label:'🗓 My Attendance',group:'🗓 My Attendance'},
 
     // Sidebar — ✅ My Approvals
-    {key:'page.myApprovals',label:'✅ My Approvals',group:'✅ My Approvals'},
+    // My Approvals is split into TWO distinct access entries:
+    //   • page.myApprovals      → approvals routed to the LOGGED-IN
+    //     USER's own approval chain. Plain tri-state (no scope), since
+    //     scope doesn't apply to one's own queue.
+    //   • page.myApprovalsOthers → approvals belonging to OTHER users.
+    //     Inherits the default 5-option scope so admin can grant
+    //     visibility narrowed by mapped plants / teams / departments
+    //     (or unscoped via "All").
+    // Levels in both keys mean: None = hide; View = read-only (can see
+    // pending rows but Approve/Reject buttons hide); Full = see + act.
+    {key:'page.myApprovals',label:'✅ My Approvals (Own)',group:'✅ My Approvals',noScope:true},
+    {key:'page.myApprovalsOthers',label:'✅ My Approvals (Other Users)',group:'✅ My Approvals'},
 
     // Sidebar — 📏 Attendance Rules
     {key:'page.attRules',label:'📏 Attendance Rules',group:'📏 Attendance Rules'},
@@ -2499,8 +2511,16 @@ var _PERM_KEYS={
     {key:'action.approveReject',label:'Approve / Reject Employee Change Request (ECR)',group:'📂 Masters'},
     {key:'action.importEmployees',label:'📥 Import Employees',group:'📂 Masters'},
     {key:'action.exportEmployees',label:'📤 Export Employees',group:'📂 Masters'},
+    // HR Organisation Structure — single Access Management entry that
+    // gates BOTH page visibility AND edit-reporting-hierarchy access.
+    // Level mapping: None = hidden; View = read-only tree; Full = view
+    // + edit. The legacy `org.edit` action key was retired in favour
+    // of this collapsed semantic (its call sites get redirected via
+    // _tabCollapsedActs in hrms-logic.js).
     {key:'page.orgStructure',label:'🌳 HR Organisation Structure',group:'📂 Masters'},
-    {key:'org.edit',label:'✏️ Edit Reporting Hierarchy',group:'📂 Masters'},
+    // org.edit removed — gated by page.orgStructure tri-state instead.
+    // _hrmsHasAccess('org.edit') is redirected to require Full on
+    // page.orgStructure via the _tabCollapsedActs map.
     {key:'page.masterPlant',label:'🏭 Plant',group:'📂 Masters'},
     {key:'page.masterCategory',label:'🏷 Category',group:'📂 Masters'},
     {key:'page.masterEmpType',label:'📋 Employment Type',group:'📂 Masters'},

@@ -128,7 +128,10 @@ function _hrmsHasAccess(featureKey){
     'action.editCalendar':'settings.calendar',
     'action.bulkSalRevision':'settings.salrevision',
     'action.proposeContractRev':'page.contractRev',
-    'action.editStatutory':'settings.statutory'
+    'action.editStatutory':'settings.statutory',
+    // Org Structure edit gate collapsed onto the page.orgStructure
+    // tri-state — Full grants both view + edit, View is read-only.
+    'org.edit':'page.orgStructure'
   };
   if(_tabCollapsedActs[featureKey]){
     return (typeof permLevel==='function')
