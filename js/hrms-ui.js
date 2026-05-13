@@ -628,12 +628,20 @@ function _hrmsToggleDasNav(){
 var _hrmsSidebarHidden=false;
 function _hrmsToggleSidebar(){
   var sb=document.querySelector('.sidebar');
+  var tb=document.getElementById('topbar');
+  var ap=document.getElementById('hrmsApp');
   if(window.innerWidth>700){
     _hrmsSidebarHidden=!_hrmsSidebarHidden;
     sb.style.left=_hrmsSidebarHidden?'-280px':'0';
-    document.getElementById('topbar').style.marginLeft=_hrmsSidebarHidden?'0':'260px';
-    document.getElementById('hrmsApp').style.marginLeft=_hrmsSidebarHidden?'0':'260px';
+    if(tb) tb.style.marginLeft=_hrmsSidebarHidden?'0':'260px';
+    if(ap) ap.style.marginLeft=_hrmsSidebarHidden?'0':'260px';
   } else {
+    // Narrow mode — clear any inline left/margin set by the desktop
+    // branch on a previous resize, otherwise the inline style beats
+    // the CSS `.sidebar.open{left:0}` rule and the click does nothing.
+    sb.style.left='';
+    if(tb) tb.style.marginLeft='';
+    if(ap) ap.style.marginLeft='';
     sb.classList.toggle('open');
     document.querySelector('.sidebar-overlay').classList.toggle('show');
   }
@@ -659,19 +667,26 @@ var _hrmsTeamEtFilter='';// current employment-type filter on team master page
 // Drill-down for the master pages' Employees column. Lists every employee
 // whose flat field or any period field equals `value` for the given
 // `empField`. Codes are clickable → open the View/Edit Employee modal.
-function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
+function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter,tagFilter){
   var v=String(value||'').trim();
   if(!v){notify('No value to filter by',true);return;}
   var etFilter=String(empTypeFilter||'').toLowerCase().replace(/\s/g,'');
   var plFilter=String(plantFilter||'').trim();
+  // Tag filter (AC / PIA / IA) — when set, only employees whose
+  // current-month tag matches are kept. Used by Plant / Category /
+  // Emp Type masters where each cell drills into a specific bucket.
+  var tagF=String(tagFilter||'').toUpperCase();
+  if(tagF!=='AC'&&tagF!=='PIA'&&tagF!=='IA') tagF='';
   // Remember the args so post-edit hooks (e.g. quick dept-change) can
   // re-render this same popup with refreshed data instead of closing.
-  window._hrmsMasLastShowArgs={empField:empField,value:value,label:label,empTypeFilter:empTypeFilter,plantFilter:plantFilter};
+  window._hrmsMasLastShowArgs={empField:empField,value:value,label:label,empTypeFilter:empTypeFilter,plantFilter:plantFilter,tagFilter:tagFilter};
   // For Worker dept, also resolve the target dept record so we can
   // match emps by `departmentId` (rename-safe) in addition to name.
+  // Plant equality is short-form tolerant so a dept row whose
+  // `plant='Plant-1'` still resolves when the chip carries 'KAP-1'.
   var _tgtDeptId='';
   if(empField==='department'&&plFilter){
-    var _tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===v&&(d.plant||'')===plFilter;});
+    var _tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===v&&_hrmsPlantNameEq(d.plant||'',plFilter);});
     if(_tgtRec) _tgtDeptId=_tgtRec.id;
   }
   var matches=(DB.hrmsEmployees||[]).filter(function(e){
@@ -697,7 +712,13 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
     }
     if(plFilter){
       var emPl=(((ap&&ap.location)||e.location||'')+'').trim();
-      if(emPl!==plFilter) return false;
+      if(!_hrmsPlantNameEq(emPl,plFilter)) return false;
+    }
+    if(tagF){
+      var _curMk=(typeof _hrmsCurMonth==='function')?_hrmsCurMonth():'';
+      var _tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,_curMk):'AC';
+      if(_tag!=='AC'&&_tag!=='PIA'&&_tag!=='IA') _tag='AC';
+      if(_tag!==tagF) return false;
     }
     return true;
   });
@@ -723,10 +744,17 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
     var _popRolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
     var _popRollNameByCode={};
     _popRolls.forEach(function(r){if(r&&r.code) _popRollNameByCode[r.code]=r.name||r.code;});
+    var _popMk=(typeof _hrmsCurMonth==='function')?_hrmsCurMonth():'';
     matches.forEach(function(e,i){
       var ecEsc=_esc(e.empCode).replace(/'/g,"\\'");
-      var status=(e.status||'Active');
-      var stClr=status==='Active'?'#15803d':'#dc2626';
+      // Per-emp activity tag (AC / PIA / IA) — replaces the legacy
+      // Status column (Active/Inactive/Resigned). Contract / Piece-Rate
+      // emps never carry a "Resigned" status; tag is the source of truth.
+      var _empTag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,_popMk):'AC';
+      if(_empTag!=='AC'&&_empTag!=='PIA'&&_empTag!=='IA') _empTag='AC';
+      var _tagBg=(_empTag==='AC')?'#dcfce7':(_empTag==='PIA'?'#fef3c7':'#fee2e2');
+      var _tagFg=(_empTag==='AC')?'#15803d':(_empTag==='PIA'?'#92400e':'#b91c1c');
+      var _tagBd=(_empTag==='AC')?'#86efac':(_empTag==='PIA'?'#fcd34d':'#fca5a5');
       // Pull team / plant / emp-type / dept / role from the active
       // period (with flat fallback) so the popup mirrors the live
       // state of the employee.
@@ -774,7 +802,7 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
         +'<td style="padding:5px 8px">'+_esc(_et)+'</td>'
         +'<td style="padding:5px 8px">'+deptCell+'</td>'
         +'<td style="padding:5px 8px">'+roleCell+'</td>'
-        +'<td style="padding:5px 8px;color:'+stClr+';font-weight:700">'+_esc(status)+'</td>'
+        +'<td style="padding:5px 8px;text-align:center"><span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:'+_tagBg+';color:'+_tagFg+';border:1px solid '+_tagBd+'">'+_empTag+'</span></td>'
         +'</tr>';
     });
   }
@@ -787,7 +815,7 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
    +'<div id="_hrmsMasDetailOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10000" onclick="if(event.target===this)this.remove()">'
    +'<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:88vh;overflow:auto;width:min(840px,96vw);padding:0">'
    +'<div style="padding:14px 18px;border-bottom:2px solid var(--accent-light);display:flex;justify-content:space-between;align-items:start;gap:12px">'
-   +'<div><div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:1px">'+_esc(label||empField)+(empTypeFilter?(' &middot; '+_esc(empTypeFilter)):'')+'</div><div style="font-size:16px;font-weight:900;margin-top:2px">'+_esc(value)+' &mdash; '+matches.length+' employee(s)</div></div>'
+   +'<div><div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:1px">'+_esc(label||empField)+(empTypeFilter?(' &middot; '+_esc(empTypeFilter)):'')+(tagF?(' &middot; '+tagF):'')+'</div><div style="font-size:16px;font-weight:900;margin-top:2px">'+_esc(value)+' &mdash; '+matches.length+' employee(s)</div></div>'
    +'<button onclick="document.getElementById(\'_hrmsMasDetailOverlay\').remove()" style="background:transparent;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1">×</button>'
    +'</div>'
    +_bulkBar
@@ -801,7 +829,7 @@ function _hrmsMasterShowEmps(empField,value,label,empTypeFilter,plantFilter){
    +'<th style="padding:6px 8px;font-size:11px;font-weight:800;text-align:left">Emp Type</th>'
    +'<th style="padding:6px 8px;font-size:11px;font-weight:800;text-align:left">Department</th>'
    +'<th style="padding:6px 8px;font-size:11px;font-weight:800;text-align:left">Role</th>'
-   +'<th style="padding:6px 8px;font-size:11px;font-weight:800;text-align:left">Status</th>'
+   +'<th style="padding:6px 8px;font-size:11px;font-weight:800;text-align:center" title="Activity tag — AC: Active · PIA: Partially Inactive · IA: Inactive">Tag</th>'
    +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>'
    +'</div></div>';
   var prior=document.getElementById('_hrmsMasDetailOverlay');if(prior) prior.remove();
@@ -890,7 +918,7 @@ async function _hrmsMasBulkMoveDept(ev){
   var seenName={};
   var targets=(DB.hrmsDepartments||[]).filter(function(d){
     if(!d||d.inactive) return false;
-    if((d.plant||'')!==plant) return false;
+    if(!_hrmsPlantNameEq(d.plant||'',plant)) return false;
     var n=(d.name||'').trim();
     if(!n||seenName[n]) return false;
     seenName[n]=1;
@@ -902,7 +930,7 @@ async function _hrmsMasBulkMoveDept(ev){
   _hrmsDasDdOpenPicker(ev,'Move '+emps.length+' emp(s) to ('+plant+')',items,'',async function(targetName){
     if(!targetName) return;
     if(!confirm('Move '+emps.length+' employee(s) to "'+targetName+'" in plant "'+plant+'"?\n\nUpdates the active period only — closed periods unchanged.')) return;
-    var tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===targetName&&(d.plant||'')===plant;});
+    var tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===targetName&&_hrmsPlantNameEq(d.plant||'',plant);});
     var tgtId=tgtRec?tgtRec.id:'';
     showSpinner('Moving employees…');
     var moved=0;
@@ -928,7 +956,7 @@ async function _hrmsMasBulkMoveDept(ev){
     window._hrmsMasSel={};
     var last=window._hrmsMasLastShowArgs;
     if(last&&typeof _hrmsMasterShowEmps==='function'){
-      _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter);
+      _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter,last.tagFilter);
     }
     if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMTeam');
     notify('✅ Moved '+moved+' employee(s) to "'+targetName+'"');
@@ -985,8 +1013,23 @@ function _hrmsMasterUsageCountsByEmpType(empField){
 function _hrmsMasterUsageCountsByEmpTypeAndPlant(empField){
   var out={};
   var isDeptField=(empField==='department');
+  // Plant strings can drift across records after a master rename
+  // (e.g. dept.plant='Plant-1' but emp.location='KAP-1' for the same
+  // physical plant). Collapse to the short form so the count key
+  // matches the master-row lookup key regardless of spelling.
+  var plantKey=function(p){
+    var s=String(p||'').trim();
+    if(!s) return '';
+    return (typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(s)||s):s;
+  };
+  // Restrict the dept-master headcount to AC (currently active) emps
+  // only — PIA-marked and IA emps would otherwise inflate the count
+  // and surface in the click popup as "mixed" rows.
+  var curMk=(typeof _hrmsCurMonth==='function')?_hrmsCurMonth():'';
   (DB.hrmsEmployees||[]).forEach(function(e){
     if(e._isNewEcr) return;
+    var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,curMk):'AC';
+    if(tag!=='AC') return;
     var ap=(e.periods||[]).find(function(p){return !p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     var v=(((ap&&ap[empField])||e[empField]||'')+'').trim();
     var pl=(((ap&&ap.location)||e.location||'')+'').trim();
@@ -1001,7 +1044,7 @@ function _hrmsMasterUsageCountsByEmpTypeAndPlant(empField){
       }
     }
     if(!v) return;
-    var key=v+'|||'+pl;
+    var key=v+'|||'+plantKey(pl);
     var et=(((ap&&ap.employmentType)||e.employmentType||'')+'').toLowerCase().replace(/\s/g,'');
     var bucket='Other';
     if(et==='onroll') bucket='OnRoll';
@@ -1021,17 +1064,22 @@ function _hrmsMasterUsageCountsByEmpTypeAndPlant(empField){
 // to its own plant.
 function _hrmsMasterUsageCountsAnyAndPlant(empField){
   var out={};
+  var plantKey=function(p){
+    var s=String(p||'').trim();
+    if(!s) return '';
+    return (typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(s)||s):s;
+  };
   (DB.hrmsEmployees||[]).forEach(function(e){
     var seen={};
     var flatV=((e[empField]||'')+'').trim();
     var flatPl=((e.location||'')+'').trim();
-    if(flatV) seen[flatV+'|||'+flatPl]=true;
+    if(flatV) seen[flatV+'|||'+plantKey(flatPl)]=true;
     (e.periods||[]).forEach(function(p){
       if(!p) return;
       var v=((p[empField]||'')+'').trim();
       if(!v) return;
       var pl=((p.location||'')+'').trim();
-      seen[v+'|||'+pl]=true;
+      seen[v+'|||'+plantKey(pl)]=true;
     });
     Object.keys(seen).forEach(function(k){ out[k]=(out[k]||0)+1; });
   });
@@ -1323,17 +1371,26 @@ function renderHrmsMaster(pid){
     if(isDept){
       var nameEsc=String(it.name||'').replace(/'/g,"\\'");
       var lblEsc=String(c.label||'').replace(/'/g,"\\'");
-      // Worker Dept: look up by `name|||plant` so each plant-specific
-      // record gets its own headcount. Staff Dept retains name-only key.
-      var brKey=(c.tbl==='hrmsDepartments')?(it.name+'|||'+(it.plant||'')):it.name;
+      // Worker Dept: look up by `name|||plantShortForm` so each
+      // plant-specific record gets its own headcount even when the
+      // dept.plant string and emp.location spell the same plant
+      // differently (e.g. legacy `Plant-1` vs renamed `KAP-1`).
+      var brPlantKey=(c.tbl==='hrmsDepartments')
+        ?((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(it.plant||'')||String(it.plant||'').trim()):String(it.plant||'').trim())
+        :'';
+      var brKey=(c.tbl==='hrmsDepartments')?(it.name+'|||'+brPlantKey):it.name;
       var br=byEt[brKey]||{OnRoll:0,Contract:0,PieceRate:0,Total:0};
       _deptTot.OnRoll+=(+br.OnRoll||0);
       _deptTot.Contract+=(+br.Contract||0);
       _deptTot.PieceRate+=(+br.PieceRate||0);
       _deptTot.Total+=(+br.Total||0);
       var plantArg=(c.tbl==='hrmsDepartments')?String(it.plant||'').replace(/'/g,"\\'"):'';
+      // Dept-master headcount is AC-only (see count function), so the
+      // click popup must carry the same AC tag filter — otherwise the
+      // popup would mix in PIA / IA emps and the row count would
+      // disagree with the visible row total.
       var renderSub=function(n,etLit,clr){
-        if(n>0) return '<td style="text-align:center"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEsc+'\',\''+lblEsc+'\',\''+etLit+'\',\''+plantArg+'\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show employees">'+n+'</a></td>';
+        if(n>0) return '<td style="text-align:center"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEsc+'\',\''+lblEsc+'\',\''+etLit+'\',\''+plantArg+'\',\'AC\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show employees">'+n+'</a></td>';
         return '<td style="text-align:center;font-family:var(--mono);font-weight:700;color:var(--text3)">'+n+'</td>';
       };
       h+=renderSub(br.OnRoll||0,'On Roll','#15803d');
@@ -1342,7 +1399,7 @@ function renderHrmsMaster(pid){
       // Total cell — clickable (no empType filter)
       var totN=br.Total||0;
       if(totN>0){
-        h+='<td style="text-align:center;background:#f8fafc"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEsc+'\',\''+lblEsc+'\',\'\',\''+plantArg+'\')" style="font-family:var(--mono);font-weight:900;color:var(--accent);text-decoration:underline;cursor:pointer" title="Show all employees">'+totN+'</a></td>';
+        h+='<td style="text-align:center;background:#f8fafc"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEsc+'\',\''+lblEsc+'\',\'\',\''+plantArg+'\',\'AC\')" style="font-family:var(--mono);font-weight:900;color:var(--accent);text-decoration:underline;cursor:pointer" title="Show all employees">'+totN+'</a></td>';
       } else {
         h+='<td style="text-align:center;background:#f8fafc;font-family:var(--mono);font-weight:700;color:var(--text3)">'+totN+'</td>';
       }
@@ -1357,13 +1414,13 @@ function renderHrmsMaster(pid){
       _tagTot.IA+=(+tb.IA||0);
       _tagTot.Total+=(+tb.Total||0);
       var _tagTdW='width:92px;min-width:92px;max-width:92px';
-      var renderTag=function(n,clr){
-        if(n>0) return '<td style="text-align:center;'+_tagTdW+'"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show employees">'+n+'</a></td>';
+      var renderTag=function(n,clr,tagCode){
+        if(n>0) return '<td style="text-align:center;'+_tagTdW+'"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\',\'\',\'\',\''+tagCode+'\')" style="font-family:var(--mono);font-weight:800;color:'+clr+';text-decoration:underline;cursor:pointer" title="Show '+tagCode+' employees">'+n+'</a></td>';
         return '<td style="text-align:center;font-family:var(--mono);font-weight:700;color:var(--text3);'+_tagTdW+'">'+n+'</td>';
       };
-      h+=renderTag(tb.AC||0,'#15803d');
-      h+=renderTag(tb.PIA||0,'#92400e');
-      h+=renderTag(tb.IA||0,'#b91c1c');
+      h+=renderTag(tb.AC||0,'#15803d','AC');
+      h+=renderTag(tb.PIA||0,'#92400e','PIA');
+      h+=renderTag(tb.IA||0,'#b91c1c','IA');
       var totT=tb.Total||0;
       if(totT>0){
         h+='<td style="text-align:center;background:#f8fafc;'+_tagTdW+'"><a href="javascript:void(0)" onclick="_hrmsMasterShowEmps(\''+c.empField+'\',\''+nameEscT+'\',\''+lblEscT+'\')" style="font-family:var(--mono);font-weight:900;color:var(--accent);text-decoration:underline;cursor:pointer" title="Show all employees">'+totT+'</a></td>';
@@ -1580,6 +1637,13 @@ function _hrmsBackfillLocationIds(){
       });
     }
   });
+  // Worker Departments — stamp dept.plantId from the plant master so
+  // future plant renames can cascade by id instead of name match.
+  (DB.hrmsDepartments||[]).forEach(function(d){
+    if(!d||d.plantId||!d.plant) return;
+    var did=idByName[String(d.plant).trim()];
+    if(did) d.plantId=did;
+  });
 }
 
 // Cascade rename helper — called by _hrmsEditMaster when a row in
@@ -1632,12 +1696,192 @@ async function _hrmsCascadePlantRename(plantId,oldName,newName){
     try{ await _dbSave('hrmsEmployees',changedEmps[i]); }
     catch(err){ console.warn('plant-rename cascade save failed for emp '+changedEmps[i].empCode+':',err.message); }
   }
-  return changedEmps.length;
+  // Worker Departments are plant-scoped via `dept.plant` (name string).
+  // Same denormalisation problem as emp.location — rename the master
+  // and the chip on the Dept master loses its plant colour because the
+  // dept's `plant` field no longer matches any hrmsCompanies.name.
+  var depts=(typeof DB!=='undefined'&&DB.hrmsDepartments)||[];
+  var changedDepts=[];
+  depts.forEach(function(d){
+    if(!d) return;
+    var dIdMatch=(d.plantId===plantId);
+    var dNameMatch=(!d.plantId&&d.plant===oldName);
+    if(dIdMatch||dNameMatch){
+      var t=false;
+      if(d.plant!==newName){d.plant=newName;t=true;}
+      if(d.plantId!==plantId){d.plantId=plantId;t=true;}
+      if(t) changedDepts.push(d);
+    }
+  });
+  for(var j=0;j<changedDepts.length;j++){
+    try{ await _dbSave('hrmsDepartments',changedDepts[j]); }
+    catch(err){ console.warn('plant-rename cascade save failed for dept '+changedDepts[j].name+':',err.message); }
+  }
+  // deptPlants settings map — keyed by deptId → plant name string.
+  // `_hrmsHydrateDeptPlants` rewrites `dept.plant` from this map on
+  // every read, so if we don't update the map here the dept-row fix
+  // above gets clobbered on the next render.
+  try{
+    var dpRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+    if(dpRec&&dpRec.data){
+      var changed=false;
+      Object.keys(dpRec.data).forEach(function(did){
+        if(dpRec.data[did]===oldName){dpRec.data[did]=newName;changed=true;}
+      });
+      if(changed){
+        try{ await _dbSave('hrmsSettings',dpRec); }
+        catch(err){ console.warn('plant-rename cascade save failed for deptPlants:',err.message); }
+      }
+    }
+  }catch(_){}
+  // Allocation settings — keys are `<plant>|<dept>|<groupId>`. Rewrite
+  // the plant portion so the Allocation vs Actual Manpower page stops
+  // showing both the old and the new name side by side.
+  try{
+    var allocRec=(typeof _hrmsAllocationData==='function')?_hrmsAllocationData():null;
+    if(allocRec&&allocRec.data&&allocRec.data.allocations){
+      var dict=allocRec.data.allocations;
+      var rewrote=false;
+      Object.keys(dict).forEach(function(k){
+        var parts=k.split('|');
+        if(parts.length<3) return;
+        if(parts[0]===oldName){
+          var nk=newName+'|'+parts.slice(1).join('|');
+          // Merge if the new key already exists; otherwise just move.
+          if(dict[nk]!=null) dict[nk]=(+dict[nk]||0)+(+dict[k]||0);
+          else dict[nk]=dict[k];
+          delete dict[k];
+          rewrote=true;
+        }
+      });
+      if(rewrote){
+        try{ await _dbSave('hrmsSettings',allocRec); }
+        catch(err){ console.warn('plant-rename cascade save failed for allocations:',err.message); }
+      }
+    }
+  }catch(_){}
+  return changedEmps.length+changedDepts.length;
 }
 
 function _hrmsGetPlantColor(plantName){
-  var p=(DB.hrmsCompanies||[]).find(function(c){return c.name===plantName;});
-  return p&&p.color?p.color:'#e2e8f0';
+  if(!plantName) return '#e2e8f0';
+  var name=String(plantName).trim();
+  var companies=DB.hrmsCompanies||[];
+  // 1) Exact name match — covers the common case.
+  var p=companies.find(function(c){return c&&c.name===name;});
+  if(p&&p.color) return p.color;
+  // 2) Short-form fallback — after a plant rename (Plant-1 → KAP-1),
+  // legacy dept/emp records still carry the old name string. Both
+  // resolve to the same short form ("P1"), so match on that and the
+  // chip keeps its colour without a forced data migration.
+  if(typeof _hrmsPlantShortForm==='function'){
+    var sfTarget=_hrmsPlantShortForm(name);
+    if(sfTarget){
+      var byShort=companies.find(function(c){return c&&c.name&&_hrmsPlantShortForm(c.name)===sfTarget;});
+      if(byShort&&byShort.color) return byShort.color;
+    }
+  }
+  return '#e2e8f0';
+}
+
+// Canonical plant name — resolves any spelling (current name or
+// legacy string with the same short form) to the current master's
+// `name`. Returns the input unchanged when no master can be matched
+// so callers don't lose info on truly orphaned strings.
+function _hrmsCanonicalPlant(name){
+  if(!name) return '';
+  var s=String(name).trim();
+  if(!s) return '';
+  var companies=DB.hrmsCompanies||[];
+  var exact=companies.find(function(c){return c&&c.name===s;});
+  if(exact) return exact.name;
+  if(typeof _hrmsPlantShortForm==='function'){
+    var sf=_hrmsPlantShortForm(s);
+    if(sf){
+      var byShort=companies.find(function(c){return c&&c.name&&_hrmsPlantShortForm(c.name)===sf;});
+      if(byShort) return byShort.name;
+    }
+  }
+  return s;
+}
+
+// Plant-identity equality used by every place that compares a stored
+// plant-name string (dept.plant, emp.location, allocation key prefix)
+// against a current plant-master name. Tolerates legacy strings whose
+// master has been renamed by falling back to a short-form match.
+function _hrmsPlantNameEq(a,b){
+  if(a==null||b==null) return false;
+  var sa=String(a).trim(),sb=String(b).trim();
+  if(sa===sb) return true;
+  if(!sa||!sb) return false;
+  if(typeof _hrmsPlantShortForm!=='function') return false;
+  var fa=_hrmsPlantShortForm(sa),fb=_hrmsPlantShortForm(sb);
+  return !!fa&&fa===fb;
+}
+
+// Reusable plant short-form chip used across muster roll, salary,
+// summary, P&OT, alterations, advances etc. Returns '' for empty
+// plant so callers can drop the chip slot entirely when there's no
+// plant attached.
+function _hrmsPlantChip(plantName){
+  var nm=String(plantName||'').trim();
+  if(!nm) return '';
+  var sf=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(nm):nm.slice(0,3).toUpperCase();
+  var clr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(nm):'#e2e8f0';
+  var esc=String(nm).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return '<span title="'+esc+'" style="display:inline-block;background:'+clr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;letter-spacing:.3px;min-width:30px;text-align:center">'+sf+'</span>';
+}
+
+// One-shot console helper for plants renamed BEFORE the cascade
+// landed. Walks DB.hrmsDepartments and rewrites every dept.plant ===
+// oldName to newName, also stamping plantId. Usage from devtools:
+//   _hrmsRemapDeptPlant('Plant-1','KAP-1')
+// Returns the number of dept rows touched.
+async function _hrmsRemapDeptPlant(oldName,newName){
+  if(!oldName||!newName||oldName===newName){notify('Pass old and new plant names',true);return 0;}
+  var company=(DB.hrmsCompanies||[]).find(function(c){return c.name===newName;});
+  if(!company){notify('Plant "'+newName+'" not found in master',true);return 0;}
+  var depts=(DB.hrmsDepartments||[]).filter(function(d){return d&&d.plant===oldName;});
+  for(var i=0;i<depts.length;i++){
+    depts[i].plant=newName;
+    depts[i].plantId=company.id;
+    try{ await _dbSave('hrmsDepartments',depts[i]); }
+    catch(err){ console.warn('dept remap save failed for '+depts[i].name+':',err.message); }
+  }
+  // deptPlants settings map — the source of truth that hydrate reads
+  // from. Without rewriting it, hydrate restores the stale name on
+  // the next render.
+  try{
+    var dpRec2=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+    if(dpRec2&&dpRec2.data){
+      var ch=false;
+      Object.keys(dpRec2.data).forEach(function(did){
+        if(dpRec2.data[did]===oldName){dpRec2.data[did]=newName;ch=true;}
+      });
+      if(ch) await _dbSave('hrmsSettings',dpRec2);
+    }
+  }catch(err){console.warn('deptPlants remap during dept-remap failed:',err.message);}
+  // Also rewrite allocation keys that still carry the old plant string
+  // so Alloc vs Actual Manpower stops showing both old and new names.
+  try{
+    var allocRec=(typeof _hrmsAllocationData==='function')?_hrmsAllocationData():null;
+    if(allocRec&&allocRec.data&&allocRec.data.allocations){
+      var dict=allocRec.data.allocations,rewrote=false;
+      Object.keys(dict).forEach(function(k){
+        var parts=k.split('|');
+        if(parts.length<3||parts[0]!==oldName) return;
+        var nk=newName+'|'+parts.slice(1).join('|');
+        if(dict[nk]!=null) dict[nk]=(+dict[nk]||0)+(+dict[k]||0);
+        else dict[nk]=dict[k];
+        delete dict[k];
+        rewrote=true;
+      });
+      if(rewrote) await _dbSave('hrmsSettings',allocRec);
+    }
+  }catch(err){console.warn('alloc remap during dept-remap failed:',err.message);}
+  if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMDept');
+  notify('Remapped '+depts.length+' dept(s): "'+oldName+'" → "'+newName+'"');
+  return depts.length;
 }
 
 // Pending master save callback (used by empType picker)
@@ -3266,7 +3510,7 @@ function _hrmsEmpDeptPicker(ev,empId){
     if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
     (DB.hrmsDepartments||[]).forEach(function(d){
       if(!d||d.inactive) return;
-      if(plant&&(d.plant||'')!==plant) return;
+      if(plant&&!_hrmsPlantNameEq(d.plant||'',plant)) return;
       var n=(d.name||'').trim();if(!n||seen[n]) return;
       seen[n]=1;names.push(n);
     });
@@ -4070,7 +4314,7 @@ function _hrmsMonthOptHelpers(){
     // in the Org & Sal Revisions row. Full name remains in `value` and in
     // each option's `title` so the underlying data + hover detail are
     // unchanged.
-    var _short=function(p){return String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
+    var _short=function(p){return (typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(p||''):String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
     var hasMatch=val&&items.some(function(x){return x.name===val;});
     var h='<option value=""'+(val?'':' selected')+'>--</option>';
     if(val&&!hasMatch) h+='<option value="'+val+'" selected title="'+val+'">'+_short(val)+'</option>';
@@ -4309,7 +4553,7 @@ function _hrmsBuildMonthTable(){
   // "Plant-2" / "Plant 2" / "Plant_2" → "P2"; full name kept in the cell
   // tooltip so the abbreviation stays readable in the cramped Org & Sal
   // table without losing context.
-  var _plantShort=function(p){return String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
+  var _plantShort=function(p){return (typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(p||''):String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
   // Tooltip text for the Data column / button — explains the 1-week-from-DOJ
   // window the popup itself enforces.
   var _dataNote='Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)';
@@ -5399,7 +5643,7 @@ function _hrmsRenderChangeReq(){
       return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;'+sty+'">'+(t||'—')+'</span>';
     };
     // "Plant-2" / "Plant 2" / "Plant_2" → "P2"
-    var _plantShort=function(p){return String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
+    var _plantShort=function(p){return (typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(p||''):String(p||'').replace(/plant[\s\-_]*(\d+)/i,'P$1');};
     historyReqs.forEach(function(r){
       var hp=r.period,e=r.emp,cur=r.current||{};
       var isApproved=hp._ecrResult==='approved';
@@ -9334,7 +9578,7 @@ function _hrmsRenderSummaryTab(yr,mo){
   h+='<table style="width:auto;margin-bottom:24px;font-size:13px"><thead><tr><th style="min-width:160px">Category</th>';
   plantList.forEach(function(plt){
     var pClr=_hrmsGetPlantColor(plt);
-    var pShort=plt.replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var pShort=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plt):plt.replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     h+='<th style="text-align:center;min-width:70px;background:'+pClr+';font-weight:800;color:#1e293b">'+pShort+'</th>';
   });
   h+='<th style="text-align:center;min-width:70px;background:#f0f9ff;font-weight:900">Total</th></tr></thead><tbody>';
@@ -9372,7 +9616,7 @@ function _hrmsRenderSummaryTab(yr,mo){
     h+='<table style="width:auto;margin-bottom:24px;font-size:13px"><thead><tr><th style="min-width:160px">Team</th>';
     plantList.forEach(function(plt){
       var pClr=_hrmsGetPlantColor(plt);
-      var pShort=plt.replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+      var pShort=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plt):plt.replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
       h+='<th style="text-align:center;min-width:70px;background:'+pClr+';font-weight:800;color:#1e293b">'+pShort+'</th>';
     });
     h+='<th style="text-align:center;min-width:70px;background:#faf5ff;font-weight:900">Total</th></tr></thead><tbody>';
@@ -9611,7 +9855,7 @@ function _hrmsRenderPotTab(yr,mo){
     h+='<td style="'+_td+';font-family:var(--mono);font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+';cursor:'+(isU?'default':'pointer')+(isU?'':';text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+emp.empCode+'" title="Click to view employee"')+'>'+emp.empCode+'</td>';
     h+='<td style="'+_td+';font-weight:700'+(isU?'':';cursor:pointer')+'" title="'+nm+'"'+(isU?'':' data-emp-code="'+emp.empCode+'"')+'>'+nm+'</td>';
     h+='<td style="'+_td+'" title="'+(emp.employmentType||'')+'">'+(emp.employmentType||'—')+'</td>';
-    h+='<td style="'+_td+';font-weight:700;background:'+pClr+'" title="'+(emp.location||'')+'">'+(emp.location||'—')+'</td>';
+    h+='<td style="'+_td+';font-weight:700;background:'+pClr+';text-align:center" title="'+(emp.location||'')+'">'+((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(emp.location||'')||'—'):(emp.location||'—'))+'</td>';
     h+='<td style="'+_td+'" title="'+(emp.category||'')+'">'+(emp.category||'—')+'</td>';
     h+='<td style="'+_td+'" title="'+(emp.teamName||'')+'">'+(emp.teamName||'—')+'</td>';
     h+='<td style="'+_td+'" title="'+(emp.department||'')+'">'+(emp.department||'—')+'</td>';
@@ -9867,7 +10111,7 @@ function _hrmsRenderEmpGroupedTable(list,color,mode){
       var ecEsc=String(e.empCode||'').replace(/'/g,"\\'");
       var addBtn=isU?' <button onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="margin-left:6px;padding:1px 8px;font-size:13px;font-weight:900;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;line-height:1.2" title="Add new employee with code '+ecEsc+'">+</button>':'';
       t+='<tr><td>'+(i+1)+'</td>';
-      t+='<td style="font-weight:800;background:'+pClr+'">'+(e.location||'—')+'</td>';
+      t+='<td style="font-weight:800;background:'+pClr+';text-align:center" title="'+(e.location||'')+'">'+((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(e.location||'')||'—'):(e.location||'—'))+'</td>';
       t+='<td style="font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+(isU?'':';cursor:pointer;text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+e.empCode+'" title="Click to view employee"')+'>'+e.empCode+addBtn+'</td>';
       t+='<td style="font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
       t+='<td>'+(e.category||'—')+'</td>';
@@ -10106,7 +10350,7 @@ function _hrmsShowEmpListPopup(title,list){
         '<td style="'+_td+';text-align:center;color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>'+
         '<td style="'+_td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+_hrmsEsc(e.empCode||'')+'</td>'+
         '<td style="'+_td+';font-weight:700">'+_hrmsEsc(e.name||(e._unmatched?'Employee NA':''))+'</td>'+
-        '<td style="'+_td+'"><span style="display:inline-block;padding:1px 6px;border-radius:3px;background:'+pClr+';font-weight:700;font-size:11px">'+_hrmsEsc(e.location||'—')+'</span></td>'+
+        '<td style="'+_td+';text-align:center" title="'+_hrmsEsc(e.location||'')+'"><span style="display:inline-block;padding:1px 8px;border-radius:10px;background:'+pClr+';color:#0f172a;font-weight:800;font-size:11px;font-family:var(--mono);border:1px solid rgba(0,0,0,.18);min-width:30px;text-align:center">'+_hrmsEsc((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(e.location||'')||'—'):(e.location||'—'))+'</span></td>'+
         '<td style="'+_td+'">'+_hrmsEsc(e.teamName||'—')+'</td>'+
         '<td style="'+_td+'">'+_hrmsEsc(e.category||'—')+'</td>'+
         '<td style="'+_td+';font-family:var(--mono)">'+_hrmsEsc(e.roll||'—')+'</td>'+
@@ -10595,7 +10839,7 @@ async function _hrmsRenderEntryTab(yr,mo){
         :'<span style="display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:800;background:#dcfce7;color:#15803d;border:1px solid #86efac">★ New Joinee</span>');
     h+='<tr style="background:'+rowBg+'">';
     h+='<td style="'+_td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
-    h+='<td style="'+_td+';font-weight:800;background:'+pClr+'">'+(e.location||'—')+'</td>';
+    h+='<td style="'+_td+';font-weight:800;background:'+pClr+';text-align:center" title="'+(e.location||'')+'">'+((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(e.location||'')||'—'):(e.location||'—'))+'</td>';
     h+='<td style="'+_td+';font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+(isU?'':';cursor:pointer;text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+e.empCode+'" title="Click to view employee"')+'>'+e.empCode+addBtn+'</td>';
     h+='<td style="'+_td+';font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
     h+='<td style="'+_td+'">'+(e.category||'—')+'</td>';
@@ -10930,7 +11174,7 @@ async function _hrmsRenderExitTab(yr,mo){
     var rowBg=_hrmsEmpTypeRowBg(e.employmentType);
     h+='<tr style="background:'+rowBg+'">';
     h+='<td style="'+_td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
-    h+='<td style="'+_td+';font-weight:800;background:'+pClr+'">'+(e.location||'—')+'</td>';
+    h+='<td style="'+_td+';font-weight:800;background:'+pClr+';text-align:center" title="'+(e.location||'')+'">'+((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(e.location||'')||'—'):(e.location||'—'))+'</td>';
     h+='<td style="'+_td+';font-weight:800;color:'+(isU?'#dc2626':'var(--accent)')+(isU?'':';cursor:pointer;text-decoration:underline')+'"'+(isU?'':' data-emp-code="'+e.empCode+'" title="Click to view employee"')+'>'+e.empCode+addBtn+'</td>';
     h+='<td style="'+_td+';font-weight:700">'+(isU?'Employee NA':e.name)+'</td>';
     h+='<td style="'+_td+'">'+(e.category||'—')+'</td>';
@@ -14247,7 +14491,7 @@ function _hrmsDasTwRender(){
   h+='<th class="hrms-tw-col-inTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">In Time</th>';
   h+='<th class="hrms-tw-col-outTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">Out Time</th>';
   // P/A pill rendered inline with the 45-day P/A bar — single visual row.
-  h+='<th title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:300px;min-width:300px;max-width:300px">'
+  h+='<th title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:360px;min-width:360px;max-width:360px">'
     +'P/A · 45-day'
     +'</th>';
   h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="'+_twThSt+';text-align:center;font-size:11px;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle">PIA</th>';
@@ -14300,10 +14544,10 @@ function _hrmsDasTwRender(){
     h+='<td class="hrms-tw-col-inTime" style="padding:6px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.inTime?'#15803d':'#cbd5e1')+';border-left:1px solid #e2e8f0">'+_esc(r.inTime||'—')+'</td>'
       +'<td class="hrms-tw-col-outTime" style="padding:6px 6px;text-align:center;font-family:var(--mono);font-weight:700;font-size:11px;color:'+(r.outTime?'#b91c1c':'#cbd5e1')+';border-left:1px solid #e2e8f0">'+_esc(r.outTime||'—')+'</td>';
     // 45-day bar followed by the P/A pill — single visual row.
-    h+='<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;width:300px;min-width:300px;max-width:300px">'
+    h+='<td class="_hrmsMcell" style="padding:4px 8px;background:#f8fafc;border-left:2px solid #e2e8f0;vertical-align:middle;white-space:nowrap;width:360px;min-width:360px;max-width:360px">'
       +'<div class="_hrmsMcRow" style="display:flex;align-items:center;gap:10px">'
-        +'<div class="_hrmsMcBar" style="flex:1;min-width:0;line-height:0">'+_histHtml+'</div>'
-        +'<span class="_hrmsMcPA" style="display:inline-block;padding:2px 12px;border-radius:12px;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border:1px solid '+(r.presentToday?'#86efac':'#fca5a5')+'">'+(r.presentToday?'P':'A')+'</span>'
+        +'<div class="_hrmsMcBar" style="flex:1;min-width:0;line-height:0;overflow:hidden">'+_histHtml+'</div>'
+        +'<span class="_hrmsMcPA" style="flex:0 0 auto;display:inline-block;padding:2px 12px;border-radius:12px;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(r.presentToday?'#15803d':'#b91c1c')+';background:'+(r.presentToday?'#dcfce7':'#fee2e2')+';border:1px solid '+(r.presentToday?'#86efac':'#fca5a5')+'">'+(r.presentToday?'P':'A')+'</span>'
       +'</div>'
       +'</td>';
     // PIA checkbox — exposed for Contract / Piece Rate emps. Clicking
@@ -14668,7 +14912,9 @@ function _hrmsDasDdOpenDeptPicker(ev){
   var seen={},names=[];
   (DB.hrmsDepartments||[]).forEach(function(d){
     if(!d||d.inactive) return;
-    if((d.plant||'')!==plant) return;
+    // Short-form tolerant so legacy dept.plant strings still match
+    // a renamed plant master.
+    if(!_hrmsPlantNameEq(d.plant||'',plant)) return;
     if(_dhScope&&!_dhScope.deptIds[d.id]) return;
     var n=(d.name||'').trim();if(!n||seen[n]) return;
     seen[n]=1;names.push(n);
@@ -14718,7 +14964,8 @@ function _hrmsDasDeptDetailsRender(){
   if(_hrmsDasDdPlant){
     (DB.hrmsDepartments||[]).forEach(function(d){
       if(!d||d.inactive) return;
-      if((d.plant||'')!==_hrmsDasDdPlant) return;
+      // Short-form tolerant — legacy dept.plant strings still match.
+      if(!_hrmsPlantNameEq(d.plant||'',_hrmsDasDdPlant)) return;
       // Dept Head scoping — only show depts this head owns.
       if(_dhScope&&!_dhScope.deptIds[d.id]) return;
       var n=(d.name||'').trim();if(!n||deptSeen[n]) return;
@@ -15144,11 +15391,16 @@ function _hrmsDasBuildAllocActuals(st){
   // the raw `allocations` dict + present-emp depts, both of which
   // can carry orphans. Filter against the master to drop them.
   if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+  // Canonicalise every plant string into the current master name so
+  // legacy spellings (e.g. dept.plant='Plant-1', alloc key prefix
+  // 'Plant-1', emp.location='KAP-1') collapse to the same identity
+  // and the page doesn't surface both names side by side.
+  var _cp=function(s){return (typeof _hrmsCanonicalPlant==='function')?_hrmsCanonicalPlant(s):String(s||'').trim();};
   var validDeptForPlant={};// 'plant|dept' → true
   (DB.hrmsDepartments||[]).forEach(function(d){
     if(!d||d.inactive) return;
     var n=String(d.name||'').trim();if(!n) return;
-    validDeptForPlant[String(d.plant||'').trim()+'|'+n]=true;
+    validDeptForPlant[_cp(d.plant||'')+'|'+n]=true;
   });
   // Allow Staff sub-dept names too (they're plant-agnostic). Their
   // plant pairing is implicit — accept any plant.
@@ -15158,7 +15410,7 @@ function _hrmsDasBuildAllocActuals(st){
     var n=String(d.name||'').trim();if(n) validStaffDept[n]=true;
   });
   var isValidPair=function(plant,dept){
-    if(validDeptForPlant[plant+'|'+dept]) return true;
+    if(validDeptForPlant[_cp(plant)+'|'+dept]) return true;
     if(validStaffDept[dept]) return true;
     return false;
   };
@@ -15168,16 +15420,17 @@ function _hrmsDasBuildAllocActuals(st){
   st.present.forEach(function(p){
     var org=_hrmsDasEmpOrg(p.emp);
     if(_hrmsDasIsExcluded(org)) return;// keep alloc comparison in sync with the table
+    var canonPlant=_cp(org.plant);
     // Drop present emps whose (plant, dept) pair no longer exists in
     // the live master (employee was tagged with a dept that's since
     // been deleted or reassigned to another plant).
-    if(!isValidPair(org.plant,org.dept)) return;
-    plants[org.plant]=1;depts[org.dept]=1;
+    if(!isValidPair(canonPlant,org.dept)) return;
+    plants[canonPlant]=1;depts[org.dept]=1;
     var ap=(p.emp.periods||[]).find(function(pp){return !pp.to&&(!pp._wfStatus||pp._wfStatus==='approved');});
     var role=((ap&&ap.roll)||p.emp.roll||'');
     var gid=(typeof _hrmsAllocGroupForRole==='function')?_hrmsAllocGroupForRole(role,groups):null;
     if(!gid) return;// no group → skip
-    var k=org.plant+'|'+org.dept+'|'+gid;
+    var k=canonPlant+'|'+org.dept+'|'+gid;
     actuals[k]=(actuals[k]||0)+1;
     if(!emps[k]) emps[k]=[];
     emps[k].push({empCode:p.emp.empCode||'',name:p.emp.fullName||'',ts:p.ts||null});
@@ -15186,14 +15439,17 @@ function _hrmsDasBuildAllocActuals(st){
   // pairs that no longer exist in the master. The dict still keeps
   // the stale keys on disk — the next "Save Allocations" inside the
   // settings modal will overwrite them — but rendering won't surface
-  // them as ghost rows.
+  // them as ghost rows. Keys are also canonicalised so a legacy
+  // 'Plant-1|HR|grp1' merges into the current 'KAP-1|HR|grp1' bucket.
   var allocations={};
   Object.keys(rawAllocations).forEach(function(k){
     var parts=k.split('|');
     if(parts.length<3) return;
-    if(!isValidPair(parts[0],parts[1])) return;
-    allocations[k]=rawAllocations[k];
-    plants[parts[0]]=1;depts[parts[1]]=1;
+    var canonP=_cp(parts[0]);
+    if(!isValidPair(canonP,parts[1])) return;
+    var ck=canonP+'|'+parts[1]+'|'+parts.slice(2).join('|');
+    allocations[ck]=(+allocations[ck]||0)+(+rawAllocations[k]||0);
+    plants[canonP]=1;depts[parts[1]]=1;
   });
   return {actuals:actuals,emps:emps,plants:Object.keys(plants).sort(),depts:Object.keys(depts).sort(),groups:groups,allocations:allocations};
 }
@@ -15335,7 +15591,7 @@ function _hrmsDasRender(){
   // Wrapper is the SOLE vertical scroller. flex:1 + min-height:0 fills the
   // remaining height when the parent flex chain works; max-height is a hard
   // fallback so the table is still scrollable even if the chain breaks.
-  var summaryHtml='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);overflow:auto;position:relative;border:2px solid '+_strong+';border-radius:8px"><table style="border-collapse:separate;border-spacing:0;width:auto">';
+  var summaryHtml='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;position:relative;border:2px solid '+_strong+';border-radius:8px"><table style="border-collapse:separate;border-spacing:0;width:auto">';
   // Header row 1: Department + Plant (colspan=bucketKeys.length+1 for subtotal) + Grand Total
   summaryHtml+='<thead><tr>';
   summaryHtml+='<th rowspan="2" style="'+_th+';left:0;z-index:6;text-align:left;min-width:130px;border-right:2px solid '+_strong+'">Department</th>';
@@ -15446,7 +15702,7 @@ function _hrmsDasRender(){
       var hdrTop='';
       var subTop='';
       var ph='<div style="font-size:11px;color:var(--text3);margin:0 0 10px"><b>AL</b> = Allocated · <b style="color:#15803d">P</b> = Actual Present · <b style="color:#b91c1c">S</b> = Shortage (<i>max(AL − P, 0)</i>).</div>';
-      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);overflow:auto;border:2px solid #94a3b8;border-radius:8px"><table class="hrms-das-plant-tbl" style="border-collapse:collapse;border-spacing:0;font-size:12px">';
+      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;border:2px solid #94a3b8;border-radius:8px"><table class="hrms-das-plant-tbl" style="border-collapse:collapse;border-spacing:0;font-size:12px">';
       // Header row 1 — group names; the Total group spans 3 cols and freezes right.
       ph+='<thead><tr>';
       ph+='<th rowspan="2" style="'+deptHdrBase+'">Department</th>';
@@ -15564,9 +15820,9 @@ function _hrmsDasRender(){
     });
   }
 
-  // ── Top tab bar — Summary first, then one per plant ──
-  var validTabs=['summary'].concat(compPlants);
-  if(validTabs.indexOf(_hrmsDasCompareTab)<0) _hrmsDasCompareTab='summary';
+  // ── Top tab bar — per-plant only (Summary tab removed per request) ──
+  var validTabs=compPlants.slice();
+  if(validTabs.indexOf(_hrmsDasCompareTab)<0) _hrmsDasCompareTab=validTabs[0]||'';
   var activeTab=_hrmsDasCompareTab;
 
   var h='<div style="display:flex;gap:0;margin-bottom:12px;border-bottom:2px solid var(--border);overflow-x:auto;flex-wrap:nowrap">';
@@ -15575,13 +15831,11 @@ function _hrmsDasRender(){
     var keyEsc=key.replace(/'/g,"\\'");
     return '<div onclick="_hrmsDasSetCompareTab(\''+keyEsc+'\')" style="padding:8px 18px;font-size:13px;font-weight:'+(active?'800':'700')+';cursor:pointer;border-bottom:3px solid '+(active?'var(--accent)':'transparent')+';color:'+(active?'var(--accent)':'var(--text3)')+';background:'+(active?'var(--accent-light)':'transparent')+';white-space:nowrap">'+label+'</div>';
   };
-  h+=renderTab('summary','📊 Summary');
   compPlants.forEach(function(plant){h+=renderTab(plant,'🏭 '+plant);});
   h+='</div>';
 
-  if(activeTab==='summary') h+=summaryHtml;
-  else if(compHtmlByPlant[activeTab]) h+=compHtmlByPlant[activeTab];
-  else h+=compEmptyMsg||summaryHtml;
+  if(compHtmlByPlant[activeTab]) h+=compHtmlByPlant[activeTab];
+  else h+=compEmptyMsg;
 
   if(st.unmatched.length){
     var _unkChips=st.unmatched.map(function(u){
@@ -17260,7 +17514,9 @@ function _hrmsMasEmpChangeDept(empId){
   var seen={};
   var targets=(DB.hrmsDepartments||[]).filter(function(d){
     if(!d||d.inactive) return false;
-    if((d.plant||'')!==plant) return false;
+    // Short-form tolerant — handles legacy dept.plant strings whose
+    // master got renamed (e.g. dept.plant='Plant-5' vs emp's 'KAP-5').
+    if(!_hrmsPlantNameEq(d.plant||'',plant)) return false;
     var n=(d.name||'').trim();
     if(!n||seen[n]) return false;
     seen[n]=1;
@@ -17370,7 +17626,7 @@ async function _hrmsMasEmpChangeRoleSave(empId){
   var hp=document.getElementById('_hrmsMasDetailOverlay');
   var last=window._hrmsMasLastShowArgs;
   if(last&&typeof _hrmsMasterShowEmps==='function'){
-    _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter);
+    _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter,last.tagFilter);
   } else if(hp){
     hp.remove();
   }
@@ -17395,7 +17651,7 @@ async function _hrmsMasEmpChangeDeptSave(empId){
   // Stamp the linked dept id alongside the name so future renames
   // don't drop this emp's headcount.
   var plant=(((ap&&ap.location)||emp.location||'')+'').trim();
-  var tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===newDept&&(d.plant||'')===plant;});
+  var tgtRec=(DB.hrmsDepartments||[]).find(function(d){return d&&!d.inactive&&d.name===newDept&&_hrmsPlantNameEq(d.plant||'',plant);});
   if(ap) ap.department=newDept;
   emp.department=newDept;
   if(tgtRec){
@@ -17413,7 +17669,7 @@ async function _hrmsMasEmpChangeDeptSave(empId){
   var hp=document.getElementById('_hrmsMasDetailOverlay');
   var last=window._hrmsMasLastShowArgs;
   if(last&&typeof _hrmsMasterShowEmps==='function'){
-    _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter);
+    _hrmsMasterShowEmps(last.empField,last.value,last.label,last.empTypeFilter,last.plantFilter,last.tagFilter);
   } else if(hp){
     hp.remove();
   }
@@ -19009,9 +19265,23 @@ function _hrmsMhgEmpsForScope(mk,plant,bucket,day){
 function _hrmsPlantShortForm(plant){
   if(!plant) return '';
   var s=String(plant).trim();
+  // Master override — if the plant record carries an explicit
+  // shortForm, that wins. Lets admins keep "P1" stable even when
+  // the master name itself is renamed (e.g. Plant-1 → KAP-1).
+  var rec=(typeof DB!=='undefined'&&DB.hrmsCompanies||[]).find(function(c){return c&&c.name===s;});
+  if(rec&&rec.shortForm){
+    var sf=String(rec.shortForm).trim().toUpperCase();
+    if(sf) return sf;
+  }
   if(/^—?\s*unassigned/i.test(s)) return 'UNA';
-  var m=s.match(/^(plant|unit)\s*[-_ ]?\s*(\d+)/i);
-  if(m) return (m[1][0]+m[2]).toUpperCase();
+  // Known prefix → letter map. "kap" historically replaced "plant"
+  // in the master name; both should still short-form to "P<N>".
+  var m=s.match(/^(plant|unit|kap)\s*[-_ ]?\s*(\d+)/i);
+  if(m){
+    var pfx=m[1].toLowerCase();
+    var letter=(pfx==='kap'||pfx==='plant')?'P':pfx[0];
+    return (letter+m[2]).toUpperCase();
+  }
   if(/^head\s*office$/i.test(s)) return 'HO';
   var words=s.split(/[\s\-_]+/).filter(Boolean);
   if(words.length>=2) return words.slice(0,3).map(function(w){return (w[0]||'').toUpperCase();}).join('');
@@ -19452,7 +19722,7 @@ function _hrmsRenderAttGrid(yr,mo){
       h+='<tr style="background:'+rowColors[ri]+'">';
       if(ri===0){
         var isUnmatched=!!emp._unmatched;
-        var plt=(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+        var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(emp.location||''):(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
         var pClr=isUnmatched?'#fecaca':_hrmsGetPlantColor(emp.location);
         var rowBg=isUnmatched?'#fef2f2':'#fff';
         h+='<td rowspan="4" style="position:sticky;left:'+L0+'px;z-index:2;background:'+rowBg+';font-weight:700;color:var(--text3);border:1.5px solid #475569;padding:2px 3px;vertical-align:middle;text-align:center;font-size:9px;'+borderTop+'">'+(ei+1)+'</td>';
@@ -19754,7 +20024,7 @@ function _hrmsAttExportMuster(){
         }
       }
     }
-    var plt=(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(emp.location||''):(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     var pDisp=totalP%1===0?totalP:+totalP.toFixed(1);
     var otDisp=totalOT>0?_hrmsFmtOT(totalOT):(isStaff?'—':0);
     var otsDisp=totalOTS>0?_hrmsFmtOT(totalOTS):(isStaff?'—':0);
@@ -21667,7 +21937,7 @@ function _hrmsGeneratePdf(f,mk,yr,mo,monthNames,opts){
   emps.forEach(function(emp,ei){
     var empAtt=lookup[emp.empCode]||{};var empAlt=altLookup[emp.empCode]||{};
     var isStaff=(emp.category||'').toLowerCase()==='staff'&&(emp.employmentType||'').toLowerCase()!=='contract';
-    var plt=(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(emp.location||''):(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     var pClr=_hrmsGetPlantColor(emp.location);
     var pClrRgb=_hexToRgb(pClr);
 
@@ -21936,7 +22206,7 @@ function _hrmsGeneratePrintHTML(f,mk,yr,mo,monthNames){
   emps.forEach(function(emp,ei){
     var empAtt=lookup[emp.empCode]||{};var empAlt=altLookup[emp.empCode]||{};
     var isStaff=(emp.category||'').toLowerCase()==='staff'&&(emp.employmentType||'').toLowerCase()!=='contract';
-    var plt=(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(emp.location||''):(emp.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     var pClr=_hrmsGetPlantColor(emp.location);
     var dayStatus=[];var elCount=0;
     for(var dd=1;dd<=daysInMonth;dd++){
@@ -25172,7 +25442,7 @@ function _hrmsWorkerSalarySlip(){
   var doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a3',compress:true});
   // Amounts in Indian comma format (1,02,500 — lakh-thousand grouping).
   var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
-  var _plt=function(loc){return (loc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');};
+  var _plt=function(loc){return (typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(loc||''):(loc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');};
   // Convert "#rrggbb" / "#rgb" → [r,g,b] for autoTable's fillColor.
   // Returns null when the input isn't a hex string so callers can skip
   // styling on non-tinted plants.
@@ -26065,10 +26335,37 @@ function _hrmsRenderAllocationMaster(){
     // Worker depts are plant-specific (V90+). Hydrate first, then scope
     // the row list to depts whose `plant` matches this tab's plant.
     if(typeof _hrmsHydrateDeptPlants==='function') _hrmsHydrateDeptPlants();
+    // Legacy allocation keys may still carry pre-rename plant names
+    // (e.g. 'Plant-1|HR|grp1' after the master was renamed to KAP-1).
+    // Rewrite any matching keys in-place to the current master name so
+    // the grid lookup `allocations[plant+'|'+dept+'|'+g.id]` resolves.
+    (function(){
+      if(typeof _hrmsCanonicalPlant!=='function') return;
+      var dict=allocations;
+      var rewrote=false;
+      Object.keys(dict).forEach(function(k){
+        var parts=k.split('|');
+        if(parts.length<3) return;
+        var canon=_hrmsCanonicalPlant(parts[0]);
+        if(!canon||canon===parts[0]) return;
+        var nk=canon+'|'+parts.slice(1).join('|');
+        if(dict[nk]!=null) dict[nk]=(+dict[nk]||0)+(+dict[k]||0);
+        else dict[nk]=dict[k];
+        delete dict[k];
+        rewrote=true;
+      });
+      // Persist once, asynchronously, so future renders don't repeat
+      // the rewrite. Best-effort — silent on failure.
+      if(rewrote&&typeof _hrmsAllocationSave==='function'){
+        try{ _hrmsAllocationSave(); }catch(_){}
+      }
+    })();
     var _seenDeptName={};
     depts=(DB.hrmsDepartments||[]).filter(function(d){
       if(!d||d.inactive) return false;
-      if((d.plant||'')!==plant) return false;
+      // Tolerate legacy dept.plant strings whose master got renamed —
+      // short-form match keeps Plant-1 ↔ KAP-1 unified.
+      if(!_hrmsPlantNameEq(d.plant||'',plant)) return false;
       var n=(d.name||'').trim();
       if(!n||_seenDeptName[n]) return false;
       _seenDeptName[n]=1;
@@ -27265,7 +27562,7 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     h+='<td style="'+_td+';font-weight:700;'+_stkTd3+'">'+r.name+'</td>';
     h+='<td style="'+_td+';font-size:12px;color:var(--text3)">'+_hrmsFmtDate(r.doj)+'</td>';
     h+='<td style="'+_td+';font-weight:600">'+r.team+'</td>';
-    h+='<td style="'+_td+';background:'+pClr+';font-weight:700;color:#1e293b;text-align:center">'+(r.plant||'').replace(/plant[\s\-]*/i,'P')+'</td>';
+    h+='<td style="'+_td+';background:'+pClr+';font-weight:700;color:#1e293b;text-align:center">'+((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant||''):(r.plant||'').replace(/plant[\s\-]*/i,'P'))+'</td>';
     h+='<td style="'+_td+';font-size:12px">'+r.roll+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7">'+_r(r.rateD)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7">'+(r.cat==='staff'?_r(r.rateM):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
@@ -27515,7 +27812,7 @@ async function _hrmsContractExport(){
   // columns I-P wrapped with _dec. Rate/Day rounded to nearest rupee.
   var _rowArr=function(r){return[
     r.empCode, r.name, r.doj, r.team,
-    (r.plant||'').replace(/plant[\s\-]*/i,'P'), r.roll,
+    ((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(r.plant||''):(r.plant||'').replace(/plant[\s\-]*/i,'P')), r.roll,
     _curr(Math.round(r.rateD)),                       // G  Rate/Day
     _curr(r.cat==='staff'?r.rateM:''),                // H  Sal/Month
     _dec(r.P),                                        // I  P
@@ -27989,7 +28286,7 @@ async function _hrmsRenderAdvances(){
     h+='<td style="padding:4px 6px;font-family:var(--mono);font-weight:700;cursor:pointer;text-decoration:underline;color:var(--accent)" data-emp-code="'+r.code+'" title="Click to view employee">'+r.code+'</td>';
     h+='<td style="padding:4px 6px">'+r.name+'</td>';
     var _pClrA=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(r.location||''):'#fff';
-    h+='<td style="padding:4px 6px;font-weight:700;background:'+_pClrA+'">'+(r.location||'—')+'</td>';
+    h+='<td style="padding:4px 6px;font-weight:700;background:'+_pClrA+';text-align:center" title="'+(r.location||'')+'">'+((typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(r.location||'')||'—'):(r.location||'—'))+'</td>';
     h+='<td style="padding:4px 6px;text-align:right;font-family:var(--mono);'+(r.ob?'font-weight:700':'color:var(--text3)')+'">'+r.ob+'</td>';
     // Advance is now an inline editable input. Imported amounts get an
     // amber-tinted style so the operator can spot fetched-from-Excel
@@ -28710,7 +29007,7 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     window._hrmsSalDetails[ec]=d;
 
     var pClr=_hrmsGetPlantColor(d.location||'');
-    var plt=(d.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(d.location||''):(d.location||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     // Match Contract Salary table row density
     var _td='padding:4px 5px;border:1px solid #94a3b8;';
     var _tdr=_td+'text-align:right;font-family:var(--mono);';
@@ -28720,7 +29017,7 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
     h+='<td style="'+_tdF+'left:0;text-align:center">'+(ei+1)+'</td>';
     h+='<td style="'+_tdF+'left:22px;font-weight:800;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline" data-emp-code="'+ec+'" title="Click to view employee">'+ec+'</td>';
     h+='<td style="'+_tdF+'left:62px;font-weight:700;font-size:12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+d.name+'</td>';
-    h+='<td style="'+_tdF+'left:182px"><span style="background:'+pClr+';padding:1px 2px;border-radius:3px;font-size:9px;font-weight:700">'+plt+'</span></td>';
+    h+='<td style="'+_tdF+'left:182px;background:'+pClr+';text-align:center;font-weight:800;font-size:11px;color:#0f172a;font-family:var(--mono);letter-spacing:.3px" title="'+(d.location||'')+'">'+plt+'</td>';
     h+='<td style="'+_tdr+'">'+_r(d.rateD||0)+'</td><td style="'+_tdr+'">'+_r(d.rateM||0)+'</td>';
     h+='<td style="'+_tdr+'background:#faf5ff">'+(d.plOB||0)+'</td><td style="'+_tdr+'background:#faf5ff">'+(d.plGiven||0)+'</td><td style="'+_tdr+'background:#faf5ff">'+(d.plCB||0)+'</td>';
     h+='<td style="'+_tdr+'background:#eff6ff">'+(d.totalP||0)+'</td><td style="'+_tdr+'background:#eff6ff;color:#dc2626">'+(d.totalA||0)+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(d.totalOT)+'</td><td style="'+_tdr+'background:#eff6ff">'+_hrmsFmtOT(d.totalOTS)+'</td><td style="'+_tdr+'background:#eff6ff">'+(d.totalPL||0)+'</td>';
@@ -29081,12 +29378,12 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
     if(!window._hrmsSalDetails) window._hrmsSalDetails={};
     window._hrmsSalDetails[emp.empCode]=_det;
     h+='<tr style="border-bottom:1px solid #e2e8f0;cursor:pointer" onclick="_hrmsSalShowDetail(\''+emp.empCode+'\')" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\'\'">';
-    var plt=(_empLoc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
+    var plt=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(_empLoc||''):(_empLoc||'').replace(/plant[\s\-]*/i,'P').replace(/^(.{4}).*$/,'$1');
     var _tdF=_td+'position:sticky;z-index:1;background:#fff;';
     h+='<td style="'+_tdF+'left:0;text-align:center">'+(ei+1)+'</td>';
     h+='<td style="'+_tdF+'left:22px;font-weight:800;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline" data-emp-code="'+emp.empCode+'" title="Click to view employee">'+emp.empCode+'</td>';
     h+='<td style="'+_tdF+'left:62px;font-weight:700;font-size:12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+_hrmsDispName(emp)+'</td>';
-    h+='<td style="'+_tdF+'left:182px"><span style="background:'+pClr+';padding:1px 2px;border-radius:3px;font-size:9px;font-weight:700">'+plt+'</span></td>';
+    h+='<td style="'+_tdF+'left:182px;background:'+pClr+';text-align:center;font-weight:800;font-size:11px;color:#0f172a;font-family:var(--mono);letter-spacing:.3px" title="'+(_empLoc||'')+'">'+plt+'</td>';
     h+='<td style="'+_tdr+'">'+_r(rateD)+'</td>';
     h+='<td style="'+_tdr+'">'+_r(rateM)+'</td>';
     // PL
@@ -29229,7 +29526,7 @@ function _hrmsSalGetCurrentRows(){
     var advOB=_r(d.advOB||0),advMonth=_r((_advRec&&_advRec.advance)||0);
     var advTotal=advOB+advMonth,advDed=_r((_advRec&&_advRec.deduction)||0),advCB=advTotal-advDed;
     var catShort=cat==='staff'?'ST':'W';
-    var plantShort=(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
+    var plantShort=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(d.location||''):(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
     rows.push({
       'Category':catShort,'Plant':plantShort,'Emp Code':String(d.empCode),'Name':d.name,
       'P':d.totalP,'A':d.totalA,'PL Given':+(d.plGiven||0).toFixed(2),'PH':d.phCount||0,
@@ -29383,7 +29680,7 @@ function _hrmsOrSalExport(catFilter){
     var advDed=_r((_advRec&&_advRec.deduction)||0);
     var advCB=advTotal-advDed;
     var catShort=(d.category||'').toLowerCase()==='staff'?'ST':'W';
-    var plantShort=(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
+    var plantShort=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(d.location||''):(d.location||'').replace(/plant[\s\-]*(\d+)/i,'P$1').replace(/^(.{4}).*$/,'$1');
     rows.push([
       catShort,plantShort,d.empCode,d.name,
       d.totalP,d.totalA,+(d.plGiven||0).toFixed(2),d.phCount||0,
@@ -29842,7 +30139,7 @@ function _hrmsRenderAltGrid(yr,mo){
   rows.forEach(function(r,i){
     var emp=r.emp;
     var pClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(emp.location||''):'#fff';
-    var pShort=String(emp.location||'—').replace(/plant[\s\-_]*(\d+)/i,'P$1');
+    var pShort=(typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(emp.location||'')||'—'):String(emp.location||'—').replace(/plant[\s\-_]*(\d+)/i,'P$1');
     html+='<tr>'+
       '<td style="'+td+';color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
     if(!r._empHidden){
