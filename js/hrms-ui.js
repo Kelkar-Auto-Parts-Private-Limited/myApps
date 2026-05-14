@@ -16045,8 +16045,7 @@ function _hrmsDasRender(){
   } else {
     compPlants.forEach(function(plant){
       // Filter to departments with at least one actual or allocated
-      // value in this plant — otherwise the per-plant table is mostly
-      // empty rows that drown out the meaningful ones.
+      // value in this plant.
       var plantDepts=compDepts.filter(function(dept){
         for(var i=0;i<compGroups.length;i++){
           var key=plant+'|'+dept+'|'+compGroups[i].id;
@@ -16054,158 +16053,155 @@ function _hrmsDasRender(){
         }
         return false;
       });
-      // Tight column widths — short labels (AL / P / S) let each
-      // group sub-cell shrink to 34px and the Total triplet to 42px.
-      // The dept column locks at 140px on the left; the total
-      // triplet locks on the right.
-      var grpW=34, totW=42, deptW=140;
-      var grpMin=grpW*3+'px', totMin=totW*3+'px';
+      // ── Cluster depts by their "active" role-group footprint ──
+      // Two depts that have nonzero AL or P in the *same* set of groups
+      // share a cluster. Each cluster gets its own sub-table whose
+      // columns are limited to the groups in that cluster — instead of
+      // one wide sheet with mostly-empty cells. Restriction policy
+      // (settings tab) caps each dept at 5 groups so a cluster has
+      // ≤5 group columns.
+      var groupIdx={};compGroups.forEach(function(g,i){groupIdx[g.id]=i;});
+      var groupById={};compGroups.forEach(function(g){groupById[g.id]=g;});
+      var clusters=[];var clusterBySig={};
+      plantDepts.forEach(function(dept){
+        var gids=[];
+        compGroups.forEach(function(g){
+          var key=plant+'|'+dept+'|'+g.id;
+          if((+alloc.allocations[key]||0)>0||(+alloc.actuals[key]||0)>0) gids.push(g.id);
+        });
+        gids.sort(function(a,b){return (groupIdx[a]||0)-(groupIdx[b]||0);});
+        var sig=gids.join('|');
+        var cl=clusterBySig[sig];
+        if(!cl){cl={sig:sig,gids:gids,depts:[]};clusterBySig[sig]=cl;clusters.push(cl);}
+        cl.depts.push(dept);
+      });
+      // Sort clusters by group-count desc (so the richer cluster comes
+      // first) then by signature for stability. Sort depts inside each
+      // cluster alphabetically.
+      clusters.sort(function(a,b){
+        if(a.gids.length!==b.gids.length) return b.gids.length-a.gids.length;
+        return a.sig.localeCompare(b.sig);
+      });
+      clusters.forEach(function(cl){cl.depts.sort(function(a,b){return String(a).localeCompare(String(b));});});
+
+      // ── Shared styling ──
+      var deptW=160;
+      var grpW=46;// AL/P/S share equal width inside a group block.
       var headBg='background:linear-gradient(180deg,#f8fafc,#e2e8f0)';
-      // Border palette — heavy slate (#1e293b) used for every freeze
-      // boundary so the user can spot the fixed rows / columns at a
-      // glance.
-      // Default cell hairlines come from the .hrms-das-plant-tbl CSS
-      // class (1px slate-200). Dark slate is reserved for: outer
-      // outline, header bottom, Total-row top, Department↔Group
-      // divider, role-group dividers (right edge of each S cell),
-      // Total column left edge.
       var freezeBd='2px solid #94a3b8';
       var groupBd ='2px solid #94a3b8';
       var hairBd  ='1px solid #e2e8f0';
-      // Header row 1 (group names) has no bottom border — that line
-      // would render as a second dark divider between header rows. The
-      // sub-header row 2 owns the single dark bottom edge below the
-      // entire header band.
-      var topHdr='padding:6px 4px;text-align:center;color:#0f172a;font-weight:800;'+headBg;
-      var deptHdrBase='padding:6px 10px;text-align:left;color:#0f172a;font-weight:800;border-bottom:'+freezeBd+';border-right:'+groupBd+';'+headBg+';min-width:'+deptW+'px;width:'+deptW+'px';
-      var totHdrBase=topHdr+';background:linear-gradient(180deg,#eef2ff,#c7d2fe);border-left:'+groupBd;
+      var topHdr='padding:6px 6px;text-align:center;color:#0f172a;font-weight:800;'+headBg;
       var subHdr=function(label,bg,clr,extra){
         return '<th style="padding:4px 2px;text-align:center;color:'+clr+';font-weight:900;border-bottom:'+freezeBd+';background:'+bg+';font-size:11px;letter-spacing:.3px'+(extra||'')+'">'+label+'</th>';
       };
-      // No row / column freezing — the table scrolls naturally so the
-      // browser doesn't render sticky cell backgrounds that can look
-      // like vertical / horizontal column bands.
-      var totStickyL='';
-      var totStickyM='';
-      var totStickyR='';
-      var deptSticky='';
-      var hdrTop='';
-      var subTop='';
-      var ph='<div style="font-size:11px;color:var(--text3);margin:0 0 10px"><b>AL</b> = Allocated · <b style="color:#15803d">P</b> = Actual Present · <b style="color:#b91c1c">S</b> = Shortage (<i>max(AL − P, 0)</i>).</div>';
-      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;border:2px solid #94a3b8;border-radius:8px"><table class="hrms-das-plant-tbl" style="border-collapse:collapse;border-spacing:0;font-size:12px">';
-      // Header row 1 — group names; the Total group spans 3 cols and freezes right.
-      ph+='<thead><tr>';
-      ph+='<th rowspan="2" style="'+deptHdrBase+'">Department</th>';
-      compGroups.forEach(function(g){
-        ph+='<th colspan="3" style="'+topHdr+';min-width:'+grpMin+';border-right:'+groupBd+';border-bottom:'+hairBd+'">'+g.name+'</th>';
-      });
-      ph+='<th colspan="3" style="'+totHdrBase+';min-width:'+totMin+';border-bottom:'+hairBd+'">Total</th>';
-      ph+='</tr>';
-      // Header row 2 — AL / P / S under each group + the Total triplet
-      // (which also freezes right with per-cell offsets). The 'S' cell
-      // of each group carries the heavy right border so groups read
-      // as discrete blocks.
-      // Sub-header row uses a uniform slate-50 background so the
-      // green/red P/S column tints don't form a vertical frame around
-      // each column. Coloured TEXT on AL/P/S still tells them apart.
       var subBg='#f8fafc';
-      ph+='<tr>';
-      compGroups.forEach(function(){
-        ph+=subHdr('AL',subBg,'#1d4ed8',';width:'+grpW+'px;min-width:'+grpW+'px');
-        ph+=subHdr('P', subBg,'#15803d',';width:'+grpW+'px;min-width:'+grpW+'px');
-        ph+=subHdr('S', subBg,'#b91c1c',';width:'+grpW+'px;min-width:'+grpW+'px;border-right:'+groupBd);
-      });
-      ph+=subHdr('AL',subBg,'#1d4ed8',';width:'+totW+'px;min-width:'+totW+'px;border-left:'+groupBd);
-      ph+=subHdr('P', subBg,'#15803d',';width:'+totW+'px;min-width:'+totW+'px');
-      ph+=subHdr('S', subBg,'#b91c1c',';width:'+totW+'px;min-width:'+totW+'px');
-      ph+='</tr></thead><tbody>';
-      if(!plantDepts.length){
-        ph+='<tr><td colspan="'+(compGroups.length*3+4)+'" style="padding:18px;text-align:center;color:#94a3b8">No departments with present or allocated headcount in this plant.</td></tr>';
-      }
-      // Per-group column totals across all rendered departments so the
-      // sticky Total row at the bottom mirrors the per-row total cells
-      // on the right. Shortages are accumulated separately (sum of
-      // per-cell / per-row shortages) — never derived from
-      // alloc - actual at the total level, because per-dept excess in
-      // one row would otherwise mask genuine shortages in others.
-      var colAct={},colAlloc={},colSh={};
-      var grandAct=0,grandAlloc=0,grandSh=0;
       var bodyCell=function(val,bg,clr,bold,extra){
         var w=bold?'900':'700';
         return '<td style="padding:4px 4px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+w+';font-family:var(--mono);border-bottom:'+hairBd+(extra||'')+'">'+(val||'—')+'</td>';
       };
-      plantDepts.forEach(function(dept){
-        var rowAct=0,rowAlloc=0;
-        ph+='<tr>';
-        ph+='<td style="padding:4px 10px;font-weight:700;background:#fff;border-right:'+groupBd+';border-bottom:'+hairBd+';width:'+deptW+'px;min-width:'+deptW+'px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_hrmsEsc(dept)+'">'+dept+'</td>';
-        compGroups.forEach(function(g){
-          var key=plant+'|'+dept+'|'+g.id;
-          var a =+(alloc.actuals[key]||0)||0;
-          var al=+(alloc.allocations[key]||0)||0;
-          var sh=Math.max(al-a,0);
-          rowAct+=a; rowAlloc+=al;
-          colAct[g.id]=(colAct[g.id]||0)+a;
-          colAlloc[g.id]=(colAlloc[g.id]||0)+al;
-          colSh[g.id]=(colSh[g.id]||0)+sh;
-          // Body cells use white backgrounds — the AL/P/S distinction
-          // is carried by the coloured text alone. Coloured backgrounds
-          // were creating an apparent vertical "box" around each
-          // column (especially P) when bracketed by the dark header
-          // and Total-row borders.
-          ph+=bodyCell(al,'#fff','#1d4ed8',false,';width:'+grpW+'px;min-width:'+grpW+'px');
-          // P (Actual Present) cell — when >0, render as a hyperlink that
-          // opens the empCode/name/in/out drill-down popup for this
-          // plant|dept|group bucket.
-          var pCellExtra=';width:'+grpW+'px;min-width:'+grpW+'px';
-          if(a>0){
-            var plE=String(plant).replace(/'/g,"\\'");
-            var dpE=String(dept).replace(/'/g,"\\'");
-            var giE=String(g.id).replace(/'/g,"\\'");
-            ph+='<td style="padding:4px 4px;text-align:center;background:#fff;font-family:var(--mono);border-bottom:'+hairBd+pCellExtra+'"><a href="javascript:void(0)" onclick="_hrmsDasShowAllocDetail(\''+plE+'\',\''+dpE+'\',\''+giE+'\')" style="color:#15803d;font-weight:700;text-decoration:underline;cursor:pointer">'+a+'</a></td>';
-          } else {
-            ph+=bodyCell(a,'#fff','#15803d',false,pCellExtra);
-          }
-          ph+=bodyCell(sh>0?sh:0,sh>0?'#fee2e2':'#fff',sh>0?'#b91c1c':'#cbd5e1',sh>0,';width:'+grpW+'px;min-width:'+grpW+'px;border-right:'+groupBd);
-        });
-        var rowSh=Math.max(rowAlloc-rowAct,0);
-        // Per-row Total triplet — white bg like the rest of the body.
-        ph+=bodyCell(rowAlloc,'#fff','#1d4ed8',true,';width:'+totW+'px;min-width:'+totW+'px;border-left:'+groupBd);
-        ph+=bodyCell(rowAct,'#fff','#15803d',true,';width:'+totW+'px;min-width:'+totW+'px');
-        ph+=bodyCell(rowSh>0?rowSh:0,rowSh>0?'#fee2e2':'#fff',rowSh>0?'#b91c1c':'#cbd5e1',true,';width:'+totW+'px;min-width:'+totW+'px');
-        ph+='</tr>';
-        grandAct+=rowAct; grandAlloc+=rowAlloc; grandSh+=rowSh;
-      });
-      // Total row — sticky bottom. Distinguished purely by a slate
-      // gradient background (no top border) so the row reads as a
-      // band across the table.
-      if(plantDepts.length){
-        var totBg='linear-gradient(180deg,#e2e8f0,#cbd5e1)';
-        // Each Total-row cell carries the dark top border (the
-        // header-bottom equivalent for the footer), the group / dept
-        // dividers, and `position:sticky;bottom:0` so the footer
-        // stays pinned while the body scrolls beneath it.
-        var totSticky=';position:sticky;bottom:0;z-index:5';
-        ph+='<tr>';
-        ph+='<td style="padding:7px 10px;font-weight:900;color:#0f172a;background:'+totBg+';width:'+deptW+'px;min-width:'+deptW+'px;border-top:'+freezeBd+';border-right:'+groupBd+totSticky+'">Total</td>';
-        compGroups.forEach(function(g){
-          // Column shortage = sum of per-cell shortages, NOT
-          // max(alloc - actual, 0) — otherwise excess in one dept
-          // would silently cancel a shortage in another.
-          var a=colAct[g.id]||0, al=colAlloc[g.id]||0, sh=colSh[g.id]||0;
-          ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#1d4ed8;font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+totSticky+'">'+(al||'—')+'</td>';
-          ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#15803d;font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+totSticky+'">'+(a||'—')+'</td>';
-          ph+='<td style="padding:6px 4px;text-align:center;background:'+(sh>0?'#fecaca':totBg)+';color:'+(sh>0?'#b91c1c':'#94a3b8')+';font-weight:900;font-family:var(--mono);width:'+grpW+'px;min-width:'+grpW+'px;border-top:'+freezeBd+';border-right:'+groupBd+totSticky+'">'+(sh>0?sh:'—')+'</td>';
-        });
-        // Grand shortage — accumulated row-level shortages (matches
-        // per-row Total triplet behaviour). Subtracting totals would
-        // hide shortages whenever some dept rows had excess actuals.
-        var gSh=grandSh;
-        ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#1d4ed8;font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+';border-left:'+groupBd+totSticky+'">'+(grandAlloc||'—')+'</td>';
-        ph+='<td style="padding:6px 4px;text-align:center;background:'+totBg+';color:#15803d;font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+totSticky+'">'+(grandAct||'—')+'</td>';
-        ph+='<td style="padding:6px 4px;text-align:center;background:'+(gSh>0?'#fca5a5':totBg)+';color:'+(gSh>0?'#7f1d1d':'#94a3b8')+';font-weight:900;font-family:var(--mono);width:'+totW+'px;min-width:'+totW+'px;border-top:'+freezeBd+totSticky+'">'+(gSh>0?gSh:'—')+'</td>';
-        ph+='</tr>';
+      var ph='<div style="font-size:11px;color:var(--text3);margin:0 0 10px"><b>AL</b> = Allocated · <b style="color:#15803d">P</b> = Actual Present · <b style="color:#b91c1c">S</b> = Shortage (<i>max(AL − P, 0)</i>). Departments are grouped by their common allocated role-groups (max '+_HRMS_ALLOC_MAX_GROUPS_PER_DEPT+' groups per department).</div>';
+      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;border:2px solid #94a3b8;border-radius:8px;padding:0">';
+
+      if(!clusters.length){
+        ph+='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">No departments with present or allocated headcount in this plant.</div>';
       }
-      ph+='</tbody></table></div>';
+      // Plant-level grand totals across every cluster.
+      var plantAct=0, plantAlloc=0, plantSh=0;
+
+      var SLOT_COUNT=_HRMS_ALLOC_MAX_GROUPS_PER_DEPT;
+      // All clusters rendered into ONE <table> so column widths line
+      // up vertically across every cluster (separate tables can drift
+      // when the browser auto-sizes columns). Fixed col widths via
+      // <colgroup> + table-layout:fixed enforce the geometry.
+      ph+='<table class="hrms-das-plant-tbl" style="border-collapse:collapse;border-spacing:0;font-size:12px;width:auto;table-layout:fixed">';
+      ph+='<colgroup>';
+      ph+='<col style="width:'+deptW+'px">';
+      for(var _ci=0;_ci<SLOT_COUNT;_ci++){
+        ph+='<col style="width:'+grpW+'px"><col style="width:'+grpW+'px"><col style="width:'+grpW+'px">';
+      }
+      ph+='<col style="width:'+grpW+'px"><col style="width:'+grpW+'px"><col style="width:'+grpW+'px">';
+      ph+='</colgroup>';
+      // Single bold top header — Department · 5 group placeholders · Total.
+      // (Per-cluster group names render inline as a slim sub-header strip
+      // above each cluster's dept rows so the column meaning travels
+      // with the data.)
+      ph+='<thead><tr>';
+      ph+='<th rowspan="2" style="padding:6px 10px;text-align:left;color:#000;font-weight:900;'+headBg+';border-bottom:'+freezeBd+';border-right:'+groupBd+'">Department</th>';
+      for(var _hi=0;_hi<SLOT_COUNT;_hi++){
+        ph+='<th colspan="3" style="'+topHdr+';color:#000;font-weight:900;border-right:'+groupBd+';border-bottom:'+hairBd+'">Group '+(_hi+1)+'</th>';
+      }
+      ph+='<th colspan="3" style="'+topHdr+';color:#000;font-weight:900;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border-bottom:'+hairBd+';border-left:'+groupBd+'">Total</th>';
+      ph+='</tr><tr>';
+      for(var _si=0;_si<SLOT_COUNT;_si++){
+        ph+=subHdr('AL',subBg,'#000','');
+        ph+=subHdr('P', subBg,'#000','');
+        ph+=subHdr('S', subBg,'#000',';border-right:'+groupBd);
+      }
+      ph+=subHdr('AL',subBg,'#000',';border-left:'+groupBd);
+      ph+=subHdr('P', subBg,'#000','');
+      ph+=subHdr('S', subBg,'#000','');
+      ph+='</tr></thead>';
+      clusters.forEach(function(cl,clIdx){
+        var slots=cl.gids.slice(0,SLOT_COUNT);
+        while(slots.length<SLOT_COUNT) slots.push(null);
+        ph+='<tbody>';
+        // Per-cluster sub-header strip — light grey row with this
+        // cluster's group names slotted into their columns. The
+        // single shared column geometry guarantees vertical alignment
+        // with every other cluster's header strip + Total column.
+        ph+='<tr>';
+        ph+='<th style="padding:5px 10px;text-align:left;color:#000;font-weight:900;background:#f1f5f9;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+cl.depts.length+' dept(s) sharing this group set">'+cl.depts.length+' dept(s)</th>';
+        slots.forEach(function(gid){
+          var gName=gid?((groupById[gid]&&groupById[gid].name)||gid):'';
+          ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#f1f5f9;color:#000;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gName?_hrmsEsc(gName):'<span style="color:#cbd5e1">—</span>')+'</th>';
+        });
+        ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#e0e7ff;color:#000;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-left:'+groupBd+'">Total</th>';
+        ph+='</tr>';
+        cl.depts.forEach(function(dept){
+          var rowAct=0,rowAlloc=0;
+          ph+='<tr>';
+          ph+='<td style="padding:4px 10px;font-weight:700;background:#fff;border-right:'+groupBd+';border-bottom:'+hairBd+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_hrmsEsc(dept)+'">'+_hrmsEsc(dept)+'</td>';
+          slots.forEach(function(gid){
+            if(!gid){
+              ph+='<td style="padding:4px 4px;background:#fafafa;border-bottom:'+hairBd+'">&nbsp;</td>';
+              ph+='<td style="padding:4px 4px;background:#fafafa;border-bottom:'+hairBd+'">&nbsp;</td>';
+              ph+='<td style="padding:4px 4px;background:#fafafa;border-bottom:'+hairBd+';border-right:'+groupBd+'">&nbsp;</td>';
+              return;
+            }
+            var key=plant+'|'+dept+'|'+gid;
+            var a =+(alloc.actuals[key]||0)||0;
+            var al=+(alloc.allocations[key]||0)||0;
+            var sh=Math.max(al-a,0);
+            rowAct+=a; rowAlloc+=al;
+            ph+=bodyCell(al,'#fff','#1d4ed8',false,'');
+            if(a>0){
+              var plE=String(plant).replace(/'/g,"\\'");
+              var dpE=String(dept).replace(/'/g,"\\'");
+              var giE=String(gid).replace(/'/g,"\\'");
+              ph+='<td style="padding:4px 4px;text-align:center;background:#fff;font-family:var(--mono);border-bottom:'+hairBd+'"><a href="javascript:void(0)" onclick="_hrmsDasShowAllocDetail(\''+plE+'\',\''+dpE+'\',\''+giE+'\')" style="color:#15803d;font-weight:700;text-decoration:underline;cursor:pointer">'+a+'</a></td>';
+            } else {
+              ph+=bodyCell(a,'#fff','#15803d',false,'');
+            }
+            ph+=bodyCell(sh>0?sh:0,sh>0?'#fee2e2':'#fff',sh>0?'#b91c1c':'#cbd5e1',sh>0,';border-right:'+groupBd);
+          });
+          var rowSh=Math.max(rowAlloc-rowAct,0);
+          ph+=bodyCell(rowAlloc,'#eef2ff','#1d4ed8',true,';border-left:'+groupBd);
+          ph+=bodyCell(rowAct,'#eef2ff','#15803d',true,'');
+          ph+=bodyCell(rowSh>0?rowSh:0,rowSh>0?'#fee2e2':'#eef2ff',rowSh>0?'#b91c1c':'#cbd5e1',true,'');
+          ph+='</tr>';
+          plantAct+=rowAct;plantAlloc+=rowAlloc;plantSh+=rowSh;
+        });
+        ph+='</tbody>';
+      });
+      ph+='</table>';
+      // Plant-level grand strip.
+      if(clusters.length){
+        ph+='<div style="display:flex;justify-content:flex-end;gap:18px;padding:10px 14px;background:linear-gradient(180deg,#312e81,#1e1b4b);color:#fff;font-size:12px;font-weight:800;border-top:2px solid #94a3b8">'
+          +'<span>Plant Total &nbsp;·&nbsp; <span style="color:#bfdbfe">AL '+plantAlloc+'</span> &nbsp;·&nbsp; <span style="color:#86efac">P '+plantAct+'</span> &nbsp;·&nbsp; <span style="color:'+(plantSh>0?'#fca5a5':'#94a3b8')+'">S '+(plantSh>0?plantSh:'—')+'</span></span>'
+        +'</div>';
+      }
+      ph+='</div>';// outer scroll wrapper
       compHtmlByPlant[plant]=ph;
     });
   }
@@ -26585,6 +26581,11 @@ var _HRMS_ALLOC_DEFAULTS=[
   {id:'gOperator',name:'Operator',roles:['BJ','BS','M']},
   {id:'gOther',   name:'Other',   roles:[],isCatchAll:true}
 ];
+// Maximum role groups any single (plant, department) can receive a
+// non-zero allocation in. Enforced inside _hrmsAllocPromptEdit's save
+// path so the operator can't slowly create a wide / sparse grid that
+// breaks the cluster-grouped Allocation vs Actual layout.
+var _HRMS_ALLOC_MAX_GROUPS_PER_DEPT=5;
 
 function _hrmsAllocationData(){
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='allocations';});
@@ -26944,6 +26945,25 @@ function _hrmsAllocPromptEdit(ev,key){
       var v=parseInt(raw,10);
       if(isNaN(v)||v<0) v=0;
       var prev=rec.data.allocations[key];
+      // Cap each (plant, dept) at _HRMS_ALLOC_MAX_GROUPS_PER_DEPT
+      // nonzero groups. Block writes that would push this dept past
+      // the cap; zero / reduction writes always pass.
+      if(v>0&&!prev){
+        var parts=String(key).split('|');
+        if(parts.length>=3){
+          var prefix=parts[0]+'|'+parts[1]+'|';
+          var nzCount=0;
+          Object.keys(rec.data.allocations||{}).forEach(function(k){
+            if(k===key) return;
+            if(k.indexOf(prefix)!==0) return;
+            if((+rec.data.allocations[k]||0)>0) nzCount++;
+          });
+          if(nzCount>=_HRMS_ALLOC_MAX_GROUPS_PER_DEPT){
+            if(typeof notify==='function') notify('⚠ Limit reached — max '+_HRMS_ALLOC_MAX_GROUPS_PER_DEPT+' role groups per department. Clear an existing group first.',true);
+            return;
+          }
+        }
+      }
       if(v) rec.data.allocations[key]=v;
       else delete rec.data.allocations[key];
       // Auto-save (the bulk "Save Allocations" button has been

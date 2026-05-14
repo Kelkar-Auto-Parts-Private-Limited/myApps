@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260514-V12">
+<meta name="app-build" content="260514-V29">
 <title>KAP — myApps Portal</title>
-<link rel="stylesheet" href="css/portal.css?v=260514-V12">
+<link rel="stylesheet" href="css/portal.css?v=260514-V29">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -81,7 +81,7 @@
     </div>
     <!-- Nav tabs as sidebar items -->
     <div style="flex:1;padding:6px 10px;overflow-y:auto">
-      <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')">🏠 Apps</div>
+      <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')">🏠 My Apps</div>
       <div class="ps-nav" id="psNavUsers" onclick="showTab('users')" style="display:none">👥 User Management <span id="pSideUserCount" style="font-size:10px;background:rgba(42,154,160,.12);color:var(--accent);padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:800"></span></div>
       <div class="ps-nav" id="psNavProfile" onclick="showTab('profile')">👤 My Profile</div>
       <div class="ps-nav" id="psNavPermissions" onclick="showTab('permissions')" style="display:none">🔐 Access Management</div>
@@ -126,7 +126,7 @@
     <div class="portal-welcome"><h1 id="welcomeMsg">Welcome</h1><p id="welcomeSub">Select an application to get started</p></div>
     <!-- TABS — hidden, using sidebar nav instead -->
     <div class="portal-tabs" id="portalTabs" style="display:none">
-      <div class="portal-tab active" onclick="showTab('apps')">🏠 Apps</div>
+      <div class="portal-tab active" onclick="showTab('apps')">🏠 My Apps</div>
       <div class="portal-tab" id="usersTab" onclick="showTab('users')" style="display:none">👥 Users</div>
       <div class="portal-tab" onclick="showTab('profile')">👤 Profile</div>
     </div>
@@ -396,8 +396,8 @@
 </div>
 </div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V12"></script>
-<script src="js/portal-logic.js?v=260514-V12"></script>
-<script src="js/portal-ui.js?v=260514-V12"></script>
+<script src="js/common.js?v=260514-V29"></script>
+<script src="js/portal-logic.js?v=260514-V29"></script>
+<script src="js/portal-ui.js?v=260514-V29"></script>
 </body>
 </html>

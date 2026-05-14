@@ -38,12 +38,12 @@ async function _hwmsTopbarRefresh(){
   var btn=document.getElementById('hwmsTopbarRefresh');
   if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.innerHTML='↻ <span style="font-size:12px">Refreshing…</span>';}
   try{
-    // Force the next bg sync to be a true-full so all rows are pulled, not
-    // just incremental deltas (which return ~nothing on cold open).
-    if(window._hwmsFullIncr) _hwmsFullIncr.callCount=4;
-    if(window._hwmsIncr){_hwmsIncr.mode='unknown';_hwmsIncr.probed=false;}
-    if(typeof _bgSyncFromSupabase==='function') await _bgSyncFromSupabase();
-    if(typeof notify==='function') notify('↻ Refreshed');
+    // Version-key cache: _hwmsManualRefresh bypasses the version check,
+    // pulls fresh tables, and overwrites the snapshot with the new
+    // server data_version. Replaces the legacy incremental-sync path
+    // (which is now a no-op for HWMS).
+    if(typeof _hwmsManualRefresh==='function') await _hwmsManualRefresh();
+    else if(typeof notify==='function') notify('⚠ Refresh unavailable',true);
   }catch(e){
     console.warn('refresh err:',e);
     if(typeof notify==='function') notify('⚠ Refresh failed: '+(e.message||e),true);
@@ -236,47 +236,65 @@ function _hwmsPageAllowed(key,fallback){
 // to permCanView / permCanAct using this map. Keys without a mapping
 // (e.g. view-only column toggles like cont.viewValue) keep the legacy
 // hardcoded role-based behaviour below.
+// Action shorthand → Access Management key map. Pruned to the view-
+// section toggles only (the per-button action.* keys were dropped from
+// _PERM_KEYS.HWMS — see common.js). If you re-introduce a specific
+// button's gate in Access Management, add its mapping here AND its
+// `_PERM_KEYS.HWMS` entry; _hwmsCan will pick it up automatically.
 var _HWMS_PERM_MAP={
-  'cont.add':'action.addContainer','cont.edit':'action.editContainer','cont.delete':'action.deleteContainer',
-  'cont.import':'action.importContainer','cont.export':'action.exportContainer',
-  // Container section-level view toggles
   'cont.viewValue':'action.viewContainerValue',
   'cont.viewDispatch':'action.viewContainerDispatch',
-  'cont.viewPostShip':'action.viewContainerPostShip',
-  'mi.add':'action.createInvoice','mi.edit':'action.editInvoice','mi.delete':'action.deleteInvoice',
-  'mi.import':'action.importInvoice','mi.export':'action.exportInvoice','mi.confirm':'action.confirmInvoice',
-  'si.add':'action.addSubInvoice','si.edit':'action.editSubInvoice','si.delete':'action.deleteSubInvoice',
-  'si.import':'action.importSubInvoice','si.export':'action.exportSubInvoice',
-  'mr.add':'action.addMR','mr.edit':'action.editMR','mr.delete':'action.deleteMR',
-  'mr.import':'action.importMR','mr.export':'action.exportMR',
-  'mr.gensi':'action.generateSI','mr.pickup':'action.mrPickup'
-  // si.viewDetail / si.viewAmounts still kept hardcoded — user hasn't
-  // asked for those sections yet; add the same way if/when needed.
+  'cont.viewPostShip':'action.viewContainerPostShip'
 };
 function _hwmsCan(action){
-  var role=_hwmsRole();
-  if(!role) return false;
-  if(role==='SA') return true;
-  // If Role Settings have been configured for HWMS, they are authoritative.
+  if(!CU) return false;
+  // Super Admin / HWMS Admin always allowed — module-admin bypass.
+  if(_hwmsIsSA()||_hwmsIsAdmin()) return true;
+  var role=_hwmsRole();// legacy code: 'HA' / 'WA' / 'WU' / '' (custom role)
+  // Access Management is page & tab level only — per-button (action.*)
+  // keys were dropped per request. Action shorthand (cont.add, mi.edit,
+  // mr.delete, …) is now gated on the PARENT PAGE: if the user can see
+  // the page, they can do every button inside it.
+  var _actionParent={
+    'cont.add':'page.containers','cont.edit':'page.containers','cont.delete':'page.containers',
+    'cont.import':'page.containers','cont.export':'page.containers',
+    'mi.add':'page.invoices','mi.edit':'page.invoices','mi.delete':'page.invoices',
+    'mi.import':'page.invoices','mi.export':'page.invoices','mi.confirm':'page.invoices',
+    'si.add':'page.subinvoices','si.edit':'page.subinvoices','si.delete':'page.subinvoices',
+    'si.import':'page.subinvoices','si.export':'page.subinvoices',
+    'si.viewDetail':'page.subinvoices','si.viewAmounts':'page.subinvoices',
+    'mr.add':'page.mr','mr.edit':'page.mr','mr.delete':'page.mr',
+    'mr.import':'page.mr','mr.export':'page.mr','mr.gensi':'page.mr','mr.pickup':'page.mr',
+    'masters.edit':'page.masters'
+  };
+  if(_actionParent[action]){
+    return _hwmsCan(_actionParent[action]);
+  }
+  // View-section toggles (cont.viewValue / Dispatch / PostShip) are
+  // standalone Access Management keys — surface their mapped names so
+  // permCanView reads the right entry.
+  var _viewSectionMap={
+    'cont.viewValue':'action.viewContainerValue',
+    'cont.viewDispatch':'action.viewContainerDispatch',
+    'cont.viewPostShip':'action.viewContainerPostShip'
+  };
+  if(_viewSectionMap[action]) action=_viewSectionMap[action];
+  // Access Management is authoritative for any user whose roles have
+  // an entry in HWMS permissions (covers SA/HA-equivalent custom roles
+  // AND every new role admin creates — Supplier, Buyer, Read Only,
+  // and any further custom labels). View or Full both grant access.
   if(typeof permConfigured==='function'&&permConfigured('HWMS')){
-    // Edit-style keys must require Full even if named masters.edit etc.
-    // View-level on an action-like key means "cannot do".
-    if(action==='masters.edit'){
-      return typeof permCanAct==='function'&&permCanAct('HWMS','masters.edit');
-    }
-    // Page / master-sub-section keys → view-or-full is enough to allow.
-    if(/^(page|masters)\./.test(action)){
+    if(/^(page|masters|action|tab)\./.test(action)){
       return typeof permCanView==='function'&&permCanView('HWMS',action);
     }
-    // Action-like shorthand (cont.add, mi.edit, etc.) → map to action.X and
-    // require Full. Unmapped keys fall through to the legacy hardcoded map.
-    var mapped=_HWMS_PERM_MAP[action];
-    if(mapped){
-      return typeof permCanAct==='function'&&permCanAct('HWMS',mapped);
-    }
   }
-  // Legacy hardcoded role defaults (used when no permissions configured,
-  // or for unmapped view-toggle keys).
+  // Legacy fallback — only kicks in when no role permissions are
+  // configured at all (i.e. brand-new install or admin has never
+  // saved the Access Management modal). Maps the 4 legacy role codes
+  // to their original defaults. Custom roles return false here, but
+  // they will hit permConfigured above the moment admin saves any
+  // configuration for the module.
+  if(!role) return false;
   var perms={
     'page.containers':['HA','WA','WU'],
     'page.invoices':['HA'],
@@ -284,14 +302,9 @@ function _hwmsCan(action){
     'page.subinvoices':['HA','WA','WU'],
     'page.mr':['HA','WA','WU'],
     'page.masters':['HA'],
-    'cont.add':['HA'],'cont.edit':['HA'],'cont.delete':[],'cont.import':['HA'],'cont.export':['HA'],
-    'cont.viewValue':['HA'],'cont.viewDispatch':['HA'],'cont.viewPostShip':['HA'],
-    'mi.add':['HA'],'mi.edit':['HA'],'mi.delete':[],'mi.import':['HA'],'mi.export':['HA'],'mi.confirm':['HA'],
-    'si.add':['HA'],'si.edit':['HA'],'si.delete':[],'si.import':['HA'],'si.export':['HA'],
-    'si.viewDetail':['HA'],'si.viewAmounts':['HA'],
-    'mr.add':['HA','WA'],'mr.edit':['HA','WA'],'mr.delete':['HA'],'mr.import':['HA','WA'],'mr.export':['HA','WA'],
-    'mr.gensi':['HA'],'mr.pickup':['HA','WA','WU'],
-    'masters.edit':['HA']
+    'action.viewContainerValue':['HA'],
+    'action.viewContainerDispatch':['HA'],
+    'action.viewContainerPostShip':['HA']
   };
   var allowed=perms[action];
   if(!allowed) return false;
@@ -331,12 +344,15 @@ function _hwmsApplyPermissions(){
   show('navSysGuide',role==='SA'||role==='HA');
   // MI page buttons
   show('btnHwmsInvExport',_hwmsCan('mi.export'));
-  show('btnHwmsInvImport',_hwmsCan('mi.import'));
+  // Import MI / CN / SI hidden per request — buttons stay in the DOM
+  // (in case admin wants them back later) but are forced off here so
+  // _hwmsCan('mi.import') / cont.import can't re-show them.
+  show('btnHwmsInvImport',false);
   show('btnAddHwmsInv',_hwmsCan('mi.add'));
   // Container page buttons
   show('btnAddHwmsCont',_hwmsCan('cont.add'));
   show('btnHwmsContExport',_hwmsCan('cont.export'));
-  show('btnHwmsContImport',_hwmsCan('cont.import'));
+  show('btnHwmsContImport',false);
   // Container inv value column — hide for WA/WU
   var showInvVal=_hwmsCan('cont.viewValue');
   document.querySelectorAll('.hwms-cont-invval').forEach(function(el){el.style.display=showInvVal?'':'none';});
@@ -668,7 +684,7 @@ const MASTER_SCHEMA={
 };
 
 function exportMaster(col){
-  if(!_hwmsIsAdmin()&&!_hwmsIsSA()){notify('⚠ Export is restricted to Admin users only.',true);return;}
+  if(!_hwmsCan('page.masters')){notify('⚠ Access denied — Masters page permission required.',true);return;}
   var schema=MASTER_SCHEMA[col];
   if(!schema){notify('Export not supported for this master',true);return;}
   // Use filtered data if getFiltered exists, else fall back to all DB data
@@ -695,7 +711,7 @@ function exportMaster(col){
 
 // Override importMaster for HWMS role checks + invoice grouping
 function importMaster(col,inputEl){
-  if(!_hwmsIsAdmin()&&!_hwmsIsSA()){notify('⚠ Import is restricted to Admin users only.',true);if(inputEl)inputEl.value='';return;}
+  if(!_hwmsCan('page.masters')){notify('⚠ Access denied — Masters page permission required.',true);if(inputEl)inputEl.value='';return;}
   var file=inputEl.files[0];
   if(!file) return;
   inputEl.value='';
@@ -1261,84 +1277,232 @@ function _hwmsDoFullSync(){
   }).catch(function(e){console.warn('HWMS full sync error:',e.message);});
 }
 
-// Override bootDB to use photo-excluded selects on initial load
+// ═══ HWMS data_version cache (server-side trigger bumps a counter on
+// every hwms_* mutation; client compares against the cached snapshot to
+// decide whether to re-fetch tables). Requires `supabase_hwms_data_version.sql`
+// to have been run once in Supabase.
+function _hwmsCacheKey(){
+  var u=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
+  return 'kap_hwms_cache'+(u?('_'+String(u).toLowerCase()):'');
+}
+function _hwmsLoadCache(){
+  try{
+    var raw=localStorage.getItem(_hwmsCacheKey());
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){return null;}
+}
+function _hwmsSaveCache(version){
+  try{
+    var cache={ts:Date.now(),version:version};
+    var tables=(typeof _APP_TABLES!=='undefined')?_APP_TABLES:[];
+    tables.forEach(function(t){if(Array.isArray(DB[t])) cache[t]=DB[t];});
+    localStorage.setItem(_hwmsCacheKey(),JSON.stringify(cache));
+  }catch(e){console.warn('_hwmsSaveCache failed:',e.message);}
+}
+function _hwmsApplyCache(cObj){
+  if(!cObj) return false;
+  var tables=(typeof _APP_TABLES!=='undefined')?_APP_TABLES:[];
+  var applied=false;
+  tables.forEach(function(t){if(Array.isArray(cObj[t])){DB[t]=cObj[t];applied=true;}});
+  return applied;
+}
+// Returns the current server data_version, or null on error.
+async function _hwmsFetchDataVersion(){
+  if(!_sbReady||!_sb) return null;
+  try{
+    var res=await _sb.rpc('hwms_data_version');
+    if(res.error){ console.warn('hwms_data_version error:',res.error.message); return null; }
+    return +res.data||0;
+  }catch(e){ console.warn('hwms_data_version failed:',e.message); return null; }
+}
+
+// Override bootDB to use the version-key cache:
+//   - Load cached tables instantly (no network).
+//   - Fetch server data_version. If unchanged → done.
+//   - If changed / no cache → run the original bootDB to refetch all
+//     tables, then save a new snapshot keyed by the new version.
 var _origBootDB=typeof bootDB==='function'?bootDB:null;
 bootDB=async function(){
-  console.log('bootDB(HWMS): starting...');
-  
-  if(!_origBootDB){
-    console.warn('bootDB(HWMS): _origBootDB not available');
+  console.log('bootDB(HWMS): starting (version-key cache)…');
+  if(!_origBootDB){ console.warn('bootDB(HWMS): _origBootDB not available'); return; }
+
+  // ── Step 0: instant cache apply ────────────────────────────────
+  var cObj=_hwmsLoadCache();
+  var cachedVersion=cObj?(+cObj.version||0):-1;
+  var cacheApplied=cObj&&_hwmsApplyCache(cObj);
+  if(cacheApplied){
+    console.log('bootDB(HWMS): applied cache — version='+cachedVersion+' age='+Math.round((Date.now()-(cObj.ts||0))/1000)+'s users='+(DB.users||[]).length);
+    if(typeof _hwmsUpdateSyncTime==='function') _hwmsUpdateSyncTime();
+  }
+
+  // ── Step 1: bring Supabase up + check the server version ───────
+  if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
+  for(var _w=0;_w<10&&!_sbReady;_w++){
+    await new Promise(function(r){setTimeout(r,250);});
+    if(typeof _initSupabase==='function') _initSupabase();
+  }
+  var serverVersion=await _hwmsFetchDataVersion();
+
+  // ── Step 2: cache match → done ────────────────────────────────
+  // Reject empty / poisoned caches even if the version key matches —
+  // ensures users whose previous boot saved an empty snapshot (e.g. a
+  // transient RPC failure) recover on the next load.
+  var _hwmsCoreTbls=['hwmsInvoices','hwmsContainers','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts','hwmsCustomers'];
+  var _cacheHasHwmsData=_hwmsCoreTbls.some(function(t){return Array.isArray(DB[t])&&DB[t].length>0;});
+  if(cacheApplied&&serverVersion!=null&&serverVersion===cachedVersion&&(DB.users||[]).length>0&&_cacheHasHwmsData){
+    console.log('bootDB(HWMS): cache up-to-date (v'+serverVersion+') — skipping fetch');
+    // Still grab hrmsSettings if missing — permissions need it.
+    if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
+      try{
+        var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
+        if(!_hsR.error){ DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean); }
+      }catch(_){}
+    }
+    if(_sbReady&&_sb&&typeof _sbSetStatus==='function') _sbSetStatus('ok');
+    if(typeof _onPostBoot==='function') _onPostBoot();
     return;
   }
 
-  // ── Step 0: localStorage handoff from Portal ────────────
-  // Cache window widened to 24h so returning users see an instant first
-  // paint from cache. A trueFull background sync fires immediately after,
-  // refreshing the screen via _onRefreshViews when fresh rows arrive — so
-  // stale data is only visible for the first second or two.
+  // ── Step 3: cache stale / missing → full refetch via origBootDB ─
+  console.log('bootDB(HWMS): cache '+(cacheApplied?'stale (v'+cachedVersion+' → v'+serverVersion+')':'missing')+' — full refetch');
   try{
-    var _cached=localStorage.getItem('kap_db_cache');
-    if(_cached){
-      var _cObj=JSON.parse(_cached);
-      var _age=Date.now()-(_cObj.ts||0);
-      if(_age<86400000){// 24h window — was 60s, which forced cold path far too often
-        Object.keys(_cObj).forEach(function(t){if(t!=='ts'&&Array.isArray(_cObj[t]))DB[t]=_cObj[t];});
-        // Don't remove the cache — keep it for the *next* boot too.
-        if((DB.users||[]).length>0){
-          console.log('bootDB(HWMS): instant from cache — users='+(DB.users||[]).length+' age='+Math.round(_age/1000)+'s');
-          if(typeof _hwmsUpdateSyncTime==='function')_hwmsUpdateSyncTime();
-          if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
-          // Sync-refetch hrmsSettings if cached empty (Portal's 4s pre-fetch
-          // can time out). Permissions must be loaded before any page render.
-          if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
-            try{
-              var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
-              if(!_hsR.error){
-                DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
-                console.log('bootDB(HWMS): hrmsSettings synced — rows='+DB.hrmsSettings.length);
-              } else { console.warn('bootDB(HWMS): hrmsSettings err:',_hsR.error.message); }
-            }catch(e){ console.warn('bootDB(HWMS): hrmsSettings fetch failed:',e.message); }
-          }
-          if(_sbReady&&_sb){
-            if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
-            if(typeof _sbStartRealtime==='function') _sbStartRealtime();
-            // Force first bgSync to be a TRUE FULL fetch (not incremental) —
-            // incremental misses rows that haven't been touched recently.
-            _hwmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
-            _hwmsIncr.mode='unknown'; _hwmsIncr.probed=false;
-            // Fire immediately (was 3000ms) so the cache→fresh transition is
-            // imperceptible for fast networks.
-            setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},200);
-          } else {
-            if(typeof _startBgReconnect==='function') _startBgReconnect(true);
-          }
-          if(typeof _onPostBoot==='function') _onPostBoot();
-          return;
-        }
-      } else { localStorage.removeItem('kap_db_cache'); }
-    }
-  }catch(e){console.warn('bootDB(HWMS): cache error:',e.message);}
-
-  // ── Step 1: Try original bootDB (most reliable) ────────────
-  console.log('bootDB(HWMS): calling original bootDB...');
-  try{
+    // Portal stashes a `kap_db_cache_<user>` snapshot in _navigateTo —
+    // for users without HWMS access on Portal that snapshot has empty
+    // arrays for every hwms_* table. common.js's cache-hit branch
+    // then treats those empty arrays as "cached and known-empty" and
+    // skips the refetch. Wipe that cache here so _origBootDB takes
+    // its network path and the HWMS RPCs actually run.
+    try{
+      var _portalUser=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
+      var _portalKey='kap_db_cache'+(_portalUser?('_'+String(_portalUser).toLowerCase()):'');
+      localStorage.removeItem(_portalKey);
+    }catch(_){}
     await _origBootDB();
-    console.log('bootDB(HWMS): original bootDB completed, users='+(DB.users||[]).length);
-    if(typeof _hwmsUpdateSyncTime==='function')_hwmsUpdateSyncTime();
-    // Force next bgSync to be trueFull. The common.js timeout path at +1s, and the 60s poll,
-    // both call the HWMS-overridden _bgSyncFromSupabase — which defaults to incremental.
-    // Incremental with 90s lookback returns 0 rows on cold boot, causing minute-long empty states.
-    _hwmsFullIncr.callCount=4; // next increment → 5, 5%5===0 → trueFull
-    // Proactively schedule a trueFull sync if heavy tables are empty (bootDB may have timed out)
-    var _heavyEmpty=(DB.users||[]).length>0&&(DB.hwmsInvoices||[]).length===0&&(DB.hwmsContainers||[]).length===0;
-    if(_heavyEmpty){
-      console.log('bootDB(HWMS): heavy tables empty — scheduling trueFull sync in 800ms');
-      setTimeout(function(){if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();},800);
+    console.log('bootDB(HWMS): refetch done — users='+(DB.users||[]).length+
+                ' invoices='+(DB.hwmsInvoices||[]).length+
+                ' containers='+(DB.hwmsContainers||[]).length);
+
+    // Safety-net retry — common.js's parallel fetch can drop HWMS
+    // tables silently (timeouts, RLS hiccups, stale session token).
+    // We probe one table first; if it comes back with "Invalid session"
+    // we prompt re-auth, refresh the token, and retry all empty tables
+    // with the new token. This recovers users whose localStorage
+    // `kap_session_token` is out of sync with the server-side
+    // `vms_users.session_token` (e.g. login from another device
+    // rotated the token).
+    var _hwmsTbls=['hwmsInvoices','hwmsContainers','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts','hwmsCustomers','hwmsCarriers','hwmsHsn','hwmsUom','hwmsPacking','hwmsPortDischarge','hwmsPortLoading','hwmsCompany','hwmsSteelRates','hwmsPaymentReceipts'];
+    var _empty=_hwmsTbls.filter(function(t){return !Array.isArray(DB[t])||DB[t].length===0;});
+    if(_empty.length&&_sbReady&&_sb){
+      var _retryAuth=(typeof _hwmsAuthArgs==='function')?_hwmsAuthArgs():null;
+      if(!_retryAuth){
+        console.warn('bootDB(HWMS): no session token — prompting re-auth');
+        if(typeof _promptReauth==='function'){
+          var _r0=await _promptReauth();
+          if(_r0) _retryAuth=_hwmsAuthArgs();
+        }
+      }
+      if(_retryAuth){
+        console.log('bootDB(HWMS): retrying '+_empty.length+' empty table(s):',_empty.join(','));
+        // Probe one table — if "Invalid session" comes back, re-auth
+        // once and refresh the token before the parallel retry.
+        var _probeTbl=_empty[0];
+        var _probeRes=null;
+        try{ _probeRes=await _sb.rpc('hwms_read',{p_username:_retryAuth.u,p_token:_retryAuth.t,p_table:SB_TABLES[_probeTbl]}); }catch(err){_probeRes={error:{message:err.message}};}
+        if(_probeRes&&_probeRes.error&&typeof _isInvalidSessionErr==='function'&&_isInvalidSessionErr(_probeRes.error)){
+          console.warn('bootDB(HWMS): probe returned Invalid session — prompting re-auth');
+          if(typeof _promptReauth==='function'){
+            var _r1=await _promptReauth();
+            if(_r1){
+              _retryAuth=_hwmsAuthArgs();
+              if(_retryAuth) console.log('bootDB(HWMS): re-auth ok — retrying with fresh token');
+            }
+          }
+        } else if(_probeRes&&!_probeRes.error){
+          // Probe succeeded — drop the probed table out of the empty
+          // list and apply its rows now.
+          DB[_probeTbl]=(Array.isArray(_probeRes.data)?_probeRes.data:[]).map(function(r){return _fromRow(_probeTbl,r);}).filter(Boolean);
+          console.log('hwms probe '+_probeTbl+' → '+DB[_probeTbl].length+' rows');
+          _empty=_empty.filter(function(t){return t!==_probeTbl;});
+        }
+        // Parallel retry of remaining empty tables with the current
+        // (possibly refreshed) token.
+        if(_empty.length&&_retryAuth){
+          await Promise.all(_empty.map(async function(tbl){
+            var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
+            try{
+              var res=await _sb.rpc('hwms_read',{p_username:_retryAuth.u,p_token:_retryAuth.t,p_table:sbTbl});
+              if(res.error){console.warn('hwms retry '+tbl+':',res.error.message);return;}
+              DB[tbl]=(Array.isArray(res.data)?res.data:[]).map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+              console.log('hwms retry '+tbl+' → '+DB[tbl].length+' rows');
+            }catch(err){console.warn('hwms retry '+tbl+' exception:',err.message);}
+          }));
+        }
+        if(typeof _onRefreshViews==='function') try{ _onRefreshViews(); }catch(_){}
+      } else {
+        console.warn('bootDB(HWMS): no auth available — cannot retry empty tables');
+      }
     }
-  }catch(e){
-    console.error('bootDB(HWMS): original bootDB failed:',e);
-  }
+
+    if(typeof _hwmsUpdateSyncTime==='function') _hwmsUpdateSyncTime();
+    // Persist the new snapshot keyed by the freshly-fetched server
+    // version. Skip cache save if every HWMS table is still empty
+    // after the retry — that's a sign of a deeper auth / RLS problem
+    // and we don't want to lock the user into a permanently empty cache.
+    var _coreTbls=['hwmsInvoices','hwmsContainers','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts','hwmsCustomers'];
+    var _hasAnyHwms=_coreTbls.some(function(t){return Array.isArray(DB[t])&&DB[t].length>0;});
+    if(_hasAnyHwms){
+      var savedVer=serverVersion!=null?serverVersion:(await _hwmsFetchDataVersion());
+      if(savedVer==null) savedVer=cachedVersion>=0?cachedVersion:0;
+      _hwmsSaveCache(savedVer);
+    } else {
+      console.warn('bootDB(HWMS): all HWMS tables empty after retry — skipping cache save');
+      try{ localStorage.removeItem(_hwmsCacheKey()); }catch(_){}
+    }
+  }catch(e){ console.error('bootDB(HWMS): refetch failed:',e); }
 };
+
+// Manual Refresh — wired to the topbar button. Bypasses the version
+// check and forces a full fetch + cache rewrite. Safe to call anytime.
+async function _hwmsManualRefresh(){
+  if(typeof showSpinner==='function') showSpinner('Refreshing…');
+  try{
+    if(!_origBootDB){ if(typeof notify==='function') notify('⚠ Refresh unavailable',true); return; }
+    await _origBootDB();
+    var ver=await _hwmsFetchDataVersion();
+    _hwmsSaveCache(ver!=null?ver:0);
+    if(typeof _hwmsUpdateSyncTime==='function') _hwmsUpdateSyncTime();
+    if(typeof _onRefreshViews==='function') _onRefreshViews();
+    if(typeof notify==='function') notify('✅ Data refreshed');
+  }catch(e){ console.error('_hwmsManualRefresh failed:',e); if(typeof notify==='function') notify('⚠ Refresh failed: '+e.message,true); }
+  finally{ if(typeof hideSpinner==='function') hideSpinner(); }
+}
+
+// Disable background sync + realtime for HWMS — the version key + Refresh
+// button drive freshness now. Keeps the page calm and the Supabase
+// connection light.
+_bgSyncFromSupabase=function(){/* HWMS uses version-key cache; no auto-sync */};
+_bgSyncHot=function(){/* HWMS uses version-key cache; no hot poll */};
+var _origSbStartRealtime_hwms=typeof _sbStartRealtime==='function'?_sbStartRealtime:null;
+_sbStartRealtime=function(){/* realtime disabled on HWMS — use Refresh button */};
+
+// Persist the latest in-memory DB to the version-key cache on tab
+// close / nav-away so subsequent boots get the freshest possible
+// snapshot. Best-effort — runs synchronously inside beforeunload.
+if(typeof window!=='undefined'){
+  window.addEventListener('beforeunload',function(){
+    try{
+      // Only save the cache when DB.* actually has HWMS rows — an
+      // empty in-memory state would otherwise overwrite a healthy
+      // cache with junk that locks the next boot into "empty".
+      var _tbls=['hwmsInvoices','hwmsContainers','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts','hwmsCustomers'];
+      if(!_tbls.some(function(t){return Array.isArray(DB[t])&&DB[t].length>0;})) return;
+      var cObj=_hwmsLoadCache();
+      var v=cObj?(+cObj.version||0):0;
+      _hwmsSaveCache(v);
+    }catch(_){}
+  });
+}
 
 // Safety variable - declared before function uses it
 var _hwmsBootDone=false;
@@ -1426,15 +1590,17 @@ async function _hwmsBoot(){
       document.getElementById('hwmsApp').style.display='block';
       if(splash) splash.style.display='none';
       
-      // Set user info
-      document.getElementById('hwmsUserName').textContent=CU.fullName||CU.name||'User';
-      var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'?';
-      var av=document.getElementById('hwmsAvatar');
-      if(av) av.textContent=initials;
-      var fn=document.getElementById('hwmsUserFullName');
-      if(fn) fn.textContent=CU.fullName||CU.name||'—';
-      var rl=document.getElementById('hwmsUserRole');
-      if(rl) rl.textContent=((CU.hwmsRoles||CU.roles)||[]).join(', ');
+      // Set user info — topbar avatar (sidebar block removed).
+      var _dispName=CU.fullName||CU.name||'User';
+      var _hwmsUNameEl=document.getElementById('hwmsUserName');
+      if(_hwmsUNameEl) _hwmsUNameEl.textContent=_dispName;
+      var _initials=String(_dispName).trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'?';
+      var _tbAv=document.getElementById('hwmsTopbarAvatar');
+      if(_tbAv){
+        _tbAv.title=_dispName+(((CU.hwmsRoles||CU.roles)||[]).length?' · '+(CU.hwmsRoles||CU.roles).join(', '):'');
+        if(CU.photo) _tbAv.innerHTML='<img src="'+CU.photo+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+        else _tbAv.textContent=_initials;
+      }
       
       // Apply permissions FIRST so nav visibility is correct before landing.
       if(typeof _hwmsApplyPermissions==='function') _hwmsApplyPermissions();
@@ -1774,7 +1940,8 @@ async function saveHwmsPacking(){
 
 // ===== HWMS: CUSTOMER MASTER =====
 function renderHwmsCustomers(){
-  const isSA=CU&&(CU.roles.includes('Super Admin')||(CU.hwmsRoles||[]).includes('HWMS Admin'));
+  // Delete-button visibility — gated by Masters access (page-level).
+  const isSA=_hwmsCan('masters.customers');
   const items=(DB.hwmsCustomers||[]).sort((a,b)=>a.customerName.localeCompare(b.customerName));
   const el=document.getElementById('hwmsCustBody');
   if(!items.length){el.innerHTML='<tr><td colspan="6" class="empty-state">No customers found</td></tr>';const cEl=document.getElementById('cHwmsCustomers');if(cEl)cEl.textContent=0;return;}
@@ -1827,7 +1994,7 @@ function _hwmsCustCollectConsignees(){
 }
 function _hwmsCustRenderSteelTable(custId){
   const el=document.getElementById('hwmsCustSteelTable');if(!el)return;
-  const isSA=CU&&(CU.roles.includes('Super Admin')||(CU.hwmsRoles||[]).includes('HWMS Admin'));
+  const isSA=_hwmsCan('masters.customers');
   const rates=(DB.hwmsSteelRates||[]).filter(r=>r.customerId===custId).sort((a,b)=>b.validFrom.localeCompare(a.validFrom));
   const _fd=d=>{if(!d)return'—';const dt=new Date(d+'T00:00:00');const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate()+'-'+mo[dt.getMonth()]+'-'+dt.getFullYear().toString().slice(-2);};
   const today=new Date().toISOString().split('T')[0];
@@ -1920,7 +2087,7 @@ async function saveHwmsCust(){
 
 // ===== HWMS: PORT OF DISCHARGE =====
 function renderHwmsSteelRates(){
-  const isSA=CU&&(CU.roles.includes('Super Admin')||(CU.hwmsRoles||[]).includes('HWMS Admin'));
+  const isSA=_hwmsCan('masters.customers');
   const tbody=document.getElementById('hwmsSteelRateBody');
   if(!tbody) return;
   const rates=(DB.hwmsSteelRates||[]).sort((a,b)=>{
@@ -2236,7 +2403,7 @@ let _hwmsRateEditIdx=-1;
 
 function _hwmsRenderRateHistory(){
   const el=document.getElementById('hwmsPartRateHistory');
-  const isSA=CU&&CU.roles.includes('Super Admin');
+  const isSA=_hwmsCan('masters.parts');
   if(!_hwmsPartRates.length){
     el.innerHTML='<div style="font-size:12px;color:var(--text3);font-style:italic;padding:6px 0">No rate revisions yet</div>';
     return;
@@ -2389,8 +2556,8 @@ function openHwmsPartModal(id){
   _hwmsRenderRateHistory();
   // Clear add rate form + reset buttons
   _hwmsRateClearForm();
-  // Show/hide edit controls based on role
-  const isSA=CU&&CU.roles.includes('Super Admin');
+  // Show/hide edit controls based on Parts master access.
+  const isSA=_hwmsCan('masters.parts');
   const addWrap=document.getElementById('hwmsPartRateAddWrap');
   if(addWrap) addWrap.style.display='';
   // Photos
@@ -2610,9 +2777,10 @@ function _hwmsContSetTab(tab){
       airBtn.style.background='#f8fafc';airBtn.style.color='#64748b';airBtn.style.border='2px solid var(--border)';airBtn.style.borderBottom='none';
     }
   }
-  // Show/hide Receive All Air button
+  // Show/hide Receive All Air button — hidden per request; uncomment
+  // the original gate (or remove data-hidden in the HTML) to re-enable.
   var recvBtn=document.getElementById('btnHwmsReceiveAllAir');
-  if(recvBtn) recvBtn.style.display=(tab==='air'&&_hwmsIsSA())?'inline-block':'none';
+  if(recvBtn) recvBtn.style.display='none';
   renderHwmsContainers();
 }
 
@@ -2740,9 +2908,9 @@ function renderHwmsContainers(){
   if(seaCntEl) seaCntEl.style.background=activeTab==='sea'?'#2563eb':'#94a3b8';
   if(airCntEl) airCntEl.style.background=activeTab==='air'?'#7c3aed':'#94a3b8';
   
-  // Show/hide Receive All Air button
+  // Show/hide Receive All Air button — hidden per request.
   var recvAllBtn=document.getElementById('btnHwmsReceiveAllAir');
-  if(recvAllBtn) recvAllBtn.style.display=(activeTab==='air'&&_hwmsIsSA())?'inline-block':'none';
+  if(recvAllBtn) recvAllBtn.style.display='none';
   
   // Populate carrier filter dropdown (filter by current tab)
   const carrSel=document.getElementById('hwmsContFilterCarrier');
@@ -2805,7 +2973,10 @@ function renderHwmsContainers(){
     +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#64748b;font-family:var(--mono)">'+cDraft+'</div><div style="font-size:9px;font-weight:700;color:#475569;text-transform:uppercase">Draft</div></div>'
     +'<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#2563eb;font-family:var(--mono)">'+cTransit+'</div><div style="font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Transit</div></div>'
     +'<div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:10px;padding:6px 12px;text-align:center;min-width:60px"><div style="font-size:18px;font-weight:900;color:#15803d;font-family:var(--mono)">'+cWH+'</div><div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase">Warehouse</div></div>';
-  var _contSA=_hwmsIsAdmin();// SA + HWMS Admin both get the per-row checkbox + delete column
+  // Per-row checkbox + delete column visibility — driven by page-level
+  // access on Containers (per-button keys are no longer in Access
+  // Management, so cont.delete inherits page.containers).
+  var _contSA=_hwmsCan('cont.delete');
   document.getElementById('hwmsContBody').innerHTML=conts.length?conts.map(c=>{
     const invs=(DB.hwmsInvoices||[]).filter(inv=>inv.containerId===c.id);
     const st=_hwmsContStatus(c);
@@ -2842,15 +3013,24 @@ function renderHwmsContainers(){
       ?`<div style="font-weight:700">${_fdate(c.reachedDate)}</div><div style="font-size:10px;color:#16a34a;font-weight:700">Warehouse</div>`
       :(c.expectedReachDate?`<div>${_fdate(c.expectedReachDate)}</div><div style="font-size:10px;color:#b45309;font-weight:700">Expected</div>`:'—');
     var _isAirCont=_hwmsContGetType(c)==='air';
-    var _rowBg=st.label==='Warehouse'?'background:#dcfce7;border-left:6px solid #16a34a':(st.label==='In Transit'?'background:#dbeafe;border-left:6px solid #2563eb':'background:#fff;border-left:6px solid #cbd5e1');
+    // Row background: drop the heavy whole-row tint for "In Transit"
+    // — status now reads from a prominent light-blue badge in the
+    // Status column. Warehouse keeps its green tint as a positive
+    // completion signal; Draft stays neutral.
+    var _rowBg=st.label==='Warehouse'?'background:#f0fdf4;border-left:4px solid #16a34a':'background:#fff;border-left:4px solid #cbd5e1';
+    // Prominent "In Transit" badge — light blue pill with a heavier
+    // border so the status reads at a glance without tinting the row.
+    var _stBadgeHtml=(st.label==='In Transit')
+      ? '<span style="display:inline-block;padding:3px 10px;border-radius:14px;background:#dbeafe;color:#1e40af;border:1.5px solid #93c5fd;font-weight:900;font-size:11px;letter-spacing:.3px;white-space:nowrap">🚢 In Transit</span>'
+      : stBadge;
     return `<tr style="${_rowBg}">
       ${_contSA?'<td style="text-align:center"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:18px;cursor:pointer;text-decoration:underline" onclick="openHwmsContModal('${c.id}')">${c.containerNumber}</td>
+      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:16px;cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="openHwmsContModal('${c.id}')">${c.containerNumber}</td>
       <td>${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
-      <td style="font-weight:600">${c.carrierName||'—'}</td>
-      <td class="hwms-cont-invval" style="white-space:nowrap;font-family:var(--mono);font-weight:900;font-size:16px;color:#16a34a;text-align:right">${_fCurr(contInvTotal)}</td>
-      <td style="white-space:nowrap">${stBadge}<div style="margin-top:3px">${reachHtml}</div></td>
+      <td style="font-weight:600;white-space:nowrap">${c.carrierName||'—'}</td>
+      <td class="hwms-cont-invval" style="white-space:nowrap;font-family:var(--mono);font-weight:900;font-size:14px;color:#16a34a;text-align:right">${_fCurr(contInvTotal)}</td>
+      <td style="white-space:nowrap">${_stBadgeHtml}<div style="margin-top:3px">${reachHtml}</div></td>
       <td style="text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;color:${transitDays==='—'?'var(--text3)':'#2563eb'}">${transitDays}</td>
     </tr>`;
   }).join(''):'<tr><td colspan="'+(_contSA?9:8)+'" class="empty-state">No containers found</td></tr>';
@@ -2873,14 +3053,10 @@ function renderHwmsContainers(){
   var _showVal=_hwmsCan('cont.viewValue');
   document.querySelectorAll('.hwms-cont-invval').forEach(function(el){el.style.display=_showVal?'':'none';});
   _hwmsReapplyResize('tHwmsContainers');
-  // Show/hide "Receive All Air" button
-  var _airOnwater=(DB.hwmsContainers||[]).filter(function(c){return _hwmsContGetType(c)==='air'&&c.status==='Onwater';});
+  // "Receive All Air" button kept hidden per request — re-enable by
+  // restoring the canRecv gate below.
   var _recvAllBtn=document.getElementById('btnHwmsReceiveAllAir');
-  if(_recvAllBtn){
-    var canRecv=(_hwmsIsSA()||_hwmsIsAdmin())&&_airOnwater.length>0;
-    _recvAllBtn.style.display=canRecv?'inline-flex':'none';
-    _recvAllBtn.textContent='✈️ Receive All Air ('+_airOnwater.length+')';
-  }
+  if(_recvAllBtn) _recvAllBtn.style.display='none';
 
 }
 function _hwmsContToggleAll(checked){
@@ -2891,7 +3067,10 @@ function _hwmsContUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsContChk:checked').length;
   var btn=document.getElementById('btnHwmsContDelSel');
   var cntEl=document.getElementById('hwmsContDelCount');
-  if(btn) btn.style.display=(count>0&&_hwmsIsAdmin())?'inline-flex':'none';
+  // Access Management drives visibility — `cont.delete` resolves to
+  // `action.deleteContainer` via _HWMS_PERM_MAP. No more hardcoded
+  // admin-only gate.
+  if(btn) btn.style.display=(count>0&&_hwmsCan('cont.delete'))?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   var all=document.querySelectorAll('.hwmsContChk');
   var selAll=document.getElementById('hwmsContSelectAll');
@@ -2900,7 +3079,7 @@ function _hwmsContUpdateDelBtn(){
 async function _hwmsContDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsContChk:checked')];
   if(!checked.length){notify('No containers selected',true);return;}
-  if(!_hwmsIsAdmin()){notify('Only Admin can delete containers',true);return;}
+  if(!_hwmsCan('cont.delete')){notify('⚠ Access denied — Delete Container permission required',true);return;}
   var ids=checked.map(function(cb){return cb.value;});
   var contDetails=[];
   ids.forEach(function(id){
@@ -2921,25 +3100,31 @@ async function _hwmsContDeleteSelected(){
   });
   if(hasLinked.length) msg+='\n📋 Containers with linked invoices (will be delinked):\n'+hasLinked.map(function(n){return '  • '+n;}).join('\n')+'\n';
   msg+='\n⛔ This action cannot be undone!';
-  showConfirm(msg, async ()=>{
-    var deleted=0;var failed=0;
-    for(var i=0;i<contDetails.length;i++){
-      try{
-        // Delink all invoices from this container before deleting
-        var linkedInvs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===contDetails[i].id;});
-        for(var j=0;j<linkedInvs.length;j++){
-          linkedInvs[j].containerId='';
-          linkedInvs[j].containerNumber='';
-          await _dbSave('hwmsInvoices',linkedInvs[j]);
-        }
-        if(await _dbDel('hwmsContainers',contDetails[i].id)){
-          deleted++;
-        } else { failed++; }
-      }catch(e){ console.error('Delete error:',e);failed++; }
-    }
-    renderHwmsContainers();renderHwmsInvoices();updBadges();
-    if(failed>0) notify('✅ Deleted '+deleted+', ⚠ Failed '+failed,true);
-    else notify('✅ Deleted '+deleted+' container'+(deleted>1?'s':''));
+  // Two-step confirm — first shows the list + impact summary, second
+  // is the final "are you absolutely sure" gate. Either Cancel
+  // aborts the delete.
+  showConfirm(msg, ()=>{
+    var msg2='⚠ FINAL CONFIRMATION\n\nYou are about to permanently delete '+contDetails.length+' container'+(contDetails.length>1?'s':'')+'.\n\nAre you absolutely sure? This cannot be undone.';
+    showConfirm(msg2, async ()=>{
+      var deleted=0;var failed=0;
+      for(var i=0;i<contDetails.length;i++){
+        try{
+          // Delink all invoices from this container before deleting
+          var linkedInvs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===contDetails[i].id;});
+          for(var j=0;j<linkedInvs.length;j++){
+            linkedInvs[j].containerId='';
+            linkedInvs[j].containerNumber='';
+            await _dbSave('hwmsInvoices',linkedInvs[j]);
+          }
+          if(await _dbDel('hwmsContainers',contDetails[i].id)){
+            deleted++;
+          } else { failed++; }
+        }catch(e){ console.error('Delete error:',e);failed++; }
+      }
+      renderHwmsContainers();renderHwmsInvoices();updBadges();
+      if(failed>0) notify('✅ Deleted '+deleted+', ⚠ Failed '+failed,true);
+      else notify('✅ Deleted '+deleted+' container'+(deleted>1?'s':''));
+    },{icon:'🛑',title:'Final confirmation',btnLabel:'Yes, delete '+contDetails.length});
   });
 }
 // Track pre-save linked invoices for new containers
@@ -3051,7 +3236,8 @@ function openHwmsContModal(id){
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
   // isDispatched already declared above
   const isReachedStatus=c?.status==='Reached';
-  const isSA=CU&&CU.roles.includes('Super Admin');
+  // Container edit / undo dispatch — gated by Containers page access.
+  const isSA=_hwmsCan('cont.edit');
   var _dispLabel2=cType==='air'?'Consignment':'Container';
   if(isDispatched){
     dispBtn.disabled=true;dispBtn.textContent='✅ Dispatched';dispBtn.style.background='#16a34a';dispBtn.style.borderColor='#16a34a';
@@ -3554,7 +3740,7 @@ function _hwmsContOpenReceive(){
   var cType=_hwmsContGetType(c);
   // Air consignment: simple confirm — no WH form needed
   if(cType==='air'&&c.status==='Onwater'){
-    if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only SA/HA can receive air consignments',true);return;}
+    if(!_hwmsCan('cont.edit')){notify('⚠ Access denied — Containers edit permission required',true);return;}
     showConfirm('Receive air consignment '+c.containerNumber+'?\n\nAll line items will be marked as <b>Sold</b>. No warehouse storage — SI not applicable.', async ()=>{
       var recvDate=new Date().toISOString().slice(0,10);
       var invs=(DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===id;});
@@ -3754,8 +3940,9 @@ async function _hwmsContReached(){
 function _hwmsContUpdateReachedUI(c){
   const isReached=c?.status==='Reached';
   const isOnwater=c?.status==='Onwater';
-  const isSA=CU&&CU.roles.includes('Super Admin');
-  const isAdmin=_hwmsIsAdmin()||isSA;
+  // Container edit power (receive / undo receive) — gated on Container
+  // page edit; inherits from page.containers under the new model.
+  const isAdmin=_hwmsCan('cont.edit');
   const cType=_hwmsContGetType(c);
   var recvLabel=cType==='air'?'📦 Receive this Consignment':'📦 Receive this Container';
   var recvMsg=cType==='air'?'✈️ Consignment received on <strong>':'📦 Container received on <strong>';
@@ -3860,7 +4047,7 @@ async function _hwmsAirBulkDispatchReceive(){
 
 // ── Receive ALL In-Transit Air Consignments ──
 async function _hwmsReceiveAllAirConsignments(){
-  if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only SA/Admin can receive air consignments',true);return;}
+  if(!_hwmsCan('cont.edit')){notify('⚠ Access denied — Containers edit permission required',true);return;}
   var airOnwater=(DB.hwmsContainers||[]).filter(function(c){
     return _hwmsContGetType(c)==='air'&&c.status==='Onwater';
   });
@@ -3900,7 +4087,7 @@ async function _hwmsReceiveAllAirConsignments(){
 }
 
 async function _hwmsContRevokeReached(){
-  if(!_hwmsIsSA()&&!_hwmsIsAdmin()){notify('Only Admin can undo received status',true);return;}
+  if(!_hwmsCan('cont.edit')){notify('⚠ Access denied — Containers edit permission required',true);return;}
   const id=document.getElementById('eHwmsContId').value;
   if(!id){notify('No container selected',true);return;}
   const c=byId(DB.hwmsContainers||[],id);if(!c)return;
@@ -4354,12 +4541,18 @@ function renderHwmsSubInvoices(){
     +'<button id="hwmsSiDlBtn" onclick="_hwmsSiDownloadSelected()" style="display:none;padding:5px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📥 Download SI Data (<span id="hwmsSiDlCount">0</span>)</button>'
     +'<button id="hwmsSiCancelSelBtn" onclick="_hwmsSiClearSel()" style="display:none;padding:5px 12px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">✕ Cancel</button>'
     +(_hwmsCan('si.export')?'<button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>':'')
-    +(_hwmsCan('si.import')?'<label class="btn btn-secondary" style="font-size:12px;padding:5px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="_hwmsSiImport(this)"></label>':'')
+    // Import SI hidden per request — restore the _hwmsCan gate to re-enable.
+    +''
     +'</div>';
   var body=document.getElementById('hwmsSiBody');if(!body) return;
   var fd2=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
-  var isSA=_hwmsIsSA();
-  var isAdmin=isSA||(CU&&CU.hwmsRoles&&CU.hwmsRoles.includes('HWMS Admin'));
+  // SI bulk-delete column visibility — gated by page-level access on
+  // Sub-Invoices (si.delete now inherits from page.subinvoices).
+  // `isSA` was the old gate; both the checkbox column AND the
+  // colspan-adjusted "no rows" / Totals cells now follow the same
+  // `isAdmin` gate so the column count is consistent.
+  var isAdmin=_hwmsCan('si.delete');
+  var isSA=isAdmin;
   var selAllTh=document.getElementById('hwmsSiSelectAllTh');
   if(selAllTh) selAllTh.style.display=isAdmin?'table-cell':'none';
   var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
@@ -5177,7 +5370,7 @@ async function saveHwmsSi(){
   renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();notify('Sub-Invoice saved!');
 }
 async function _hwmsDelSi(id){
-  if(!_hwmsIsAdmin()){notify('⚠ Only Admin can delete sub-invoices',true);return;}
+  if(!_hwmsCan('si.delete')){notify('⚠ Access denied — Sub-Invoices page permission required',true);return;}
   if(!confirm('Delete this sub-invoice?')) return;
   var si=byId(DB.hwmsSubInvoices||[],id);
   var mrId=_hwmsSiGetMrId(si);
@@ -5200,8 +5393,10 @@ function _hwmsSiSelChange(){
   var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');
   var dlBtn=document.getElementById('hwmsSiDlBtn');
   var dlCount=document.getElementById('hwmsSiDlCount');
-  var isSA=_hwmsIsSA();
-  if(cbs.length>0&&isSA){
+  // Access Management drives visibility — `si.delete` resolves to
+  // `action.deleteSubInvoice` via _HWMS_PERM_MAP. No more SA-only gate.
+  var canDel=_hwmsCan('si.delete');
+  if(cbs.length>0&&canDel){
     if(delBtn){delBtn.style.display='';if(delCount2)delCount2.textContent='('+cbs.length+')';}
     if(cancelBtn) cancelBtn.style.display='';
   } else {
@@ -5256,44 +5451,58 @@ function _hwmsSiDownloadSelected(){
   notify('📥 Downloaded '+ids.length+' SI(s) — '+rows.length+' line items');
 }
 async function _hwmsSiBulkDel(){
-  if(!_hwmsIsAdmin()){notify('⚠ Only Admin can delete',true);return;}
+  if(!_hwmsCan('si.delete')){notify('⚠ Access denied — Delete Sub-Invoice permission required',true);return;}
   var cbs=document.querySelectorAll('.hwmsSiCb:checked');
   var ids=[];cbs.forEach(function(cb){ids.push(cb.dataset.id);});
   if(!ids.length) return;
-  if(!confirm('Delete '+ids.length+' sub-invoices? This cannot be undone.')) return;
-  // Collect affected mrIds before deletion
-  var affectedMrIds={};
-  ids.forEach(function(siId){
+  // Build a friendly list for the first confirm.
+  var siList=ids.map(function(siId){
     var si=byId(DB.hwmsSubInvoices||[],siId);
-    var _mid=_hwmsSiGetMrId(si);
-    if(_mid) affectedMrIds[_mid]=true;
+    return si?(si.subInvoiceNumber||siId):siId;
   });
-  var ok=0,fail=0;
-  for(var i=0;i<ids.length;i++){
-    var r=await _dbDel('hwmsSubInvoices',ids[i]);
-    if(r!==false) ok++; else fail++;
-  }
-  // Force recalculate MR line item statuses for all affected MRs
-  var mrIds=Object.keys(affectedMrIds);
-  for(var j=0;j<mrIds.length;j++){
-    var mr2=byId(DB.hwmsMaterialRequests||[],mrIds[j]);
-    if(!mr2) continue;
-    var info2=_hwmsMrDispatchInfo(mr2);
-    // Consolidate total required per partId
-    var reqPerPart={};
-    (mr2.lineItems||[]).forEach(function(l){var k=l.partId||l.partNumber;reqPerPart[k]=(reqPerPart[k]||0)+(l.quantity||0);});
-    (mr2.lineItems||[]).forEach(function(l){
-      var k=l.partId||l.partNumber;
-      var dispatched=info2.perPart[k]?info2.perPart[k].totalQty:0;
-      var totalReq=reqPerPart[k]||0;
-      l.status=dispatched>=totalReq?'Closed':dispatched>0?'Partially Closed':'Open';
-    });
-    mr2.status=_hwmsMrCalcStatus(mr2);
-    await _dbSave('hwmsMaterialRequests',mr2);
-  }
-  await _hwmsMarkSoldPallets();
-  renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
-  notify('✅ Deleted '+ok+(fail?' ('+fail+' failed)':''));
+  var msg='⚠ DELETE '+ids.length+' SUB-INVOICE'+(ids.length>1?'S':'')+'?\n\n'
+    +siList.map(function(n){return '  • '+n;}).join('\n')
+    +'\n\n⛔ This action cannot be undone!';
+  // Two-step confirm — first lists the items, second is the final
+  // "are you absolutely sure" gate.
+  showConfirm(msg, ()=>{
+    var msg2='⚠ FINAL CONFIRMATION\n\nYou are about to permanently delete '+ids.length+' sub-invoice'+(ids.length>1?'s':'')+'.\n\nAre you absolutely sure? This cannot be undone.';
+    showConfirm(msg2, async ()=>{
+      // Collect affected mrIds before deletion
+      var affectedMrIds={};
+      ids.forEach(function(siId){
+        var si=byId(DB.hwmsSubInvoices||[],siId);
+        var _mid=_hwmsSiGetMrId(si);
+        if(_mid) affectedMrIds[_mid]=true;
+      });
+      var ok=0,fail=0;
+      for(var i=0;i<ids.length;i++){
+        var r=await _dbDel('hwmsSubInvoices',ids[i]);
+        if(r!==false) ok++; else fail++;
+      }
+      // Force recalculate MR line item statuses for all affected MRs
+      var mrIds=Object.keys(affectedMrIds);
+      for(var j=0;j<mrIds.length;j++){
+        var mr2=byId(DB.hwmsMaterialRequests||[],mrIds[j]);
+        if(!mr2) continue;
+        var info2=_hwmsMrDispatchInfo(mr2);
+        // Consolidate total required per partId
+        var reqPerPart={};
+        (mr2.lineItems||[]).forEach(function(l){var k=l.partId||l.partNumber;reqPerPart[k]=(reqPerPart[k]||0)+(l.quantity||0);});
+        (mr2.lineItems||[]).forEach(function(l){
+          var k=l.partId||l.partNumber;
+          var dispatched=info2.perPart[k]?info2.perPart[k].totalQty:0;
+          var totalReq=reqPerPart[k]||0;
+          l.status=dispatched>=totalReq?'Closed':dispatched>0?'Partially Closed':'Open';
+        });
+        mr2.status=_hwmsMrCalcStatus(mr2);
+        await _dbSave('hwmsMaterialRequests',mr2);
+      }
+      await _hwmsMarkSoldPallets();
+      renderHwmsSubInvoices();renderHwmsMR();_hwmsUpdCounts();
+      notify('✅ Deleted '+ok+(fail?' ('+fail+' failed)':''));
+    },{icon:'🛑',title:'Final confirmation',btnLabel:'Yes, delete '+ids.length});
+  });
 }
 
 // ── Sub-Invoice Print Preview ──
@@ -6052,7 +6261,8 @@ function renderHwmsMR(){
     var totalAmt=lis.reduce(function(s,l){var rate=_hwmsMrRate(l.partId);return s+((l.quantity||0)*(rate||0));},0);
     var fAmt=function(v){return v?'$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—';};
     var raisedFirst=(mr._raisedBy||'').split(' ')[0]||'—';
-    var isSA=_hwmsIsSA();
+    // Per-row delete icon — gated by page-level MR access.
+    var isSA=_hwmsCan('mr.delete');
     var linkedSis=(DB.hwmsSubInvoices||[]).filter(function(si){return _hwmsSiGetMrId(si)===mr.id;});
     var hasSis=linkedSis.length>0;
     var allPickedSis=hasSis&&linkedSis.every(function(si){return si.pickupStatus==='Picked';});
@@ -8723,7 +8933,8 @@ function renderHwmsInvoices(){
   _hwmsInvNavList=invs.map(function(inv){return inv.id;});
   // Calculate totals for filtered invoices
   var grandTotalAmt=0,grandTotalGrossWt=0;
-  var _invSA=_hwmsIsSA()||(CU&&CU.hwmsRoles&&CU.hwmsRoles.includes('HWMS Admin'));
+  // Invoice bulk-delete column visibility — page-level access on MI.
+  var _invSA=_hwmsCan('mi.delete');
   // Pre-compute sub-invoice amounts per invoiceId
   var siAmtByInv={};
   (DB.hwmsSubInvoices||[]).forEach(function(si){
@@ -8861,7 +9072,9 @@ function _hwmsInvUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsInvChk:checked').length;
   var btn=document.getElementById('btnHwmsInvDelSel');
   var cntEl=document.getElementById('hwmsInvDelCount');
-  if(btn) btn.style.display=(count>0&&_hwmsIsAdmin())?'inline-flex':'none';
+  // Access Management drives visibility — `mi.delete` resolves to
+  // `action.deleteInvoice` via _HWMS_PERM_MAP.
+  if(btn) btn.style.display=(count>0&&_hwmsCan('mi.delete'))?'inline-flex':'none';
   if(cntEl) cntEl.textContent=count;
   // Download + Cancel buttons
   var dlBtn=document.getElementById('btnHwmsInvDownloadSel');
@@ -8918,7 +9131,7 @@ function _hwmsInvDownloadSelected(){
 async function _hwmsInvDeleteSelected(){
   var checked=[...document.querySelectorAll('.hwmsInvChk:checked')];
   if(!checked.length){notify('No invoices selected',true);return;}
-  if(!_hwmsIsAdmin()){notify('Only Admin can delete invoices',true);return;}
+  if(!_hwmsCan('mi.delete')){notify('⚠ Access denied — Delete Invoice permission required',true);return;}
   // Gather all selected invoice IDs and details
   var ids=checked.map(function(cb){return cb.value;});
   var invDetails=[];
@@ -8942,28 +9155,32 @@ async function _hwmsInvDeleteSelected(){
     msg+='  • '+inv.invoiceNumber+' ('+status+')'+contInfo+'\n';
   });
   msg+='\n⛔ This action cannot be undone!';
-  showConfirm(msg, async ()=>{
-  // Delete one by one
-  var deleted=0;var failed=0;
-  for(var i=0;i<invDetails.length;i++){
-    var invId=invDetails[i].id;
-    try{
-      if(await _dbDel('hwmsInvoices',invId)){
-        deleted++;
-      } else {
-        failed++;
+  // Two-step confirm — first lists the invoices, second is the final
+  // "are you absolutely sure" gate.
+  showConfirm(msg, ()=>{
+    var msg2='⚠ FINAL CONFIRMATION\n\nYou are about to permanently delete '+invDetails.length+' invoice'+(invDetails.length>1?'s':'')+'.\n\nAre you absolutely sure? This cannot be undone.';
+    showConfirm(msg2, async ()=>{
+      var deleted=0;var failed=0;
+      for(var i=0;i<invDetails.length;i++){
+        var invId=invDetails[i].id;
+        try{
+          if(await _dbDel('hwmsInvoices',invId)){
+            deleted++;
+          } else {
+            failed++;
+          }
+        }catch(e){
+          console.error('Delete error for '+invId+':',e);
+          failed++;
+        }
       }
-    }catch(e){
-      console.error('Delete error for '+invId+':',e);
-      failed++;
-    }
-  }
-  renderHwmsInvoices();updBadges();
-  if(failed>0){
-    notify('✅ Deleted '+deleted+', ⚠ Failed '+failed+' invoice'+(failed>1?'s':''),true);
-  } else {
-    notify('✅ Deleted '+deleted+' invoice'+(deleted>1?'s':''));
-  }
+      renderHwmsInvoices();updBadges();
+      if(failed>0){
+        notify('✅ Deleted '+deleted+', ⚠ Failed '+failed+' invoice'+(failed>1?'s':''),true);
+      } else {
+        notify('✅ Deleted '+deleted+' invoice'+(deleted>1?'s':''));
+      }
+    },{icon:'🛑',title:'Final confirmation',btnLabel:'Yes, delete '+invDetails.length});
   });
 }
 // ═══ INVOICE DETAIL POPUP / PALLET LABELS ═══════════════════════════════

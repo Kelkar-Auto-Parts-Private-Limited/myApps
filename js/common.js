@@ -2569,38 +2569,21 @@ var _PERM_KEYS={
     {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
   ],
   HWMS:[
+    // Page & tab-level access only — per-button (action.*) keys have
+    // been removed per request. If a page is accessible, every button
+    // inside it (add / edit / delete / import / export / confirm /
+    // generate / pickup) is enabled. Specific button gates can be
+    // re-added later by adding `{key:'action.X',…}` here AND mapping
+    // the shorthand in _HWMS_PERM_MAP (hwms-ui.js).
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
     {key:'page.invoices',label:'Main Invoices Page',group:'📄 Main Invoices'},
-    {key:'action.createInvoice',label:'Create Invoice',group:'📄 Main Invoices'},
-    {key:'action.editInvoice',label:'Edit Invoice',group:'📄 Main Invoices'},
-    {key:'action.deleteInvoice',label:'Delete Invoice',group:'📄 Main Invoices'},
-    {key:'action.importInvoice',label:'Import Invoices',group:'📄 Main Invoices'},
-    {key:'action.exportInvoice',label:'Export Invoice',group:'📄 Main Invoices'},
-    {key:'action.confirmInvoice',label:'Confirm Invoice',group:'📄 Main Invoices'},
     {key:'page.containers',label:'Containers Page',group:'📦 Containers'},
-    {key:'action.addContainer',label:'Add Container',group:'📦 Containers'},
-    {key:'action.editContainer',label:'Edit Container',group:'📦 Containers'},
-    {key:'action.deleteContainer',label:'Delete Container',group:'📦 Containers'},
-    {key:'action.importContainer',label:'Import Containers',group:'📦 Containers'},
-    {key:'action.exportContainer',label:'Export Containers',group:'📦 Containers'},
     {key:'action.viewContainerValue',label:'View Invoice Value section',group:'📦 Containers'},
     {key:'action.viewContainerDispatch',label:'View Dispatch section',group:'📦 Containers'},
     {key:'action.viewContainerPostShip',label:'View Post-Shipment section',group:'📦 Containers'},
     {key:'page.inventory',label:'Inventory Page',group:'📦 Inventory'},
     {key:'page.subinvoices',label:'Sub-Invoices Page',group:'📤 Sub-Invoices'},
-    {key:'action.addSubInvoice',label:'Add Sub-Invoice',group:'📤 Sub-Invoices'},
-    {key:'action.editSubInvoice',label:'Edit Sub-Invoice',group:'📤 Sub-Invoices'},
-    {key:'action.deleteSubInvoice',label:'Delete Sub-Invoice',group:'📤 Sub-Invoices'},
-    {key:'action.importSubInvoice',label:'Import Sub-Invoices',group:'📤 Sub-Invoices'},
-    {key:'action.exportSubInvoice',label:'Export Sub-Invoices',group:'📤 Sub-Invoices'},
     {key:'page.mr',label:'Material Requests Page',group:'📝 Material Requests'},
-    {key:'action.addMR',label:'Add MR',group:'📝 Material Requests'},
-    {key:'action.editMR',label:'Edit MR',group:'📝 Material Requests'},
-    {key:'action.deleteMR',label:'Delete MR',group:'📝 Material Requests'},
-    {key:'action.importMR',label:'Import MR',group:'📝 Material Requests'},
-    {key:'action.exportMR',label:'Export MR',group:'📝 Material Requests'},
-    {key:'action.generateSI',label:'Generate SI from MR',group:'📝 Material Requests'},
-    {key:'action.mrPickup',label:'Record MR Pickup',group:'📝 Material Requests'},
     {key:'page.payments',label:'Payments Page',group:'💳 Payments'},
     {key:'page.outstanding',label:'Outstanding Page',group:'📈 Outstanding'},
     {key:'page.masters',label:'Masters Menu',group:'📂 Masters'},
@@ -2610,8 +2593,7 @@ var _PERM_KEYS={
     {key:'masters.ports',label:'Ports',group:'📂 Masters'},
     {key:'masters.other',label:'Other Masters',group:'📂 Masters'},
     {key:'masters.company',label:'Company Details',group:'📂 Masters'},
-    {key:'masters.hsn',label:'HSN Codes',group:'📂 Masters'},
-    {key:'masters.edit',label:'Edit Masters',group:'📂 Masters'}
+    {key:'masters.hsn',label:'HSN Codes',group:'📂 Masters'}
   ],
   Security:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -2678,7 +2660,7 @@ var _PERM_UMBRELLA={
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
-                    'masters.other','masters.company','masters.hsn','masters.edit']
+                    'masters.other','masters.company','masters.hsn']
   },
   Security:{
     'page.masters':['masters.checkpoints','masters.guards','masters.edit']

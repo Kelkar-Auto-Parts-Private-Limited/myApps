@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260514-V12">
+<meta name="app-build" content="260514-V29">
 <title>KAP — HWMS</title>
-<link rel="stylesheet" href="css/hwms.css?v=260514-V12">
+<link rel="stylesheet" href="css/hwms.css?v=260514-V29">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -18,21 +18,16 @@
   <div class="title" id="hwmsPageTitle">HWMS</div>
   <div style="flex:1"></div>
   <button id="hwmsTopbarRefresh" onclick="_hwmsTopbarRefresh()" title="Refresh — pull the latest data from the database" style="font-size:13px;font-weight:700;padding:5px 10px;margin-right:10px;border-radius:8px;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:4px">↻ <span style="font-size:12px">Refresh</span></button>
-  <div class="user-info"><span id="hwmsUserName"></span> <span style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block" id="sbStatusDot" title="DB"></span></div>
+  <div class="user-info" style="display:flex;align-items:center;gap:8px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block;flex-shrink:0" id="sbStatusDot" title="DB"></span>
+    <div id="hwmsTopbarAvatar" title="" style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;overflow:hidden;border:1.5px solid rgba(0,0,0,.08);flex-shrink:0">?</div>
+    <span id="hwmsUserName" style="display:none"></span>
+  </div>
 </div>
 <!-- Sidebar -->
 <div class="sidebar" id="hwmsSidebar">
   <div class="brand"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxMiIgZmlsbD0iIzJhOWFhMCIvPjx0ZXh0IHg9IjMyIiB5PSI0MyIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI5MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iLTAuNSI+S0FQPC90ZXh0Pjwvc3ZnPg==" alt="KAP" style="width:32px;height:32px;border-radius:8px"><div><h3>HWMS</h3><div style="font-size:10px;color:var(--text3)">Warehouse Management</div></div></div>
-  <!-- User Info -->
-  <div style="border-bottom:1px solid var(--border);padding:10px 14px">
-    <div style="display:flex;align-items:center;gap:9px">
-      <div id="hwmsAvatar" style="width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid rgba(42,154,160,.25)">&#x1F464;</div>
-      <div style="flex:1;min-width:0">
-        <div id="hwmsUserFullName" style="font-size:12px;font-weight:700;color:#1a2033;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&mdash;</div>
-        <div id="hwmsUserRole" style="font-size:10px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-      </div>
-    </div>
-  </div>
+  <!-- Sidebar user-info block removed — avatar moved to topbar top-right. -->
   <!-- My Apps -->
   <div class="nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
   <div class="nav-sec" id="navSecOps">OPERATIONS</div>
@@ -82,7 +77,7 @@
           <div class="card-title">All Parts</div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap">
             <button class="btn btn-secondary" onclick="exportMaster('hwmsParts')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsParts',this)"></label>
+            <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsParts',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsPart" onclick="openHwmsPartModal()">+ Add Part</button>
           </div>
         </div>
@@ -116,7 +111,7 @@
             <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8">📥 Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700">✕ Cancel</button>
             <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" id="btnHwmsInvImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
+            <label class="btn btn-secondary" id="btnHwmsInvImport" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add MI</button>
           </div>
         </div>
@@ -279,14 +274,14 @@
         <div class="card-header" style="flex-wrap:nowrap;gap:8px;border-radius:0">
           <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
           <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
-            <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">✈️ Receive All Air</button>
+            <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" data-hidden="1" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">✈️ Receive All Air</button>
             <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-            <label class="btn btn-secondary" id="btnHwmsContImport" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
+            <label class="btn btn-secondary" id="btnHwmsContImport" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Consignment</button>
           </div>
         </div>
-        <div style="overflow:auto;max-height:calc(100vh - 160px);border:2px solid #cbd5e1;border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:100%"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #94a3b8">
+        <div style="overflow:auto;max-height:calc(100vh - 160px);border:2px solid #cbd5e1;border-radius:8px;display:inline-block;max-width:100%"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:auto"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #94a3b8">
           <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsContSelectAll" onchange="_hwmsContToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Container No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('containerNumber')" title="Sort"><span id="hwmsContSortIcon_containerNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsContSearch" placeholder="🔍 Search..." oninput="renderHwmsContainers();_hwmsFilterX('hwmsContSearch')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsContSearch_x" onclick="event.stopPropagation();document.getElementById('hwmsContSearch').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Main Invoices</div></th>
@@ -437,7 +432,7 @@
       
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Carriers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
         <button class="btn btn-secondary" onclick="exportMaster('hwmsCarriers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
+        <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCarriers',this)"></label>
         <button class="btn btn-primary" onclick="openHwmsCarrierModal()">+ Add Carrier</button>
       </div></div><div class="table-wrap"><table id="tHwmsCarriers"><thead><tr><th class="sortable" onclick="sortTable('hwmsCarrBody',0)">Carrier Name</th><th>Address</th><th>🇮🇳 India Contact</th><th>🇺🇸 USA Contact</th><th>Actions</th></tr></thead><tbody id="hwmsCarrBody"></tbody></table></div></div>
     </div>
@@ -478,7 +473,7 @@
       <div id="omSection_packing">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Packaging Types</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
           <button class="btn btn-secondary" onclick="exportMaster('hwmsPacking')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
+          <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPacking',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPackingModal()">+ Add Packaging</button>
         </div></div><div class="table-wrap"><table id="tHwmsPacking"><thead><tr><th class="sortable" onclick="sortTable('hwmsPackBody',0)">Packaging Name</th><th class="sortable" onclick="sortTable('hwmsPackBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsPackBody"></tbody></table></div></div>
       </div>
@@ -486,7 +481,7 @@
       <div id="omSection_uom" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Units of Measurement</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
           <button class="btn btn-secondary" onclick="exportMaster('hwmsUom')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
+          <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsUom',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsUomModal()">+ Add UOM</button>
         </div></div><div class="table-wrap"><table id="tHwmsUom"><thead><tr><th class="sortable" onclick="sortTable('hwmsUomBody',0)">UOM</th><th class="sortable" onclick="sortTable('hwmsUomBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsUomBody"></tbody></table></div></div>
       </div>
@@ -494,7 +489,7 @@
       <div id="omSection_hsn" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All HSN Codes</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
           <button class="btn btn-secondary" onclick="exportMaster('hwmsHsn')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
+          <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsHsn',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsHsnModal()">+ Add HSN</button>
         </div></div><div class="table-wrap"><table id="tHwmsHsn"><thead><tr><th class="sortable" onclick="sortTable('hwmsHsnBody',0)">HSN Number</th><th class="sortable" onclick="sortTable('hwmsHsnBody',1)">Description</th><th>Actions</th></tr></thead><tbody id="hwmsHsnBody"></tbody></table></div></div>
       </div>
@@ -505,7 +500,7 @@
       
       <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Customers</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
         <button class="btn btn-secondary" onclick="exportMaster('hwmsCustomers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-        <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCustomers',this)"></label>
+        <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsCustomers',this)"></label>
         <button class="btn btn-primary" onclick="openHwmsCustModal()">+ Add Customer</button>
       </div></div><div class="table-wrap"><table id="tHwmsCustomers"><thead><tr>
         <th class="sortable" onclick="sortTable('hwmsCustBody',0)">Customer Name</th>
@@ -549,7 +544,7 @@
       <div id="ptSection_disch">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Discharge</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
           <button class="btn btn-secondary" onclick="exportMaster('hwmsPortDischarge')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
+          <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortDischarge',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPortDischModal()">+ Add Port</button>
         </div></div><div class="table-wrap"><table id="tHwmsPortDisch"><thead><tr>
           <th class="sortable" onclick="sortTable('hwmsPortDischBody',0)">Port Name</th>
@@ -560,7 +555,7 @@
       <div id="ptSection_load" style="display:none">
         <div class="card"><div class="card-header" style="flex-wrap:nowrap;gap:8px"><div class="card-title">All Ports of Loading</div><div style="display:flex;gap:8px;flex-wrap:nowrap">
           <button class="btn btn-secondary" onclick="exportMaster('hwmsPortLoading')" style="font-size:12px;padding:7px 12px">📤 Export</button>
-          <label class="btn btn-secondary" style="font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
+          <label class="btn btn-secondary" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsPortLoading',this)"></label>
           <button class="btn btn-primary" onclick="openHwmsPortLoadModal()">+ Add Port</button>
         </div></div><div class="table-wrap"><table id="tHwmsPortLoad"><thead><tr>
           <th class="sortable" onclick="sortTable('hwmsPortLoadBody',0)">Port Name</th>
@@ -1215,8 +1210,8 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V12"></script>
-<script src="js/hwms-logic.js?v=260514-V12"></script>
-<script src="js/hwms-ui.js?v=260514-V12"></script>
+<script src="js/common.js?v=260514-V29"></script>
+<script src="js/hwms-logic.js?v=260514-V29"></script>
+<script src="js/hwms-ui.js?v=260514-V29"></script>
 </body>
 </html>
