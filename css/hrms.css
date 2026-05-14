@@ -136,7 +136,8 @@
   .hrms-tw-emp table tbody{display:block}
   .hrms-tw-emp table tr{
     display:grid!important;
-    grid-template-columns:auto auto auto 1fr auto;
+    /* 4 cols: Plant chip · Emp Code · Name (1fr) · PIA checkbox */
+    grid-template-columns:auto auto 1fr auto;
     align-items:center;
     column-gap:6px;row-gap:4px;
     padding:8px 12px;margin:0 0 8px;
@@ -150,19 +151,19 @@
   }
   /* 1: # — hidden in card mode */
   .hrms-tw-emp table tr td:nth-child(1){display:none}
-  /* 2: Emp Code — row 1 col 3, mono with trailing dot separator. */
-  .hrms-tw-emp table tr td:nth-child(2){grid-row:1;grid-column:3;font-size:16px;font-weight:800;color:var(--accent);font-family:var(--mono)}
+  /* 2: Emp Code — row 1 col 2, mono with trailing dot separator. */
+  .hrms-tw-emp table tr td:nth-child(2){grid-row:1;grid-column:2;font-size:16px;font-weight:800;color:var(--accent);font-family:var(--mono)}
   .hrms-tw-emp table tr td:nth-child(2)::after{content:"·";color:#94a3b8;font-weight:500;margin-left:6px}
-  /* 3: Name (+ ABSENT chip) — row 1 col 4, takes remaining width. */
-  .hrms-tw-emp table tr td:nth-child(3){grid-row:1;grid-column:4;font-size:16px;font-weight:700;color:#0f172a;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+  /* 3: Name (+ ABSENT chip) — row 1 col 3, takes remaining width. */
+  .hrms-tw-emp table tr td:nth-child(3){grid-row:1;grid-column:3;font-size:16px;font-weight:700;color:#0f172a;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
   /* 4: Plant cluster — flatten via display:contents so plantChip lands
-     on row 1 col 2 (next to PIA) and ._hrmsTwTET (Type · Team) drops
-     to row 2, sharing the row with the round P/A badge. */
+     on row 1 col 1 (leading) and ._hrmsTwTET (Type · Team) drops to row 2,
+     sharing that row with the round P/A badge. */
   .hrms-tw-emp table tr td:nth-child(4){display:contents!important;background:transparent!important}
   .hrms-tw-emp ._hrmsTwPTE{display:contents!important}
-  .hrms-tw-emp ._hrmsTwPTE>span:first-child{grid-row:1!important;grid-column:2!important;justify-self:start!important;align-self:center!important}
+  .hrms-tw-emp ._hrmsTwPTE>span:first-child{grid-row:1!important;grid-column:1!important;justify-self:start!important;align-self:center!important}
   .hrms-tw-emp ._hrmsTwTET{
-    grid-row:2!important;grid-column:1 / 5!important;
+    grid-row:2!important;grid-column:1 / 4!important;
     display:flex!important;align-items:center!important;gap:4px!important;
     font-size:15px!important;color:#475569!important;font-weight:600!important;
   }
@@ -180,12 +181,12 @@
   /* 7 & 8: In / Out Time hidden — the round P/A badge replaces them. */
   .hrms-tw-emp table tr td:nth-child(7),
   .hrms-tw-emp table tr td:nth-child(8){display:none!important}
-  /* 9: Merged P/A·45-day cell — pill (round badge) anchors row 2 col 5;
+  /* 9: Merged P/A·45-day cell — pill (round badge) anchors row 2 col 4;
      45-day bar spans row 4 full-width at the bottom of the card. */
   .hrms-tw-emp table tr td:nth-child(9){display:contents!important;background:transparent!important}
   .hrms-tw-emp ._hrmsMcRow{display:contents!important}
   .hrms-tw-emp ._hrmsMcPA{
-    grid-row:2!important;grid-column:5!important;
+    grid-row:2!important;grid-column:4!important;
     justify-self:end!important;align-self:center!important;
     width:48px!important;height:48px!important;min-width:48px!important;
     padding:0!important;border-radius:50%!important;
@@ -200,10 +201,10 @@
     padding:5px 6px 3px!important;white-space:normal!important;
     text-align:left!important;line-height:1.1
   }
-  /* 10: PIA checkbox — top-left corner of the card (row 1 col 1).
+  /* 10: PIA checkbox — top-right corner of the card (row 1 col 4).
      Hides the "Mark PIA" label to save space; the title tooltip on
      the wrapping <label> carries the meaning. */
-  .hrms-tw-emp table tr td:nth-child(10){grid-row:1;grid-column:1;justify-self:start;align-self:center;background:transparent!important;border:0!important;padding:0!important}
+  .hrms-tw-emp table tr td:nth-child(10){grid-row:1;grid-column:4;justify-self:end;align-self:center;background:transparent!important;border:0!important;padding:0!important}
   .hrms-tw-emp ._hrmsPiaLbl{display:none!important}
   /* Empty / no-data row — colspan doesn't carry through grid, so let
      the single placeholder cell span the whole card width. */
