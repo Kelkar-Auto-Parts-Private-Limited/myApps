@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260514-V29">
+<meta name="app-build" content="260514-V54">
 <title>KAP — HWMS</title>
-<link rel="stylesheet" href="css/hwms.css?v=260514-V29">
+<link rel="stylesheet" href="css/hwms.css?v=260514-V54">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -105,36 +105,49 @@
           <button onclick="_hwmsInvSetTab('air')" id="hwmsInvTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">✈️ By Air <span id="hwmsInvTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
         </div>
         <div class="card-header" style="flex-wrap:wrap;gap:8px;border-radius:0">
-          <div id="hwmsInvStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
-          <div id="hwmsInvButtons" style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
-            <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
-            <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8">📥 Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
-            <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;display:none;font-weight:700">✕ Cancel</button>
+          <div id="hwmsInvStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>
+          <!-- Date filter — moved here from the Date column header. -->
+          <div id="hwmsInvDateFilter" style="display:flex;flex-direction:column;gap:4px;padding:6px 8px;background:#f8fafc;border:1px solid var(--border2);border-radius:6px">
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Date</span>
+              <button onclick="_hwmsInvDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button>
+              <button onclick="_hwmsInvDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button>
+              <button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button>
+              <button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:9px;color:var(--text3);font-weight:700;min-width:26px">From</span>
+              <input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" title="From" style="font-size:11px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;flex:1;min-width:0">
+              <span style="font-size:9px;color:var(--text3);font-weight:700;min-width:16px">To</span>
+              <input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" title="To" style="font-size:11px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;flex:1;min-width:0">
+            </div>
+          </div>
+          <div id="hwmsInvButtons" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
+            <button class="btn btn-danger" id="btnHwmsInvDelSel" onclick="_hwmsInvDeleteSelected()" style="font-size:12px;padding:7px 14px;font-weight:800;white-space:normal;line-height:1.2;text-align:center">🗑️ Delete Selected (<span id="hwmsInvDelCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvDownloadSel" onclick="_hwmsInvDownloadSelected()" style="font-size:12px;padding:7px 12px;font-weight:700;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;white-space:normal;line-height:1.2;text-align:center">📥 Download MI Data (<span id="hwmsInvDlCount">0</span>)</button>
+            <button class="btn btn-secondary" id="btnHwmsInvCancelSel" onclick="_hwmsInvClearSel()" style="font-size:12px;padding:7px 12px;font-weight:700;white-space:normal;line-height:1.2;text-align:center">✕ Cancel</button>
             <button class="btn btn-secondary" id="btnHwmsInvExport" onclick="exportMaster('hwmsInvoices')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsInvImport" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsInvoices',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsInv" onclick="openHwmsInvModal()">+ Add MI</button>
           </div>
         </div>
-        <div style="overflow:auto;max-height:calc(100vh - 200px);border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:100%;white-space:nowrap"><thead>
+        <div style="overflow:auto;border:1px solid var(--border);border-radius:8px"><table id="tHwmsInvoices" style="font-size:14px;border-collapse:collapse;width:auto;white-space:nowrap"><thead>
           <tr style="background:var(--surface2)">
-            <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsInvSelectAll" onchange="_hwmsInvToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
+            <th id="hwmsInvSelectAllTh" style="padding:4px 6px;vertical-align:middle;width:40px;text-align:center"><button onclick="_hwmsInvClearFilters()" title="Clear all filters" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;font-size:14px;font-weight:900;background:#fee2e2;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:6px;cursor:pointer;line-height:1">✕</button></th>
             <th style="padding:4px 6px;vertical-align:top;width:32px;text-align:center"><div style="font-size:10px">🇺🇸</div></th>
-            <th style="padding:4px 6px;vertical-align:top;min-width:165px"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="🔍 Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('date')" title="Sort"><span id="hwmsInvSortI_date">⇅</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="_hwmsInvDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="_hwmsInvDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="_hwmsInvDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="_hwmsInvDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsInvFilterFrom" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsInvFilterTo" onchange="renderHwmsInvoices()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('containerNumber')" title="Sort"><span id="hwmsInvSortI_containerNumber">⇅</span></button></div></th>
+            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">MI No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('invoiceNumber')" title="Sort"><span id="hwmsInvSortI_invoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsInvFilterInvNo" placeholder="🔍 Search..." oninput="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterInvNo')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsInvFilterInvNo_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterInvNo').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('date')" title="Sort"><span id="hwmsInvSortI_date">⇅</span></button></div></th>
+            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Container <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('containerNumber')" title="Sort"><span id="hwmsInvSortI_containerNumber">⇅</span></button></div><div style="font-size:9px;color:var(--text3);font-weight:600;margin-top:2px">Reach · Status</div></th>
             <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('pickupDate')" title="Sort"><span id="hwmsInvSortI_pickupDate">⇅</span></button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">MI Status</div><div style="position:relative"><select id="hwmsInvFilterStatus" onchange="renderHwmsInvoices();_hwmsFilterX('hwmsInvFilterStatus')" onclick="event.stopPropagation()" style="font-size:11px;padding:5px 4px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="RFD">RFD</option><option value="Dispatched">Dispatched</option><option value="Warehouse">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsInvFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsInvFilterStatus').value='';renderHwmsInvoices();this.style.display='none'">✕</button></div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">SI</div></th>
-            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">Payment</div></th>
-            <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Reach Date</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Amount ($) <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsInvSort('amount')" title="Sort"><span id="hwmsInvSortI_amount">⇅</span></button></div><div id="hwmsInvHeaderTotal" style="font-size:14px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
-            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Net Wt</div><div id="hwmsInvHeaderNetWt" style="font-size:12px;font-weight:900;color:#475569;font-family:var(--mono);margin-top:3px"></div></th>
+            <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div><div id="hwmsInvHeaderGrossWt" style="font-size:12px;font-weight:900;color:#475569;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">SI Amt ($)</div><div id="hwmsInvHeaderSiTotal" style="font-size:12px;font-weight:900;color:#7c3aed;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Received ($)</div><div id="hwmsInvHeaderRcvdTotal" style="font-size:12px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Balance ($)</div><div id="hwmsInvHeaderBalTotal" style="font-size:12px;font-weight:900;font-family:var(--mono);margin-top:3px"></div></th>
+            <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">Payment</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff %</div></th>
             <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Tariff ($)</div><div id="hwmsInvHeaderTariffTotal" style="font-size:12px;font-weight:900;color:#ea580c;font-family:var(--mono);margin-top:3px"></div></th>
-            <th style="padding:4px 6px;vertical-align:top"><button onclick="_hwmsInvClearFilters()" style="font-size:9px;padding:2px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;color:var(--text3);white-space:nowrap" title="Clear all filters">✕ Clear</button></th>
           </tr>
         </thead><tbody id="hwmsInvBody"></tbody></table></div>
       </div>
@@ -254,6 +267,7 @@
         <div style="display:flex;align-items:center;gap:12px">
           <button class="hwms-back-btn" onclick="_hwmsInvBack()">← Back</button>
           <button id="hwmsInvPrevBtn" onclick="_hwmsInvNav(-1)" title="Previous Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
+          <div id="hwmsInvNumNav" style="font-family:var(--inv-mono);font-weight:700;font-size:20px;color:var(--accent);padding:0 6px;min-width:90px;text-align:center;letter-spacing:.5px"></div>
           <button id="hwmsInvNextBtn" onclick="_hwmsInvNav(1)" title="Next Invoice" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
           <div class="page-title" id="hwmsInvViewTitle">Invoice Details</div>
         </div>
@@ -271,23 +285,41 @@
           <button onclick="_hwmsContSetTab('sea')" id="hwmsContTabSea" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#eff6ff;color:#2563eb;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid #2563eb;border-bottom:none;margin-right:-1px">🚢 By Sea <span id="hwmsContTabSeaCnt" style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
           <button onclick="_hwmsContSetTab('air')" id="hwmsContTabAir" style="flex:1;padding:12px 16px;font-size:13px;font-weight:800;border:none;background:#f8fafc;color:#64748b;cursor:pointer;border-radius:8px 8px 0 0;border:2px solid var(--border);border-bottom:none">✈️ By Air <span id="hwmsContTabAirCnt" style="background:#64748b;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">0</span></button>
         </div>
-        <div class="card-header" style="flex-wrap:nowrap;gap:8px;border-radius:0">
-          <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1"></div>
-          <div style="display:flex;gap:8px;flex-wrap:nowrap;align-items:center">
+        <div class="card-header" style="flex-wrap:wrap;gap:8px;border-radius:0">
+          <div id="hwmsContStats" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>
+          <!-- Pickup Date filter — moved here from the Pickup Date column header. -->
+          <div id="hwmsContDateFilter" style="display:flex;flex-direction:column;gap:4px;padding:6px 8px;background:#f8fafc;border:1px solid var(--border2);border-radius:6px">
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Pickup</span>
+              <button onclick="_hwmsContDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button>
+              <button onclick="_hwmsContDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button>
+              <button onclick="_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button>
+              <button onclick="_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span style="font-size:9px;color:var(--text3);font-weight:700;min-width:26px">From</span>
+              <input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" title="From" style="font-size:11px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;flex:1;min-width:0">
+              <span style="font-size:9px;color:var(--text3);font-weight:700;min-width:16px">To</span>
+              <input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" title="To" style="font-size:11px;padding:3px 5px;border:1px solid var(--border2);border-radius:4px;flex:1;min-width:0">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
             <button class="btn" id="btnHwmsReceiveAllAir" onclick="_hwmsReceiveAllAirConsignments()" data-hidden="1" style="font-size:12px;padding:7px 14px;font-weight:800;background:#ede9fe;border:1.5px solid #a78bfa;color:#6d28d9;display:none">✈️ Receive All Air</button>
-            <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;display:none;font-weight:800">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
+            <button class="btn btn-danger" id="btnHwmsContDelSel" onclick="_hwmsContDeleteSelected()" style="font-size:12px;padding:7px 14px;font-weight:800;white-space:normal;line-height:1.2;text-align:center">🗑️ Delete Selected (<span id="hwmsContDelCount">0</span>)</button>
             <button class="btn btn-secondary" id="btnHwmsContExport" onclick="exportMaster('hwmsContainers')" style="font-size:12px;padding:7px 12px">📤 Export</button>
             <label class="btn btn-secondary" id="btnHwmsContImport" style="display:none;font-size:12px;padding:7px 12px;cursor:pointer;margin:0">📥 Import<input type="file" accept=".xlsx" style="display:none" onchange="importMaster('hwmsContainers',this)"></label>
             <button class="btn btn-primary" id="btnAddHwmsCont" onclick="openHwmsContModal()">+ Plan New Consignment</button>
           </div>
         </div>
-        <div style="overflow:auto;max-height:calc(100vh - 160px);border:2px solid #cbd5e1;border-radius:8px;display:inline-block;max-width:100%"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:auto"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #94a3b8">
-          <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:top;width:36px;text-align:center;display:none"><input type="checkbox" id="hwmsContSelectAll" onchange="_hwmsContToggleAll(this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" title="Select All"></th>
+        <div style="overflow:auto;border:2px solid #cbd5e1;border-radius:8px"><table id="tHwmsContainers" style="font-size:14px;border-collapse:collapse;width:auto"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #94a3b8">
+          <th id="hwmsContSelectAllTh" style="padding:4px 6px;vertical-align:middle;width:40px;text-align:center"><button onclick="_hwmsContClearFilters()" title="Clear all filters" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;font-size:14px;font-weight:900;background:#fee2e2;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:6px;cursor:pointer;line-height:1">✕</button></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Container No. <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('containerNumber')" title="Sort"><span id="hwmsContSortIcon_containerNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsContSearch" placeholder="🔍 Search..." oninput="renderHwmsContainers();_hwmsFilterX('hwmsContSearch')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 24px 7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsContSearch_x" onclick="event.stopPropagation();document.getElementById('hwmsContSearch').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Main Invoices</div></th>
-          <th style="padding:4px 6px;vertical-align:top;min-width:165px;white-space:nowrap"><div style="font-size:11px;margin-bottom:3px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('expectedPickupDate')" title="Sort"><span id="hwmsContSortIcon_expectedPickupDate">⇅</span></button></div><div style="display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px"><button onclick="event.stopPropagation();_hwmsContDateRange('CY')" class="hwms-dr-btn" title="Current Calendar Year">CY</button><button onclick="event.stopPropagation();_hwmsContDateRange('LY')" class="hwms-dr-btn" title="Last Calendar Year">LY</button><button onclick="event.stopPropagation();_hwmsContDateRange('M')" class="hwms-dr-btn" title="Current Month">M</button><button onclick="event.stopPropagation();_hwmsContDateRange('ALL')" class="hwms-dr-btn" title="All Dates">All</button></div><div style="display:flex;gap:3px;align-items:center;margin-bottom:2px"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">From</span><input type="date" id="hwmsContFilterFrom" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="From" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div><div style="display:flex;gap:3px;align-items:center"><span style="font-size:8px;font-weight:700;color:var(--text3);width:22px;flex-shrink:0">To</span><input type="date" id="hwmsContFilterTo" onchange="renderHwmsContainers()" onclick="event.stopPropagation()" title="To" style="font-size:9px;padding:2px;border:1px solid var(--border2);border-radius:4px;flex:1;box-sizing:border-box"></div></th>
+          <th style="padding:4px 6px;vertical-align:top;white-space:nowrap"><div style="font-size:11px">Pickup Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('expectedPickupDate')" title="Sort"><span id="hwmsContSortIcon_expectedPickupDate">⇅</span></button></div></th>
           <th style="padding:4px 6px;vertical-align:top;max-width:80px"><div style="font-size:11px;margin-bottom:3px">Carrier <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('carrierName')" title="Sort"><span id="hwmsContSortIcon_carrierName">⇅</span></button></div><div style="position:relative"><select id="hwmsContFilterCarrier" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterCarrier')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterCarrier_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterCarrier').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
           <th id="hwmsContInvValueTh" class="hwms-cont-invval" style="padding:4px 6px;vertical-align:top"><div style="font-size:11px">Inv. Value <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('invValue')" title="Sort"><span id="hwmsContSortIcon_invValue">⇅</span></button></div><div id="hwmsContInvValueTotal" style="font-size:15px;font-weight:900;color:#16a34a;font-family:var(--mono);margin-top:3px"></div></th>
+          <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Net Wt</div><div id="hwmsContNetWtTotal" style="font-size:12px;font-weight:900;color:#475569;font-family:var(--mono);margin-top:3px"></div></th>
+          <th style="padding:4px 6px;vertical-align:top;text-align:right"><div style="font-size:11px">Gross Wt</div><div id="hwmsContGrossWtTotal" style="font-size:12px;font-weight:900;color:#475569;font-family:var(--mono);margin-top:3px"></div></th>
           <th style="padding:4px 6px;vertical-align:top"><div style="font-size:11px;margin-bottom:3px">Status <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsContSort('status')" title="Sort"><span id="hwmsContSortIcon_status">⇅</span></button></div><div style="position:relative"><select id="hwmsContFilterStatus" onchange="renderHwmsContainers();_hwmsFilterX('hwmsContFilterStatus')" onclick="event.stopPropagation()" style="font-size:12px;padding:7px 8px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);width:100%;box-sizing:border-box;font-weight:600"><option value="">All</option><option value="Draft">Draft</option><option value="Onwater">In Transit</option><option value="Reached">Warehouse</option></select><button type="button" class="hwms-filter-x" id="hwmsContFilterStatus_x" onclick="event.stopPropagation();document.getElementById('hwmsContFilterStatus').value='';renderHwmsContainers();this.style.display='none'">✕</button></div></th>
           <th style="padding:4px 6px;vertical-align:top;text-align:center;width:40px"><div style="font-size:10px">Days</div></th>
         </tr></thead><tbody id="hwmsContBody"></tbody></table></div>
@@ -298,9 +330,9 @@
         <div style="position:sticky;top:48px;z-index:10;background:var(--surface);padding:10px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button class="hwms-back-btn" onclick="_hwmsContCancel()">← Back</button>
           <button id="hwmsContPrevBtn" onclick="_hwmsContNav(-1)" title="Previous Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">‹</button>
+          <div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent);padding:0 6px;min-width:120px;text-align:center"></div>
           <button id="hwmsContNextBtn" onclick="_hwmsContNav(1)" title="Next Container" style="padding:6px 12px;font-size:16px;background:var(--surface2);border:1.5px solid var(--border);color:var(--text);font-weight:700;border-radius:var(--radius);cursor:pointer;line-height:1">›</button>
           <div id="mHwmsContTitle" style="font-size:18px;font-weight:900;color:var(--text)">Plan New Container</div>
-          <div id="hwmsContNumDisplay" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)"></div>
           <div id="hwmsContTopTypeBadge" style="display:none"></div>
           <div id="hwmsContStatusBadge" style="display:inline-block"></div>
           <div style="margin-left:auto"><div class="modal-err" id="merr_mHwmsCont"></div></div>
@@ -678,7 +710,7 @@
         <div id="hwmsSiStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center"></div>
         <div class="table-wrap">
           <table id="hwmsSiTbl"><thead><tr>
-            <th id="hwmsSiSelectAllTh" style="width:30px;text-align:center;display:none"><input type="checkbox" id="hwmsSiSelectAll" onchange="_hwmsSiToggleAll(this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></th>
+            <th id="hwmsSiSelectAllTh" style="padding:4px 6px;vertical-align:middle;width:40px;text-align:center"><button onclick="_hwmsSiClearFilters()" title="Clear all filters" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;font-size:14px;font-weight:900;background:#fee2e2;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:6px;cursor:pointer;line-height:1">✕</button></th>
             <th style="width:30px;text-align:center"><div style="font-size:10px">🖨️</div></th>
             <th><div>Date <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('date')" title="Sort"><span id="hwmsSiSortI_date">⇅</span></button></div></th>
             <th><div>Sub-Inv # <button class="hwms-sort-btn" onclick="event.stopPropagation();_hwmsSiSort('subInvoiceNumber')" title="Sort"><span id="hwmsSiSortI_subInvoiceNumber">⇅</span></button></div><div style="position:relative"><input type="text" id="hwmsSiFltNum" placeholder="🔍 Filter…" oninput="renderHwmsSubInvoices();_hwmsFilterX('hwmsSiFltNum')" onclick="event.stopPropagation()" style="border:1.5px solid var(--accent)!important;font-weight:600"><button type="button" class="hwms-filter-x" id="hwmsSiFltNum_x" onclick="event.stopPropagation();document.getElementById('hwmsSiFltNum').value='';renderHwmsSubInvoices();this.style.display='none'">✕</button></div></th>
@@ -1210,8 +1242,8 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V29"></script>
-<script src="js/hwms-logic.js?v=260514-V29"></script>
-<script src="js/hwms-ui.js?v=260514-V29"></script>
+<script src="js/common.js?v=260514-V54"></script>
+<script src="js/hwms-logic.js?v=260514-V54"></script>
+<script src="js/hwms-ui.js?v=260514-V54"></script>
 </body>
 </html>

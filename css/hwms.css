@@ -39,6 +39,32 @@
 .nav-sec{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:16px 16px 6px}
 /* Pages */
 .page{display:none;padding:16px;overflow:visible}.page.active{display:block}
+/* MI + CN: viewport-locked page so only the inner table scrolls.
+   The body.hwms-fullscreen-page class (toggled by hwmsGo) locks the
+   document to viewport height so wheel/scroll gestures can only move
+   the inner table — no document-level scroll. */
+body.hwms-fullscreen-page{overflow:hidden!important;height:100vh!important;min-height:0!important}
+body.hwms-fullscreen-page #hwmsApp{height:calc(100vh - 50px);overflow:hidden}
+.page#pageHwmsInvoices.active,
+.page#pageHwmsContainers.active{
+  display:flex;flex-direction:column;
+  height:100%;
+  padding:12px 16px;overflow:hidden;box-sizing:border-box;
+}
+.page#pageHwmsInvoices>.card,
+.page#pageHwmsContainers>.card{
+  flex:1;min-height:0;
+  display:flex;flex-direction:column;
+  overflow:hidden;margin-bottom:0;
+}
+.page#pageHwmsInvoices>.card>#hwmsInvTabs,
+.page#pageHwmsContainers>.card>#hwmsContTabs,
+.page#pageHwmsInvoices>.card>.card-header,
+.page#pageHwmsContainers>.card>.card-header{flex:0 0 auto}
+.page#pageHwmsInvoices>.card>div[style*="overflow:auto"],
+.page#pageHwmsContainers>.card>div[style*="overflow:auto"]{
+  flex:1 1 auto;min-height:0;max-height:none!important;
+}
 /* MR page: normal font for table, larger for stats/buttons */
 #pageHwmsMR{font-size:14px}
 #pageHwmsMR>div>.table-wrap table{font-size:14px}
@@ -66,6 +92,8 @@ tbody tr:hover{background:rgba(42,154,160,.08)!important}
 .modal-footer{padding:14px 22px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border);position:sticky;bottom:0;background:#fff;flex-wrap:wrap}
 .modal-err{width:100%;font-size:12px;font-weight:600;color:var(--red);display:none;margin-bottom:6px}
 .flash-red{animation:flashR 1.2s ease-in-out infinite}@keyframes flashR{0%,100%{background:transparent}50%{background:rgba(239,68,68,.15)}}
+.hwms-aging-flash{animation:hwmsAgingFlash 1s ease-in-out infinite;color:#dc2626!important;font-weight:900!important}
+@keyframes hwmsAgingFlash{0%,100%{color:#dc2626;opacity:1}50%{color:#fca5a5;opacity:.55}}
 .mr-bal-flash{animation:mrBalFlash .8s ease-in-out infinite}@keyframes mrBalFlash{0%,100%{background:#dc2626;color:#fff;transform:scale(1)}50%{background:#fca5a5;color:#dc2626;transform:scale(1.05)}}
 .sortable{cursor:pointer}.sort-asc::after{content:' ▲';font-size:9px}.sort-desc::after{content:' ▼';font-size:9px}
 /* HWMS-specific */

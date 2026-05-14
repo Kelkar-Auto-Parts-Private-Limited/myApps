@@ -93,6 +93,10 @@ function hwmsGo(pageId){
   document.querySelectorAll('#hwmsApp .page').forEach(p=>p.classList.remove('active'));
   const pg=document.getElementById(pageId);
   if(pg) pg.classList.add('active');
+  // Viewport-locked pages — only the inner table scrolls, no document-level
+  // scroll. The class lets CSS clamp <body> to 100vh and kill body overflow.
+  var _fullscreenPages={'pageHwmsInvoices':1,'pageHwmsContainers':1};
+  document.body.classList.toggle('hwms-fullscreen-page', !!_fullscreenPages[pageId]);
   // Update topbar title with badge — map sub-pages to parent nav ID
   var _navIdMap={'pageHwmsDashboard':'navDashboard','pageHwmsInvoices':'navInvoices','pageHwmsInvEdit':'navInvoices','pageHwmsInvView':'navInvoices','pageHwmsSubInvoices':'navSubInvoices','pageHwmsSiView':'navSubInvoices','pageHwmsMR':'navMR','pageHwmsMrView':'navMR','pageHwmsPayments':'navPayments','pageHwmsOutstanding':'navOutstanding','pageHwmsContainers':'navContainers','pageHwmsInventory':'navInventory','pageHwmsParts':'navParts','pageHwmsCarriers':'navCarriers','pageHwmsCompany':'navCompany','pageHwmsOtherMasters':'navOtherMasters','pageHwmsPorts':'navPorts','pageHwmsSteelRates':'navCustomers','pageHwmsCustomers':'navCustomers','pageHwmsSysGuide':'navSysGuide'};
   var _navId=_navIdMap[pageId];
@@ -2872,6 +2876,23 @@ function _hwmsContSort(key){
   else {_hwmsContSortKey=key;_hwmsContSortAsc=true;}
   renderHwmsContainers();
 }
+// Big, color-coded CN status pill for the view/edit page header.
+// Mirrors the MI status pill (V41) so the lifecycle stage reads at a
+// glance instead of as a tiny coloured chip.
+function _hwmsContStatusPill(st){
+  if(!st||!st.label) return '';
+  var iconMap={'Draft':'📝','In Transit':'🚢','Onwater':'🚢','Warehouse':'🏭','Reached':'🏭'};
+  var styleMap={
+    'Draft':'background:#fef3c7;color:#92400e;border:2px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15)',
+    'In Transit':'background:#dbeafe;color:#1e3a8a;border:2px solid #2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)',
+    'Onwater':'background:#dbeafe;color:#1e3a8a;border:2px solid #2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)',
+    'Warehouse':'background:#dcfce7;color:#166534;border:2px solid #16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)',
+    'Reached':'background:#dcfce7;color:#166534;border:2px solid #16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)'
+  };
+  var icon=iconMap[st.label]||'•';
+  var style=styleMap[st.label]||'background:#f1f5f9;color:#334155;border:2px solid #94a3b8';
+  return '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 16px;font-size:18px;font-weight:900;border-radius:999px;letter-spacing:.5px;text-transform:uppercase;vertical-align:middle;'+style+'"><span style="font-size:20px;line-height:1">'+icon+'</span>'+st.label+'</span>';
+}
 function _hwmsContClearFilters(){
   ['hwmsContSearch','hwmsContFilterFrom','hwmsContFilterTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['hwmsContFilterStatus','hwmsContFilterCarrier'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -2988,14 +3009,16 @@ function renderHwmsContainers(){
       invHtml=Object.entries(custMap).map(([custName,custInvs])=>{
         const invLines=custInvs.map(inv=>{
           const invSt=_hwmsInvStatus(inv);
-          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span style="font-weight:400;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15);font-family:var(--inv-mono);cursor:pointer;text-decoration:underline" onclick="_hwmsNavToInvDetail('${inv.id}')">${_hwmsInvNum(inv.invoiceNumber)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
+          return `<div style="display:flex;gap:4px;align-items:center;margin:1px 0"><span class="hwms-row-noclick" style="font-weight:400;color:var(--accent);background:rgba(42,154,160,.08);padding:0 5px;border-radius:3px;border:1px solid rgba(42,154,160,.15);font-family:var(--inv-mono);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();_hwmsNavToInvDetail('${inv.id}')">${_hwmsInvNum(inv.invoiceNumber)}</span><span class="badge ${invSt.cls}" style="font-size:9px;padding:0 4px">${invSt.label}</span></div>`;
         }).join('');
         var custShort=custName.split(/\s+/).slice(0,2).join(' ');
         return `<div style="margin-bottom:3px"><div style="font-weight:800;font-size:13px;color:var(--text)">${custShort}</div><div style="padding-left:4px;font-size:11px">${invLines}</div></div>`;
       }).join('');
     } else { invHtml='<span style="color:var(--text3);font-size:12px">—</span>'; }
-    // Total invoice value for this container
+    // Total invoice value + weight for this container (sum of all linked MI line items).
     const contInvTotal=invs.reduce((s,inv)=>(inv.lineItems||[]).filter(li=>!li._meta).reduce((s2,li)=>s2+(li.rate||0)*(li.quantity||0),s),0);
+    const contNetWt=invs.reduce((s,inv)=>(inv.lineItems||[]).filter(li=>!li._meta).reduce((s2,li)=>s2+(li.netWeight||0),s),0);
+    const contGrossWt=invs.reduce((s,inv)=>(inv.lineItems||[]).filter(li=>!li._meta).reduce((s2,li)=>s2+(li.grossWeight||0),s),0);
     // Transit days: reachDate(or expected) - pickupDate(or expected)
     var _pickD=c.pickupDate||c.expectedPickupDate||'';
     var _reachD=c.reachedDate||c.expectedReachDate||'';
@@ -3023,31 +3046,40 @@ function renderHwmsContainers(){
     var _stBadgeHtml=(st.label==='In Transit')
       ? '<span style="display:inline-block;padding:3px 10px;border-radius:14px;background:#dbeafe;color:#1e40af;border:1.5px solid #93c5fd;font-weight:900;font-size:11px;letter-spacing:.3px;white-space:nowrap">🚢 In Transit</span>'
       : stBadge;
-    return `<tr style="${_rowBg}">
-      ${_contSA?'<td style="text-align:center"><input type="checkbox" class="hwmsContChk" value="'+c.id+'" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:16px;cursor:pointer;text-decoration:underline;white-space:nowrap" onclick="openHwmsContModal('${c.id}')">${c.containerNumber}</td>
+    var _contSelCb=_contSA?'<input type="checkbox" class="hwmsContChk" value="'+c.id+'" onclick="event.stopPropagation()" onchange="_hwmsContUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">':'';
+    return `<tr style="${_rowBg};cursor:pointer" onclick="if(event.target.closest('button,input,a,.hwms-row-noclick'))return;openHwmsContModal('${c.id}')">
+      <td style="text-align:center;width:40px">${_contSelCb}</td>
+      <td style="font-family:var(--mono);font-weight:800;color:var(--accent);font-size:16px;text-decoration:underline;white-space:nowrap">${c.containerNumber}</td>
       <td>${invHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
       <td style="font-weight:600;white-space:nowrap">${c.carrierName||'—'}</td>
-      <td class="hwms-cont-invval" style="white-space:nowrap;font-family:var(--mono);font-weight:900;font-size:14px;color:#16a34a;text-align:right">${_fCurr(contInvTotal)}</td>
+      <td class="hwms-cont-invval" style="white-space:nowrap;font-family:var(--mono);font-weight:900;font-size:14px;color:#16a34a;text-align:right">${_fCurr(Math.round(contInvTotal))}</td>
+      <td style="white-space:nowrap;font-family:var(--mono);font-weight:700;text-align:right">${contNetWt>0?Math.round(contNetWt)+' kg':'—'}</td>
+      <td style="white-space:nowrap;font-family:var(--mono);font-weight:700;text-align:right">${contGrossWt>0?Math.round(contGrossWt)+' kg':'—'}</td>
       <td style="white-space:nowrap">${_stBadgeHtml}<div style="margin-top:3px">${reachHtml}</div></td>
       <td style="text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;color:${transitDays==='—'?'var(--text3)':'#2563eb'}">${transitDays}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="'+(_contSA?9:8)+'" class="empty-state">No containers found</td></tr>';
-  // Calculate total invoice amount for all filtered containers
-  var contGrandTotal=0;
+  }).join(''):'<tr><td colspan="10" class="empty-state">No containers found</td></tr>';
+  // Calculate total invoice amount + weight for all filtered containers
+  var contGrandTotal=0,contGrandNetWt=0,contGrandGrossWt=0;
   conts.forEach(function(c){
     (DB.hwmsInvoices||[]).filter(function(inv){return inv.containerId===c.id;}).forEach(function(inv){
-      (inv.lineItems||[]).forEach(function(li){contGrandTotal+=(li.rate||0)*(li.quantity||0);});
+      (inv.lineItems||[]).filter(function(li){return !li._meta;}).forEach(function(li){
+        contGrandTotal+=(li.rate||0)*(li.quantity||0);
+        contGrandNetWt+=(li.netWeight||0);
+        contGrandGrossWt+=(li.grossWeight||0);
+      });
     });
   });
   var ivtEl=document.getElementById('hwmsContInvValueTotal');
-  if(ivtEl) ivtEl.textContent=conts.length?_fCurr(contGrandTotal):'';
+  if(ivtEl) ivtEl.textContent=conts.length?_fCurr(Math.round(contGrandTotal)):'';
+  var nwTotEl=document.getElementById('hwmsContNetWtTotal');
+  if(nwTotEl) nwTotEl.textContent=conts.length&&contGrandNetWt>0?Math.round(contGrandNetWt)+' kg':'';
+  var gwTotEl=document.getElementById('hwmsContGrossWtTotal');
+  if(gwTotEl) gwTotEl.textContent=conts.length&&contGrandGrossWt>0?Math.round(contGrandGrossWt)+' kg':'';
   const cEl=document.getElementById('cHwmsContainers');if(cEl)cEl.textContent=(DB.hwmsContainers||[]).length;
-  // Reset multi-select state
-  var selAllCb=document.getElementById('hwmsContSelectAll');if(selAllCb) selAllCb.checked=false;
-  var selAllTh=document.getElementById('hwmsContSelectAllTh');
-  if(selAllTh) selAllTh.style.display=_contSA?'table-cell':'none';
+  // Select-all column was replaced by the X clear-filters button (V34);
+  // the header cell is always visible now.
   _hwmsContUpdateDelBtn();
   // Re-apply inv value column visibility for WA/WU
   var _showVal=_hwmsCan('cont.viewValue');
@@ -3067,10 +3099,15 @@ function _hwmsContUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsContChk:checked').length;
   var btn=document.getElementById('btnHwmsContDelSel');
   var cntEl=document.getElementById('hwmsContDelCount');
-  // Access Management drives visibility — `cont.delete` resolves to
-  // `action.deleteContainer` via _HWMS_PERM_MAP. No more hardcoded
-  // admin-only gate.
-  if(btn) btn.style.display=(count>0&&_hwmsCan('cont.delete'))?'inline-flex':'none';
+  // Stay visible, just disabled when nothing is selected — keeps the row
+  // stable. Hidden entirely only if the role lacks `cont.delete`.
+  if(btn){
+    btn.style.display=_hwmsCan('cont.delete')?'inline-flex':'none';
+    btn.disabled=count===0;
+    btn.style.opacity=count===0?'.45':'1';
+    btn.style.cursor=count===0?'not-allowed':'pointer';
+    btn.style.filter=count===0?'grayscale(.3)':'';
+  }
   if(cntEl) cntEl.textContent=count;
   var all=document.querySelectorAll('.hwmsContChk');
   var selAll=document.getElementById('hwmsContSelectAll');
@@ -3227,7 +3264,7 @@ function openHwmsContModal(id){
   }
   // Status badge
   const st=c?_hwmsContStatus(c):{label:'Draft',cls:'badge-gray'};
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   // Linked invoices
   _hwmsContRenderLinkedInvs(id);
   // Dispatch button state
@@ -3614,7 +3651,7 @@ async function _hwmsContDispatch(){
   });
   // Update status badge
   const st=_hwmsContStatus(c);
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   // Update Tab 2 readonly fields
   document.getElementById('hwmsContCarrierName2').value=c.carrierName;
   document.getElementById('hwmsContPickup2').value=_fdate(c.pickupDate);
@@ -3689,7 +3726,7 @@ async function _hwmsContUndoDispatch(){
   _hwmsContUpdateReachedUI({status:''});
   _hwmsContUpdateDatePickers(c, false);
   const st=_hwmsContStatus(c);
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   _hwmsContRenderLinkedInvs(id);
   _hwmsContTab(1);
   renderHwmsContainers();renderHwmsInvoices();
@@ -3764,7 +3801,7 @@ function _hwmsContOpenReceive(){
       var _undoBtn3=document.getElementById('btnHwmsContUndoDispatch');
       if(_undoBtn3) _undoBtn3.style.display='none';
       var st2=_hwmsContStatus(c);
-      document.getElementById('hwmsContStatusBadge').innerHTML='<span class="badge '+st2.cls+'" style="font-weight:800;font-size:12px">'+st2.label+'</span>';
+      document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st2);
       document.getElementById('hwmsContReachedDate').value=recvDate;
       renderHwmsContainers();renderHwmsInvoices();
       _hwmsContRenderLinkedInvs(id);
@@ -3899,7 +3936,7 @@ async function _hwmsContSaveReceive(){
   const _undoBtn=document.getElementById('btnHwmsContUndoDispatch');
   if(_undoBtn) _undoBtn.style.display='none';
   const st=_hwmsContStatus(c);
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   document.getElementById('hwmsContReachedDate').value=recvDate;
   _hwmsContDateFmt('hwmsContReachedDate');
   renderHwmsContainers();renderHwmsInvoices();
@@ -3929,7 +3966,7 @@ async function _hwmsContReached(){
   var _undoBtn2=document.getElementById('btnHwmsContUndoDispatch');
   if(_undoBtn2) _undoBtn2.style.display='none';
   const st=_hwmsContStatus(c);
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   renderHwmsContainers();renderHwmsInvoices();
   _hwmsContRenderLinkedInvs(id);
   _hwmsContSyncAllDates();
@@ -4137,7 +4174,7 @@ async function _hwmsContRevokeReached(){
   const dispLabel=document.getElementById('hwmsContDispatchLabel');
   if(dispLabel){dispLabel.innerHTML=_dIcon3+' '+_dLabel3+' dispatched on <strong>'+_hwmsFmtDateDMY(c.pickupDate)+'</strong>';dispLabel.style.display='';}
   const st=_hwmsContStatus(c);
-  document.getElementById('hwmsContStatusBadge').innerHTML=`<span class="badge ${st.cls}" style="font-weight:800;font-size:12px">${st.label}</span>`;
+  document.getElementById('hwmsContStatusBadge').innerHTML=_hwmsContStatusPill(st);
   _hwmsContRenderLinkedInvs(id);
   renderHwmsContainers();renderHwmsInvoices();renderHwmsInventory();
   _hwmsContSyncAllDates();
@@ -4338,7 +4375,7 @@ async function saveHwmsCont(){
   if(saved){
     var stObj=_hwmsContStatus(saved);
     var stBadgeEl=document.getElementById('hwmsContStatusBadge');
-    if(stBadgeEl) stBadgeEl.innerHTML='<span class="badge '+stObj.cls+'" style="font-size:13px">'+stObj.label+'</span>';
+    if(stBadgeEl) stBadgeEl.innerHTML=_hwmsContStatusPill(stObj);
     document.getElementById('hwmsContNumDisplay').textContent=saved.containerNumber||'';
   }
   renderHwmsContainers();
@@ -4417,8 +4454,9 @@ function _hwmsInvDateRange(mode){
   var r=_hwmsDateRange(mode);
   document.getElementById('hwmsInvFilterFrom').value=r.from;
   document.getElementById('hwmsInvFilterTo').value=r.to;
-  // Highlight active button
-  document.querySelectorAll('#tHwmsInvoices .hwms-dr-btn').forEach(function(b){
+  // Highlight active button — filter strip lives in the card-header now
+  // (it moved out of the table thead in V34), so target it by its own id.
+  document.querySelectorAll('#hwmsInvDateFilter .hwms-dr-btn').forEach(function(b){
     b.classList.toggle('active', b.textContent.trim()===mode||(mode==='ALL'&&b.textContent.trim()==='All'));
   });
   renderHwmsInvoices();
@@ -4427,8 +4465,8 @@ function _hwmsContDateRange(mode){
   var r=_hwmsDateRange(mode);
   document.getElementById('hwmsContFilterFrom').value=r.from;
   document.getElementById('hwmsContFilterTo').value=r.to;
-  // Highlight active button
-  document.querySelectorAll('#tHwmsContainers .hwms-dr-btn').forEach(function(b){
+  // Highlight active button — see _hwmsInvDateRange note.
+  document.querySelectorAll('#hwmsContDateFilter .hwms-dr-btn').forEach(function(b){
     b.classList.toggle('active', b.textContent.trim()===mode||(mode==='ALL'&&b.textContent.trim()==='All'));
   });
   renderHwmsContainers();
@@ -4537,9 +4575,9 @@ function renderHwmsSubInvoices(){
     +(_siShowAmts?'<div style="background:#faf5ff;border:1.5px solid #e9d5ff;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#16a34a;font-family:var(--mono)">'+paid+'</div><div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase">Fully Paid</div></div>':'')
     +(_siShowAmts?'<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 14px;text-align:center;min-width:70px"><div style="font-size:20px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+pending+'</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Pending</div></div>':'')
     +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    +'<button id="hwmsSiDelBtn" onclick="_hwmsSiBulkDel()" style="display:none;padding:5px 14px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer">🗑 Delete <span id="hwmsSiDelCount2"></span></button>'
-    +'<button id="hwmsSiDlBtn" onclick="_hwmsSiDownloadSelected()" style="display:none;padding:5px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">📥 Download SI Data (<span id="hwmsSiDlCount">0</span>)</button>'
-    +'<button id="hwmsSiCancelSelBtn" onclick="_hwmsSiClearSel()" style="display:none;padding:5px 12px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer">✕ Cancel</button>'
+    +'<button id="hwmsSiDelBtn" onclick="_hwmsSiBulkDel()" style="padding:5px 14px;font-size:12px;font-weight:800;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:normal;line-height:1.2;text-align:center">🗑 Delete <span id="hwmsSiDelCount2">(0)</span></button>'
+    +'<button id="hwmsSiDlBtn" onclick="_hwmsSiDownloadSelected()" style="padding:5px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer;white-space:normal;line-height:1.2;text-align:center">📥 Download SI Data (<span id="hwmsSiDlCount">0</span>)</button>'
+    +'<button id="hwmsSiCancelSelBtn" onclick="_hwmsSiClearSel()" style="padding:5px 12px;font-size:12px;font-weight:700;background:#f1f5f9;color:var(--text2);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:normal;line-height:1.2;text-align:center">✕ Cancel</button>'
     +(_hwmsCan('si.export')?'<button class="btn btn-secondary" onclick="_hwmsSiExport()" style="font-size:12px;padding:5px 12px">📤 Export</button>':'')
     // Import SI hidden per request — restore the _hwmsCan gate to re-enable.
     +''
@@ -4553,9 +4591,9 @@ function renderHwmsSubInvoices(){
   // `isAdmin` gate so the column count is consistent.
   var isAdmin=_hwmsCan('si.delete');
   var isSA=isAdmin;
-  var selAllTh=document.getElementById('hwmsSiSelectAllTh');
-  if(selAllTh) selAllTh.style.display=isAdmin?'table-cell':'none';
-  var selAllCb=document.getElementById('hwmsSiSelectAll');if(selAllCb)selAllCb.checked=false;
+  // The first <th> now holds the prominent X clear-filters button (V44),
+  // so the cell is always visible — the per-row checkbox column visibility
+  // is driven separately by the row template's `isSA` gate.
   if(!rows.length){body.innerHTML='<tr><td colspan="'+(isSA?13:12)+'" style="text-align:center;padding:32px;color:var(--text3)">No sub-invoices yet</td></tr>';return;}
   var _siCursor=_siShowAmts?'cursor:pointer':'cursor:default';
   body.innerHTML=rows.map(function(si){
@@ -4629,6 +4667,9 @@ function renderHwmsSubInvoices(){
     }
   }
   _hwmsReapplyResize('hwmsSiTbl');
+  // Selection buttons are recreated by the stats innerHTML above — flip
+  // them to their disabled state until a row is actually checked.
+  _hwmsSiSelChange();
 
   }catch(e){console.error('renderHwmsSubInvoices error:',e);var body=document.getElementById('hwmsSiBody');if(body)body.innerHTML='<tr><td colspan="13" style="text-align:center;padding:20px;color:#dc2626;font-weight:700">⚠ Render error: '+e.message+'</td></tr>';}
 }
@@ -5393,24 +5434,25 @@ function _hwmsSiSelChange(){
   var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');
   var dlBtn=document.getElementById('hwmsSiDlBtn');
   var dlCount=document.getElementById('hwmsSiDlCount');
-  // Access Management drives visibility — `si.delete` resolves to
-  // `action.deleteSubInvoice` via _HWMS_PERM_MAP. No more SA-only gate.
+  // Selection buttons stay visible but go disabled (greyed) when nothing
+  // is checked, so the row layout doesn't reflow as users toggle rows.
+  // Delete is still hidden entirely without `si.delete` permission.
+  var _applyEnabled=function(b,on){
+    if(!b) return;
+    b.disabled=!on;
+    b.style.opacity=on?'1':'.45';
+    b.style.cursor=on?'pointer':'not-allowed';
+    b.style.filter=on?'':'grayscale(.3)';
+  };
   var canDel=_hwmsCan('si.delete');
-  if(cbs.length>0&&canDel){
-    if(delBtn){delBtn.style.display='';if(delCount2)delCount2.textContent='('+cbs.length+')';}
-    if(cancelBtn) cancelBtn.style.display='';
-  } else {
-    if(delBtn) delBtn.style.display='none';
-    if(cbs.length===0&&cancelBtn) cancelBtn.style.display='none';
+  if(delBtn){
+    delBtn.style.display=canDel?'':'none';
+    _applyEnabled(delBtn,cbs.length>0);
   }
-  // Download button — show for any user with selections
-  if(cbs.length>0){
-    if(dlBtn) dlBtn.style.display='';
-    if(dlCount) dlCount.textContent=cbs.length;
-    if(cancelBtn) cancelBtn.style.display='';
-  } else {
-    if(dlBtn) dlBtn.style.display='none';
-  }
+  if(delCount2) delCount2.textContent='('+cbs.length+')';
+  if(dlBtn){dlBtn.style.display='';_applyEnabled(dlBtn,cbs.length>0);}
+  if(dlCount) dlCount.textContent=cbs.length;
+  if(cancelBtn){cancelBtn.style.display='';_applyEnabled(cancelBtn,cbs.length>0);}
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsSiCb');
   var selAll=document.getElementById('hwmsSiSelectAll');
@@ -5419,9 +5461,17 @@ function _hwmsSiSelChange(){
 function _hwmsSiClearSel(){
   document.querySelectorAll('.hwmsSiCb').forEach(function(cb){cb.checked=false;});
   var selAll=document.getElementById('hwmsSiSelectAll');if(selAll)selAll.checked=false;
-  var delBtn=document.getElementById('hwmsSiDelBtn');if(delBtn)delBtn.style.display='none';
-  var dlBtn=document.getElementById('hwmsSiDlBtn');if(dlBtn)dlBtn.style.display='none';
-  var cancelBtn=document.getElementById('hwmsSiCancelSelBtn');if(cancelBtn)cancelBtn.style.display='none';
+  // Buttons stay visible — let _hwmsSiSelChange flip them to disabled.
+  _hwmsSiSelChange();
+}
+// Clear every SI filter input/select. Wired to the red X button that
+// took over the old select-all header cell (V44).
+function _hwmsSiClearFilters(){
+  ['hwmsSiFltNum','hwmsSiFltCust','hwmsSiFltPart','hwmsSiFltPickup','hwmsSiFltGrn','hwmsSiFltPay'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el){el.value='';var x=document.getElementById(id+'_x');if(x) x.style.display='none';}
+  });
+  renderHwmsSubInvoices();
 }
 function _hwmsSiDownloadSelected(){
   var checked=document.querySelectorAll('.hwmsSiCb:checked');
@@ -8087,7 +8137,7 @@ function _hwmsCurrencyFormat(el){
   el.value=v;
 }
 // Display currency: $1,234.56
-function _fCurr(v){var n=parseFloat(v);if(!n||isNaN(n))return'—';return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function _fCurr(v,opts){var n=parseFloat(v);if(!n||isNaN(n))return'—';var min=(opts&&opts.decimals!=null)?opts.decimals:0;var max=min;return'$'+n.toLocaleString('en-US',{minimumFractionDigits:min,maximumFractionDigits:max});}
 function _hwmsCurrencyBlur(el){
   var v=parseFloat(el.value);
   if(isNaN(v)||v===0){el.value='';return;}
@@ -8932,7 +8982,7 @@ function renderHwmsInvoices(){
   // Cache filtered+sorted list for prev/next navigation
   _hwmsInvNavList=invs.map(function(inv){return inv.id;});
   // Calculate totals for filtered invoices
-  var grandTotalAmt=0,grandTotalGrossWt=0;
+  var grandTotalAmt=0,grandTotalGrossWt=0,grandTotalNetWt=0;
   // Invoice bulk-delete column visibility — page-level access on MI.
   var _invSA=_hwmsCan('mi.delete');
   // Pre-compute sub-invoice amounts per invoiceId
@@ -8968,8 +9018,10 @@ function renderHwmsInvoices(){
     const isUnalloc=!inv.containerId;
     const st=_hwmsInvStatus(inv);
     const totalAmt=lis.reduce((s,li)=>s+(li.rate||0)*(li.quantity||0),0);
+    const totalNetWt=lis.reduce((s,li)=>s+(li.netWeight||0),0);
     const totalGrossWt=lis.reduce((s,li)=>s+(li.grossWeight||0),0);
     grandTotalAmt+=totalAmt;
+    grandTotalNetWt+=totalNetWt;
     grandTotalGrossWt+=totalGrossWt;
     const siAmt=siAmtByInv[inv.id]||0;
     // Received amount: sum payments across all SIs for this MI
@@ -9003,63 +9055,99 @@ function renderHwmsInvoices(){
     }
     grandTotalTariff+=tariffAmt;
     const isContDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
-    const contHtml=isUnalloc?'<span style="color:#dc2626;font-weight:700">Unallocated</span>':'<span style="font-family:var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="_hwmsNavToContainer(\''+inv.containerId+'\')">'+(cont?.containerNumber||'—')+'</span>';
+    // Container cell now also surfaces reach date + container-level
+    // status (Draft / In Transit / Warehouse) right below the number,
+    // so the standalone Reach Date column was retired.
+    var _contNumHtml=isUnalloc
+      ? '<span style="color:#dc2626;font-weight:700">Unallocated</span>'
+      : '<span class="hwms-row-noclick" style="font-family:var(--mono);font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();_hwmsNavToContainer(\''+inv.containerId+'\')">'+(cont?.containerNumber||'—')+'</span>';
+    var _contReachLine='';
+    if(cont){
+      var _rDate=cont.reachedDate?_fdate(cont.reachedDate):(cont.expectedReachDate?_fdate(cont.expectedReachDate):'—');
+      var _rExpected=!cont.reachedDate&&cont.expectedReachDate;
+      var _cSt=(typeof _hwmsContStatus==='function')?_hwmsContStatus(cont):{label:cont.status||'Draft',cls:'badge-gray'};
+      var _stChip;
+      if(_cSt.label==='In Transit'){
+        _stChip='<span style="display:inline-block;padding:1px 7px;border-radius:10px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;font-weight:800;font-size:9px;letter-spacing:.3px;white-space:nowrap">🚢 In Transit</span>';
+      } else if(_cSt.label==='Warehouse'){
+        _stChip='<span style="display:inline-block;padding:1px 7px;border-radius:10px;background:#dcfce7;color:#15803d;border:1px solid #86efac;font-weight:800;font-size:9px;letter-spacing:.3px;white-space:nowrap">🏭 Warehouse</span>';
+      } else {
+        _stChip='<span style="display:inline-block;padding:1px 7px;border-radius:10px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-weight:800;font-size:9px;letter-spacing:.3px;white-space:nowrap">📋 Draft</span>';
+      }
+      _contReachLine='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:11px;color:'+(_rExpected?'#b45309':'var(--text3)')+';font-weight:600">'
+        +'<span title="'+(_rExpected?'Expected reach':'Reached date')+'">'+_rDate+'</span>'
+        +_stChip
+        +'</div>';
+    }
+    const contHtml=_contNumHtml+_contReachLine;
     const pickupHtml=cont?(cont.pickupDate?'<div style="font-weight:700">'+_fdate(cont.pickupDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Dispatched</div>':(cont.expectedPickupDate?'<div>'+_fdate(cont.expectedPickupDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
-    const reachHtml=cont?(cont.reachedDate?'<div style="font-weight:700">'+_fdate(cont.reachedDate)+'</div><div style="font-size:11px;color:#16a34a;font-weight:700">Warehouse</div>':(cont.expectedReachDate?'<div>'+_fdate(cont.expectedReachDate)+'</div><div style="font-size:11px;color:#b45309;font-weight:700">Expected</div>':'—')):'—';
     const invNumStyle=isDraft?'font-family:var(--inv-mono);font-weight:400;color:#dc2626;font-size:16px;max-width:130px;word-break:break-all':'font-family:var(--inv-mono);font-weight:400;color:var(--accent);font-size:16px;max-width:130px;word-break:break-all';
     const _miSt=_hwmsMiSt(inv);
     const _siSt=_hwmsSiAggSt(inv);
     const _paySt=_hwmsPayAggSt(inv);
     const _transportBadge=_hwmsTransportBadge(inv,'sm');
     const rowBg=(isDraft||isUnalloc)?';background:rgba(234,179,8,.04)':'';
-    let actHtml='';
-    if(isDraft&&_hwmsCan('mi.edit')) actHtml='<button class="action-btn" onclick="openHwmsInvModal(\''+inv.id+'\')" style="font-size:12px;padding:4px 12px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:4px;font-weight:700;color:#0369a1;cursor:pointer">✏️ Edit</button>';
-    return `<tr style="${rowBg}">
-      ${_invSA?'<td style="text-align:center;padding:4px 6px"><input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer"></td>':''}
-      <td style="text-align:center;padding:2px 4px;white-space:nowrap"><button onclick="_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="USA Print Preview">🖨️</button><button onclick="event.stopPropagation();_hwmsInvDownloadPdf('${inv.id}','usa')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px" title="Download PDF">📥</button></td>
-      <td style="${invNumStyle};cursor:pointer;text-decoration:underline" onclick="showHwmsInvDetail('${inv.id}')">${_hwmsInvNum(inv.invoiceNumber)}</td>
+    var _selCbHtml=_invSA?'<input type="checkbox" class="hwmsInvChk" value="'+inv.id+'" onclick="event.stopPropagation()" onchange="_hwmsInvUpdateDelBtn()" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">':'';
+    return `<tr style="${rowBg};cursor:pointer" onclick="if(event.target.closest('button,input,a,.hwms-row-noclick'))return;showHwmsInvDetail('${inv.id}')">
+      <td style="text-align:center;padding:4px 6px;width:40px">${_selCbHtml}</td>
+      <td style="text-align:center;padding:2px 4px;white-space:nowrap"><button onclick="event.stopPropagation();_hwmsInvPrintUSA('${inv.id}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px" title="USA Print Preview">🖨️</button><button onclick="event.stopPropagation();_hwmsInvDownloadPdf('${inv.id}','usa')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:2px" title="Download PDF">📥</button></td>
+      <td style="${invNumStyle};text-decoration:underline">${_hwmsInvNum(inv.invoiceNumber)}</td>
       <td style="white-space:nowrap;font-size:12px">${_fdate(inv.date)}</td>
       <td>${contHtml}</td>
       <td style="white-space:nowrap">${pickupHtml}</td>
-      <td><span class="badge ${_miSt.cls}" style="font-weight:800">${_miSt.label}</span></td>
-      <td>${_siSt.cls?'<span class="badge '+_siSt.cls+'" style="font-weight:800">'+_siSt.label+'</span>':'<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:800;color:#16a34a;white-space:nowrap">${_fCurr(Math.round(totalAmt))}</td>
+      <td style="text-align:right;font-family:var(--mono);white-space:nowrap">${Math.round(totalNetWt)} kg</td>
+      <td style="text-align:right;font-family:var(--mono);white-space:nowrap">${Math.round(totalGrossWt)} kg</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${siAmt>0?'#7c3aed':'var(--text3)'};white-space:nowrap">${_fCurr(Math.round(siAmt))}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${_miRcvd>0?'#16a34a':'var(--text3)'};white-space:nowrap">${_miRcvd>0?_fCurr(Math.round(_miRcvd)):'—'}${_miPrPlisUniq.length?'<div style="font-size:8px;font-weight:600;color:#7c3aed;margin-top:2px;line-height:1.3">'+_miPrPlisUniq.slice(0,3).join('<br>')+((_miPrPlisUniq.length>3)?'<br>+'+(_miPrPlisUniq.length-3)+' more':'')+'</div>':''}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${balAmt>0?'#dc2626':'#16a34a'};white-space:nowrap">${balAmt>0?_fCurr(Math.round(balAmt)):'✓'}</td>
       <td>${_paySt.label!=='Pending'?'<span class="badge '+_paySt.cls+'" style="font-weight:800">'+_paySt.label+'</span>':'<span style="color:var(--text3);font-size:11px">Pending</span>'}</td>
-      <td style="white-space:nowrap">${reachHtml}</td>
-      <td style="text-align:right;font-family:var(--mono);font-weight:800;color:#16a34a">${_fCurr(totalAmt)}</td>
-      <td style="text-align:right;font-family:var(--mono)">${totalGrossWt.toFixed(1)} kg</td>
-      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${siAmt>0?'#7c3aed':'var(--text3)'}">${_fCurr(siAmt)}</td>
-      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${_miRcvd>0?'#16a34a':'var(--text3)'}">${_miRcvd>0?_fCurr(_miRcvd):'—'}${_miPrPlisUniq.length?'<div style="font-size:8px;font-weight:600;color:#7c3aed;margin-top:2px;line-height:1.3">'+_miPrPlisUniq.slice(0,3).join('<br>')+((_miPrPlisUniq.length>3)?'<br>+'+(_miPrPlisUniq.length-3)+' more':'')+'</div>':''}</td>
-      <td style="text-align:right;font-family:var(--mono);font-weight:800;color:${balAmt>0?'#dc2626':'#16a34a'}">${balAmt>0?_fCurr(balAmt):'✓'}</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${tariffPct>0?'#ea580c':'var(--text3)'}">${tariffPct>0?tariffPct.toFixed(2)+'%':'—'}</td>
-      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${tariffAmt>0?'#ea580c':'var(--text3)'}">${_fCurr(tariffAmt)}</td>
-      <td style="white-space:nowrap">${actHtml}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${tariffPct>0?'#ea580c':'var(--text3)'};white-space:nowrap">${tariffPct>0?tariffPct.toFixed(2)+'%':'—'}</td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:700;color:${tariffAmt>0?'#ea580c':'var(--text3)'};white-space:nowrap">${_fCurr(Math.round(tariffAmt))}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="'+(_invSA?17:16)+'" class="empty-state">No invoices found</td></tr>';
+  }).join(''):'<tr><td colspan="15" class="empty-state">No invoices found</td></tr>';
   // Add totals row
   if(invs.length){
-    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)"><td colspan="'+(_invSA?10:9)+'" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px">'+_fCurr(grandTotalAmt)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px">'+grandTotalGrossWt.toFixed(1)+' kg</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#7c3aed;padding:8px">'+_fCurr(grandTotalSiAmt)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalBal>0?'#dc2626':'#16a34a')+';padding:8px">'+(grandTotalBal>0?_fCurr(grandTotalBal):'✓')+'</td><td></td><td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#ea580c;padding:8px">'+_fCurr(grandTotalTariff)+'</td><td></td></tr>';
+    // Totals row — 15 cols (Net Wt added in V42):
+    // [Sel] [Flag] [MI No.] [Date] [Container] [Pickup Date]
+    // [Amount] [Net Wt] [Gross Wt] [SI Amt] [Received] [Balance]
+    // [Payment — empty] [Tariff % — empty] [Tariff $]
+    rowsHtml+='<tr style="background:var(--surface2);border-top:2px solid var(--border)">'
+      +'<td colspan="6" style="padding:8px;font-weight:800;font-size:14px">Total ('+invs.length+' invoices)</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:15px;color:#16a34a;padding:8px;white-space:nowrap">'+_fCurr(Math.round(grandTotalAmt))+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px;white-space:nowrap">'+Math.round(grandTotalNetWt)+' kg</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:800;font-size:14px;padding:8px;white-space:nowrap">'+Math.round(grandTotalGrossWt)+' kg</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#7c3aed;padding:8px;white-space:nowrap">'+_fCurr(Math.round(grandTotalSiAmt))+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalRcvd>0?'#16a34a':'var(--text3)')+';padding:8px;white-space:nowrap">'+(grandTotalRcvd>0?_fCurr(Math.round(grandTotalRcvd)):'—')+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:'+(grandTotalBal>0?'#dc2626':'#16a34a')+';padding:8px;white-space:nowrap">'+(grandTotalBal>0?_fCurr(Math.round(grandTotalBal)):'✓')+'</td>'
+      +'<td></td>'
+      +'<td></td>'
+      +'<td style="text-align:right;font-family:var(--mono);font-weight:900;font-size:13px;color:#ea580c;padding:8px;white-space:nowrap">'+_fCurr(Math.round(grandTotalTariff))+'</td>'
+      +'</tr>';
   }
   document.getElementById('hwmsInvBody').innerHTML=rowsHtml;
   var htEl=document.getElementById('hwmsInvHeaderTotal');
-  if(htEl) htEl.textContent=invs.length?_fCurr(grandTotalAmt):'';
+  if(htEl) htEl.textContent=invs.length?_fCurr(Math.round(grandTotalAmt)):'';
+  var nwEl=document.getElementById('hwmsInvHeaderNetWt');
+  if(nwEl) nwEl.textContent=invs.length?Math.round(grandTotalNetWt)+' kg':'';
+  var gwEl=document.getElementById('hwmsInvHeaderGrossWt');
+  if(gwEl) gwEl.textContent=invs.length?Math.round(grandTotalGrossWt)+' kg':'';
   var siTotEl=document.getElementById('hwmsInvHeaderSiTotal');
-  if(siTotEl) siTotEl.textContent=invs.length&&grandTotalSiAmt>0?_fCurr(grandTotalSiAmt):'';
+  if(siTotEl) siTotEl.textContent=invs.length&&grandTotalSiAmt>0?_fCurr(Math.round(grandTotalSiAmt)):'';
   var balTotEl=document.getElementById('hwmsInvHeaderBalTotal');
   if(balTotEl){
-    if(invs.length&&grandTotalBal>0){balTotEl.textContent=_fCurr(grandTotalBal);balTotEl.style.color='#dc2626';}
+    if(invs.length&&grandTotalBal>0){balTotEl.textContent=_fCurr(Math.round(grandTotalBal));balTotEl.style.color='#dc2626';}
     else if(invs.length){balTotEl.textContent='✓';balTotEl.style.color='#16a34a';}
     else{balTotEl.textContent='';}
   }
   var rcvdTotEl=document.getElementById('hwmsInvHeaderRcvdTotal');
-  if(rcvdTotEl) rcvdTotEl.textContent=invs.length&&grandTotalRcvd>0?_fCurr(grandTotalRcvd):'';
+  if(rcvdTotEl) rcvdTotEl.textContent=invs.length&&grandTotalRcvd>0?_fCurr(Math.round(grandTotalRcvd)):'';
   var tariffTotEl=document.getElementById('hwmsInvHeaderTariffTotal');
-  if(tariffTotEl) tariffTotEl.textContent=invs.length&&grandTotalTariff>0?_fCurr(grandTotalTariff):'';
+  if(tariffTotEl) tariffTotEl.textContent=invs.length&&grandTotalTariff>0?_fCurr(Math.round(grandTotalTariff)):'';
   const cEl=document.getElementById('cHwmsInvoices');if(cEl)cEl.textContent=(DB.hwmsInvoices||[]).length;
   // Reset multi-select state
-  var selAllCb=document.getElementById('hwmsInvSelectAll');if(selAllCb) selAllCb.checked=false;
-  // Show/hide Select All header checkbox for Super Admin
-  var selAllTh=document.getElementById('hwmsInvSelectAllTh');
-  if(selAllTh) selAllTh.style.display=_invSA?'table-cell':'none';
+  // Select-all checkbox was replaced by the X clear-filters button in
+  // the top-left header cell (V34), so the cell is always visible.
   _hwmsInvUpdateDelBtn();
   _hwmsReapplyResize('tHwmsInvoices');
 
@@ -9072,17 +9160,29 @@ function _hwmsInvUpdateDelBtn(){
   var count=document.querySelectorAll('.hwmsInvChk:checked').length;
   var btn=document.getElementById('btnHwmsInvDelSel');
   var cntEl=document.getElementById('hwmsInvDelCount');
-  // Access Management drives visibility — `mi.delete` resolves to
-  // `action.deleteInvoice` via _HWMS_PERM_MAP.
-  if(btn) btn.style.display=(count>0&&_hwmsCan('mi.delete'))?'inline-flex':'none';
+  // Selection buttons stay visible but go disabled (greyed) when nothing is
+  // checked, so the row layout doesn't reflow as users select/clear rows.
+  // The Delete button is still hidden entirely when the user lacks
+  // `mi.delete` permission.
+  var _applyEnabled=function(b,on){
+    if(!b) return;
+    b.disabled=!on;
+    b.style.opacity=on?'1':'.45';
+    b.style.cursor=on?'pointer':'not-allowed';
+    b.style.filter=on?'':'grayscale(.3)';
+  };
+  if(btn){
+    btn.style.display=_hwmsCan('mi.delete')?'inline-flex':'none';
+    _applyEnabled(btn,count>0);
+  }
   if(cntEl) cntEl.textContent=count;
   // Download + Cancel buttons
   var dlBtn=document.getElementById('btnHwmsInvDownloadSel');
   var dlCnt=document.getElementById('hwmsInvDlCount');
   var cancelBtn=document.getElementById('btnHwmsInvCancelSel');
-  if(dlBtn) dlBtn.style.display=count>0?'inline-flex':'none';
+  if(dlBtn){dlBtn.style.display='inline-flex';_applyEnabled(dlBtn,count>0);}
   if(dlCnt) dlCnt.textContent=count;
-  if(cancelBtn) cancelBtn.style.display=count>0?'inline-flex':'none';
+  if(cancelBtn){cancelBtn.style.display='inline-flex';_applyEnabled(cancelBtn,count>0);}
   // Sync select-all checkbox
   var all=document.querySelectorAll('.hwmsInvChk');
   var selAll=document.getElementById('hwmsInvSelectAll');
@@ -9215,22 +9315,46 @@ function showHwmsInvDetail(id){
 
   // Title — show 3 separate statuses
   var _dtMi=_hwmsMiSt(inv), _dtSi=_hwmsSiAggSt(inv), _dtPay=_hwmsPayAggSt(inv);
-  let titleHtml='<span style="font-family:var(--inv-mono);font-weight:400;font-size:22px">'+_hwmsInvNum(inv.invoiceNumber)+'</span> ';
-  titleHtml+='<span class="badge '+_dtMi.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:8px">'+_dtMi.label+'</span>';
-  if(_dtSi.cls) titleHtml+=' <span class="badge '+_dtSi.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:4px">'+_dtSi.label+'</span>';
+  // MI number now lives in the #hwmsInvNumNav chip between the ‹ › nav
+  // buttons (V37), so the title strip only carries the lifecycle badges.
+  // The MI status (Draft / RFD / Dispatched / Warehouse) is the headline
+  // signal — give it a big, color-coded pill; SI / Payment / Confirmed
+  // stay as secondary chips beside it.
+  var _miIconMap={'Draft':'📝','RFD':'🟢','Dispatched':'🚢','Warehouse':'🏭'};
+  var _miStyleMap={
+    'Draft':'background:#fef3c7;color:#92400e;border:2px solid #f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15)',
+    'RFD':'background:#dcfce7;color:#166534;border:2px solid #16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)',
+    'Dispatched':'background:#dbeafe;color:#1e3a8a;border:2px solid #2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)',
+    'Warehouse':'background:#ede9fe;color:#5b21b6;border:2px solid #7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.15)'
+  };
+  var _miIcon=_miIconMap[_dtMi.label]||'•';
+  var _miStyle=_miStyleMap[_dtMi.label]||'background:#f1f5f9;color:#334155;border:2px solid #94a3b8';
+  let titleHtml='<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 16px;font-size:18px;font-weight:900;border-radius:999px;letter-spacing:.5px;text-transform:uppercase;vertical-align:middle;'+_miStyle+'"><span style="font-size:20px;line-height:1">'+_miIcon+'</span>'+_dtMi.label+'</span>';
+  if(_dtSi.cls) titleHtml+=' <span class="badge '+_dtSi.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:6px">'+_dtSi.label+'</span>';
   if(_dtPay.label!=='Pending') titleHtml+=' <span class="badge '+_dtPay.cls+'" style="font-weight:800;font-size:12px;vertical-align:middle;margin-left:4px">'+_dtPay.label+'</span>';
   if(inv.confirmed) titleHtml+=' <span style="font-size:11px;font-weight:700;color:#16a34a;background:#dcfce7;border:1px solid #86efac;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:6px">✅ Confirmed</span>';
   document.getElementById('hwmsInvViewTitle').innerHTML=titleHtml;
+  var _invNumNav=document.getElementById('hwmsInvNumNav');
+  if(_invNumNav) _invNumNav.innerHTML=_hwmsInvNum(inv.invoiceNumber);
   _hwmsInvNavUpdate();
 
   // Actions — Print, Edit (disabled if confirmed), Confirm, Revoke (disabled if dispatched)
   const isContDispatched=cont&&(cont.status==='Onwater'||cont.status==='Reached');
   let actHtml='';
-  actHtml+='<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview India Invoice">'+_HWMS_LOGO_IMG+'</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:12px;padding:7px 10px;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;font-weight:700;border-radius:var(--radius);cursor:pointer;min-width:40px;display:inline-flex;align-items:center;justify-content:center" title="Preview USA Invoice">'+_HWMS_LOGO_IMG+'</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvSaveBoth(\''+inv.id+'\')" style="font-size:12px;padding:7px 14px;background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1.5px solid #86efac;color:#15803d;font-weight:800;border-radius:var(--radius);cursor:pointer" title="Auto-save both PDFs to HGAP Invoices folder">💾 Save Both PDFs</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvDownloadPdf(\''+inv.id+'\',\'ind\')" style="font-size:12px;padding:7px 10px;background:#fefce8;border:1.5px solid #fde047;color:#92400e;font-weight:700;border-radius:var(--radius);cursor:pointer" title="Download India PDF">📥 IND</button>';
-  actHtml+=' <button class="btn" onclick="_hwmsInvDownloadPdf(\''+inv.id+'\',\'usa\')" style="font-size:12px;padding:7px 10px;background:#fefce8;border:1.5px solid #fde047;color:#92400e;font-weight:700;border-radius:var(--radius);cursor:pointer" title="Download USA PDF">📥 USA</button>';
+  // Grouped IND / USA pill: country badge + Print + Download in one bordered pill.
+  // V40: dropped "Save Both PDFs" — Print/Download for each country live together
+  // so the user can act per-country without an extra combined button.
+  var _indGroup='<div style="display:inline-flex;align-items:stretch;border:1.5px solid #86efac;border-radius:var(--radius);overflow:hidden;background:#f0fdf4">'
+    +'<span style="display:inline-flex;align-items:center;padding:0 10px;font-size:11px;font-weight:900;background:#16a34a;color:#fff;letter-spacing:.5px">🇮🇳 IND</span>'
+    +'<button class="btn" onclick="_hwmsInvPrint(\''+inv.id+'\')" style="font-size:14px;padding:6px 12px;background:transparent;border:none;border-left:1px solid #86efac;color:#15803d;font-weight:700;cursor:pointer" title="Preview India Invoice">🖨️</button>'
+    +'<button class="btn" onclick="_hwmsInvDownloadPdf(\''+inv.id+'\',\'ind\')" style="font-size:14px;padding:6px 12px;background:transparent;border:none;border-left:1px solid #86efac;color:#15803d;font-weight:700;cursor:pointer" title="Download India PDF">📥</button>'
+    +'</div>';
+  var _usaGroup='<div style="display:inline-flex;align-items:stretch;border:1.5px solid #93c5fd;border-radius:var(--radius);overflow:hidden;background:#eff6ff">'
+    +'<span style="display:inline-flex;align-items:center;padding:0 10px;font-size:11px;font-weight:900;background:#2563eb;color:#fff;letter-spacing:.5px">🇺🇸 USA</span>'
+    +'<button class="btn" onclick="_hwmsInvPrintUSA(\''+inv.id+'\')" style="font-size:14px;padding:6px 12px;background:transparent;border:none;border-left:1px solid #93c5fd;color:#1d4ed8;font-weight:700;cursor:pointer" title="Preview USA Invoice">🖨️</button>'
+    +'<button class="btn" onclick="_hwmsInvDownloadPdf(\''+inv.id+'\',\'usa\')" style="font-size:14px;padding:6px 12px;background:transparent;border:none;border-left:1px solid #93c5fd;color:#1d4ed8;font-weight:700;cursor:pointer" title="Download USA PDF">📥</button>'
+    +'</div>';
+  actHtml+=_indGroup+' '+_usaGroup;
   // Edit — disabled if confirmed, hidden if no permission
   if(_hwmsCan('mi.edit')){
     if(inv.confirmed){
@@ -9846,12 +9970,7 @@ function renderHwmsDashboard(){
   h+=_buildSection('air',airConts,airInvs,airSis);
   h+='</div>';
 
-  // ── MR card (shared) ──
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px">';
-  h+='<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:10px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsMR\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase">📝 Material Req</span><span style="font-size:22px;font-weight:900;color:#ea580c;font-family:var(--mono)">'+mrs.length+'</span></div><div style="line-height:1.6">'+badge('Open',rCounts['Open'],'badge-yellow')+badge('P.Closed',rCounts['Partially Closed'],'badge-partpaid')+badge('Closed',rCounts['Closed'],'badge-fullpaid')+'</div></div>';
-  h+='</div>';
-
-  // ── Combined Payment Summary (Sea SI + Air MI) ──
+  // ── Pre-compute combined payment totals (needed for Capital Blocked) ──
   var seaPay=_payTotals(seaSis);
   var airPay={amt:0,rcvd:0,bal:0};
   airInvs.forEach(function(inv){
@@ -9860,6 +9979,101 @@ function renderHwmsDashboard(){
   });
   airPay.bal=airPay.amt-airPay.rcvd;
   var allPayAmt=seaPay.amt+airPay.amt,allPayRcvd=seaPay.rcvd+airPay.rcvd,allPayBal=allPayAmt-allPayRcvd;
+
+  // ── Pre-compute inventory totals (WH + Transit) split by mode ──
+  var soldMapAll=_buildSoldMap(sis);
+  var whAmtSea=0,whAmtAir=0,trAmtSea=0,trAmtAir=0;
+  invs.forEach(function(inv){
+    var cont=inv.containerId?byId(conts,inv.containerId):null;
+    if(!cont) return;
+    var cst=cont.status||'';
+    var mode=_hwmsContGetType(cont);
+    (inv.lineItems||[]).filter(function(li){return !li._meta&&!(li.airSold||mode==='air');}).forEach(function(li){
+      var qty=li.quantity||0;
+      if(cst==='Reached'){
+        var key=inv.id+'|'+(li.partId||'')+'|'+(li.palletNumber||'');
+        var sold=soldMapAll[key]||0;
+        var unsold=qty-sold;
+        if(unsold>0){
+          var amt=unsold*(li.rate||0);
+          if(mode==='air') whAmtAir+=amt; else whAmtSea+=amt;
+        }
+      } else if(cst==='Onwater'){
+        var amt2=qty*(li.rate||0);
+        if(mode==='air') trAmtAir+=amt2; else trAmtSea+=amt2;
+      }
+    });
+  });
+  var whAmtAll=whAmtSea+whAmtAir;
+  var trAmtAll=trAmtSea+trAmtAir;
+  // Outstanding split: seaPay.bal / airPay.bal already computed above.
+  var outSea=seaPay.bal,outAir=airPay.bal;
+  // Manual unclaimed tariff — split per mode, each editable on its own.
+  var utSea=parseFloat(localStorage.getItem('hwms_unclaimed_tariff_sea'))||0;
+  var utAir=parseFloat(localStorage.getItem('hwms_unclaimed_tariff_air'))||0;
+  // One-shot migration from the pre-split combined key — drops it into Sea.
+  var utLegacy=parseFloat(localStorage.getItem('hwms_unclaimed_tariff'))||0;
+  if(utLegacy>0&&utSea===0&&utAir===0){
+    utSea=utLegacy;
+    localStorage.setItem('hwms_unclaimed_tariff_sea',String(utLegacy));
+    localStorage.removeItem('hwms_unclaimed_tariff');
+  }
+  var utAll=utSea+utAir;
+  var capSea=outSea+whAmtSea+trAmtSea+utSea;
+  var capAir=outAir+whAmtAir+trAmtAir+utAir;
+  var capBlocked=capSea+capAir;
+
+  // ── MR (compact) + Capital Blocked, side by side ──
+  h+='<div style="display:grid;grid-template-columns:minmax(220px,1fr) 2fr;gap:10px;margin-bottom:12px;align-items:stretch">';
+  // MR — compact tab with Raised / Open / Closed / Balance counts.
+  // Balance = Raised − Closed (Open + Partially Closed still in flight).
+  var mrRaised=mrs.length;
+  var mrOpen=rCounts['Open']||0;
+  var mrClosed=rCounts['Closed']||0;
+  var mrBal=mrRaised-mrClosed;
+  h+='<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:8px 12px;cursor:pointer" onclick="hwmsGo(\'pageHwmsMR\')">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid #fed7aa">'
+    +'<span style="font-size:11px;font-weight:900;color:#c2410c;text-transform:uppercase;letter-spacing:.5px">📝 Material Req</span>'
+    +'</div>'
+    +'<table style="width:100%;font-size:11px;border-collapse:collapse">'
+    +'<tr><td style="padding:2px 4px;color:#475569">Raised</td><td style="padding:2px 4px;text-align:right;font-family:var(--mono);font-weight:800;color:#c2410c">'+mrRaised+'</td></tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Open</td><td style="padding:2px 4px;text-align:right;font-family:var(--mono);font-weight:800;color:'+(mrOpen>0?'#a16207':'#475569')+'">'+mrOpen+'</td></tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Closed</td><td style="padding:2px 4px;text-align:right;font-family:var(--mono);font-weight:800;color:#15803d">'+mrClosed+'</td></tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Balance</td><td style="padding:2px 4px;text-align:right;font-family:var(--mono);font-weight:900;color:'+(mrBal>0?'#dc2626':'#15803d')+'">'+mrBal+'</td></tr>'
+    +'</table>'
+    +'</div>';
+  // Capital Blocked tabular breakdown — Sea / Air / Total per row
+  var _amtCell=function(v,clr){return '<td style="padding:2px 6px;text-align:right;font-family:var(--mono);font-weight:800;color:'+(v>0?clr:'#94a3b8')+'">'+(v>0?fAmt(v):'—')+'</td>';};
+  var _utCell=function(mode,v){
+    var id='hwmsDashUt_'+mode;
+    return '<td style="padding:2px 6px;text-align:right"><span id="'+id+'" onclick="_hwmsEditUnclaimedTariff(\''+mode+'\')" title="Click to edit" style="font-family:var(--mono);font-weight:800;color:'+(v>0?'#92400e':'#94a3b8')+';cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">'+(v>0?fAmt(v):'— set')+'</span></td>';
+  };
+  h+='<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:8px 12px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:4px;border-bottom:1.5px solid #fecaca">'
+    +'<span style="font-size:11px;font-weight:900;color:#991b1b;text-transform:uppercase;letter-spacing:.5px">🔒 Capital Blocked</span>'
+    +'<span style="font-size:18px;font-weight:900;color:#dc2626;font-family:var(--mono)">'+fAmt(capBlocked)+'</span>'
+    +'</div>'
+    +'<table style="width:100%;font-size:11px;border-collapse:collapse">'
+    +'<thead><tr style="border-bottom:1px solid #fecaca">'
+      +'<th style="padding:2px 4px;text-align:left;font-size:9px;color:#991b1b;text-transform:uppercase;letter-spacing:.3px;font-weight:800"></th>'
+      +'<th style="padding:2px 6px;text-align:right;font-size:9px;color:#1d4ed8;text-transform:uppercase;letter-spacing:.3px;font-weight:800">🚢 Sea</th>'
+      +'<th style="padding:2px 6px;text-align:right;font-size:9px;color:#7c3aed;text-transform:uppercase;letter-spacing:.3px;font-weight:800">✈️ Air</th>'
+      +'<th style="padding:2px 6px;text-align:right;font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:.3px;font-weight:800">Total</th>'
+    +'</tr></thead>'
+    +'<tbody>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Outstanding</td>'+_amtCell(outSea,'#dc2626')+_amtCell(outAir,'#dc2626')+_amtCell(allPayBal,'#dc2626')+'</tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Inventory in WH</td>'+_amtCell(whAmtSea,'#15803d')+_amtCell(whAmtAir,'#15803d')+_amtCell(whAmtAll,'#15803d')+'</tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Inventory in Transit</td>'+_amtCell(trAmtSea,'#1d4ed8')+_amtCell(trAmtAir,'#1d4ed8')+_amtCell(trAmtAll,'#1d4ed8')+'</tr>'
+    +'<tr><td style="padding:2px 4px;color:#475569">Unclaimed Tariff</td>'+_utCell('sea',utSea)+_utCell('air',utAir)+_amtCell(utAll,'#92400e')+'</tr>'
+    +'<tr style="border-top:1.5px solid #fecaca;background:#fff5f5">'
+      +'<td style="padding:3px 4px;font-weight:900;color:#991b1b">Total</td>'
+      +'<td style="padding:3px 6px;text-align:right;font-family:var(--mono);font-weight:900;color:#dc2626">'+fAmt(capSea)+'</td>'
+      +'<td style="padding:3px 6px;text-align:right;font-family:var(--mono);font-weight:900;color:#dc2626">'+fAmt(capAir)+'</td>'
+      +'<td style="padding:3px 6px;text-align:right;font-family:var(--mono);font-weight:900;color:#dc2626">'+fAmt(capBlocked)+'</td>'
+    +'</tr>'
+    +'</tbody></table>'
+    +'</div>';
+  h+='</div>';
   var pc2=_hwmsPayCalc();
   var totalSusp=pc2.suspenseAir+pc2.suspenseSea;
   h+='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">';
@@ -9882,6 +10096,9 @@ function renderHwmsDashboard(){
   h+='<div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #2563eb">📦 Inventory Aging — Unsold</div>';
   var invAgingMonths={};
   var totalAgingAmt=0,totalAgingQty=0;
+  // Stash per-month unsold line-item detail so the Qty-count click can
+  // pop up the date / MI / part drilldown without re-walking the DB.
+  window._hwmsDashUnsoldByMonth={};
   invs.forEach(function(inv){
     var cont=inv.containerId?byId(conts,inv.containerId):null;
     if(!cont||cont.status!=='Reached') return;
@@ -9903,6 +10120,21 @@ function renderHwmsDashboard(){
       invAgingMonths[mKey].pallets++;
       totalAgingAmt+=unsoldAmt;
       totalAgingQty+=unsoldQty;
+      if(!window._hwmsDashUnsoldByMonth[mKey]) window._hwmsDashUnsoldByMonth[mKey]={label:mLabel,rows:[]};
+      // MI line items canonically store part identity via li.partId — look
+      // it up in the parts master; fall back to whatever li.partNumber has
+      // if the part record was deleted.
+      var _partRec=li.partId?byId(DB.hwmsParts||[],li.partId):null;
+      var _partNo=_partRec?(_partRec.partNumber+(_partRec.partRevision?' R'+_partRec.partRevision:'')):(li.partNumber||'—');
+      window._hwmsDashUnsoldByMonth[mKey].rows.push({
+        reachedDate:reachedDate,
+        miNum:inv.invoiceNumber||'',
+        partNumber:_partNo,
+        pallet:li.palletNumber||'',
+        qty:unsoldQty,
+        rate:li.rate||0,
+        amt:unsoldAmt
+      });
     });
   });
   var invAgingSorted=Object.values(invAgingMonths).sort(function(a,b){return a.key.localeCompare(b.key);});
@@ -9920,13 +10152,19 @@ function renderHwmsDashboard(){
       var pct=totalAgingAmt>0?(b.amt/totalAgingAmt*100).toFixed(1):'0';
       var barW=Math.min(100,parseFloat(pct));
       var mDt=new Date(b.key+'-01T00:00:00');
-      var mAge=Math.floor((now-mDt)/(1000*60*60*24*30));
+      var mAgeDays=Math.floor((now-mDt)/(1000*60*60*24));
+      var mAge=Math.floor(mAgeDays/30);
       var barClr=mAge>=6?'#dc2626':mAge>=3?'#f59e0b':'#16a34a';
+      // Month + amount go flashing red once the bucket is older than 90 days.
+      var stale=mAgeDays>90;
+      var monthCls=stale?'class="hwms-aging-flash"':'';
+      var amtCls=stale?'class="hwms-aging-flash"':'';
+      var amtColor=stale?'':';color:#2563eb';
       h+='<tr style="border-bottom:1px solid #f1f5f9">'
-        +'<td style="padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap">'+b.label+'</td>'
+        +'<td '+monthCls+' style="padding:4px 8px;font-weight:800;font-size:11px;white-space:nowrap">'+b.label+'</td>'
         +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right">'+b.pallets+'</td>'
-        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right">'+b.qty.toLocaleString()+'</td>'
-        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:#2563eb">'+fAmt(b.amt)+'</td>'
+        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right"><a href="javascript:void(0)" onclick="_hwmsShowUnsoldPopup(\''+b.key+'\')" title="View unsold line items for '+b.label+'" style="color:#2563eb;font-weight:800;text-decoration:underline">'+b.qty.toLocaleString()+'</a></td>'
+        +'<td '+amtCls+' style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right'+amtColor+'">'+fAmt(b.amt)+'</td>'
         +'<td style="padding:4px 8px;text-align:right"><div style="display:flex;align-items:center;justify-content:flex-end;gap:3px"><span style="font-family:var(--mono);font-weight:700;font-size:9px">'+pct+'%</span><div style="width:35px;height:5px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:'+barClr+';border-radius:3px"></div></div></div></td>'
         +'</tr>';
     });
@@ -9941,30 +10179,88 @@ function renderHwmsDashboard(){
 
   // RIGHT: Payment Aging by SI Date
   h+='<div>';
-  h+='<div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #dc2626">💳 SI Payment Aging</div>';
-  // Count pending SLIs (balance > 0) grouped by SI date month
+  h+='<div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #dc2626">💳 SI Payment Aging <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">— Outstanding only</span></div>';
+  // Bucket pending SLIs by SI-date month. Pending amount is computed at
+  // the SI level (siAmt − siRcvd) — using per-line `_hwmsGetLiRcvd` here
+  // would wrongly count fully-paid SIs as pending whenever the user posts
+  // a payment at SI level without per-line allocation. The popup still
+  // shows individual SLI rows for context.
   var payBySi={},payBySiTotalAmt=0,payBySiTotalCount=0;
+  window._hwmsDashPendingSlisByMonth={};
   sis.forEach(function(si){
     var siDate=si.date||'';
     if(!siDate) return;
     var siDt=new Date(siDate.length===10?siDate+'T00:00:00':siDate);
     if(isNaN(siDt)) return;
+    var siAmt=_hwmsGetSiAmt(si);
+    var siRcvd=_hwmsGetSiRcvd(si);
+    var siBal=Math.round((siAmt-siRcvd)*100)/100;
+    if(siBal<1) return;// SI fully paid — skip entirely
     var mKey=siDt.getFullYear()+'-'+String(siDt.getMonth()+1).padStart(2,'0');
-    // Count individual SLI line items with pending balance
+    if(!payBySi[mKey]) payBySi[mKey]={label:_mon[siDt.getMonth()]+' '+siDt.getFullYear(),key:mKey,count:0,amt:0};
+    payBySi[mKey].amt+=siBal;
+    payBySiTotalAmt+=siBal;
     (si.lineItems||[]).forEach(function(li){
       if(li._mrMeta) return;
       var liAmt=(li.quantity||0)*(li.rate||0);
+      if(liAmt<1) return;
       var liRcvd=_hwmsGetLiRcvd(si.id,li.partNumber,li.palletNumber);
       var liBal=Math.round((liAmt-liRcvd)*100)/100;
-      if(liBal<1) return;// Only pending SLIs
-      if(!payBySi[mKey]) payBySi[mKey]={label:_mon[siDt.getMonth()]+' '+siDt.getFullYear(),key:mKey,count:0,amt:0};
+      // Skip lines that are explicitly fully paid at the line level; for
+      // lines without per-line allocation (liRcvd === 0), keep them so the
+      // SLI count reflects what's still outstanding under this SI.
+      if(liRcvd>0&&liBal<1) return;
       payBySi[mKey].count++;
-      payBySi[mKey].amt+=liBal;
       payBySiTotalCount++;
-      payBySiTotalAmt+=liBal;
+      if(!window._hwmsDashPendingSlisByMonth[mKey]) window._hwmsDashPendingSlisByMonth[mKey]={label:payBySi[mKey].label,rows:[]};
+      window._hwmsDashPendingSlisByMonth[mKey].rows.push({
+        siDate:siDate,
+        siNum:si.subInvoiceNumber||si.siNumber||'',
+        partNumber:li.partNumber||'',
+        pallet:li.palletNumber||'',
+        qty:li.quantity||0,
+        rate:li.rate||0,
+        amt:liAmt,
+        rcvd:liRcvd,
+        bal:liBal
+      });
     });
   });
-  var paySorted=Object.values(payBySi).sort(function(a,b){return a.key.localeCompare(b.key);});
+  // Collapse buckets older than 6 months into a single "Older than 6m" row,
+  // both in the visible table and in the drilldown stash, so the table
+  // doesn't grow unbounded as legacy SIs sit unpaid for years.
+  (function _collapseOldSiBuckets(){
+    var OLD_KEY='older-6m';
+    var OLD_LABEL='Older than 6 months';
+    var keep={};
+    var oldBucket=null;
+    var oldRows=[];
+    Object.values(payBySi).forEach(function(b){
+      var mDt=new Date(b.key+'-01T00:00:00');
+      var mAge=Math.floor((now-mDt)/(1000*60*60*24*30));
+      if(mAge>6){
+        if(!oldBucket) oldBucket={label:OLD_LABEL,key:OLD_KEY,count:0,amt:0};
+        oldBucket.count+=b.count;
+        oldBucket.amt+=b.amt;
+        var src=(window._hwmsDashPendingSlisByMonth[b.key]||{}).rows||[];
+        oldRows=oldRows.concat(src);
+        delete window._hwmsDashPendingSlisByMonth[b.key];
+      } else {
+        keep[b.key]=b;
+      }
+    });
+    if(oldBucket){
+      keep[OLD_KEY]=oldBucket;
+      window._hwmsDashPendingSlisByMonth[OLD_KEY]={label:OLD_LABEL,rows:oldRows};
+    }
+    payBySi=keep;
+  })();
+  var paySorted=Object.values(payBySi).sort(function(a,b){
+    // Push the collapsed "Older than 6m" bucket to the top (oldest first).
+    if(a.key==='older-6m') return -1;
+    if(b.key==='older-6m') return 1;
+    return a.key.localeCompare(b.key);
+  });
   if(!paySorted.length){
     h+='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;background:#f0fdf4;border-radius:8px">✓ No pending SLI payments</div>';
   } else {
@@ -9974,13 +10270,23 @@ function renderHwmsDashboard(){
       +'<th style="padding:5px 8px;text-align:right;font-size:9px;border-bottom:2px solid #dc2626;font-weight:800">Pending Amount</th>'
       +'</tr></thead><tbody>';
     paySorted.forEach(function(b){
-      var mDt3=new Date(b.key+'-01T00:00:00');
-      var mAge3=Math.floor((now-mDt3)/(1000*60*60*24*30));
-      var rowClr=mAge3>=6?'color:#dc2626':mAge3>=3?'color:#b45309':'';
-      h+='<tr style="border-bottom:1px solid #f1f5f9;'+rowClr+'">'
-        +'<td style="padding:4px 8px;font-weight:800;font-size:11px">'+b.label+'</td>'
-        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right">'+b.count+'</td>'
-        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right;color:#dc2626">'+fAmt(b.amt)+'</td>'
+      // The synthetic "older-6m" bucket isn't a real YYYY-MM key; it's
+      // always stale by definition.
+      var stale;
+      if(b.key==='older-6m'){
+        stale=true;
+      } else {
+        var mDt3=new Date(b.key+'-01T00:00:00');
+        var mAgeDays3=Math.floor((now-mDt3)/(1000*60*60*24));
+        stale=mAgeDays3>30;
+      }
+      var monthCls=stale?'class="hwms-aging-flash"':'';
+      var amtCls=stale?'class="hwms-aging-flash"':'';
+      var amtColor=stale?'':';color:#dc2626';
+      h+='<tr style="border-bottom:1px solid #f1f5f9">'
+        +'<td '+monthCls+' style="padding:4px 8px;font-weight:800;font-size:11px">'+b.label+'</td>'
+        +'<td style="padding:4px 8px;font-family:var(--mono);font-weight:700;text-align:right"><a href="javascript:void(0)" onclick="_hwmsShowPendingSlisPopup(\''+b.key+'\')" title="View pending SLIs for '+b.label+'" style="color:#2563eb;font-weight:800;text-decoration:underline">'+b.count+'</a></td>'
+        +'<td '+amtCls+' style="padding:4px 8px;font-family:var(--mono);font-weight:800;text-align:right'+amtColor+'">'+fAmt(b.amt)+'</td>'
         +'</tr>';
     });
     h+='<tr style="background:#fef2f2;border-top:2px solid #dc2626">'
@@ -9996,6 +10302,139 @@ function renderHwmsDashboard(){
   }catch(e){console.error('renderHwmsDashboard error:',e);var el2=document.getElementById('hwmsDashContent');if(el2)el2.innerHTML='<div style="padding:20px;color:#dc2626;font-weight:700">⚠ Dashboard error: '+e.message+'</div>';}
 }
 function _hwmsDashExportPendingSis(){_hwmsPayExportPending();}
+// Popup: list unsold line items for a given WH-reached month bucket on the
+// dashboard (drilldown from the Inventory Aging Qty column).
+function _hwmsShowUnsoldPopup(mKey){
+  var bucket=(window._hwmsDashUnsoldByMonth||{})[mKey];
+  if(!bucket||!bucket.rows||!bucket.rows.length){if(typeof notify==='function')notify('No unsold items for this month',true);return;}
+  var fAmt=function(v){var n=parseFloat(v);if(!n||isNaN(n))return'—';return'$'+Math.round(n).toLocaleString('en-US');};
+  var fd=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
+  var rows=bucket.rows.slice().sort(function(a,b){return (a.reachedDate||'').localeCompare(b.reachedDate||'');});
+  var totalQty=0,totalAmt=0;
+  rows.forEach(function(r){totalQty+=r.qty||0;totalAmt+=r.amt||0;});
+  var ov=document.getElementById('hwmsDashUnsoldOverlay');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='hwmsDashUnsoldOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=function(e){if(e.target===ov) ov.remove();};
+  var html=''
+    +'<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:900px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">'
+    +'<div style="padding:14px 20px;border-bottom:1.5px solid #bfdbfe;background:#eff6ff;display:flex;align-items:center;justify-content:space-between">'
+    +'<div><div style="font-size:9px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.5px">Unsold Inventory · '+bucket.label+'</div>'
+    +'<div style="font-size:18px;font-weight:900;color:#2563eb;margin-top:2px">'+rows.length+' line item'+(rows.length>1?'s':'')+' · '+totalQty.toLocaleString()+' qty · '+fAmt(totalAmt)+'</div></div>'
+    +'<button onclick="document.getElementById(\'hwmsDashUnsoldOverlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">✕</button>'
+    +'</div>'
+    +'<div style="overflow:auto;flex:1">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:#f8fafc;position:sticky;top:0;z-index:1">'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Reach Date</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">MI No.</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Part No.</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Qty</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Rate</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Amount</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(r){
+    html+='<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700">'+fd(r.reachedDate)+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--inv-mono);font-weight:700;color:var(--accent)">'+(r.miNum||'—')+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono)">'+(r.partNumber||'—')+(r.pallet?' <span style="font-size:10px;color:var(--text3)">· '+r.pallet+'</span>':'')+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700;text-align:right">'+(r.qty||0).toLocaleString()+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);text-align:right">'+fAmt(r.rate)+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:800;text-align:right;color:#2563eb">'+fAmt(r.amt)+'</td>'
+      +'</tr>';
+  });
+  html+='<tr style="background:#eff6ff;border-top:2px solid #2563eb">'
+    +'<td colspan="3" style="padding:8px 10px;font-weight:900;color:#1e3a8a">Total ('+rows.length+' line items)</td>'
+    +'<td style="padding:8px 10px;font-family:var(--mono);font-weight:900;text-align:right">'+totalQty.toLocaleString()+'</td>'
+    +'<td></td>'
+    +'<td style="padding:8px 10px;font-family:var(--mono);font-weight:900;text-align:right;color:#2563eb">'+fAmt(totalAmt)+'</td>'
+    +'</tr>';
+  html+='</tbody></table></div></div>';
+  ov.innerHTML=html;
+  document.body.appendChild(ov);
+}
+// Popup: list pending SLIs for a given SI-date month bucket on the dashboard
+// (drilldown from the SI Payment Aging table count column).
+function _hwmsShowPendingSlisPopup(mKey){
+  var bucket=(window._hwmsDashPendingSlisByMonth||{})[mKey];
+  if(!bucket||!bucket.rows||!bucket.rows.length){if(typeof notify==='function')notify('No pending SLIs for this month',true);return;}
+  var fAmt=function(v){var n=parseFloat(v);if(!n||isNaN(n))return'—';return'$'+Math.round(n).toLocaleString('en-US');};
+  var fd=function(d){if(!d)return'—';var dt=new Date(d.length===10?d+'T00:00:00':d);if(isNaN(dt))return d;var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return String(dt.getDate()).padStart(2,'0')+'-'+m[dt.getMonth()]+'-'+String(dt.getFullYear()).slice(-2);};
+  var rows=bucket.rows.slice().sort(function(a,b){return (a.siDate||'').localeCompare(b.siDate||'');});
+  var totalQty=0,totalAmt=0,totalBal=0;
+  rows.forEach(function(r){totalQty+=r.qty||0;totalAmt+=r.amt||0;totalBal+=r.bal||0;});
+  var ov=document.getElementById('hwmsDashPendingSlisOverlay');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='hwmsDashPendingSlisOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=function(e){if(e.target===ov) ov.remove();};
+  var html=''
+    +'<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:900px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">'
+    +'<div style="padding:14px 20px;border-bottom:1.5px solid #fecaca;background:#fef2f2;display:flex;align-items:center;justify-content:space-between">'
+    +'<div><div style="font-size:9px;font-weight:800;color:#991b1b;text-transform:uppercase;letter-spacing:.5px">Pending SLIs · '+bucket.label+'</div>'
+    +'<div style="font-size:18px;font-weight:900;color:#dc2626;margin-top:2px">'+rows.length+' line item'+(rows.length>1?'s':'')+' · '+fAmt(totalBal)+' pending</div></div>'
+    +'<button onclick="document.getElementById(\'hwmsDashPendingSlisOverlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">✕</button>'
+    +'</div>'
+    +'<div style="overflow:auto;flex:1">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:#f8fafc;position:sticky;top:0;z-index:1">'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">SI Date</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">SI No.</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Part No.</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Qty</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Rate</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Amount</th>'
+      +'<th style="padding:6px 10px;text-align:right;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Balance</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(r){
+    html+='<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700">'+fd(r.siDate)+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--inv-mono);font-weight:700;color:var(--accent)">'+(r.siNum||'—')+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono)">'+(r.partNumber||'—')+(r.pallet?' <span style="font-size:10px;color:var(--text3)">· '+r.pallet+'</span>':'')+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700;text-align:right">'+(r.qty||0).toLocaleString()+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);text-align:right">'+fAmt(r.rate)+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:800;text-align:right">'+fAmt(r.amt)+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:900;text-align:right;color:#dc2626">'+fAmt(r.bal)+'</td>'
+      +'</tr>';
+  });
+  html+='<tr style="background:#fef2f2;border-top:2px solid #dc2626">'
+    +'<td colspan="3" style="padding:8px 10px;font-weight:900;color:#991b1b">Total ('+rows.length+' SLIs)</td>'
+    +'<td style="padding:8px 10px;font-family:var(--mono);font-weight:900;text-align:right">'+totalQty.toLocaleString()+'</td>'
+    +'<td></td>'
+    +'<td style="padding:8px 10px;font-family:var(--mono);font-weight:900;text-align:right">'+fAmt(totalAmt)+'</td>'
+    +'<td style="padding:8px 10px;font-family:var(--mono);font-weight:900;text-align:right;color:#dc2626">'+fAmt(totalBal)+'</td>'
+    +'</tr>';
+  html+='</tbody></table></div></div>';
+  ov.innerHTML=html;
+  document.body.appendChild(ov);
+}
+// Unclaimed Tariff — manually entered, per-device persistence in localStorage
+// (external-system figure, not part of the HWMS Supabase graph).
+// Default view is read-only text + "edit" link; clicking the link swaps
+// the cell to an input that saves on Enter or blur.
+function _hwmsEditUnclaimedTariff(mode){
+  var cell=document.getElementById('hwmsDashUt_'+mode);
+  if(!cell) return;
+  var cur=parseFloat(localStorage.getItem('hwms_unclaimed_tariff_'+mode))||0;
+  var inp=document.createElement('input');
+  inp.type='number';
+  inp.value=cur||'';
+  inp.placeholder='0';
+  inp.style.cssText='width:100px;padding:3px 6px;font-family:var(--mono);font-weight:800;font-size:11px;text-align:right;border:1.5px solid #f59e0b;border-radius:4px;background:#fff;color:#92400e';
+  inp.onkeydown=function(e){if(e.key==='Enter')this.blur();if(e.key==='Escape')renderHwmsDashboard();};
+  inp.onblur=function(){_hwmsSaveUnclaimedTariff(mode,this.value);};
+  cell.parentNode.replaceChild(inp,cell);
+  inp.focus();inp.select();
+}
+function _hwmsSaveUnclaimedTariff(mode,v){
+  var n=parseFloat(v);
+  if(isNaN(n)||n<0) n=0;
+  localStorage.setItem('hwms_unclaimed_tariff_'+mode,String(n));
+  renderHwmsDashboard();
+}
 
 // ═══ PAYMENT & OUTSTANDING (calculator, import, suspense, knockoff) ═════
 // Single source of truth: payment amounts computed from Posted receipts only.
