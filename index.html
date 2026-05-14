@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260514-V54">
+<meta name="app-build" content="260514-V92">
 <title>KAP — myApps Portal</title>
-<link rel="stylesheet" href="css/portal.css?v=260514-V54">
+<link rel="stylesheet" href="css/portal.css?v=260514-V92">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -69,16 +69,12 @@
         <div><div style="font-size:13px;font-weight:800;color:var(--text)">KAP myApps</div><div style="font-size:9px;color:var(--text3)">Kelkar Auto Parts</div></div>
       </div>
     </div>
-    <!-- User Info -->
-    <div style="border-bottom:1px solid var(--border);padding:10px 14px">
-      <div style="display:flex;align-items:center;gap:9px">
-        <div id="pSideAvatar" style="width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden;border:2px solid rgba(42,154,160,.25)"></div>
-        <div style="flex:1;min-width:0">
-          <div id="pSideName" style="font-size:12px;font-weight:700;color:#1a2033;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-          <div id="pSideRole" style="font-size:10px;color:#64748b;margin-top:1px"></div>
-        </div>
-      </div>
-    </div>
+    <!-- V90: sidebar user-info block removed — avatar moved to the
+         top-right of the title bar. Hidden placeholder divs retained so
+         existing showPortal() writes don't crash on missing elements. -->
+    <div id="pSideAvatar" style="display:none"></div>
+    <div id="pSideName" style="display:none"></div>
+    <div id="pSideRole" style="display:none"></div>
     <!-- Nav tabs as sidebar items -->
     <div style="flex:1;padding:6px 10px;overflow-y:auto">
       <div class="ps-nav active" id="psNavApps" onclick="showTab('apps')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:0 0 6px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
@@ -112,9 +108,14 @@
          selection while on the Access Management tab. -->
     <div id="portalTopbarContext" style="display:none;margin-left:4px;padding:6px 14px;font-size:15px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw"></div>
     <div class="spacer"></div>
-    <div class="user-pill" onclick="toggleDropdown()">
-      <div class="user-avatar" id="portalAvatar">?</div>
-      <div><div class="user-name" id="portalUserName">—</div><div class="user-role" id="portalUserRole">—</div></div>
+    <!-- V90: only the avatar (photo or initials) on the topbar — name +
+         role text dropped. The avatar still opens the dropdown menu, and
+         the name/role span placeholders are kept hidden so showPortal()
+         keeps writing into them without exploding. -->
+    <div class="user-pill" onclick="toggleDropdown()" title="Account menu" style="cursor:pointer">
+      <div class="user-avatar" id="portalAvatar" style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;overflow:hidden;border:1.5px solid rgba(0,0,0,.08)">?</div>
+      <span id="portalUserName" style="display:none"></span>
+      <span id="portalUserRole" style="display:none"></span>
     </div>
     <div class="user-dropdown" id="userDropdown">
       <div class="dd-item" onclick="openProfile()">👤 My Profile</div>
@@ -396,8 +397,8 @@
 </div>
 </div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V54"></script>
-<script src="js/portal-logic.js?v=260514-V54"></script>
-<script src="js/portal-ui.js?v=260514-V54"></script>
+<script src="js/common.js?v=260514-V92"></script>
+<script src="js/portal-logic.js?v=260514-V92"></script>
+<script src="js/portal-ui.js?v=260514-V92"></script>
 </body>
 </html>

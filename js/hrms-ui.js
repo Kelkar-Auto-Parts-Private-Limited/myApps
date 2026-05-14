@@ -2323,6 +2323,281 @@ function _hrmsDashTeamHcShiftMonth(delta){
   window._hrmsDashTeamHcMonth=mk;
   _hrmsDashTeamHcRerender();
 }
+// Popup: clicking a bar opens a list of employees split into three
+// sections — Day-shift Present, Night-shift Present, and Absent — for
+// the (teamKey, day) bucket. Each row shows the plant short-code chip,
+// emp-code, name, emp-type, team, and department, sorted plant → dept →
+// team → name to match the night-shift popup convention.
+function _hrmsDashShowDayEmps(teamKey,day){
+  var dayStash=window._hrmsDashDayByTeam||{};
+  var nightStash=window._hrmsDashNightByTeam||{};
+  var absStash=window._hrmsDashAbsentByTeam||{};
+  var dayCodes=(dayStash[teamKey]||{})[day]||[];
+  var nightCodes=(nightStash[teamKey]||{})[day]||[];
+  var absCodes=(absStash[teamKey]||{})[day]||[];
+  if(!dayCodes.length&&!nightCodes.length&&!absCodes.length){
+    if(typeof notify==='function') notify('No employee records for that day',true);
+    return;
+  }
+  var mk=dayStash.__mk__||nightStash.__mk__||absStash.__mk__||'';
+  var emps=DB.hrmsEmployees||[];
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var _resolveRows=function(codes){
+    var seen={},rows=[];
+    codes.forEach(function(c){
+      if(seen[c]) return;seen[c]=1;
+      var e=emps.find(function(x){return x.empCode===c;})||{empCode:c};
+      var per=(typeof _hrmsActivePeriod==='function')?_hrmsActivePeriod(e):(e.periods&&e.periods[0])||{};
+      var plant=((per&&per.location)||e.location||'').trim();
+      var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'';
+      var dept=((per&&per.department)||e.department||'').trim();
+      // Period fields are `teamName` and `employmentType` — earlier code
+      // was reading `team` and `empType` and getting blanks.
+      var team=((per&&per.teamName)||e.teamName||'').trim();
+      var empType=((per&&per.employmentType)||e.employmentType||'').trim();
+      rows.push({emp:e,plant:plant,plantSf:pSf,dept:dept,team:team,empType:empType});
+    });
+    var _k=function(s){return (s||'').toLowerCase();};
+    var _cmp=function(a,b){var av=_k(a),bv=_k(b);if(!av&&bv) return 1;if(av&&!bv) return -1;return av.localeCompare(bv);};
+    rows.sort(function(a,b){
+      var c=_cmp(a.plantSf,b.plantSf);if(c) return c;
+      c=_cmp(a.dept,b.dept);if(c) return c;
+      c=_cmp(a.team,b.team);if(c) return c;
+      return _cmp(a.emp.fullName||a.emp.name,b.emp.fullName||b.emp.name);
+    });
+    return rows;
+  };
+  var dayRows=_resolveRows(dayCodes);
+  var nightRows=_resolveRows(nightCodes);
+  var absRows=_resolveRows(absCodes);
+  var teamLbl;
+  if(teamKey==='__TOTAL__'||teamKey==='__ALL__') teamLbl='All Teams';
+  else if(teamKey==='__KAP__') teamLbl='KAP (On Roll)';
+  else if(teamKey==='__PIECERATE__') teamLbl='Piece Rate';
+  else if(teamKey==='__POPUP__'){
+    // Popup uses its own scope state (window._hrmsTwMdTeamName + selEts).
+    // Compose a label from those so the day-emps popup header matches
+    // the chart the user was looking at.
+    var _tName=window._hrmsTwMdTeamName==='__ALL__'?'All Teams':(window._hrmsTwMdTeamName||'All Teams');
+    var _ets=window._hrmsTwMdSelEts;
+    var _etLbl=(!_ets||!_ets.length)?'All Emp Types':_ets.join(' + ');
+    teamLbl=_tName+' · '+_etLbl;
+  }
+  else teamLbl=teamKey;
+  // Prominent day + date display: "Mon, 4 May 2026"
+  var DOWfull=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var dayDateLbl='';
+  if(mk){
+    var mp=mk.split('-');
+    var dt=new Date(+mp[0],+mp[1]-1,day);
+    dayDateLbl=DOWfull[dt.getDay()]+', '+day+' '+(MON_NAMES[+mp[1]-1]||mp[1])+' '+mp[0];
+  }
+  var ov=document.getElementById('hrmsDashDayEmpsOverlay');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='hrmsDashDayEmpsOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=function(e){if(e.target===ov) ov.remove();};
+  // Collapsible section: header is clickable, table starts hidden, chevron
+  // rotates between ▶ (collapsed) and ▼ (expanded). Empty sections still
+  // render so the user sees the zero count.
+  var _section=function(secId,title,rows,color,bg,emoji){
+    var toggleJs='var t=document.getElementById(\''+secId+'-body\');var c=document.getElementById(\''+secId+'-chev\');if(!t||!c) return;var open=t.style.display!==\'none\';t.style.display=open?\'none\':\'\';c.textContent=open?\'▶\':\'▼\';';
+    var h='<div style="margin-bottom:10px;border:1.5px solid '+color+';border-radius:6px;overflow:hidden">';
+    h+='<div onclick="'+toggleJs+'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:'+bg+';cursor:pointer;user-select:none">'
+      +'<span id="'+secId+'-chev" style="font-size:11px;color:'+color+';font-weight:900;width:14px;text-align:center">▶</span>'
+      +'<span style="font-size:14px;font-weight:900;color:'+color+'">'+emoji+' '+title+'</span>'
+      +'<span style="font-size:15px;font-weight:900;color:'+color+';background:#fff;padding:2px 12px;border-radius:11px;border:1.5px solid '+color+'">'+rows.length+'</span>'
+      +'<span style="margin-left:auto;font-size:10px;color:'+color+';opacity:.7;font-weight:700">click to '+(rows.length?'expand':'view')+'</span>'
+      +'</div>';
+    h+='<div id="'+secId+'-body" style="display:none">';
+    if(!rows.length){
+      h+='<div style="padding:14px;text-align:center;font-size:12px;color:#94a3b8;font-style:italic">No employees in this category for the day.</div>';
+    } else {
+      h+='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<thead><tr style="background:#f8fafc"><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Plant</th><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Emp Code</th><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Name</th><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Emp Type</th><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Team</th><th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-top:1px solid '+color+';border-bottom:1.5px solid #cbd5e1">Department</th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        var e=r.emp;
+        var pClr=r.plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(r.plant):'#e2e8f0';
+        var chip=r.plant?'<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:900;background:'+pClr+';color:#fff;letter-spacing:.3px">'+_esc(r.plantSf||r.plant.slice(0,3).toUpperCase())+'</span>':'<span style="color:#94a3b8">—</span>';
+        h+='<tr style="border-bottom:1px solid #f1f5f9">'
+          +'<td style="padding:5px 10px">'+chip+'</td>'
+          +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700;color:#1d4ed8">'+_esc(e.empCode||'—')+'</td>'
+          +'<td style="padding:5px 10px;font-weight:600">'+_esc(e.fullName||e.name||'—')+'</td>'
+          +'<td style="padding:5px 10px">'+_esc(r.empType||'—')+'</td>'
+          +'<td style="padding:5px 10px">'+_esc(r.team||'—')+'</td>'
+          +'<td style="padding:5px 10px">'+_esc(r.dept||'—')+'</td>'
+          +'</tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div></div>';
+    return h;
+  };
+  var html=''
+    +'<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:1000px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">'
+    +'<div style="padding:18px 22px;border-bottom:1.5px solid #cbd5e1;background:linear-gradient(180deg,#f1f5f9,#e2e8f0);display:flex;align-items:center;justify-content:space-between;gap:12px">'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:24px;font-weight:900;color:#0f172a;line-height:1.1;letter-spacing:-.3px">📅 '+_esc(dayDateLbl)+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#475569;margin-top:4px">'+_esc(teamLbl)+' · Employee Breakdown</div>'
+      +'<div style="display:flex;gap:12px;align-items:center;margin-top:8px;flex-wrap:wrap">'
+        +'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;border:1.5px solid #15803d;color:#15803d;border-radius:14px;font-size:12px;font-weight:900">✅ P (Day) '+dayRows.length+'</span>'
+        +'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#e2e8f0;border:1.5px solid #475569;color:#475569;border-radius:14px;font-size:12px;font-weight:900">🌙 P (Night) '+nightRows.length+'</span>'
+        +'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#fee2e2;border:1.5px solid #b91c1c;color:#b91c1c;border-radius:14px;font-size:12px;font-weight:900">❌ A '+absRows.length+'</span>'
+      +'</div>'
+    +'</div>'
+    +'<button onclick="document.getElementById(\'hrmsDashDayEmpsOverlay\').remove()" style="background:none;border:none;font-size:26px;cursor:pointer;color:#64748b;line-height:1;flex:0 0 auto">✕</button>'
+    +'</div>'
+    +'<div style="overflow:auto;flex:1;padding:14px 20px">'
+    +_section('hrmsEmpsDay','P (Day) — Day-shift Present',dayRows,'#15803d','#dcfce7','✅')
+    +_section('hrmsEmpsNight','P (Night) — Night-shift Present',nightRows,'#475569','#e2e8f0','🌙')
+    +_section('hrmsEmpsAbs','A — Absent',absRows,'#b91c1c','#fee2e2','❌')
+    +'</div></div>';
+  ov.innerHTML=html;
+  document.body.appendChild(ov);
+}
+
+// Popup: lists every employee who clocked in on a night shift for a given
+// (teamKey, day) bucket — driven by the grey night-pill in the totals
+// P column of the Team-wise Daily Headcount strip.
+function _hrmsDashShowNightShift(teamKey,day){
+  var stash=window._hrmsDashNightByTeam||{};
+  var codes=(stash[teamKey]||{})[day]||[];
+  if(!codes.length){if(typeof notify==='function') notify('No night-shift records for that day',true);return;}
+  var mk=stash.__mk__||'';
+  var emps=DB.hrmsEmployees||[];
+  // De-dupe first so rolled-up __ALL__ buckets don't multi-list the same
+  // emp across teams. Then resolve plant / dept / team / emp-type from the
+  // active period in one pass — these fields drive both the sort and the
+  // rendered cells, so resolving once avoids walking periods twice.
+  var seen={};
+  var rows=[];
+  codes.forEach(function(c){
+    if(seen[c]) return;seen[c]=1;
+    var e=emps.find(function(x){return x.empCode===c;})||{empCode:c};
+    var per=(typeof _hrmsActivePeriod==='function')?_hrmsActivePeriod(e):(e.periods&&e.periods[0])||{};
+    var plant=((per&&per.location)||e.location||'').trim();
+    var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'';
+    var dept=((per&&per.department)||e.department||'').trim();
+    // Period fields are `teamName` and `employmentType` — not `team` /
+    // `empType`. Falling back to the legacy top-level emp fields too.
+    var team=((per&&per.teamName)||e.teamName||'').trim();
+    var empType=((per&&per.employmentType)||e.employmentType||'').trim();
+    rows.push({emp:e,plant:plant,plantSf:pSf,dept:dept,team:team,empType:empType});
+  });
+  // Sort: plant short-form → department → team → name. Empty plant/dept
+  // sorts to the bottom of its tier instead of jumbling with valid groups.
+  var _sortKey=function(s){return (s||'').toLowerCase();};
+  var _cmp=function(a,b){
+    var av=_sortKey(a),bv=_sortKey(b);
+    if(!av&&bv) return 1;
+    if(av&&!bv) return -1;
+    return av.localeCompare(bv);
+  };
+  rows.sort(function(a,b){
+    var c=_cmp(a.plantSf,b.plantSf);if(c) return c;
+    c=_cmp(a.dept,b.dept);if(c) return c;
+    c=_cmp(a.team,b.team);if(c) return c;
+    return _cmp(a.emp.fullName||a.emp.name,b.emp.fullName||b.emp.name);
+  });
+  var teamLbl=teamKey==='__ALL__'?'All Teams':(teamKey==='__KAP__'?'KAP (On Roll)':(teamKey==='__PIECERATE__'?'Piece Rate':teamKey));
+  var monLbl='';
+  if(mk){var mp=mk.split('-');monLbl=' · '+(MON_NAMES[parseInt(mp[1],10)-1]||mk)+' '+day+', '+mp[0];}
+  var ov=document.getElementById('hrmsDashNightShiftOverlay');
+  if(ov) ov.remove();
+  ov=document.createElement('div');
+  ov.id='hrmsDashNightShiftOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=function(e){if(e.target===ov) ov.remove();};
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var html=''
+    +'<div style="background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:900px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden">'
+    +'<div style="padding:14px 20px;border-bottom:1.5px solid #cbd5e1;background:linear-gradient(180deg,#f1f5f9,#e2e8f0);display:flex;align-items:center;justify-content:space-between">'
+    +'<div><div style="font-size:9px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.5px">🌙 Night Shift · '+_esc(teamLbl)+_esc(monLbl)+'</div>'
+    +'<div style="font-size:18px;font-weight:900;color:#0f172a;margin-top:2px">'+rows.length+' employee'+(rows.length>1?'s':'')+'</div></div>'
+    +'<button onclick="document.getElementById(\'hrmsDashNightShiftOverlay\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">✕</button>'
+    +'</div>'
+    +'<div style="overflow:auto;flex:1">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:#f8fafc;position:sticky;top:0;z-index:1">'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Plant</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Emp Code</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Name</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Emp Type</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Team</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10px;color:#475569;border-bottom:2px solid #cbd5e1">Department</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(r){
+    var e=r.emp;
+    var pClr=r.plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(r.plant):'#e2e8f0';
+    var chip=r.plant?'<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:900;background:'+pClr+';color:#fff;letter-spacing:.3px">'+_esc(r.plantSf||r.plant.slice(0,3).toUpperCase())+'</span>':'<span style="color:#94a3b8">—</span>';
+    html+='<tr style="border-bottom:1px solid #f1f5f9">'
+      +'<td style="padding:5px 10px">'+chip+'</td>'
+      +'<td style="padding:5px 10px;font-family:var(--mono);font-weight:700;color:#1d4ed8">'+_esc(e.empCode||'—')+'</td>'
+      +'<td style="padding:5px 10px;font-weight:600">'+_esc(e.fullName||e.name||'—')+'</td>'
+      +'<td style="padding:5px 10px">'+_esc(r.empType||'—')+'</td>'
+      +'<td style="padding:5px 10px">'+_esc(r.team||'—')+'</td>'
+      +'<td style="padding:5px 10px">'+_esc(r.dept||'—')+'</td>'
+      +'</tr>';
+  });
+  html+='</tbody></table></div></div>';
+  ov.innerHTML=html;
+  document.body.appendChild(ov);
+}
+
+// Toggle between the default row-oriented view (dates flow down, bars
+// grow right) and the transposed view (dates flow right, bars grow up).
+// Kept for any deep-links still calling the V66 toggle button.
+function _hrmsDashTeamHcToggleLayout(){
+  window._hrmsDashTeamHcLayout=(window._hrmsDashTeamHcLayout==='cols')?'rows':'cols';
+  _hrmsDashTeamHcRerender();
+}
+// Prominent hover tooltip for bars in the Team-wise Daily Headcount strip.
+// Replaces the tiny native SVG <title> tooltip with a styled dark card
+// showing P / A and (when applicable) Night Shift Present count.
+function _hrmsDashShowBarTooltip(ev,el){
+  var tip=document.getElementById('hrmsDashBarTip');
+  if(!tip){
+    tip=document.createElement('div');
+    tip.id='hrmsDashBarTip';
+    tip.style.cssText='position:fixed;display:none;background:#0f172a;color:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:99999;pointer-events:none;font-family:var(--sans);min-width:200px;border:1.5px solid #334155';
+    document.body.appendChild(tip);
+  }
+  var team=el.getAttribute('data-team')||'';
+  var label=el.getAttribute('data-label')||'';
+  var p=+(el.getAttribute('data-p')||0);
+  var a=+(el.getAttribute('data-a')||0);
+  var n=+(el.getAttribute('data-n')||0);
+  var html='';
+  if(team) html+='<div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:4px">'+team+'</div>';
+  html+='<div style="font-size:11px;font-weight:800;color:#94a3b8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">'+label+'</div>'
+    +'<div style="display:flex;gap:14px;align-items:flex-end">'
+    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:48px"><span style="color:#86efac;font-size:10px;font-weight:800;letter-spacing:.5px">PRESENT</span><span style="color:#fff;font-size:26px;font-weight:900;line-height:1;margin-top:2px">'+p+'</span></div>'
+    +'<div style="display:flex;flex-direction:column;align-items:center;min-width:48px"><span style="color:#fca5a5;font-size:10px;font-weight:800;letter-spacing:.5px">ABSENT</span><span style="color:#fff;font-size:26px;font-weight:900;line-height:1;margin-top:2px">'+a+'</span></div>'
+    +'</div>';
+  if(n>0){
+    html+='<div style="margin-top:10px;padding-top:8px;border-top:1px solid #334155;display:flex;align-items:center;justify-content:space-between;gap:10px">'
+      +'<span style="color:#cbd5e1;font-size:11px;font-weight:700;letter-spacing:.4px">🌙 Night Shift Present count</span>'
+      +'<span style="color:#fff;font-size:18px;font-weight:900;background:#475569;padding:2px 10px;border-radius:10px">'+n+'</span>'
+      +'</div>';
+  }
+  tip.innerHTML=html;
+  tip.style.display='block';
+  var tw=tip.offsetWidth,th=tip.offsetHeight;
+  var vw=window.innerWidth||document.documentElement.clientWidth;
+  var vh=window.innerHeight||document.documentElement.clientHeight;
+  var x=ev.clientX+18;
+  var y=ev.clientY-th-12;
+  if(x+tw>vw-8) x=Math.max(8,ev.clientX-tw-18);
+  if(y<8) y=Math.min(vh-th-8,ev.clientY+18);
+  tip.style.left=x+'px';
+  tip.style.top=y+'px';
+}
+function _hrmsDashHideBarTooltip(){
+  var tip=document.getElementById('hrmsDashBarTip');
+  if(tip) tip.style.display='none';
+}
+
 function _hrmsDashTeamHcRerender(){
   var allEmps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;});
   var wrap=document.getElementById('hrmsDashTeamHcWrap');
@@ -2402,6 +2677,9 @@ function _hrmsDashTeamHcSection(allEmps){
     });
   }
   // Per-month presence cache built on demand from _hrmsAttCache.
+  // Each cell carries {p:true,n:bool} so we can split P into day-shift /
+  // night-shift on the dashboard. Night shift = OUT < IN (crosses midnight),
+  // mirroring the same heuristic used by the muster grid.
   var _presCache={};
   var _presOf=function(mk){
     if(_presCache[mk]) return _presCache[mk];
@@ -2413,8 +2691,16 @@ function _hrmsDashTeamHcSection(allEmps){
         if(!a||!a.empCode||!a.days) return;
         if(!pres[a.empCode]) pres[a.empCode]={};
         Object.keys(a.days).forEach(function(dk){
-          var entry=a.days[dk];
-          if(entry&&(entry.in||entry['in'])) pres[a.empCode][+dk]=true;
+          var entry=a.days[dk];if(!entry) return;
+          var inT=entry.in||entry['in'];
+          if(!inT) return;
+          var outT=entry.out||entry['out'];
+          var isNight=false;
+          if(outT&&typeof _hrmsParseTime==='function'){
+            var t1=_hrmsParseTime(inT),t2=_hrmsParseTime(outT);
+            if(t1!=null&&t2!=null&&t2<t1) isNight=true;
+          }
+          pres[a.empCode][+dk]={p:true,n:isNight};
         });
       });
     });
@@ -2430,16 +2716,33 @@ function _hrmsDashTeamHcSection(allEmps){
     // Current month per-day rows
     var curPres=_presOf(curMk);
     var dayRows=[];
+    // Per-day employee buckets so the bar-click popup can list each
+    // category (Day-shift P / Night-shift P / Absent) without re-walking
+    // attendance.
+    var nightEmpsByDay={};
+    var dayEmpsByDay={};
+    var absentEmpsByDay={};
     for(var d=1;d<=daysInMonth;d++){
       var dType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(curMk,d,curYr,curMo,dominantPlant):'WD';
-      var p=0,tot=0;
+      var p=0,nightP=0,tot=0;
+      var nightArr=[],dayArr=[],absArr=[];
       activeCur.forEach(function(e){
         var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(e,curMk,d):'AC';
         if(st==='IA') return;
         tot++;
-        if(curPres[e.empCode]&&curPres[e.empCode][d]) p++;
+        var hit=curPres[e.empCode]&&curPres[e.empCode][d];
+        if(hit){
+          p++;
+          if(hit.n){nightP++;nightArr.push(e.empCode);}
+          else dayArr.push(e.empCode);
+        } else {
+          absArr.push(e.empCode);
+        }
       });
-      dayRows.push({d:d,dType:dType,p:p,a:Math.max(0,tot-p),total:tot});
+      if(nightArr.length) nightEmpsByDay[d]=nightArr;
+      if(dayArr.length) dayEmpsByDay[d]=dayArr;
+      if(absArr.length) absentEmpsByDay[d]=absArr;
+      dayRows.push({d:d,dType:dType,p:p,nightP:nightP,a:Math.max(0,tot-p),total:tot});
     }
     // 6 historical avg P / WD
     var history=[];
@@ -2452,20 +2755,21 @@ function _hrmsDashTeamHcSection(allEmps){
       if(!hCache){history.push({mk:hMk,avgP:0,avgA:0,hasData:false});continue;}
       var hPres=_presOf(hMk);
       var hActive=teamEmps.filter(function(e){var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(e,hMk):'AC';return tag!=='IA';});
-      var sP=0,sA=0,wd=0;
+      var sP=0,sNight=0,sA=0,wd=0;
       for(var dd=1;dd<=hDays;dd++){
         var hType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(hMk,dd,hYr,hMo,dominantPlant):'WD';
         if(hType!=='WD') continue;
-        var hP=0,hT=0;
+        var hP=0,hNight=0,hT=0;
         hActive.forEach(function(e){
           var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(e,hMk,dd):'AC';
           if(st==='IA') return;
           hT++;
-          if(hPres[e.empCode]&&hPres[e.empCode][dd]) hP++;
+          var hit2=hPres[e.empCode]&&hPres[e.empCode][dd];
+          if(hit2){hP++;if(hit2.n) hNight++;}
         });
-        if(hT>0){sP+=hP;sA+=(hT-hP);wd++;}
+        if(hT>0){sP+=hP;sNight+=hNight;sA+=(hT-hP);wd++;}
       }
-      history.push({mk:hMk,avgP:wd?Math.round(sP/wd):0,avgA:wd?Math.round(sA/wd):0,hasData:wd>0});
+      history.push({mk:hMk,avgP:wd?Math.round(sP/wd):0,avgNightP:wd?Math.round(sNight/wd):0,avgA:wd?Math.round(sA/wd):0,hasData:wd>0});
     }
     // maxY uses P+A (active denominator) for a consistent scale.
     var maxY=0;
@@ -2474,7 +2778,7 @@ function _hrmsDashTeamHcSection(allEmps){
     if(maxY<10) maxY=10;
     var step=Math.pow(10,Math.max(0,String(maxY).length-2));
     maxY=Math.ceil(maxY/step)*step;
-    return {dayRows:dayRows,history:history,maxY:maxY,empCount:activeCur.length};
+    return {dayRows:dayRows,history:history,maxY:maxY,empCount:activeCur.length,nightEmpsByDay:nightEmpsByDay,dayEmpsByDay:dayEmpsByDay,absentEmpsByDay:absentEmpsByDay};
   };
   // Build chart data per team once so we can share row positions and
   // dimensions across the whole strip.
@@ -2484,11 +2788,129 @@ function _hrmsDashTeamHcSection(allEmps){
   // they only differ on P counts).
   var refRows=teamRows[0].data.dayRows;
   var refHistory=teamRows[0].data.history;
-  // Build the section HTML — single horizontal-scrolling container with
-  // a sticky-left date column (the shared Y axis) and one bars-only
-  // column per team. Vertical scroll lives on the container so every
-  // column scrolls together.
+  // The first team's dType reflects only ONE plant's calendar — so a PH
+  // configured for plant B would not show on the shared date column when
+  // team A (the reference) sits on plant A. Merge dType across every
+  // team for each day: PH wins over WO, WO wins over WD, so the column
+  // shows the "most off" status across all plants that have headcount.
+  var mergedRefRows=refRows.map(function(r,i){
+    var dType='WD';
+    var anyPH=false,allWO=true,anyTeam=false;
+    teamRows.forEach(function(tr){
+      var dr=tr.data.dayRows[i];
+      if(!dr) return;
+      anyTeam=true;
+      if(dr.dType==='PH') anyPH=true;
+      if(dr.dType!=='WO') allWO=false;
+    });
+    // Per-team merge misses PH days configured for a plant where no team
+    // dominantly sits — fall back to scanning DB.hrmsDayTypes directly
+    // so a holiday on any plant flashes on the shared X axis.
+    if(!anyPH){
+      var dayKey=String(r.d);
+      var phRec=(DB.hrmsDayTypes||[]).find(function(rec){
+        return rec&&rec.monthKey===curMk&&rec.dayTypes&&rec.dayTypes[dayKey]==='PH';
+      });
+      if(phRec) anyPH=true;
+    }
+    if(anyPH) dType='PH';
+    else if(anyTeam&&allWO) dType='WO';
+    return {d:r.d,dType:dType,p:r.p,nightP:r.nightP,a:r.a,total:r.total};
+  });
+  // ── Totals + night-emp stash (computed up front so the transposed
+  // layout branch can reuse them just like the default branch). ──
+  var totalsRows=refRows.map(function(r,i){
+    var p=0,nightP=0,a=0;
+    teamRows.forEach(function(tr){
+      var dr=tr.data.dayRows[i];
+      if(dr){p+=dr.p;nightP+=(dr.nightP||0);a+=dr.a;}
+    });
+    return {d:r.d,dType:(mergedRefRows[i]&&mergedRefRows[i].dType)||r.dType,p:p,nightP:nightP,a:a};
+  });
+  // Per-team / per-day buckets stashed on window so click handlers can
+  // resolve empCodes → records without re-walking attendance. Three
+  // categories: nightP (night-shift presents), dayP (day-shift presents),
+  // and absent. Each carries a __ALL__ roll-up across teams + the current
+  // month key.
+  window._hrmsDashNightByTeam={__mk__:curMk};
+  window._hrmsDashDayByTeam={__mk__:curMk};
+  window._hrmsDashAbsentByTeam={__mk__:curMk};
+  teamRows.forEach(function(tr){
+    window._hrmsDashNightByTeam[tr.key]=tr.data.nightEmpsByDay||{};
+    window._hrmsDashDayByTeam[tr.key]=tr.data.dayEmpsByDay||{};
+    window._hrmsDashAbsentByTeam[tr.key]=tr.data.absentEmpsByDay||{};
+  });
+  var _rollAll=function(stash){
+    stash.__ALL__={};
+    teamRows.forEach(function(tr){
+      var src=stash[tr.key]||{};
+      Object.keys(src).forEach(function(d){
+        if(!stash.__ALL__[d]) stash.__ALL__[d]=[];
+        Array.prototype.push.apply(stash.__ALL__[d],src[d]);
+      });
+    });
+    // Total lane uses __TOTAL__ key — alias to the __ALL__ roll-up so
+    // bar-click resolves correctly.
+    stash.__TOTAL__=stash.__ALL__;
+  };
+  _rollAll(window._hrmsDashNightByTeam);
+  _rollAll(window._hrmsDashDayByTeam);
+  _rollAll(window._hrmsDashAbsentByTeam);
+  var totalsHistory=refHistory.map(function(h,hi){
+    var p=0,nightP=0,a=0,hasData=false;
+    teamRows.forEach(function(tr){
+      var hh=tr.data.history[hi];
+      if(hh&&hh.hasData){p+=hh.avgP;nightP+=(hh.avgNightP||0);a+=hh.avgA;hasData=true;}
+    });
+    return {mk:h.mk,avgP:p,avgNightP:nightP,avgA:a,hasData:hasData};
+  });
+  // V70 redesign — discarded the row/col toggle and the side P/A/% column.
+  // Now: a single vertical stack of horizontal lanes, one per team. Each
+  // lane has X axis = dates (6-month history + current month days), Y axis
+  // = Present headcount, bars rising upward. The TOTAL lane (sum across
+  // every team) sits on top, then KAP (On Roll), then every Contract team
+  // in alpha order, then the Piece Rate aggregate at the bottom. Each lane
+  // owns its Y scale so small teams aren't squashed by big ones.
   var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  // Build the Total-of-all aggregate lane data from the per-day / history
+  // rollups computed above (totalsRows + totalsHistory). Same shape as a
+  // team's _teamData output so the lane renderer can stay generic.
+  var _totalEmpCount=0;teamRows.forEach(function(tr){_totalEmpCount+=tr.data.empCount;});
+  var _totalMaxY=0;
+  totalsRows.forEach(function(r){var t=(r.p||0)+(r.a||0);if(t>_totalMaxY) _totalMaxY=t;});
+  totalsHistory.forEach(function(h){var t=(h.avgP||0)+(h.avgA||0);if(t>_totalMaxY) _totalMaxY=t;});
+  if(_totalMaxY<10) _totalMaxY=10;
+  var _tStep=Math.pow(10,Math.max(0,String(_totalMaxY).length-2));
+  _totalMaxY=Math.ceil(_totalMaxY/_tStep)*_tStep;
+  var totalLaneData={
+    dayRows:totalsRows.map(function(r){return {d:r.d,dType:r.dType,p:r.p,nightP:r.nightP||0,a:r.a};}),
+    history:totalsHistory,
+    empCount:_totalEmpCount,
+    maxY:_totalMaxY
+  };
+  // Final ordered list of lanes to render: Total → KAP → Contract teams
+  // → Piece Rate (teamKeys is already sorted that way at the top of the
+  // function).
+  // Each lane carries a `tipLabel` field used by the hover tooltip — it
+  // includes the emp-type so the user reads both team name and category
+  // ("KAP · On Roll", "TeamX · Contract", etc.) without ambiguity.
+  var _lanes=[{key:'__TOTAL__',label:'Total (All)',tipLabel:'All Teams · All Emp Types',bg:'linear-gradient(180deg,#e0f2fe,#bae6fd)',fg:'#0369a1',data:totalLaneData}];
+  teamRows.forEach(function(tr){
+    var tk=tr.key,teamLbl,tipLbl,bg,fg;
+    if(tk==='__KAP__'){teamLbl='KAP (On Roll)';tipLbl='KAP · On Roll';bg='linear-gradient(180deg,#dcfce7,#bbf7d0)';fg='#15803d';}
+    else if(tk==='__PIECERATE__'){teamLbl='Piece Rate';tipLbl='Piece Rate';bg='linear-gradient(180deg,#f3e8ff,#ddd6fe)';fg='#7c3aed';}
+    else {teamLbl=tk;tipLbl=tk+' · Contract';bg='linear-gradient(180deg,#fef3c7,#fde68a)';fg='#92400e';}
+    _lanes.push({key:tk,label:teamLbl,tipLabel:tipLbl,bg:bg,fg:fg,data:tr.data});
+  });
+  // Layout dimensions shared by every lane.
+  var _histCountT=refHistory.length;
+  var _gapSlotsT=_histCountT>0?1:0;
+  var _nT=mergedRefRows.length;
+  var _totalSlotsT=_histCountT+_gapSlotsT+_nT;
+  var _colWT=30;
+  var _labelW=160;
+  var _svgW=_totalSlotsT*_colWT;
+  var DOWt=['S','M','T','W','T','F','S'];
   var html='<div style="margin-bottom:18px" id="hrmsDashTeamHcWrap">';
   var _nextDisStyle=_atToday?'opacity:.35;cursor:not-allowed;':'cursor:pointer;';
   var _nextOnClick=_atToday?'':' onclick="_hrmsDashTeamHcShiftMonth(1)"';
@@ -2499,75 +2921,141 @@ function _hrmsDashTeamHcSection(allEmps){
       +'<span style="font-size:12px;font-weight:800;color:var(--accent);padding:3px 10px;border:1.5px solid var(--accent);border-radius:4px;background:#fff;min-width:96px;text-align:center;letter-spacing:.2px">'+(MON_NAMES[curMo-1]||'')+' '+curYr+'</span>'
       +'<button'+_nextOnClick+(_atToday?' disabled':'')+' title="'+(_atToday?'Already at the current month':'Next month')+'" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;'+_nextDisStyle+'line-height:1">▶</button>'
     +'</span>'
-    +'<span style="font-size:11px;color:var(--text3);font-weight:600">6-month trend · shared date axis</span>'
+    +'<span style="font-size:11px;color:var(--text3);font-weight:600">6-month average + current month · per-team Y scale</span>'
+    +'<button onclick="_hrmsDasTwShowMonthly({team:\'__TOTAL__\'})" title="Open Team-wise Attendance popup with team / month filters" style="margin-left:auto;padding:6px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(124,58,237,.25)">📅 Team-wise Attendance</button>'
     +'</div>';
-  // Outer wrapper — scrolls horizontally for many teams, vertically for
-  // the full date list. The date column inside is sticky-left so it
-  // stays visible while scrolling sideways.
-  html+='<div style="display:flex;overflow-x:auto;overflow-y:visible;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:0;-webkit-overflow-scrolling:touch">';
-  // Shared header row across all columns — fixed-position via sticky
-  // top so it stays visible while scrolling vertically.
-  // (Rendered inline at the top of each column so the layouts align.)
-  // Date column (sticky-left).
-  html+='<div style="flex:0 0 58px;position:sticky;left:0;background:#fff;z-index:3;border-right:1.5px solid #cbd5e1">';
-  html+='<div style="background:linear-gradient(180deg,#f1f5f9,#e2e8f0);padding:6px 4px;font-size:11px;font-weight:800;color:#0f172a;text-align:center;border-bottom:1px solid #cbd5e1;position:sticky;top:0;z-index:2">Date</div>';
-  html+=_hrmsDashTeamHcDatesOnly(refRows,refHistory,curYr,curMo);
-  html+='</div>';
-  // One column per team — bars only, no Y labels (shared with date col).
-  teamRows.forEach(function(tr){
-    var tk=tr.key;
-    var td=tr.data;
-    var teamLbl,teamBg,teamFg;
-    if(tk==='__KAP__'){teamLbl='KAP (On Roll)';teamBg='linear-gradient(180deg,#dcfce7,#bbf7d0)';teamFg='#15803d';}
-    else if(tk==='__PIECERATE__'){teamLbl='Piece Rate';teamBg='linear-gradient(180deg,#f3e8ff,#ddd6fe)';teamFg='#7c3aed';}
-    else {teamLbl=tk;teamBg='linear-gradient(180deg,#dbeafe,#bfdbfe)';teamFg='#1d4ed8';}
-    // Whole column is clickable — opens the Monthly Data popup focused
-    // on this team / aggregate.
-    var _teamKeyEsc=String(tk).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html+='<div onclick="_hrmsDasTwShowMonthly({team:\''+_teamKeyEsc+'\'})" style="flex:0 0 176px;border-right:1px solid #e2e8f0;cursor:pointer" title="Click to open larger view with month / emp-type / team filters">';
-    html+='<div style="background:'+teamBg+';color:'+teamFg+';padding:6px 8px;font-size:11px;font-weight:800;border-bottom:1px solid #cbd5e1;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1">'
-      +'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(teamLbl)+'</span>'
-      +'<span style="font-size:10px;font-weight:700;opacity:.85;flex:0 0 auto;margin-left:6px">'+td.empCount+'</span>'
+  // ── Lane renderer ────────────────────────────────────────────────
+  // Builds one horizontal team strip: team label on the left, SVG with
+  // X axis = days, Y axis = Present headcount, bars rising upward. Each
+  // lane owns its own Y scale (laneMaxY) so small teams aren't crushed
+  // by the largest.
+  var _renderLane=function(lane){
+    var d=lane.data;
+    var laneMaxY=d.maxY||10;
+    // V74: lane is no longer clickable — the "Team-wise Attendance"
+    // button at the top-right of the chart opens the popup instead, so
+    // hover-tooltips on bars don't compete with a click intent.
+    var laneH=lane.key==='__TOTAL__'?180:150;
+    var s='<div style="display:flex;align-items:stretch;margin-bottom:6px">';
+    s+='<div style="flex:0 0 '+_labelW+'px;display:flex;flex-direction:column;justify-content:center;padding:6px 12px;background:'+lane.bg+';color:'+lane.fg+';border-radius:6px 0 0 6px;border:1.5px solid '+lane.fg+';border-right:none">'
+      +'<div style="font-size:13px;font-weight:900;line-height:1.2">'+_esc(lane.label)+'</div>'
+      +'<div style="font-size:11px;font-weight:700;opacity:.85;margin-top:2px">'+d.empCount+' employees</div>'
+      +'<div style="font-size:10px;font-weight:700;opacity:.75;margin-top:1px">Y max '+laneMaxY+'</div>'
       +'</div>';
-    html+=_hrmsDashTeamHcBarsOnly(td.dayRows,curYr,curMo,td.maxY,td.history);
-    html+='</div>';
-  });
-  // ── Totals columns ───────────────────────────────────────────────
-  // Sum P / A across every team for each day (and each historical
-  // month average) so the operator sees a single roll-up at the end of
-  // the strip. Three columns: total P, total A, and absent %.
-  var totalsRows=refRows.map(function(r,i){
-    var p=0,a=0;
-    teamRows.forEach(function(tr){
-      var dr=tr.data.dayRows[i];
-      if(dr){p+=dr.p;a+=dr.a;}
+    s+='<svg viewBox="0 0 '+_svgW+' '+laneH+'" preserveAspectRatio="xMidYMin meet" style="width:'+_svgW+'px;height:'+laneH+'px;display:block;background:#fff;border:1.5px solid '+lane.fg+';border-radius:0 6px 6px 0">';
+    var padTL=28,padBL=4;
+    var plotHL=laneH-padTL-padBL;
+    if(_histCountT>0){
+      s+='<rect x="0" y="0" width="'+(_colWT*_histCountT)+'" height="'+laneH+'" fill="#fef3c7" fill-opacity="0.45"/>';
+      var sepX=_colWT*_histCountT+_colWT/2;
+      s+='<line x1="'+sepX+'" y1="0" x2="'+sepX+'" y2="'+laneH+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 3"/>';
+    }
+    for(var ji=0;ji<_nT;ji++){
+      var rr2=mergedRefRows[ji];if(!rr2) continue;
+      if(rr2.dType==='WO'||rr2.dType==='PH'){
+        var bx2=(_histCountT+_gapSlotsT+ji)*_colWT;
+        var bgC2=rr2.dType==='PH'?'#dcfce7':'#dbeafe';
+        s+='<rect x="'+bx2+'" y="0" width="'+_colWT+'" height="'+laneH+'" fill="'+bgC2+'" fill-opacity="0.5"/>';
+      }
+    }
+    var _barWL=_colWT*0.55;
+    // Round badge — small rounded pill. Width auto-grows for 2-3 digit
+    // counts; 1-digit counts read as a near-circle. The night count is
+    // intentionally NOT rendered as its own badge — it surfaces only on
+    // hover via the title tooltip ("Night Shift Present count N").
+    var _badge=function(cx,cy,count,bg){
+      var txt=String(count);
+      var w=Math.max(18,8+txt.length*6);
+      var h=15;
+      return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7.5" ry="7.5" fill="'+bg+'" stroke="#0f172a" stroke-width="0.3"/>'
+        +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+txt+'</text>';
+    };
+    var _labelStack=function(cx,topY,pVal,aVal){
+      var pCy=Math.max(10,topY-9);
+      var aCy=Math.max(2,pCy-17);
+      var out='';
+      if(aVal>0) out+=_badge(cx,aCy,aVal,'#dc2626');
+      if(pVal>0) out+=_badge(cx,pCy,pVal,'#16a34a');
+      return out;
+    };
+    (d.history||[]).forEach(function(h,hi){
+      if(!(h.avgP>0)) return;
+      var night=h.avgNightP||0;
+      var pHpx=(h.avgP/laneMaxY)*plotHL;
+      var bx=hi*_colWT+_colWT/2-_barWL/2;
+      var cx=hi*_colWT+_colWT/2;
+      var topY=laneH-padBL-pHpx;
+      // Single solid bar for total P — the night-shift portion shows up
+      // only in the hover tooltip ("Night Shift Present count N").
+      if(pHpx>0) s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.5" stroke-dasharray="2 1"/>';
+      s+=_labelStack(cx,topY,h.avgP,h.avgA);
+      // Historical bucket — label e.g. "Nov 2025 · 6-month avg".
+      var spH=h.mk.split('-');
+      var hLbl=(MON_NAMES[+spH[1]-1]||'')+' '+spH[0]+' · 6-mo avg';
+      s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="transparent" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+hLbl+'" data-p="'+h.avgP+'" data-a="'+h.avgA+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" style="cursor:pointer"/>';
     });
-    return {d:r.d,dType:r.dType,p:p,a:a};
-  });
-  var totalsHistory=refHistory.map(function(h,hi){
-    var p=0,a=0,hasData=false;
-    teamRows.forEach(function(tr){
-      var hh=tr.data.history[hi];
-      if(hh&&hh.hasData){p+=hh.avgP;a+=hh.avgA;hasData=true;}
+    (d.dayRows||[]).forEach(function(dr,ii){
+      if(!dr||dr.p<=0) return;
+      var night=dr.nightP||0;
+      var pHpx=(dr.p/laneMaxY)*plotHL;
+      var bx=(_histCountT+_gapSlotsT+ii)*_colWT+_colWT/2-_barWL/2;
+      var cx=(_histCountT+_gapSlotsT+ii)*_colWT+_colWT/2;
+      var topY=laneH-padBL-pHpx;
+      if(pHpx>0) s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="#16a34a" stroke="#15803d" stroke-width="0.4"/>';
+      s+=_labelStack(cx,topY,dr.p,dr.a);
+      var cLbl=dr.d+' '+(MON_NAMES[curMo-1]||'')+' '+curYr;
+      var _laneKeyEsc=String(lane.key||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="transparent" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+cLbl+'" data-p="'+dr.p+'" data-a="'+dr.a+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" onclick="_hrmsDashHideBarTooltip();_hrmsDashShowDayEmps(\''+_laneKeyEsc+'\','+dr.d+')" style="cursor:pointer"/>';
     });
-    return {mk:h.mk,avgP:p,avgA:a,hasData:hasData};
-  });
-  var _totalsColHdr=function(label,bg,fg){
-    return '<div style="background:'+bg+';color:'+fg+';padding:6px 4px;font-size:11px;font-weight:800;border-bottom:1px solid #cbd5e1;text-align:center;position:sticky;top:0;z-index:1">'+label+'</div>';
+    s+='</svg></div>';
+    return s;
   };
-  html+='<div style="flex:0 0 40px;border-right:1px solid #e2e8f0;border-left:2px solid #cbd5e1">';
-  html+=_totalsColHdr('P','linear-gradient(180deg,#dcfce7,#bbf7d0)','#15803d');
-  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'p','#15803d');
+  // ── X-axis helper ──────────────────────────────────────────────────
+  // Shared by the top and bottom date axes. Historical month labels
+  // mirror the All Plants (Combined) chart: MON name + 'YY + a small
+  // "AVG" pill (#fef3c7 bg / #b45309 stroke). PH / WO chips also share
+  // the same dimensions as the All Plants axis.
+  var _renderXAxis=function(pos){
+    var marginStyle=pos==='top'?'margin-bottom:4px':'margin-top:4px';
+    var hAxis=48;
+    var s='<div style="display:flex;align-items:stretch;'+marginStyle+'">';
+    s+='<div style="flex:0 0 '+_labelW+'px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;font-weight:800;color:#475569">Date '+(pos==='top'?'↓':'↑')+'</div>';
+    s+='<svg viewBox="0 0 '+_svgW+' '+hAxis+'" style="width:'+_svgW+'px;height:'+hAxis+'px;display:block">';
+    refHistory.forEach(function(h,hi){
+      var x=hi*_colWT+_colWT/2;
+      var sp=h.mk.split('-');
+      var monLbl=MON_NAMES[+sp[1]-1]||'';
+      var yrLbl="'"+String(sp[0]).slice(-2);
+      s+='<text x="'+x+'" y="14" text-anchor="middle" font-size="10" font-weight="800" fill="#92400e">'+monLbl+'</text>';
+      s+='<text x="'+x+'" y="27" text-anchor="middle" font-size="9" fill="#b45309">'+yrLbl+'</text>';
+      var bwAvg=22,bhAvg=11;
+      s+='<rect x="'+(x-bwAvg/2)+'" y="31" width="'+bwAvg+'" height="'+bhAvg+'" rx="2" ry="2" fill="#fef3c7" stroke="#b45309" stroke-width="0.6"/>';
+      s+='<text x="'+x+'" y="40" text-anchor="middle" font-size="8" font-weight="800" fill="#92400e">AVG</text>';
+    });
+    mergedRefRows.forEach(function(r,i){
+      var x=(_histCountT+_gapSlotsT+i)*_colWT+_colWT/2;
+      var dt=new Date(curYr,curMo-1,r.d);
+      var dow=DOWt[dt.getDay()];
+      var excluded=(r.dType==='WO'||r.dType==='PH');
+      var fg=excluded?'#b91c1c':'#334155';
+      s+='<text x="'+x+'" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="'+fg+'">'+r.d+'</text>';
+      s+='<text x="'+x+'" y="26" text-anchor="middle" font-size="9" font-weight="600" fill="'+(excluded?'#dc2626':'#64748b')+'">'+dow+'</text>';
+      if(excluded){
+        var badgeTxt=r.dType==='PH'?'PH':'WO';
+        var badgeBg=r.dType==='PH'?'#15803d':'#1d4ed8';
+        s+='<rect x="'+(x-11)+'" y="30" width="22" height="13" rx="3" fill="'+badgeBg+'"/>'
+          +'<text x="'+x+'" y="40" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
+      }
+    });
+    s+='</svg></div>';
+    return s;
+  };
+  html+='<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:10px;overflow-x:auto;-webkit-overflow-scrolling:touch">';
+  html+=_renderXAxis('top');
+  _lanes.forEach(function(lane){html+=_renderLane(lane);});
+  html+=_renderXAxis('bottom');
   html+='</div>';
-  html+='<div style="flex:0 0 40px;border-right:1px solid #e2e8f0">';
-  html+=_totalsColHdr('A','linear-gradient(180deg,#fee2e2,#fecaca)','#b91c1c');
-  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'a','#b91c1c');
   html+='</div>';
-  html+='<div style="flex:0 0 46px">';
-  html+=_totalsColHdr('% Abs','linear-gradient(180deg,#fef3c7,#fde68a)','#92400e');
-  html+=_hrmsDashTeamHcSummaryCol(totalsRows,totalsHistory,'abs','#92400e');
-  html+='</div>';
-  html+='</div></div>';
   return html;
 }
 
@@ -2575,9 +3063,12 @@ var MON_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov'
 
 // Dashboard team strip — shared row dimensions. All columns (date axis
 // + bars per team) honour these so rows align across the strip.
-var _DASH_TEAM_ROW_H=20;
-var _DASH_TEAM_PAD_T=22;
-var _DASH_TEAM_PAD_B=6;
+// V63: row height bumped 20→26 (+30%) to give every label, pill and
+// number more breathing room — the previous 20px rows were too cramped
+// to read at a glance.
+var _DASH_TEAM_ROW_H=26;
+var _DASH_TEAM_PAD_T=26;
+var _DASH_TEAM_PAD_B=8;
 // Y-axis column for the dashboard team strip — date labels only (every
 // row mirrors the bars columns). Rendered once at the sticky-left edge
 // of the strip so all team charts share the same Y axis.
@@ -2588,7 +3079,7 @@ function _hrmsDashTeamHcDatesOnly(dayRows,history,yr,mo){
   var histCount=history.length;
   var gapRows=histCount>0?1:0;
   var totalRows=histCount+gapRows+n;
-  var W=88, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
+  var W=74, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
   var H=totalRows*rowH+padT+padB;
   var yC=function(i){return padT+rowH*(i+0.5);};
   // Native pixel size — matches the bars columns so rows align exactly.
@@ -2604,7 +3095,7 @@ function _hrmsDashTeamHcDatesOnly(dayRows,history,yr,mo){
     var cy=yC(hi);
     var sp=h.mk.split('-');
     var lblTxt=(MON_NAMES[+sp[1]-1]||'')+' '+String(sp[0]).slice(-2);
-    s+='<text x="'+(W-4)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="800" fill="#92400e">'+lblTxt+'</text>';
+    s+='<text x="'+(W-4)+'" y="'+(cy+4)+'" text-anchor="end" font-size="12" font-weight="800" fill="#92400e">'+lblTxt+'</text>';
   });
   // Current month rows: optional PH/WO badge on the LEFT, then the
   // "DD Day" label right-aligned. Working days just get the date label.
@@ -2623,11 +3114,11 @@ function _hrmsDashTeamHcDatesOnly(dayRows,history,yr,mo){
       // the left edge so it precedes the date label.
       var badgeTxt=r.dType==='PH'?'PH':'WO';
       var badgeBg =r.dType==='PH'?'#15803d':'#1d4ed8';
-      var bw=22, bh=13;
-      s+='<rect x="2" y="'+(cy-bh/2)+'" width="'+bw+'" height="'+bh+'" rx="3.5" ry="3.5" fill="'+badgeBg+'"/>'
-        +'<text x="'+(2+bw/2)+'" y="'+(cy+3)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
+      var bw=24, bh=16;
+      s+='<rect x="2" y="'+(cy-bh/2)+'" width="'+bw+'" height="'+bh+'" rx="4" ry="4" fill="'+badgeBg+'"/>'
+        +'<text x="'+(2+bw/2)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
     }
-    s+='<text x="'+(W-4)+'" y="'+(cy+3)+'" text-anchor="end" font-size="10" font-weight="700" fill="'+fg+'">'+r.d+' '+dow+'</text>';
+    s+='<text x="'+(W-4)+'" y="'+(cy+4)+'" text-anchor="end" font-size="12" font-weight="700" fill="'+fg+'">'+r.d+' '+dow+'</text>';
   }
   s+='</svg>';
   return s;
@@ -2646,34 +3137,59 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
   if(!totalRows){
     return '<div style="padding:16px;text-align:center;color:#94a3b8;font-size:11px">No data</div>';
   }
-  // Wider viewBox — bars get ~76% more horizontal travel than the
-  // original baseline (after the latest -10% trim). padR carries the
-  // two pills (P green + A red); padL is just a left-edge gutter.
-  var W=176, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
-  var padL=4, padR=50;
+  // Bars take the same horizontal travel as before — only the empty
+  // space right of the pills shrinks, pulling adjacent team graphs ~25%
+  // closer together. plotW = W − padL − padR stays at 122 so day
+  // bars retain their full readable length.
+  var W=164, rowH=_DASH_TEAM_ROW_H, padT=_DASH_TEAM_PAD_T, padB=_DASH_TEAM_PAD_B;
+  var padL=4, padR=38;
   var plotH=totalRows*rowH;
   var H=plotH+padT+padB;
   var plotW=W-padL-padR;
-  var barH=rowH*0.7;
+  // V64: bar thickness trimmed 25% (was rowH*0.7). The row height itself
+  // stays the same so labels, pills and the gap between bars keep their
+  // current readability; only the green/grey bars themselves are slimmer.
+  var barH=rowH*0.525;
   var yC=function(i){return padT+rowH*(i+0.5);};
   var xOf=function(v){return padL+(v/maxY)*plotW;};
   // Compact rounded pill — used to label P (green) and A (red) at the
   // tip of each bar. Width auto-grows with digit count; height is
   // shared across P and A so the two pills stay vertically aligned.
+  // V63: pill height bumped 13→16 to match the larger row spacing so
+  // the text inside reads at a comfortable size.
   var _pill=function(cx,cy,count,bg,fontSize){
-    var fs=fontSize||9;
+    var fs=fontSize||11;
     var txt=String(count);
-    var w=Math.max(14, 5+txt.length*Math.max(fs-2.5,4));
-    var h=13;
-    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="6.5" ry="6.5" fill="'+bg+'"/>'
-      +'<text x="'+cx+'" y="'+(cy+fs*0.35)+'" text-anchor="middle" font-size="'+fs+'" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+    var w=Math.max(16, 6+txt.length*Math.max(fs-2.5,4.5));
+    var h=16;
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="8" ry="8" fill="'+bg+'"/>'
+      +'<text x="'+cx+'" y="'+(cy+fs*0.36)+'" text-anchor="middle" font-size="'+fs+'" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
   };
-  // P pill ~1px taller than A for visual hierarchy. Sizes bumped +1.5px
-  // each over the previous version per the readability request.
-  var _placeTwoPills=function(endX,cy,pCount,aCount){
-    var pCx=Math.min(endX+13, W-36);
-    var aCx=Math.min(pCx+24, W-13);
-    return _pill(pCx,cy,pCount,'#16a34a',9.5)+_pill(aCx,cy,aCount,'#dc2626',8.5);
+  // Pill cluster at the bar tip — P (green) shows the total Present, with
+  // the night-shift count appended in parens when > 0 (V68); A (red) is
+  // the absent count. The bar itself is still split into a green day
+  // segment + grey night segment for an at-a-glance proportion read.
+  var _placeTwoPills=function(endX,cy,pCount,aCount,nightCount){
+    // pCx leaves room for the wider "P(N)" pill; aCx unclamped so the
+    // A pill can push slightly past the bar plot to stay clear of P.
+    var pCx=Math.min(endX+14, W-46);
+    var aCx=pCx+34;
+    var pTxt=nightCount>0?(pCount+'('+nightCount+')'):pCount;
+    return _pill(pCx,cy,pTxt,'#16a34a',11.5)+_pill(aCx,cy,aCount,'#dc2626',10.5);
+  };
+  // Stacked P bar — total length is proportional to P, but the bar is
+  // split into a green "day" segment and a grey "night" segment so the
+  // mix is visible at a glance. When a single shift type is in play we
+  // emit one solid rect to avoid a wasted sub-segment.
+  var _stackedBar=function(x,y,bw,h,pCount,nightCount,style){
+    var nightWidth=pCount>0?(nightCount/pCount)*bw:0;
+    var dayWidth=bw-nightWidth;
+    var stroke=style==='hist'?'stroke="#92400e" stroke-width="0.5" stroke-dasharray="2 1"':'stroke="#15803d" stroke-width="0.4"';
+    var opacity=style==='hist'?' fill-opacity="0.78"':'';
+    var out='';
+    if(dayWidth>0)   out+='<rect x="'+x+'" y="'+y+'" width="'+dayWidth+'" height="'+h+'" fill="#16a34a"'+opacity+' '+stroke+'/>';
+    if(nightWidth>0) out+='<rect x="'+(x+dayWidth)+'" y="'+y+'" width="'+nightWidth+'" height="'+h+'" fill="#64748b"'+opacity+' '+stroke+'/>';
+    return out;
   };
   // Column is now a fixed pixel width (matching the SVG's viewBox W),
   // so the SVG renders at its native scale — pills keep their natural
@@ -2700,7 +3216,7 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
     var v=Math.round(maxY*gi/2);
     var x=xOf(v);
     s+='<line x1="'+x+'" y1="'+padT+'" x2="'+x+'" y2="'+(H-padB)+'" stroke="#e2e8f0" stroke-width="0.5"/>';
-    s+='<text x="'+x+'" y="'+(padT-3)+'" text-anchor="middle" font-size="9" fill="#64748b">'+v+'</text>';
+    s+='<text x="'+x+'" y="'+(padT-4)+'" text-anchor="middle" font-size="11" font-weight="700" fill="#64748b">'+v+'</text>';
   }
   // Historical bars — only drawn when there's actual data (avgP > 0).
   // Months without working-day data leave the row blank instead of
@@ -2710,8 +3226,12 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
     var cy=yC(hi);
     var ry=cy-barH/2;
     var bw=(h.avgP/maxY)*plotW;
-    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" fill-opacity="0.78" stroke="#92400e" stroke-width="0.5" stroke-dasharray="2 1"><title>'+h.mk+' avg P: '+h.avgP+' · avg A: '+h.avgA+'</title></rect>';
-    s+=_placeTwoPills(padL+bw,cy,h.avgP,h.avgA);
+    var hNight=h.avgNightP||0;
+    var hDay=Math.max(0,h.avgP-hNight);
+    var nightTip=hNight>0?(' (Day '+hDay+' + Night '+hNight+')'):'';
+    s+=_stackedBar(padL,ry,bw,barH,h.avgP,hNight,'hist');
+    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="transparent" pointer-events="all"><title>'+h.mk+' avg P: '+h.avgP+nightTip+' · avg A: '+h.avgA+'</title></rect>';
+    s+=_placeTwoPills(padL+bw,cy,h.avgP,h.avgA,hNight);
   });
   // Current-month bars — drawn only on days with Present headcount > 0.
   // No-data / future / zero-attendance days stay blank so the chart
@@ -2723,8 +3243,12 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
     var cy=yC(rowIdx);
     var ry=cy-barH/2;
     var bw=(r2.p/maxY)*plotW;
-    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.4"><title>'+r2.d+': P='+r2.p+' · A='+r2.a+'</title></rect>';
-    s+=_placeTwoPills(padL+bw,cy,r2.p,r2.a);
+    var night2=r2.nightP||0;
+    var day2=Math.max(0,r2.p-night2);
+    var nightTip2=night2>0?(' (Day '+day2+' + Night '+night2+')'):'';
+    s+=_stackedBar(padL,ry,bw,barH,r2.p,night2,'cur');
+    s+='<rect x="'+padL+'" y="'+ry+'" width="'+bw+'" height="'+barH+'" fill="transparent" pointer-events="all"><title>'+r2.d+': P='+r2.p+nightTip2+' · A='+r2.a+'</title></rect>';
+    s+=_placeTwoPills(padL+bw,cy,r2.p,r2.a,night2);
   }
   s+='</svg>';
   return s;
@@ -2734,15 +3258,16 @@ function _hrmsDashTeamHcBarsOnly(dayRows,yr,mo,maxY,history){
 // dimensions as the bars columns, but each row shows a single number
 // instead of a bar. `field` picks what to render: 'p' / 'a' for the
 // total presence counts; 'abs' for the rounded absent percentage.
-function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
+function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color,teamKey){
   var n=dayRows.length;
   history=history||[];
   var histCount=history.length;
   var gapRows=histCount>0?1:0;
   var totalRows=histCount+gapRows+n;
-  // % Abs column is a hair wider to fit "100%" comfortably; P / A
-  // columns are sized for 3-digit headcount counts.
-  var W=(field==='abs')?46:40,rowH=_DASH_TEAM_ROW_H,padT=_DASH_TEAM_PAD_T,padB=_DASH_TEAM_PAD_B;
+  // P column is wider than A/% to carry both the green present count and
+  // a grey night-shift pill alongside it; A / % stay narrow. V63 widths
+  // bumped along with the larger fonts so 3-digit team counts still fit.
+  var W=(field==='abs')?56:(field==='p'?82:48),rowH=_DASH_TEAM_ROW_H,padT=_DASH_TEAM_PAD_T,padB=_DASH_TEAM_PAD_B;
   var H=totalRows*rowH+padT+padB;
   var yC=function(i){return padT+rowH*(i+0.5);};
   var _valueOf=function(p,a){
@@ -2754,6 +3279,22 @@ function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
       return Math.round(a/tot*100)+'%';
     }
     return '';
+  };
+  // Inline grey pill used to surface the night-shift count next to the
+  // green present number in the P column. Wrapped in an <a> so the pill
+  // opens the per-day night-shift roster popup (P column only — A and %
+  // columns pass through unchanged because they don't carry a night badge).
+  var _nightPill=function(cx,cy,count,day){
+    var txt=String(count);
+    var w=Math.max(18, 5+txt.length*7);
+    var h=16;
+    var inner='<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="8" ry="8" fill="#64748b"/>'
+      +'<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">'+txt+'</text>';
+    if(day&&field==='p'){
+      var tk=teamKey?String(teamKey).replace(/\\/g,'\\\\').replace(/'/g,"\\'"):'__ALL__';
+      return '<g style="cursor:pointer" onclick="_hrmsDashShowNightShift(\''+tk+'\','+day+')"><title>Click to see night-shift employees</title>'+inner+'</g>';
+    }
+    return inner;
   };
   var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMin meet" style="width:'+W+'px;height:'+H+'px;display:block;background:#fafafa">';
   // Historical band wash
@@ -2772,6 +3313,10 @@ function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
       s+='<rect x="0" y="'+by+'" width="'+W+'" height="'+rowH+'" fill="'+bg+'" fill-opacity="0.5"/>';
     }
   }
+  // P-column text + night badge anchor positions. With night-pill the P
+  // number shifts left so the pair stays centred in the wider column.
+  var pTextX=(field==='p')?(W*0.38):(W/2);
+  var nightPillX=(field==='p')?(W*0.74):0;
   // Historical row values — only when data exists AND there was at
   // least one present headcount on a working day (otherwise the row
   // represents "no data in system" and stays blank).
@@ -2780,7 +3325,12 @@ function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
     var cy=yC(hi);
     var v=_valueOf(h.avgP,h.avgA);
     if(v==='') return;
-    s+='<text x="'+(W/2)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+color+'"><title>'+h.mk+' avg</title>'+v+'</text>';
+    s+='<text x="'+pTextX+'" y="'+(cy+5)+'" text-anchor="middle" font-size="14" font-weight="800" fill="'+color+'"><title>'+h.mk+' avg</title>'+v+'</text>';
+    // Historical rows are month averages — no specific day to drill into,
+    // so the pill renders as a static badge (no onclick).
+    if(field==='p'&&(h.avgNightP||0)>0){
+      s+=_nightPill(nightPillX,cy,h.avgNightP,null);
+    }
   });
   // Current-month row values — gated on Present > 0 so days without
   // attendance data don't show a misleading A/% number.
@@ -2791,7 +3341,10 @@ function _hrmsDashTeamHcSummaryCol(dayRows,history,field,color){
     var cy=yC(rowIdx);
     var v=_valueOf(r2.p,r2.a);
     if(v==='') continue;
-    s+='<text x="'+(W/2)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="800" fill="'+color+'">'+v+'</text>';
+    s+='<text x="'+pTextX+'" y="'+(cy+5)+'" text-anchor="middle" font-size="14" font-weight="800" fill="'+color+'">'+v+'</text>';
+    if(field==='p'&&(r2.nightP||0)>0){
+      s+=_nightPill(nightPillX,cy,r2.nightP,r2.d);
+    }
   }
   s+='</svg>';
   return s;
@@ -13442,6 +13995,7 @@ function _hrmsDasTwShowMonthly(initialOpts){
   if(initialOpts&&initialOpts.team){
     if(initialOpts.team==='__KAP__'){_hrmsTwMdSelEts=['On Roll'];_hrmsTwMdTeamName='__ALL__';}
     else if(initialOpts.team==='__PIECERATE__'){_hrmsTwMdSelEts=['Piece Rate'];_hrmsTwMdTeamName='__ALL__';}
+    else if(initialOpts.team==='__TOTAL__'||initialOpts.team==='__ALL__'){_hrmsTwMdSelEts=null;_hrmsTwMdTeamName='__ALL__';}
     else {_hrmsTwMdSelEts=null;_hrmsTwMdTeamName=initialOpts.team;}
   } else {
     // Mirror main page state (Team-wise Attendance Record's pill /
@@ -13585,7 +14139,10 @@ function _hrmsDasTwMdRender(){
       try{_hrmsDasTwMdRender();}catch(_){}
     });
   }
-  // Build {empCode → {dayNum:true}} presence from cached attendance + alterations.
+  // Build {empCode → {dayNum:{p:true,n:bool}}} presence from cached
+  // attendance + alterations. Night shift = OUT < IN (crosses midnight),
+  // mirroring the same heuristic used by the muster grid and the dashboard
+  // team strip.
   var presByEmp={};
   var attR=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
   var altR=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
@@ -13594,10 +14151,16 @@ function _hrmsDasTwMdRender(){
       if(!a||!a.empCode||!a.days) return;
       if(!presByEmp[a.empCode]) presByEmp[a.empCode]={};
       Object.keys(a.days).forEach(function(dk){
-        var entry=a.days[dk];
-        if(entry&&(entry.in||entry['in'])){
-          presByEmp[a.empCode][+dk]=true;
+        var entry=a.days[dk];if(!entry) return;
+        var inT=entry.in||entry['in'];
+        if(!inT) return;
+        var outT=entry.out||entry['out'];
+        var isNight=false;
+        if(outT&&typeof _hrmsParseTime==='function'){
+          var t1=_hrmsParseTime(inT),t2=_hrmsParseTime(outT);
+          if(t1!=null&&t2!=null&&t2<t1) isNight=true;
         }
+        presByEmp[a.empCode][+dk]={p:true,n:isNight};
       });
     });
   };
@@ -13617,19 +14180,46 @@ function _hrmsDasTwMdRender(){
   //   total = active rows whose day state is AC on that day
   //   P     = active rows with a punch on that day
   //   A     = total - P (but only counted on WD; WO/PH may still show P)
+  // Also track per-day empCode arrays so the bar-click popup can list the
+  // employees in each category (day / night / absent) for the popup's
+  // current scope.
   var dayRows=[];
+  var popupDayEmps={},popupNightEmps={},popupAbsentEmps={};
   for(var d=1;d<=daysInMonth;d++){
     var dType=dayTypeOf(d);
-    var tot=0,p=0;
+    var tot=0,p=0,nightP=0;
+    var dayArr=[],nightArr=[],absArr=[];
     activeRows.forEach(function(r){
       var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(r.emp,mk,d):'AC';
       if(st==='IA') return;
       tot++;
-      if(presByEmp[r.empCode]&&presByEmp[r.empCode][d]) p++;
+      var hit=presByEmp[r.empCode]&&presByEmp[r.empCode][d];
+      if(hit){
+        p++;
+        if(hit.n){nightP++;nightArr.push(r.empCode);}
+        else dayArr.push(r.empCode);
+      } else {
+        absArr.push(r.empCode);
+      }
     });
+    if(dayArr.length) popupDayEmps[d]=dayArr;
+    if(nightArr.length) popupNightEmps[d]=nightArr;
+    if(absArr.length) popupAbsentEmps[d]=absArr;
     var a=Math.max(0,tot-p);
-    dayRows.push({d:d,dType:dType,p:p,a:a,total:tot});
+    dayRows.push({d:d,dType:dType,p:p,nightP:nightP,a:a,total:tot});
   }
+  // Stash the popup's per-day buckets so the bar-click handler (which
+  // reuses _hrmsDashShowDayEmps) can resolve them. `__POPUP__` is the
+  // synthetic team key for the monthly popup's current scope.
+  window._hrmsDashDayByTeam=window._hrmsDashDayByTeam||{};
+  window._hrmsDashNightByTeam=window._hrmsDashNightByTeam||{};
+  window._hrmsDashAbsentByTeam=window._hrmsDashAbsentByTeam||{};
+  window._hrmsDashDayByTeam.__POPUP__=popupDayEmps;
+  window._hrmsDashNightByTeam.__POPUP__=popupNightEmps;
+  window._hrmsDashAbsentByTeam.__POPUP__=popupAbsentEmps;
+  window._hrmsDashDayByTeam.__mk__=mk;
+  window._hrmsDashNightByTeam.__mk__=mk;
+  window._hrmsDashAbsentByTeam.__mk__=mk;
   // Aggregate stats — averages across days WITH data; working days only.
   var wdCount=0,wdPSum=0,wdASum=0,wdTotSum=0;
   var monthPSum=0,monthASum=0,monthTotSum=0;
@@ -13680,8 +14270,15 @@ function _hrmsDasTwMdRender(){
         if(!a||!a.empCode||!a.days) return;
         if(!hPres[a.empCode]) hPres[a.empCode]={};
         Object.keys(a.days).forEach(function(dk){
-          var entry=a.days[dk];
-          if(entry&&(entry.in||entry['in'])) hPres[a.empCode][+dk]=true;
+          var entry=a.days[dk];if(!entry) return;
+          var inT=entry.in||entry['in'];if(!inT) return;
+          var outT=entry.out||entry['out'];
+          var isN=false;
+          if(outT&&typeof _hrmsParseTime==='function'){
+            var t1=_hrmsParseTime(inT),t2=_hrmsParseTime(outT);
+            if(t1!=null&&t2!=null&&t2<t1) isN=true;
+          }
+          hPres[a.empCode][+dk]={p:true,n:isN};
         });
       });
     });
@@ -13690,22 +14287,24 @@ function _hrmsDasTwMdRender(){
       return tag!=='IA';
     });
     // WD-only averages — drop WO/PH days from the comparison.
-    var hSumP=0,hSumA=0,hWdCount=0;
+    var hSumP=0,hSumN=0,hSumA=0,hWdCount=0;
     for(var hd3=1;hd3<=hDays;hd3++){
       var hType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(hMk2,hd3,hYr,hMo,dominantPlant):'WD';
       if(hType!=='WD') continue;
-      var hP=0,hT=0;
+      var hP=0,hN=0,hT=0;
       hActive.forEach(function(r){
         var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(r.emp,hMk2,hd3):'AC';
         if(st==='IA') return;
         hT++;
-        if(hPres[r.empCode]&&hPres[r.empCode][hd3]) hP++;
+        var hit2=hPres[r.empCode]&&hPres[r.empCode][hd3];
+        if(hit2){hP++;if(hit2.n) hN++;}
       });
-      if(hT>0){hSumP+=hP;hSumA+=(hT-hP);hWdCount++;}
+      if(hT>0){hSumP+=hP;hSumN+=hN;hSumA+=(hT-hP);hWdCount++;}
     }
     historyAvg.push({
       mk:hMk2,
       avgP:hWdCount?Math.round(hSumP/hWdCount):0,
+      avgNightP:hWdCount?Math.round(hSumN/hWdCount):0,
       avgA:hWdCount?Math.round(hSumA/hWdCount):0,
       hasData:hWdCount>0
     });
@@ -13766,9 +14365,12 @@ function _hrmsDasTwMdRender(){
     for(var k in _wantEtSet){if(n.indexOf(k)>=0||k.indexOf(n)>=0) return true;}
     return false;
   };
+  // V74: show every active team in the dropdown — drop the emp-type
+  // pre-filter so picking a team in the popup isn't gated by the caller's
+  // initial emp-type seeding. ContractorSup scope still wins for non-SA
+  // users who only see teams they supervise.
   var teamMaster=(DB.hrmsTeams||[]).filter(function(t){
     if(!t||t.inactive||!t.name) return false;
-    if(!_teamMatches(t.empType)) return false;
     if(supScope&&!supScope.teamNames[t.name]) return false;
     return true;
   });
@@ -13797,8 +14399,12 @@ function _hrmsDasTwMdRender(){
     +'<span style="font-size:11px;font-weight:800;color:#64748b">MONTH</span>'
     +'<select onchange="_hrmsDasTwMdSetMonth(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:130px;cursor:pointer">'+monthSelOpts+'</select>'
     +'</span>';
+  // V67: per-request the popup only exposes Team + Month pickers. The
+  // emp-type pills are still computed (the underlying selEts filter is
+  // still applied — driven by the caller's `team` arg, e.g. __KAP__
+  // implies On Roll) but they're no longer rendered.
   var pickerRow='<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'
-    +etPills+pickTeam+pickMonth+'</div>';
+    +pickTeam+pickMonth+'</div>';
   // ── Chart. On narrow viewports (mobile), the axes flip — dates on
   // the Y axis, headcount on the X axis — so the chart reads as a
   // scrollable list of rows instead of a cramped horizontal strip.
@@ -13839,7 +14445,7 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
   if(!n&&!histCount){
     return '<svg viewBox="0 0 1060 200" style="width:100%;height:auto;display:block;background:#fafafa;border:1px solid var(--border);border-radius:6px"><text x="530" y="100" text-anchor="middle" font-size="13" fill="#94a3b8" font-weight="700">No attendance data for this scope.</text></svg>';
   }
-  var W=1060,H=320;
+  var W=1060,H=480;
   var padL=44,padR=18,padT=32,padB=64;
   var plotW=W-padL-padR,plotH=H-padT-padB;
   var totalSlots=histCount+gapSlots+n;
@@ -13897,8 +14503,20 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
     return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7" ry="7" fill="'+bg+'" stroke="#0f172a" stroke-width="0.4"/>'
       +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
   };
-  var _placeBadges=function(cx,barTopY,pCount,aCount){
+  var _placeBadges=function(cx,barTopY,pCount,aCount,nightCount){
     var badgeH=14;
+    if(nightCount>0){
+      var nCy=barTopY-badgeH/2-3;
+      var pCy3=nCy-badgeH-2;
+      var aCy3=pCy3-badgeH-2;
+      var minCy3=padT+badgeH/2+2;
+      if(aCy3<minCy3){
+        aCy3=minCy3;
+        pCy3=aCy3+badgeH+2;
+        nCy=pCy3+badgeH+2;
+      }
+      return _badge(cx,aCy3,aCount,'#dc2626')+_badge(cx,pCy3,pCount,'#16a34a')+_badge(cx,nCy,nightCount,'#64748b');
+    }
     var pCy=barTopY-badgeH/2-3;
     var aCy=pCy-badgeH-2;
     var minCy=padT+badgeH/2+2;
@@ -13908,34 +14526,52 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
     }
     return _badge(cx,aCy,aCount,'#dc2626')+_badge(cx,pCy,pCount,'#16a34a');
   };
-  // Historical bars — dashed amber outline, one per prior month.
+  // Historical bars — dashed amber outline, one per prior month. Bar is
+  // split into a green day-shift segment (bottom) and a grey night-shift
+  // segment (top), matching the dashboard team-strip visual.
   history.forEach(function(h,hi){
     var cxH=xHist(hi);
     var bxH=cxH-barW/2;
     if(h.avgP>0){
-      var pH=(h.avgP/maxY)*plotH;
+      var hNight=h.avgNightP||0;
+      var hDay=Math.max(0,h.avgP-hNight);
+      var dayHpx=(hDay/maxY)*plotH;
+      var nightHpx=(hNight/maxY)*plotH;
+      var pH=dayHpx+nightHpx;
+      var dayTop=baseY-dayHpx;
+      var nightTop=dayTop-nightHpx;
       var topH=baseY-pH;
-      s+='<rect x="'+bxH+'" y="'+topH+'" width="'+barW+'" height="'+pH+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"><title>'+h.mk+' — Avg Present (WD): '+h.avgP+' · Avg Absent (WD): '+h.avgA+'</title></rect>';
-      // Stacked A (red, top) and P (green, below) badges above the bar.
-      s+=_placeBadges(cxH,topH,h.avgP,h.avgA);
+      if(dayHpx>0) s+='<rect x="'+bxH+'" y="'+dayTop+'" width="'+barW+'" height="'+dayHpx+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"/>';
+      if(nightHpx>0) s+='<rect x="'+bxH+'" y="'+nightTop+'" width="'+barW+'" height="'+nightHpx+'" fill="#64748b" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"/>';
+      var hTip=h.mk+' — Avg Present (WD): '+h.avgP+(hNight>0?' (Day '+hDay+' + Night '+hNight+')':'')+' · Avg Absent (WD): '+h.avgA;
+      s+='<rect x="'+bxH+'" y="'+topH+'" width="'+barW+'" height="'+pH+'" fill="transparent"><title>'+hTip+'</title></rect>';
+      s+=_placeBadges(cxH,topH,h.avgP,h.avgA,hNight);
     } else {
-      // Placeholder for months with no data so the slot reads as a gap,
-      // not a zero.
       var midY=padT+plotH/2;
       s+='<text x="'+cxH+'" y="'+midY+'" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">N/A</text>';
     }
   });
-  // Current-month bars — Present green; the A (red) and P (green) pill
-  // badges sit above the bar, A on top, P just below.
+  // Current-month bars — segmented like the historical bars: day-shift
+  // green at the bottom, night-shift grey stacked on top. Three badges
+  // (A red, P green, N grey) appear above the bar when night > 0.
   for(var bi=0;bi<n;bi++){
     var r2=rows[bi];
     if(!r2||r2.p<=0) continue;
     var cx=xDay(bi);
     var bx2=cx-barW/2;
-    var pH=(r2.p/maxY)*plotH;
-    var topY=baseY-pH;
-    s+='<rect x="'+bx2+'" y="'+topY+'" width="'+barW+'" height="'+pH+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"><title>'+r2.d+' — Present: '+r2.p+' · Absent: '+r2.a+'</title></rect>';
-    s+=_placeBadges(cx,topY,r2.p,r2.a);
+    var nP2=r2.nightP||0;
+    var dP2=Math.max(0,r2.p-nP2);
+    var dayHpx2=(dP2/maxY)*plotH;
+    var nightHpx2=(nP2/maxY)*plotH;
+    var pHpx=dayHpx2+nightHpx2;
+    var dayTop2=baseY-dayHpx2;
+    var nightTop2=dayTop2-nightHpx2;
+    var topY=baseY-pHpx;
+    if(dayHpx2>0) s+='<rect x="'+bx2+'" y="'+dayTop2+'" width="'+barW+'" height="'+dayHpx2+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"/>';
+    if(nightHpx2>0) s+='<rect x="'+bx2+'" y="'+nightTop2+'" width="'+barW+'" height="'+nightHpx2+'" fill="#64748b" stroke="#475569" stroke-width="0.5"/>';
+    var tip2=r2.d+' — Present: '+r2.p+(nP2>0?' (Day '+dP2+' + Night '+nP2+')':'')+' · Absent: '+r2.a;
+    s+='<rect x="'+bx2+'" y="'+topY+'" width="'+barW+'" height="'+pHpx+'" fill="transparent" onclick="_hrmsDashShowDayEmps(\'__POPUP__\','+r2.d+')" style="cursor:pointer"><title>'+tip2+' — click for employee list</title></rect>';
+    s+=_placeBadges(cx,topY,r2.p,r2.a,nP2);
   }
   // X labels for historical strip — month abbreviation + 2-digit year.
   history.forEach(function(h,hi){
@@ -16087,15 +16723,22 @@ function _hrmsDasRender(){
       // ── Shared styling ──
       var deptW=160;
       var grpW=46;// AL/P/S share equal width inside a group block.
-      var headBg='background:linear-gradient(180deg,#f8fafc,#e2e8f0)';
+      // V85→V87: a mid-tone slate gradient — darker than the original
+      // pale palette but lighter than V85 so the header doesn't dominate
+      // the page.
+      var headBg='background:linear-gradient(180deg,#e2e8f0,#cbd5e1)';
       var freezeBd='2px solid #94a3b8';
       var groupBd ='2px solid #94a3b8';
       var hairBd  ='1px solid #e2e8f0';
       var topHdr='padding:6px 6px;text-align:center;color:#0f172a;font-weight:800;'+headBg;
+      // V88: header cells stick to the top of the scroll wrapper so they
+      // stay visible while the user scrolls through long dept lists.
+      var stickyHdr=';position:sticky;top:0;z-index:5';
       var subHdr=function(label,bg,clr,extra){
-        return '<th style="padding:4px 2px;text-align:center;color:'+clr+';font-weight:900;border-bottom:'+freezeBd+';background:'+bg+';font-size:11px;letter-spacing:.3px'+(extra||'')+'">'+label+'</th>';
+        return '<th style="padding:4px 2px;text-align:center;color:'+clr+';font-weight:900;border-bottom:'+freezeBd+';background:'+bg+';font-size:11px;letter-spacing:.3px'+stickyHdr+(extra||'')+'">'+label+'</th>';
       };
-      var subBg='#f8fafc';
+      // Sub-header (AL / P / S cells) shares the lighter slate palette.
+      var subBg='#e2e8f0';
       var bodyCell=function(val,bg,clr,bold,extra){
         var w=bold?'900':'700';
         return '<td style="padding:4px 4px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+w+';font-family:var(--mono);border-bottom:'+hairBd+(extra||'')+'">'+(val||'—')+'</td>';
@@ -16122,17 +16765,12 @@ function _hrmsDasRender(){
       }
       ph+='<col style="width:'+grpW+'px"><col style="width:'+grpW+'px"><col style="width:'+grpW+'px">';
       ph+='</colgroup>';
-      // Single bold top header — Department · 5 group placeholders · Total.
-      // (Per-cluster group names render inline as a slim sub-header strip
-      // above each cluster's dept rows so the column meaning travels
-      // with the data.)
+      // Single header row: Department + AL/P/S sub-cells per group +
+      // AL/P/S Total. V87: dropped the "Group 1 / Group 2 …" upper row —
+      // the per-cluster sub-header strip carries the actual group names
+      // so the placeholder labels were redundant noise.
       ph+='<thead><tr>';
-      ph+='<th rowspan="2" style="padding:6px 10px;text-align:left;color:#000;font-weight:900;'+headBg+';border-bottom:'+freezeBd+';border-right:'+groupBd+'">Department</th>';
-      for(var _hi=0;_hi<SLOT_COUNT;_hi++){
-        ph+='<th colspan="3" style="'+topHdr+';color:#000;font-weight:900;border-right:'+groupBd+';border-bottom:'+hairBd+'">Group '+(_hi+1)+'</th>';
-      }
-      ph+='<th colspan="3" style="'+topHdr+';color:#000;font-weight:900;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border-bottom:'+hairBd+';border-left:'+groupBd+'">Total</th>';
-      ph+='</tr><tr>';
+      ph+='<th style="padding:6px 10px;text-align:left;color:#000;font-weight:900;'+headBg+';border-bottom:'+freezeBd+';border-right:'+groupBd+';position:sticky;top:0;z-index:5">Department</th>';
       for(var _si=0;_si<SLOT_COUNT;_si++){
         ph+=subHdr('AL',subBg,'#000','');
         ph+=subHdr('P', subBg,'#000','');
@@ -16151,12 +16789,12 @@ function _hrmsDasRender(){
         // single shared column geometry guarantees vertical alignment
         // with every other cluster's header strip + Total column.
         ph+='<tr>';
-        ph+='<th style="padding:5px 10px;text-align:left;color:#000;font-weight:900;background:#f1f5f9;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+cl.depts.length+' dept(s) sharing this group set">'+cl.depts.length+' dept(s)</th>';
+        ph+='<th style="padding:5px 10px;text-align:left;color:#fff;font-weight:900;background:#475569;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+cl.depts.length+' dept(s) sharing this group set"></th>';
         slots.forEach(function(gid){
           var gName=gid?((groupById[gid]&&groupById[gid].name)||gid):'';
-          ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#f1f5f9;color:#000;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gName?_hrmsEsc(gName):'<span style="color:#cbd5e1">—</span>')+'</th>';
+          ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#475569;color:#fff;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gName?_hrmsEsc(gName):'<span style="color:#cbd5e1">—</span>')+'</th>';
         });
-        ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#e0e7ff;color:#000;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-left:'+groupBd+'">Total</th>';
+        ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#312e81;color:#fff;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-left:'+groupBd+'"></th>';
         ph+='</tr>';
         cl.depts.forEach(function(dept){
           var rowAct=0,rowAlloc=0;
@@ -16174,33 +16812,51 @@ function _hrmsDasRender(){
             var al=+(alloc.allocations[key]||0)||0;
             var sh=Math.max(al-a,0);
             rowAct+=a; rowAlloc+=al;
-            ph+=bodyCell(al,'#fff','#1d4ed8',false,'');
+            // V89: AL columns get a soft blue wash, P columns soft green
+            // so the eye groups each metric vertically. S keeps the red
+            // tint when > 0 (and inherits the green tint when zero so
+            // empty Shortage cells stay tied to the P column visually).
+            ph+=bodyCell(al,'#dbeafe','#1d4ed8',false,'');
             if(a>0){
               var plE=String(plant).replace(/'/g,"\\'");
               var dpE=String(dept).replace(/'/g,"\\'");
               var giE=String(gid).replace(/'/g,"\\'");
-              ph+='<td style="padding:4px 4px;text-align:center;background:#fff;font-family:var(--mono);border-bottom:'+hairBd+'"><a href="javascript:void(0)" onclick="_hrmsDasShowAllocDetail(\''+plE+'\',\''+dpE+'\',\''+giE+'\')" style="color:#15803d;font-weight:700;text-decoration:underline;cursor:pointer">'+a+'</a></td>';
+              ph+='<td style="padding:4px 4px;text-align:center;background:#dcfce7;font-family:var(--mono);border-bottom:'+hairBd+'"><a href="javascript:void(0)" onclick="_hrmsDasShowAllocDetail(\''+plE+'\',\''+dpE+'\',\''+giE+'\')" style="color:#15803d;font-weight:700;text-decoration:underline;cursor:pointer">'+a+'</a></td>';
             } else {
-              ph+=bodyCell(a,'#fff','#15803d',false,'');
+              ph+=bodyCell(a,'#dcfce7','#15803d',false,'');
             }
             ph+=bodyCell(sh>0?sh:0,sh>0?'#fee2e2':'#fff',sh>0?'#b91c1c':'#cbd5e1',sh>0,';border-right:'+groupBd);
           });
           var rowSh=Math.max(rowAlloc-rowAct,0);
-          ph+=bodyCell(rowAlloc,'#eef2ff','#1d4ed8',true,';border-left:'+groupBd);
-          ph+=bodyCell(rowAct,'#eef2ff','#15803d',true,'');
-          ph+=bodyCell(rowSh>0?rowSh:0,rowSh>0?'#fee2e2':'#eef2ff',rowSh>0?'#b91c1c':'#cbd5e1',true,'');
+          ph+=bodyCell(rowAlloc,'#bfdbfe','#1d4ed8',true,';border-left:'+groupBd);
+          ph+=bodyCell(rowAct,'#bbf7d0','#15803d',true,'');
+          ph+=bodyCell(rowSh>0?rowSh:0,rowSh>0?'#fee2e2':'#f1f5f9',rowSh>0?'#b91c1c':'#cbd5e1',true,'');
           ph+='</tr>';
           plantAct+=rowAct;plantAlloc+=rowAlloc;plantSh+=rowSh;
         });
         ph+='</tbody>';
       });
-      ph+='</table>';
-      // Plant-level grand strip.
+      // ── Plant Total footer row aligned to the Total column ──────
+      // V83: the floating strip below the table was replaced with a
+      // proper <tfoot> row so the AL / P / S totals sit directly under
+      // their respective columns (instead of floating right of the bars
+      // unaligned). Group columns get a single colspan'd "Plant Total"
+      // label so the row still reads at a glance.
       if(clusters.length){
-        ph+='<div style="display:flex;justify-content:flex-end;gap:18px;padding:10px 14px;background:linear-gradient(180deg,#312e81,#1e1b4b);color:#fff;font-size:12px;font-weight:800;border-top:2px solid #94a3b8">'
-          +'<span>Plant Total &nbsp;·&nbsp; <span style="color:#bfdbfe">AL '+plantAlloc+'</span> &nbsp;·&nbsp; <span style="color:#86efac">P '+plantAct+'</span> &nbsp;·&nbsp; <span style="color:'+(plantSh>0?'#fca5a5':'#94a3b8')+'">S '+(plantSh>0?plantSh:'—')+'</span></span>'
-        +'</div>';
+        var _shFg=plantSh>0?'#fca5a5':'#cbd5e1';
+        var ftBg='#1e1b4b';
+        var ftHi='#312e81';
+        var ftBorder='border-top:2px solid #0f172a';
+        var totalCols=SLOT_COUNT*3;
+        ph+='<tfoot><tr>'
+          +'<td style="padding:8px 10px;text-align:left;background:'+ftBg+';color:#fff;font-weight:900;font-size:12px;letter-spacing:.4px;'+ftBorder+';border-right:'+groupBd+'">Plant Total</td>'
+          +'<td colspan="'+totalCols+'" style="padding:8px 4px;text-align:right;background:'+ftBg+';color:#94a3b8;font-size:11px;font-weight:700;font-style:italic;'+ftBorder+';border-right:'+groupBd+'">across all groups →</td>'
+          +'<td style="padding:8px 4px;text-align:center;background:'+ftHi+';color:#bfdbfe;font-family:var(--mono);font-weight:900;font-size:14px;'+ftBorder+';border-left:'+groupBd+'">'+plantAlloc+'</td>'
+          +'<td style="padding:8px 4px;text-align:center;background:'+ftHi+';color:#86efac;font-family:var(--mono);font-weight:900;font-size:14px;'+ftBorder+'">'+plantAct+'</td>'
+          +'<td style="padding:8px 4px;text-align:center;background:'+ftHi+';color:'+_shFg+';font-family:var(--mono);font-weight:900;font-size:14px;'+ftBorder+'">'+(plantSh>0?plantSh:'—')+'</td>'
+          +'</tr></tfoot>';
       }
+      ph+='</table>';
       ph+='</div>';// outer scroll wrapper
       compHtmlByPlant[plant]=ph;
     });
@@ -26585,7 +27241,7 @@ var _HRMS_ALLOC_DEFAULTS=[
 // non-zero allocation in. Enforced inside _hrmsAllocPromptEdit's save
 // path so the operator can't slowly create a wide / sparse grid that
 // breaks the cluster-grouped Allocation vs Actual layout.
-var _HRMS_ALLOC_MAX_GROUPS_PER_DEPT=5;
+var _HRMS_ALLOC_MAX_GROUPS_PER_DEPT=4;
 
 function _hrmsAllocationData(){
   var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='allocations';});

@@ -987,6 +987,55 @@ function _puRenderHeader(){
     '<th>Reset Password</th>'+
   '</tr>';
 }
+// One-shot cleanup for legacy records where an app was removed but its
+// role array (or VMS roles inside u.roles) wasn't cleared. Idempotent —
+// safe to re-run; users already clean are left alone. Super Admin only.
+// Run from the browser console: await _repairOrphanedAppRoles()
+async function _repairOrphanedAppRoles(){
+  if(!(CU&&(CU.roles||[]).indexOf('Super Admin')>=0)){
+    if(typeof notify==='function') notify('⚠ Super Admin only',true);
+    return {affected:0,failed:0,skipped:0};
+  }
+  var PLAT=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
+  var affected=0,failed=0,skipped=0;
+  var fixed=[];
+  for(var i=0;i<(DB.users||[]).length;i++){
+    var u=DB.users[i];
+    if(!u){skipped++;continue;}
+    var apps=u.apps||[];
+    var bak={roles:(u.roles||[]).slice(),hwmsRoles:(u.hwmsRoles||[]).slice(),hrmsRoles:(u.hrmsRoles||[]).slice(),mttsRoles:(u.mttsRoles||[]).slice()};
+    var changed=false;
+    // u.roles mixes platform roles with VMS roles. When VMS app is gone,
+    // strip non-platform entries (which by convention are VMS roles).
+    if(!apps.includes('vms')){
+      var keep=(u.roles||[]).filter(function(r){return PLAT.indexOf(r)>=0;});
+      if(keep.length!==(u.roles||[]).length){u.roles=keep;changed=true;}
+    }
+    if(!apps.includes('hwms')&&(u.hwmsRoles||[]).length){u.hwmsRoles=[];changed=true;}
+    if(!apps.includes('hrms')&&(u.hrmsRoles||[]).length){u.hrmsRoles=[];changed=true;}
+    if(!apps.includes('maintenance')&&(u.mttsRoles||[]).length){u.mttsRoles=[];changed=true;}
+    if(!changed){skipped++;continue;}
+    try{
+      if(await _dbSave('users',u)){
+        affected++;
+        fixed.push(u.fullName||u.name);
+      } else {
+        Object.assign(u,bak);
+        failed++;
+      }
+    } catch(e){
+      console.error('repair save failed for '+(u.name||u.id),e);
+      Object.assign(u,bak);
+      failed++;
+    }
+  }
+  console.log('Orphan-role cleanup:',{affected,failed,skipped,fixed});
+  var msg='✅ Cleaned '+affected+' user'+(affected===1?'':'s')+(failed?', ⚠ '+failed+' failed':'');
+  if(typeof notify==='function') notify(msg,failed>0);
+  if(typeof renderPortalUsers==='function') renderPortalUsers();
+  return {affected:affected,failed:failed,skipped:skipped,fixed:fixed};
+}
+
 function renderPortalUsers(){
   const srch=(document.getElementById('puSearch')?.value||'').toLowerCase();
   const showI=document.getElementById('puShowInactive')?.checked;
@@ -1237,6 +1286,15 @@ function puAppChange(cb){
   document.getElementById('muHwmsRoles').style.display=sel.includes('hwms')?'block':'none';
   document.getElementById('muHrmsRoles').style.display=sel.includes('hrms')?'block':'none';
   document.getElementById('muMttsRoles').style.display=sel.includes('maintenance')?'block':'none';
+  // When an app is deselected, immediately uncheck every role box that
+  // belongs to it so the visual state matches what will be saved. The
+  // save-time guard in puSaveUser zeroes the role arrays again as a
+  // defence-in-depth (covers the case where the user typed Save before
+  // this handler ran).
+  if(!sel.includes('vms'))         document.querySelectorAll('.muVmsCb').forEach(function(c){c.checked=false;});
+  if(!sel.includes('hwms'))        document.querySelectorAll('.muHwmsCb').forEach(function(c){c.checked=false;});
+  if(!sel.includes('hrms'))        document.querySelectorAll('.muHrmsCb').forEach(function(c){c.checked=false;});
+  if(!sel.includes('maintenance')) document.querySelectorAll('.muMttsCb').forEach(function(c){c.checked=false;});
 }
 
 // ── Save user ───────────────────────────────────────────────────────────────
@@ -1255,7 +1313,12 @@ async function puSaveUser(){
   ):'';
   const email=String(document.getElementById('muEmail')?.value||'').trim();
   const apps=[...document.querySelectorAll('.muAppCb:checked')].map(i=>i.value);
-  const vmsRoles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
+  // Read role-box state, then zero out any app the user has just removed
+  // from the access list — otherwise a previously-checked role box (e.g.
+  // VMS Admin) leaks through even when its parent app is unchecked,
+  // which kept revoking access from being effective.
+  let vmsRoles=[...document.querySelectorAll('.muVmsCb:checked')].map(i=>i.value);
+  if(!apps.includes('vms')) vmsRoles=[];
   // Platform roles only visible to Super Admin — for non-SA editors keep
   // whatever was previously on the user record so we don't accidentally
   // strip Super Admin / Admin from a colleague.
@@ -1272,9 +1335,12 @@ async function puSaveUser(){
   // u.roles carries platform + VMS roles in one column for now; the modal
   // splits them visually but they're persisted together.
   const roles=platRoles.concat(vmsRoles);
-  const hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
-  const hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
-  const mttsRoles=[...document.querySelectorAll('.muMttsCb:checked')].map(i=>i.value);
+  let hwmsRoles=[...document.querySelectorAll('.muHwmsCb:checked')].map(i=>i.value);
+  if(!apps.includes('hwms')) hwmsRoles=[];
+  let hrmsRoles=[...document.querySelectorAll('.muHrmsCb:checked')].map(i=>i.value);
+  if(!apps.includes('hrms')) hrmsRoles=[];
+  let mttsRoles=[...document.querySelectorAll('.muMttsCb:checked')].map(i=>i.value);
+  if(!apps.includes('maintenance')) mttsRoles=[];
   const inactive=document.getElementById('muInactive')?.checked===true;
   if(!name){modalErr('mUser','Username required');return}
   if(!plant){modalErr('mUser','Location required');return}
