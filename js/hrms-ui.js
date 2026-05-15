@@ -125,11 +125,12 @@ async function _hrmsLaunch(){
   // that had a hardcoded auto-landing. Multi-role users get the same
   // treatment: whichever accessible page sits earliest in the list.
   if(typeof _hrmsHasAccess!=='function'){hrmsGo('pageHrmsDashboard');return;}
-  var _firstPage=['pageHrmsDashboard','pageHrmsUtilDailyAtt','pageHrmsPlantwiseAtt','pageHrmsAttSal','pageHrmsEmployees','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules','pageHrmsUtilUpdateEmp'];
+  var _firstPage=['pageHrmsDashboard','pageHrmsUtilDailyAtt','pageHrmsPlantwiseAtt','pageHrmsEmpAtt','pageHrmsAttSal','pageHrmsEmployees','pageHrmsMyAtt','pageHrmsMyApprovals','pageHrmsOrgStructure','pageHrmsAttRules','pageHrmsUtilUpdateEmp'];
   var _pagePerms={
     pageHrmsDashboard:'page.dashboard',
     pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
     pageHrmsPlantwiseAtt:'page.plantwiseAtt',
+    pageHrmsEmpAtt:'page.empAtt',
     pageHrmsAttSal:'page.attSal',
     pageHrmsEmployees:'page.employees',
     pageHrmsMyAtt:'page.myAttendance',
@@ -256,7 +257,8 @@ var _hrmsPageTitles={
   pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
   pageHrmsUtilDailyAtt:'Day-wise Attendance',
   pageHrmsPlantwiseAtt:'Plant-wise Attendance',
-  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph',
+  pageHrmsEmpAtt:'Employee Attendance & Late Mark',
+  pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph Plant-wise',
   pageHrmsUtilUpdateEmp:'Utilities — Update Employee'
 };
 
@@ -272,6 +274,7 @@ var _hrmsParentMenu={
   pageHrmsMRoll:'Masters', pageHrmsMAllocation:'Masters',
   pageHrmsUtilDailyAtt:'Day-wise Attendance',
   pageHrmsPlantwiseAtt:'Day-wise Attendance',
+  pageHrmsEmpAtt:'Day-wise Attendance',
   pageHrmsUtilAttConv:'Utilities',
   pageHrmsUtilMonthlyHc:'Utilities',
   pageHrmsUtilUpdateEmp:'Utilities'
@@ -328,6 +331,7 @@ var _HRMS_PAGE_PERMS={
   pageHrmsUtilAttConv:'page.utilAttConv',
   pageHrmsUtilDailyAtt:'page.utilDailyAttSum',
   pageHrmsPlantwiseAtt:'page.plantwiseAtt',
+  pageHrmsEmpAtt:'page.empAtt',
   pageHrmsUtilMonthlyHc:'page.utilMonthlyHc',
   pageHrmsUtilUpdateEmp:'page.utilUpdateEmp'
 };
@@ -388,6 +392,7 @@ function _hrmsEnforcePermissions(){
   var anyDas=false;
   var dasPerms={
     navDasPlantwise:'page.plantwiseAtt',
+    navDasEmpAtt:'page.empAtt',
     navDasManpower:'tab.das.manpower',
     navDasDeptDetails:'tab.das.deptdetails',
     navDasTeamwise:'tab.das.teamwise'
@@ -434,6 +439,11 @@ function _hrmsEnforcePermissions(){
 }
 
 function hrmsGo(pid,opt){
+  // V115 — the Plant master colour picker is a position:fixed popup that
+  // stays put when the page swaps underneath it. Close it on every
+  // navigation so it doesn't leak onto other pages.
+  var _stalePop=document.getElementById('hrmsPlantColorPop');
+  if(_stalePop) _stalePop.remove();
   // Optional second arg lets the sidebar sub-menu items pre-select a
   // tab inside Daily Attendance Summary (e.g. hrmsGo('pageHrmsUtilDailyAtt','teamwise')).
   if(pid==='pageHrmsUtilDailyAtt'&&typeof opt==='string'&&opt){
@@ -504,8 +514,9 @@ function hrmsGo(pid,opt){
     if(_ma) _ma.textContent='▼';
   }
   // Expand the Day-wise Attendance sub-menu group when landing on
-  // any of its sub-pages (current DAS page or Plant-wise page).
-  if(pid==='pageHrmsUtilDailyAtt'||pid==='pageHrmsPlantwiseAtt'){
+  // any of its sub-pages (current DAS page, Plant-wise page, Employee
+  // Attendance page).
+  if(pid==='pageHrmsUtilDailyAtt'||pid==='pageHrmsPlantwiseAtt'||pid==='pageHrmsEmpAtt'){
     var _dg=document.getElementById('hrmsDasNavGroup');if(_dg) _dg.style.display='block';
     var _da=document.getElementById('hrmsDasNavArrow');if(_da) _da.textContent='▼';
   }
@@ -594,6 +605,7 @@ function hrmsGo(pid,opt){
   }
   if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
   if(pid==='pageHrmsPlantwiseAtt'&&typeof _hrmsPwAttInit==='function') _hrmsPwAttInit();
+  if(pid==='pageHrmsEmpAtt'&&typeof _hrmsEmpAttInit==='function') _hrmsEmpAttInit();
   if(pid==='pageHrmsOrgStructure'&&typeof _hrmsOrgRender==='function') _hrmsOrgRender();
   document.querySelector('.sidebar').classList.remove('open');
   document.querySelector('.sidebar-overlay').classList.remove('show');
@@ -1280,9 +1292,18 @@ function renderHrmsMaster(pid){
   // needs an explicit max-height (the flex chain provides bounds).
   h+='<div class="table-wrap"><table><thead><tr>';
   if(isWorkerDept&&_canEditMaster) h+='<th title="Tick unused departments and click Delete Selected at top" style="width:28px"><input type="checkbox" onchange="_hrmsDeptToggleSelectAll(this.checked)" title="Select all unused"></th>';
-  h+='<th>#</th>';
-  if(isPlant) h+='<th>Color</th>';
-  h+='<th>'+c.label+'</th>';
+  // V115 — Plant master drops the # column and places Color first, then
+  // Plant (coloured), then the two shift-time editors. Other masters keep
+  // the legacy # → label order.
+  if(!isPlant) h+='<th>#</th>';
+  if(isPlant){
+    h+='<th>Color</th>';
+    h+='<th>'+c.label+'</th>';
+    h+='<th title="Worker day-shift start time">☀ Day Shift</th>';
+    h+='<th title="Worker night-shift start time">🌙 Night Shift</th>';
+  } else {
+    h+='<th>'+c.label+'</th>';
+  }
   if(isWorkerDept) h+='<th>Plant</th>';
   if(hasExtra) h+='<th>'+(c.extraLabel||c.extra)+'</th>';
   if(isTeam) h+='<th>Contractor Supervisor</th>';
@@ -1302,7 +1323,11 @@ function renderHrmsMaster(pid){
   h+='</tr></thead><tbody>';
   var deptExtraCols=isDept?3:0;// Contract + Piece Rate + Total beyond Employees
   var tagExtraCols=isTagMaster?3:0;// PIA + IA + Total beyond AC
-  var colSpan=(hasExtra?5:4)+(isPlant?1:0)+(isTeam?1:0)+(isWorkerDept?2:0)+(isWorkerDept&&_canEditMaster?1:0)+deptExtraCols+tagExtraCols-(_canEditMaster?0:1);
+  // V115 — Plant master drops # and gains 3 extra cols (Color + Day + Night),
+  // so it nets +2 over the legacy 4-col baseline; non-Plant masters keep
+  // their existing math. The (_canEditMaster?0:1) at the end strips the
+  // Actions col when the user is view-only.
+  var colSpan=(isPlant?(hasExtra?7:6):(hasExtra?5:4))+(isTeam?1:0)+(isWorkerDept?2:0)+(isWorkerDept&&_canEditMaster?1:0)+deptExtraCols+tagExtraCols-(_canEditMaster?0:1);
   if(!items.length) h+='<tr><td colspan="'+colSpan+'" class="empty-state">No records. Click "Sync from Employees" to populate.</td></tr>';
   // Running totals (Dept masters only) — summed across items currently
   // visible in the table so the Total row reflects any active filter.
@@ -1326,12 +1351,27 @@ function renderHrmsMaster(pid){
         h+='<td></td>';
       }
     }
-    h+='<td style="font-family:var(--mono);color:var(--text3)">'+(i+1)+'</td>';
+    if(!isPlant) h+='<td style="font-family:var(--mono);color:var(--text3)">'+(i+1)+'</td>';
     if(isPlant){
       var clr=it.color||'#e2e8f0';
+      // Color swatch
       h+='<td><span onclick="_hrmsPickPlantColor(\''+it.id+'\')" style="display:inline-block;width:28px;height:18px;border-radius:4px;background:'+clr+';border:1px solid rgba(0,0,0,.15);cursor:pointer;vertical-align:middle" title="Click to change color"></span></td>';
+      // Plant name — painted with the plant's own colour so the master
+      // and every downstream chip read as one.
+      h+='<td><span style="display:inline-block;padding:3px 12px;border-radius:5px;background:'+clr+';color:#0f172a;font-weight:900;font-size:13px;letter-spacing:.2px;border:1px solid rgba(0,0,0,.12)">'+_hrmsEsc(it.name)+'</span></td>';
+      // V114 — Worker day / night shift start times, per plant. Stored
+      // in hrmsSettings under key 'plantShiftTimes' so the master row
+      // doesn't need a schema change. Used by Employee Attendance (late
+      // mark + shift detection).
+      var _sft=(typeof _hrmsGetPlantShiftTimes==='function')?_hrmsGetPlantShiftTimes(it.name):{day:'08:00',night:'19:00'};
+      var _plEsc=String(it.name).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var _tEditable=_canEditMaster;
+      var _tInpStyle='width:88px;padding:3px 6px;font-size:11px;font-weight:700;font-family:var(--mono);border:1.5px solid #cbd5e1;border-radius:4px;text-align:center;background:'+(_tEditable?'#fff':'#f1f5f9')+';cursor:'+(_tEditable?'pointer':'not-allowed');
+      h+='<td style="text-align:center"><input type="time" value="'+_sft.day+'" '+(_tEditable?'':'disabled')+' onchange="_hrmsSetPlantShiftTime(\''+_plEsc+'\',\'day\',this.value)" style="'+_tInpStyle+'" title="Worker day-shift start time for '+_hrmsEsc(it.name)+'"></td>';
+      h+='<td style="text-align:center"><input type="time" value="'+_sft.night+'" '+(_tEditable?'':'disabled')+' onchange="_hrmsSetPlantShiftTime(\''+_plEsc+'\',\'night\',this.value)" style="'+_tInpStyle+'" title="Worker night-shift start time for '+_hrmsEsc(it.name)+'"></td>';
+    } else {
+      h+='<td style="font-weight:700">'+it.name+'</td>';
     }
-    h+='<td style="font-weight:700">'+it.name+'</td>';
     if(isWorkerDept){
       var dpl=(it.plant||'').trim();
       if(dpl){
@@ -1502,9 +1542,16 @@ function renderHrmsMaster(pid){
     var _tftBg='linear-gradient(180deg,#e2e8f0,#cbd5e1)';
     var _tftSty=';position:sticky;bottom:0;z-index:2;background:'+_tftBg+';color:#0f172a;font-weight:900;box-shadow:inset 0 2px 0 #94a3b8';
     h+='<tr>';
-    h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// # column
-    if(isPlant) h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// Color column
-    h+='<td style="padding:6px 8px;font-weight:900'+_tftSty+'">Total</td>';
+    if(isPlant){
+      // V115 — no #; Color | Plant(=Total label) | Day | Night ordering.
+      h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// Color column
+      h+='<td style="padding:6px 8px;font-weight:900'+_tftSty+'">Total</td>';// Plant slot
+      h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// Day Shift column
+      h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// Night Shift column
+    } else {
+      h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// # column
+      h+='<td style="padding:6px 8px;font-weight:900'+_tftSty+'">Total</td>';
+    }
     if(hasExtra) h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// extra
     if(isTeam)   h+='<td style="padding:6px 8px'+_tftSty+'"></td>';// supervisor
     var _tftW=';width:92px;min-width:92px;max-width:92px';
@@ -2610,6 +2657,27 @@ function _hrmsDashTeamHcRerender(){
     wrap.outerHTML=newHtml;
   }catch(e){console.warn('TeamHc re-render failed:',e);}
 }
+// V107: dynamic narrow-mode threshold. Bind once on first render — when
+// the viewport crosses the 700px boundary (rotation, browser resize,
+// devtools opening, etc.), re-render so the lane layout swaps without
+// requiring a page refresh.
+function _hrmsDashTeamHcBindResize(){
+  if(window._hrmsDashTeamHcResizeBound) return;
+  window._hrmsDashTeamHcResizeBound=true;
+  var _wasNarrow=((window.innerWidth||document.documentElement.clientWidth||1024)<700);
+  var _t=null;
+  window.addEventListener('resize',function(){
+    if(_t) clearTimeout(_t);
+    _t=setTimeout(function(){
+      var w=window.innerWidth||document.documentElement.clientWidth||1024;
+      var isNarrow=(w<700);
+      if(isNarrow!==_wasNarrow){
+        _wasNarrow=isNarrow;
+        if(document.getElementById('hrmsDashTeamHcWrap')) _hrmsDashTeamHcRerender();
+      }
+    },200);
+  });
+}
 
 // Team-wise daily headcount strip used on the dashboard. Builds one
 // horizontal bar chart per team — KAP (all currently-On-Roll emps
@@ -2620,6 +2688,10 @@ function _hrmsDashTeamHcRerender(){
 // re-renders the dashboard when the fetches land.
 function _hrmsDashTeamHcSection(allEmps){
   if(!allEmps||!allEmps.length) return '';
+  // Bind the resize listener once so narrow-mode switches dynamically
+  // when the viewport crosses the 700px threshold (orientation change,
+  // browser resize, etc.).
+  if(typeof _hrmsDashTeamHcBindResize==='function') _hrmsDashTeamHcBindResize();
   // Selected month drives the chart. State lives on
   // `window._hrmsDashTeamHcMonth` (YYYY-MM). Defaults to today's month;
   // the ◀ ▶ navigator caps at today's month so future months can't be
@@ -2908,9 +2980,16 @@ function _hrmsDashTeamHcSection(allEmps){
   var _nT=mergedRefRows.length;
   var _totalSlotsT=_histCountT+_gapSlotsT+_nT;
   var _colWT=30;
-  var _labelW=160;
+  // V98: left team-label column slimmed down; team name + emp type
+  // render vertically (rotated 90°) inside it so the chart area gets
+  // most of the row width back.
+  var _labelW=42;
   var _svgW=_totalSlotsT*_colWT;
   var DOWt=['S','M','T','W','T','F','S'];
+  // Highlight "today" only when the active month is the current month.
+  // History months: no highlight.
+  var _isCurMonth=(curMk===_todayMk);
+  var _todayDay=_isCurMonth?_now.getDate():0;
   var html='<div style="margin-bottom:18px" id="hrmsDashTeamHcWrap">';
   var _nextDisStyle=_atToday?'opacity:.35;cursor:not-allowed;':'cursor:pointer;';
   var _nextOnClick=_atToday?'':' onclick="_hrmsDashTeamHcShiftMonth(1)"';
@@ -2921,7 +3000,6 @@ function _hrmsDashTeamHcSection(allEmps){
       +'<span style="font-size:12px;font-weight:800;color:var(--accent);padding:3px 10px;border:1.5px solid var(--accent);border-radius:4px;background:#fff;min-width:96px;text-align:center;letter-spacing:.2px">'+(MON_NAMES[curMo-1]||'')+' '+curYr+'</span>'
       +'<button'+_nextOnClick+(_atToday?' disabled':'')+' title="'+(_atToday?'Already at the current month':'Next month')+'" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;'+_nextDisStyle+'line-height:1">▶</button>'
     +'</span>'
-    +'<span style="font-size:11px;color:var(--text3);font-weight:600">6-month average + current month · per-team Y scale</span>'
     +'<button onclick="_hrmsDasTwShowMonthly({team:\'__TOTAL__\'})" title="Open Team-wise Attendance popup with team / month filters" style="margin-left:auto;padding:6px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(124,58,237,.25)">📅 Team-wise Attendance</button>'
     +'</div>';
   // ── Lane renderer ────────────────────────────────────────────────
@@ -2931,18 +3009,50 @@ function _hrmsDashTeamHcSection(allEmps){
   // by the largest.
   var _renderLane=function(lane){
     var d=lane.data;
-    var laneMaxY=d.maxY||10;
+    // V100: pad the Y scale by 25% so the bar tip never bumps against the
+    // plot ceiling — leaves room for the P/A round badges + the night
+    // badge stack to sit cleanly above the tallest bars.
+    var laneMaxY=Math.ceil((d.maxY||10)*1.25);
+    var _laneStep=Math.pow(10,Math.max(0,String(laneMaxY).length-2));
+    laneMaxY=Math.ceil(laneMaxY/_laneStep)*_laneStep;
     // V74: lane is no longer clickable — the "Team-wise Attendance"
     // button at the top-right of the chart opens the popup instead, so
     // hover-tooltips on bars don't compete with a click intent.
+    // V95: in narrow mode (viewport < 700px) the left team-label panel
+    // is hidden — its contents become a title strip above the SVG so the
+    // chart gets the full screen width.
     var laneH=lane.key==='__TOTAL__'?180:150;
-    var s='<div style="display:flex;align-items:stretch;margin-bottom:6px">';
-    s+='<div style="flex:0 0 '+_labelW+'px;display:flex;flex-direction:column;justify-content:center;padding:6px 12px;background:'+lane.bg+';color:'+lane.fg+';border-radius:6px 0 0 6px;border:1.5px solid '+lane.fg+';border-right:none">'
+    var narrow=((window.innerWidth||document.documentElement.clientWidth||1024)<700);
+    var titleHtml=''
       +'<div style="font-size:13px;font-weight:900;line-height:1.2">'+_esc(lane.label)+'</div>'
-      +'<div style="font-size:11px;font-weight:700;opacity:.85;margin-top:2px">'+d.empCount+' employees</div>'
-      +'<div style="font-size:10px;font-weight:700;opacity:.75;margin-top:1px">Y max '+laneMaxY+'</div>'
-      +'</div>';
-    s+='<svg viewBox="0 0 '+_svgW+' '+laneH+'" preserveAspectRatio="xMidYMin meet" style="width:'+_svgW+'px;height:'+laneH+'px;display:block;background:#fff;border:1.5px solid '+lane.fg+';border-radius:0 6px 6px 0">';
+      +'<div style="font-size:11px;font-weight:700;opacity:.85;margin-top:2px">'+d.empCount+' employees · Y max '+laneMaxY+'</div>';
+    var s;
+    if(narrow){
+      // V108: SVG scales to the container width via `width:100%`+`height:auto`
+      // with viewBox/preserveAspectRatio. The whole chart shrinks to fit the
+      // phone screen — proportions preserved, no horizontal scroll. Users
+      // can still pinch-zoom for detail (touch-action:pinch-zoom + the html
+      // meta `user-scalable=yes` from V2).
+      s='<div style="display:flex;flex-direction:column;margin-bottom:8px;border:1.5px solid '+lane.fg+';border-radius:6px;overflow:hidden">';
+      s+='<div style="padding:6px 12px;background:'+lane.bg+';color:'+lane.fg+';display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+titleHtml+'</div>';
+      s+='<svg viewBox="0 0 '+_svgW+' '+laneH+'" preserveAspectRatio="xMidYMin meet" style="width:100%;height:auto;max-width:'+_svgW+'px;display:block;background:#fff;touch-action:pinch-zoom">';
+    } else {
+      // V98: slim left column with the EmpType · Team label rotated -90°
+      // so it reads bottom→top. Employee count + Y max are dropped here
+      // (still surfaced in tooltips); only the team identity remains.
+      var vLbl=lane.tipLabel||lane.label||'';
+      s='<div style="display:flex;align-items:stretch;margin-bottom:6px">';
+      // V106: try to fit the rotated label in one line first — `width:
+      // max-content` shrinks the box to the text's natural width, and
+      // `max-width: laneH − 6` caps it at (almost) the full vertical
+      // space of the lane. Wrap only triggers when natural width exceeds
+      // that cap.
+      var rotMaxW=(laneH-6);
+      s+='<div style="flex:0 0 '+_labelW+'px;background:'+lane.bg+';color:'+lane.fg+';border-radius:6px 0 0 6px;border:1.5px solid '+lane.fg+';border-right:none;position:relative;overflow:hidden">'
+        +'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center center;text-align:center;font-size:11px;font-weight:900;letter-spacing:.3px;line-height:1.2;width:max-content;max-width:'+rotMaxW+'px;white-space:normal;word-break:break-word" title="'+_esc(vLbl)+' · '+d.empCount+' employees · Y max '+laneMaxY+'">'+_esc(vLbl)+'</div>'
+        +'</div>';
+      s+='<svg viewBox="0 0 '+_svgW+' '+laneH+'" preserveAspectRatio="xMidYMin meet" style="width:'+_svgW+'px;height:'+laneH+'px;display:block;background:#fff;border:1.5px solid '+lane.fg+';border-radius:0 6px 6px 0;touch-action:pinch-zoom">';
+    }
     var padTL=28,padBL=4;
     var plotHL=laneH-padTL-padBL;
     if(_histCountT>0){
@@ -2958,25 +3068,45 @@ function _hrmsDashTeamHcSection(allEmps){
         s+='<rect x="'+bx2+'" y="0" width="'+_colWT+'" height="'+laneH+'" fill="'+bgC2+'" fill-opacity="0.5"/>';
       }
     }
+    // V97: highlight today's column with a soft amber wash + a left+right
+    // accent stripe so the eye lands on it instantly even on busy lanes.
+    if(_todayDay){
+      var tdx=(_histCountT+_gapSlotsT+(_todayDay-1))*_colWT;
+      s+='<rect x="'+tdx+'" y="0" width="'+_colWT+'" height="'+laneH+'" fill="#fef08a" fill-opacity="0.45"/>';
+      s+='<line x1="'+tdx+'" y1="0" x2="'+tdx+'" y2="'+laneH+'" stroke="#ca8a04" stroke-width="1.5"/>';
+      s+='<line x1="'+(tdx+_colWT)+'" y1="0" x2="'+(tdx+_colWT)+'" y2="'+laneH+'" stroke="#ca8a04" stroke-width="1.5"/>';
+    }
     var _barWL=_colWT*0.55;
-    // Round badge — small rounded pill. Width auto-grows for 2-3 digit
-    // counts; 1-digit counts read as a near-circle. The night count is
-    // intentionally NOT rendered as its own badge — it surfaces only on
-    // hover via the title tooltip ("Night Shift Present count N").
+    // P/A badge — text size bumped to 11px (V99) to match the count font
+    // in the grey night badge. Pill grows in width + height to fit.
     var _badge=function(cx,cy,count,bg){
       var txt=String(count);
-      var w=Math.max(18,8+txt.length*6);
-      var h=15;
-      return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7.5" ry="7.5" fill="'+bg+'" stroke="#0f172a" stroke-width="0.3"/>'
-        +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+txt+'</text>';
+      var w=Math.max(20,8+txt.length*7);
+      var h=18;
+      return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="9" ry="9" fill="'+bg+'" stroke="#0f172a" stroke-width="0.3"/>'
+        +'<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">'+txt+'</text>';
     };
     var _labelStack=function(cx,topY,pVal,aVal){
-      var pCy=Math.max(10,topY-9);
-      var aCy=Math.max(2,pCy-17);
+      var pCy=Math.max(11,topY-11);
+      var aCy=Math.max(2,pCy-21);
       var out='';
       if(aVal>0) out+=_badge(cx,aCy,aVal,'#dc2626');
       if(pVal>0) out+=_badge(cx,pCy,pVal,'#16a34a');
       return out;
+    };
+    // Stacked 🌙 + count badge pinned near the top edge of the lane.
+    // Icon on top, larger count below so the number reads at a glance.
+    var _nightTopBadge=function(cx,count){
+      if(!(count>0)) return '';
+      var txt=String(count);
+      var w=Math.max(20, 7+txt.length*8);
+      var h=24;
+      var cy=h/2+2;
+      var iconY=cy-4;
+      var numY =cy+8;
+      return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="8" ry="8" fill="#64748b" stroke="#0f172a" stroke-width="0.3"/>'
+        +'<text x="'+cx+'" y="'+iconY+'" text-anchor="middle" font-size="8" fill="#fff">🌙</text>'
+        +'<text x="'+cx+'" y="'+numY+'" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">'+txt+'</text>';
     };
     (d.history||[]).forEach(function(h,hi){
       if(!(h.avgP>0)) return;
@@ -2989,6 +3119,8 @@ function _hrmsDashTeamHcSection(allEmps){
       // only in the hover tooltip ("Night Shift Present count N").
       if(pHpx>0) s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.5" stroke-dasharray="2 1"/>';
       s+=_labelStack(cx,topY,h.avgP,h.avgA);
+      // Always-visible night badge pinned to the lane's top edge.
+      s+=_nightTopBadge(cx,night);
       // Historical bucket — label e.g. "Nov 2025 · 6-month avg".
       var spH=h.mk.split('-');
       var hLbl=(MON_NAMES[+spH[1]-1]||'')+' '+spH[0]+' · 6-mo avg';
@@ -3003,6 +3135,8 @@ function _hrmsDashTeamHcSection(allEmps){
       var topY=laneH-padBL-pHpx;
       if(pHpx>0) s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="#16a34a" stroke="#15803d" stroke-width="0.4"/>';
       s+=_labelStack(cx,topY,dr.p,dr.a);
+      // Always-visible night badge pinned to the lane's top edge.
+      s+=_nightTopBadge(cx,night);
       var cLbl=dr.d+' '+(MON_NAMES[curMo-1]||'')+' '+curYr;
       var _laneKeyEsc=String(lane.key||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="transparent" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+cLbl+'" data-p="'+dr.p+'" data-a="'+dr.a+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" onclick="_hrmsDashHideBarTooltip();_hrmsDashShowDayEmps(\''+_laneKeyEsc+'\','+dr.d+')" style="cursor:pointer"/>';
@@ -3018,9 +3152,21 @@ function _hrmsDashTeamHcSection(allEmps){
   var _renderXAxis=function(pos){
     var marginStyle=pos==='top'?'margin-bottom:4px':'margin-top:4px';
     var hAxis=48;
+    var narrow=((window.innerWidth||document.documentElement.clientWidth||1024)<700);
     var s='<div style="display:flex;align-items:stretch;'+marginStyle+'">';
-    s+='<div style="flex:0 0 '+_labelW+'px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;font-weight:800;color:#475569">Date '+(pos==='top'?'↓':'↑')+'</div>';
-    s+='<svg viewBox="0 0 '+_svgW+' '+hAxis+'" style="width:'+_svgW+'px;height:'+hAxis+'px;display:block">';
+    if(narrow){
+      s+='<div style="flex:0 0 auto;align-self:center;padding:0 8px;font-size:10px;font-weight:800;color:#475569">Date '+(pos==='top'?'↓':'↑')+'</div>';
+    } else {
+      // Matches the slim lane label column (_labelW = 42); centre the
+      // small "Date ↓ / ↑" hint inside it.
+      s+='<div style="flex:0 0 '+_labelW+'px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#475569">Date '+(pos==='top'?'↓':'↑')+'</div>';
+    }
+    // V108: in narrow mode the axis SVG scales to the available width to
+    // match the lane SVGs above/below it (same viewBox-based fit).
+    var axisStyle=narrow
+      ?'width:100%;height:auto;max-width:'+_svgW+'px;display:block;flex:1;min-width:0'
+      :'width:'+_svgW+'px;height:'+hAxis+'px;display:block';
+    s+='<svg viewBox="0 0 '+_svgW+' '+hAxis+'" preserveAspectRatio="xMidYMin meet" style="'+axisStyle+'">';
     refHistory.forEach(function(h,hi){
       var x=hi*_colWT+_colWT/2;
       var sp=h.mk.split('-');
@@ -3037,9 +3183,14 @@ function _hrmsDashTeamHcSection(allEmps){
       var dt=new Date(curYr,curMo-1,r.d);
       var dow=DOWt[dt.getDay()];
       var excluded=(r.dType==='WO'||r.dType==='PH');
-      var fg=excluded?'#b91c1c':'#334155';
-      s+='<text x="'+x+'" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="'+fg+'">'+r.d+'</text>';
-      s+='<text x="'+x+'" y="26" text-anchor="middle" font-size="9" font-weight="600" fill="'+(excluded?'#dc2626':'#64748b')+'">'+dow+'</text>';
+      var isToday=(_todayDay&&r.d===_todayDay);
+      var fg=isToday?'#ca8a04':(excluded?'#b91c1c':'#334155');
+      // Soft amber wash on today's axis column to match the lane band.
+      if(isToday){
+        s+='<rect x="'+(x-_colWT/2)+'" y="0" width="'+_colWT+'" height="'+hAxis+'" fill="#fef08a" fill-opacity="0.5"/>';
+      }
+      s+='<text x="'+x+'" y="14" text-anchor="middle" font-size="12" font-weight="'+(isToday?'900':'700')+'" fill="'+fg+'">'+r.d+'</text>';
+      s+='<text x="'+x+'" y="26" text-anchor="middle" font-size="9" font-weight="'+(isToday?'900':'600')+'" fill="'+(isToday?'#ca8a04':(excluded?'#dc2626':'#64748b'))+'">'+dow+'</text>';
       if(excluded){
         var badgeTxt=r.dType==='PH'?'PH':'WO';
         var badgeBg=r.dType==='PH'?'#15803d':'#1d4ed8';
@@ -3503,7 +3654,7 @@ function renderHrmsDashboard(){
   // can draw straight into the dashboard with no other wiring.
   h+='<div style="margin-bottom:18px">';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
-  h+='<div style="font-size:14px;font-weight:900">📈 Monthly Headcount Graph</div>';
+  h+='<div style="font-size:14px;font-weight:900">📈 Monthly Headcount Graph Plant-wise</div>';
   h+='<select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>';
   h+='</div>';
   h+='<div id="hrmsMhgCharts"></div>';
@@ -12772,8 +12923,14 @@ function _hrmsPwAttRender(){
       var clickRP=rowP?(' onclick="_hrmsPwAttShowCell(\''+rowPKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
       var clickRA=rowA?(' onclick="_hrmsPwAttShowCell(\''+rowAKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
       var clickRT=rowT?(' onclick="_hrmsPwAttShowCell(\''+rowTKey+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';
+      // V103: plant column shows the short-form chip (KAP / P1 / HO / …)
+      // instead of the full plant name — saves horizontal room so the
+      // two side-by-side tables fit comfortably.
+      var _plSf=(typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(plant)||plant.slice(0,4)):plant.slice(0,4);
       bodyHtml+='<tr style="border-bottom:1px solid #e2e8f0">'
-        +'<td style="padding:7px 14px;font-weight:800;font-size:13px;background:'+plClr+';color:#0f172a;border-right:1.5px solid #94a3b8;white-space:nowrap" title="'+_esc(plant)+'">'+_esc(plant)+'</td>'
+        +'<td style="padding:7px 12px;border-right:1.5px solid #94a3b8;white-space:nowrap;background:#fff" title="'+_esc(plant)+'">'
+          +'<span style="display:inline-block;padding:3px 10px;border-radius:5px;background:'+plClr+';color:#0f172a;font-weight:900;font-size:12px;letter-spacing:.4px">'+_esc(_plSf)+'</span>'
+        +'</td>'
         +cells
         +'<td style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;color:#15803d;border-left:1.5px solid #94a3b8;background:#f8fafc"'+clickRP+'>'+rowP+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-family:var(--mono);font-weight:800;font-size:13px;color:#b91c1c;background:#f8fafc"'+clickRA+'>'+rowA+(rowT?' <span style="font-size:13px;color:#b45309;font-weight:800">('+_pct(rowA,rowT)+')</span>':'')+'</td>'
@@ -12829,43 +12986,302 @@ function _hrmsPwAttRender(){
     theadHtml+='<th style="'+subTh+';border-left:1.5px solid #94a3b8;color:#15803d">P</th>'
       +'<th style="'+subTh+';color:#b91c1c">A</th>'
       +'<th style="'+subTh+'">Total</th></tr></thead>';
-    // Pie graph (CSS conic-gradient) — sits beside the table.
-    var pctPNum=gT?(gP/gT)*100:0;
-    var pieStyle='width:140px;height:140px;border-radius:50%;background:conic-gradient(#16a34a 0 '+pctPNum+'%, #dc2626 '+pctPNum+'% 100%);box-shadow:0 2px 8px rgba(0,0,0,.12);flex:0 0 140px';
-    var pieHtml=gT
-      ?'<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 8px"><div style="'+pieStyle+'"></div><div style="display:flex;gap:8px;font-size:11px;font-weight:800"><span style="color:#16a34a">● P&nbsp;'+gP+'</span><span style="color:#dc2626">● A&nbsp;'+gA+'</span></div><div style="font-size:10px;color:#475569;font-weight:700">Absenteeism: <span style="color:#b45309">'+_pct(gA,gT)+'</span></div></div>'
+    // V102: pie graph removed — the grand-total row in the table already
+    // shows P / A / Total per et + the overall, so the conic-gradient was
+    // redundant. Title strip now carries the totals inline.
+    var headerBits=gT
+      ?'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11px;font-weight:800;margin-left:auto"><span style="color:#16a34a">● P '+gP+'</span><span style="color:#dc2626">● A '+gA+'</span><span style="color:#b45309">Absenteeism '+_pct(gA,gT)+'</span></div>'
       :'';
-    var h='<div style="margin-bottom:18px">';
-    h+='<div style="font-size:14px;font-weight:900;margin-bottom:6px">'+icon+' '+_esc(title)+'</div>';
-    h+='<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">';
-    h+='<div style="flex:1;min-width:520px;border:1.5px solid #94a3b8;border-radius:8px;overflow:auto"><table style="border-collapse:collapse;font-size:13px;width:100%">'+theadHtml+'<tbody>'+bodyHtml+'</tbody></table></div>';
-    if(pieHtml) h+=pieHtml;
-    h+='</div></div>';
+    var h='<div style="flex:1;min-width:0;display:flex;flex-direction:column">';
+    h+='<div style="font-size:14px;font-weight:900;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>'+icon+' '+_esc(title)+'</span>'+headerBits+'</div>';
+    h+='<div style="flex:1;min-width:0;border:1.5px solid #94a3b8;border-radius:8px;overflow:auto"><table style="border-collapse:collapse;font-size:13px;width:100%">'+theadHtml+'<tbody>'+bodyHtml+'</tbody></table></div>';
+    h+='</div>';
     return {html:h,plants:plants,ets:ets,grid:g,gEt:gEt,gP:gP,gA:gA,gT:gT};
   };
-  var workersOut=renderTable('workers','Workers','👷',gridWorker,plantSetW,etSetW);
-  var staffOut=renderTable('staff','Staff','🧑‍💼',gridStaff,plantSetS,etSetS);
-  // Helper returns either an HTML string (no plants) or {html, …}.
-  var pickHtml=function(o){return typeof o==='string'?o:o.html;};
-  var pickCtx=function(o){return typeof o==='string'?null:o;};
-  var noData=(typeof workersOut==='string')&&(typeof staffOut==='string');
-  if(noData){body.innerHTML='<div class="empty-state" style="padding:40px">No active employees configured.</div>';window._hrmsPwAttExportCtx=null;return;}
-  // Hover styling for clickable count cells. Injected here so the
-  // sheet ships with the rendered tables rather than living in the
-  // global stylesheet.
+  // V104: combine Staff + Workers into a single table. Plant cell
+  // rowspans whichever categories have data on the selected date,
+  // categories sit in their own column ("🧑‍💼 Staff" / "👷 Workers"),
+  // and the bottom carries three grand-total rows (Staff total, Workers
+  // total, then the All-categories combined total).
+  // V109: ST and W collapsed into 2 sub-columns under every P / A / Total
+  // header instead of being separate body rows. So each ET group now
+  // spans 6 sub-columns: P[ST|W], A[ST|W], Total[ST|W]. Per-plant rows
+  // shrink from 2 → 1 (Category column dropped); the All-ST / All-W
+  // grand totals are redundant and removed in favour of a single Grand
+  // Total row at the bottom. % display is scoped to the Total row (grand
+  // total) + the Total column (rightmost group), as before.
+  var combinedOut=(function(){
+    var allP={};Object.keys(plantSetS).forEach(function(k){allP[k]=1;});Object.keys(plantSetW).forEach(function(k){allP[k]=1;});
+    var plants=Object.keys(allP).sort(function(a,b){
+      var aH=_isHO(a),bH=_isHO(b);
+      if(aH!==bH) return aH?-1:1;
+      var sa=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(a):a;
+      var sb=(typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(b):b;
+      return sa.localeCompare(sb,undefined,{numeric:true});
+    });
+    var allE={};Object.keys(etSetS).forEach(function(k){allE[k]=1;});Object.keys(etSetW).forEach(function(k){allE[k]=1;});
+    var ets=_etOrder.filter(function(k){return allE[k];}).concat(Object.keys(allE).filter(function(k){return _etOrder.indexOf(k)<0;}).sort());
+    if(!plants.length) return null;
+    window._hrmsPwAttCellEmps={};
+    var regCell=function(plant,et,bucket,emps,cat){
+      var k=cat+'|'+plant+'|'+et+'|'+bucket;
+      window._hrmsPwAttCellEmps[k]={emps:emps||[],title:cat==='staff'?'Staff':(cat==='workers'?'Workers':'All'),plant:plant,et:et,bucket:bucket};
+      return k;
+    };
+    var clickAttr=function(key,n){return n?(' onclick="_hrmsPwAttShowCell(\''+key+'\')" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px"'):'';};
+    // Tight per-cell padding so 25 columns still fit without horizontal
+    // scroll on typical desktop widths.
+    var pad='padding:5px 7px;text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;';
+    // V111 colour scheme:
+    //   • Background encodes the bucket — light green for P, light red
+    //     for A, neutral for Total — so the eye lands on the absent count
+    //     immediately.
+    //   • Text colour encodes the sub-column — purple for ST, deep blue
+    //     for W — so a glance picks Staff vs Workers without reading the
+    //     header.
+    //   • Darker slate border (2px) separates each ET group's set of 6
+    //     sub-columns (On Roll / Contract / … / Total).
+    var BG_P    ='background:#dcfce7;';        // light green for Present
+    var BG_A    ='background:#fee2e2;';        // light red for Absent
+    var BG_T    ='background:#f1f5f9;';        // neutral for Total
+    var BG_P_GT ='background:#bbf7d0;';        // darker green for Grand Total row
+    var BG_A_GT ='background:#fecaca;';        // darker red  for Grand Total row
+    var BG_T_GT ='background:#cbd5e1;';        // darker neutral for Grand Total row
+    var FG_ST   ='#6d28d9';                    // ST text = purple
+    var FG_W    ='#0c4a6e';                    // W  text = deep blue
+    var BORDER_GROUP='2px solid #334155';      // ET-group separator
+    var BORDER_INNER='1px solid #eef2f6';      // ST | W inner sub-cell line
+    var bgFor=function(bucket,isGT){
+      if(bucket==='p') return isGT?BG_P_GT:BG_P;
+      if(bucket==='a') return isGT?BG_A_GT:BG_A;
+      return isGT?BG_T_GT:BG_T;
+    };
+    // Cell builder for a single ST/W pair under one (plant, et, bucket).
+    // bucket: 'p' | 'a' | 't'. isGT marks the Grand Total row so backgrounds
+    // shift to a slightly stronger tint. isFirst marks the leftmost sub-
+    // pair of a column group — picks up the heavier slate border.
+    var pair=function(plant,et,bucket,cS,cW,isFirst,isGT){
+      var stK=regCell(plant,et,bucket,bucket==='p'?cS.empsP:(bucket==='a'?cS.empsA:cS.empsP.concat(cS.empsA)),'staff');
+      var wK =regCell(plant,et,bucket,bucket==='p'?cW.empsP:(bucket==='a'?cW.empsA:cW.empsP.concat(cW.empsA)),'workers');
+      var stVal=bucket==='p'?cS.p:(bucket==='a'?cS.a:cS.total);
+      var wVal =bucket==='p'?cW.p:(bucket==='a'?cW.a:cW.total);
+      var bgBucket=bgFor(bucket,isGT);
+      var blFirst='border-left:'+BORDER_GROUP+';';
+      var blInner='border-left:'+BORDER_INNER+';';
+      var weight=isGT?'font-weight:900;':'font-weight:700;';
+      var stStyle=pad+weight+'color:'+FG_ST+';'+blFirst+bgBucket;
+      var wStyle =pad+weight+'color:'+FG_W +';'+blInner+bgBucket;
+      return '<td style="'+stStyle+'"'+clickAttr(stK,stVal)+'>'+stVal+'</td>'
+            +'<td style="'+wStyle+'"' +clickAttr(wK ,wVal)+'>'+wVal+'</td>';
+    };
+    // Build one body row's cells (across every ET + the right-most Total).
+    // Aggregates rowS / rowW used for the Total column at the right.
+    var buildRow=function(plant){
+      var cells='';
+      var rowS={p:0,a:0,total:0,empsP:[],empsA:[]};
+      var rowW={p:0,a:0,total:0,empsP:[],empsA:[]};
+      ets.forEach(function(et,i){
+        var cS=(gridStaff[plant]&&gridStaff[plant][et])||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        var cW=(gridWorker[plant]&&gridWorker[plant][et])||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        rowS.p+=cS.p;rowS.a+=cS.a;rowS.total+=cS.total;rowS.empsP=rowS.empsP.concat(cS.empsP||[]);rowS.empsA=rowS.empsA.concat(cS.empsA||[]);
+        rowW.p+=cW.p;rowW.a+=cW.a;rowW.total+=cW.total;rowW.empsP=rowW.empsP.concat(cW.empsP||[]);rowW.empsA=rowW.empsA.concat(cW.empsA||[]);
+        cells+=pair(plant,et,'p',cS,cW,true ,false)
+              +pair(plant,et,'a',cS,cW,false,false)
+              +pair(plant,et,'t',cS,cW,false,false);
+      });
+      // Right-most Total column group — bucket colouring stays, just the
+      // ET-group separator marks the boundary.
+      cells+=pair(plant,'__ALL__','p',rowS,rowW,true ,false)
+            +pair(plant,'__ALL__','a',rowS,rowW,false,false)
+            +pair(plant,'__ALL__','t',rowS,rowW,false,false);
+      return {cells:cells,rowS:rowS,rowW:rowW};
+    };
+    // Accumulators for the grand-total row across plants.
+    var gEtS={},gEtW={};
+    var gAllS={p:0,a:0,total:0,empsP:[],empsA:[]};
+    var gAllW={p:0,a:0,total:0,empsP:[],empsA:[]};
+    var bodyHtml='';
+    plants.forEach(function(plant){
+      var hasS=!!gridStaff[plant];
+      var hasW=!!gridWorker[plant];
+      if(!hasS&&!hasW) return;
+      var plClr=(typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(plant):'#fff';
+      var plSf=(typeof _hrmsPlantShortForm==='function')?(_hrmsPlantShortForm(plant)||plant.slice(0,4)):plant.slice(0,4);
+      var plantCellHtml='<td style="padding:5px 10px;border-right:1.5px solid #94a3b8;background:#fff;white-space:nowrap;vertical-align:middle" title="'+_esc(plant)+'"><span style="display:inline-block;padding:3px 9px;border-radius:5px;background:'+plClr+';color:#0f172a;font-weight:900;font-size:12px;letter-spacing:.4px">'+_esc(plSf)+'</span></td>';
+      var r=buildRow(plant,'');
+      // Roll into per-ET grand totals.
+      ets.forEach(function(et){
+        var cS=(gridStaff[plant]&&gridStaff[plant][et])||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        var cW=(gridWorker[plant]&&gridWorker[plant][et])||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        gEtS[et]=gEtS[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        gEtW[et]=gEtW[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+        gEtS[et].p+=cS.p;gEtS[et].a+=cS.a;gEtS[et].total+=cS.total;gEtS[et].empsP=gEtS[et].empsP.concat(cS.empsP||[]);gEtS[et].empsA=gEtS[et].empsA.concat(cS.empsA||[]);
+        gEtW[et].p+=cW.p;gEtW[et].a+=cW.a;gEtW[et].total+=cW.total;gEtW[et].empsP=gEtW[et].empsP.concat(cW.empsP||[]);gEtW[et].empsA=gEtW[et].empsA.concat(cW.empsA||[]);
+      });
+      gAllS.p+=r.rowS.p;gAllS.a+=r.rowS.a;gAllS.total+=r.rowS.total;gAllS.empsP=gAllS.empsP.concat(r.rowS.empsP);gAllS.empsA=gAllS.empsA.concat(r.rowS.empsA);
+      gAllW.p+=r.rowW.p;gAllW.a+=r.rowW.a;gAllW.total+=r.rowW.total;gAllW.empsP=gAllW.empsP.concat(r.rowW.empsP);gAllW.empsA=gAllW.empsA.concat(r.rowW.empsA);
+      bodyHtml+='<tr style="border-bottom:1px solid #e2e8f0">'+plantCellHtml+r.cells+'</tr>';
+    });
+    // Grand Total row — single row, isGT=true bumps the bucket bg one
+    // notch darker so the row reads as a summary against the per-plant
+    // rows above it.
+    var grandCells='';
+    ets.forEach(function(et,i){
+      var cS=gEtS[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+      var cW=gEtW[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};
+      grandCells+=pair('__ALL__',et,'p',cS,cW,true ,true)
+                 +pair('__ALL__',et,'a',cS,cW,false,true)
+                 +pair('__ALL__',et,'t',cS,cW,false,true);
+    });
+    grandCells+=pair('__ALL__','__ALL__','p',gAllS,gAllW,true ,true)
+              +pair('__ALL__','__ALL__','a',gAllS,gAllW,false,true)
+              +pair('__ALL__','__ALL__','t',gAllS,gAllW,false,true);
+    bodyHtml+='<tr style="border-top:2px solid #334155">'
+      +'<td style="padding:8px 10px;font-weight:900;font-size:12px;color:#0f172a;border-right:'+BORDER_GROUP+';line-height:1.15;background:#cbd5e1;text-align:center">Grand<br>Total</td>'
+      +grandCells+'</tr>';
+    // V112: Combined ST+W summary row directly under Grand Total. Each
+    // P / A / Total pair collapses into a single colspan-2 cell showing
+    // the ST+W combined count; the A cell also carries the combined
+    // absenteeism % so the reader sees count and rate in one place.
+    var combinedCell=function(stVal,wVal,bucket,total){
+      var sum=stVal+wVal;
+      var bg=bgFor(bucket,true);
+      var fg=bucket==='p'?'#15803d':(bucket==='a'?'#b91c1c':'#0f172a');
+      var txt=String(sum);
+      if(bucket==='a'&&total>0) txt+=' <span style="font-size:10px;color:#b45309;font-weight:800">('+_pct(sum,total)+')</span>';
+      return '<td colspan="2" style="padding:6px 6px;text-align:center;font-family:var(--mono);font-weight:900;font-size:12px;color:'+fg+';'+bg+'border-left:'+BORDER_GROUP+'">'+txt+'</td>';
+    };
+    var combRowCells='';
+    ets.forEach(function(et){
+      var cS=gEtS[et]||{p:0,a:0,total:0};
+      var cW=gEtW[et]||{p:0,a:0,total:0};
+      var grpT=cS.total+cW.total;
+      combRowCells+=combinedCell(cS.p,cW.p,'p',grpT)
+                   +combinedCell(cS.a,cW.a,'a',grpT)
+                   +combinedCell(cS.total,cW.total,'t',grpT);
+    });
+    var allT=gAllS.total+gAllW.total;
+    combRowCells+=combinedCell(gAllS.p,gAllW.p,'p',allT)
+                 +combinedCell(gAllS.a,gAllW.a,'a',allT)
+                 +combinedCell(gAllS.total,gAllW.total,'t',allT);
+    bodyHtml+='<tr style="border-top:1px solid #94a3b8">'
+      +'<td style="padding:6px 6px;font-weight:900;font-size:11px;color:#0f172a;border-right:'+BORDER_GROUP+';background:#cbd5e1;text-align:center;line-height:1.15" title="Combined Staff + Workers">ST + W</td>'
+      +combRowCells+'</tr>';
+    // V110: dedicated % Absenteeism footer row directly below Grand
+    // Total. Only the A-ST / A-W columns carry a value; P and Total
+    // sub-cells stay blank so the eye reads "% under absent count".
+    // P pair gets the light-green tint, A pair gets the light-red tint,
+    // T pair stays neutral — matches the bucket cue used above.
+    var pctPad='padding:4px 5px;text-align:center;font-family:var(--mono);font-weight:800;font-size:11px;color:#b45309;';
+    var pctCellEmpty=function(bg,first){
+      var bl=first?'border-left:'+BORDER_GROUP:'border-left:'+BORDER_INNER;
+      return '<td style="'+pctPad+bg+bl+'"></td>';
+    };
+    var pctCell=function(c,fg){
+      var v=c.total?_pct(c.a,c.total):'—';
+      return '<td style="'+pctPad+BG_A+'border-left:'+BORDER_INNER+';color:'+fg+'">'+v+'</td>';
+    };
+    var pctRowCells='';
+    ets.forEach(function(et){
+      var cS=gEtS[et]||{p:0,a:0,total:0};
+      var cW=gEtW[et]||{p:0,a:0,total:0};
+      // P pair — empty (% sits under A only).
+      pctRowCells+=pctCellEmpty(BG_P,true)+pctCellEmpty(BG_P,false);
+      // A pair — show %.
+      pctRowCells+=pctCell(cS,FG_ST)+pctCell(cW,FG_W);
+      // Total pair — empty.
+      pctRowCells+=pctCellEmpty(BG_T,false)+pctCellEmpty(BG_T,false);
+    });
+    // Right-most Total group.
+    pctRowCells+=pctCellEmpty(BG_P,true)+pctCellEmpty(BG_P,false);
+    pctRowCells+=pctCell(gAllS,FG_ST)+pctCell(gAllW,FG_W);
+    pctRowCells+=pctCellEmpty(BG_T,false)+pctCellEmpty(BG_T,false);
+    bodyHtml+='<tr style="border-top:1px solid #cbd5e1">'
+      +'<td style="padding:4px 8px;font-weight:800;font-size:11px;color:#b45309;border-right:'+BORDER_GROUP+';line-height:1.2;text-align:center;background:#fff7ed">% Absent</td>'
+      +pctRowCells+'</tr>';
+    // 3-level header: ET group → P / A / Total → ST | W.
+    // V111 — darker slate separator between ET groups carries through
+    // every header row so On Roll / Contract / Piece Rate / Total each
+    // sit in clearly walled-off 6-column sets.
+    var thBg='linear-gradient(180deg,#f8fafc,#e2e8f0)';
+    var thBase='padding:6px 6px;text-align:center;font-weight:800;font-size:12px;color:#0f172a;background:'+thBg+';border-bottom:2px solid #334155;white-space:nowrap';
+    var lvl2='padding:3px 5px;text-align:center;font-weight:800;font-size:11px;color:#334155;background:#f8fafc;border-bottom:1px solid #cbd5e1;white-space:nowrap';
+    var lvl3='padding:2px 4px;text-align:center;font-weight:800;font-size:10px;border-bottom:2px solid #334155;letter-spacing:.4px;white-space:nowrap';
+    var theadHtml='<thead><tr>'
+      +'<th rowspan="3" style="'+thBase+';text-align:left;padding:6px 8px;background:#fff;line-height:1.15">Plant</th>';
+    ets.forEach(function(et){
+      var pal=_palette[et]||{bg:'#f1f5f9',fg:'#475569'};
+      theadHtml+='<th colspan="6" style="'+thBase+';background:'+pal.bg+';color:'+pal.fg+';border-left:'+BORDER_GROUP+'">'+_esc(et)+'</th>';
+    });
+    theadHtml+='<th colspan="6" style="'+thBase+';background:#e0e7ff;color:#3730a3;border-left:'+BORDER_GROUP+'">Total</th></tr>';
+    // Level 2 — P / A / Total under each ET (and Total group). Each
+    // P/A/T header gets the same bucket-tinted bg as the cells below it.
+    theadHtml+='<tr>';
+    var l2=function(label,bucket,first){
+      var bg=bucket==='p'?BG_P:(bucket==='a'?BG_A:BG_T);
+      var fg=bucket==='p'?'#15803d':(bucket==='a'?'#b91c1c':'#0f172a');
+      var bl=first?';border-left:'+BORDER_GROUP:';border-left:'+BORDER_INNER;
+      return '<th colspan="2" style="'+lvl2+bl+';color:'+fg+';'+bg+'" title="'+label+'">'+label+'</th>';
+    };
+    ets.forEach(function(et){
+      theadHtml+=l2('P','p',true)+l2('A','a',true)+l2('Total','t',true);
+    });
+    theadHtml+=l2('P','p',true)+l2('A','a',true)+l2('Total','t',true);
+    theadHtml+='</tr><tr>';
+    // Level 3 — ST | W repeated 6× per ET group. Bucket-tinted bg + the
+    // ST/W text colour so it teaches the reader the cell scheme.
+    var l3=function(sub,bucket,first){
+      var bg=bucket==='p'?BG_P:(bucket==='a'?BG_A:BG_T);
+      var clr=sub==='ST'?FG_ST:FG_W;
+      var bl=first?';border-left:'+BORDER_GROUP:';border-left:'+BORDER_INNER;
+      return '<th style="'+lvl3+bl+';color:'+clr+';'+bg+'">'+sub+'</th>';
+    };
+    var et6=function(){
+      // Each bucket's first sub-cell (ST) carries the group border —
+      // marks the start of a new 6-col set even at the level-3 row.
+      return l3('ST','p',true)+l3('W','p',false)
+            +l3('ST','a',true)+l3('W','a',false)
+            +l3('ST','t',true)+l3('W','t',false);
+    };
+    ets.forEach(function(){theadHtml+=et6();});
+    theadHtml+=et6();
+    theadHtml+='</tr></thead>';
+    var totGT=gAllS.total+gAllW.total,totGP=gAllS.p+gAllW.p,totGA=gAllS.a+gAllW.a;
+    var headerBits=totGT
+      ?'<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;font-weight:800;margin-left:auto"><span style="color:#16a34a">● P '+totGP+'</span><span style="color:#dc2626">● A '+totGA+'</span><span style="color:#b45309">Absenteeism '+_pct(totGA,totGT)+'</span></div>'
+      :'';
+    // V110: table no longer stretches to container width. Fixed-layout
+    // with explicit colgroup widths so every P/A/T sub-column is exactly
+    // the same width and the whole table sits at its natural size on the
+    // left (with horizontal scroll if the screen is narrower than the
+    // natural width).
+    var COL_W=38;       // data sub-col width — same for ST/W/P/A/T cells
+    var PLANT_W=64;     // left-most plant chip column
+    var dataCols=(ets.length+1)*6;// 6 sub-cols per ET group + Total group
+    var tableW=PLANT_W+dataCols*COL_W;
+    var colGroup='<colgroup><col style="width:'+PLANT_W+'px">';
+    for(var _ci=0;_ci<dataCols;_ci++) colGroup+='<col style="width:'+COL_W+'px">';
+    colGroup+='</colgroup>';
+    var h='<div style="font-size:14px;font-weight:900;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>🏭 Plant-wise Attendance</span>'+headerBits+'</div>';
+    h+='<div style="border:1.5px solid #94a3b8;border-radius:8px;overflow:auto;display:inline-block;max-width:100%"><table style="border-collapse:collapse;font-size:12px;table-layout:fixed;width:'+tableW+'px">'+colGroup+theadHtml+'<tbody>'+bodyHtml+'</tbody></table></div>';
+    // Back-compat shape for export: synthesize the legacy fields the
+    // exporter reads. gT_S / gT_W / gP_S / etc. now derive from the row
+    // aggregates we already track.
+    return {html:h,plants:plants,ets:ets,
+      gP_S:gAllS.p,gA_S:gAllS.a,gT_S:gAllS.total,
+      gP_W:gAllW.p,gA_W:gAllW.a,gT_W:gAllW.total,
+      gridS:gridStaff,gridW:gridWorker,gEtS:gEtS,gEtW:gEtW,
+      gEtAll:(function(){var o={};ets.forEach(function(et){var s=gEtS[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};var w=gEtW[et]||{p:0,a:0,total:0,empsP:[],empsA:[]};o[et]={p:s.p+w.p,a:s.a+w.a,total:s.total+w.total,empsP:s.empsP.concat(w.empsP),empsA:s.empsA.concat(w.empsA)};});return o;})()
+    };
+  })();
+  if(!combinedOut){body.innerHTML='<div class="empty-state" style="padding:40px">No active employees configured.</div>';window._hrmsPwAttExportCtx=null;return;}
   var pwStyle='<style>'
     +'#hrmsPwAttBody td[onclick]{transition:background .12s,box-shadow .12s,transform .12s}'
     +'#hrmsPwAttBody td[onclick]:hover{background:#fde68a!important;box-shadow:inset 0 0 0 2px #f59e0b;cursor:pointer}'
     +'#hrmsPwAttBody td[onclick]:active{transform:translateY(1px)}'
     +'</style>';
-  body.innerHTML=pwStyle+pickHtml(workersOut)+pickHtml(staffOut);
-  // Stash both tables for the Excel export — two sheets, one per category.
-  window._hrmsPwAttExportCtx={
-    iso:iso,
-    dateLbl:lbl?lbl.textContent:'',
-    workers:pickCtx(workersOut),
-    staff:pickCtx(staffOut)
-  };
+  body.innerHTML=pwStyle+combinedOut.html;
+  window._hrmsPwAttExportCtx={iso:iso,dateLbl:lbl?lbl.textContent:'',combined:combinedOut};
 }
 // Cell-click handler — opens the shared emp-details popup with the
 // rows stashed during render. Subtitle reflects the cell scope.
@@ -12886,35 +13302,1019 @@ function _hrmsPwAttShowCell(key){
 }
 function _hrmsPwAttExport(){
   var ctx=window._hrmsPwAttExportCtx;
-  if(!ctx||(!ctx.workers&&!ctx.staff)){notify('Nothing to export — load a date first',true);return;}
+  var c=ctx&&ctx.combined;
+  if(!c){notify('Nothing to export — load a date first',true);return;}
   if(typeof XLSX==='undefined'){notify('Export requires XLSX library',true);return;}
   var _pct=function(a,t){if(!t) return 0;return Math.round((a/t)*1000)/10;};
-  var buildSheet=function(sub){
+  // V104: combined-table export. Each category (Staff / Workers) gets
+  // its own sheet so workbook consumers can pivot cleanly; an extra
+  // "Combined" sheet roll-up both at the bottom.
+  var buildSheet=function(grid,gEt,gP,gA,gT){
     var head1=['Plant'];var head2=[''];
-    sub.ets.forEach(function(et){head1.push(et,'','','');head2.push('P','A','Total','%Abs');});
+    c.ets.forEach(function(et){head1.push(et,'','','');head2.push('P','A','Total','%Abs');});
     head1.push('Total','','','');head2.push('P','A','Total','%Abs');
     var rows=[head1,head2];
-    sub.plants.forEach(function(p){
+    c.plants.forEach(function(p){
+      if(!grid[p]) return;
       var r=[p];var rP=0,rA=0,rT=0;
-      sub.ets.forEach(function(et){
-        var c=(sub.grid[p]&&sub.grid[p][et])||{p:0,a:0,total:0};
-        r.push(c.p,c.a,c.total,_pct(c.a,c.total));
-        rP+=c.p;rA+=c.a;rT+=c.total;
+      c.ets.forEach(function(et){
+        var cc=(grid[p]&&grid[p][et])||{p:0,a:0,total:0};
+        r.push(cc.p,cc.a,cc.total,_pct(cc.a,cc.total));
+        rP+=cc.p;rA+=cc.a;rT+=cc.total;
       });
       r.push(rP,rA,rT,_pct(rA,rT));
       rows.push(r);
     });
     var gRow=['Grand Total'];
-    sub.ets.forEach(function(et){var c=sub.gEt[et]||{p:0,a:0,total:0};gRow.push(c.p,c.a,c.total,_pct(c.a,c.total));});
-    gRow.push(sub.gP,sub.gA,sub.gT,_pct(sub.gA,sub.gT));
+    c.ets.forEach(function(et){var cc=gEt[et]||{p:0,a:0,total:0};gRow.push(cc.p,cc.a,cc.total,_pct(cc.a,cc.total));});
+    gRow.push(gP,gA,gT,_pct(gA,gT));
     rows.push(gRow);
     return XLSX.utils.aoa_to_sheet(rows);
   };
   var wb=XLSX.utils.book_new();
-  if(ctx.workers) XLSX.utils.book_append_sheet(wb,buildSheet(ctx.workers),'Workers');
-  if(ctx.staff)   XLSX.utils.book_append_sheet(wb,buildSheet(ctx.staff),'Staff');
+  if(c.gT_W) XLSX.utils.book_append_sheet(wb,buildSheet(c.gridW,c.gEtW,c.gP_W,c.gA_W,c.gT_W),'Workers');
+  if(c.gT_S) XLSX.utils.book_append_sheet(wb,buildSheet(c.gridS,c.gEtS,c.gP_S,c.gA_S,c.gT_S),'Staff');
+  // Combined sheet — Plant + Category + emp-type cells. Useful for
+  // straight reporting that mirrors the on-screen table.
+  var head1=['Plant','Category'];var head2=['',''];
+  c.ets.forEach(function(et){head1.push(et,'','','');head2.push('P','A','Total','%Abs');});
+  head1.push('Total','','','');head2.push('P','A','Total','%Abs');
+  var rows=[head1,head2];
+  var addRow=function(plant,cat,grid){
+    if(!grid[plant]) return;
+    var r=[plant,cat];var rP=0,rA=0,rT=0;
+    c.ets.forEach(function(et){
+      var cc=(grid[plant]&&grid[plant][et])||{p:0,a:0,total:0};
+      r.push(cc.p,cc.a,cc.total,_pct(cc.a,cc.total));
+      rP+=cc.p;rA+=cc.a;rT+=cc.total;
+    });
+    r.push(rP,rA,rT,_pct(rA,rT));
+    rows.push(r);
+  };
+  c.plants.forEach(function(p){addRow(p,'Staff',c.gridS);addRow(p,'Workers',c.gridW);});
+  var addGrand=function(label,gEt,gP,gA,gT){
+    var r=[label,''];
+    c.ets.forEach(function(et){var cc=gEt[et]||{p:0,a:0,total:0};r.push(cc.p,cc.a,cc.total,_pct(cc.a,cc.total));});
+    r.push(gP,gA,gT,_pct(gA,gT));
+    rows.push(r);
+  };
+  addGrand('All Staff',c.gEtS,c.gP_S,c.gA_S,c.gT_S);
+  addGrand('All Workers',c.gEtW,c.gP_W,c.gA_W,c.gT_W);
+  addGrand('Grand Total',c.gEtAll,c.gP_S+c.gP_W,c.gA_S+c.gA_W,c.gT_S+c.gT_W);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Combined');
   XLSX.writeFile(wb,'Plantwise_Attendance_'+ctx.iso+'.xlsx');
   notify('📤 Exported Plant-wise Attendance');
+}
+
+// ═══ Employee Attendance — full-month detail for one employee ═══════
+// Hosted on its own page (pageHrmsEmpAtt) under Day-wise Attendance.
+// V109: was a popup overlay launched from the Plant-wise page; promoted
+// to a first-class page so it can be permission-gated independently
+// and bookmarked from the sidebar like every other day-wise view.
+//
+// Shift / late rules:
+//   Worker day shift   — start 08:00 (late if in > 08:15)
+//   Worker night shift — start 19:00 (late if in > 19:15)
+//   Staff day shift    — start 09:00 (late if in > 09:15)
+//   Night shift detected when OUT < IN (crosses midnight) OR when IN
+//   sits in the late-evening window (≥ 17:00).
+function _hrmsEmpAttInit(){
+  // Default the month picker to today; remember the user's choice on
+  // re-entry so navigating away and back doesn't reset it.
+  if(!window._hrmsEmpAttMk){
+    var n=new Date();
+    window._hrmsEmpAttMk=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');
+  }
+  if(!window._hrmsEmpAttCode) window._hrmsEmpAttCode='';
+  // V115 — Late Marked Employees is the primary tab now (moved to first
+  // position). Default new visits land there; returning visits remember
+  // the user's last selection.
+  if(!window._hrmsEmpAttTab) window._hrmsEmpAttTab='late';
+  if(!window._hrmsEmpAttView) window._hrmsEmpAttView='calendar';
+  _hrmsEmpAttSetTab(window._hrmsEmpAttTab);
+}
+
+// Tab switcher — flips the visual state and re-renders both the
+// controls strip and the body for the active view.
+function _hrmsEmpAttSetTab(tab){
+  window._hrmsEmpAttTab=(tab==='late')?'late':'single';
+  // Style the tab buttons — accent underline on the active one.
+  var t1=document.getElementById('hrmsEmpAttTabSingle');
+  var t2=document.getElementById('hrmsEmpAttTabLate');
+  var paint=function(el,active){
+    if(!el) return;
+    el.style.color=active?'var(--accent)':'#64748b';
+    el.style.borderBottomColor=active?'var(--accent)':'transparent';
+    el.style.background=active?'#eef2ff':'transparent';
+  };
+  paint(t1,window._hrmsEmpAttTab==='single');
+  paint(t2,window._hrmsEmpAttTab==='late');
+  if(window._hrmsEmpAttTab==='late'){
+    if(!window._hrmsEmpAttLateIso){
+      var d=new Date();
+      window._hrmsEmpAttLateIso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+    _hrmsEmpAttLateRenderCtrls();
+    _hrmsEmpAttLateRender();
+  } else {
+    _hrmsEmpAttRenderCtrls();
+    if(window._hrmsEmpAttCode) _hrmsEmpAttRenderBody();
+    else {
+      var body=document.getElementById('hrmsEmpAttBody');
+      if(body) body.innerHTML='<div style="text-align:center;color:#94a3b8;padding:60px 20px;font-size:14px">Select an employee from the search box above.</div>';
+    }
+  }
+}
+
+// Plant-level shift times — Worker day / night start. Defaults to
+// 08:00 / 19:00 when the plant has no override. Stored in hrmsSettings
+// under key 'plantShiftTimes' (no DB schema change needed).
+// Lookup is lenient — tries:
+//   1. exact match
+//   2. case-insensitive trimmed match  ("Plant-4 " → "plant-4")
+//   3. alphanumeric-only match         ("Plant-4" ≡ "Plant 4" ≡ "plant4")
+// so legacy plant-name variants (separator drift, trailing space, case)
+// still resolve to the right record.
+function _hrmsGetPlantShiftTimes(plantName){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='plantShiftTimes';});
+  var all=(rec&&rec.data)||{};
+  if(!plantName) return {day:'08:00',night:'19:00'};
+  var p=all[plantName];
+  if(!p){
+    var needle=String(plantName).trim().toLowerCase();
+    var hitKey=Object.keys(all).find(function(k){return String(k).trim().toLowerCase()===needle;});
+    if(hitKey) p=all[hitKey];
+  }
+  if(!p){
+    var alnum=String(plantName).toLowerCase().replace(/[^a-z0-9]/g,'');
+    if(alnum){
+      var hitAlnum=Object.keys(all).find(function(k){return String(k).toLowerCase().replace(/[^a-z0-9]/g,'')===alnum;});
+      if(hitAlnum) p=all[hitAlnum];
+    }
+  }
+  p=p||{};
+  return {day:p.day||'08:00', night:p.night||'19:00'};
+}
+
+// Persist a plant's day/night shift start. Re-renders the master so
+// the inline time inputs reflect the saved value.
+async function _hrmsSetPlantShiftTime(plantName,type,value){
+  if(typeof _hrmsCanEditMasterPage==='function' && !_hrmsCanEditMasterPage('pageHrmsMCompany')){
+    if(typeof notify==='function') notify('⚠ View-only access to masters.',true);
+    return;
+  }
+  if(!/^\d{1,2}:\d{2}$/.test(String(value||''))){
+    if(typeof notify==='function') notify('⚠ Invalid time format (use HH:MM)',true);
+    return;
+  }
+  DB.hrmsSettings=DB.hrmsSettings||[];
+  var rec=DB.hrmsSettings.find(function(r){return r.key==='plantShiftTimes';});
+  if(!rec){
+    var nid='st_'+((typeof uid==='function')?uid():Date.now().toString(36));
+    rec={id:nid,key:'plantShiftTimes',data:{}};
+    DB.hrmsSettings.push(rec);
+  }
+  rec.data=rec.data||{};
+  rec.data[plantName]=rec.data[plantName]||{};
+  rec.data[plantName][type]=value;
+  try{
+    await _dbSave('hrmsSettings',rec);
+    if(typeof notify==='function') notify('✓ '+plantName+' '+(type==='day'?'day':'night')+' shift → '+value);
+  }catch(e){
+    console.error('Plant shift save error:',e);
+    if(typeof notify==='function') notify('⚠ Failed to save shift time',true);
+  }
+}
+
+// Shift-detection rules shared between the single-emp month view and
+// the Late List. Worker day / night start times come from the plant's
+// configured values (see _hrmsGetPlantShiftTimes). Staff day stays at
+// 09:00 across all plants. 15-minute grace before the L mark.
+//
+// V115 — night-shift detection is now plant-aware. Earlier code used a
+// hardcoded 17:00 threshold which broke plants whose night shift starts
+// outside 19:00 — e.g., Plant-4 at 20:00. New logic picks whichever
+// shift's start sits closer to the in-time (mod 24h). Same crossed-
+// midnight short-circuit when both IN and OUT are present.
+function _hrmsEmpAttShiftOf(inT,outT,isStaff,plant){
+  var times=(plant&&typeof _hrmsGetPlantShiftTimes==='function')?_hrmsGetPlantShiftTimes(plant):{day:'08:00',night:'19:00'};
+  var parseT=function(s){var m=String(s||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return null; return +m[1]*60 + +m[2];};
+  var dayStart=parseT(times.day);   if(dayStart==null)   dayStart=8*60;
+  var nightStart=parseT(times.night); if(nightStart==null) nightStart=19*60;
+  var SHIFT={
+    worker_day:   {start: dayStart,    grace:15, label:'Day'  },
+    worker_night: {start: nightStart,  grace:15, label:'Night'},
+    staff_day:    {start: 9*60,        grace:15, label:'Day'  }
+  };
+  var inMin=(typeof _hrmsParseTime==='function')?_hrmsParseTime(inT):null;
+  var outMin=(typeof _hrmsParseTime==='function')?_hrmsParseTime(outT):null;
+  // Modular distance — handles the 24-hour wrap so 23:00 is "close" to
+  // 01:00 (2h apart, not 22h).
+  var distMod24=function(a,b){var d=Math.abs(a-b);return Math.min(d,24*60-d);};
+  var isNight=false;
+  if(inMin!=null&&outMin!=null&&outMin<inMin){
+    isNight=true; // crossed midnight → must be night
+  } else if(inMin!=null){
+    // Closer to night-start than day-start (mod 24h) → night.
+    if(distMod24(inMin,nightStart)<distMod24(inMin,dayStart)) isNight=true;
+  }
+  var key=isStaff?'staff_day':(isNight?'worker_night':'worker_day');
+  return {inMin:inMin,outMin:outMin,isNight:isNight,key:key,shift:SHIFT[key]};
+}
+
+// Late List — controls strip with a prev/next date stepper + native
+// date picker. Defaults to today.
+function _hrmsEmpAttLateRenderCtrls(){
+  var c=document.getElementById('hrmsEmpAttCtrls');
+  if(!c) return;
+  var iso=window._hrmsEmpAttLateIso;
+  c.innerHTML=''
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">DATE</span>'
+    +'<button onclick="_hrmsEmpAttLateShiftDate(-1)" title="Previous day" style="padding:4px 9px;font-size:13px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:5px;cursor:pointer;line-height:1">◀</button>'
+    +'<input type="date" id="hrmsEmpAttLateDate" value="'+iso+'" onchange="window._hrmsEmpAttLateIso=this.value;_hrmsEmpAttLateRender()" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--accent);border-radius:5px">'
+    +'<button onclick="_hrmsEmpAttLateShiftDate(1)" title="Next day" style="padding:4px 9px;font-size:13px;font-weight:900;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:5px;cursor:pointer;line-height:1">▶</button>'
+    +'<span id="hrmsEmpAttLateCount" style="font-size:12px;font-weight:800;color:#b91c1c;margin-left:8px"></span>';
+}
+
+function _hrmsEmpAttLateShiftDate(delta){
+  var iso=window._hrmsEmpAttLateIso;
+  var d=new Date(iso+'T00:00:00');
+  d.setDate(d.getDate()+delta);
+  var nyr=d.getFullYear(),nmo=String(d.getMonth()+1).padStart(2,'0'),ndd=String(d.getDate()).padStart(2,'0');
+  window._hrmsEmpAttLateIso=nyr+'-'+nmo+'-'+ndd;
+  var inp=document.getElementById('hrmsEmpAttLateDate');
+  if(inp) inp.value=window._hrmsEmpAttLateIso;
+  _hrmsEmpAttLateRender();
+}
+
+// Click a header to sort by that column — toggles asc / desc.
+function _hrmsEmpAttLateSortBy(col){
+  var s=window._hrmsEmpAttLateSort||{};
+  if(s.col===col) s.dir=(s.dir==='asc'?'desc':'asc');
+  else { s.col=col; s.dir='asc'; }
+  window._hrmsEmpAttLateSort=s;
+  _hrmsEmpAttLateRender();
+}
+
+// Update a filter and re-render — refocuses the same input afterwards
+// so typing isn't interrupted by the re-render.
+function _hrmsEmpAttLateSetFilter(key,val){
+  if(!window._hrmsEmpAttLateFilters) window._hrmsEmpAttLateFilters={plant:'',empCode:'',name:'',et:'',team:'',cat:'all',shift:'all'};
+  window._hrmsEmpAttLateFilters[key]=val;
+  _hrmsEmpAttLateRender();
+  // Refocus the input the user was typing into. The render rebuilds
+  // the thead, so the live input is the freshly-recreated one with the
+  // same key + value.
+  setTimeout(function(){
+    var sel='#hrmsEmpAttBody input[oninput*="_hrmsEmpAttLateSetFilter(\''+key+'\'"]';
+    var inp=document.querySelector(sel);
+    if(inp){
+      inp.focus();
+      try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(_){}
+    }
+  },0);
+}
+
+// Cross-tab navigation — jump to Single Employee tab focused on the
+// employee whose code was clicked in the Late List. Syncs the month to
+// the late list's selected date so the user lands on the right page.
+function _hrmsEmpAttLateGoToSingle(empCode){
+  var iso=window._hrmsEmpAttLateIso;
+  if(iso){
+    var sp=iso.split('-');
+    if(sp[0]&&sp[1]) window._hrmsEmpAttMk=sp[0]+'-'+sp[1];
+  }
+  window._hrmsEmpAttCode=empCode;
+  _hrmsEmpAttSetTab('single');
+}
+
+// Calendar / Table view toggle for the Single Employee tab.
+function _hrmsEmpAttSetView(view){
+  window._hrmsEmpAttView=(view==='table')?'table':'calendar';
+  // Re-render both controls (so the toggle buttons reflect the new
+  // active state) and the body.
+  _hrmsEmpAttRenderCtrls();
+  if(window._hrmsEmpAttCode) _hrmsEmpAttRenderBody();
+}
+
+function _hrmsEmpAttLateRender(){
+  var body=document.getElementById('hrmsEmpAttBody');
+  if(!body) return;
+  var iso=window._hrmsEmpAttLateIso;
+  if(!iso){body.innerHTML='<div style="text-align:center;color:#94a3b8;padding:60px 20px;font-size:14px">Pick a date.</div>';return;}
+  var parts=iso.split('-');
+  var yy=+parts[0],mm=+parts[1],dd=+parts[2];
+  var mk=parts[0]+'-'+parts[1];
+  // Lazy-fetch this month's attendance + alterations.
+  if(typeof _hrmsAttFetchMonth==='function'&&!(window._hrmsAttCache&&_hrmsAttCache[mk])&&!window._hrmsEmpAttLateFetching){
+    window._hrmsEmpAttLateFetching=true;
+    body.innerHTML='<div style="text-align:center;color:#94a3b8;padding:60px 20px;font-size:14px">Loading attendance for '+mk+'…</div>';
+    var p=_hrmsAttFetchMonth(mk);
+    var done=function(){window._hrmsEmpAttLateFetching=false;try{_hrmsEmpAttLateRender();}catch(_){}};
+    if(p&&typeof p.then==='function') p.then(done).catch(done); else done();
+    return;
+  }
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  // Build a (empCode → in/out entry) map for the selected day.
+  // Alteration wins over the raw attendance row.
+  var entryByCode={};
+  var absorb=function(arr){
+    (arr||[]).forEach(function(rec){
+      if(!rec||!rec.empCode||!rec.days) return;
+      var d=rec.days[dd]||rec.days[String(dd)]||rec.days[String(dd).padStart(2,'0')];
+      if(d&&(d.in||d['in'])) entryByCode[rec.empCode]=d;
+    });
+  };
+  absorb(window._hrmsAttCache&&_hrmsAttCache[mk]);
+  absorb(window._hrmsAltCache&&_hrmsAltCache[mk]);
+  // Walk every active employee, classify shift, mark late if in-time
+  // crosses shift-start + 15 min.
+  var late=[];
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||e.inactive||!e.empCode) return;
+    var entry=entryByCode[e.empCode];
+    if(!entry) return;
+    var inT=entry.in||entry['in']||'';
+    var outT=entry.out||entry['out']||'';
+    if(!inT) return;
+    // V115: resolve plant / category / et from the canonical per-month
+    // snapshot first (emp.salaryMonths[mk]) — that's the source of truth
+    // after the from/to-period model was retired. Falls back to the
+    // active period, then the flat fields, so legacy records still work.
+    var snap=(typeof _hrmsGetSalaryMonth==='function')?_hrmsGetSalaryMonth(e,mk):null;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var pick=function(field){
+      if(snap&&snap[field]!=null&&snap[field]!=='') return snap[field];
+      if(ap&&ap[field]!=null&&ap[field]!=='') return ap[field];
+      return e[field]||'';
+    };
+    var cat=String(pick('category')||'').toLowerCase();
+    var isStaff=cat.indexOf('staff')>=0;
+    var plantForShift=String(pick('location')||'').trim();
+    var sd=_hrmsEmpAttShiftOf(inT,outT,isStaff,plantForShift);
+    if(sd.inMin==null||!sd.shift) return;
+    var cutoff=sd.shift.start+sd.shift.grace;
+    if(sd.inMin<=cutoff) return;
+    var lateMin=sd.inMin-sd.shift.start;
+    var plant=plantForShift;
+    var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'—';
+    var pClr=plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0';
+    var nm=(typeof _hrmsDispName==='function')?_hrmsDispName(e):(e.fullName||e.name||'');
+    var team=String(pick('teamName')||'').trim()||'—';
+    var et=String(pick('employmentType')||'').trim()||'—';
+    late.push({empCode:e.empCode,name:nm,team:team,et:et,plant:plant,pSf:pSf,pClr:pClr,isStaff:isStaff,isNight:sd.isNight,shift:sd.shift,inT:inT,outT:outT,inMin:sd.inMin,lateMin:lateMin});
+  });
+  // Stash the full unfiltered list so filter/sort interactions don't
+  // need to re-walk the cache. Filter + sort happen in a follow-up
+  // pass below, after the user's preferences are applied.
+  window._hrmsEmpAttLateAll=late;
+  // Default sort: plant short-form → emp code (matches Single Employee
+  // dropdown). Stored so subsequent renders honour the user's choice.
+  if(!window._hrmsEmpAttLateSort) window._hrmsEmpAttLateSort={col:'plant',dir:'asc'};
+  // V114 — Plant / Emp Type / Team / Shift filters are combo boxes
+  // (exact-match value or 'all'); Emp Code + Name stay as free-form
+  // text inputs for substring search.
+  if(!window._hrmsEmpAttLateFilters) window._hrmsEmpAttLateFilters={plant:'all',empCode:'',name:'',et:'all',team:'all',cat:'all',shift:'all'};
+  var f=window._hrmsEmpAttLateFilters;
+  // Back-compat: prior versions stored these as substring text; coerce
+  // anything that doesn't look like a combo value into 'all' so the
+  // dropdown doesn't render an orphan option.
+  ['plant','et','team'].forEach(function(k){
+    if(typeof f[k]==='undefined'||f[k]===null||f[k]==='') f[k]='all';
+  });
+  // Apply filters.
+  var tx=function(s){return String(s==null?'':s).toLowerCase();};
+  var filtered=late.filter(function(r){
+    if(f.plant!=='all' && r.pSf!==f.plant) return false;
+    if(f.empCode && tx(r.empCode).indexOf(tx(f.empCode))<0) return false;
+    if(f.name && tx(r.name).indexOf(tx(f.name))<0) return false;
+    if(f.et!=='all' && r.et!==f.et) return false;
+    if(f.team!=='all' && r.team!==f.team) return false;
+    if(f.cat==='ST' && !r.isStaff) return false;
+    if(f.cat==='W' && r.isStaff) return false;
+    if(f.shift==='day' && r.isNight) return false;
+    if(f.shift==='night' && !r.isNight) return false;
+    return true;
+  });
+  // Distinct value lists for the combo dropdowns — derived from the
+  // full unfiltered set so the dropdowns keep every option available
+  // even after a filter narrows the visible rows.
+  var distinct=function(arr,key){
+    var seen={};var out=[];
+    arr.forEach(function(r){var v=r[key];if(v&&!seen[v]){seen[v]=1;out.push(v);}});
+    out.sort(function(a,b){return String(a).localeCompare(String(b),undefined,{numeric:true});});
+    return out;
+  };
+  var optsPlant=distinct(late,'pSf');
+  var optsEt   =distinct(late,'et');
+  var optsTeam =distinct(late,'team');
+  // Apply sort.
+  var sortKey=function(r){
+    var s=window._hrmsEmpAttLateSort||{};
+    switch(s.col){
+      case 'plant':   return (r.pSf||'~~~').toUpperCase()+'|'+String(r.empCode);
+      case 'empCode': return String(r.empCode);
+      case 'name':    return String(r.name||'').toLowerCase();
+      case 'et':      return String(r.et||'').toLowerCase();
+      case 'team':    return String(r.team||'').toLowerCase();
+      case 'cat':     return r.isStaff?'1':'2';
+      case 'shift':   return r.isNight?'1':'0';
+      case 'start':   return r.shift?r.shift.start:0;
+      case 'in':      return r.inMin||0;
+      case 'late':    return r.lateMin||0;
+      default:        return '';
+    }
+  };
+  filtered.sort(function(a,b){
+    var ka=sortKey(a),kb=sortKey(b);
+    var cmp=(typeof ka==='number'&&typeof kb==='number')?(ka-kb):String(ka).localeCompare(String(kb),undefined,{numeric:true});
+    return window._hrmsEmpAttLateSort.dir==='desc'?-cmp:cmp;
+  });
+  var lateUnfiltered=late;
+  late=filtered;
+  // Count summary in the controls strip — reflects the full late list,
+  // not the post-filter view, so the badge still tells the operator the
+  // raw scope they're looking at.
+  var nStaff=lateUnfiltered.filter(function(r){return r.isStaff;}).length;
+  var nWorker=lateUnfiltered.length-nStaff;
+  var cntEl=document.getElementById('hrmsEmpAttLateCount');
+  if(cntEl) cntEl.innerHTML=lateUnfiltered.length
+    ?(lateUnfiltered.length+' late · <span style="color:#7c3aed">ST '+nStaff+'</span> · <span style="color:#0369a1">W '+nWorker+'</span>')
+    :'No late marks';
+  if(!lateUnfiltered.length){
+    body.innerHTML='<div style="text-align:center;color:#15803d;padding:60px 20px;font-size:14px;font-weight:700">✓ No late-mark employees on '+_esc(iso)+'</div>';
+    return;
+  }
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dt=new Date(yy,mm-1,dd);
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var dateLbl=String(dd).padStart(2,'0')+'-'+(MON[mm-1]||'')+'-'+String(yy).slice(-2)+' ('+DOW[dt.getDay()]+')';
+  // Fixed-width inline-block table — same compact style as the single-
+  // emp view, doesn't stretch full width.
+  var COL_PL=44,COL_CODE=70,COL_NAME=170,COL_ET=84,COL_TEAM=100,COL_CAT=34,COL_SHIFT=58,COL_START=54,COL_IN=64,COL_LATE=66;
+  var tableW=COL_PL+COL_CODE+COL_NAME+COL_ET+COL_TEAM+COL_CAT+COL_SHIFT+COL_START+COL_IN+COL_LATE;
+  var thStyle='padding:5px 6px;text-align:center;font-size:10px;font-weight:800;color:#0f172a;background:linear-gradient(180deg,#e2e8f0,#cbd5e1);border-bottom:1.5px solid #94a3b8;white-space:nowrap';
+  // Per-emp-type colour palette — same family as the Plant-wise tinted headers.
+  var etColor={'On Roll':'#15803d','Contract':'#1d4ed8','Piece Rate':'#7c3aed','Visitor':'#a16207'};
+  var rows='';
+  late.forEach(function(r,i){
+    var zebra=(i%2===0)?'background:#fff;':'background:#fafbff;';
+    var catColor=r.isStaff?'#7c3aed':'#0369a1';
+    var catLbl=r.isStaff?'ST':'W';
+    var shiftIcon=r.isNight?'🌙':'☀';
+    var shiftStart=String(Math.floor(r.shift.start/60)).padStart(2,'0')+':'+String(r.shift.start%60).padStart(2,'0');
+    var lateLbl=r.lateMin>=60?(Math.floor(r.lateMin/60)+'h '+(r.lateMin%60)+'m'):(r.lateMin+'m');
+    var etClr=etColor[r.et]||'#475569';
+    // Emp-code cell jumps to the Single Employee tab for this employee.
+    var codeEsc=String(r.empCode).replace(/\\/g,'\\\\').replace(/\x27/g,"\\\x27");
+    var rowTip='Plant: '+_esc(r.plant||'—')+' · Shift: '+(r.isStaff?'Staff Day':(r.isNight?'Worker Night':'Worker Day'))+' · Start '+shiftStart+' (+'+r.shift.grace+'m grace) · IN '+_esc(r.inT)+' → late '+lateLbl;
+    rows+='<tr style="'+zebra+'border-bottom:1px solid #eef2f6" title="'+rowTip.replace(/"/g,'&quot;')+'">'
+      +'<td style="padding:3px 5px;text-align:center"><span style="display:inline-block;padding:2px 7px;border-radius:4px;background:'+r.pClr+';color:#fff;font-weight:900;font-size:10px;letter-spacing:.3px" title="'+_esc(r.plant)+' · '+(r.isNight?'Night':'Day')+' shift start '+shiftStart+'">'+_esc(r.pSf)+'</span></td>'
+      +'<td onclick="_hrmsEmpAttLateGoToSingle(\''+codeEsc+'\')" title="Open '+_esc(r.empCode)+' — '+_esc(r.name)+' in Single Employee tab" style="padding:3px 5px;font-family:var(--mono);font-weight:800;color:#1d4ed8;font-size:11px;text-align:center;cursor:pointer;text-decoration:underline;text-underline-offset:2px">'+_esc(r.empCode)+'</td>'
+      +'<td style="padding:3px 6px;font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(r.name)+'</td>'
+      +'<td style="padding:3px 6px;font-size:10px;font-weight:800;color:'+etClr+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_esc(r.et)+'">'+_esc(r.et)+'</td>'
+      +'<td style="padding:3px 6px;font-size:10px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_esc(r.team)+'">'+_esc(r.team)+'</td>'
+      +'<td style="padding:3px 5px;text-align:center;font-weight:900;font-size:11px;color:'+catColor+'">'+catLbl+'</td>'
+      +'<td style="padding:3px 5px;text-align:center;font-size:11px;font-weight:700;color:'+(r.isNight?'#475569':'#0369a1')+'">'+shiftIcon+' '+r.shift.label+'</td>'
+      +'<td style="padding:3px 5px;text-align:center;font-family:var(--mono);font-size:11px;color:#64748b">'+shiftStart+'</td>'
+      +'<td style="padding:3px 5px;text-align:center;font-family:var(--mono);font-weight:800;font-size:11px;color:#0f172a">'+_esc(r.inT)+'</td>'
+      +'<td style="padding:3px 5px;text-align:center;font-family:var(--mono);font-weight:900;font-size:11px;color:#dc2626">+'+lateLbl+'</td>'
+      +'</tr>';
+  });
+  var sub='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;font-weight:800">'
+    +'<span style="color:#0f172a">'+_esc(dateLbl)+'</span>'
+    +'<span style="color:#dc2626">' +late.length+' late mark'+(late.length===1?'':'s')+'</span>'
+    +'<span style="color:#7c3aed">ST '+nStaff+'</span>'
+    +'<span style="color:#0369a1">W '+nWorker+'</span>'
+    +'</div>';
+  // Header row 1 — sortable column titles (sticky to top). Click toggles
+  // asc / desc.
+  // Header row 2 — per-column filter widgets (sticky beneath row 1).
+  // Combos for Plant / Emp Type / Team / Cat / Shift; free-text inputs
+  // for Emp Code and Name.
+  var sort=window._hrmsEmpAttLateSort;
+  var sortArrow=function(col){
+    if(sort.col!==col) return '<span style="color:#cbd5e1;font-size:9px;margin-left:3px">↕</span>';
+    return '<span style="color:#dc2626;font-size:10px;margin-left:3px">'+(sort.dir==='desc'?'▼':'▲')+'</span>';
+  };
+  // Sticky positioning — row 1 at top:0, row 2 directly underneath. zIndex
+  // keeps the headers above scrolled rows.
+  var thBase=thStyle+';cursor:pointer;user-select:none;position:sticky;top:0;z-index:3';
+  var sortTh=function(col,label,extra){
+    return '<th onclick="_hrmsEmpAttLateSortBy(\''+col+'\')" style="'+thBase+(extra||'')+'" title="Sort by '+label+'">'+label+sortArrow(col)+'</th>';
+  };
+  var ff=window._hrmsEmpAttLateFilters;
+  var fInpStyle='width:100%;padding:2px 4px;font-size:10px;font-weight:600;border:1px solid #cbd5e1;border-radius:3px;background:#fff;box-sizing:border-box';
+  var fSelStyle='width:100%;padding:2px 4px;font-size:10px;font-weight:600;border:1px solid #cbd5e1;border-radius:3px;background:#fff;cursor:pointer;box-sizing:border-box';
+  // Row-2 header bg + sticky offset (sits below row 1, ~26px tall).
+  var fThStyle='padding:3px 5px;background:#f1f5f9;border-bottom:1.5px solid #94a3b8;position:sticky;top:26px;z-index:2';
+  var fTxt=function(key,placeholder){
+    return '<th style="'+fThStyle+'"><input type="text" value="'+_esc(ff[key]||'')+'" placeholder="'+placeholder+'" oninput="_hrmsEmpAttLateSetFilter(\''+key+'\',this.value)" style="'+fInpStyle+'"></th>';
+  };
+  var fCombo=function(key,opts,allLabel){
+    var html='<th style="'+fThStyle+'"><select onchange="_hrmsEmpAttLateSetFilter(\''+key+'\',this.value)" style="'+fSelStyle+'">';
+    html+='<option value="all"'+(ff[key]==='all'?' selected':'')+'>'+(allLabel||'All')+'</option>';
+    opts.forEach(function(v){
+      html+='<option value="'+_esc(v)+'"'+(ff[key]===v?' selected':'')+'>'+_esc(v)+'</option>';
+    });
+    html+='</select></th>';
+    return html;
+  };
+  var fSelCat='<th style="'+fThStyle+'"><select onchange="_hrmsEmpAttLateSetFilter(\'cat\',this.value)" style="'+fSelStyle+'">'
+    +'<option value="all"'+(ff.cat==='all'?' selected':'')+'>All</option>'
+    +'<option value="ST"'+(ff.cat==='ST'?' selected':'')+'>ST</option>'
+    +'<option value="W"'+(ff.cat==='W'?' selected':'')+'>W</option>'
+    +'</select></th>';
+  var fSelShift='<th style="'+fThStyle+'"><select onchange="_hrmsEmpAttLateSetFilter(\'shift\',this.value)" style="'+fSelStyle+'">'
+    +'<option value="all"'+(ff.shift==='all'?' selected':'')+'>All</option>'
+    +'<option value="day"'+(ff.shift==='day'?' selected':'')+'>Day</option>'
+    +'<option value="night"'+(ff.shift==='night'?' selected':'')+'>Night</option>'
+    +'</select></th>';
+  var fBlank='<th style="'+fThStyle+'"></th>';
+  // V114: wrapper drops overflow:hidden so the thead can use position:
+  // sticky to freeze the column titles + filter row at the top while
+  // the body scrolls inside #hrmsEmpAttBody.
+  var tableHtml='<div style="display:inline-block;max-width:100%;border:1.5px solid #cbd5e1;border-radius:6px">'
+    +'<table style="border-collapse:collapse;font-size:11px;table-layout:fixed;width:'+tableW+'px">'
+    +'<colgroup>'
+      +'<col style="width:'+COL_PL+'px">'
+      +'<col style="width:'+COL_CODE+'px">'
+      +'<col style="width:'+COL_NAME+'px">'
+      +'<col style="width:'+COL_ET+'px">'
+      +'<col style="width:'+COL_TEAM+'px">'
+      +'<col style="width:'+COL_CAT+'px">'
+      +'<col style="width:'+COL_SHIFT+'px">'
+      +'<col style="width:'+COL_START+'px">'
+      +'<col style="width:'+COL_IN+'px">'
+      +'<col style="width:'+COL_LATE+'px">'
+    +'</colgroup>'
+    +'<thead>'
+    +'<tr>'
+      +sortTh('plant','Plant')
+      +sortTh('empCode','Emp Code')
+      +sortTh('name','Name',';text-align:left;padding-left:8px')
+      +sortTh('et','Emp Type',';text-align:left;padding-left:8px')
+      +sortTh('team','Team',';text-align:left;padding-left:8px')
+      +sortTh('cat','Cat')
+      +sortTh('shift','Shift')
+      +sortTh('start','Start')
+      +sortTh('in','In')
+      +sortTh('late','Late By')
+    +'</tr>'
+    +'<tr>'
+      +fCombo('plant',optsPlant)
+      +fTxt('empCode','Code')
+      +fTxt('name','Name')
+      +fCombo('et',optsEt)
+      +fCombo('team',optsTeam)
+      +fSelCat
+      +fSelShift
+      +fBlank
+      +fBlank
+      +fBlank
+    +'</tr>'
+    +'</thead><tbody>'+rows+'</tbody></table></div>';
+  var legend='<div style="margin-top:6px;font-size:10px;color:var(--text3);font-weight:700">Late = In-time after shift start + 15-min grace. Worker Day / Night start per Plant master · Staff Day 09:00.</div>';
+  body.innerHTML=sub+tableHtml+legend;
+}
+
+// Sorted active-employee list, cached per call. Used by the search
+// dropdown filter + the prev/next nav buttons so both walk the same order.
+// Sort is plant short-form → emp code so colleagues sit together in the
+// picker and the prev/next nav steps through plant-grouped runs.
+function _hrmsEmpAttSortedList(){
+  var emps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e.inactive&&e.empCode;});
+  var keyOf=function(e){
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var plant=String((ap&&ap.location)||e.location||'').trim();
+    var sf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant):'~~~';
+    return String(sf||'~~~').toUpperCase();
+  };
+  emps.sort(function(a,b){
+    var ka=keyOf(a),kb=keyOf(b);
+    if(ka!==kb) return ka.localeCompare(kb,undefined,{numeric:true});
+    return String(a.empCode).localeCompare(String(b.empCode),undefined,{numeric:true});
+  });
+  return emps;
+}
+
+// Step through employees in emp-code order. delta = -1 prev, +1 next.
+// Disabled at either end (button-level guard in the header).
+function _hrmsEmpAttNav(delta){
+  var list=_hrmsEmpAttSortedList();
+  if(!list.length) return;
+  var code=window._hrmsEmpAttCode||'';
+  var idx=list.findIndex(function(e){return e.empCode===code;});
+  if(idx<0){ _hrmsEmpAttPick(list[0].empCode); return; }
+  var nx=idx+delta;
+  if(nx<0||nx>=list.length) return;
+  _hrmsEmpAttPick(list[nx].empCode);
+}
+
+function _hrmsEmpAttRenderCtrls(){
+  var c=document.getElementById('hrmsEmpAttCtrls');
+  if(!c) return;
+  // Month-options list — pulled from the attendance month index when
+  // available, otherwise just the current month + the user's selection.
+  var mk=window._hrmsEmpAttMk;
+  var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var monthIdx=(typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex)?_hrmsAttMonthIndex.slice():[];
+  monthIdx.sort(function(a,b){return String(b.monthKey).localeCompare(String(a.monthKey));});
+  if(!monthIdx.find(function(m){return m.monthKey===mk;})) monthIdx.unshift({monthKey:mk});
+  var monthOpts=monthIdx.map(function(m){
+    var p=m.monthKey.split('-');
+    return '<option value="'+m.monthKey+'"'+(m.monthKey===mk?' selected':'')+'>'+(MON[+p[1]-1]||'')+' '+p[0]+'</option>';
+  }).join('');
+  // Prev/next button state — disabled when we're at either end of the
+  // sorted emp-code list, or when no employee is selected yet.
+  var list=_hrmsEmpAttSortedList();
+  var code=window._hrmsEmpAttCode||'';
+  var curIdx=code?list.findIndex(function(e){return e.empCode===code;}):-1;
+  var canPrev=curIdx>0;
+  var canNext=curIdx>=0&&curIdx<list.length-1;
+  var navBtn=function(label,delta,enabled,title){
+    var style='padding:6px 11px;font-size:14px;font-weight:900;border:1.5px solid '+(enabled?'var(--accent)':'#cbd5e1')+';background:'+(enabled?'#fff':'#f1f5f9')+';color:'+(enabled?'var(--accent)':'#94a3b8')+';border-radius:6px;cursor:'+(enabled?'pointer':'not-allowed')+';line-height:1';
+    return '<button '+(enabled?'onclick="_hrmsEmpAttNav('+delta+')"':'disabled')+' title="'+title+'" style="'+style+'">'+label+'</button>';
+  };
+  // V112 — once an employee is picked, surface their identity (plant
+  // chip + employment metadata) right inside the controls strip, so the
+  // body no longer needs to repeat it. Before selection the strip shows
+  // a plain "EMPLOYEE" label.
+  var _escEsc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var lhsHtml='<span style="font-size:11px;font-weight:800;color:#64748b">EMPLOYEE</span>';
+  if(code){
+    var emp=(DB.hrmsEmployees||[]).find(function(x){return x.empCode===code;});
+    if(emp){
+      var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      var plant=String((ap&&ap.location)||emp.location||'').trim();
+      var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'—';
+      var pClr=plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0';
+      var et=String((ap&&ap.employmentType)||emp.employmentType||'').trim()||'—';
+      var team=String((ap&&ap.teamName)||emp.teamName||'').trim()||'—';
+      var metaText=et+' · '+team;
+      lhsHtml='<span style="display:inline-block;padding:3px 9px;border-radius:4px;background:'+pClr+';color:#fff;font-weight:900;font-size:11px;letter-spacing:.4px" title="'+_escEsc(plant)+'">'+_escEsc(pSf)+'</span>'
+        +'<span style="display:inline-block;padding:2px 8px;border-radius:5px;background:linear-gradient(135deg,#eef2ff,#dbeafe);border:1px solid #93c5fd;color:#1e3a8a;font-size:11px;font-weight:800;white-space:nowrap" title="Employment Type · Team">'+_escEsc(metaText)+'</span>';
+    }
+  }
+  c.innerHTML=''
+    +'<div style="position:relative;flex:1;min-width:280px;max-width:640px;display:inline-flex;align-items:center;gap:6px">'
+      +lhsHtml
+      +navBtn('◀',-1,canPrev,'Previous employee (by emp code)')
+      +'<input type="text" id="hrmsEmpAttSearch" placeholder="Search by emp code or name…" autocomplete="off" oninput="_hrmsEmpAttFilter()" onfocus="_hrmsEmpAttFilter()" style="padding:6px 10px;font-size:12px;font-weight:600;border:1.5px solid var(--accent);border-radius:6px;flex:1;min-width:0">'
+      +navBtn('▶',1,canNext,'Next employee (by emp code)')
+      +'<div id="hrmsEmpAttDd" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:60vh;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:10;margin-top:2px"></div>'
+    +'</div>'
+    +'<span style="display:inline-flex;align-items:center;gap:6px">'
+      +'<span style="font-size:11px;font-weight:800;color:#64748b">MONTH</span>'
+      +'<select id="hrmsEmpAttMonth" onchange="window._hrmsEmpAttMk=this.value;_hrmsEmpAttRenderBody()" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:130px;cursor:pointer">'+monthOpts+'</select>'
+    +'</span>'
+    +(function(){
+      // V113 — calendar / table view toggle for the single-employee view.
+      var v=window._hrmsEmpAttView||'calendar';
+      var btn=function(key,label,title){
+        var active=(v===key);
+        var st='padding:5px 10px;font-size:11px;font-weight:800;border:1.5px solid '+(active?'var(--accent)':'#cbd5e1')+';background:'+(active?'var(--accent)':'#fff')+';color:'+(active?'#fff':'#475569')+';cursor:pointer;line-height:1';
+        return '<button onclick="_hrmsEmpAttSetView(\''+key+'\')" title="'+title+'" style="'+st+'">'+label+'</button>';
+      };
+      return '<span style="display:inline-flex;align-items:center;gap:0;border-radius:6px;overflow:hidden;border:0">'
+        +'<span style="font-size:11px;font-weight:800;color:#64748b;margin-right:6px">VIEW</span>'
+        +btn('calendar','📅 Calendar','Month grid view')
+        +btn('table','📋 Table','Row-per-day list')
+      +'</span>';
+    })();
+  // Restore the current emp's name into the search box so prev/next nav
+  // reflects which row we're on.
+  if(code){
+    var empCur=(DB.hrmsEmployees||[]).find(function(x){return x.empCode===code;});
+    if(empCur){
+      var nmCur=(typeof _hrmsDispName==='function')?_hrmsDispName(empCur):(empCur.fullName||empCur.name||'');
+      var inpCur=document.getElementById('hrmsEmpAttSearch');
+      if(inpCur) inpCur.value=empCur.empCode+' — '+nmCur;
+    }
+  }
+  // Outside-click closes the dropdown.
+  if(!window._hrmsEmpAttDdBound){
+    window._hrmsEmpAttDdBound=true;
+    document.addEventListener('click',function(e){
+      var dd=document.getElementById('hrmsEmpAttDd');
+      var inp=document.getElementById('hrmsEmpAttSearch');
+      if(!dd||!inp) return;
+      if(e.target!==inp&&!dd.contains(e.target)) dd.style.display='none';
+    });
+  }
+}
+
+function _hrmsEmpAttFilter(){
+  var inp=document.getElementById('hrmsEmpAttSearch');
+  var dd=document.getElementById('hrmsEmpAttDd');
+  if(!inp||!dd) return;
+  var q=(inp.value||'').trim().toLowerCase();
+  // Walk the shared plant→empCode sorted list so the dropdown order
+  // matches the prev/next nav order. No row cap — the dropdown is
+  // scrollable, so showing every match is fine.
+  var emps=_hrmsEmpAttSortedList();
+  var rows=q?emps.filter(function(e){
+    var name=(typeof _hrmsDispName==='function')?_hrmsDispName(e):(e.fullName||e.name||'');
+    return String(e.empCode).toLowerCase().indexOf(q)>=0||String(name).toLowerCase().indexOf(q)>=0;
+  }):emps;
+  if(!rows.length){dd.innerHTML='<div style="padding:10px;color:#94a3b8;font-size:12px">No matches</div>';dd.style.display='block';return;}
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  dd.innerHTML='<div style="padding:4px 10px;background:#f1f5f9;color:#64748b;font-size:10px;font-weight:800;letter-spacing:.4px;position:sticky;top:0;border-bottom:1px solid #e2e8f0">'+rows.length+' EMPLOYEE'+(rows.length===1?'':'S')+' · SORTED BY PLANT + EMP CODE</div>'+rows.map(function(e){
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var plant=String((ap&&ap.location)||e.location||'').trim();
+    var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'—';
+    var pClr=plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0';
+    var nm=(typeof _hrmsDispName==='function')?_hrmsDispName(e):(e.fullName||e.name||'');
+    return '<div onclick="_hrmsEmpAttPick(\''+String(e.empCode).replace(/\\/g,'\\\\').replace(/\x27/g,"\\\x27")+'\')" style="padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f5f9" onmouseover="this.style.background=\'#fef3c7\'" onmouseout="this.style.background=\'\'">'
+      +'<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:'+pClr+';color:#fff;font-size:11px;font-weight:900;letter-spacing:.3px;flex:0 0 auto;min-width:34px;text-align:center">'+_esc(pSf)+'</span>'
+      +'<span style="font-family:var(--mono);font-weight:700;color:#1d4ed8;font-size:12px;flex:0 0 auto">'+_esc(e.empCode)+'</span>'
+      +'<span style="font-weight:600;font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_esc(nm)+'</span>'
+      +'</div>';
+  }).join('');
+  dd.style.display='block';
+}
+
+function _hrmsEmpAttPick(empCode){
+  window._hrmsEmpAttCode=empCode;
+  var dd=document.getElementById('hrmsEmpAttDd');
+  if(dd) dd.style.display='none';
+  // Re-render the controls strip so prev/next button enabled-state
+  // updates with the new position in the sorted list.
+  _hrmsEmpAttRenderCtrls();
+  _hrmsEmpAttRenderBody();
+}
+
+function _hrmsEmpAttRenderBody(){
+  var body=document.getElementById('hrmsEmpAttBody');
+  if(!body) return;
+  var code=window._hrmsEmpAttCode||'';
+  var mk=window._hrmsEmpAttMk||'';
+  if(!code){body.innerHTML='<div style="text-align:center;color:#94a3b8;padding:60px 20px;font-size:14px">Select an employee from the search box above.</div>';return;}
+  var emp=(DB.hrmsEmployees||[]).find(function(x){return x.empCode===code;});
+  if(!emp){body.innerHTML='<div style="text-align:center;color:#dc2626;padding:60px 20px;font-size:14px">Employee not found.</div>';return;}
+  // Lazy-fetch the month's attendance + alterations.
+  if(typeof _hrmsAttFetchMonth==='function'&&!(window._hrmsAttCache&&_hrmsAttCache[mk])&&!window._hrmsEmpAttFetching){
+    window._hrmsEmpAttFetching=true;
+    body.innerHTML='<div style="text-align:center;color:#94a3b8;padding:60px 20px;font-size:14px">Loading attendance for '+mk+'…</div>';
+    var p=_hrmsAttFetchMonth(mk);
+    var done=function(){window._hrmsEmpAttFetching=false;try{_hrmsEmpAttRenderBody();}catch(_){}};
+    if(p&&typeof p.then==='function') p.then(done).catch(done); else done();
+    return;
+  }
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,"&#39;");};
+  var ap=(emp.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var plant=String((ap&&ap.location)||emp.location||'').trim();
+  var pSf=plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(plant):plant.slice(0,3).toUpperCase()):'—';
+  var pClr=plant&&typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(plant):'#e2e8f0';
+  var nm=(typeof _hrmsDispName==='function')?_hrmsDispName(emp):(emp.fullName||emp.name||'');
+  var cat=String((ap&&ap.category)||emp.category||'').toLowerCase();
+  var isStaff=cat.indexOf('staff')>=0;
+  var et=String((ap&&ap.employmentType)||emp.employmentType||'').trim();
+  var team=String((ap&&ap.teamName)||emp.teamName||'').trim()||'—';
+  var dept=String((ap&&ap.department)||emp.department||'').trim()||'—';
+  // Pull this emp's per-day attendance entries from the cache. Both
+  // _hrmsAttCache and _hrmsAltCache may have records — alteration wins.
+  var attRec=null,altRec=null;
+  ((window._hrmsAttCache&&_hrmsAttCache[mk])||[]).forEach(function(r){if(r&&r.empCode===code) attRec=r;});
+  ((window._hrmsAltCache&&_hrmsAltCache[mk])||[]).forEach(function(r){if(r&&r.empCode===code) altRec=r;});
+  var sp=mk.split('-');var yr=+sp[0],mo=+sp[1];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var MON_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MON3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Late-mark thresholds — Worker day / night come from the plant's
+  // configured times (Plant master → Day Shift / Night Shift columns);
+  // fall back to 08:00 / 19:00 when no plant override exists. 15-min
+  // grace before the L mark.
+  var _plTimes=(plant&&typeof _hrmsGetPlantShiftTimes==='function')?_hrmsGetPlantShiftTimes(plant):{day:'08:00',night:'19:00'};
+  var _parseT=function(s){var m=String(s||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return null; return +m[1]*60 + +m[2];};
+  var _dayStart=_parseT(_plTimes.day);   if(_dayStart==null)   _dayStart=8*60;
+  var _nightStart=_parseT(_plTimes.night); if(_nightStart==null) _nightStart=19*60;
+  var SHIFT={
+    worker_day:   {start: _dayStart,    grace:15, label:'Day'  },
+    worker_night: {start: _nightStart,  grace:15, label:'Night'},
+    staff_day:    {start: 9*60,         grace:15, label:'Day'  }
+  };
+  // Build per-day info — shared by both Table and Calendar renderers.
+  var totP=0,totA=0,totL=0,totOTmin=0,totNight=0;
+  var dayInfo=[];
+  var _todayMidnight=new Date();_todayMidnight.setHours(0,0,0,0);
+  for(var d=1;d<=daysInMonth;d++){
+    var dt=new Date(yr,mo-1,d);
+    var dow=DOW[dt.getDay()];
+    var dType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(mk,d,yr,mo,plant):'WD';
+    var entry=(altRec&&altRec.days&&(altRec.days[d]||altRec.days[String(d)]))
+             ||(attRec&&attRec.days&&(attRec.days[d]||attRec.days[String(d)]));
+    var inT=entry&&(entry.in||entry['in'])||'';
+    var outT=entry&&(entry.out||entry['out'])||'';
+    var hasPunch=!!(inT||outT);
+    var inMin=(typeof _hrmsParseTime==='function')?_hrmsParseTime(inT):null;
+    var outMin=(typeof _hrmsParseTime==='function')?_hrmsParseTime(outT):null;
+    var isNight=false;
+    if(inMin!=null&&outMin!=null&&outMin<inMin) isNight=true;
+    else if(inMin!=null&&inMin>=17*60) isNight=true;
+    var shiftKey=isStaff?'staff_day':(isNight?'worker_night':'worker_day');
+    var shift=SHIFT[shiftKey];
+    var status='', statusColor='';
+    if(hasPunch){
+      status='P'; statusColor='#15803d'; totP++;
+      if(isNight) totNight++;
+    } else if(dType==='WO'){status='WO'; statusColor='#1d4ed8';}
+    else if(dType==='PH'){status='PH'; statusColor='#15803d';}
+    else if(dt<=_todayMidnight){status='A'; statusColor='#b91c1c'; totA++;}
+    else {status=''; statusColor='#94a3b8';}
+    var lateMark='';
+    if(hasPunch&&inMin!=null){
+      var cutoff=shift.start+shift.grace;
+      if(inMin>cutoff){lateMark='L'; totL++;}
+    }
+    // V114: OT only applies to Workers. Staff are exempt — their
+    // attendance is salary-fixed, no per-day OT computation.
+    var otStr='';
+    if(!isStaff && inMin!=null && outMin!=null){
+      var endMin=outMin;
+      if(endMin<inMin) endMin+=24*60;
+      var workedMin=endMin-inMin;
+      if(workedMin>8.5*60){
+        var otMin=workedMin-8*60;
+        otStr=(otMin/60).toFixed(2);
+        totOTmin+=otMin;
+      }
+    }
+    var isToday=(dt.getFullYear()===_todayMidnight.getFullYear()&&dt.getMonth()===_todayMidnight.getMonth()&&dt.getDate()===_todayMidnight.getDate());
+    dayInfo.push({d:d,dt:dt,dow:dow,dType:dType,inT:inT,outT:outT,hasPunch:hasPunch,inMin:inMin,outMin:outMin,isNight:isNight,shift:shift,status:status,statusColor:statusColor,lateMark:lateMark,otStr:otStr,isToday:isToday,isFuture:dt>_todayMidnight});
+  }
+  // ── TABLE renderer (row per day, dense list view) ───────────────
+  var renderTableView=function(){
+    var bodyRows='';
+    dayInfo.forEach(function(r){
+      var nightBadge=r.isNight&&r.hasPunch?'<span style="display:inline-block;padding:0 5px;margin-left:4px;border-radius:7px;background:#64748b;color:#fff;font-size:9px;font-weight:900;letter-spacing:.2px">🌙</span>':'';
+      var lateBadge=r.lateMark?'<span style="display:inline-block;padding:0 5px;margin-left:3px;border-radius:7px;background:#dc2626;color:#fff;font-size:9px;font-weight:900" title="Late — in after '+(Math.floor((r.shift.start+r.shift.grace)/60))+':'+String((r.shift.start+r.shift.grace)%60).padStart(2,'0')+'">L</span>':'';
+      var dowFg=(r.dt.getDay()===0)?'#dc2626':'#64748b';
+      var dpBadge='';
+      if(r.dType==='WO') dpBadge='<span style="display:inline-block;margin-left:4px;padding:0 3px;border-radius:4px;background:#1d4ed8;color:#fff;font-size:8px;font-weight:900">WO</span>';
+      else if(r.dType==='PH') dpBadge='<span style="display:inline-block;margin-left:4px;padding:0 3px;border-radius:4px;background:#15803d;color:#fff;font-size:8px;font-weight:900">PH</span>';
+      var dateCell='<span style="font-family:var(--mono);font-weight:800;color:#0f172a">'+String(r.d).padStart(2,'0')+'</span>'
+        +'<span style="margin-left:4px;font-size:10px;font-weight:700;color:'+dowFg+'">'+r.dow+'</span>'+dpBadge;
+      var rowBg='';
+      if(r.dType==='WO') rowBg='background:#eff6ff;';
+      else if(r.dType==='PH') rowBg='background:#dcfce7;';
+      var zebra=(r.d%2===0)?'background:#fafbff;':'';
+      bodyRows+='<tr style="'+(rowBg||zebra)+'border-bottom:1px solid #eef2f6">'
+        +'<td style="padding:1px 6px;white-space:nowrap;line-height:1.2;font-size:11px">'+dateCell+'</td>'
+        +'<td style="padding:1px 5px;font-family:var(--mono);text-align:center;font-size:11px;line-height:1.2;white-space:nowrap">'+_esc(r.inT||'—')+nightBadge+'</td>'
+        +'<td style="padding:1px 5px;font-family:var(--mono);text-align:center;font-size:11px;line-height:1.2;white-space:nowrap">'+_esc(r.outT||'—')+'</td>'
+        +'<td style="padding:1px 5px;text-align:center;color:'+r.statusColor+';font-weight:800;font-size:11px;line-height:1.2;white-space:nowrap">'+r.status+lateBadge+'</td>'
+        +'<td style="padding:1px 5px;text-align:center;font-family:var(--mono);color:'+(r.otStr?'#b45309':'#cbd5e1')+';font-weight:700;font-size:11px;line-height:1.2">'+(r.otStr||'—')+'</td>'
+        +'</tr>';
+    });
+    var COL_DATE=78,COL_IN=66,COL_OUT=66,COL_STATUS=66,COL_OT=64;
+    var tableW=COL_DATE+COL_IN+COL_OUT+COL_STATUS+COL_OT;
+    return '<div style="display:inline-block;max-width:100%;border:1.5px solid #cbd5e1;border-radius:6px;overflow:hidden">'
+      +'<table style="border-collapse:collapse;font-size:11px;table-layout:fixed;width:'+tableW+'px">'
+      +'<colgroup>'
+        +'<col style="width:'+COL_DATE+'px">'
+        +'<col style="width:'+COL_IN+'px">'
+        +'<col style="width:'+COL_OUT+'px">'
+        +'<col style="width:'+COL_STATUS+'px">'
+        +'<col style="width:'+COL_OT+'px">'
+      +'</colgroup>'
+      +'<thead><tr style="background:linear-gradient(180deg,#e2e8f0,#cbd5e1);color:#0f172a">'
+        +'<th style="padding:3px 6px;text-align:left;font-size:10px;font-weight:800">Date</th>'
+        +'<th style="padding:3px 5px;text-align:center;font-size:10px;font-weight:800">In</th>'
+        +'<th style="padding:3px 5px;text-align:center;font-size:10px;font-weight:800">Out</th>'
+        +'<th style="padding:3px 5px;text-align:center;font-size:10px;font-weight:800">Status</th>'
+        +'<th style="padding:3px 5px;text-align:center;font-size:10px;font-weight:800">OT</th>'
+      +'</tr></thead><tbody>'+bodyRows+'</tbody></table></div>';
+  };
+  // ── CALENDAR renderer (7-col month grid) ─────────────────────────
+  var renderCalendarView=function(){
+    var CAL_W=112; // per-cell width
+    var CAL_H=78;  // per-cell height
+    var totalW=CAL_W*7+6*2+4;// 7 cols + 6 gaps + outer padding
+    // Header strip with weekday names (Sun first).
+    var headStr='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:3px">';
+    DOW.forEach(function(d,i){
+      var fg=(i===0)?'#dc2626':'#475569';
+      headStr+='<div style="text-align:center;font-size:11px;font-weight:800;color:'+fg+';padding:5px 0;background:linear-gradient(180deg,#e2e8f0,#cbd5e1);border-radius:4px">'+d+'</div>';
+    });
+    headStr+='</div>';
+    // Leading empty cells = day-of-week of the 1st.
+    var firstDow=new Date(yr,mo-1,1).getDay();
+    var grid='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">';
+    for(var lead=0;lead<firstDow;lead++){
+      grid+='<div style="height:'+CAL_H+'px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:4px"></div>';
+    }
+    // Round status badge — bigger, prominent, in the centre of the cell.
+    // Single source of truth for P / A / WO / PH; L overlays on P when
+    // the in-time was late so the user sees "P + L" at a glance.
+    var roundBadge=function(letter,bg,fg,withL,title){
+      var pill='<span style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:13px;background:'+bg+';color:'+fg+';font-weight:900;font-size:13px;letter-spacing:.2px;box-shadow:0 1px 2px rgba(0,0,0,.12);line-height:1" title="'+(title||'')+'">'+letter+'</span>';
+      if(withL){
+        // Inline +L pill so "Present + Late" reads as one chip pair.
+        pill+='<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:-4px;border-radius:50%;background:#dc2626;color:#fff;font-weight:900;font-size:10px;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.18)" title="Late — in after shift start + 15 min">L</span>';
+      }
+      return pill;
+    };
+    dayInfo.forEach(function(r){
+      // Background — bucket-tinted: WO blue, PH green, P light green,
+      // A light red, future grey, neutral otherwise.
+      var bg='#fff', borderClr='#94a3b8';
+      if(r.dType==='WO'){bg='#dbeafe';borderClr='#60a5fa';}
+      else if(r.dType==='PH'){bg='#dcfce7';borderClr='#4ade80';}
+      else if(r.hasPunch){bg='#f0fdf4';borderClr='#86efac';}
+      else if(r.status==='A'){bg='#fef2f2';borderClr='#fca5a5';}
+      else if(r.isFuture){bg='#fafbff';borderClr='#cbd5e1';}
+      var todayRing=r.isToday?'box-shadow:0 0 0 2.5px #ca8a04 inset;':'';
+      // Top row — day number + day-of-week + 🌙 marker (night shift).
+      // WO/PH are NO longer in this row — the big round badge in the
+      // middle is the single source of truth for the day's status.
+      var dowFg=(r.dt.getDay()===0)?'#dc2626':'#64748b';
+      var topBadges='';
+      if(r.isNight&&r.hasPunch) topBadges+='<span style="display:inline-block;padding:0 4px;border-radius:4px;background:#64748b;color:#fff;font-size:9px;font-weight:900;margin-left:3px">🌙</span>';
+      // Big round status badge.
+      var midBadge='';
+      if(r.hasPunch){
+        midBadge=roundBadge('P','#16a34a','#fff',!!r.lateMark,'Present');
+      } else if(r.dType==='WO'){
+        midBadge=roundBadge('WO','#1d4ed8','#fff',false,'Weekly Off');
+      } else if(r.dType==='PH'){
+        midBadge=roundBadge('PH','#15803d','#fff',false,'Public Holiday');
+      } else if(r.status==='A'){
+        midBadge=roundBadge('A','#dc2626','#fff',false,'Absent');
+      }
+      // Middle — in → out times (font bumped +2px to 12px); fall back
+      // to a thin dash for future days.
+      var midTimes='';
+      if(r.hasPunch){
+        midTimes='<div style="font-family:var(--mono);font-size:12px;font-weight:800;color:#0f172a;text-align:center;letter-spacing:-.2px;line-height:1.1">'
+          +(r.inT||'—')+' → '+(r.outT||'—')+'</div>';
+      } else if(r.isFuture){
+        midTimes='<div style="text-align:center;color:#cbd5e1;font-size:10px">—</div>';
+      }
+      // Bottom — OT only (status now lives in the round badge above).
+      var btmRight=r.otStr?'<span style="color:#b45309;font-weight:800;font-size:10px">OT '+r.otStr+'</span>':'';
+      grid+='<div style="height:'+CAL_H+'px;background:'+bg+';border:1.5px solid '+borderClr+';border-radius:5px;padding:3px 5px;display:flex;flex-direction:column;'+todayRing+'" title="'+_esc(String(r.d).padStart(2,'0')+'-'+MON3[mo-1]+' '+r.dow)+'">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;line-height:1">'
+          +'<span style="font-family:var(--mono);font-weight:900;color:#0f172a;font-size:13px">'+String(r.d).padStart(2,'0')+'</span>'
+          +'<span style="display:inline-flex;align-items:center;gap:3px"><span style="font-size:9px;font-weight:700;color:'+dowFg+'">'+r.dow.slice(0,3)+'</span>'+topBadges+'</span>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;justify-content:center;margin-top:2px;line-height:1">'+midBadge+'</div>'
+        +midTimes
+        +'<div style="display:flex;align-items:center;justify-content:flex-end;margin-top:auto;line-height:1">'
+          +btmRight
+        +'</div>'
+      +'</div>';
+    });
+    // Pad trailing cells so the last row is full-width.
+    var totalCells=firstDow+daysInMonth;
+    var trailing=(7-(totalCells%7))%7;
+    for(var t=0;t<trailing;t++){
+      grid+='<div style="height:'+CAL_H+'px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:4px"></div>';
+    }
+    grid+='</div>';
+    return '<div style="display:inline-block;max-width:100%;padding:6px;background:#fff;border:1.5px solid #cbd5e1;border-radius:8px;width:'+totalW+'px;box-sizing:border-box">'
+      +headStr+grid+'</div>';
+  };
+  // Monthly OT total, expressed as hours+minutes for the summary strip.
+  var totH=Math.floor(totOTmin/60), totM=Math.round(totOTmin%60);
+  var totalOTLbl=totOTmin>0?(totH+'h '+totM+'m'):'0h 0m';
+  // Coloured summary pills — same scheme as the in-row badges. Each pill
+  // pairs a small letter/icon with the count for at-a-glance reading.
+  var pill=function(lbl,val,bg,fg){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:14px;background:'+bg+';color:'+fg+';font-size:12px;font-weight:900;letter-spacing:.3px">'
+      +'<span style="font-size:11px">'+lbl+'</span>'
+      +'<span>'+val+'</span>'
+    +'</span>';
+  };
+  var summary=''
+    +pill('P',totP,'#dcfce7','#15803d')
+    +pill('A',totA,'#fee2e2','#b91c1c')
+    +pill('L',totL,'#fee2e2','#dc2626')
+    +pill('🌙',totNight,'#e2e8f0','#475569')
+    +(isStaff?'':pill('OT',totalOTLbl,'#fef3c7','#b45309'));
+  // V112 — emp identity (plant chip + name + employment metadata) is
+  // shown once in the controls strip above; body header now carries
+  // only the month label and the summary pills.
+  var hdr='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+    +'<span style="font-size:13px;font-weight:800;color:#0f172a">'+MON_FULL[mo-1]+' '+yr+'</span>'
+    +'<div style="flex:1"></div>'
+    +'<span style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap">'+summary+'</span>'
+    +'</div>';
+  var subTitle='';
+  // V113 — pick the renderer based on the user's view choice. Defaults
+  // to calendar.
+  var viewKey=window._hrmsEmpAttView||'calendar';
+  var tableHtml=(viewKey==='table')?renderTableView():renderCalendarView();
+  // Legend.
+  var legend='<div style="margin-top:6px;font-size:10px;color:var(--text3);display:flex;gap:10px;flex-wrap:wrap;font-weight:700">'
+    +'<span><span style="color:#15803d;font-weight:900">P</span> Present</span>'
+    +'<span><span style="color:#b91c1c;font-weight:900">A</span> Absent</span>'
+    +'<span><span style="display:inline-block;padding:0 3px;border-radius:4px;background:#dc2626;color:#fff;font-size:9px;font-weight:900">L</span> Late (&gt;shift+15m)</span>'
+    +'<span><span style="display:inline-block;padding:0 3px;border-radius:4px;background:#64748b;color:#fff;font-size:9px;font-weight:900">🌙</span> Night</span>'
+    +'<span>Shift: '+(isStaff?'Staff 09:00':'Day '+_plTimes.day+' / Night '+_plTimes.night)+'</span>'
+    +'</div>';
+  body.innerHTML=hdr+subTitle+tableHtml+legend;
 }
 
 function _hrmsDasShiftHistDate(delta){
@@ -14319,6 +15719,9 @@ function _hrmsDasTwMdRender(){
   dayRows.forEach(function(r){var tot=r.p+r.a;if(tot>maxY) maxY=tot;});
   historyAvg.forEach(function(h){var tot=h.avgP+h.avgA;if(tot>maxY) maxY=tot;});
   if(maxY<10) maxY=10;
+  // V101: +25% headroom (matches the dashboard team strip) so the
+  // P/A badges + 🌙 night badge above the tallest bar always have room.
+  maxY=Math.ceil(maxY*1.25);
   // Round maxY up to a friendly grid.
   var step=Math.pow(10,Math.max(0,String(maxY).length-2));
   maxY=Math.ceil(maxY/step)*step;
@@ -14463,13 +15866,28 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
     s+='<line x1="'+sepX+'" y1="'+padT+'" x2="'+sepX+'" y2="'+(padT+plotH)+'" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4 4"/>';
   }
   // WO/PH bands for current-month off-days.
+  // V101: PH wash green / WO wash blue — same palette as the dashboard
+  // team strip ("PH" green, "WO" blue) so the eye reads them identically
+  // across both views.
   for(var i=0;i<n;i++){
     var r=rows[i];
     if(r&&(r.dType==='WO'||r.dType==='PH')){
       var bx=padL+colW*(histCount+gapSlots+i);
-      var bg=r.dType==='PH'?'#dcfce7':'#e2e8f0';
-      s+='<rect x="'+bx+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="'+bg+'" fill-opacity="0.55"/>';
+      var bg=r.dType==='PH'?'#dcfce7':'#dbeafe';
+      s+='<rect x="'+bx+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="'+bg+'" fill-opacity="0.5"/>';
     }
+  }
+  // V101: today highlight — soft amber wash + accent stripes, matching
+  // the dashboard team strip. Only when the chart's month is the
+  // current month.
+  var _nowDt=new Date();
+  var _isCurMonth=(yr===_nowDt.getFullYear()&&mo===(_nowDt.getMonth()+1));
+  var _todayDayMd=_isCurMonth?_nowDt.getDate():0;
+  if(_todayDayMd){
+    var tdx=padL+colW*(histCount+gapSlots+(_todayDayMd-1));
+    s+='<rect x="'+tdx+'" y="'+padT+'" width="'+colW+'" height="'+plotH+'" fill="#fef08a" fill-opacity="0.45"/>';
+    s+='<line x1="'+tdx+'" y1="'+padT+'" x2="'+tdx+'" y2="'+(padT+plotH)+'" stroke="#ca8a04" stroke-width="1.5"/>';
+    s+='<line x1="'+(tdx+colW)+'" y1="'+padT+'" x2="'+(tdx+colW)+'" y2="'+(padT+plotH)+'" stroke="#ca8a04" stroke-width="1.5"/>';
   }
   // Y grid + labels
   for(var gi=0;gi<=4;gi++){
@@ -14481,97 +15899,79 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
   // Axes
   s+='<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
   s+='<line x1="'+padL+'" y1="'+(padT+plotH)+'" x2="'+(W-padR)+'" y2="'+(padT+plotH)+'" stroke="#94a3b8"/>';
-  // Average Present reference line — drawn only over current-month
-  // columns so it doesn't get confused with the historical averages
-  // (which already are averages by definition).
-  if(avgs&&avgs.avgP>0&&n>0){
-    var refStartX=padL+colW*(histCount+gapSlots);
-    var ay=yOf(avgs.avgP);
-    s+='<line x1="'+refStartX+'" y1="'+ay+'" x2="'+(W-padR)+'" y2="'+ay+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.85"><title>Avg Present (WD): '+avgs.avgP+'</title></line>';
-    s+='<text x="'+(W-padR-4)+'" y="'+(ay-3)+'" text-anchor="end" font-size="10" font-style="italic" fill="#475569">avg P '+avgs.avgP+'</text>';
-  }
   var baseY=padT+plotH;
   // Pill-shaped badge generator. Width grows with digit count so 3+
   // digit numbers don't overflow. Stacked A-over-P pair sits above
   // each bar; if the bar is so tall there's no clear space above, the
   // badges overlay the bar's top (still readable since they're white-
   // on-colour pills).
+  // V101: badge / stack sizing matched to the dashboard team-strip
+  // (font 11, h=18, w grows with digits). Same hierarchy: A on top, P
+  // below, both clamped inside the plot area when the bar is tall.
   var _badge=function(cx,cy,count,bg){
     var txt=String(count);
-    var w=Math.max(16, 8 + txt.length*7);
-    var h=14;
-    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="7" ry="7" fill="'+bg+'" stroke="#0f172a" stroke-width="0.4"/>'
-      +'<text x="'+cx+'" y="'+(cy+3.5)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+    var w=Math.max(20, 8+txt.length*7);
+    var h=18;
+    return '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" rx="9" ry="9" fill="'+bg+'" stroke="#0f172a" stroke-width="0.3"/>'
+      +'<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="11" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
   };
-  var _placeBadges=function(cx,barTopY,pCount,aCount,nightCount){
-    var badgeH=14;
-    if(nightCount>0){
-      var nCy=barTopY-badgeH/2-3;
-      var pCy3=nCy-badgeH-2;
-      var aCy3=pCy3-badgeH-2;
-      var minCy3=padT+badgeH/2+2;
-      if(aCy3<minCy3){
-        aCy3=minCy3;
-        pCy3=aCy3+badgeH+2;
-        nCy=pCy3+badgeH+2;
-      }
-      return _badge(cx,aCy3,aCount,'#dc2626')+_badge(cx,pCy3,pCount,'#16a34a')+_badge(cx,nCy,nightCount,'#64748b');
-    }
-    var pCy=barTopY-badgeH/2-3;
-    var aCy=pCy-badgeH-2;
-    var minCy=padT+badgeH/2+2;
-    if(aCy<minCy){
-      aCy=minCy;
-      pCy=aCy+badgeH+2;
-    }
-    return _badge(cx,aCy,aCount,'#dc2626')+_badge(cx,pCy,pCount,'#16a34a');
+  var _placeBadges=function(cx,barTopY,pCount,aCount){
+    var pCy=Math.max(padT+11,barTopY-11);
+    var aCy=Math.max(padT+2,pCy-21);
+    var out='';
+    if(aCount>0) out+=_badge(cx,aCy,aCount,'#dc2626');
+    if(pCount>0) out+=_badge(cx,pCy,pCount,'#16a34a');
+    return out;
   };
-  // Historical bars — dashed amber outline, one per prior month. Bar is
-  // split into a green day-shift segment (bottom) and a grey night-shift
-  // segment (top), matching the dashboard team-strip visual.
+  // Stacked 🌙 + count pill pinned just inside the top of the plot area.
+  // Icon sits on the upper half, the count sits below in a larger font
+  // so the number reads clearly even at a glance. Only emitted when
+  // nightCount > 0.
+  var _nightTopBadge=function(cx,count){
+    if(!(count>0)) return '';
+    var txt=String(count);
+    var w=Math.max(24, 8+txt.length*9);
+    var h=30;
+    var cyTop=padT+h/2+2;          // pill center inside the plot frame
+    var iconY=cyTop-5;             // 🌙 in upper half
+    var numY =cyTop+9;             // count in lower half, bigger
+    var rectY=cyTop-h/2;
+    return '<rect x="'+(cx-w/2)+'" y="'+rectY+'" width="'+w+'" height="'+h+'" rx="9" ry="9" fill="#64748b" stroke="#0f172a" stroke-width="0.4"/>'
+      +'<text x="'+cx+'" y="'+iconY+'" text-anchor="middle" font-size="10" fill="#fff" style="pointer-events:none">🌙</text>'
+      +'<text x="'+cx+'" y="'+numY+'" text-anchor="middle" font-size="13" font-weight="900" fill="#fff" style="pointer-events:none">'+txt+'</text>';
+  };
+  // V101: bars are solid green now (no day/night split). Night surfaces
+  // only via the 🌙 top badge — same look as the dashboard team strip.
   history.forEach(function(h,hi){
     var cxH=xHist(hi);
     var bxH=cxH-barW/2;
     if(h.avgP>0){
       var hNight=h.avgNightP||0;
-      var hDay=Math.max(0,h.avgP-hNight);
-      var dayHpx=(hDay/maxY)*plotH;
-      var nightHpx=(hNight/maxY)*plotH;
-      var pH=dayHpx+nightHpx;
-      var dayTop=baseY-dayHpx;
-      var nightTop=dayTop-nightHpx;
+      var pH=(h.avgP/maxY)*plotH;
       var topH=baseY-pH;
-      if(dayHpx>0) s+='<rect x="'+bxH+'" y="'+dayTop+'" width="'+barW+'" height="'+dayHpx+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"/>';
-      if(nightHpx>0) s+='<rect x="'+bxH+'" y="'+nightTop+'" width="'+barW+'" height="'+nightHpx+'" fill="#64748b" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"/>';
-      var hTip=h.mk+' — Avg Present (WD): '+h.avgP+(hNight>0?' (Day '+hDay+' + Night '+hNight+')':'')+' · Avg Absent (WD): '+h.avgA;
+      s+='<rect x="'+bxH+'" y="'+topH+'" width="'+barW+'" height="'+pH+'" fill="#16a34a" fill-opacity="0.75" stroke="#92400e" stroke-width="0.8" stroke-dasharray="3 2"/>';
+      var hTip=h.mk+' — Avg Present (WD): '+h.avgP+(hNight>0?'\nNight Shift Present count '+hNight:'')+' · Avg Absent (WD): '+h.avgA;
       s+='<rect x="'+bxH+'" y="'+topH+'" width="'+barW+'" height="'+pH+'" fill="transparent"><title>'+hTip+'</title></rect>';
-      s+=_placeBadges(cxH,topH,h.avgP,h.avgA,hNight);
+      s+=_placeBadges(cxH,topH,h.avgP,h.avgA);
+      s+=_nightTopBadge(cxH,hNight);
     } else {
       var midY=padT+plotH/2;
       s+='<text x="'+cxH+'" y="'+midY+'" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">N/A</text>';
     }
   });
-  // Current-month bars — segmented like the historical bars: day-shift
-  // green at the bottom, night-shift grey stacked on top. Three badges
-  // (A red, P green, N grey) appear above the bar when night > 0.
   for(var bi=0;bi<n;bi++){
     var r2=rows[bi];
     if(!r2||r2.p<=0) continue;
     var cx=xDay(bi);
     var bx2=cx-barW/2;
     var nP2=r2.nightP||0;
-    var dP2=Math.max(0,r2.p-nP2);
-    var dayHpx2=(dP2/maxY)*plotH;
-    var nightHpx2=(nP2/maxY)*plotH;
-    var pHpx=dayHpx2+nightHpx2;
-    var dayTop2=baseY-dayHpx2;
-    var nightTop2=dayTop2-nightHpx2;
+    var pHpx=(r2.p/maxY)*plotH;
     var topY=baseY-pHpx;
-    if(dayHpx2>0) s+='<rect x="'+bx2+'" y="'+dayTop2+'" width="'+barW+'" height="'+dayHpx2+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"/>';
-    if(nightHpx2>0) s+='<rect x="'+bx2+'" y="'+nightTop2+'" width="'+barW+'" height="'+nightHpx2+'" fill="#64748b" stroke="#475569" stroke-width="0.5"/>';
-    var tip2=r2.d+' — Present: '+r2.p+(nP2>0?' (Day '+dP2+' + Night '+nP2+')':'')+' · Absent: '+r2.a;
+    s+='<rect x="'+bx2+'" y="'+topY+'" width="'+barW+'" height="'+pHpx+'" fill="#16a34a" stroke="#15803d" stroke-width="0.5"/>';
+    var tip2=r2.d+' — Present: '+r2.p+' · Absent: '+r2.a+(nP2>0?'\nNight Shift Present count '+nP2:'');
     s+='<rect x="'+bx2+'" y="'+topY+'" width="'+barW+'" height="'+pHpx+'" fill="transparent" onclick="_hrmsDashShowDayEmps(\'__POPUP__\','+r2.d+')" style="cursor:pointer"><title>'+tip2+' — click for employee list</title></rect>';
-    s+=_placeBadges(cx,topY,r2.p,r2.a,nP2);
+    s+=_placeBadges(cx,topY,r2.p,r2.a);
+    s+=_nightTopBadge(cx,nP2);
   }
   // X labels for historical strip — month abbreviation + 2-digit year.
   history.forEach(function(h,hi){
@@ -14603,17 +16003,8 @@ function _hrmsDasTwMdChartSvg(rows,yr,mo,maxY,avgs){
         +'<text x="'+xl+'" y="'+(byTop+10)+'" text-anchor="middle" font-size="9" font-weight="900" fill="#fff">'+badgeTxt+'</text>';
     }
   }
-  // Legend — P/A above bars + PH / H badge meaning.
-  var lx=padL+6,ly=padT-12;
-  s+='<g font-size="10" font-weight="800">'
-    +'<rect x="'+lx+'" y="'+(ly-10)+'" width="370" height="16" fill="#fff" fill-opacity="0.9" stroke="#e2e8f0"/>'
-    +'<rect x="'+(lx+6)+'" y="'+(ly-7)+'" width="10" height="10" fill="#16a34a" stroke="#15803d" stroke-width="0.5"/><text x="'+(lx+20)+'" y="'+(ly+1)+'" fill="#15803d">P</text>'
-    +'<text x="'+(lx+30)+'" y="'+(ly+1)+'" fill="#475569">/</text>'
-    +'<text x="'+(lx+38)+'" y="'+(ly+1)+'" fill="#b91c1c">A above bars</text>'
-    +'<rect x="'+(lx+128)+'" y="'+(ly-7)+'" width="14" height="10" rx="3" ry="3" fill="#15803d"/><text x="'+(lx+135)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">PH</text><text x="'+(lx+147)+'" y="'+(ly+1)+'" fill="#15803d">Public Holiday</text>'
-    +'<rect x="'+(lx+222)+'" y="'+(ly-7)+'" width="14" height="10" rx="3" ry="3" fill="#1d4ed8"/><text x="'+(lx+229)+'" y="'+(ly+1)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">H</text><text x="'+(lx+241)+'" y="'+(ly+1)+'" fill="#1d4ed8">Weekly Off</text>'
-    +'<text x="'+(lx+304)+'" y="'+(ly+1)+'" fill="#92400e">Amber = prior-month avg</text>'
-    +'</g>';
+  // V101: legend strip removed — the dashboard team strip doesn't have
+  // one and the chart reads cleanly from the colour-coded badges alone.
   s+='</svg>';
   return s;
 }
@@ -19246,8 +20637,28 @@ function _hrmsUpdEmpFillDeptList(isStaff,selectedValue,plantFilter){
   var pl=String(plantFilter||'').trim();
   var items=src.slice();
   if(!isStaff&&pl){
-    items=items.filter(function(d){return (d.plant||'')===pl;});
+    // V117/V49 — use the canonical _hrmsPlantNameEq helper which already
+    // handles exact name match + short-form fallback (so a dept master
+    // entry stored under "Plant-1" still resolves when the employee's
+    // location says "KAP-1" and both share short-form "P1"). Falls back
+    // to a normalised alphanumeric compare for any rare edge case the
+    // short-form helper can't bridge.
+    var _norm=function(s){return String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');};
+    var plKey=_norm(pl);
+    items=items.filter(function(d){
+      var dp=String(d.plant||'').trim();
+      if(!dp) return false;
+      if(typeof _hrmsPlantNameEq==='function' && _hrmsPlantNameEq(dp,pl)) return true;
+      return _norm(dp)===plKey;
+    });
   }
+  // Diagnostic — log once per pick so the operator can verify in the
+  // console which depts were filtered in / out for the picked emp.
+  try{
+    console.log('[UpdEmpDept] isStaff='+isStaff+' plantFilter='+JSON.stringify(pl)
+      +' total='+src.length+' matched='+items.length
+      +' allDeptPlants='+JSON.stringify(Array.from(new Set(src.map(function(d){return d.plant||'(empty)';})))));
+  }catch(_){}
   // De-dup by name (a single plant could legitimately have only one of
   // each name — but the legacy import may have left duplicates).
   var seen={};
@@ -28307,6 +29718,10 @@ async function _hrmsSalImpApprove(mode,selectedOnly){
 }
 
 async function _hrmsRenderContractSalary(yr,mo){
+  // V115 — defensive re-apply of the salary cache; mirrors the same
+  // fix in _hrmsRenderOrSalary so Sal/Day and Sal/Month don't vanish
+  // after a round-trip through the Attendance tab.
+  if(typeof _hrmsSalaryApplyToMemory==='function') _hrmsSalaryApplyToMemory();
   var grid=document.getElementById('hrmsContractGrid');if(!grid)return;
   if(!_hrmsHasAccess('tab.contract')){grid.innerHTML='<div class="empty-state" style="padding:20px">🔒 Access denied</div>';return;}
   var mk=yr+'-'+String(mo).padStart(2,'0');
@@ -30205,6 +31620,12 @@ function _hrmsOrSalSearchInput(el){
 }
 
 async function _hrmsRenderOrSalary(yr,mo,catFilter){
+  // V115 — re-apply salary from the locked-down salary cache before
+  // every render. Other tabs (attendance grid, alteration etc.) read
+  // emp.salaryMonths and can transiently drop the salary keys when
+  // they refresh emp records — this defensive pass restores them so
+  // Sal/D and Sal/M survive a tab round-trip without a hard refresh.
+  if(typeof _hrmsSalaryApplyToMemory==='function') _hrmsSalaryApplyToMemory();
   var _mk=yr+'-'+String(mo).padStart(2,'0');
   // ── LOCKED MONTH: render from saved data (no master dependency) ──
   if(_hrmsIsMonthLocked(_mk)&&_hrmsHasSavedData(_mk)){
@@ -32338,7 +33759,18 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
         if(ot>0){ot=Math.min(ot,_otR.otMaxPerDay);totalOT+=ot;}else ot=0;
       }
     }
-    daysOut.push({day:dd,status:status,worked:worked,ot:ot,otS:otS,isOff:isOff,dayType:dType,altered:!!alt,altReason:(alt&&alt.reason)||'',initial:!!(ddd&&ddd.initial),hasTime:hasTime,inTime:ti,outTime:to2,coffApplied:coffApplied,coffPending:!!(coffApplied&&coffUsedByDate[dd]&&coffUsedByDate[dd].status==='pending'),coffEarnedDate:(coffApplied&&coffUsedByDate[dd])?coffUsedByDate[dd].earnedDate:''});
+    // V114 — Late mark for Staff. Staff shift starts at 09:00 across
+    // every plant (Plant master overrides only apply to Workers). Mark
+    // late when the IN time is more than 15 min past the staff start.
+    var lateMin=0;
+    if(isStaff&&ti&&!isOff){
+      var _inForLate=_hrmsParseTime(ti);
+      if(_inForLate!=null){
+        var _staffStart=9*60, _grace=15;
+        if(_inForLate>_staffStart+_grace) lateMin=_inForLate-_staffStart;
+      }
+    }
+    daysOut.push({day:dd,status:status,worked:worked,ot:ot,otS:otS,isOff:isOff,dayType:dType,altered:!!alt,altReason:(alt&&alt.reason)||'',initial:!!(ddd&&ddd.initial),hasTime:hasTime,inTime:ti,outTime:to2,lateMin:lateMin,coffApplied:coffApplied,coffPending:!!(coffApplied&&coffUsedByDate[dd]&&coffUsedByDate[dd].status==='pending'),coffEarnedDate:(coffApplied&&coffUsedByDate[dd])?coffUsedByDate[dd].earnedDate:''});
   }
   return {days:daysOut,totalP:totalP,totalA:totalA,elCount:elCount,totalOT:totalOT,totalOTS:totalOTS,monthKey:monthKey,daysInMonth:daysInMonth};
 }
@@ -33020,10 +34452,21 @@ async function _hrmsMyAttRender(){
           }
         }
         var border=ds.altered?'2px solid #a855f7':(ds.dayType!=='WD'?'1.5px solid '+(ds.dayType==='PH'?'#86efac':'#93c5fd'):'1px solid #cbd5e1');
+        // V114 — Late mark badge for Staff. Sits between the day number
+        // and the status letter so the user spots a late day at a glance.
+        var lateBadge='';
+        if(ds.lateMin>0){
+          var lateLbl=ds.lateMin>=60?(Math.floor(ds.lateMin/60)+'h '+(ds.lateMin%60)+'m'):(ds.lateMin+'m');
+          lateBadge='<span title="Late by '+lateLbl+' (in after 09:15)" style="font-size:9px;font-weight:900;color:#fff;background:#dc2626;padding:1px 5px;border-radius:8px;line-height:1.2">L</span>';
+          tip+=' · Late '+lateLbl;
+        }
         rows+='<td style="border:'+border+';background:'+bg+';height:64px;width:14.28%;vertical-align:top;padding:2px 3px;line-height:1.15;position:relative" title="'+tip.replace(/"/g,'&quot;')+'">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:2px">'+
             '<span style="font-size:14px;font-weight:900;color:'+dayNumClr+';line-height:1">'+ds.day+'</span>'+
-            (bl.text?'<span style="font-size:12px;font-weight:900;color:'+bl.color+';padding:0 4px;border-radius:3px;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.06);line-height:1.3">'+bl.text+'</span>':'')+
+            '<span style="display:inline-flex;gap:3px;align-items:center">'+
+              lateBadge+
+              (bl.text?'<span style="font-size:12px;font-weight:900;color:'+bl.color+';padding:0 4px;border-radius:3px;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.06);line-height:1.3">'+bl.text+'</span>':'')+
+            '</span>'+
           '</div>'+
           (function(){
             // Pending alteration request — show the REQUESTED IN/OUT and

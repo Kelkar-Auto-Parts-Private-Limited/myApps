@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260514-V92">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="app-build" content="260515-V50">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260514-V92">
+<link rel="stylesheet" href="css/hrms.css?v=260515-V50">
 </head>
 <body>
 
@@ -36,6 +36,7 @@
   <div class="nav-item" onclick="_hrmsToggleDasNav()" style="cursor:pointer">📊 Day-wise Attendance <span id="hrmsDasNavArrow" style="margin-left:auto;font-size:10px;transition:transform .2s">▶</span></div>
   <div id="hrmsDasNavGroup" style="display:none;padding-left:12px">
     <div class="nav-item" id="navDasPlantwise" onclick="hrmsGo('pageHrmsPlantwiseAtt')" style="font-size:12px;padding:7px 16px">🏭 Plant-wise Attendance</div>
+    <div class="nav-item" id="navDasEmpAtt" onclick="hrmsGo('pageHrmsEmpAtt')" style="font-size:12px;padding:7px 16px">👤 Employee Attendance &amp; Late Mark</div>
     <div class="nav-item" id="navDasManpower" onclick="hrmsGo('pageHrmsUtilDailyAtt','manpower')" style="font-size:12px;padding:7px 16px">👷 Allocation vs Actual Manpower</div>
     <div class="nav-item" id="navDasDeptDetails" onclick="hrmsGo('pageHrmsUtilDailyAtt','deptdetails')" style="font-size:12px;padding:7px 16px">📋 Department-wise Attendance</div>
     <div class="nav-item" id="navDasTeamwise" onclick="hrmsGo('pageHrmsUtilDailyAtt','teamwise')" style="font-size:12px;padding:7px 16px">👥 Team-wise Attendance Record</div>
@@ -393,6 +394,22 @@
         <button onclick="_hrmsPwAttExport()" style="padding:7px 14px;font-size:12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer">📤 Export to Excel</button>
       </div>
       <div id="hrmsPwAttBody" style="flex:1;min-height:0;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE ATTENDANCE — one employee, full-month grid. Lives under
+       Day-wise Attendance. Search picks an employee by plant short-form
+       + emp code + name; nav arrows step through the same sorted list.
+       V113: split into two tabs — "Single Employee" (full-month detail)
+       and "Late List" (everyone who was late on a chosen day). -->
+  <div class="page" id="pageHrmsEmpAtt" style="flex-direction:column">
+    <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+      <div id="hrmsEmpAttTabs" style="display:flex;gap:2px;margin-bottom:10px;border-bottom:2px solid #e2e8f0;flex:0 0 auto">
+        <button id="hrmsEmpAttTabLate" onclick="_hrmsEmpAttSetTab('late')" style="padding:8px 16px;font-size:13px;font-weight:800;background:transparent;border:none;cursor:pointer;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">⏰ Late Marked Employees</button>
+        <button id="hrmsEmpAttTabSingle" onclick="_hrmsEmpAttSetTab('single')" style="padding:8px 16px;font-size:13px;font-weight:800;background:transparent;border:none;cursor:pointer;color:#64748b;border-bottom:3px solid transparent;margin-bottom:-2px">👤 Single Employee</button>
+      </div>
+      <div id="hrmsEmpAttCtrls" style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;position:relative;flex:0 0 auto"></div>
+      <div id="hrmsEmpAttBody" style="flex:1 1 auto;min-height:0;overflow:auto"><div style="text-align:center;color:#94a3b8;padding:40px 20px;font-size:13px">Select an employee from the search box above.</div></div>
     </div>
   </div>
 
@@ -1210,8 +1227,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V92"></script>
-<script src="js/hrms-logic.js?v=260514-V92"></script>
-<script src="js/hrms-ui.js?v=260514-V92"></script>
+<script src="js/common.js?v=260515-V50"></script>
+<script src="js/hrms-logic.js?v=260515-V50"></script>
+<script src="js/hrms-ui.js?v=260515-V50"></script>
 </body>
 </html>

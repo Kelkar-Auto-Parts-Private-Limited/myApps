@@ -180,17 +180,26 @@ function buildSegment(tripId,label,sLoc,dLoc){
   // Step 5: Empty Vehicle Exit — only on LAST segment when destination is KAP
   const isLastSeg=(label==='A'&&!trip?.dest2)||(label==='B'&&!trip?.dest3)||label==='C';
   const s5Active=isLastSeg&&dt==='KAP';
+  // V117 — Step 4 (Trip Approval) is required ONLY on the last segment.
+  // The trip is treated as a single end-of-trip approval, not per-segment.
+  // Non-last segments mark step 4 as skipped so they auto-close once
+  // their gate / MR work is done.
+  const s4Skip=!isLastSeg;
 
   const steps={
     1:{skip:s1Skip, users:s1Skip?[]:locUsers(s1Loc,'KAP Security'), label:'Gate Exit', loc:s1Skip?null:sLoc, ownerLoc:s1Skip?null:sLoc, role:'KAP Security', done:false, time:null, by:null},
     2:{skip:s2Skip, users:s2Skip?[]:locUsers(s2Loc,'KAP Security'), label:'Gate Entry', loc:s2Skip?null:dLoc, ownerLoc:s2Skip?null:dLoc, role:'KAP Security', done:false, time:null, by:null},
     3:{skip:s3Skip, users:s3Skip?[]:locUsers(s3Loc,'Material Receiver'), label:'Material Receipt', loc:s3Skip?null:(s3Loc?.id||null), ownerLoc:s3Skip?null:(s3Loc?.id||null), role:'Material Receiver', done:false, time:null, by:null},
-    4:{skip:false, users:locUsers(s4Loc,'Trip Approver'), label:'Approve', loc:s4Loc?.id||null, ownerLoc:s4Loc?.id||null, role:'Trip Approver', done:false, time:null, by:null, rejected:false, remarks:''},
+    4:{skip:s4Skip, users:s4Skip?[]:locUsers(s4Loc,'Trip Approver'), label:'Approve', loc:s4Skip?null:(s4Loc?.id||null), ownerLoc:s4Skip?null:(s4Loc?.id||null), role:'Trip Approver', done:false, time:null, by:null, rejected:false, remarks:''},
     5:{skip:!s5Active, users:s5Active?locUsers(dl,'KAP Security'):[], label:'Empty Vehicle Exit', loc:s5Active?dLoc:null, ownerLoc:s5Active?dLoc:null, role:'KAP Security', done:false, time:null, by:null},
   };
 
   const seg={id:tripId+label, tripId, label, sLoc, dLoc, criteria:c, tripCatId:catId, steps, status:'Active', date:new Date().toISOString()};
   seg.currentStep=nextStep(seg);
+  // If a segment has nothing to do at build time (e.g. Ext→Ext non-last:
+  // every step skipped), auto-flip status to Completed so the cascade
+  // unlock + render paths treat it correctly.
+  if(allStepsDone(seg)) seg.status='Completed';
   return seg;
 }
 

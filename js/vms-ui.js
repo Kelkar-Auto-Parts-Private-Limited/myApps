@@ -1580,7 +1580,11 @@ function _runInitApp(){
         var activePage=document.querySelector('.page.active');
         if(activePage){
           var pid=activePage.id;
-          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
+          // V117 — pageHelper intentionally NOT in this map. The helper
+          // page (Trip Status Retriever) should NOT auto-refresh when
+          // background data updates land; the user clicks 🔄 Refresh on
+          // demand. Real-time re-rendering was disruptive while reading.
+          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips};
           if(map[pid]) map[pid]();
         }
       }catch(e){ console.warn('_onRefreshViews error:',e); }
@@ -1618,7 +1622,10 @@ function updBadges(){
   let ap=0;
   apTripIds.forEach(tid=>{
     const allSegs=DB.segments.filter(s=>s.tripId===tid);
-    if(allSegs.every(s=>s.status==='Completed'||s.status==='Locked'||stepsUpTo3Done(s)||s.status==='Rejected')) ap++;
+    // V117 — drop 'Locked' from the eligibility set so a trip cannot
+    // enter the approval queue while later segments are still locked
+    // (was firing prematurely for Ext→Ext A whose 1,2,3 auto-skip).
+    if(allSegs.every(s=>s.status==='Completed'||stepsUpTo3Done(s)||s.status==='Rejected')) ap++;
   });
   const set=(id,n)=>{const el=document.getElementById(id);if(el){el.textContent=n||'';el.style.display=n?'inline':'none';}};
   set('bKS',kap);set('bMR',mr);set('bAP',ap);
@@ -3862,6 +3869,18 @@ async function _doBookTrip(){
   if(d2)pairs.push([d1,d2,'B']);
   if(d3)pairs.push([d2,d3,'C']);
   const _newSegs=pairs.map(([from,to,lbl],_i)=>{const seg=buildSegment(id,lbl,from,to);if(_i>0)seg.status='Locked';return seg;});
+  // V117 — cascade-unlock: if a segment has both gate steps already
+  // skipped (Ext→Ext, or any future build where 1,2 are auto-skipped),
+  // unlock the next segment immediately at creation time. Without this,
+  // an Ext→Ext leg leaves later segments stuck as Locked until its
+  // step-4 approval — which contradicts the "approve only at trip end"
+  // rule (the trip otherwise enters the approval queue right at booking).
+  for(let _ci=0;_ci<_newSegs.length-1;_ci++){
+    if(stepsOneAndTwoDone(_newSegs[_ci])&&_newSegs[_ci+1].status==='Locked'){
+      _newSegs[_ci+1].status='Active';
+      _newSegs[_ci+1].date=new Date().toISOString();
+    } else break; // stop cascade once a segment has real gate work to do
+  }
   // Set tripCatId from segment A before saving
   const _newSegA=_newSegs.find(s=>s.label==='A');
   if(_newSegA){trip.tripCatId=_newSegA.tripCatId;}
@@ -6327,10 +6346,15 @@ function renderApprove(){
     if(!tripGroups[s.tripId])tripGroups[s.tripId]=[];
     tripGroups[s.tripId].push(s);
   });
-  // Filter: keep only trips where every active segment has completed gate ops AND material receipt (or is skipped/locked)
+  // Filter: keep only trips where EVERY segment has completed its gate
+  // + MR work (or is Completed/Rejected). Locked is intentionally NOT
+  // in the eligibility set — a Locked segment means future work pending,
+  // so the trip isn't ready for approval yet. (V117 fix — previously
+  // Ext→Ext segment A with skipped 1/2/3 entered the queue at booking
+  // time while B / C were still Locked.)
   const pendingTrips=Object.entries(tripGroups).filter(([tripId])=>{
     const allSegs=DB.segments.filter(s=>s.tripId===tripId);
-    return allSegs.every(s=>s.status==='Completed'||s.status==='Locked'||stepsUpTo3Done(s)||s.status==='Rejected');
+    return allSegs.every(s=>s.status==='Completed'||stepsUpTo3Done(s)||s.status==='Rejected');
   });
 
   // Eager-load step photos for visible Approve cards — gate-exit/entry
@@ -8628,8 +8652,13 @@ let _vtDatesInit=false;
 function _initVtDates(){
   if(_vtDatesInit) return;
   _vtDatesInit=true;
-  // Default Vendor Trips to last 7 days (rolling window) instead of month.
-  initDfLast7Days('vt','vtFrom','vtTo');
+  // Default to the current month — matches the 1M button which is the
+  // default-active in the toolbar. Only fills the inputs when they're
+  // empty so a user-edited range survives a re-render.
+  var fe=document.getElementById('vtFrom');
+  if(fe&&!fe.value){
+    setDateRange('vtFrom','vtTo','month',null,'vt');
+  }
 }
 function renderVendorTrips(){
   _initVtDates();
@@ -8639,11 +8668,12 @@ function renderVendorTrips(){
   const listEl=document.getElementById('vtTripList');
   const statsEl=document.getElementById('vtStats');
 
-  // Show/hide admin filters
+  // Show/hide admin filters — the wrapper carries visibility now (the
+  // <select> itself stays display:none; visible UI is the button beside it).
   const vndF=document.getElementById('vtVendorFilter');
   const vehF=document.getElementById('vtVehicleFilter');
-  if(vndF) vndF.style.display=isAdmin?'':'none';
-  if(vehF) vehF.style.display='';
+  const vndWrap=document.getElementById('vtFbtnWrapVendor');
+  if(vndWrap) vndWrap.style.display=isAdmin?'':'none';
 
   if(isAdmin){
     _populateVtVendorFilter();
@@ -8683,26 +8713,33 @@ function renderVendorTrips(){
   const inProgress=tripItems.filter(x=>_vtStatus(x.trip)==='In Progress').length;
   const booked=tripItems.filter(x=>_vtStatus(x.trip)==='Booked').length;
   let totalBilled=0;tripItems.forEach(x=>{const r=getMatchedRate(x.trip?.id);if(r)totalBilled+=r.rate;});
+  // V116 — compact counters: ~50% of the previous height. Label / value
+  // sit on one line (inline-flex with gap) instead of stacked rows.
   if(statsEl) statsEl.innerHTML=`
-    <div style="flex:2;min-width:140px;padding:10px 14px;background:var(--surface);border:2px solid var(--accent);border-radius:8px"><div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase">Total Trips</div><div style="font-size:26px;font-weight:900;font-family:var(--mono);color:var(--text)">${total}</div><div style="font-size:16px;font-weight:800;font-family:var(--mono);color:#16a34a;margin-top:2px">₹${totalBilled.toLocaleString()}</div></div>
-    <div style="flex:1;min-width:70px;padding:10px 14px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:8px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Booked</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--text3)">${booked}</div></div>
-    <div style="flex:1;min-width:70px;padding:10px 14px;background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.2);border-radius:8px"><div style="font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase">Active</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--accent)">${inProgress}</div></div>
-    <div style="flex:1;min-width:70px;padding:10px 14px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px"><div style="font-size:10px;color:#16a34a;font-weight:600;text-transform:uppercase">Done</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:#16a34a">${completed}</div></div>`;
+    <div style="flex:2;min-width:140px;padding:4px 10px;background:var(--surface);border:1.5px solid var(--accent);border-radius:6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font-size:9px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.3px">Total Trips</span><span style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--text);line-height:1.1">${total}</span><span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#16a34a;line-height:1.1;margin-left:auto">₹${totalBilled.toLocaleString()}</span></div>
+    <div style="flex:1;min-width:70px;padding:4px 10px;background:rgba(0,0,0,.03);border:1px solid var(--border);border-radius:6px;display:flex;align-items:baseline;gap:8px"><span style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.3px">Booked</span><span style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--text3);line-height:1.1;margin-left:auto">${booked}</span></div>
+    <div style="flex:1;min-width:70px;padding:4px 10px;background:rgba(42,154,160,.06);border:1px solid rgba(42,154,160,.2);border-radius:6px;display:flex;align-items:baseline;gap:8px"><span style="font-size:9px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:.3px">Active</span><span style="font-size:14px;font-weight:800;font-family:var(--mono);color:var(--accent);line-height:1.1;margin-left:auto">${inProgress}</span></div>
+    <div style="flex:1;min-width:70px;padding:4px 10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:6px;display:flex;align-items:baseline;gap:8px"><span style="font-size:9px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Done</span><span style="font-size:14px;font-weight:800;font-family:var(--mono);color:#16a34a;line-height:1.1;margin-left:auto">${completed}</span></div>`;
 
+  // Stash the rendered set so the Export to Excel / Print PDF buttons
+  // can re-use the exact same filtered view (no need to recompute the
+  // filter chain — it'd just diverge).
+  window._vtLastTripItems=tripItems;
+  window._vtLastDateRange={from:from,to:to,isAdmin:isAdmin,vendor:vendor};
+  // Refresh the visible filter-button labels so they show the currently
+  // selected option name (driven by the hidden <select>s).
+  ['Vendor','Vehicle','Status'].forEach(_vtSyncFilterBtnLabel);
   if(!tripItems.length){
     if(listEl) listEl.innerHTML='<div class="empty-state">No trips found for the selected period</div>';
     return;
   }
 
-  // Table format — 4 columns: Trip ID | Vehicle/Driver | Route/Date/Rate | Status dot
-  const thead=`<thead><tr><th>Trip ID</th><th>Vehicle / Driver</th><th>Route / Date / Rate</th><th style="width:12px;padding:0"></th></tr></thead>`;
+  // Table format — 3 columns: Trip ID | Vehicle/Driver | Route/Date/Rate
+  // The trailing status-dot column was removed; status colour now
+  // lives on the Trip ID cell border instead.
+  const thead=`<thead><tr><th>Trip ID</th><th>Vehicle / Driver</th><th>Route / Date / Rate</th></tr></thead>`;
 
   const _vtShortDate=(d)=>{if(!d)return'—';const dt=new Date(d);return dt.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()]+', '+dt.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase();};
-  const _vtDot=(st)=>{
-    if(st==='Complete') return '<span title="Complete" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a"></span>';
-    if(st==='In Progress') return '<span title="In Progress" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b"></span>';
-    return '<span title="Booked" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#d1d5db"></span>';
-  };
 
   const tbody=tripItems.map((item,i)=>{
     const t=item.trip;
@@ -8721,12 +8758,391 @@ function renderVendorTrips(){
       <td style="vertical-align:middle"><span style="font-family:var(--mono);font-size:13px;font-weight:800;color:var(--accent)">${_cTid(t.id)}</span></td>
       <td><div style="font-family:var(--mono);font-size:13px;font-weight:700;line-height:1.5">${vnum(t.vehicleId)}</div><div style="font-size:11px;color:var(--text3);line-height:1.5">${vType}</div><div style="font-size:11px;color:var(--text2);line-height:1.5">${drv?.name||'—'}</div>${isAdmin&&vnd?`<div style="font-size:11px;color:var(--accent);font-weight:600;line-height:1.5">${vnd.name}</div>`:''}</td>
       <td>${routeLines.map(r=>`<div style="font-size:12px;line-height:1.5">${r}</div>`).join('')}<div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:2px">${_vtShortDate(t.date)}</div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#16a34a;line-height:1.5">${rate?'₹'+rate.rate.toLocaleString():'—'}</div></td>
-      <td style="vertical-align:middle;text-align:center;padding:0 2px">${_vtDot(st)}</td>
     </tr>`;
   }).join('');
 
-  if(listEl) listEl.innerHTML=`<table style="width:100%;font-size:13px;border-collapse:collapse"><style>#vtTripList table th{padding:6px 8px;font-size:12px;border-bottom:1.5px solid var(--border)}#vtTripList table td{padding:8px;line-height:1.3;vertical-align:top;border-bottom:1px solid var(--border)}</style>${thead}<tbody>${tbody}</tbody></table>`;
+  // Table renders at natural width (not stretched across the viewport).
+  // `width:auto;max-width:100%` lets it shrink-wrap its columns while
+  // still scrolling horizontally inside .table-wrap on narrow screens.
+  // Visible cell borders on all four sides (header + body) so the grid
+  // reads as a proper table instead of a list of rows.
+  if(listEl) listEl.innerHTML=`<table style="width:auto;max-width:100%;font-size:13px;border-collapse:collapse;border:1.5px solid #94a3b8"><style>#vtTripList table th{padding:6px 8px;font-size:12px;border:1px solid #94a3b8;background:linear-gradient(180deg,#f1f5f9,#e2e8f0);white-space:nowrap;font-weight:800;color:#1e293b}#vtTripList table td{padding:8px;line-height:1.3;vertical-align:top;border:1px solid #cbd5e1}#vtTripList table tbody tr:hover td{background:#f0f9ff}</style>${thead}<tbody>${tbody}</tbody></table>`;
+  // Cap the summary-badge strip's width to the table's natural width so
+  // the badges never extend past the table boundary. Measure on next
+  // paint (the table needs to lay out first).
+  requestAnimationFrame(function(){
+    var tbl=listEl?listEl.querySelector('table'):null;
+    var wrap=document.getElementById('vtStatsWrap');
+    if(tbl&&wrap){
+      var w=tbl.getBoundingClientRect().width;
+      wrap.style.maxWidth=(w>0?Math.ceil(w)+'px':'100%');
+    }
+  });
 }
+
+// ─── My Trips (Vendor) — Export to Excel / Print PDF ───────────────────
+// Both buttons re-use the most recently rendered tripItems set, so
+// every filter the user has applied (date range, status, vendor,
+// vehicle, search) carries through to the export without re-running
+// the filter chain.
+function _vtExportExcel(){
+  const items=window._vtLastTripItems||[];
+  if(!items.length){notify('No trips to export — adjust filters first',true);return;}
+  const dr=window._vtLastDateRange||{};
+  const headers=['Trip ID','Vehicle','Vehicle Type','Driver','Vendor','Route','Date','Status','Rate (₹)'];
+  let grandTotal=0;
+  const rows=items.map(item=>{
+    const t=item.trip;
+    const vnd=item.vendor;
+    const drv=byId(DB.drivers,t.driverId);
+    const vType=byId(DB.vehicleTypes,t.vehicleTypeId)?.name||'';
+    const locs=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean);
+    const route=locs.map(l=>lnameText(l)).join(' → ');
+    const st=_vtStatus(t);
+    const rate=getMatchedRate(t.id);
+    if(rate) grandTotal+=rate.rate;
+    return [
+      _cTid(t.id),
+      vnum(t.vehicleId)||'',
+      vType,
+      drv?.name||'',
+      vnd?.name||'',
+      route,
+      t.date?fdt(t.date):'',
+      st,
+      rate?rate.rate:0
+    ];
+  });
+  if(grandTotal>0){
+    const tot=new Array(headers.length).fill('');
+    tot[0]='Total';
+    tot[tot.length-1]=grandTotal;
+    rows.push(tot);
+  }
+  const data=[headers,...rows];
+  const fname='KAP_MyTrips_'+(dr.from||'')+'_to_'+(dr.to||'')+'.xlsx';
+  _downloadAsXlsx(data,'My Trips',fname);
+  notify('✅ Exported '+items.length+' trip'+(items.length===1?'':'s'));
+}
+
+// Load jsPDF + autoTable from CDN on demand. Cached after first load.
+var _vtPdfLibsLoaded=false;
+async function _vtLoadPdfLibs(){
+  if(_vtPdfLibsLoaded&&window.jspdf&&window.jspdf.jsPDF) return true;
+  const load=src=>new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+  try{
+    if(!window.jspdf||!window.jspdf.jsPDF){
+      await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }
+    // jspdf-autotable attaches itself to the global jsPDF prototype.
+    await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+    _vtPdfLibsLoaded=true;
+    return true;
+  }catch(e){
+    notify('⚠ Could not load PDF libraries — check internet connection',true);
+    return false;
+  }
+}
+
+async function _vtExportPDF(){
+  const items=window._vtLastTripItems||[];
+  if(!items.length){notify('No trips to export — adjust filters first',true);return;}
+  showSpinner&&showSpinner('Generating PDF…');
+  const libsOk=await _vtLoadPdfLibs();
+  if(!libsOk){hideSpinner&&hideSpinner();return;}
+  const dr=window._vtLastDateRange||{};
+  const isAdmin=!!dr.isAdmin;
+  const vendorLbl=dr.vendor?(dr.vendor.name||''):'';
+  // Sort + group so Vehicle / Type / Driver / Vendor cells can be
+  // rowspan-merged when they repeat across consecutive trips.
+  const rows=items.map(item=>{
+    const t=item.trip;
+    const vnd=item.vendor;
+    const drv=byId(DB.drivers,t.driverId);
+    const vType=byId(DB.vehicleTypes,t.vehicleTypeId)?.name||'-';
+    const locs=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean);
+    // ASCII arrow — jsPDF helvetica doesn't ship the Unicode "→" glyph
+    // and falls back to "!'" or similar. " > " renders cleanly.
+    const route=locs.map(l=>lnameText(l)).join(' > ');
+    const st=_vtStatus(t);
+    const rate=getMatchedRate(t.id);
+    return {
+      tid:_cTid(t.id),
+      vehicle:vnum(t.vehicleId)||'—',
+      vType:vType,
+      driver:drv?.name||'—',
+      vendor:vnd?.name||'—',
+      route:route,
+      date:t.date?fdt(t.date):'—',
+      dateRaw:t.date||'',
+      status:st,
+      rate:rate?rate.rate:0
+    };
+  }).sort((a,b)=>{
+    if(isAdmin&&a.vendor!==b.vendor) return a.vendor.localeCompare(b.vendor);
+    return (a.dateRaw||'').localeCompare(b.dateRaw||'');
+  });
+  // Stats / totals.
+  let grandTotal=0,completed=0,inProgress=0,booked=0;
+  rows.forEach(r=>{
+    grandTotal+=r.rate||0;
+    if(r.status==='Complete') completed++;
+    else if(r.status==='In Progress') inProgress++;
+    else booked++;
+  });
+  const trCount=rows.length;
+  const headerTitle=isAdmin?'All Vendors':(vendorLbl||'My Trips');
+  const _fmtDateLbl=function(s){
+    if(!s) return '—';
+    try{var d=new Date(s+'T00:00:00');return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+' '+d.getFullYear();}
+    catch(_){return s;}
+  };
+  // Build PDF with jsPDF + autoTable — A4 portrait. Reset every colour /
+  // font state before each draw so nothing leaks between cells (the TO
+  // pill previously inherited a stale state and rendered invisible).
+  try{
+    const doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+    const pageW=doc.internal.pageSize.getWidth();
+    const margin=8;
+    // Title
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(15,23,42);
+    doc.text('KELKAR AUTO PARTS PRIVATE LIMITED',margin,12);
+    doc.setFontSize(10);
+    doc.setTextColor(71,85,105);
+    doc.text('My Trips Report',margin,17.5);
+    // Date pills (prominent FROM / TO badges). Each pill resets every
+    // colour state explicitly so the second pill (TO) doesn't share a
+    // bad state with the first.
+    const fromTxt=_fmtDateLbl(dr.from);
+    const toTxt=_fmtDateLbl(dr.to);
+    const fromLbl='FROM  '+fromTxt;
+    const toLbl='TO  '+toTxt;
+    const drawPill=(x,y,label,h)=>{
+      // Measure with the bold font we'll render in (avoids width drift).
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      const w=doc.getTextWidth(label)+10;
+      // Light-blue fill, dark-blue border.
+      doc.setFillColor(219,234,254);
+      doc.setDrawColor(29,78,216);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(x,y,w,h,1.5,1.5,'FD');
+      // Dark-blue text — explicitly re-set after the rect call.
+      doc.setTextColor(30,58,138);
+      doc.text(label,x+5,y+h/2+1.5);
+      return w;
+    };
+    const pillY=22, pillH=7.5;
+    const wFrom=drawPill(margin,pillY,fromLbl,pillH);
+    const wTo=drawPill(margin+wFrom+3,pillY,toLbl,pillH);
+    // Vendor name pill — prominent dark-green badge alongside the dates.
+    const vendorPillLbl='VENDOR  '+headerTitle;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    const vendorPillW=doc.getTextWidth(vendorPillLbl)+10;
+    const vendorPillX=margin+wFrom+3+wTo+3;
+    doc.setFillColor(220,252,231);
+    doc.setDrawColor(21,128,61);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(vendorPillX,pillY,vendorPillW,pillH,1.5,1.5,'FD');
+    doc.setTextColor(20,83,45);
+    doc.text(vendorPillLbl,vendorPillX+5,pillY+pillH/2+1.5);
+    // Meta line — trip count (below the pills).
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71,85,105);
+    doc.text(trCount+' trip'+(trCount===1?'':'s')+' in selected period',margin,pillY+pillH+4);
+    // Summary badges row — coloured pills.
+    let sx=margin,sy=pillY+pillH+8;
+    const pill=(txt,bg,fg)=>{
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      const w=doc.getTextWidth(txt)+6;
+      doc.setFillColor.apply(doc,bg);
+      doc.setDrawColor.apply(doc,bg);
+      doc.roundedRect(sx,sy,w,5.5,1,1,'F');
+      doc.setTextColor.apply(doc,fg);
+      doc.text(txt,sx+3,sy+3.8);
+      sx+=w+2.5;
+    };
+    pill('Total '+trCount,[219,234,254],[30,64,175]);
+    pill('Booked '+booked,[241,245,249],[71,85,105]);
+    pill('In Progress '+inProgress,[254,243,199],[146,64,14]);
+    pill('Complete '+completed,[220,252,231],[21,128,61]);
+    if(grandTotal>0) pill('Billed ₹'+grandTotal.toLocaleString('en-IN'),[220,252,231],[21,128,61]);
+    // Bottom edge of the summary pills row — autoTable startY needs to
+    // clear this so the table doesn't overlap the badges.
+    var summaryBottomY=sy+5.5;
+    // Build autoTable rows. Vehicle + Type combine as two-line string.
+    const head=[];
+    head.push('Trip ID');
+    if(isAdmin) head.push('Vendor');
+    head.push('Vehicle / Type','Route','Date','Status','Rate (₹)');
+    const body=rows.map(r=>{
+      const out=[];
+      out.push(r.tid);
+      if(isAdmin) out.push(r.vendor);
+      out.push(r.vehicle+'\n'+r.vType);
+      out.push(r.route);
+      out.push(r.date);
+      out.push(r.status);
+      out.push(r.rate?r.rate.toLocaleString('en-IN'):'—');
+      return out;
+    });
+    if(grandTotal>0){
+      const tot=[];
+      const tspan=head.length-1;
+      tot.push({content:'Grand Total',colSpan:tspan,styles:{halign:'right',fontStyle:'bold',fillColor:[240,253,244],textColor:[21,128,61]}});
+      tot.push({content:grandTotal.toLocaleString('en-IN'),styles:{halign:'right',fontStyle:'bold',fillColor:[240,253,244],textColor:[21,128,61]}});
+      body.push(tot);
+    }
+    // Portrait A4 = 210mm wide. With 8mm margins we have ~194mm. The
+    // adjacent fixed columns are trimmed to leave a healthy slot for
+    // Route. Route uses cellWidth:'wrap' so long location chains break
+    // at the cell edge instead of bleeding into Date.
+    const cw={};
+    const tidIdx=0;
+    let colIdx=tidIdx+1;
+    if(isAdmin){cw[colIdx]={cellWidth:22};colIdx++;}       // Vendor
+    cw[colIdx]={cellWidth:24};colIdx++;                    // Vehicle/Type
+    cw[colIdx]={cellWidth:'auto'};colIdx++;                // Route (flex, wraps via overflow:linebreak)
+    cw[colIdx]={cellWidth:18};colIdx++;                    // Date
+    cw[colIdx]={cellWidth:16};colIdx++;                    // Status
+    cw[colIdx]={cellWidth:20,halign:'right'};              // Rate
+    cw[tidIdx]={cellWidth:18,fontStyle:'bold',textColor:[29,78,216]};
+    window.jspdf.jsPDF.API&&doc.autoTable&&doc.autoTable({
+      // Start safely below the summary pills row (which ends at
+      // summaryBottomY); +6mm breathing room above the table.
+      startY:summaryBottomY+6,
+      head:[head],
+      body:body,
+      theme:'grid',
+      styles:{
+        fontSize:8,
+        cellPadding:1.5,
+        lineColor:[148,163,184],
+        lineWidth:0.2,
+        overflow:'linebreak',
+        valign:'middle'
+      },
+      headStyles:{
+        fillColor:[30,41,59],
+        textColor:[255,255,255],
+        fontStyle:'bold',
+        fontSize:9,
+        halign:'left'
+      },
+      columnStyles:cw,
+      margin:{left:margin,right:margin},
+      didParseCell:function(data){
+        // V117 — normal-weight text everywhere except Trip ID. Status
+        // and Vehicle/Type no longer force bold; just coloured normally
+        // so the route + date text reads at the same visual weight.
+        const statusColIdx=head.length-2;
+        if(data.section==='body'&&data.column.index===statusColIdx){
+          const v=String(data.cell.raw||'');
+          if(v==='Complete') data.cell.styles.textColor=[22,163,74];
+          else if(v==='In Progress') data.cell.styles.textColor=[217,119,6];
+          else data.cell.styles.textColor=[100,116,139];
+        }
+        // Trip ID stands out (bold + accent blue) — the only deliberately
+        // emphasised cell in the body.
+        if(data.section==='body'&&data.column.index===0){
+          data.cell.styles.font='courier';
+          data.cell.styles.fontStyle='bold';
+          data.cell.styles.textColor=[29,78,216];
+        }
+      }
+    });
+    // Save file.
+    const fname='KAP_MyTrips_'+(dr.from||'')+'_to_'+(dr.to||'')+'.pdf';
+    doc.save(fname);
+    hideSpinner&&hideSpinner();
+    notify('✅ PDF downloaded ('+trCount+' trip'+(trCount===1?'':'s')+')');
+  }catch(e){
+    console.error('PDF export error:',e);
+    hideSpinner&&hideSpinner();
+    notify('⚠ PDF generation failed: '+(e.message||e),true);
+  }
+}
+
+// ─── Filter button popovers (Vendor / Vehicle / Status) ─────────────
+// The visible filter UI on the My Trips page is a row of buttons; each
+// button opens a popover list. Selection writes back to the matching
+// hidden <select> (vtVendorFilter / vtVehicleFilter / vtStatusFilter)
+// and fires its onchange so renderVendorTrips picks the new value up.
+function _vtToggleFilter(kind,evt){
+  if(evt&&evt.stopPropagation) evt.stopPropagation();
+  ['Vendor','Vehicle','Status'].forEach(function(k){
+    if(k===kind) return;
+    var p=document.getElementById('vtPop'+k);
+    if(p) p.style.display='none';
+  });
+  var pop=document.getElementById('vtPop'+kind);
+  if(!pop) return;
+  var isOpen=pop.style.display==='block';
+  if(isOpen){pop.style.display='none';return;}
+  _vtBuildFilterPop(kind);
+  pop.style.display='block';
+}
+
+function _vtBuildFilterPop(kind){
+  var pop=document.getElementById('vtPop'+kind);
+  var sel=document.getElementById('vt'+kind+'Filter');
+  if(!pop||!sel) return;
+  var current=sel.value||'';
+  var html='';
+  Array.from(sel.options).forEach(function(opt){
+    var active=(opt.value===current);
+    var bg=active?'background:rgba(42,154,160,.12);font-weight:700;color:var(--accent)':'background:#fff';
+    var v=String(opt.value||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var txt=String(opt.text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    html+='<div onclick="_vtPickFilter(\''+kind+'\',\''+v+'\')" style="padding:7px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #f1f5f9;'+bg+'" onmouseover="this.style.background=\'#f0f9ff\'" onmouseout="this.style.background=\''+(active?'rgba(42,154,160,.12)':'#fff')+'\'">'+(active?'✓ ':'<span style=\'opacity:.3;margin-right:4px\'>○</span>')+txt+'</div>';
+  });
+  pop.innerHTML=html;
+}
+
+function _vtPickFilter(kind,value){
+  var sel=document.getElementById('vt'+kind+'Filter');
+  if(!sel) return;
+  sel.value=value;
+  // Fire the native onchange so the legacy render-handler chain runs.
+  try{ sel.dispatchEvent(new Event('change',{bubbles:true})); }catch(_){
+    if(typeof sel.onchange==='function') sel.onchange();
+  }
+  _vtSyncFilterBtnLabel(kind);
+  var pop=document.getElementById('vtPop'+kind);
+  if(pop) pop.style.display='none';
+}
+
+function _vtSyncFilterBtnLabel(kind){
+  var sel=document.getElementById('vt'+kind+'Filter');
+  var btn=document.getElementById('vtBtn'+kind);
+  if(!sel||!btn) return;
+  var lbl=btn.querySelector('.vt-fbtn-lbl');
+  if(!lbl) return;
+  var opt=sel.options[sel.selectedIndex];
+  lbl.textContent=opt?opt.text:'';
+  // Highlight active (non-default) filters with the accent border.
+  var isActive=sel.value!=='';
+  btn.style.borderColor=isActive?'var(--accent)':'var(--border)';
+  btn.style.background=isActive?'var(--accent-light,#e0f2f4)':'var(--surface)';
+  btn.style.color=isActive?'var(--accent)':'var(--text)';
+}
+
+// Outside-click closes any open filter popover.
+document.addEventListener('click',function(e){
+  if(e.target.closest&&e.target.closest('.vt-fbtn-wrap')) return;
+  ['Vendor','Vehicle','Status'].forEach(function(k){
+    var p=document.getElementById('vtPop'+k);
+    if(p) p.style.display='none';
+  });
+});
 
 // ===== SECURITY CHECKPOINT MASTER =====
 

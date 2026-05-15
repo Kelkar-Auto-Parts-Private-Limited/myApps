@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-build" content="260514-V92">
+<meta name="app-build" content="260515-V50">
 <title>KAP — VMS</title>
 
 <!-- xlsx removed for Claude app compatibility -->
 <!-- Local mode: no external dependencies -->
-<link rel="stylesheet" href="css/vms.css?v=260514-V92">
+<link rel="stylesheet" href="css/vms.css?v=260515-V50">
 
 </head>
 <body>
@@ -605,20 +605,56 @@
     <div class="page" id="pageVendorTrips">
       <div class="page-header"><div class="page-title">My Trips (Vendor)</div><div class="page-sub" id="vtVendorName"></div></div>
       <div class="card">
-        <div class="card-header" style="flex-wrap:wrap;gap:8px">
-          <div style="position:relative;width:100%;margin-bottom:4px"><input type="text" id="vtTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderVendorTrips();document.getElementById('vtSearchX').style.display=this.value?'block':'none'" style="font-size:15px;padding:10px 36px 10px 14px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="vtSearchX" onclick="document.getElementById('vtTripSearch').value='';this.style.display='none';renderVendorTrips()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:4px;line-height:1">✕</span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <div class="df-block" id="dfb_vt"><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">From</span><span style="font-size:10px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px">To</span><button id="drb_vt_today" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','today',renderVendorTrips,'vt')">1D</button><button id="drb_vt_week" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','week',renderVendorTrips,'vt')">1W</button><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtFromLbl">📅 —</span><input type="date" id="vtFrom" onchange="updDateBtnLbl('vtFrom');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><div class="date-btn" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtToLbl">📅 —</span><input type="date" id="vtTo" onchange="updDateBtnLbl('vtTo');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div><button id="drb_vt_month" class="dr-btn dr-btn-active" onclick="setDateRange('vtFrom','vtTo','month',renderVendorTrips,'vt')">1M</button><button id="drb_vt_year" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','year',renderVendorTrips,'vt')">1Y</button></div>
+        <!-- Hidden selects — legacy state holders for renderVendorTrips.
+             Pulled outside the toolbar row so they can't insert any
+             phantom gap between the search and date controls. -->
+        <select id="vtVendorFilter" onchange="_onVtVendorChange();renderVendorTrips()" style="display:none"><option value="">All Vendors</option></select>
+        <select id="vtVehicleFilter" onchange="renderVendorTrips()" style="display:none"><option value="">All Vehicles</option></select>
+        <select id="vtStatusFilter" onchange="renderVendorTrips()" style="display:none"><option value="">All Status</option><option value="Booked">Booked</option><option value="In Progress">In Progress</option><option value="Complete">Complete</option></select>
+        <!-- Toolbar — search + date panel ALWAYS side-by-side at every
+             width. NOT using .card-header here: its base CSS sets
+             justify-content:space-between (which inserts empty space
+             between children) and switches to flex-direction:column at
+             ≤768px (which stacked the date panel below the search box).
+             Inline rules below pin every flex property explicitly. -->
+        <div style="display:flex;flex-direction:row;justify-content:flex-start;align-items:flex-start;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px">
+          <!-- Search — fixed 8-char width; trailing padding minimised so
+               the visual edge sits right next to the date panel. -->
+          <div style="position:relative;flex:0 0 auto;align-self:center"><input type="text" id="vtTripSearch" placeholder="🔍" title="Search Trip ID or Vehicle" oninput="renderVendorTrips();document.getElementById('vtSearchX').style.display=this.value?'inline-block':'none'" style="font-size:12px;padding:6px 14px 6px 6px;border:1.5px solid var(--accent);border-radius:6px;background:#fff;color:var(--text);font-family:var(--mono);width:8ch;min-width:84px;max-width:84px;box-sizing:content-box;font-weight:700"><span id="vtSearchX" onclick="document.getElementById('vtTripSearch').value='';this.style.display='none';renderVendorTrips()" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:0 2px;line-height:1">✕</span></div>
+          <!-- Date panel — 4-col grid, range buttons on top row, pickers below. -->
+          <div class="df-block" id="dfb_vt" style="grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto;flex:0 0 auto">
+            <button id="drb_vt_today" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','today',renderVendorTrips,'vt')">1D</button>
+            <button id="drb_vt_week" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','week',renderVendorTrips,'vt')">1W</button>
+            <button id="drb_vt_month" class="dr-btn dr-btn-active" onclick="setDateRange('vtFrom','vtTo','month',renderVendorTrips,'vt')">1M</button>
+            <button id="drb_vt_year" class="dr-btn" onclick="setDateRange('vtFrom','vtTo','year',renderVendorTrips,'vt')">1Y</button>
+            <div class="date-btn" style="grid-column:span 2" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtFromLbl">📅 —</span><input type="date" id="vtFrom" onchange="updDateBtnLbl('vtFrom');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div>
+            <div class="date-btn" style="grid-column:span 2" onclick="this.querySelector('input').click()"><span class="date-btn-label" id="vtToLbl">📅 —</span><input type="date" id="vtTo" onchange="updDateBtnLbl('vtTo');updDrBtns('vt','vtFrom','vtTo');renderVendorTrips()" class="u-photo-input-overlay"></div>
           </div>
         </div>
-        <!-- Row 2: Vendor + Vehicle + Status filters -->
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <select id="vtVendorFilter" onchange="_onVtVendorChange();renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:140px"><option value="">All Vendors ▾</option></select>
-          <select id="vtVehicleFilter" onchange="renderVendorTrips()" style="display:none;font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-family:var(--mono);min-width:130px"><option value="">All Vehicles ▾</option></select>
-          <select id="vtStatusFilter" onchange="renderVendorTrips()" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)"><option value="">All Status</option><option value="Booked">Booked</option><option value="In Progress">In Progress</option><option value="Complete">Complete</option></select>
+        <!-- Summary stats — width capped to the trip table so the badges
+             never spill past it. The wrapper sets the cap; renderVendorTrips
+             writes the badges inside. -->
+        <div id="vtStatsWrap" style="max-width:var(--vt-table-w,100%);margin-bottom:8px">
+          <div id="vtStats" style="display:flex;flex-wrap:wrap;gap:6px"></div>
         </div>
-        <!-- Summary stats -->
-        <div id="vtStats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+        <!-- Filter buttons + export icons — single row, left-aligned,
+             positioned BELOW the summary badges. -->
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <div class="vt-fbtn-wrap" id="vtFbtnWrapVendor" style="position:relative;display:none">
+            <button id="vtBtnVendor" onclick="_vtToggleFilter('Vendor',event)" type="button" style="font-size:11px;font-weight:700;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:4px"><span>🏢</span><span class="vt-fbtn-lbl">All Vendors</span><span style="font-size:9px;opacity:.7">▾</span></button>
+            <div id="vtPopVendor" class="vt-pop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);z-index:20;min-width:200px;max-height:300px;overflow-y:auto"></div>
+          </div>
+          <div class="vt-fbtn-wrap" id="vtFbtnWrapVehicle" style="position:relative">
+            <button id="vtBtnVehicle" onclick="_vtToggleFilter('Vehicle',event)" type="button" style="font-size:11px;font-weight:700;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:4px"><span>🚗</span><span class="vt-fbtn-lbl" style="font-family:var(--mono)">All Vehicles</span><span style="font-size:9px;opacity:.7">▾</span></button>
+            <div id="vtPopVehicle" class="vt-pop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);z-index:20;min-width:200px;max-height:300px;overflow-y:auto"></div>
+          </div>
+          <div class="vt-fbtn-wrap" id="vtFbtnWrapStatus" style="position:relative">
+            <button id="vtBtnStatus" onclick="_vtToggleFilter('Status',event)" type="button" style="font-size:11px;font-weight:700;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:4px"><span>●</span><span class="vt-fbtn-lbl">All Status</span><span style="font-size:9px;opacity:.7">▾</span></button>
+            <div id="vtPopStatus" class="vt-pop" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1.5px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);z-index:20;min-width:160px;max-height:300px;overflow-y:auto"></div>
+          </div>
+          <button onclick="_vtExportExcel()" title="Export to Excel" aria-label="Export to Excel" style="padding:6px 10px;font-size:15px;font-weight:900;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;line-height:1;box-shadow:0 1px 3px rgba(22,163,74,.25)">📥</button>
+          <button onclick="_vtExportPDF()" title="Print PDF report" aria-label="Print PDF report" style="padding:6px 10px;font-size:15px;font-weight:900;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;line-height:1;box-shadow:0 1px 3px rgba(220,38,38,.25)">🖨</button>
+        </div>
         <!-- Trip table -->
         <div class="table-wrap"><div id="vtTripList"></div></div>
       </div>
@@ -1199,8 +1235,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260514-V92"></script>
-<script src="js/vms-logic.js?v=260514-V92"></script>
-<script src="js/vms-ui.js?v=260514-V92"></script>
+<script src="js/common.js?v=260515-V50"></script>
+<script src="js/vms-logic.js?v=260515-V50"></script>
+<script src="js/vms-ui.js?v=260515-V50"></script>
 </body>
 </html>

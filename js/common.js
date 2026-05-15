@@ -2390,6 +2390,7 @@ var _PERM_KEYS={
     // Sidebar — 📊 Day-wise Attendance (collapsible group + 4 sub-pages)
     {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance'},
     {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance'},
+    {key:'page.empAtt',label:'👤 Employee Attendance & Late Mark',group:'📊 Day-wise Attendance'},
     {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
     {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance'},
     // scopeOptions exposes a per-role scope dropdown beside the
@@ -2656,7 +2657,7 @@ var _PERM_UMBRELLA={
     'page.utilities':['page.utilAttConv','page.utilUpdateEmp'],
     // Day-wise Attendance is a sidebar collapsible — its parent menu
     // (page.utilDailyAttSum) auto-derives from the sub-page perms.
-    'page.utilDailyAttSum':['page.plantwiseAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise']
+    'page.utilDailyAttSum':['page.plantwiseAtt','page.empAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',
