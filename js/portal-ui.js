@@ -41,7 +41,7 @@ bootDB=async function(){
     console.log('bootDB: ready (photo-excluded, '+_DATE_FILTER_DAYS+'d) — users='+((DB.users||[]).length));
     _bgSyncDone=true;
     _sbSetStatus('ok');
-    if(typeof _migrateStep3Skip==='function') _migrateStep3Skip();
+    if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip();
     _onPostBoot();
     _sbStartRealtime();
   }catch(e){
@@ -1040,6 +1040,8 @@ function renderPortalUsers(){
   const srch=(document.getElementById('puSearch')?.value||'').toLowerCase();
   const showI=document.getElementById('puShowInactive')?.checked;
   const isSA=CU?.roles?.includes('Super Admin');
+  // V117 — SA-only export button visibility.
+  (function(){var b=document.getElementById('btnExportUsers');if(b) b.style.display=isSA?'inline-flex':'none';})();
   let rows=[...DB.users].filter(u=>isSA||!(u.roles||[]).includes('Super Admin'));
   if(srch) rows=rows.filter(u=>(u.fullName||'').toLowerCase().includes(srch)||(u.name||'').toLowerCase().includes(srch));
   if(!showI) rows=rows.filter(u=>!u.inactive);
@@ -1383,6 +1385,56 @@ async function puSaveUser(){
     if(fresh) Object.assign(CU,fresh);
   }
   renderPortalUsers();notify('User saved!');
+}
+
+// ── SA-only export users to Excel ──────────────────────────────────────
+// Columns: Username · Full Name · Location · Email · Mobile · Apps ·
+//   Platform Roles · VMS Roles · HWMS Roles · HRMS Roles · MTTS Roles ·
+//   Inactive. Respects the current Show Inactive checkbox so the export
+//   matches what the operator sees on screen.
+function _puExportUsers(){
+  if(!CU||!(CU.roles||[]).includes('Super Admin')){
+    notify('⚠ Super Admin only',true);return;
+  }
+  if(typeof _downloadAsXlsx!=='function'){notify('XLSX helper not loaded',true);return;}
+  // Build location-id → name map so we export the human-readable plant
+  // name (not the internal location id).
+  var locById={};
+  (DB.locations||[]).forEach(function(l){if(l&&l.id) locById[l.id]=l.name||'';});
+  // Platform roles split off from u.roles so the export has VMS-only
+  // roles in their own column.
+  var PLAT=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
+  var showI=document.getElementById('puShowInactive')?.checked;
+  var rows=(DB.users||[]).slice();
+  if(!showI) rows=rows.filter(function(u){return u&&!u.inactive;});
+  rows.sort(function(a,b){
+    return String(a.fullName||a.name||'').localeCompare(String(b.fullName||b.name||''),undefined,{numeric:true,sensitivity:'base'});
+  });
+  var headers=['Username','Full Name','Location','Email','Mobile','Apps','Platform Roles','VMS Roles','HWMS Roles','HRMS Roles','MTTS Roles','Inactive'];
+  var data=[headers];
+  rows.forEach(function(u){
+    if(!u) return;
+    var allRoles=u.roles||[];
+    var platRoles=allRoles.filter(function(r){return PLAT.indexOf(r)>=0;});
+    var vmsRoles=allRoles.filter(function(r){return PLAT.indexOf(r)<0;});
+    data.push([
+      u.name||'',
+      u.fullName||'',
+      locById[u.plant]||u.plant||'',
+      u.email||'',
+      u.mobile||'',
+      (u.apps||[]).join(', '),
+      platRoles.join(', '),
+      vmsRoles.join(', '),
+      (u.hwmsRoles||[]).join(', '),
+      (u.hrmsRoles||[]).join(', '),
+      (u.mttsRoles||[]).join(', '),
+      u.inactive?'Yes':'No'
+    ]);
+  });
+  var stamp=(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  _downloadAsXlsx(data,'Users','KAP_Users_'+stamp+'.xlsx');
+  notify('📤 Exported '+(data.length-1)+' user'+((data.length-1)===1?'':'s'));
 }
 
 // ── Delete user ─────────────────────────────────────────────────────────────

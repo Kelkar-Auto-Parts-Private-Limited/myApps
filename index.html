@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260515-V50">
+<meta name="app-build" content="260516-V27">
 <title>KAP — myApps Portal</title>
-<link rel="stylesheet" href="css/portal.css?v=260515-V50">
+<link rel="stylesheet" href="css/portal.css?v=260516-V27">
 </head>
 <body>
 <div id="notification" class="notification"></div>
@@ -139,6 +139,8 @@
         <input type="search" id="puSearch" placeholder="🔍 Search users…" oninput="renderPortalUsers()" onsearch="renderPortalUsers()" style="max-width:220px;font-size:15px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:#fff">
         <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text3)"><input type="checkbox" id="puShowInactive" onchange="renderPortalUsers()"> Show Inactive</label>
         <div style="flex:1"></div>
+        <!-- SA-only export. Visibility flipped in renderPortalUsers. -->
+        <button id="btnExportUsers" class="btn btn-secondary" onclick="_puExportUsers()" title="Download user list as Excel" style="font-size:12px;padding:7px 12px;margin:0;display:none;background:#dcfce7;border-color:#86efac;color:#15803d">📤 Export Users</button>
         <button class="btn btn-primary" onclick="puOpenModal()">+ Add User</button>
       </div>
       <div class="puTableWrap"><table><thead><tr><th></th><th>Full Name</th><th>Username</th><th>Location</th><th>Apps &amp; Roles</th><th>Reset Password</th></tr></thead><tbody id="puBody"></tbody></table></div>
@@ -397,8 +399,8 @@
 </div>
 </div>
 <script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260515-V50"></script>
-<script src="js/portal-logic.js?v=260515-V50"></script>
-<script src="js/portal-ui.js?v=260515-V50"></script>
+<script src="js/common.js?v=260516-V27"></script>
+<script src="js/portal-logic.js?v=260516-V27"></script>
+<script src="js/portal-ui.js?v=260516-V27"></script>
 </body>
 </html>

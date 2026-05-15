@@ -16,7 +16,7 @@
   .form-group{margin-bottom:20px}
   label{display:block;font-size:12px;font-weight:600;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
   #mTripBooking label{font-weight:800;color:#000}
-  input,select,textarea{width:100%;background:#fffbea;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .2s}
+  input,select,textarea{width:100%;background:#fff;border:1px solid #000;border-radius:var(--radius);padding:10px 14px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color .2s}
   input:focus,select:focus,textarea:focus{border-color:var(--accent)}
   select option{background:var(--surface);color:var(--text)}
   .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radius);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s ease}
@@ -342,7 +342,7 @@
 
   .challan-list{display:flex;flex-direction:column;gap:2px;margin-top:3px}
   .challan-row{display:flex;gap:4px;align-items:center;background:rgba(0,0,0,.03);border-radius:5px;padding:2px 5px}
-  .challan-row input{flex:1;min-width:0;padding:5px 7px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:#fffbea;color:var(--text)}
+  .challan-row input{flex:1;min-width:0;padding:5px 7px;font-size:12px;border:1px solid #000;border-radius:6px;background:#fff;color:var(--text)}
   .challan-row .ch-del{background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px;padding:0 3px;flex-shrink:0}
   .challan-photo-thumb{width:30px;height:30px;border:1.5px dashed var(--border2);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer;flex-shrink:0}
   .challan-photo-thumb.has-photo{border-color:var(--green);border-style:solid}
@@ -484,21 +484,13 @@
   #tVTypes thead th:last-child,#tVTypes tbody td:last-child{display:table-cell!important}
   /* ── Location Master: Name col minimum width ─ */
   #tLocations thead th:first-child,#tLocations tbody td:first-child{min-width:180px}
-  /* Narrow mode: Locations — show only Name, Trip Booking, Mat. Receiver, Approver */
-  @media (max-width:768px){
-    #tLocations thead th:nth-child(2),#tLocations tbody td:nth-child(2),
-    #tLocations thead th:nth-child(3),#tLocations tbody td:nth-child(3),
-    #tLocations thead th:last-child,#tLocations tbody td:last-child{display:none!important}
-    /* Drivers — show only Photo, Name, Vendor */
-    #tDrivers thead th:nth-child(3),#tDrivers tbody td:nth-child(3),
-    #tDrivers thead th:nth-child(5),#tDrivers tbody td:nth-child(5),
-    #tDrivers thead th:last-child,#tDrivers tbody td:last-child{display:none!important}
-    /* Vehicles — show only Vehicle No, Type, Vendor */
-    #tVehicles thead th:nth-child(4),#tVehicles tbody td:nth-child(4),
-    #tVehicles thead th:nth-child(5),#tVehicles tbody td:nth-child(5),
-    #tVehicles thead th:nth-child(6),#tVehicles tbody td:nth-child(6),
-    #tVehicles thead th:last-child,#tVehicles tbody td:last-child{display:none!important}
-  }
+  /* V117+ — pre-V117 column-hiding rules for Locations / Drivers / Vehicles
+     under @media (max-width:768px) were tied to the OLD column layouts
+     (Locations: Name|Type|KAP Sec|Trip Booking|... — long gone). Removed
+     here because they collided with the new card-mode rule below: those
+     stale `display:none !important` lines were keeping Type (col 2) and
+     Address (col 3) hidden in Location cards. The new master-card block
+     below handles narrow-screen layout for all five masters. */
 
   /* ── Responsive master table column hiding ─────────────────────────── */
   /* Columns hidden at ≤600px (last meaningful col before Actions) */
@@ -570,3 +562,405 @@
   }
 @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes sbPulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* V117+ — Bold Import / Export arrows with a prominent hover tooltip.
+     Used on every master-page Import / Export button across VMS. */
+  .vms-ie-arrow {
+    display: inline-block;
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+  }
+  /* V117+ — Delete-trip popup: shrink the giant trip-id + vehicle-number
+     pills by 5px each end of the clamp so the confirm dialog stays
+     compact. Targets inline styles emitted by tripCardHeader(). */
+  #delTripInfo [style*="font-size:clamp(24px,7vw,36px)"] {
+    font-size: clamp(19px, 6vw, 31px) !important;
+  }
+
+  /* JS-injected tooltip — position:fixed escapes every overflow ancestor
+     and z-index:999999 wins over modals / sticky bars. See _vmsIeTipBind. */
+  #vmsIeTip {
+    position: fixed;
+    background: #1e293b;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 999999;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.28);
+    display: none;
+  }
+
+  /* V117+ — Hide redundant "Master" page titles on master pages — the
+     same name is already in the sidebar title bar (header). Saves a row. */
+  #pageUsers     > .page-header,
+  #pageVTypes    > .page-header,
+  #pageDrivers   > .page-header,
+  #pageVendors   > .page-header,
+  #pageVehicles  > .page-header,
+  #pageLocations > .page-header,
+  #pageTripRates > .page-header { display: none; }
+
+  /* V117+ — Master tables: cap card width + prominent borders/headers.
+     Applies to Locations, Vehicle Types, Vendors, Vehicles, Drivers. */
+  #pageLocations > .card,
+  #pageVTypes    > .card,
+  #pageVendors   > .card,
+  #pageVehicles  > .card,
+  #pageDrivers   > .card { max-width: 1100px; }
+
+  /* V117+ — Locations / Vehicles / Drivers / User Plant Allocation:
+     page-level vertical scroll removed; scroll happens INSIDE the
+     table-wrap so the toolbar + sticky thead stay visible. The
+     surrounding .main-content is forced overflow:hidden when one of
+     these pages is active so its own scrollbar doesn't appear. */
+  @media (min-width: 769px) {
+    .main-content:has(> #pageLocations.active),
+    .main-content:has(> #pageVehicles.active),
+    .main-content:has(> #pageDrivers.active),
+    .main-content:has(> #pageUserPlantAlloc.active) {
+      overflow: hidden !important;
+      height: 100vh !important;
+    }
+    #pageLocations.active,
+    #pageVehicles.active,
+    #pageDrivers.active,
+    #pageUserPlantAlloc.active {
+      display: flex !important;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      padding-bottom: 0 !important;
+    }
+    #pageLocations.active > .card,
+    #pageVehicles.active  > .card,
+    #pageDrivers.active   > .card,
+    #pageUserPlantAlloc.active > .card {
+      display: flex !important;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none !important;
+      overflow: hidden;
+      margin-bottom: 0;
+    }
+    #pageLocations.active .card-header,
+    #pageVehicles.active  .card-header,
+    #pageDrivers.active   .card-header,
+    #pageUserPlantAlloc.active .card-header { flex-shrink: 0; }
+    #pageLocations.active .table-wrap,
+    #pageVehicles.active  .table-wrap,
+    #pageDrivers.active   .table-wrap,
+    #pageUserPlantAlloc.active .table-wrap {
+      overflow-y: auto !important;
+      overflow-x: auto;
+      max-height: none !important;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+  }
+  /* Sticky thead so the column labels stay pinned while body scrolls. */
+  #tLocations thead th, #tVehicles thead th, #tDrivers thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  /* Tables size to content (width:auto) instead of 100%, so columns
+     only take the space they actually need. The .table-wrap container
+     keeps overflow:auto so on very wide content nothing breaks out. */
+  #tLocations, #tVTypes, #tVendors, #tVehicles, #tDrivers {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #cbd5e1;
+    width: auto;
+    max-width: 100%;
+    table-layout: auto;
+  }
+  #tLocations thead th, #tVTypes thead th, #tVendors thead th,
+  #tVehicles thead th, #tDrivers thead th {
+    background: #f1f5f9;
+    color: #334155;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  /* Sort indicator + hover stay subtle on the light header. */
+  #tLocations thead th.sort-asc::after, #tVTypes thead th.sort-asc::after,
+  #tVendors  thead th.sort-asc::after, #tVehicles thead th.sort-asc::after,
+  #tDrivers  thead th.sort-asc::after,
+  #tLocations thead th.sort-desc::after, #tVTypes thead th.sort-desc::after,
+  #tVendors  thead th.sort-desc::after, #tVehicles thead th.sort-desc::after,
+  #tDrivers  thead th.sort-desc::after { color: var(--accent); }
+  #tLocations thead th.sortable:hover, #tVTypes thead th.sortable:hover,
+  #tVendors  thead th.sortable:hover, #tVehicles thead th.sortable:hover,
+  #tDrivers  thead th.sortable:hover { background: #e2e8f0 !important; color: #1e293b !important; }
+  #tLocations tbody td, #tVTypes tbody td, #tVendors tbody td,
+  #tVehicles tbody td, #tDrivers tbody td {
+    border: 1px solid #e2e8f0;
+    padding: 6px 10px;
+  }
+
+  /* V117+ — Narrow-screen card mode for every master table.
+     Tables collapse to a stack of cards: thead hidden, each row becomes
+     a self-contained card, cells stack vertically with the first cell
+     (usually the Name / id) rendered as a prominent card title. Tap any
+     card to open the record-detail panel for full info + edit/delete. */
+  @media (max-width: 768px) {
+    /* Suppress horizontal scrollbar on master pages — card mode never
+       needs to scroll sideways, and overflow-x:auto was showing a sliver
+       scrollbar at the bottom of every master. */
+    #pageLocations .table-wrap, #pageVTypes .table-wrap,
+    #pageVendors   .table-wrap, #pageVehicles .table-wrap,
+    #pageDrivers   .table-wrap { overflow-x: hidden !important; }
+    #tLocations, #tVTypes, #tVendors, #tVehicles, #tDrivers {
+      display: block;
+      border: none !important;
+      width: 100%;
+    }
+    #tLocations thead, #tVTypes thead, #tVendors thead, #tVehicles thead, #tDrivers thead { display: none; }
+    #tLocations tbody, #tVTypes tbody, #tVendors tbody, #tVehicles tbody, #tDrivers tbody { display: block; }
+    #tLocations tbody tr, #tVTypes tbody tr, #tVendors tbody tr,
+    #tVehicles tbody tr, #tDrivers tbody tr {
+      display: block;
+      border: 1.5px solid #64748b !important;
+      border-radius: 10px;
+      padding: 10px 36px 10px 12px;
+      margin-bottom: 8px;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,.08);
+      width: 350px;
+      max-width: 100%;
+      box-sizing: border-box;
+      position: relative;
+    }
+    /* V117+ — Master card delete button pinned to top-right in RED. */
+    #tLocations tbody td:last-child,
+    #tVTypes    tbody td:last-child,
+    #tVendors   tbody td:last-child,
+    #tVehicles  tbody td:last-child,
+    #tDrivers   tbody td:last-child {
+      position: absolute !important;
+      top: 6px !important;
+      right: 8px !important;
+      width: auto !important;
+      padding: 0 !important;
+      border: none !important;
+      display: block !important;
+      margin: 0 !important;
+    }
+    #tLocations tbody td:last-child .action-btn,
+    #tVTypes    tbody td:last-child .action-btn,
+    #tVendors   tbody td:last-child .action-btn,
+    #tVehicles  tbody td:last-child .action-btn,
+    #tDrivers   tbody td:last-child .action-btn {
+      background: #dc2626 !important;
+      color: #fff !important;
+      border: 1px solid #991b1b !important;
+      border-radius: 6px !important;
+      padding: 3px 8px !important;
+      font-size: 13px !important;
+      line-height: 1 !important;
+      box-shadow: 0 1px 3px rgba(220,38,38,.3);
+    }
+    /* Disabled state when the master is used in a trip — keep grey. */
+    #tLocations tbody td:last-child .action-btn[disabled],
+    #tVTypes    tbody td:last-child .action-btn[disabled],
+    #tVendors   tbody td:last-child .action-btn[disabled],
+    #tVehicles  tbody td:last-child .action-btn[disabled],
+    #tDrivers   tbody td:last-child .action-btn[disabled] {
+      background: #94a3b8 !important;
+      border-color: #64748b !important;
+      box-shadow: none;
+    }
+    #tLocations tbody td, #tVTypes tbody td, #tVendors tbody td,
+    #tVehicles tbody td, #tDrivers tbody td {
+      display: block;
+      border: none !important;
+      padding: 3px 0 !important;
+      width: 100%;
+      font-size: 12.5px;
+      white-space: normal;
+      word-break: break-word;
+    }
+    /* First cell = card title. */
+    #tLocations tbody td:first-child, #tVTypes tbody td:first-child,
+    #tVendors  tbody td:first-child, #tVehicles tbody td:first-child,
+    #tDrivers  tbody td:first-child {
+      font-weight: 800 !important;
+      font-size: 14px !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      padding-bottom: 6px !important;
+      margin-bottom: 5px !important;
+    }
+    /* Drivers: grid layout — photo left, Name + Phone on row 1, Vendor
+       and DL Expiry stacked beneath, delete button stays top-right red. */
+    #tDrivers tbody tr {
+      display: grid !important;
+      grid-template-columns: auto 1fr auto;
+      column-gap: 10px;
+      row-gap: 3px;
+      align-items: center;
+    }
+    #tDrivers tbody td {
+      display: block !important;
+      border: none !important;
+      padding: 0 !important;
+      width: auto !important;
+    }
+    #tDrivers tbody td:nth-child(1) { /* Photo — spans rows */
+      grid-column: 1;
+      grid-row: 1 / span 3;
+      align-self: start;
+      padding-top: 2px !important;
+    }
+    #tDrivers tbody td:nth-child(2) { /* Name title */
+      grid-column: 2;
+      grid-row: 1;
+      font-weight: 800 !important;
+      font-size: 14px !important;
+      border-bottom: none !important;
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    #tDrivers tbody td:nth-child(3) { /* Phone */
+      grid-column: 3;
+      grid-row: 1;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    #tDrivers tbody td:nth-child(3)::before { content: '📱 '; }
+    #tDrivers tbody td:nth-child(4) { /* Vendor — under name+phone */
+      grid-column: 2 / -1;
+      grid-row: 2;
+      font-size: 12px;
+      color: #475569;
+    }
+    #tDrivers tbody td:nth-child(4)::before {
+      content: '🏢 ';
+      color: #94a3b8;
+    }
+    #tDrivers tbody td:nth-child(5) { /* DL Expiry — under vendor */
+      grid-column: 2 / -1;
+      grid-row: 3;
+      font-size: 11px;
+      display: flex !important;
+      align-items: center;
+      gap: 6px;
+    }
+    #tDrivers tbody td:nth-child(5)::before {
+      content: 'DL Exp:';
+      font-weight: 700;
+      color: #475569;
+    }
+
+    /* Vehicles: Type + Vendor side-by-side (row under the Vehicle No
+       title), then PUC / RTO / Insurance lines with small labels. */
+    #tVehicles tbody td:nth-child(2),
+    #tVehicles tbody td:nth-child(3) {
+      display: inline-block !important;
+      width: auto !important;
+      font-size: 12px;
+      margin-right: 10px;
+    }
+    #tVehicles tbody td:nth-child(2) { font-weight: 700; }
+    #tVehicles tbody td:nth-child(3) {
+      color: #64748b;
+      font-weight: 600;
+    }
+    #tVehicles tbody td:nth-child(3)::before {
+      content: '·';
+      color: #cbd5e1;
+      margin-right: 6px;
+      font-weight: 900;
+    }
+    #tVehicles tbody td:nth-child(4),
+    #tVehicles tbody td:nth-child(5),
+    #tVehicles tbody td:nth-child(6) {
+      font-size: 11px !important;
+      padding: 2px 0 !important;
+      display: flex !important;
+      align-items: center;
+      gap: 6px;
+    }
+    #tVehicles tbody td:nth-child(4)::before { content: 'PUC';        font-weight:800; color:#475569; min-width:54px; display:inline-block; }
+    #tVehicles tbody td:nth-child(5)::before { content: 'RTO';        font-weight:800; color:#475569; min-width:54px; display:inline-block; }
+    #tVehicles tbody td:nth-child(6)::before { content: 'Insurance';  font-weight:800; color:#475569; min-width:54px; display:inline-block; }
+
+    /* Vehicle Types: single-row compact card — Type Name + "Capacity: N Kg"
+       + 🗑️ all on one line. About 1/3 the height of a default stacked card. */
+    #tVTypes tbody tr {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: 10px !important;
+      padding: 6px 12px !important;
+    }
+    #tVTypes tbody td {
+      display: inline-block !important;
+      border: none !important;
+      padding: 0 !important;
+      width: auto !important;
+    }
+    #tVTypes tbody td:first-child {
+      font-weight: 800 !important;
+      font-size: 13px !important;
+      border-bottom: none !important;
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
+      flex: 0 0 auto;
+    }
+    #tVTypes tbody td:nth-child(2) {
+      font-size: 11px !important;
+      color: #64748b !important;
+      font-weight: 600;
+      flex: 1 1 auto;
+    }
+    #tVTypes tbody td:nth-child(2)::before { content: 'Capacity: '; color:#64748b; font-weight:600; }
+    #tVTypes tbody td:nth-child(2)::after  { content: ' Kg';        color:#64748b; font-weight:600; }
+    #tVTypes tbody td:last-child { flex: 0 0 auto; margin-left: auto; }
+    /* Locations: hide Geo (col 4) in card view. Actions (col 5) shows
+       as a top-right red delete button via the generic rule above. */
+    #tLocations tbody td:nth-child(4) { display: none !important; }
+    /* Type cell sits right under the Name title as a small chip row. */
+    #tLocations tbody td:nth-child(2) {
+      padding: 2px 0 4px !important;
+      border: none !important;
+      font-size: 10px !important;
+      line-height: 1;
+    }
+    /* Address is subordinate to the Name title — smaller, muted. */
+    #tLocations tbody td:nth-child(3) {
+      font-size: 11px !important;
+      color: #64748b !important;
+      line-height: 1.35;
+      font-weight: 500;
+    }
+  }
+
+  /* V117+ — Add/Edit Location modal: compact form layout (smaller
+     inputs + tighter spacing) so the modal stays short. The duplicate-
+     name hint is position:absolute (set inline) so it floats over the
+     form rather than pushing fields down. */
+  #mLoc .form-group { margin-bottom: 8px !important; }
+  #mLoc .form-row { gap: 8px !important; margin-bottom: 0 !important; }
+  #mLoc label { font-size: 11px !important; margin-bottom: 2px !important; }
+  #mLoc input, #mLoc select, #mLoc textarea {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+  #mLoc textarea { min-height: 44px !important; }
+  #mLoc .divider { margin: 8px 0 !important; }
+  #mLoc .modal { padding: 14px !important; }

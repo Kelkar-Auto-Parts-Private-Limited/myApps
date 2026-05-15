@@ -29,6 +29,64 @@ var _DATE_FILTER_COL={
 
 // ═══ UTILITY FUNCTIONS ══════════════════════════════════════════════════════
 
+// V117+ TEST FLAG — derive PH/TB/MR/TA/KAP-Sec assignments from
+// user.plant + user.roles instead of from location-master arrays
+// (loc.plantHead / loc.tripBook / loc.matRecv / loc.approvers / loc.kapSec).
+// Flip to `false` to revive the old behaviour without code changes —
+// the legacy paths are preserved inside `_vmsLocRoleUsers` below.
+var _VMS_USE_USER_BASED_AUTH = true;
+
+// Return the list of user IDs assigned to `loc` for `role`.
+// New mode: every active user whose `plant === loc.id` AND whose
+// `roles[]` contains the role is treated as assigned automatically —
+// the User Plant Allocation page is the single source of truth.
+// Old mode: read the role-specific array on the location master.
+function _vmsLocRoleUsers(loc, role){
+  if(!loc) return [];
+  if(_VMS_USE_USER_BASED_AUTH){
+    return (DB.users||[]).filter(function(u){
+      if(!u||u.inactive) return false;
+      if(String(u.plant||'')!==String(loc.id)) return false;
+      var roles=u.roles||[];
+      return roles.indexOf(role)>=0;
+    }).map(function(u){return u.id;});
+  }
+  // ── LEGACY (kept for testing rollback) ──────────────────────────────
+  if(role==='KAP Security')      return loc.kapSec?[loc.kapSec]:[];
+  if(role==='Material Receiver') return loc.matRecv||[];
+  if(role==='Trip Approver')     return loc.approvers||[];
+  if(role==='Trip Booking User') return loc.tripBook||[];
+  if(role==='Plant Head')        return loc.plantHead?[loc.plantHead]:[];
+  return [];
+}
+
+// Boolean: is `uid` assigned to `loc` for `role`?
+function _vmsLocHasRoleUser(loc, role, uid){
+  if(!loc||!uid) return false;
+  return _vmsLocRoleUsers(loc, role).indexOf(uid)>=0;
+}
+
+// All locations where `uid` is assigned for ANY of the role-based duties
+// (KAP Sec / Trip Booking / Material Receiver / Trip Approver / Plant Head).
+// New mode: just the user's allocated plant when they hold any of those roles.
+// Old mode: scan location masters for membership in the role arrays.
+function _vmsUserAssignedLocIds(uid){
+  if(!uid) return [];
+  if(_VMS_USE_USER_BASED_AUTH){
+    var u=byId(DB.users,uid); if(!u||!u.plant) return [];
+    var roles=u.roles||[];
+    var anyRole=['KAP Security','Material Receiver','Trip Approver','Trip Booking User','Plant Head'].some(function(r){return roles.indexOf(r)>=0;});
+    return anyRole?[u.plant]:[];
+  }
+  return (DB.locations||[]).filter(function(l){
+    if(!l) return false;
+    return l.kapSec===uid || l.plantHead===uid
+      || (l.tripBook||[]).indexOf(uid)>=0
+      || (l.matRecv||[]).indexOf(uid)>=0
+      || (l.approvers||[]).indexOf(uid)>=0;
+  }).map(function(l){return l.id;});
+}
+
 /**
  * Return list of table names that have been fully loaded.
  * @returns {string[]} Array of loaded table name strings
@@ -151,14 +209,11 @@ function buildSegment(tripId,label,sLoc,dLoc){
   const bookingUser=trip?byId(DB.users,trip.bookedBy):CU;
   const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
 
-  // Helper: get location's role users
-  const locUsers=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
-  };
+  // Helper: get location's role users.
+  // V117+ — routes through _vmsLocRoleUsers so flipping
+  // _VMS_USE_USER_BASED_AUTH toggles between user-plant-based
+  // derivation and the legacy location-master arrays.
+  const locUsers=(loc,role)=>_vmsLocRoleUsers(loc,role);
 
   // Determine owner location for each step
   let s1Loc, s2Loc, s3Loc, s4Loc;
@@ -272,13 +327,8 @@ function recalcSegSteps(seg, siblingSegs){
   const dl=byId(DB.locations,dLoc);
   const bookingUser=byId(DB.users,trip.bookedBy)||CU;
   const bookingLoc=bookingUser?(getUserLocation(bookingUser.id)||byId(DB.locations,bookingUser.plant)):null;
-  const locUsr=(loc,role)=>{
-    if(!loc) return [];
-    if(role==='KAP Security') return loc.kapSec?[loc.kapSec]:[];
-    if(role==='Material Receiver') return loc.matRecv||[];
-    if(role==='Trip Approver') return loc.approvers||[];
-    return [];
-  };
+  // V117+ — routes through _vmsLocRoleUsers (flag-gated).
+  const locUsr=(loc,role)=>_vmsLocRoleUsers(loc,role);
   let s1Loc,s2Loc,s3Loc,s4Loc,s1Skip=false,s2Skip=false;
   if(crit===1){s1Loc=sl;s2Loc=dl;s3Loc=dl;s4Loc=sl;}
   else if(crit===2){s1Loc=sl;s2Skip=true;s3Loc=sl;s4Loc=sl;}
@@ -308,10 +358,13 @@ function recalcSegSteps(seg, siblingSegs){
       if(JSON.stringify(step[k])!==JSON.stringify(props[k])){step[k]=props[k];changed=true;}
     });
   };
+  // V117+ — step 4 (Trip Approval) is skipped on every non-last segment.
+  // The trip has a single end-of-trip approval gate on the last segment.
+  const s4Skip=!isLastSeg;
   patch(1,{skip:s1Skip,loc:s1Skip?null:sLoc,ownerLoc:s1Skip?null:sLoc,users:s1Skip?[]:locUsr(s1Loc,'KAP Security')});
   patch(2,{skip:s2Skip,loc:s2Skip?null:dLoc,ownerLoc:s2Skip?null:dLoc,users:s2Skip?[]:locUsr(s2Loc,'KAP Security')});
   patch(3,{skip:s3Skip,loc:s3Skip?null:(s3Loc?.id||null),ownerLoc:s3Skip?null:(s3Loc?.id||null),users:s3Skip?[]:locUsr(s3Loc,'Material Receiver')});
-  patch(4,{loc:s4Loc?.id||null,ownerLoc:s4Loc?.id||null,users:locUsr(s4Loc,'Trip Approver')});
+  patch(4,{skip:s4Skip,loc:s4Skip?null:(s4Loc?.id||null),ownerLoc:s4Skip?null:(s4Loc?.id||null),users:s4Skip?[]:locUsr(s4Loc,'Trip Approver')});
   // Step 5: create it if missing (trips booked before step 5 was introduced have no steps[5])
   if(!seg.steps[5]){
     seg.steps[5]={skip:!s5Active,label:'Empty Vehicle Exit',role:'KAP Security',done:false,time:null,by:null,

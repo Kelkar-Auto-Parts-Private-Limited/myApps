@@ -1776,31 +1776,30 @@ function _mttsTicketRaiseOpen(editId){
   _mttsRaisePhotosBuf=editTicket&&Array.isArray(editTicket.photosRaise)?editTicket.photosRaise.slice():[];
   _mttsRenderRaisePhotoTiles();
   // Reset form. Default plant = the user's home plant when set.
-  // CU.plant on a user record is a VMS *location code* (vms_locations.code).
-  // Resolve it through vms_locations.name first, then match that name
-  // against mtts_plants. Match is leniently case/whitespace-insensitive
-  // on code, name, and the resolved location label.
+  // V117+ — user's plant is sourced from HRMS employees (active-period
+  // location), NOT from user.plant in User Management. The location NAME
+  // returned (e.g. "Plant 1") is matched leniently against mtts_plants
+  // by id, value, and label.
   var plantHidden=document.getElementById('mttsRaisePlant');
   plantHidden.value='';
   var allPlants=_mttsPlantList(true); // include inactive
-  var meCode=String(CU&&CU.plant||'').trim();
-  var diag='';
-  // Look up the user's location by code in DB.locations to derive the
-  // location name (e.g. CU.plant='l61b88z327' → location.name='KAP1').
-  var locName='';
-  if(meCode&&Array.isArray(DB.locations)){
-    var loc=DB.locations.find(function(l){return l&&l.id===meCode;});
-    if(loc) locName=String(loc.name||'').trim();
+  // Kick off lazy HRMS load if needed (no-op if already loaded). The
+  // default plant resolution will re-run on next render after load.
+  if(!Array.isArray(DB.hrmsEmployees)||!DB.hrmsEmployees.length){
+    _mttsEnsureHrmsLoaded().then(function(){ try{ _mttsRaiseRenderPlantBtns(); }catch(e){} });
   }
-  console.log('[MTTS] raise default plant — CU.plant=',JSON.stringify(CU&&CU.plant),
-    'resolved location name=',JSON.stringify(locName),
+  var hrmsPlantName=(CU?_mttsUserPlantNameFromHrms(CU):'')||'';
+  var diag='';
+  console.log('[MTTS] raise default plant — CU=',CU&&(CU.name||CU.id),
+    'HRMS plant name=',JSON.stringify(hrmsPlantName),
     'allPlants=',allPlants.map(function(p){return p.value;}));
-  if(!meCode){
-    diag='⚠ Your user profile has no plant assigned — pick one below.';
+  if(!CU){
+    diag='⚠ Not signed in.';
+  } else if(!hrmsPlantName){
+    diag='⚠ No matching HRMS employee found for your account — pick a plant below.';
   } else if(!allPlants.length){
     diag='⚠ No plants in the master yet.';
   } else {
-    var hit=null;
     var tryMatch=function(needle){
       if(!needle) return null;
       var n=String(needle).trim();
@@ -1810,14 +1809,12 @@ function _mttsTicketRaiseOpen(editId){
         ||allPlants.find(function(p){return String(p.value||'').toLowerCase()===nLow;})
         ||allPlants.find(function(p){return String(p.label||'').toLowerCase()===nLow;});
     };
-    // Resolved location name takes precedence (the canonical link).
-    hit=tryMatch(locName)||tryMatch(meCode);
+    var hit=tryMatch(hrmsPlantName);
     if(hit){
       plantHidden.value=hit.value;
     } else {
-      var detail=locName?('"'+meCode+'" → location "'+locName+'"'):('"'+meCode+'"');
-      diag='⚠ Your user plant '+detail+' doesn\'t match any MTTS plant. Pick one below — or rename the MTTS plant to match the location name.';
-      console.warn('[MTTS] raise: CU.plant',meCode,'→ locName',locName,'did not match any plant');
+      diag='⚠ Your HRMS plant "'+hrmsPlantName+'" doesn\'t match any MTTS plant. Pick one below — or rename the MTTS plant to match the HRMS plant name.';
+      console.warn('[MTTS] raise: HRMS plant name',hrmsPlantName,'did not match any mtts plant');
     }
   }
   _mttsRaiseRenderPlantBtns();
@@ -2444,6 +2441,8 @@ function _mttsTechActiveTicketCount(techKey){
 // Resolve a user.plant value (which is a VMS location code like "l1") to
 // the human-readable location name. Falls back to mtts_plants by id/name,
 // and finally returns the raw code if nothing matches.
+// V117+ — kept only for legacy callers; new code paths use the HRMS-based
+// derivation below (see _mttsUserPlantNameFromHrms).
 function _mttsResolveUserPlantName(code){
   if(!code) return '';
   var s=String(code).trim();
@@ -2454,6 +2453,59 @@ function _mttsResolveUserPlantName(code){
   var p=(DB.mttsPlants||[]).find(function(x){return x&&(x.id===s||x.name===s);});
   if(p) return p.name||s;
   return s;
+}
+
+// ── V117+ HRMS-driven user plant resolution ──────────────────────────
+// MTTS no longer reads user.plant from User Management — the user's
+// plant is sourced from the matching hrms_employees row (active period
+// location, with flat fallback). hrms_employees is lazy-loaded on first
+// access (without the heavy photo column) and cached.
+var _mttsHrmsLoading=false;
+async function _mttsEnsureHrmsLoaded(){
+  if(_mttsHrmsLoading) return;
+  if(Array.isArray(DB.hrmsEmployees) && DB.hrmsEmployees.length) return;
+  if(typeof _sb==='undefined'||!_sb) return;
+  _mttsHrmsLoading=true;
+  try{
+    var res=await _sb.from('hrms_employees')
+      .select('code,emp_code,name,first_name,last_name,location,periods,status,extra')
+      .limit(10000);
+    if(!res.error){
+      DB.hrmsEmployees=(res.data||[]).map(function(r){return _fromRow('hrmsEmployees',r);}).filter(Boolean);
+    }
+  }catch(e){ console.warn('MTTS: HRMS lazy-load failed:',e.message); }
+  finally{ _mttsHrmsLoading=false; }
+}
+// Loose user → HRMS emp resolver: empCode (== user.name) → fullName → user.id.
+function _mttsResolveEmp(u){
+  if(!u||!Array.isArray(DB.hrmsEmployees)) return null;
+  var emps=DB.hrmsEmployees;
+  var uname=String(u.name||'').trim().toUpperCase();
+  if(uname){
+    var byCode=emps.find(function(e){return e&&String(e.empCode||'').trim().toUpperCase()===uname;});
+    if(byCode) return byCode;
+  }
+  var full=String(u.fullName||'').trim().toLowerCase();
+  if(full){
+    var byName=emps.find(function(e){
+      var nm=String((e.firstName||'')+' '+(e.lastName||'')).trim().toLowerCase();
+      if(nm===full) return true;
+      return String(e.name||'').trim().toLowerCase()===full;
+    });
+    if(byName) return byName;
+  }
+  if(u.id){
+    var byUid=emps.find(function(e){return e&&e.userId===u.id;});
+    if(byUid) return byUid;
+  }
+  return null;
+}
+// Returns the user's plant NAME (e.g. "Plant 1") from HRMS, or '' if no
+// match. Active-period location preferred, flat location fallback.
+function _mttsUserPlantNameFromHrms(u){
+  var e=_mttsResolveEmp(u); if(!e) return '';
+  var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  return String((ap&&ap.location)||e.location||'').trim();
 }
 // Toggle a technician button on the allocation modal. Flips the hidden
 // checkbox + the visual selection class so the existing confirm handler
@@ -2470,6 +2522,10 @@ function _mttsTicketAllocateOpen(id){
   if(!_mttsCanAllocate()){notify('Only Maintenance Manager can allocate',true);return;}
   var t=byId(DB.mttsTickets||[],id);if(!t){notify('Ticket not found',true);return;}
   document.getElementById('mttsAllocTicketId').value=id;
+  // V117+ — kick off lazy HRMS load so technician plant chips populate.
+  if(!Array.isArray(DB.hrmsEmployees)||!DB.hrmsEmployees.length){
+    _mttsEnsureHrmsLoaded().then(function(){ try{ _mttsTicketAllocateOpen(id); }catch(e){} });
+  }
   var asset=byId(DB.mttsAssets||[],t.assetCode);
 
   // Prominent ticket-info block on the allocate modal: id + plant pill on
@@ -2516,7 +2572,8 @@ function _mttsTicketAllocateOpen(id){
       var n=_mttsTechActiveTicketCount(key);
       var loadCls=n===0?'is-free':(n<=2?'is-busy':'is-overloaded');
       var loadTxt=n===0?'Free':(n+' active');
-      var plantNm=_mttsResolveUserPlantName(u.plant);
+      // V117+ — derive each tech's plant from HRMS employee, not u.plant.
+      var plantNm=_mttsUserPlantNameFromHrms(u);
       var meta=[(u.fullName&&u.fullName!==u.name)?u.fullName:'',plantNm].filter(Boolean).join(' · ');
       return '<button type="button" class="mtts-alloc-techbtn'+(isOn?' is-selected':'')+'" onclick="_mttsAllocToggleTech(this)" data-key="'+keyEsc+'">'+
         '<input type="checkbox" class="mtts-alloc-cb" value="'+keyEsc+'"'+(isOn?' checked':'')+' tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">'+

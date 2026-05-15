@@ -59,6 +59,50 @@ function _migrateStep3Skip(){
   });
   if(fixed) console.log('_migrateStep3Skip: fixed '+fixed+' segment(s)');
 }
+// ── Post-boot migration: enforce V117 single-approval rule on legacy segs ──
+// Older trips were built with step 4 active on every segment. The V117 rule
+// is "step 4 only on the last segment of the trip". `recalcSegSteps` was
+// missing `skip` from its step-4 patch, so legacy segments never self-healed.
+// Sweep them once at boot. Done step 4s are left untouched.
+function _migrateStep4Skip(){
+  if(!Array.isArray(DB.segments)||!Array.isArray(DB.trips)) return;
+  // Group by tripId so we only compute isLastSeg once per trip.
+  var segsByTrip={};
+  (DB.segments||[]).forEach(function(s){
+    if(!s||!s.tripId) return;
+    (segsByTrip[s.tripId]=segsByTrip[s.tripId]||[]).push(s);
+  });
+  var fixed=0;
+  Object.keys(segsByTrip).forEach(function(tripId){
+    var trip=byId(DB.trips,tripId); if(!trip) return;
+    var siblings=segsByTrip[tripId];
+    var hasSegB=siblings.some(function(s){return s.label==='B';});
+    var hasSegC=siblings.some(function(s){return s.label==='C';});
+    var tripHasDest2=!!(trip.dest2&&trip.dest2!=='');
+    var tripHasDest3=!!(trip.dest3&&trip.dest3!=='');
+    siblings.forEach(function(seg){
+      if(!seg.steps||!seg.steps[4]) return;
+      if(seg.steps[4].done) return; // already actioned — leave alone
+      var aIsLast=seg.label==='A'&&!hasSegB&&!tripHasDest2;
+      var bIsLast=seg.label==='B'&&!hasSegC&&!tripHasDest3;
+      var cIsLast=seg.label==='C';
+      var isLastSeg=aIsLast||bIsLast||cIsLast;
+      var shouldSkip=!isLastSeg;
+      if(shouldSkip && !seg.steps[4].skip){
+        seg.steps[4].skip=true;
+        seg.steps[4].users=[];
+        seg.steps[4].loc=null;
+        seg.steps[4].ownerLoc=null;
+        var ns=nextStep(seg);
+        if(seg.currentStep!==ns) seg.currentStep=ns;
+        if(allStepsDone(seg)&&seg.status!=='Completed'&&seg.status!=='Rejected') seg.status='Completed';
+        _dbSave('segments',seg).catch(function(){});
+        fixed++;
+      }
+    });
+  });
+  if(fixed) console.log('_migrateStep4Skip: fixed '+fixed+' segment(s)');
+}
 
 let _currentApp='vms'; // 'vms' or 'security' — tracks which app is active
 function _showLogin(prefillUser){
@@ -1163,7 +1207,7 @@ async function doLogin(){
       var activePage=document.querySelector('.page.active');
       if(activePage){
         var pid=activePage.id;
-        var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
+        var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageUserPlantAlloc:renderUserPlantAlloc,pageHelper:renderHelper};
         if(map[pid]) map[pid]();
       }
       // Auto-skip stale empty exits after data is loaded
@@ -1417,8 +1461,14 @@ const NAV=[
   {id:'Vehicles',  l:'Vehicles',      i:'🚗',p:'pageVehicles',  r:['VMS Admin','Trip Booking User'], count:'vehicles',  cid:'cVehicles',permKey:'page.vehicles',app:'vms'},
   {id:'Drivers',   l:'Drivers',       i:'🪪',p:'pageDrivers',  r:['VMS Admin','Trip Booking User'], count:'drivers',   cid:'cDrivers',permKey:'page.drivers',app:'vms'},
   {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['VMS Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',permKey:'page.tripRates',app:'vms'},
-  {sec:'SYSTEM',app:'vms'},
-  {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
+  // V117 — User × Plant role-allocation matrix. SA + VMS Admin only.
+  {id:'UserPlantAlloc', l:'User Plant Allocation', i:'🧩', p:'pageUserPlantAlloc', r:['Super Admin','VMS Admin'], app:'vms'},
+  // SYSTEM section + Helper page hidden from sidebar. The page itself
+  // still exists and _buildTripStatusHtml powers the right-click trip
+  // status popup, so removing the nav doesn't break any functionality.
+  // Un-comment to restore.
+  // {sec:'SYSTEM',app:'vms'},
+  // {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
 ];
 
 function initApp(){
@@ -1504,6 +1554,10 @@ function _runInitApp(){
     if(item.permKey&&typeof permConfigured==='function'&&permConfigured('VMS')){
       return permCanView('VMS',item.permKey);
     }
+    // Missing/empty `r` means "visible to all signed-in users" — used by
+    // the temporary Access Helper diagnostic. hasRole(undefined) would
+    // throw on `.some`, so guard here.
+    if(!item.r||!item.r.length) return true;
     return hasRole(item.r);
   };
   NAV.filter(item=>item.app==='all'||item.app===_currentApp).forEach(item=>{
@@ -1584,7 +1638,7 @@ function _runInitApp(){
           // page (Trip Status Retriever) should NOT auto-refresh when
           // background data updates land; the user clicks 🔄 Refresh on
           // demand. Real-time re-rendering was disruptive while reading.
-          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips};
+          var map={pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageVendorTrips:renderVendorTrips,pageUserPlantAlloc:renderUserPlantAlloc};
           if(map[pid]) map[pid]();
         }
       }catch(e){ console.warn('_onRefreshViews error:',e); }
@@ -1716,7 +1770,7 @@ function showPage(pid,nid){
 
   // Always scroll to top of content area
   const mc=document.querySelector('.main-content');if(mc)mc.scrollTop=0;
-  const map={pageMyApps:renderMyApps,pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageVendorTrips:renderVendorTrips,pageHelper:renderHelper};
+  const map={pageMyApps:renderMyApps,pageDashboard:renderDash,pageUsers:renderUsers,pageVTypes:renderVTypes,pageDrivers:renderDrivers,pageVendors:renderVendors,pageVehicles:renderVehicles,pageLocations:renderLocations,pageTripRates:renderRates,pageTripBooking:renderTripBooking,pageKapSecurity:renderKapPage,pageMR:renderMR,pageApprove:renderApprove,pageProfile:showProfile,pageVendorTrips:renderVendorTrips,pageUserPlantAlloc:renderUserPlantAlloc,pageHelper:renderHelper};
   console.log('[showPage] navigating to:', pid, '| page found:', !!pg, '| render fn:', !!map[pid]);
   if(map[pid]){
     // Demand-load required tables before rendering
@@ -2023,7 +2077,12 @@ function renderDashTrips(){
 
   // All trips in date range accessible to user
   let trips2=DB.trips.filter(t=>{
-    if(!isSA){const loc=DB.locations.find(l=>(l.tripBook||[]).includes(CU.id));if(loc&&t.startLoc!==loc.id)return false;}
+    if(!isSA){
+      // V117+ — Trip Booking access derives from user.plant + role.
+      // Legacy: DB.locations.find(l=>(l.tripBook||[]).includes(CU.id))
+      const loc=DB.locations.find(l=>_vmsLocHasRoleUser(l,'Trip Booking User',CU.id));
+      if(loc&&t.startLoc!==loc.id) return false;
+    }
     if(_dtSrch) return t.id.toLowerCase().includes(_dtSrch)||vnum(t.vehicleId).toLowerCase().includes(_dtSrch);
     const d=(t.date||'').slice(0,10);
     if(from&&d<from)return false;
@@ -3936,14 +3995,18 @@ async function _doBookTrip(){
   setTimeout(function(){updBadges();renderDash();renderDashTrips();renderTripBooking();renderMyTrips();renderKap();renderMR();renderApprove();},100);
 }
 
-// Helper: get trips for current user's plant location
-// Check if a location belongs to the current user (via plant, kapSec, tripBook, matRecv, approvers, or plantHead)
+// Helper: get trips for current user's plant location.
+// V117+ — assignment derived from user.plant + user.roles via
+// _vmsLocHasRoleUser. Legacy snippet preserved in comment.
 function _isMyLocation(locId){
   if(!CU||!locId) return false;
   if(CU.plant===locId) return true;
   var loc=byId(DB.locations,locId);
   if(!loc) return false;
-  return loc.kapSec===CU.id||loc.plantHead===CU.id||(loc.tripBook||[]).includes(CU.id)||(loc.matRecv||[]).includes(CU.id)||(loc.approvers||[]).includes(CU.id);
+  // Legacy: loc.kapSec===CU.id||loc.plantHead===CU.id||(loc.tripBook||[]).includes(CU.id)||(loc.matRecv||[]).includes(CU.id)||(loc.approvers||[]).includes(CU.id)
+  return ['KAP Security','Plant Head','Trip Booking User','Material Receiver','Trip Approver'].some(function(r){
+    return _vmsLocHasRoleUser(loc,r,CU.id);
+  });
 }
 function tripsForMyPlant(){
   if(!CU) return [];
@@ -3954,14 +4017,10 @@ function tripsForMyPlant(){
     return [...DB.trips];
   }
   const myLoc=CU.plant; // Location Master ID
-  // Find all locations where this user is assigned (as any role)
-  const myAssignedLocs=new Set(DB.locations.filter(l=>
-    l.kapSec===CU.id ||
-    l.plantHead===CU.id ||
-    (l.tripBook||[]).includes(CU.id) ||
-    (l.matRecv||[]).includes(CU.id) ||
-    (l.approvers||[]).includes(CU.id)
-  ).map(l=>l.id));
+  // Find all locations where this user is assigned (as any role).
+  // V117+ — single source of truth is user.plant + user.roles.
+  // Legacy: DB.locations.filter(l=>l.kapSec===CU.id||l.plantHead===CU.id||(l.tripBook||[]).includes(CU.id)||(l.matRecv||[]).includes(CU.id)||(l.approvers||[]).includes(CU.id))
+  const myAssignedLocs=new Set(_vmsUserAssignedLocIds(CU.id));
   if(myLoc) myAssignedLocs.add(myLoc);
   return DB.trips.filter(trip=>{
     // Show trip if user's location is the start location
@@ -3985,7 +4044,9 @@ function _tripsForMyBookingPlant(){
   }
   const myPlantLocs=new Set();
   if(CU.plant) myPlantLocs.add(CU.plant);
-  DB.locations.filter(l=>(l.tripBook||[]).includes(CU.id)||l.plantHead===CU.id).forEach(l=>myPlantLocs.add(l.id));
+  // V117+ — Trip Booking + Plant Head locations derived from user.plant + user.roles.
+  // Legacy: DB.locations.filter(l=>(l.tripBook||[]).includes(CU.id)||l.plantHead===CU.id)
+  DB.locations.filter(l=>_vmsLocHasRoleUser(l,'Trip Booking User',CU.id)||_vmsLocHasRoleUser(l,'Plant Head',CU.id)).forEach(l=>myPlantLocs.add(l.id));
   return DB.trips.filter(trip=>{
     if(myPlantLocs.has(trip.startLoc)) return true;
     if(trip.dest1 && myPlantLocs.has(trip.dest1)) return true;
@@ -4198,7 +4259,19 @@ function renderMyTrips(){
         ${canDelete?`<button onclick="event.stopPropagation();deleteTrip('${t.id}')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:3px 7px;cursor:pointer;font-weight:700;line-height:1" title="Delete trip">🗑</button>`:''}
       </div>
       <!-- Row 2: Vendor · Driver · Booked by · Date -->
-      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:3px 10px 6px;font-size:11px">${(()=>{const vendorName=t.vendor||'';const drv2=byId(DB.drivers,t.driverId);const drvName=drv2?.name||'';const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'';const dot='<span style="color:var(--border2)">·</span>';const parts=[];if(vendorName)parts.push(`<span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:1px 8px;border-radius:4px;border:1px solid rgba(42,154,160,.2)">🏢 ${vendorName}</span>`);if(drvName)parts.push(`<span style="color:var(--text2);font-weight:600">🧑 ${drvName}</span>`);parts.push(`<span style="color:var(--text3)">Booked by:</span><span style="font-weight:700;color:var(--text2)">${bn||'—'}</span>`);parts.push(`<span style="color:var(--text3)">📅 ${fdt(t.date)}</span>`);return parts.join(dot);})()}</div>
+      ${(()=>{
+        const vendorName=t.vendor||'';
+        const drv2=byId(DB.drivers,t.driverId);const drvName=drv2?.name||'';
+        const bu=byId(DB.users,t.bookedBy);const bn=bu?.fullName||bu?.name||'—';
+        // dd-Mmm, hh:mm AM/PM — drop the year from the standard fdt output.
+        const dt=fdt(t.date).replace(/-\d{2}\s/,', ');
+        const dot='<span style="color:var(--border2);margin:0 4px">·</span>';
+        const topParts=[];
+        if(vendorName) topParts.push(`<span style="font-weight:700;color:var(--accent);background:rgba(42,154,160,.08);padding:1px 8px;border-radius:4px;border:1px solid rgba(42,154,160,.2);font-size:12px">🏢 ${vendorName}</span>`);
+        if(drvName)    topParts.push(`<span style="color:var(--text2);font-weight:700;font-size:12px">🧑 ${drvName}</span>`);
+        return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 10px 2px;font-size:13px">${topParts.join('')}</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:0 10px 6px;font-size:13px;font-weight:800;color:#0f172a"><span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">By</span><span style="font-weight:800;color:#0f172a">${bn}</span>${dot}<span style="color:#475569">📅</span><span style="font-family:var(--mono);font-weight:800;color:#0f172a">${dt}</span></div>`;
+      })()}
       <!-- Line 2: Coloured route pills + No Challan flash -->
       <div style="padding:2px 10px 4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${(()=>{const dests=[[t.dest1,1],[t.dest2,2],[t.dest3,3]].filter(([d])=>d);const _tripSegs=DB.segments.filter(s=>s.tripId===t.id);const anyIncomplete=dests.some(([d,idx])=>{const lbl='ABC'[idx-1];const _tseg=_tripSegs.find(s=>s.label===lbl);if(_tseg&&(_tseg.steps[1]?.done||_tseg.status==='Completed'))return false;const arr=t['challans'+idx]||[];const leg=t['challan'+idx]||'';if(!arr.length&&!leg)return true;if(!arr.length&&leg)return !t['weight'+idx]||!t['photo'+idx];return arr.some(c=>!c.no||!c.no.trim()||!c.weight||!c.photo);});return anyIncomplete?'<span class="flash-red" style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:5px;margin-right:2px">⚠ No Challan / Weight / Photo</span>':'';})()}${routeParts}</div>
       <!-- Step status summary (collapsed view) -->
@@ -4335,15 +4408,12 @@ function setKapMode(mode){
   if(mode==='exit'||mode==='entry'){
     renderKap();
   } else if(mode==='spot'){
-    const mySpotLoc=byId(DB.locations,CU.plant);
+    // V117+ — the user-plant badge beside the Record Spot Entry button
+    // is hidden per UX feedback. Keep the element in the DOM so any
+    // legacy handler that calls textContent on it doesn't throw, but
+    // never populate or show it.
     const locBadge=document.getElementById('spotLocBadge');
-    if(locBadge){
-      if(mySpotLoc){
-        const c=mySpotLoc.colour||'var(--accent)';const tc=colourContrast(mySpotLoc.colour||'');
-        locBadge.style.cssText=`font-size:11px;font-weight:700;padding:1px 8px;border-radius:5px;background:${c};color:${tc}`;
-        locBadge.textContent=mySpotLoc.name;
-      } else {locBadge.textContent='';}
-    }
+    if(locBadge){ locBadge.textContent=''; locBadge.style.display='none'; }
     renderSpotTab();
   }
   // Update all count badges
@@ -4685,6 +4755,86 @@ function renderKap(){
     var el=document.getElementById(_kapMode==='entry'?'kapEntryContent':'kapExitContent');
     if(el) el.innerHTML='<div style="padding:20px;color:#dc2626;font-weight:700;font-size:13px">⚠ Error loading KAP page: '+e.message+'</div>';
   }
+  // V117+ — admin-only KS shortcut buttons.
+  try{
+    var _isAdm=CU&&CU.roles&&(CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin'));
+    var _aeb=document.getElementById('kapAutoEmptyExitBtn');
+    if(_aeb) _aeb.style.display=_isAdm?'inline-flex':'none';
+    var _acsb=document.getElementById('kapAutoCloseSpotBtn');
+    if(_acsb) _acsb.style.display=_isAdm?'inline-flex':'none';
+  }catch(e){}
+}
+
+// V117+ — Auto-close every open Spot Entry (entered but never exited)
+// dated before today. SA / VMS Admin only. No exit photo captured;
+// remarks carry an audit note. Falls back on save failure.
+async function _kapAutoCloseSpotEntry(){
+  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
+    notify('⚠ Only Super Admin / VMS Admin can run Auto Close Spot Entry.',true); return;
+  }
+  var todayStart=new Date(); todayStart.setHours(0,0,0,0);
+  var candidates=(DB.spotTrips||[]).filter(function(s){
+    if(!s||!s.entryTime) return false;       // not entered yet
+    if(s.exitTime) return false;             // already exited
+    var d=s.date||s.entryTime;
+    if(!d) return false;
+    return new Date(d)<todayStart;
+  });
+  if(!candidates.length){ notify('No open Spot Entries older than today.'); return; }
+  if(!confirm('Auto-close '+candidates.length+' open Spot Entry record(s) (entered before today)?\n\nNo exit photo will be captured.')) return;
+  var btn=document.getElementById('kapAutoCloseSpotBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Processing…'; }
+  var nowIso=new Date().toISOString();
+  var ok=0, fail=0;
+  for(var i=0;i<candidates.length;i++){
+    var s=candidates[i];
+    var bak={exitTime:s.exitTime,exitBy:s.exitBy,exitRemarks:s.exitRemarks};
+    s.exitTime=nowIso;
+    s.exitBy=CU.id;
+    s.exitRemarks='Auto-closed by '+(CU.fullName||CU.name||CU.id);
+    if(await _dbSave('spotTrips',s)){ ok++; }
+    else { Object.assign(s,bak); fail++; }
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Auto Close Spot Entry'; }
+  try{ renderKap(); updBadges(); }catch(e){}
+  notify('Auto Close Spot Entry: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
+}
+
+// V117+ — Auto-close every pending Empty Exit (step 5) for segments
+// dated before today. SA / VMS Admin only. No photo captured; step is
+// marked done with a synthetic remark so the audit trail shows the
+// automatic action. Failures fall back to the original step state.
+async function _kapAutoEmptyExit(){
+  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
+    notify('⚠ Only Super Admin / VMS Admin can run Auto Empty Exit.',true); return;
+  }
+  var todayStart=new Date(); todayStart.setHours(0,0,0,0);
+  var candidates=(DB.segments||[]).filter(function(s){
+    if(!s||s.status==='Cancelled'||s.status==='Locked') return false;
+    var s5=s.steps&&s.steps[5];
+    if(!s5||s5.skip||s5.done) return false;
+    if(!s.date) return false;
+    return new Date(s.date)<todayStart;
+  });
+  if(!candidates.length){ notify('No pending Empty Exit older than today.'); return; }
+  if(!confirm('Auto-exit '+candidates.length+' pending Empty Exit segment(s) (older than today)?\n\nNo photo will be captured.')) return;
+  var btn=document.getElementById('kapAutoEmptyExitBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Processing…'; }
+  var nowIso=new Date().toISOString();
+  var ok=0, fail=0;
+  for(var i=0;i<candidates.length;i++){
+    var seg=candidates[i];
+    var s5=seg.steps[5];
+    var bak={done:s5.done,time:s5.time,by:s5.by,remarks:s5.remarks};
+    s5.done=true; s5.time=nowIso; s5.by=CU.id;
+    s5.remarks='Auto Empty Exit by '+(CU.fullName||CU.name||CU.id);
+    try{ await advance(seg); }catch(e){}
+    if(await _dbSave('segments',seg)){ ok++; }
+    else { Object.assign(seg.steps[5],bak); fail++; }
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Auto Empty Exit'; }
+  try{ renderKap(); renderDash(); renderTripBooking(); renderMyTrips(); updBadges(); }catch(e){}
+  notify('Auto Empty Exit: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
 }
 function _renderKapInner(){
   const _savedPop=_kapGetOpenPopup(); // save before re-render destroys DOM
@@ -4853,7 +5003,8 @@ function _renderKapInner(){
               :'<span class="flash-red" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px">⚠ Missing: '+_kapChStatus.join(', ')+'</span>';
         }
 
-        return `<div class="${_rowClass}" style="padding:5px 10px;border-bottom:1px solid var(--border)">
+        return `<div class="${_rowClass}" style="padding:8px 12px 8px 36px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;overflow:hidden">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${serialNo}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="width:20px;height:20px;border-radius:50%;background:${clr};color:#fff;font-size:10px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${lbl}</span>
             <span style="font-size:12px;font-weight:700">${lnameText(from)}</span>
@@ -4943,7 +5094,8 @@ function _renderKapInner(){
       const popId='kap_pop_'+seg.id.replace(/[^a-z0-9]/gi,'_');
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD — click opens popup -->
-        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff" onclick="_kapOpenPopup('${popId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenPopup('${popId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${serialNo}</div>
           <!-- Main row: Trip ID + Vehicle + action badge -->
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(seg.tripId)}</span>
@@ -5051,10 +5203,12 @@ function _renderKapInner(){
     const st=s.steps[step];
     if(!st||!st.done||st.skip)return false;
     if(isSA) return true;
-    // For exit history: only show if user is kapSec at START location
-    // For entry history: only show if user is kapSec at DEST location
+    // For exit history: only show if user is KAP Security at START location
+    // For entry history: only show if user is KAP Security at DEST location
+    // V117+ — derives from user.plant + 'KAP Security' role (UPA-canonical).
+    // Legacy: loc?.kapSec===CU.id
     const loc=step===1?byId(DB.locations,s.sLoc):byId(DB.locations,s.dLoc);
-    return loc?.kapSec===CU.id || st.by===CU.id; // also show if user performed the action
+    return _vmsLocHasRoleUser(loc,'KAP Security',CU.id) || st.by===CU.id;
   });
   if(!srch&&fromVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
   if(!srch&&toVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)<=toVal);
@@ -5171,7 +5325,7 @@ function _renderKapInner(){
         <div id="${hid}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
           ${splitRows}
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--border)">
-            <span style="font-size:10px;color:var(--text3)">${stepIcon} ${fmt(st.time)} &nbsp;·&nbsp; by <strong${isMine?' style="color:var(--accent)"':''}>${byName}${isMine?' (You)':''}</strong></span>
+            <span style="font-size:13px;color:#0f172a;font-weight:700;display:inline-flex;align-items:center;gap:6px">${stepIcon} <span style="font-family:var(--mono);font-weight:800;color:#0f172a;font-size:12px">${fmt(st.time)}</span> <span style="color:var(--border2)">·</span> <span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">by</span> <strong style="color:${isMine?'var(--accent)':'#0f172a'};font-weight:800;font-size:13px">${byName}${isMine?' (You)':''}</strong></span>
             ${st.remarks?`<span style="font-size:10px;color:var(--text2)">💬 ${st.remarks}</span>`:''}
             ${st.photo?`<img src="${st.photo}" onclick="openPhoto(this.src)" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:2px solid ${clr};cursor:pointer">`:''}
             ${canRevoke&&(isSA||isMine)?`<button class="kap-revoke-btn" style="font-size:10px;padding:1px 6px;margin-left:auto" onclick="revokeKapStep('${seg.id}',${step})">↩ Revoke</button>`:''}
@@ -5998,7 +6152,8 @@ function renderMR(){
       const _mrBookedLine=(_mrBookedFirst?`<span style="font-size:11px;color:var(--text2);font-weight:600">By: ${_mrBookedFirst}</span>`:'')+(_mrShortDate?`<span style="font-size:11px;color:var(--text3)">on ${_mrShortDate}</span>`:'');
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD -->
-        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff" onclick="_openPop('${_mrPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_openPop('${_mrPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pending.length-_si}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(seg.tripId)}</span>
             <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
@@ -6026,7 +6181,7 @@ function renderMR(){
                 <span style="color:var(--accent);font-weight:900;font-size:14px">⟶</span>
                 <span style="${_locPillStyle(_dLoc?.colour,13)}">${_dLoc?.name||'?'}</span>
               </div>
-              <div style="margin-top:4px;display:flex;gap:6px;font-size:12px"><span style="color:var(--text3)">Booked by:</span><span style="font-weight:700">${bookedName}</span><span style="color:var(--border2)">·</span><span style="color:var(--text3)">📅 ${fdt(seg.date)}</span></div>
+              <div style="margin-top:6px;display:flex;gap:8px;font-size:13px;align-items:center;flex-wrap:wrap"><span style="color:#475569;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.3px">Booked by:</span><span style="font-weight:800;color:#0f172a;font-size:13px">${bookedName}</span><span style="color:var(--border2)">·</span><span style="color:#475569;font-size:13px">📅</span><span style="font-weight:800;color:#0f172a;font-family:var(--mono);font-size:12px">${fdt(seg.date)}</span></div>
             </div>
             <!-- Gate photos + Challans -->
             <div style="padding:12px 16px">
@@ -6100,10 +6255,12 @@ function renderMRHistory(){
   let segs=DB.segments.filter(s=>{
     if(!s.steps[3]?.done||s.steps[3]?.skip) return false;
     if(isSA) return true;
-    // Show if user is assigned, performed action, or trip belongs to user's plant
+    // Show if user is assigned, performed action, or trip belongs to user's plant.
+    // V117+ — derives from user.plant + 'Material Receiver' role (UPA-canonical).
+    // Legacy: (loc?.matRecv||[]).includes(CU.id)
     const loc=byId(DB.locations,s.dLoc);
     const tripPlantMatch=_mrTripIds.has(s.tripId);
-    return (loc?.matRecv||[]).includes(CU.id)||s.steps[3]?.by===CU.id||tripPlantMatch;
+    return _vmsLocHasRoleUser(loc,'Material Receiver',CU.id)||s.steps[3]?.by===CU.id||tripPlantMatch;
   });
   if(fromVal)segs=segs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
   if(toVal)segs=segs.filter(s=>(s.date||'').slice(0,10)<=toVal);
@@ -6171,25 +6328,52 @@ function renderMRHistory(){
         ${chRows.length
           ?`<div style="display:flex;gap:5px;flex-wrap:wrap;padding:6px 10px;">`+chRows.map((ch,ci)=>`<div style="display:flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #7c3aed33;border-radius:7px;padding:4px 8px;flex:1;min-width:110px">${mrThSm(ch.photo||'','#7c3aed',32)}<div style="flex:1;min-width:0"><div style="font-size:8px;font-weight:700;color:#7c3aed;text-transform:uppercase">Ch${chRows.length>1?' '+(ci+1):''}</div><div style="font-size:11px;font-weight:800;color:var(--text);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ch.no||'—'}</div><div style="font-size:10px;font-weight:700;color:#16a34a;font-family:var(--mono)">${ch.weight||'—'}<span style="font-size:8px;color:var(--text3)"> kg</span></div></div></div>`).join('')+'</div>'
           :''}
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;font-size:10px;background:rgba(0,0,0,0.04);padding:5px 10px 7px">
-          <div><span style="color:var(--text3)">Booked by </span><span style="font-weight:700;color:var(--text2)">${bookedByName}</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;background:rgba(0,0,0,0.04);padding:7px 10px 8px;font-weight:600">
+          <div><span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">Booked by </span><span style="font-weight:800;color:#0f172a;font-size:13px">${bookedByName}</span></div>
           <div style="width:1px;background:var(--border);align-self:stretch"></div>
-          <div><span style="color:var(--text3)">Rcvd by </span><span style="font-weight:700;color:#16a34a">${rcvdByName}</span></div>
+          <div><span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">Rcvd by </span><span style="font-weight:800;color:#15803d;font-size:13px">${rcvdByName}</span></div>
           <div style="width:1px;background:var(--border);align-self:stretch"></div>
-          <div><span style="color:var(--text3)">📅 </span><span style="font-weight:600;color:var(--text2)">${fmt(st3?.time)}</span></div>
+          <div><span style="color:#475569;font-size:13px">📅 </span><span style="font-weight:800;color:#0f172a;font-family:var(--mono);font-size:12px;letter-spacing:.2px">${fmt(st3?.time)}</span></div>
           ${mrDiscrep?`<div style="width:100%"><span style="color:#dc2626;font-weight:700">⚠ ${mrRem.replace(/^\[Discrepancy\]\s*/,'').slice(0,80)+(mrRem.replace(/^\[Discrepancy\]\s*/,'').length>80?'…':'')}</span></div>`:''}
         </div>
         ${hasRevoke?`<div style="padding:4px 10px 7px;display:flex;justify-content:flex-end"><button class="kap-revoke-btn" onclick="revokeMR('${seg.id}')">↩ Revoke</button></div>`:''}
       </div>
     </div>`;
   }).join('');
+  // V117+ — re-expand cards the user had open before this re-render, and
+  // prune stale IDs that no longer exist after a filter change.
+  _mrHistOpenIds.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display='block';
+    else _mrHistOpenIds.delete(id);
+  });
 }
 
+// V117+ — track which MR-history cards the user has expanded so that
+// realtime re-renders (renderMR runs on every data tick) don't collapse
+// them every few seconds.
+var _mrHistOpenIds = (typeof window!=='undefined' && window._mrHistOpenIds) || new Set();
+if(typeof window!=='undefined') window._mrHistOpenIds = _mrHistOpenIds;
+// V117+ — Historical MR popup show/hide. Re-runs renderMR on show so
+// the body reflects the latest data and current date range.
+function _mrHistShow(){
+  var m=document.getElementById('mrHistModal'); if(!m) return;
+  m.style.display='flex';
+  m.classList.add('open');
+  if(typeof renderMR==='function') try{ renderMR(); }catch(e){}
+}
+function _mrHistHide(){
+  var m=document.getElementById('mrHistModal'); if(!m) return;
+  m.style.display='none';
+  m.classList.remove('open');
+}
 function toggleMrCard(id){
   const body=document.getElementById(id);
   if(!body)return;
   const open=body.style.display!=='none';
   body.style.display=open?'none':'block';
+  if(open) _mrHistOpenIds.delete(id);
+  else _mrHistOpenIds.add(id);
   // On open: id is 'mrhc_' or similar + seg.id transformed — find the trip
   if(!open){
     try{
@@ -6455,7 +6639,7 @@ function renderApprove(){
             <span style="font-size:16px;line-height:1;flex-shrink:0">✗</span>
             <div>
               <div style="font-size:11px;font-weight:800;color:#dc2626">Material Not Received</div>
-              <div style="font-size:10px;color:#b91c1c;margin-top:2px">Rcvd by <strong>${mrByName}</strong> · ${mrTime}</div>
+              <div style="font-size:12px;color:#b91c1c;margin-top:3px;font-weight:600"><span style="text-transform:uppercase;font-size:10px;letter-spacing:.3px">Rcvd by</span> <strong style="font-size:13px;color:#0f172a">${mrByName}</strong> <span style="color:var(--border2)">·</span> <span style="font-family:var(--mono);font-weight:800;color:#0f172a;font-size:12px">${mrTime}</span></div>
               ${_mrCleanRem?`<div style="font-size:11px;color:#dc2626;margin-top:3px;font-style:italic">"${_mrCleanRem}"</div>`:''}
             </div>
           </div>`;
@@ -6463,12 +6647,12 @@ function renderApprove(){
             <span style="font-size:16px;line-height:1;flex-shrink:0">⚠</span>
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;font-weight:800;color:#c2410c">Received with Discrepancy</div>
-              <div style="font-size:10px;color:#92400e;margin-top:2px">Rcvd by <strong>${mrByName}</strong> · ${mrTime}</div>
+              <div style="font-size:12px;color:#92400e;margin-top:3px;font-weight:600"><span style="text-transform:uppercase;font-size:10px;letter-spacing:.3px">Rcvd by</span> <strong style="font-size:13px;color:#0f172a">${mrByName}</strong> <span style="color:var(--border2)">·</span> <span style="font-family:var(--mono);font-weight:800;color:#0f172a;font-size:12px">${mrTime}</span></div>
               ${_mrCleanRem?`<div style="font-size:12px;color:#c2410c;margin-top:4px;font-weight:600;font-style:italic;background:#ffedd5;border-radius:5px;padding:4px 8px">"${_mrCleanRem}"</div>`:''}
             </div>
           </div>`;
-          return `<div style="margin-top:6px;padding:5px 8px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:10px;color:#15803d">
-            ✅ Rcvd by <strong>${mrByName}</strong> · ${mrTime}
+          return `<div style="margin-top:6px;padding:6px 10px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:6px;font-size:12px;color:#15803d;font-weight:600">
+            ✅ <span style="text-transform:uppercase;font-size:10px;letter-spacing:.3px">Rcvd by</span> <strong style="font-size:13px;color:#0f172a">${mrByName}</strong> <span style="color:var(--border2)">·</span> <span style="font-family:var(--mono);font-weight:800;color:#0f172a;font-size:12px">${mrTime}</span>
           </div>`;
         })():mrSkipped?'<div style="margin-top:6px;padding:5px 8px;background:rgba(0,0,0,.04);border-radius:6px;font-size:10px;color:var(--text3)">— Mat. Receipt skipped (External dest.)</div>':'<div style="margin-top:6px;padding:5px 8px;background:#fef9c3;border:1px solid #fde047;border-radius:6px;font-size:10px;color:#854d0e;font-weight:600">⏳ Awaiting Material Receipt</div>';
         const _sLoc2=byId(DB.locations,s.sLoc),_dLoc2=byId(DB.locations,s.dLoc);
@@ -6513,7 +6697,8 @@ function renderApprove(){
       const _apBookedLine=(_apBookedFirst?`<span style="font-size:11px;color:var(--text2);font-weight:600">By: ${_apBookedFirst}</span>`:'')+(_apShortDate?`<span style="font-size:11px;color:var(--text3)">on ${_apShortDate}</span>`:'');
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD -->
-        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff" onclick="_openPop('${_apPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+        <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_openPop('${_apPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pendingTrips.length-_apIdx}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(tripId)}</span>
             <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
@@ -6533,7 +6718,7 @@ function renderApprove(){
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:#fff;background:var(--accent);padding:4px 14px;border-radius:10px">${_cTid(tripId)}</span>
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;padding:4px 14px;border-radius:10px">${vnum(trip?.vehicleId)}</span>
               </div>
-              <div style="margin-top:6px;display:flex;gap:6px;font-size:12px;flex-wrap:wrap;align-items:center"><span style="color:var(--text3)">Booked by:</span><span style="font-weight:700">${bookedBy}</span><span style="color:var(--border2)">·</span><span style="color:var(--text3)">📅 ${fdt(trip?.date||'')}</span></div>
+              <div style="margin-top:8px;display:flex;gap:8px;font-size:13px;flex-wrap:wrap;align-items:center"><span style="color:#475569;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.3px">Booked by:</span><span style="font-weight:800;color:#0f172a;font-size:13px">${bookedBy}</span><span style="color:var(--border2)">·</span><span style="color:#475569;font-size:13px">📅</span><span style="font-weight:800;color:#0f172a;font-family:var(--mono);font-size:12px">${fdt(trip?.date||'')}</span></div>
               ${rate?`<div style="margin-top:6px;font-family:var(--mono);font-size:20px;font-weight:900;color:#16a34a">💰 ₹${rate.rate.toLocaleString()}</div>`:''}
               <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${_apRoutePills}</div>
             </div>
@@ -6657,7 +6842,7 @@ function renderApprove(){
         ?`<div style="margin-top:5px;padding:5px 8px;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:6px;font-size:10px;color:#dc2626;font-weight:700">✗ Not Received — ${mrName}${mrRem?' · '+mrRem:''}</div>`
         :mrDiscrep
           ?`<div style="margin-top:5px;padding:5px 8px;background:#fff7ed;border:1.5px solid #fb923c;border-radius:6px;font-size:10px;color:#c2410c;font-weight:700">⚠ Discrepancy — ${mrName}${mrRem?' · <em style="font-weight:400">'+mrRem+'</em>':''}</div>`
-          :`<div style="margin-top:5px;padding:3px 8px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:5px;font-size:10px;color:#15803d">✅ Rcvd by ${mrName} · ${fmtAp(s.steps[3].time)}</div>`)
+          :`<div style="margin-top:5px;padding:5px 9px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);border-radius:5px;font-size:12px;color:#15803d;font-weight:600">✅ <span style="text-transform:uppercase;font-size:10px;letter-spacing:.3px">Rcvd by</span> <strong style="font-size:13px;color:#0f172a">${mrName}</strong> <span style="color:var(--border2)">·</span> <span style="font-family:var(--mono);font-weight:800;color:#0f172a;font-size:12px">${fmtAp(s.steps[3].time)}</span></div>`)
         :`<div style="margin-top:5px;padding:3px 8px;background:#fef9c3;border:1px solid #fde047;border-radius:5px;font-size:10px;color:#854d0e">⏳ MR Pending</div>`;
       const apSegPills=(()=>{const lf=byId(DB.locations,s.sLoc),lt=byId(DB.locations,s.dLoc);const cf=lf?.colour||'var(--accent)',ct=lt?.colour||'var(--accent)';return `<span style="${_locPillStyle(lf?.colour,9)}">${lf?.name||'?'}</span><span style="color:var(--accent);font-weight:900;font-size:10px;margin:0 2px">⟶</span><span style="${_locPillStyle(lt?.colour,9)}">${lt?.name||'?'}</span>`;})();
       return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;margin-bottom:5px">
@@ -6717,12 +6902,12 @@ function renderApprove(){
       <!-- Expanded details -->
       <div id="${cardId}" style="display:none;border-top:1px solid var(--border)" onclick="event.stopPropagation()">
         <!-- Meta row -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:10px;background:rgba(0,0,0,0.04);padding:5px 10px">
-          <div><span style="color:var(--text3)">Booked by </span><span style="font-weight:700;color:var(--text2)">${bookedByName}</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;background:rgba(0,0,0,0.04);padding:7px 10px 8px;font-weight:600">
+          <div><span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">Booked by </span><span style="font-weight:800;color:#0f172a;font-size:13px">${bookedByName}</span></div>
           <div style="width:1px;background:var(--border);align-self:stretch"></div>
-          <div><span style="color:var(--text3)">Approved by </span><span style="font-weight:700;color:#16a34a">${approverName}</span></div>
+          <div><span style="color:#475569;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px">Approved by </span><span style="font-weight:800;color:#15803d;font-size:13px">${approverName}</span></div>
           <div style="width:1px;background:var(--border);align-self:stretch"></div>
-          <div><span style="color:var(--text3)">📅 </span><span style="font-weight:600;color:var(--text2)">${closedOn}</span></div>
+          <div><span style="color:#475569;font-size:13px">📅 </span><span style="font-weight:800;color:#0f172a;font-family:var(--mono);font-size:12px;letter-spacing:.2px">${closedOn}</span></div>
           ${revokeBtn?`<div style="margin-left:auto">${revokeBtn}</div>`:''}
         </div>
         <!-- Segment cards -->
@@ -6743,13 +6928,34 @@ function renderApprove(){
   } else if(totalRow){
     totalRow.style.display='none';
   }
+  // V117+ — re-expand previously open Approve cards (saved in _apOpenIds)
+  // and prune stale ids from the set.
+  if(typeof _apRestoreOpen==='function') _apRestoreOpen();
 }
 
+// V117+ — track which Approve cards the user has expanded so realtime
+// re-renders don't collapse them.
+var _apOpenIds = (typeof window!=='undefined' && window._apOpenIds) || new Set();
+if(typeof window!=='undefined') window._apOpenIds = _apOpenIds;
+// V117+ — Historical TA popup show/hide.
+function _apHistShow(){
+  var m=document.getElementById('apHistModal'); if(!m) return;
+  m.style.display='flex';
+  m.classList.add('open');
+  if(typeof renderApprove==='function') try{ renderApprove(); }catch(e){}
+}
+function _apHistHide(){
+  var m=document.getElementById('apHistModal'); if(!m) return;
+  m.style.display='none';
+  m.classList.remove('open');
+}
 function toggleApCard(id){
   const el=document.getElementById(id);
   if(!el)return;
   const open=el.style.display!=='none';
   el.style.display=open?'none':'block';
+  if(open) _apOpenIds.delete(id);
+  else _apOpenIds.add(id);
   // On open: id is 'apcard_'+tripId.replace(/[^a-z0-9]/gi,'_') — find the trip
   if(!open){
     try{
@@ -6758,6 +6964,14 @@ function toggleApCard(id){
       if(trip) _loadTripCardPhotos(trip.id,el);
     }catch(e){}
   }
+}
+// Re-expand previously open Approve cards after each renderApprove run.
+function _apRestoreOpen(){
+  _apOpenIds.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display='block';
+    else _apOpenIds.delete(id);
+  });
 }
 function revokeApproval(baseId){
   const isSA=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
@@ -7078,9 +7292,12 @@ async function saveUser(){
     await _authSetPassword(_u.id,'Kappl@123');
   }
   cm('mUser');
-  // Auto-sync user's roles into their plant location's role arrays
+  // LEGACY-ROLES — auto-sync of user roles → location.kapSec/tripBook/matRecv/
+  // approvers arrays is disabled. UPA + role-derived auth is now the only
+  // path. Re-enable below (and at every read site marked LEGACY-ROLES) to
+  // roll back to dual-write behaviour.
   const _savedId=id||(DB.users[DB.users.length-1]?.id);
-  if(_savedId&&plant&&!uInactive) await _syncUserToLocation(_savedId,plant,roles);
+  // if(_savedId&&plant&&!uInactive) await _syncUserToLocation(_savedId,plant,roles);
   // If admin edited the current user's own record, sync CU immediately
   const _editedId=id||(DB.users[DB.users.length-1]?.id);
   if(CU && _editedId===CU.id){
@@ -7094,11 +7311,29 @@ async function saveUser(){
 }
 
 // Vehicle Types
+// V117+ — Master delete-button HTML. Disabled (greyed, no onclick) when
+// the record is referenced by any trip; tooltip explains why.
+function _masterDelBtn(table,id,used,renderFn){
+  if(used) return '<button class="action-btn" disabled title="Used in trips — cannot delete" style="opacity:.35;cursor:not-allowed">🗑️</button>';
+  return '<button class="action-btn" onclick="del(\''+table+'\',\''+id+'\','+renderFn+')">🗑️</button>';
+}
 function renderVTypes(){
+  // Precompute usage: any trip referencing this vehicle type OR any
+  // vehicle of this type that has been used in a trip.
+  var _usedVehIds=new Set((DB.trips||[]).map(function(t){return t.vehicleId;}).filter(Boolean));
+  var _vtTripDirect=new Set();
+  (DB.trips||[]).forEach(function(t){
+    if(t.vehicleTypeId) _vtTripDirect.add(t.vehicleTypeId);
+    if(t.actualVehicleTypeId) _vtTripDirect.add(t.actualVehicleTypeId);
+  });
+  (DB.vehicles||[]).forEach(function(v){
+    if(_usedVehIds.has(v.id) && v.typeId) _vtTripDirect.add(v.typeId);
+  });
   document.getElementById('vtBody').innerHTML=[...DB.vehicleTypes].filter(v=>!document.getElementById('showInactiveVT')?.checked||!v.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(v=>{
     const inactive=v.inactive===true;
     const badge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('vehicleTypes','${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.capacity.toLocaleString()}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openVTModal('${v.id}')">✏️</button><button class="action-btn" onclick="del('vehicleTypes','${v.id}',renderVTypes)">🗑️</button></td></tr>`;
+    const used=_vtTripDirect.has(v.id);
+    return `<tr class="clickable-row" onclick="openVTModal('${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.capacity.toLocaleString()}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_masterDelBtn('vehicleTypes',v.id,used,'renderVTypes')}</td></tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No vehicle types found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function openVTModal(id){
@@ -7128,12 +7363,14 @@ async function saveVT(){
 function renderDrivers(){
   const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin','Trip Booking User','Material Receiver'].includes(r));
   const _bAddDrv=document.getElementById('btnAddDrv');if(_bAddDrv)_bAddDrv.style.display=_canEdit?'':'none';
+  const _usedDrvIds=new Set((DB.trips||[]).map(function(t){return t.driverId;}).filter(Boolean));
   document.getElementById('drvBody').innerHTML=[...DB.drivers].filter(d=>!document.getElementById('showInactiveDrv')?.checked||!d.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>{
     const inactive=d.inactive===true;
     const photoHtml=d.photo?`<img src="${d.photo}" onclick="openPhoto(this.src)" style="width:32px;height:32px;object-fit:cover;border-radius:50%;border:2px solid var(--border2);cursor:pointer${inactive?';filter:grayscale(1);opacity:.6':''}">`:'<span style="width:32px;height:32px;border-radius:50%;background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:var(--text3)">🧑</span>';
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
     const trStyle=inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('drivers','${d.id}')" ${trStyle}><td onclick="event.stopPropagation()">${photoHtml}</td><td style="font-weight:600">${d.name}${inactiveBadge}</td><td>${d.mobile||'-'}</td><td>${byId(DB.vendors,d.vendorId)?.name||'-'}</td><td>${dateStatusHtml(d.dlExpiry)}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_canEdit?`<button class="action-btn" onclick="openDrvModal('${d.id}')">✏️</button><button class="action-btn" onclick="del('drivers','${d.id}',renderDrivers)">🗑️</button>`:'—'}</td></tr>`;
+    const used=_usedDrvIds.has(d.id);
+    return `<tr class="clickable-row" onclick="${_canEdit?`openDrvModal('${d.id}')`:`showRecordDetail('drivers','${d.id}')`}" ${trStyle}><td onclick="event.stopPropagation()">${photoHtml}</td><td style="font-weight:600">${d.name}${inactiveBadge}</td><td>${d.mobile||'-'}</td><td>${byId(DB.vendors,d.vendorId)?.name||'-'}</td><td>${dateStatusHtml(d.dlExpiry)}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_canEdit?_masterDelBtn('drivers',d.id,used,'renderDrivers'):'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No drivers found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function openDrvModal(id){
@@ -7198,35 +7435,50 @@ function clearDrvPhoto(){
 
 // Vendors
 function renderVendors(){
+  // LEGACY-USER-MAP — Mapped User column removed from the table. Vendor↔
+  // user mapping is owned by the User Plant Allocation page (vendor.userId).
+  // Usage: vendor is used in trips when any vehicle (with that vendorId)
+  // is referenced by a trip; also when any driver of that vendor is.
+  var _usedVehIds=new Set((DB.trips||[]).map(function(t){return t.vehicleId;}).filter(Boolean));
+  var _usedDrvIds=new Set((DB.trips||[]).map(function(t){return t.driverId;}).filter(Boolean));
+  var _usedVndIds=new Set();
+  (DB.vehicles||[]).forEach(function(v){ if(_usedVehIds.has(v.id) && v.vendorId) _usedVndIds.add(v.vendorId); });
+  (DB.drivers||[]).forEach(function(d){ if(_usedDrvIds.has(d.id) && d.vendorId) _usedVndIds.add(d.vendorId); });
   document.getElementById('vndBody').innerHTML=[...DB.vendors].filter(v=>!document.getElementById('showInactiveVnd')?.checked||!v.inactive).sort((a,b)=>a.name.localeCompare(b.name)).map(v=>{
     const inactive=v.inactive===true;
     const badge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    const mu=v.userId?byId(DB.users,v.userId):null;
-    const muHtml=mu?`<span style="font-size:11px;font-weight:600;color:var(--accent)">${mu.fullName||mu.name}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>';
-    return `<tr class="clickable-row" onclick="showRecordDetail('vendors','${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.owner}</td><td>${v.contact||'-'}</td><td>${muHtml}</td><td>${v.address||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openVndModal('${v.id}')">✏️</button><button class="action-btn" onclick="del('vendors','${v.id}',renderVendors)">🗑️</button></td></tr>`;
-  }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No vendors found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
+    const used=_usedVndIds.has(v.id);
+    return `<tr class="clickable-row" onclick="openVndModal('${v.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${v.name}${badge}</td><td>${v.owner}</td><td>${v.contact||'-'}</td><td>${v.address||'-'}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_masterDelBtn('vendors',v.id,used,'renderVendors')}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No vendors found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 function openVndModal(id){
   const v=id?byId(DB.vendors,id):null;
   document.getElementById('eVndId').value=id||'';document.getElementById('vndName').value=v?.name||'';document.getElementById('vndOwner').value=v?.owner||'';document.getElementById('vndContact').value=v?.contact||'';document.getElementById('vndAddr').value=v?.address||'';
   const vndICb=document.getElementById('vndInactive');if(vndICb)vndICb.checked=v?.inactive===true;
-  // Populate mapped user dropdown — show users with Vendor role not already mapped to another vendor
+  // LEGACY-USER-MAP — Mapped User dropdown population disabled. Vendor↔
+  // user mapping is owned by the User Plant Allocation page now. The
+  // hidden #vndUserS select stays in the DOM but isn't populated;
+  // saveVendor preserves the existing v.userId from the record.
+  /* LEGACY-USER-MAP BEGIN
   const vndUserS=document.getElementById('vndUserS');
   const vendorUsers=DB.users.filter(u=>!u.inactive&&(u.roles||[]).includes('Vendor'));
   const alreadyMapped=DB.vendors.filter(vn=>vn.userId&&vn.id!==id).map(vn=>vn.userId);
   vndUserS.innerHTML='<option value="">-- None --</option>'+vendorUsers.filter(u=>!alreadyMapped.includes(u.id)||u.id===v?.userId).sort((a,b)=>(a.fullName||a.name).localeCompare(b.fullName||b.name)).map(u=>`<option value="${u.id}"${u.id===v?.userId?' selected':''}>${u.fullName||u.name} (@${u.name})</option>`).join('');
+  LEGACY-USER-MAP END */
   document.getElementById('mVndTitle').textContent=id?'Edit Vendor':'Add Vendor';om('mVendor');
 }
 async function saveVendor(){
-  const id=document.getElementById('eVndId').value;const name=document.getElementById('vndName').value.trim();const owner=document.getElementById('vndOwner').value.trim();const contact=document.getElementById('vndContact').value;const address=document.getElementById('vndAddr').value;const userId=document.getElementById('vndUserS').value;
+  const id=document.getElementById('eVndId').value;const name=document.getElementById('vndName').value.trim();const owner=document.getElementById('vndOwner').value.trim();const contact=document.getElementById('vndContact').value;const address=document.getElementById('vndAddr').value;
+  // LEGACY-USER-MAP — userId preserved from existing record (UPA owns it).
+  const _vndExisting=id?byId(DB.vendors,id):null;
+  const userId=_vndExisting?(_vndExisting.userId||''):'';
   if(!name||!owner){modalErr('mVendor','Fill required fields');return;}if(contact&&contact.length!==10){modalErr('mVendor','Contact must be 10 digits');return;}
   if(!id){
     const _inactVnd=DB.vendors.find(v=>v&&v.name.trim().toLowerCase()===name.toLowerCase()&&v.id!==id&&v.inactive===true);
     if(_inactVnd){modalErr('mVendor',`"${name}" already exists in Inactive Records. Activate it to use.`);return;}
   }
   if(DB.vendors.find(v=>v&&v.name.trim().toLowerCase()===name.toLowerCase()&&v.id!==id&&!v.inactive)){modalErr('mVendor','Vendor name already exists');return;}
-  // Check userId not already mapped to another vendor
-  if(userId&&DB.vendors.find(v=>v.userId===userId&&v.id!==id)){modalErr('mVendor','This user is already mapped to another vendor');return;}
+  // userId 1-to-1 collision check no longer needed here (UPA enforces it).
   const vndInactive=document.getElementById('vndInactive')?.checked===true;
   if(id){
     const _vn=byId(DB.vendors,id);const _vnBak={..._vn};
@@ -7241,11 +7493,13 @@ async function saveVendor(){
 function renderVehicles(){
   const _canEdit=CU&&CU.roles&&CU.roles.some(r=>['Super Admin','VMS Admin','Trip Booking User','Material Receiver'].includes(r));
   const _bAddVeh=document.getElementById('btnAddVeh');if(_bAddVeh)_bAddVeh.style.display=_canEdit?'':'none';
+  const _usedVehIds=new Set((DB.trips||[]).map(function(t){return t.vehicleId;}).filter(Boolean));
   document.getElementById('vehBody').innerHTML=[...DB.vehicles].filter(v=>!document.getElementById('showInactiveVeh')?.checked||!v.inactive).sort((a,b)=>a.number.localeCompare(b.number)).map(v=>{
     const inactive=v.inactive===true;
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
     const trStyle=inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':'';
-    return `<tr class="clickable-row" onclick="showRecordDetail('vehicles','${v.id}')" ${trStyle}><td style="font-family:var(--mono);font-size:13px;font-weight:900">${v.number}${inactiveBadge}</td><td>${vtname(v.typeId)}</td><td>${byId(DB.vendors,v.vendorId)?.name||'-'}</td><td>${dateStatusHtml(v.pucExpiry)}</td><td>${dateStatusHtml(v.rtpExpiry)}</td><td>${dateStatusHtml(v.insExpiry)}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_canEdit?`<button class="action-btn" onclick="openVehModal('${v.id}')">✏️</button><button class="action-btn" onclick="del('vehicles','${v.id}',renderVehicles)">🗑️</button>`:'—'}</td></tr>`;
+    const used=_usedVehIds.has(v.id);
+    return `<tr class="clickable-row" onclick="${_canEdit?`openVehModal('${v.id}')`:`showRecordDetail('vehicles','${v.id}')`}" ${trStyle}><td style="font-family:var(--mono);font-size:13px;font-weight:900">${v.number}${inactiveBadge}</td><td>${vtname(v.typeId)}</td><td>${byId(DB.vendors,v.vendorId)?.name||'-'}</td><td>${dateStatusHtml(v.pucExpiry)}</td><td>${dateStatusHtml(v.rtpExpiry)}</td><td>${dateStatusHtml(v.insExpiry)}</td><td style="white-space:nowrap" onclick="event.stopPropagation()">${_canEdit?_masterDelBtn('vehicles',v.id,used,'renderVehicles'):'—'}</td></tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No vehicles found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
 // Global flag: when set, after saving a vehicle, auto-select it in trip booking form
@@ -7377,6 +7631,11 @@ function renderLocations(){
   // Hide add/export/import buttons for non-admin
   var _btnAdd=document.getElementById('btnAddLoc');if(_btnAdd)_btnAdd.style.display=_isLocAdmin?'':'none';
   var _eaWraps=document.querySelectorAll('#pageLocations .ea-wrap');_eaWraps.forEach(function(el){el.style.display=_isLocAdmin?'':'none';});
+  // Usage: location is used in trips when it appears as start/dest.
+  var _usedLocIds=new Set();
+  (DB.trips||[]).forEach(function(t){
+    [t.startLoc,t.dest1,t.dest2,t.dest3].forEach(function(id){ if(id) _usedLocIds.add(id); });
+  });
   var _locSearch=((document.getElementById('locSearchInput')||{}).value||'').toLowerCase().trim();
   document.getElementById('locBody').innerHTML=[...DB.locations].filter(l=>{
     if(document.getElementById('showInactiveLoc')?.checked&&l.inactive) return false;
@@ -7392,10 +7651,502 @@ function renderLocations(){
       :l.name;
     const inactive=l.inactive===true;
     const inactiveBadge=inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    var actCol=_isLocAdmin?`<td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openLocModal('${l.id}')">✏️</button><button class="action-btn" onclick="del('locations','${l.id}',renderLocations)">🗑️</button></td>`:'<td></td>';
-    return `<tr class="clickable-row" onclick="showRecordDetail('locations','${l.id}')" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td>${l.kapSec?uname(l.kapSec):'-'}</td><td>${(l.tripBook||[]).map(uname).join(', ')||'-'}</td><td>${(l.matRecv||[]).map(uname).join(', ')||'-'}</td><td>${(l.approvers||[]).map(uname).join(', ')||'-'}</td><td>${l.plantHead?uname(l.plantHead):'-'}</td>${actCol}</tr>`;
-  }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No locations found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
+    var _used=_usedLocIds.has(l.id);
+    var actCol=_isLocAdmin?`<td style="white-space:nowrap" onclick="event.stopPropagation()">${_masterDelBtn('locations',l.id,_used,'renderLocations')}</td>`:'<td></td>';
+    // LEGACY-ROLES — Name | Type | Address | Geo | Actions. Role columns
+    // (KAP Sec / Trip Booking / Mat Recv / Approvers / Plant Head) removed
+    // during V117+ user-based-auth rollout. Re-add by reverting the row +
+    // header HTML alongside the kapLocFields modal block.
+    var addr=(l.address||'').trim();
+    var addrCell=addr?(addr.length>50?addr.slice(0,50)+'…':addr):'-';
+    var geoCell=(l.geo||'').trim()||'-';
+    return `<tr class="clickable-row" onclick="${_isLocAdmin?`openLocModal('${l.id}')`:`showRecordDetail('locations','${l.id}')`}" ${inactive?'style="opacity:.6;background:rgba(239,68,68,.03)"':''}><td>${nameBadge}${inactiveBadge}</td><td><span class="badge ${l.type==='KAP'?'badge-amber':'badge-blue'}">${l.type}</span></td><td style="font-size:12px;color:var(--text2)">${addrCell}</td><td style="font-size:11px;font-family:var(--mono);color:var(--text2)">${geoCell}</td>${actCol}</tr>`;
+  }).join('')||'<tr><td colspan="5" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No locations found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
+
+// ----------------------------------------------------------------
+// USER PLANT ALLOCATION (V117+) — SA + VMS Admin only.
+// Matrix where each row is a VMS user. Admins set the user's
+// allocated KAP plant (writes user.plant) and optionally mark them
+// as Plant Head of that plant (writes location.plantHead).
+// HRMS plant pill (or "EXT") is shown before the full name.
+// All edits are buffered into _upaEdits and committed by Save All.
+// ----------------------------------------------------------------
+function _upaCanEdit(){ return !!(CU&&CU.roles&&(CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin'))); }
+
+// Sort + edit state (module-level so it survives re-renders).
+var _upaSortState={col:'fullName',asc:true};
+var _upaEdits={};       // {uid:{plant?:'l1', ph?:true}} — only the diffs vs DB
+var _upaHrmsLoading=false;
+
+// Lazy-load hrmsEmployees (without photo) + hrmsCompanies once.
+// VMS boot doesn't pull these; only this page needs them.
+async function _upaEnsureHrmsLoaded(){
+  if(_upaHrmsLoading) return;
+  var needEmps=!Array.isArray(DB.hrmsEmployees)||DB.hrmsEmployees.length===0;
+  var needCos=!Array.isArray(DB.hrmsCompanies)||DB.hrmsCompanies.length===0;
+  if(!needEmps && !needCos) return;
+  if(typeof _sb==='undefined'||!_sb) return;
+  _upaHrmsLoading=true;
+  try{
+    var jobs=[];
+    if(needEmps){
+      // Skip photo column to avoid JSONB bloat — we only need name/code/location/periods.
+      jobs.push(_sb.from('hrms_employees')
+        .select('code,emp_code,name,first_name,last_name,location,periods,status,extra')
+        .limit(10000).then(function(res){
+          if(!res.error) DB.hrmsEmployees=(res.data||[]).map(function(r){return _fromRow('hrmsEmployees',r);}).filter(Boolean);
+        }));
+    }
+    if(needCos){
+      jobs.push(_sb.from('hrms_companies').select('*').limit(1000).then(function(res){
+        if(!res.error) DB.hrmsCompanies=(res.data||[]).map(function(r){return _fromRow('hrmsCompanies',r);}).filter(Boolean);
+      }));
+    }
+    await Promise.all(jobs);
+  }catch(e){ console.warn('UPA: HRMS lazy-load failed:',e.message); }
+  finally{ _upaHrmsLoading=false; renderUserPlantAlloc(); }
+}
+
+// Local plant short-form fallback when hrms-ui.js isn't loaded (VMS app).
+function _upaPlantShort(name){
+  if(!name) return '';
+  var s=String(name).trim();
+  var rec=(DB.hrmsCompanies||[]).find(function(c){return c&&c.name===s;});
+  if(rec&&rec.shortForm){var sf=String(rec.shortForm).trim().toUpperCase();if(sf) return sf;}
+  if(/^—?\s*unassigned/i.test(s)) return 'UNA';
+  var m=s.match(/^(plant|unit|kap)\s*[-_ ]?\s*(\d+)/i);
+  if(m){var pfx=m[1].toLowerCase();var letter=(pfx==='kap'||pfx==='plant')?'P':pfx[0];return (letter+m[2]).toUpperCase();}
+  if(/^head\s*office$/i.test(s)) return 'HO';
+  var words=s.split(/[\s\-_]+/).filter(Boolean);
+  if(words.length>=2) return words.slice(0,3).map(function(w){return (w[0]||'').toUpperCase();}).join('');
+  return s.slice(0,3).toUpperCase();
+}
+function _upaPlantColor(name){
+  if(!name) return '#e2e8f0';
+  var s=String(name).trim();
+  var cos=DB.hrmsCompanies||[];
+  var rec=cos.find(function(c){return c&&c.name===s;});
+  if(rec&&rec.color) return rec.color;
+  var sf=_upaPlantShort(s);
+  if(sf){ var byShort=cos.find(function(c){return c&&c.name&&_upaPlantShort(c.name)===sf;}); if(byShort&&byShort.color) return byShort.color; }
+  return '#e2e8f0';
+}
+// Resolve a VMS user → HRMS employee. Loose link: empCode (==user.name) → fullName → user.id.
+function _upaResolveEmp(u){
+  if(!u||!Array.isArray(DB.hrmsEmployees)) return null;
+  var emps=DB.hrmsEmployees;
+  var uname=String(u.name||'').trim().toUpperCase();
+  if(uname){
+    var byCode=emps.find(function(e){return e&&String(e.empCode||'').trim().toUpperCase()===uname;});
+    if(byCode) return byCode;
+  }
+  var full=String(u.fullName||'').trim().toLowerCase();
+  if(full){
+    var byName=emps.find(function(e){
+      var nm=String((e.firstName||'')+' '+(e.lastName||'')).trim().toLowerCase();
+      if(nm===full) return true;
+      return String(e.name||'').trim().toLowerCase()===full;
+    });
+    if(byName) return byName;
+  }
+  if(u.id){
+    var byUid=emps.find(function(e){return e&&e.userId===u.id;});
+    if(byUid) return byUid;
+  }
+  return null;
+}
+// Active-period plant for the resolved emp.
+function _upaHrmsPlantOf(u){
+  var e=_upaResolveEmp(u); if(!e) return null;
+  var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+  var plant=String((ap&&ap.location)||e.location||'').trim();
+  return plant||null;
+}
+
+// Compose a short-form pill for a given plant name. Returns "EXT" pill when null.
+function _upaHrmsPillHtml(u){
+  var plant=_upaHrmsPlantOf(u);
+  if(!plant){
+    return '<span title="External — no HRMS record matched" style="display:inline-block;background:#475569;color:#fff;padding:2px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;letter-spacing:.3px;min-width:34px;text-align:center;margin-right:6px">EXT</span>';
+  }
+  var color=_upaPlantColor(plant);
+  var sf=_upaPlantShort(plant);
+  return '<span title="'+plant.replace(/"/g,'&quot;')+'" style="display:inline-block;background:'+color+';color:'+colourContrast(color)+';padding:2px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;letter-spacing:.3px;min-width:34px;text-align:center;margin-right:6px;border:1px solid rgba(0,0,0,.12)">'+sf+'</span>';
+}
+
+// Current vendor mapped to `uid` (vendor.userId === uid). Returns the vendor record or null.
+function _upaVendorForUser(uid){
+  if(!uid) return null;
+  return (DB.vendors||[]).find(function(v){return v&&v.userId===uid&&!v.inactive;})||null;
+}
+// Vendors selectable for `uid`: every active vendor whose userId is empty
+// or matches this user — vendors already taken by ANOTHER user are filtered out.
+function _upaAvailableVendorsFor(uid){
+  return (DB.vendors||[]).filter(function(v){
+    if(!v||v.inactive) return false;
+    if(!v.userId) return true;        // unmapped — always available
+    return v.userId===uid;            // already mine — keep so it stays selectable
+  }).sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
+}
+// Vendor badge for the table cell. Clicking opens the vendor picker.
+function _upaVendorBadgeHtml(uid,vendorId){
+  if(!vendorId){
+    return '<span class="upaVendBadge" onclick="_upaVendorPickerOpen(event,\''+uid+'\')" style="display:inline-block;background:#f1f5f9;color:#64748b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px dashed #94a3b8">— Select —</span>';
+  }
+  var v=byId(DB.vendors||[],vendorId);
+  if(!v){
+    return '<span class="upaVendBadge" onclick="_upaVendorPickerOpen(event,\''+uid+'\')" style="display:inline-block;background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid #fca5a5">(missing)</span>';
+  }
+  return '<span class="upaVendBadge" onclick="_upaVendorPickerOpen(event,\''+uid+'\')" title="'+String(v.name||'').replace(/"/g,'&quot;')+' — click to change" style="display:inline-block;background:#fef3c7;color:#78350f;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;cursor:pointer;border:1px solid #fbbf24">'+(v.name||v.id)+' <span style="opacity:.75;font-weight:600">▾</span></span>';
+}
+// Open the vendor picker for `uid`. Same popover element as the plant picker;
+// only one popover is ever visible.
+function _upaVendorPickerOpen(ev,uid){
+  if(ev&&ev.stopPropagation) ev.stopPropagation();
+  if(!_upaCanEdit()) return;
+  // Vendor mapping is only meaningful for users with the 'Vendor' role.
+  // The cell already renders "n/a" for non-vendors, but guard here too.
+  var u=byId(DB.users,uid);
+  if(!u||(u.roles||[]).indexOf('Vendor')<0){ notify('Only users with the Vendor role can be mapped to a vendor'); return; }
+  var picker=document.getElementById('upaPicker'); if(!picker) return;
+  var avail=_upaAvailableVendorsFor(uid);
+  var curVend=(_upaEdits[uid]&&_upaEdits[uid].vendor!==undefined)?_upaEdits[uid].vendor:(_upaVendorForUser(uid)?_upaVendorForUser(uid).id:'');
+  var html='<div style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;min-width:200px">';
+  html+='<div style="font-size:10px;font-weight:700;color:var(--text3);padding:0 4px 2px;text-transform:uppercase;letter-spacing:.5px">Select vendor</div>';
+  html+='<div onclick="_upaVendorPick(\''+uid+'\',\'\')" style="background:#f1f5f9;color:#64748b;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;border:1px dashed #94a3b8;text-align:center'+(curVend===''?';outline:2px solid var(--accent);outline-offset:2px':'')+'">— None —</div>';
+  if(!avail.length){
+    html+='<div style="font-size:11px;color:var(--text3);padding:6px 4px;font-style:italic">No available vendors (others may already be mapped).</div>';
+  }
+  avail.forEach(function(v){
+    var isCur=v.id===curVend;
+    html+='<div onclick="_upaVendorPick(\''+uid+'\',\''+v.id+'\')" style="background:#fef3c7;color:#78350f;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid #fbbf24'+(isCur?';outline:2px solid var(--accent);outline-offset:2px':'')+'" title="'+String(v.name||'').replace(/"/g,'&quot;')+'">'+(v.name||v.id)+'</div>';
+  });
+  html+='</div>';
+  picker.innerHTML=html;
+  var anchor=(ev&&(ev.currentTarget||ev.target))||null;
+  if(anchor&&anchor.getBoundingClientRect){
+    var rect=anchor.getBoundingClientRect();
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    picker.style.display='block'; picker.style.visibility='hidden';
+    picker.style.top='0px'; picker.style.left='0px';
+    var pw=picker.offsetWidth||220, ph=picker.offsetHeight||200;
+    var left=rect.left, top=rect.bottom+6;
+    if(top+ph>vh-8) top=Math.max(8, rect.top-ph-6);
+    if(left+pw>vw-8) left=Math.max(8, vw-pw-8);
+    picker.style.top=top+'px'; picker.style.left=left+'px';
+    picker.style.visibility='visible';
+  } else { picker.style.display='block'; }
+  if(_upaOutsideHandler) document.removeEventListener('click',_upaOutsideHandler);
+  _upaOutsideHandler=function(ev2){
+    var pk=document.getElementById('upaPicker');
+    if(!pk||pk.style.display==='none') return;
+    if(pk.contains(ev2.target)) return;
+    if(ev2.target.closest&&(ev2.target.closest('.upaAllocBadge')||ev2.target.closest('.upaVendBadge'))) return;
+    _upaPickerClose();
+  };
+  setTimeout(function(){ document.addEventListener('click',_upaOutsideHandler); },0);
+}
+function _upaVendorPick(uid,vendorId){
+  if(!_upaEdits[uid]) _upaEdits[uid]={};
+  _upaEdits[uid].vendor=vendorId;
+  _upaPickerClose();
+  _upaUpdateDirtyHint();
+  renderUserPlantAlloc();
+}
+
+// Allocated-plant badge (rendered in the table cell). Clicking opens the picker.
+function _upaAllocBadgeHtml(uid,locId){
+  if(!locId){
+    return '<span class="upaAllocBadge" onclick="_upaPickerOpen(event,\''+uid+'\')" style="display:inline-block;background:#f1f5f9;color:#64748b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px dashed #94a3b8">— Select —</span>';
+  }
+  var loc=byId(DB.locations||[],locId);
+  if(!loc){
+    return '<span class="upaAllocBadge" onclick="_upaPickerOpen(event,\''+uid+'\')" style="display:inline-block;background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid #fca5a5">(missing)</span>';
+  }
+  var bg=loc.colour||'#e2e8f0';
+  return '<span class="upaAllocBadge" onclick="_upaPickerOpen(event,\''+uid+'\')" title="'+String(loc.name||'').replace(/"/g,'&quot;')+' — click to change" style="display:inline-block;background:'+bg+';color:'+colourContrast(bg)+';padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;cursor:pointer;border:1px solid rgba(0,0,0,.15)">'+(loc.name||loc.id)+' <span style="opacity:.75;font-weight:600">▾</span></span>';
+}
+
+// Open the inline KAP location picker for `uid`. Positions near the click.
+function _upaPickerOpen(ev,uid){
+  if(ev&&ev.stopPropagation) ev.stopPropagation();
+  if(!_upaCanEdit()) return;
+  // Vendor-role users don't get a plant allocation — they're mapped to a vendor instead.
+  var u=byId(DB.users,uid);
+  if(u&&(u.roles||[]).indexOf('Vendor')>=0){ notify('Vendor users are not assigned a plant — use the Vendor column'); return; }
+  var picker=document.getElementById('upaPicker'); if(!picker) return;
+  var kapLocs=(DB.locations||[]).filter(function(l){return l&&l.type==='KAP'&&!l.inactive;})
+    .sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
+  var curPlant=(_upaEdits[uid]&&_upaEdits[uid].plant!==undefined)?_upaEdits[uid].plant:((byId(DB.users,uid)||{}).plant||'');
+  var html='<div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">';
+  html+='<div style="font-size:10px;font-weight:700;color:var(--text3);padding:0 4px 2px;text-transform:uppercase;letter-spacing:.5px">Select KAP plant</div>';
+  html+='<div onclick="_upaPickerPick(\''+uid+'\',\'\')" style="display:inline-block;background:#f1f5f9;color:#64748b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px dashed #94a3b8;text-align:center"'+(curPlant===''?' style="outline:2px solid var(--accent)"':'')+'>— None —</div>';
+  kapLocs.forEach(function(l){
+    var bg=l.colour||'#e2e8f0';
+    var isCur=l.id===curPlant;
+    html+='<div onclick="_upaPickerPick(\''+uid+'\',\''+l.id+'\')" style="display:inline-block;background:'+bg+';color:'+colourContrast(bg)+';padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;cursor:pointer;border:1px solid rgba(0,0,0,.15)'+(isCur?';outline:2px solid var(--accent);outline-offset:2px':'')+'">'+(l.name||l.id)+'</div>';
+  });
+  html+='</div>';
+  picker.innerHTML=html;
+  // Position with viewport coords (picker is position:fixed).
+  // Use currentTarget so a click on the inner ▾ span still anchors to the badge.
+  var anchor=(ev&&(ev.currentTarget||ev.target))||null;
+  if(anchor&&anchor.getBoundingClientRect){
+    var rect=anchor.getBoundingClientRect();
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    picker.style.display='block';
+    picker.style.visibility='hidden';
+    picker.style.top='0px'; picker.style.left='0px';
+    var pw=picker.offsetWidth||220, ph=picker.offsetHeight||200;
+    var left=rect.left;
+    var top=rect.bottom+6;
+    // Flip up if no room below
+    if(top+ph>vh-8) top=Math.max(8, rect.top-ph-6);
+    // Clamp horizontally
+    if(left+pw>vw-8) left=Math.max(8, vw-pw-8);
+    picker.style.top=top+'px';
+    picker.style.left=left+'px';
+    picker.style.visibility='visible';
+  } else {
+    picker.style.display='block';
+  }
+  // Replace any previous outside-click handler so we don't stack up.
+  if(_upaOutsideHandler) document.removeEventListener('click',_upaOutsideHandler);
+  _upaOutsideHandler=function(ev2){
+    var pk=document.getElementById('upaPicker');
+    if(!pk||pk.style.display==='none') return;
+    if(pk.contains(ev2.target)) return;
+    if(ev2.target.closest&&ev2.target.closest('.upaAllocBadge')) return; // let the new open handler take over
+    _upaPickerClose();
+  };
+  setTimeout(function(){ document.addEventListener('click',_upaOutsideHandler); },0);
+}
+var _upaOutsideHandler=null;
+function _upaPickerClose(){
+  var p=document.getElementById('upaPicker'); if(p) p.style.display='none';
+  if(_upaOutsideHandler){ document.removeEventListener('click',_upaOutsideHandler); _upaOutsideHandler=null; }
+}
+function _upaPickerPick(uid,locId){
+  if(!_upaEdits[uid]) _upaEdits[uid]={};
+  _upaEdits[uid].plant=locId;
+  _upaPickerClose();
+  _upaUpdateDirtyHint();
+  // Surgical re-render: just the cell + name pill aren't affected, but easiest to redraw row.
+  renderUserPlantAlloc();
+}
+// _upaTogglePH removed — Plant Head is now auto-derived from user.roles
+// + user.plant via _vmsLocRoleUsers. The PH column shows a read-only tick.
+function _upaUpdateDirtyHint(){
+  var hint=document.getElementById('upaDirtyHint');
+  if(!hint) return;
+  var any=Object.keys(_upaEdits).some(function(uid){
+    var e=_upaEdits[uid]||{}; var u=byId(DB.users,uid); if(!u) return false;
+    var dbVend=_upaVendorForUser(uid); var dbVendId=dbVend?dbVend.id:'';
+    if(e.plant!==undefined && e.plant!==(u.plant||'')) return true;
+    if(e.vendor!==undefined && e.vendor!==dbVendId) return true;
+    return false;
+  });
+  hint.style.display=any?'inline':'none';
+}
+
+function _upaSort(col){
+  if(_upaSortState.col===col) _upaSortState.asc=!_upaSortState.asc;
+  else{ _upaSortState.col=col; _upaSortState.asc=true; }
+  renderUserPlantAlloc();
+}
+function _upaSortKey(u,col){
+  var roles=u.roles||[];
+  if(col==='fullName') return String(u.fullName||u.name||'').toLowerCase();
+  if(col==='username') return String(u.name||u.id||'').toLowerCase();
+  // SA / VMS Admin override every role — treat them as having every tick.
+  var _isAdmin=roles.includes('Super Admin')||roles.includes('VMS Admin');
+  if(col==='ks') return _isAdmin||roles.includes('KAP Security')?1:0;
+  if(col==='tb') return _isAdmin||roles.includes('Trip Booking User')?1:0;
+  if(col==='mr') return _isAdmin||roles.includes('Material Receiver')?1:0;
+  if(col==='ap') return _isAdmin||roles.includes('Trip Approver')?1:0;
+  if(col==='plant'){
+    var locId=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:(u.plant||'');
+    var l=byId(DB.locations||[],locId); return String(l?l.name:'').toLowerCase();
+  }
+  if(col==='ph') return _isAdmin||roles.includes('Plant Head')?1:0;
+  if(col==='vendor'){
+    var vId=(_upaEdits[u.id]&&_upaEdits[u.id].vendor!==undefined)?_upaEdits[u.id].vendor:(_upaVendorForUser(u.id)?_upaVendorForUser(u.id).id:'');
+    var v=byId(DB.vendors||[],vId); return String(v?v.name:'').toLowerCase();
+  }
+  return '';
+}
+
+function renderUserPlantAlloc(){
+  if(!_upaCanEdit()){
+    var b0=document.getElementById('upaBody');
+    if(b0) b0.innerHTML='<tr><td colspan="9" style="padding:32px;text-align:center;color:#dc2626;font-weight:700;font-size:13px">⛔ Access denied. Only Super Admin / VMS Admin can use this page.</td></tr>';
+    var sb=document.getElementById('upaSaveAllBtn'); if(sb) sb.style.display='none';
+    return;
+  }
+  // Kick off lazy HRMS load if data missing.
+  if(!Array.isArray(DB.hrmsEmployees)||!Array.isArray(DB.hrmsCompanies)||DB.hrmsEmployees.length===0||DB.hrmsCompanies.length===0){
+    _upaEnsureHrmsLoaded();
+  }
+  var srch=String((document.getElementById('upaSearch')||{}).value||'').trim().toLowerCase();
+  var showInact=!!(document.getElementById('upaShowInactive')||{}).checked;
+  var users=(DB.users||[]).filter(function(u){
+    if(!u) return false;
+    if(!showInact && u.inactive===true) return false;
+    var apps=u.apps||[]; var roles=u.roles||[];
+    if(!apps.includes('vms') && !roles.includes('Super Admin')) return false;
+    if(srch){
+      var hay=((u.fullName||'')+' '+(u.name||u.id||'')).toLowerCase();
+      if(hay.indexOf(srch)<0) return false;
+    }
+    return true;
+  });
+  // Sort
+  var col=_upaSortState.col, asc=_upaSortState.asc;
+  users.sort(function(a,b){
+    var ka=_upaSortKey(a,col), kb=_upaSortKey(b,col);
+    if(ka<kb) return asc?-1:1;
+    if(ka>kb) return asc?1:-1;
+    // tiebreaker → fullName asc
+    var na=String(a.fullName||a.name||'').toLowerCase(), nb=String(b.fullName||b.name||'').toLowerCase();
+    return na.localeCompare(nb);
+  });
+  // Render sort indicators — white on the dark header background for contrast.
+  document.querySelectorAll('#tUserPlantAlloc .upaSortIco').forEach(function(s){
+    var c=s.getAttribute('data-col');
+    s.textContent=(c===col)?(asc?' ▲':' ▼'):'';
+    s.style.fontSize='10px';
+    s.style.color='#fde68a';
+    s.style.fontWeight='800';
+  });
+  var body=document.getElementById('upaBody'); if(!body) return;
+  if(!users.length){
+    body.innerHTML='<tr><td colspan="9" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No VMS users found.</td></tr>';
+    return;
+  }
+  body.innerHTML=users.map(function(u){
+    var roles=u.roles||[];
+    // Super Admin / VMS Admin override every role-tick column:
+    //  • SA  → gold ★  (full platform access)
+    //  • VMS Admin → blue #  (full VMS access)
+    // Regular users show a green ✓ for roles they explicitly hold and a
+    // muted — otherwise.
+    var isSA=roles.includes('Super Admin');
+    var isVA=roles.includes('VMS Admin');
+    var tick=function(r){
+      if(isSA) return '<span style="color:#b45309;font-weight:800;font-size:15px" title="Super Admin — full access">★</span>';
+      if(isVA) return '<span style="color:#1d4ed8;font-weight:800;font-size:15px" title="VMS Admin — full VMS access">#</span>';
+      return roles.includes(r)?'<span style="color:#16a34a;font-weight:800;font-size:15px">✓</span>':'<span style="color:#cbd5e1">—</span>';
+    };
+    // Small user-level badge appended after the full name so it's clear
+    // why every tick is filled.
+    var adminBadge=isSA
+      ? '<span style="display:inline-block;background:#b45309;color:#fff;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-left:6px;border:1px solid rgba(0,0,0,.12)" title="Super Admin">★ SA</span>'
+      : (isVA?'<span style="display:inline-block;background:#1d4ed8;color:#fff;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-left:6px;border:1px solid rgba(0,0,0,.12)" title="VMS Admin"># VMS Admin</span>':'');
+    var dbVend=_upaVendorForUser(u.id); var dbVendId=dbVend?dbVend.id:'';
+    var curPlant=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:(u.plant||'');
+    var curVend=(_upaEdits[u.id]&&_upaEdits[u.id].vendor!==undefined)?_upaEdits[u.id].vendor:dbVendId;
+    var inactBadge=u.inactive===true?' <span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
+    var dirty=(_upaEdits[u.id]&&((_upaEdits[u.id].plant!==undefined&&_upaEdits[u.id].plant!==(u.plant||''))||(_upaEdits[u.id].vendor!==undefined&&_upaEdits[u.id].vendor!==dbVendId)));
+    // Role-gated cells:
+    //  • Vendor-role users: plant N/A, vendor pickable.
+    //  • Non-Vendor users:  plant pickable, vendor N/A.
+    var isVendorRole=roles.indexOf('Vendor')>=0;
+    var naSpan='<span style="display:inline-block;color:#94a3b8;font-size:11px;font-style:italic">n/a</span>';
+    var plantCell=isVendorRole
+      ? '<span style="display:inline-block;color:#94a3b8;font-size:11px;font-style:italic" title="Vendor-role users are not assigned a plant — they\'re mapped to a vendor below">n/a</span>'
+      : _upaAllocBadgeHtml(u.id,curPlant);
+    var vendCell=isVendorRole
+      ? _upaVendorBadgeHtml(u.id,curVend)
+      : '<span style="display:inline-block;color:#94a3b8;font-size:11px;font-style:italic" title="Only users with the Vendor role can be mapped to a vendor">n/a</span>';
+    // Cell borders use the same 1.5px slate as the header for a clean
+    // grid. The two "Allocate …" columns get a tinted background so it's
+    // visually obvious those are the only editable cells.
+    var _cellBd='border:1.5px solid rgba(51,65,85,.5)';
+    var _editPlantCellBg='background:rgba(219,234,254,.55)';   // light blue
+    var _editVendCellBg='background:rgba(254,243,199,.6)';     // light amber
+    return '<tr data-uid="'+u.id+'" '+(u.inactive===true?'style="opacity:.65;background:rgba(239,68,68,.05)"':(dirty?'style="background:rgba(251,191,36,.08)"':''))+'>'
+      +'<td style="font-family:monospace;font-size:14px;font-weight:700;color:var(--text2);padding:4px 10px;white-space:normal;word-break:break-all;'+_cellBd+'">'+(u.name||u.id||'')+'</td>'
+      +'<td style="font-weight:600;font-size:13px;padding:4px 10px;white-space:normal;word-break:break-word;'+_cellBd+'">'+_upaHrmsPillHtml(u)+(u.fullName||u.name||'')+adminBadge+inactBadge+'</td>'
+      +'<td style="text-align:center;padding:4px 8px;'+_cellBd+'">'+tick('KAP Security')+'</td>'
+      +'<td style="text-align:center;padding:4px 8px;'+_cellBd+'">'+tick('Trip Booking User')+'</td>'
+      +'<td style="text-align:center;padding:4px 8px;'+_cellBd+'">'+tick('Material Receiver')+'</td>'
+      +'<td style="text-align:center;padding:4px 8px;'+_cellBd+'">'+tick('Trip Approver')+'</td>'
+      +'<td style="text-align:center;padding:4px 8px;'+_cellBd+'">'+tick('Plant Head')+'</td>'
+      +'<td style="padding:4px 8px;white-space:normal;'+_cellBd+';'+_editPlantCellBg+'">'+plantCell+'</td>'
+      +'<td style="padding:4px 8px;white-space:normal;'+_cellBd+';'+_editVendCellBg+'">'+vendCell+'</td>'
+      +'</tr>';
+  }).join('');
+  _upaUpdateDirtyHint();
+}
+
+async function _upaSaveAll(){
+  if(!_upaCanEdit()){ notify('Access denied'); return; }
+  var uids=Object.keys(_upaEdits);
+  if(!uids.length){ notify('Nothing to save'); return; }
+  var btn=document.getElementById('upaSaveAllBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  var saved=0, failed=0, noop=0;
+  for(var i=0;i<uids.length;i++){
+    var uid=uids[i]; var e=_upaEdits[uid]; var u=byId(DB.users,uid);
+    if(!u){ delete _upaEdits[uid]; continue; }
+    var isVendorRole=(u.roles||[]).indexOf('Vendor')>=0;
+    var dbPlant=u.plant||'';
+    var dbVend=_upaVendorForUser(uid); var dbVendId=dbVend?dbVend.id:'';
+    var newPlant=(e.plant!==undefined)?e.plant:dbPlant;
+    var newVendId=(e.vendor!==undefined)?e.vendor:dbVendId;
+    // Save when the user EXPLICITLY picked something (e.plant defined),
+    // even if it matches current DB — this makes "explicit None" idempotent
+    // and avoids the silent-no-op trap for users whose plant is already ''.
+    var plantTouched=(e.plant!==undefined);
+    var vendorTouched=(e.vendor!==undefined);
+    // Role-gating:
+    //  • Vendor-role users may not have a plant — silently drop staged plant edits.
+    //  • Non-vendor users may not have a vendor — silently drop staged vendor edits.
+    if(plantTouched && isVendorRole){ plantTouched=false; }
+    if(vendorTouched && !isVendorRole){ vendorTouched=false; }
+    if(!plantTouched && !vendorTouched){ delete _upaEdits[uid]; noop++; continue; }
+    var ok=true;
+    console.log('UPA save uid='+uid+' plant: '+(dbPlant||'(none)')+' → '+(newPlant||'(none)')+'  vendor: '+(dbVendId||'(none)')+' → '+(newVendId||'(none)'));
+    // 1) user.plant — always write when explicitly picked, even if same.
+    if(plantTouched){
+      var uBak={plant:u.plant};
+      u.plant=newPlant;
+      if(!await _dbSave('users',u)){ Object.assign(u,uBak); ok=false; }
+    }
+    // 2) vendor.userId reconciliation — vendor↔user is 1-to-1.
+    if(ok && vendorTouched){
+      var vendUpdates=[];
+      (DB.vendors||[]).forEach(function(v){
+        if(!v) return;
+        if(v.userId===uid && v.id!==newVendId) vendUpdates.push({v:v,clear:true});
+      });
+      if(newVendId){
+        var tgtV=byId(DB.vendors,newVendId);
+        if(tgtV && tgtV.userId!==uid) vendUpdates.push({v:tgtV,setTo:uid});
+        else if(!tgtV) ok=false;
+      }
+      for(var k=0;k<vendUpdates.length;k++){
+        var vu=vendUpdates[k];
+        var vBak={userId:vu.v.userId};
+        vu.v.userId=vu.clear?'':vu.setTo;
+        if(!await _dbSave('vendors',vu.v)){ Object.assign(vu.v,vBak); ok=false; }
+      }
+    }
+    if(ok){ saved++; delete _upaEdits[uid]; } else { failed++; }
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML='💾 Save All'; }
+  var msg;
+  if(saved) msg='Saved '+saved+' ✓'+(failed?(' — '+failed+' failed'):'');
+  else if(failed) msg=failed+' failed';
+  else msg='No changes to save';
+  notify(msg);
+  renderUserPlantAlloc();
+}
+
+
 function setLocColour(colour){
   document.getElementById('locColour').value=colour;
   // Highlight selected swatch
@@ -7415,11 +8166,97 @@ function colourName(hex){const map={'#fda4af':'Rose Light','#f43f5e':'Rose','#dc
 // Auto-select white or dark text based on background luminance
 
 // Location name helpers moved to utils
-function toggleKapFields(){document.getElementById('kapLocFields').style.display=document.getElementById('locTypeS').value==='KAP'?'block':'none';}
+// LEGACY-ROLES — toggleKapFields used to flip the "KAP User Assignments"
+// section based on Location Type. The whole assignments block is hidden
+// (display:none on #kapLocFields) during the V117+ user-based-auth
+// rollout. The function now only flips Colour Tag visibility — colour
+// only makes sense for KAP locations.
+function toggleKapFields(){
+  var t=document.getElementById('locTypeS')?.value||'';
+  var cg=document.getElementById('locColourGroup');
+  if(cg) cg.style.display=(t==='KAP')?'block':'none';
+}
+// Live duplicate-name guide for the Add Location modal. Shows matching
+// existing locations as the admin types so they don't accidentally
+// re-create something that's already there. Non-blocking — purely
+// informational. Excludes the location currently being edited.
+function _locNameLiveCheck(){
+  var inp=document.getElementById('locNameI');
+  var hint=document.getElementById('locNameDupHint');
+  if(!inp||!hint) return;
+  var q=String(inp.value||'').trim().toLowerCase();
+  var curId=document.getElementById('eLocId')?.value||'';
+  // V117+ — show matches from the first keystroke (was: after 2 chars).
+  if(q.length<1){ hint.style.display='none'; hint.innerHTML=''; return; }
+  var matches=(DB.locations||[]).filter(function(l){
+    if(!l||l.id===curId) return false;
+    return String(l.name||'').toLowerCase().indexOf(q)>=0;
+  }).slice(0,10);
+  if(!matches.length){ hint.style.display='none'; hint.innerHTML=''; return; }
+  var rows=matches.map(function(l){
+    var typeChip=l.type==='KAP'
+      ?'<span style="background:#fbbf24;color:#78350f;font-size:9px;font-weight:800;padding:1px 6px;border-radius:6px;margin-right:6px">KAP</span>'
+      :'<span style="background:#e0e7ff;color:#3730a3;font-size:9px;font-weight:800;padding:1px 6px;border-radius:6px;margin-right:6px">EXT</span>';
+    var inact=l.inactive?'<span style="background:#fee2e2;color:#991b1b;font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;margin-left:6px">Inactive</span>':'';
+    return '<div style="padding:2px 0">'+typeChip+'<b>'+_locNameLiveCheckEsc(l.name||'')+'</b>'+inact+'</div>';
+  }).join('');
+  hint.innerHTML='<div style="font-weight:800;letter-spacing:.3px;margin-bottom:3px">⚠ Already added — avoid duplicates:</div>'+rows;
+  hint.style.display='block';
+}
+function _locNameLiveCheckEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// V117+ — Import / Export bold-arrow buttons get a JS-managed tooltip
+// that escapes every overflow ancestor (CSS pseudo-element tooltip got
+// clipped by various card / table wrappers). Single shared #vmsIeTip
+// element follows the hovered .vms-ie-arrow.
+(function(){
+  if(typeof window==='undefined'||window._vmsIeTipBound) return;
+  window._vmsIeTipBound=true;
+  function tip(){
+    var el=document.getElementById('vmsIeTip');
+    if(!el){ el=document.createElement('div'); el.id='vmsIeTip'; document.body.appendChild(el); }
+    return el;
+  }
+  document.addEventListener('mouseover', function(ev){
+    var t=ev.target&&ev.target.closest?ev.target.closest('.vms-ie-arrow'):null;
+    if(!t) return;
+    var lbl=t.getAttribute('data-tip')||'';
+    if(!lbl) return;
+    var el=tip(); el.textContent=lbl; el.style.display='block';
+    // Position centred above the arrow, clamped to viewport.
+    var r=t.getBoundingClientRect();
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    el.style.visibility='hidden';
+    var tw=el.offsetWidth, th=el.offsetHeight;
+    var top=r.top-th-8;
+    if(top<6) top=r.bottom+8; // flip below when no room above
+    var left=r.left+(r.width-tw)/2;
+    if(left<8) left=8;
+    if(left+tw>vw-8) left=vw-tw-8;
+    el.style.top=top+'px'; el.style.left=left+'px';
+    el.style.visibility='visible';
+  }, true);
+  document.addEventListener('mouseout', function(ev){
+    var t=ev.target&&ev.target.closest?ev.target.closest('.vms-ie-arrow'):null;
+    if(!t) return;
+    var el=document.getElementById('vmsIeTip'); if(el) el.style.display='none';
+  }, true);
+})();
 function openLocModal(id){
   const l=id?byId(DB.locations,id):null;
-  document.getElementById('eLocId').value=id||'';document.getElementById('locNameI').value=l?.name||'';document.getElementById('locTypeS').value=l?.type||'';document.getElementById('locAddr').value=l?.address||'';document.getElementById('locGeo').value=l?.geo||'';
-  // Helper: display user fullName with location in brackets
+  document.getElementById('eLocId').value=id||'';document.getElementById('locNameI').value=l?.name||'';
+  // V117+ — default Type to External when adding a new location (most
+  // common case); editing preserves the saved value.
+  document.getElementById('locTypeS').value=l?(l.type||''):'External';
+  document.getElementById('locAddr').value=l?.address||'';document.getElementById('locGeo').value=l?.geo||'';
+  // Reset live duplicate-name hint when (re)opening the modal.
+  var _dh=document.getElementById('locNameDupHint'); if(_dh){ _dh.style.display='none'; _dh.innerHTML=''; }
+  // LEGACY-ROLES — population of KAP Security / Trip Booking / Material
+  // Receiver / Trip Approver / Plant Head selectors is disabled during
+  // testing of role-derived auth. The hidden #kapLocFields block keeps
+  // the existing role-array values intact (saveLoc preserves them from
+  // the record). Re-enable by un-commenting the block below.
+  /* LEGACY-ROLES BEGIN
   const _uLabel=(u)=>{
     const fn=u.fullName||u.name;
     const loc=byId(DB.locations,u.plant);
@@ -7443,19 +8280,32 @@ function openLocModal(id){
   document.getElementById('locApprover').innerHTML=aU.map(u=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;background:var(--surface2);padding:3px 7px;border-radius:5px;border:1px solid ${(l?.approvers||[]).includes(u.id)?'var(--accent)':'var(--border)'}"><input type="checkbox" value="${u.id}" ${(l?.approvers||[]).includes(u.id)?'checked':''} style="width:14px;height:14px"> ${_uLabel(u)}</label>`).join('')||'<span style="font-size:11px;color:var(--text3)">No Approvers in User Master</span>';
   const phU=sortBy(DB.users.filter(u=>(u.roles||[]).includes('Plant Head')),u=>(u.fullName||u.name));
   document.getElementById('locPlantHead').innerHTML='<option value="">-- None --</option>'+phU.map(u=>`<option value="${u.id}"${u.id===l?.plantHead?' selected':''}>${_uLabelPlain(u)}</option>`).join('');
-  toggleKapFields();document.getElementById('mLocTitle').textContent=id?'Edit Location':'Add Location';
+  toggleKapFields();
+  LEGACY-ROLES END */
+  document.getElementById('mLocTitle').textContent=id?'Edit Location':'Add Location';
   // Load colour
   setLocColour(l?.colour||'');
   const locICb=document.getElementById('locInactive');if(locICb)locICb.checked=l?.inactive===true;
+  // V117+ — Colour Tag only shown for KAP locations.
+  toggleKapFields();
   om('mLoc');
+  // Focus the Name field after the modal-open animation settles.
+  setTimeout(function(){
+    var ni=document.getElementById('locNameI');
+    if(ni){ ni.focus(); try{ ni.select(); }catch(e){} }
+  }, 60);
 }
 async function saveLoc(){
   const id=document.getElementById('eLocId').value;const name=document.getElementById('locNameI').value.trim();const type=document.getElementById('locTypeS').value;const address=document.getElementById('locAddr').value;const geo=document.getElementById('locGeo').value;
   const colour=document.getElementById('locColour').value;
-  const kapSec=document.getElementById('locKapSec').value;const tripBook=[...document.querySelectorAll('#locTripBook input:checked')].map(o=>o.value);
-  const matRecv=[...document.querySelectorAll('#locMatRecv input:checked')].map(o=>o.value);
-  const approvers=[...document.querySelectorAll('#locApprover input:checked')].map(o=>o.value);
-  const plantHead=document.getElementById('locPlantHead').value;
+  // LEGACY-ROLES — assignment fields are hidden; preserve any existing
+  // values on the record so the legacy data isn't blanked on save.
+  const _existing=id?byId(DB.locations,id):null;
+  const kapSec=_existing?(_existing.kapSec||''):'';
+  const tripBook=_existing?((_existing.tripBook||[]).slice()):[];
+  const matRecv=_existing?((_existing.matRecv||[]).slice()):[];
+  const approvers=_existing?((_existing.approvers||[]).slice()):[];
+  const plantHead=_existing?(_existing.plantHead||''):'';
   if(!name||!type){modalErr('mLoc','Fill required fields');return;}
   if(!id){
     const _inactLoc=DB.locations.find(l=>l&&l.name.trim().toLowerCase()===name.toLowerCase()&&l.id!==id&&l.inactive===true);
@@ -8218,12 +9068,9 @@ function showRecordDetail(table,id){
       +_rdRow('Type',typeBadge,{html:true})
       +_rdRow('Address',l.address)
       +_rdRow('Geo Coordinates',l.geo)
-      +(l.type==='KAP'?
-        _rdRow('KAP Security',l.kapSec?_uChip(l.kapSec):'<span style="color:var(--text3);font-size:10px">—</span>',{html:true})
-        +_rdRow('Trip Booking',_uChips(l.tripBook),{html:true})
-        +_rdRow('Mat. Receivers',_uChips(l.matRecv),{html:true})
-        +_rdRow('Approvers',_uChips(l.approvers),{html:true})
-        :'')
+      /* LEGACY-ROLES — KAP Security / Trip Booking / Mat. Receivers /
+         Approvers / Plant Head rows hidden during V117+ user-based-auth
+         rollout. Re-enable alongside the kapLocFields modal block. */
       +_rdRow('Status',_rdStatus(l.inactive),{html:true});
     editFn=`openLocModal('${id}')`;
   }
@@ -8376,38 +9223,38 @@ const MASTER_SCHEMA = {
       'Colour Tag': l.colour?colourName(l.colour):'',
       'Address': l.address||'',
       'Geo Coordinates': l.geo||'',
+      /* LEGACY-ROLES — role columns removed from Location Master export
+         (V117+ user-based-auth rollout). Re-add alongside the kapLocFields
+         modal block + role table columns.
       'KAP Security User': l.kapSec?byId(DB.users,l.kapSec)?.name||'':'',
       'Trip Booking User': (l.tripBook||[]).map(id=>byId(DB.users,id)?.name||'').filter(Boolean).join('; '),
       'Material Receivers': (l.matRecv||[]).map(id=>byId(DB.users,id)?.name||id).join('; '),
       'Approvers': (l.approvers||[]).map(id=>byId(DB.users,id)?.name||id).join('; '),
+      */
     }),
     fromRow: r => {
       const name=(r['Location Name']||'').toString().trim();
       if(!name) return null;
       const type=(r['Location Type']||'External').toString().trim();
-      const findUser=n=>DB.users.find(u=>u&&u.name.toLowerCase()===n.toString().trim().toLowerCase());
-      const kapSecU=findUser(r['KAP Security User']||'');
-      const tripBookU=(r['Trip Booking User']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
-      const matRecv=(r['Material Receivers']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
-      const approvers=(r['Approvers']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
       // Resolve colour name back to hex
       const colLabel=(r['Colour Tag']||'').toString().trim();
       const colHex=colLabel?Object.entries({'#991b1b':'Maroon','#dc2626':'Red','#ea580c':'Orange','#d97706':'Amber','#eab308':'Yellow','#65a30d':'Lime','#16a34a':'Green','#0d9488':'Teal','#0891b2':'Cyan','#0369a1':'Blue','#175c60':'Royal','#1e3a8a':'Navy','#4338ca':'Indigo','#7c3aed':'Violet','#9333ea':'Purple','#a21caf':'Fuchsia','#be185d':'Pink','#9f1239':'Crimson','#374151':'Charcoal','#6b7280':'Gray'}).find(([,v])=>v.toLowerCase()===colLabel.toLowerCase())?.[0]||colLabel:'';
+      /* LEGACY-ROLES — import of role assignments disabled during V117+
+         user-based-auth rollout. New rows are created with empty arrays
+         so existing access flow (role+plant derivation) isn't affected. */
       return {id:'l'+uid(),name,type,colour:colHex,address:(r['Address']||'').toString(),geo:(r['Geo Coordinates']||'').toString(),
-        kapSec:kapSecU?.id||'',tripBook:tripBookU,matRecv,approvers};
+        kapSec:'',tripBook:[],matRecv:[],approvers:[]};
     },
     matchKey: r=>(r['Location Name']||'').toString().trim().toLowerCase(),
     dbMatchKey: l=>l.name.toLowerCase(),
     merge: (e,r)=>{
-      const findUser=n=>DB.users.find(u=>u&&u.name.toLowerCase()===n.toString().trim().toLowerCase());
       if(r['Location Type']!==undefined)e.type=(r['Location Type']||e.type).toString().trim();
       if(r['Colour Tag']!==undefined){const colLabel=(r['Colour Tag']||'').toString().trim();e.colour=colLabel?Object.entries({'#991b1b':'Maroon','#dc2626':'Red','#ea580c':'Orange','#d97706':'Amber','#eab308':'Yellow','#65a30d':'Lime','#16a34a':'Green','#0d9488':'Teal','#0891b2':'Cyan','#0369a1':'Blue','#175c60':'Royal','#1e3a8a':'Navy','#4338ca':'Indigo','#7c3aed':'Violet','#9333ea':'Purple','#a21caf':'Fuchsia','#be185d':'Pink','#9f1239':'Crimson','#374151':'Charcoal','#6b7280':'Gray'}).find(([,v])=>v.toLowerCase()===colLabel.toLowerCase())?.[0]||colLabel:'';}
       if(r['Address']!==undefined)e.address=(r['Address']||'').toString();
       if(r['Geo Coordinates']!==undefined)e.geo=(r['Geo Coordinates']||'').toString();
-      if(r['KAP Security User']!==undefined){const u=findUser(r['KAP Security User']||'');e.kapSec=u?.id||'';}
-      if(r['Trip Booking User']!==undefined)e.tripBook=(r['Trip Booking User']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
-      if(r['Material Receivers']!==undefined)e.matRecv=(r['Material Receivers']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
-      if(r['Approvers']!==undefined)e.approvers=(r['Approvers']||'').toString().split(';').map(n=>findUser(n.trim())).filter(Boolean).map(u=>u.id);
+      /* LEGACY-ROLES — role-column merges (KAP Security User / Trip Booking
+         User / Material Receivers / Approvers) intentionally skipped on
+         re-import so existing legacy values aren't blanked. */
     },
   },
   tripRates: {
@@ -9254,7 +10101,8 @@ function renderHelper(){
     <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
       <div style="flex:1;min-width:200px">
         <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;text-transform:uppercase">Enter Trip ID</label>
-        <input type="text" id="helperTripIdInput" placeholder="e.g. 6P2-15" style="width:100%;padding:10px 14px;font-size:15px;font-family:var(--mono);font-weight:700;border:2px solid #a78bfa;border-radius:8px;text-transform:uppercase" onkeydown="if(event.key==='Enter')_helperLookupTrip()">
+        <input type="text" id="helperTripIdInput" list="helperTripIdList" autocomplete="off" placeholder="Type to search trip ID, vehicle, route, vendor…" style="width:100%;padding:10px 14px;font-size:15px;font-family:var(--mono);font-weight:700;border:2px solid #a78bfa;border-radius:8px;text-transform:uppercase" oninput="_helperTripSuggest(this.value)" onkeydown="if(event.key==='Enter')_helperLookupTrip()">
+        <datalist id="helperTripIdList"></datalist>
       </div>
       <button onclick="_helperLookupTrip()" style="padding:10px 20px;font-size:13px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap">🔍 Look Up</button>
     </div>
@@ -9515,30 +10363,91 @@ async function _repairAutoExitSpotVehicles(){
 }
 
 // Helper page: Trip Status Retriever function
+// Populate the trip-id <datalist> with up to 30 matches against query.
+// Match keys: trip.id, vehicle number, route location names, vendor name.
+// `value` is the bare trip id so picking an option lands a clean id.
+function _helperTripSuggest(q){
+  const list=document.getElementById('helperTripIdList');
+  if(!list) return;
+  const query=String(q||'').trim().toLowerCase();
+  const trips=DB.trips||[];
+  let matches=trips;
+  if(query){
+    matches=trips.filter(t=>{
+      const veh=byId(DB.vehicles,t.vehicleId);
+      const vno=(veh?veh.number:'')||'';
+      const vnd=byId(DB.vendors,veh?.vendorId);
+      const startName=byId(DB.locations,t.startLoc)?.name||'';
+      const d1=byId(DB.locations,t.dest1)?.name||'';
+      const d2=byId(DB.locations,t.dest2)?.name||'';
+      const d3=byId(DB.locations,t.dest3)?.name||'';
+      const hay=((t.id||'')+' '+vno+' '+(vnd?vnd.name:'')+' '+startName+' '+d1+' '+d2+' '+d3).toLowerCase();
+      return hay.indexOf(query)>=0;
+    });
+  }
+  matches=matches.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,30);
+  list.innerHTML=matches.map(t=>{
+    const veh=byId(DB.vehicles,t.vehicleId);
+    const routeShort=[t.startLoc,t.dest1,t.dest2,t.dest3].filter(Boolean).map(id=>byId(DB.locations,id)?.name||id).join('→');
+    const lbl=t.id+'  ·  '+(veh?.number||'no vehicle')+'  ·  '+routeShort;
+    return '<option value="'+t.id+'" label="'+String(lbl).replace(/"/g,'&quot;')+'">'+String(lbl).replace(/</g,'&lt;')+'</option>';
+  }).join('');
+  // Auto-fire lookup when the input value EXACTLY matches a real trip.id.
+  // Catches both a datalist suggestion pick AND a fully-typed id. Guarded
+  // against re-firing for the same value so re-renders don't loop.
+  const rawUp=String(q||'').trim().toUpperCase();
+  if(rawUp && trips.some(t=>String(t.id).toUpperCase()===rawUp) && _helperLastFiredId!==rawUp){
+    _helperLastFiredId=rawUp;
+    setTimeout(_helperLookupTrip,0);
+  } else if(!rawUp){
+    _helperLastFiredId='';
+  }
+}
+var _helperLastFiredId='';
 function _helperLookupTrip(){
   const input=document.getElementById('helperTripIdInput');
   const result=document.getElementById('helperTripResult');
   if(!input||!result)return;
-  const tripId=(input.value||'').trim().toUpperCase();
+  // Accept "6P3-348" or the full "6P3-348  ·  KA01AB1234  ·  …" form from
+  // the datalist suggestion. Take everything up to the first space / middle
+  // dot — trip IDs never contain either, so the leading token is the id.
+  const raw=(input.value||'').trim().toUpperCase();
+  const tripId=raw.split(/[\s·]/)[0];
   if(!tripId){result.style.display='none';return;}
-  
+  result.innerHTML=_buildTripStatusHtml(tripId);
+  result.style.display='block';
+}
+// V117+ — build the Trip Status Retriever's result HTML for a given
+// tripId. Pure (no DOM writes), so the same content can power the
+// helper page AND the right-click popup on trip cards.
+function _buildTripStatusHtml(tripIdRaw){
+  const tripId=String(tripIdRaw||'').trim().toUpperCase();
+  if(!tripId) return '<div style="padding:14px;color:#dc2626;font-weight:700">No trip id supplied</div>';
   const trip=DB.trips.find(t=>t.id.toUpperCase()===tripId);
   if(!trip){
-    result.innerHTML=`<div style="padding:14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;color:#dc2626;font-weight:700">❌ Trip ID "${tripId}" not found</div>`;
-    result.style.display='block';
-    return;
+    return `<div style="padding:14px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;color:#dc2626;font-weight:700">❌ Trip ID "${tripId}" not found</div>`;
   }
-  
   // Get trip details
   const segs=DB.segments.filter(s=>s.tripId===trip.id).sort((a,b)=>a.label.localeCompare(b.label));
   const vehicle=byId(DB.vehicles,trip.vehicleId);
   const driver=byId(DB.drivers,trip.driverId);
   const vendor=byId(DB.vendors,vehicle?.vendorId);
   const bookedBy=byId(DB.users,trip.bookedBy);
+  // Booking user's allocated plant (user.plant per UPA) — used by
+  // bookingLoc / s4Loc for External-source criteria.
+  const tbPlantLoc=bookedBy?.plant?byId(DB.locations,bookedBy.plant):null;
   const startLoc=byId(DB.locations,trip.startLoc);
   const dest1Loc=byId(DB.locations,trip.dest1);
   const dest2Loc=byId(DB.locations,trip.dest2);
   const dest3Loc=byId(DB.locations,trip.dest3);
+  // Flag conditions for TB-plant highlight:
+  //   (a) TB's plant differs from the trip's start location, OR
+  //   (b) any destination is External (criteria 2/4 → TB plant becomes
+  //       the effective owner of MR / Approval steps).
+  const _destLocs=[dest1Loc,dest2Loc,dest3Loc].filter(Boolean);
+  const _anyExtDest=_destLocs.some(l=>l&&l.type==='External');
+  const _tbDiffersFromStart=!!(tbPlantLoc && startLoc && tbPlantLoc.id!==startLoc.id);
+  const _tbFlag=_tbDiffersFromStart || _anyExtDest;
   
   // Overall trip status
   const isCancelled=trip.cancelled;
@@ -9551,12 +10460,20 @@ function _helperLookupTrip(){
   // Format date
   const tripDate=trip.date?new Date(trip.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
   
-  // Build route display
-  let routeParts=[startLoc?.name||'?'];
-  if(dest1Loc) routeParts.push(dest1Loc.name);
-  if(dest2Loc) routeParts.push(dest2Loc.name);
-  if(dest3Loc) routeParts.push(dest3Loc.name);
-  const routeHtml=routeParts.join(' <span style="color:var(--accent);font-weight:900">→</span> ');
+  // Build route display — colored badges per stop (master-location colour),
+  // matching the per-segment pills below.
+  const _tripRoutePill=(loc,fallback)=>{
+    if(!loc) return `<span style="display:inline-block;background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700;border:1px dashed #fca5a5">${fallback||'?'}</span>`;
+    const bg=loc.colour||(loc.type==='External'?'#e0e7ff':'#e2e8f0');
+    const fg=colourContrast(bg);
+    const typeChip=loc.type==='External'?' <span style="font-size:8px;background:rgba(0,0,0,.18);padding:1px 4px;border-radius:6px;font-weight:700">EXT</span>':'';
+    return `<span style="display:inline-block;background:${bg};color:${fg};padding:2px 9px;border-radius:11px;font-size:11px;font-weight:800;border:1px solid rgba(0,0,0,.12);letter-spacing:.2px">${loc.name||'?'}${typeChip}</span>`;
+  };
+  const routePieces=[_tripRoutePill(startLoc,trip.startLoc)];
+  if(dest1Loc||trip.dest1) routePieces.push(_tripRoutePill(dest1Loc,trip.dest1));
+  if(dest2Loc||trip.dest2) routePieces.push(_tripRoutePill(dest2Loc,trip.dest2));
+  if(dest3Loc||trip.dest3) routePieces.push(_tripRoutePill(dest3Loc,trip.dest3));
+  const routeHtml=routePieces.join(' <span style="color:var(--accent);font-weight:900;margin:0 2px">→</span> ');
   
   // Build segments status
   let segsHtml='';
@@ -9567,7 +10484,10 @@ function _helperLookupTrip(){
     if(seg.status==='Completed') segStatus='<span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Completed</span>';
     else if(seg.status==='Locked') segStatus='<span style="background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Locked</span>';
     
-    // Steps status
+    // Steps status — each step shows the allocated/owner plant as a
+    // colored badge so the user can see which location is responsible
+    // for that step (e.g. step 4 Approval may be owned by source plant
+    // on KAP→External segments, by booking plant on External→* etc.).
     let stepsHtml='<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">';
     const stepNames=['','Gate Exit','Gate Entry','Mat Receipt','Approval','Empty Exit'];
     for(let i=1;i<=5;i++){
@@ -9581,31 +10501,68 @@ function _helperLookupTrip(){
       else if(seg.currentStep===i){stepCls='background:#fef9c3;color:#92400e';stepIcon='●';}
       const stepBy=isDone&&step.by?byId(DB.users,step.by)?.name||step.by:'';
       const stepTime=isDone&&step.time?new Date(step.time).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-      stepsHtml+=`<div style="padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;${stepCls};text-align:center;min-width:70px">
+      // Allocated plant pill — step.ownerLoc (preferred) or step.loc.
+      // Skipped steps still get a muted pill so the column lines up.
+      const ownLocId=step.ownerLoc||step.loc||'';
+      const ownLoc=ownLocId?byId(DB.locations,ownLocId):null;
+      let plantPill='';
+      if(ownLoc){
+        const pBg=ownLoc.colour||'#e2e8f0';
+        const pFg=colourContrast(pBg);
+        plantPill=`<div style="margin-top:3px;background:${pBg};color:${pFg};padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.3px;line-height:1.2;border:1px solid rgba(0,0,0,.08);opacity:${isSkip?'.45':'1'}" title="Allocated plant — ${ownLoc.name||''}">${ownLoc.name||ownLocId}</div>`;
+      } else if(!isSkip) {
+        plantPill=`<div style="margin-top:3px;color:#cbd5e1;font-size:9px;font-style:italic">— no plant —</div>`;
+      }
+      stepsHtml+=`<div style="padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;${stepCls};text-align:center;min-width:80px">
         <div>${stepIcon} ${stepNames[i]}</div>
+        ${plantPill}
         ${stepBy?`<div style="font-size:9px;font-weight:500;margin-top:2px">${stepBy}</div>`:''}
         ${stepTime?`<div style="font-size:9px;font-weight:400;opacity:.7">${stepTime}</div>`:''}
       </div>`;
     }
     stepsHtml+='</div>';
     
+    // Colored route badges — paint each segment endpoint with its
+    // master-location colour so KAP→KAP / KAP→Ext routes read at a glance.
+    const _routePill=(loc,fallback)=>{
+      if(!loc) return `<span style="display:inline-block;background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:11px;font-size:11px;font-weight:700;border:1px dashed #fca5a5">${fallback||'?'}</span>`;
+      const bg=loc.colour||(loc.type==='External'?'#e0e7ff':'#e2e8f0');
+      const fg=colourContrast(bg);
+      const typeChip=loc.type==='External'?' <span style="font-size:8px;background:rgba(0,0,0,.18);padding:1px 4px;border-radius:6px;font-weight:700">EXT</span>':'';
+      return `<span style="display:inline-block;background:${bg};color:${fg};padding:2px 9px;border-radius:11px;font-size:11px;font-weight:800;border:1px solid rgba(0,0,0,.12);letter-spacing:.2px">${loc.name||'?'}${typeChip}</span>`;
+    };
+    const routeBadges=`${_routePill(sLoc,seg.sLoc)} <span style="color:var(--accent);font-weight:900;margin:0 4px">→</span> ${_routePill(dLoc,seg.dLoc)}`;
     segsHtml+=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
         <span style="font-weight:800;color:var(--accent)">Segment ${seg.label}</span>
         ${segStatus}
       </div>
-      <div style="font-size:12px;color:var(--text2)">${sLoc?.name||'?'} → ${dLoc?.name||'?'}</div>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:12px;margin-bottom:2px">${routeBadges}</div>
       ${stepsHtml}
     </div>`;
   });
   
-  result.innerHTML=`
+  // TB-plant pill (booking user's allocated plant) — colored with the
+  // location's master colour. Highlighted with a ⚠ tag when the plant
+  // differs from the trip's start location or when any destination is
+  // External (cases where TB plant becomes the effective workflow owner).
+  const _tbPlantPill = (() => {
+    if(!bookedBy) return '';
+    if(!tbPlantLoc){
+      return '<span style="display:inline-block;background:#475569;color:#fff;padding:2px 9px;border-radius:11px;font-size:10px;font-weight:800;margin-left:6px" title="Booking user has no allocated plant">TB plant: — none —</span>';
+    }
+    const bg=tbPlantLoc.colour||'#e2e8f0';
+    const fg=colourContrast(bg);
+    const tag=_tbFlag?'<span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;margin-left:4px;letter-spacing:.3px">⚠ '+(_tbDiffersFromStart?'≠ START':'EXT DEST')+'</span>':'';
+    return '<span style="display:inline-block;background:'+bg+';color:'+fg+';padding:2px 9px;border-radius:11px;font-size:11px;font-weight:800;border:1px solid rgba(0,0,0,.12);margin-left:6px" title="TB allocated plant (user.plant) — '+(_tbPlantLoc=>_tbPlantLoc.name||'?')(tbPlantLoc)+'">TB: '+(tbPlantLoc.name||'?')+'</span>'+tag;
+  })();
+  return `
     <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="background:linear-gradient(135deg,rgba(42,154,160,.1),rgba(34,197,94,.1));padding:14px 16px;border-bottom:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)">${trip.id}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">Booked: ${tripDate} by ${bookedBy?.fullName||bookedBy?.name||'—'}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">Booked: ${tripDate} by ${bookedBy?.fullName||bookedBy?.name||'—'}${_tbPlantPill}</div>
           </div>
           ${overallStatus}
         </div>
@@ -9622,7 +10579,74 @@ function _helperLookupTrip(){
       </div>
     </div>
   `;
-  result.style.display='block';
+}
+
+// ── V117+ TEMPORARY — right-click any trip card → Trip Status popup. ──
+// Restricted to Super Admin / VMS Admin. Listener is registered once at
+// script load; CU is checked at click-time. Trip id is located by walking
+// up the DOM from the click target and returning the first ancestor whose
+// textContent contains exactly one unique trip-id match (so we don't pick
+// a neighbour's id when the click lands on a parent container).
+function _tripStatusPopupShow(tripId){
+  if(!CU||!CU.roles||(!CU.roles.includes('Super Admin')&&!CU.roles.includes('VMS Admin'))) return;
+  let overlay=document.getElementById('tripStatusPopup');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='tripStatusPopup';
+    // z-index above the trip detail / MR / TA / KS card popups (100000)
+    // and the bottom-sheet menu (200000) so the Trip Status popup opens
+    // ON TOP when right-clicking on a card inside an open detail modal.
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:300000;display:flex;align-items:center;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)';
+    overlay.onclick=function(ev){ if(ev.target===overlay) overlay.style.display='none'; };
+    document.body.appendChild(overlay);
+  }
+  const body=_buildTripStatusHtml(tripId);
+  overlay.innerHTML='<div style="background:#fff;max-width:720px;width:100%;max-height:88vh;overflow-y:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid #e2e8f0">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff;border-radius:12px 12px 0 0">'
+      +'<div style="font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase">🔍 Trip Status</div>'
+      +'<button onclick="document.getElementById(\'tripStatusPopup\').style.display=\'none\'" style="background:rgba(255,255,255,.2);color:#fff;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;font-weight:700">×</button>'
+    +'</div>'
+    +'<div style="padding:12px">'+body+'</div></div>';
+  overlay.style.display='flex';
+}
+// Find the tripId nearest the right-click target. Walks up the DOM,
+// returning the first ancestor whose plain text contains exactly ONE
+// distinct trip-id match — that's the closest "trip card" container.
+function _findTripIdNearTarget(target){
+  const tripRx=/\b\d{1,2}P\d{1,3}-\d{1,6}\b/g;
+  let el=target;
+  for(let i=0;i<12 && el && el!==document.body && el!==document.documentElement; i++){
+    if(el.getAttribute){
+      const dataId=el.getAttribute('data-tripid')||el.getAttribute('data-trip-id');
+      if(dataId) return String(dataId).toUpperCase();
+    }
+    const text=(el.textContent||'');
+    const found=text.match(tripRx);
+    if(found){
+      const uniq=Array.from(new Set(found.map(s=>s.toUpperCase())));
+      if(uniq.length===1) return uniq[0];
+    }
+    el=el.parentElement;
+  }
+  return null;
+}
+// One-shot bind — guarded by a global flag so re-execution (e.g. a
+// hot-reload during dev) doesn't stack listeners.
+if(typeof window!=='undefined' && !window._tripStatusCtxMenuBound){
+  window._tripStatusCtxMenuBound=true;
+  document.addEventListener('contextmenu', function(ev){
+    if(!CU||!CU.roles) return;
+    if(!CU.roles.includes('Super Admin')&&!CU.roles.includes('VMS Admin')) return;
+    // Skip when right-clicking on form controls — let the browser show
+    // its native paste / spell-check menu instead.
+    const tag=(ev.target&&ev.target.tagName||'').toUpperCase();
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    const tripId=_findTripIdNearTarget(ev.target);
+    if(!tripId) return;
+    if(!DB.trips || !DB.trips.find(t=>t.id.toUpperCase()===tripId)) return;
+    ev.preventDefault();
+    _tripStatusPopupShow(tripId);
+  }, true);
 }
 
 // ═══ BOOT TRIGGER ═══════════════════════════════════════════════════════

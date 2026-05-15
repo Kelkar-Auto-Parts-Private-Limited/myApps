@@ -1608,7 +1608,10 @@ async function _kapSessionPing(){
     // of it. Up to ~2 seconds of polling before giving up.
     for(var w=0;w<8&&!_sb;w++){await new Promise(function(r){setTimeout(r,250);});}
     if(!_sb||typeof _authVerifySession!=='function'){_kapKeepAliveBusy=false;return;}
-    await _authVerifySession(u,t);
+    // forceServer=true so the ping hits Supabase's verify_session RPC
+    // (which extends the server-side session TTL) instead of returning
+    // immediately from the localStorage cache.
+    await _authVerifySession(u,t,true);
   }catch(_){/* ignore — failure is handled by real RPCs */}
   _kapKeepAliveBusy=false;
 }
@@ -1728,20 +1731,26 @@ async function _authLogin(username,password){
   }catch(e){console.error('_authLogin error:',e.message);return null;}
 }
 
-async function _authVerifySession(username,token){
+async function _authVerifySession(username,token,forceServer){
   if(!token) return null;
   // Fast path: if cached user exists and token matches, return immediately
-  // This avoids waiting for Supabase CDN on page navigation
-  try{
-    var _cu=localStorage.getItem('kap_current_user');
-    if(_cu){
-      var cached=JSON.parse(_cu);
-      if(cached&&cached.name&&cached.name.toLowerCase()===username.toLowerCase()){
-        console.log('_authVerifySession: restored from cache for',username);
-        return cached;
+  // This avoids waiting for Supabase CDN on page navigation.
+  // V117 — keep-alive pings pass forceServer=true to bypass the cache so
+  // the server-side session TTL actually gets refreshed; otherwise the
+  // ping is a no-op against localStorage and the user hits the
+  // "Session Expired" modal anyway.
+  if(!forceServer){
+    try{
+      var _cu=localStorage.getItem('kap_current_user');
+      if(_cu){
+        var cached=JSON.parse(_cu);
+        if(cached&&cached.name&&cached.name.toLowerCase()===username.toLowerCase()){
+          console.log('_authVerifySession: restored from cache for',username);
+          return cached;
+        }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
   // Slow path: verify via RPC (wait for Supabase CDN if needed)
   if(!_sb){
     for(var _w=0;_w<20&&!_sb;_w++){
@@ -1996,7 +2005,7 @@ async function bootDB(){
             if(typeof _onRefreshViews==='function') try{_onRefreshViews();}catch(e){}
           });
         }
-        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
+        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
         if(_sbReady && _sb){
           _sbSetStatus('ok');
           _sbStartRealtime();
@@ -2078,7 +2087,7 @@ async function bootDB(){
         } else {
           _sbSetStatus('connecting');
         }
-        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
+        if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
         _sbStartRealtime();
         // Retry full sync in background to pick up any tables that didn't make it
         setTimeout(function(){ _bgSyncFromSupabase(); }, 1000);
@@ -2089,7 +2098,7 @@ async function bootDB(){
       console.log('bootDB: ready (Supabase) — users='+DB.users.length);
       _bgSyncDone=true;
       _sbSetStatus('ok');
-      if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
+      if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
       _sbStartRealtime();
       return;
     }catch(e){
@@ -2100,7 +2109,7 @@ async function bootDB(){
   // Supabase unavailable — start with empty DB, keep retrying in background
   console.warn('bootDB: Supabase unavailable — starting empty, will retry');
   _sbSetStatus('offline', 'Offline');
-  if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); _onPostBoot();
+  if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
   _startBgReconnect();
   }finally{ hideSpinner(); }
 }
@@ -2907,6 +2916,21 @@ const ltype=(id)=>byId(DB.locations,id)?.type||'?';
 function getUserLocation(userId){
   if(!userId) return null;
   if(!DB.locations) return null;
+  // V117+ — when role-derived auth is on, user.plant is the single source
+  // of truth. Falls back to nothing (not the legacy scan) so a stale row
+  // in loc.tripBook / approvers / matRecv can't override the allocation
+  // made via User Plant Allocation. This matches _vmsLocRoleUsers, so
+  // buildSegment's bookingLoc and step 4's ownerLoc stay in sync with the
+  // user's allocated plant.
+  if(typeof _VMS_USE_USER_BASED_AUTH!=='undefined' && _VMS_USE_USER_BASED_AUTH){
+    const u=byId(DB.users,userId);
+    if(u && u.plant){
+      const loc=byId(DB.locations,u.plant);
+      if(loc && !loc.inactive) return loc;
+    }
+    return null;
+  }
+  // ── LEGACY scan (location-master role arrays) ──────────────────────
   for(const loc of DB.locations){
     if(loc.inactive) continue;
     if(loc.kapSec===userId) return loc;
@@ -2955,7 +2979,11 @@ async function _syncUserToLocation(userId, plantId, roles){
     if(olChanged) await _dbSave('locations',ol);
   }
 }
-// Central step-access check — location membership, not static users array
+// Central step-access check — location membership at the step's ownerLoc.
+// V117+ — when _VMS_USE_USER_BASED_AUTH is on, derives role membership
+// from user.plant + user.roles (matching every other access path in VMS).
+// Legacy location-master arrays are still consulted under the `else` so
+// flipping the flag to false revives the old behaviour with no code edit.
 function canDoStep(seg, stepNum){
   if(!CU) return false;
   const isSA=CU.roles.some(r=>['Super Admin','VMS Admin'].includes(r));
@@ -2966,7 +2994,16 @@ function canDoStep(seg, stepNum){
   if(!ownerLocId) return false;
   const loc=byId(DB.locations,ownerLocId);
   if(!loc) return false;
-  // Plant Head can do all steps at their plant
+  if(typeof _VMS_USE_USER_BASED_AUTH!=='undefined' && _VMS_USE_USER_BASED_AUTH
+     && typeof _vmsLocHasRoleUser==='function'){
+    // Plant Head can do every step at their plant.
+    if(_vmsLocHasRoleUser(loc,'Plant Head',CU.id)) return true;
+    if(stepNum===1||stepNum===2||stepNum===5) return _vmsLocHasRoleUser(loc,'KAP Security',CU.id);
+    if(stepNum===3) return _vmsLocHasRoleUser(loc,'Material Receiver',CU.id);
+    if(stepNum===4) return _vmsLocHasRoleUser(loc,'Trip Approver',CU.id);
+    return false;
+  }
+  // ── LEGACY (location-master role arrays) ──
   if(loc.plantHead===CU.id) return true;
   if(stepNum===1||stepNum===2||stepNum===5) return loc.kapSec===CU.id;
   if(stepNum===3) return (loc.matRecv||[]).includes(CU.id);
@@ -3043,6 +3080,133 @@ function colourContrast(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return(r*299+g*587+b*114)/1000>128?'#1f2937':'#ffffff';
 }
+
+// ─── MY ACCESS HELPER (cross-app diagnostic) ──────────────────────────
+// Lives in common.js so every app (VMS/HRMS/HWMS/MTTS/Portal) can show
+// the same overlay without duplicating UI per app. Renders a modal
+// dump of the logged-in user's roles + allocated plant + visibility
+// (apps + page-level access derived from CU). Triggered by the floating
+// 🔍 button injected by _myAccessInject() once CU is available.
+function _myAccessEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _showMyAccess(){
+  // V117+ — hidden per user request. No-op stub kept so any console /
+  // legacy caller doesn't throw. Restore the original body to re-enable.
+  return;
+  if(!CU){ if(typeof notify==='function') notify('Sign in first'); return; }
+  var overlay=document.getElementById('myAccessOverlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='myAccessOverlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)';
+    overlay.onclick=function(ev){ if(ev.target===overlay) overlay.style.display='none'; };
+    document.body.appendChild(overlay);
+  }
+  var roles=CU.roles||[], hwmsR=CU.hwmsRoles||[], hrmsR=CU.hrmsRoles||[], mttsR=CU.mttsRoles||[];
+  var apps=CU.apps||[];
+  var locName='';
+  if(CU.plant){
+    var l=(DB.locations||[]).find(function(x){return x&&x.id===CU.plant;});
+    if(l) locName=l.name||CU.plant; else locName=CU.plant;
+  }
+  // Build chips/rows.
+  var chip=function(t,bg,fg){
+    bg=bg||'#e2e8f0'; fg=fg||colourContrast(bg);
+    return '<span style="display:inline-block;padding:2px 9px;border-radius:11px;font-size:10px;font-weight:700;background:'+bg+';color:'+fg+';margin:2px 4px 2px 0;border:1px solid rgba(0,0,0,.08)">'+_myAccessEsc(t)+'</span>';
+  };
+  var rowLine=function(label,val){
+    return '<div style="display:flex;gap:8px;font-size:12px;padding:3px 0"><div style="min-width:120px;color:#64748b;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px">'+_myAccessEsc(label)+'</div><div style="flex:1;color:#0f172a;word-break:break-word">'+(val==null||val===''?'<span style="color:#94a3b8;font-style:italic">—</span>':val)+'</div></div>';
+  };
+  var section=function(title,body){
+    return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff">'
+      +'<div style="font-size:11px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+_myAccessEsc(title)+'</div>'+body+'</div>';
+  };
+  var renderRoleList=function(arr,bg,fg){
+    return arr.length?arr.map(function(r){return chip(r,bg,fg);}).join(''):'<span style="color:#94a3b8;font-style:italic;font-size:11px">none</span>';
+  };
+
+  // Profile
+  var profile=''
+    +rowLine('Full Name','<b>'+_myAccessEsc(CU.fullName||'')+'</b>')
+    +rowLine('Username','<code style="font-family:var(--mono,monospace);font-size:13px;font-weight:700">'+_myAccessEsc(CU.name||'')+'</code>')
+    +rowLine('Mobile',_myAccessEsc(CU.mobile||''))
+    +rowLine('Email',_myAccessEsc(CU.email||''));
+
+  // Roles (all four arrays)
+  var rolesBody=''
+    +rowLine('Platform',renderRoleList(roles,'#dbeafe','#1e3a8a'))
+    +rowLine('VMS',rolesAsVmsChips(roles))
+    +rowLine('HWMS',renderRoleList(hwmsR,'#dcfce7','#166534'))
+    +rowLine('HRMS',renderRoleList(hrmsR,'#fce7f3','#9d174d'))
+    +rowLine('MTTS',renderRoleList(mttsR,'#fef3c7','#78350f'));
+
+  // Allocated plant
+  var plantChip=CU.plant
+    ? '<span style="display:inline-block;background:#0d9488;color:#fff;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:800;border:1px solid rgba(0,0,0,.12)">'+_myAccessEsc(locName)+'</span> <code style="font-family:var(--mono,monospace);font-size:10px;color:#64748b;margin-left:6px">'+_myAccessEsc(CU.plant)+'</code>'
+    : '<span style="color:#94a3b8;font-style:italic;font-size:12px">— None allocated —</span>';
+  var plantBody=rowLine('Plant',plantChip);
+
+  // Visibility
+  var appChips=apps.length?apps.map(function(a){return chip(a.toUpperCase(),'#e0e7ff','#3730a3');}).join(''):'<span style="color:#94a3b8;font-style:italic">none</span>';
+  var visBody=''+rowLine('Apps allowed',appChips);
+  if(roles.includes('Super Admin')){
+    visBody+=rowLine('Access',chip('SUPER ADMIN','#dc2626','#fff')+' — full access across every app & page.');
+  } else {
+    var grants=[];
+    if(roles.includes('VMS Admin')) grants.push(chip('VMS ADMIN','#7c3aed','#fff')+' all VMS pages');
+    if(roles.includes('HRMS Admin')) grants.push(chip('HRMS ADMIN','#db2777','#fff')+' all HRMS pages');
+    if(roles.includes('HWMS Admin')) grants.push(chip('HWMS ADMIN','#15803d','#fff')+' all HWMS pages');
+    if(roles.includes('MTTS Admin')) grants.push(chip('MTTS ADMIN','#b45309','#fff')+' all MTTS pages');
+    if(grants.length) visBody+=rowLine('Admin grants',grants.join('<br>'));
+    // VMS plant-level duties
+    var plantDuties=[];
+    ['Trip Booking User','KAP Security','Material Receiver','Trip Approver','Plant Head','Vendor'].forEach(function(r){
+      if(roles.includes(r)){
+        var line='<b>'+_myAccessEsc(r)+'</b>';
+        if(r==='Vendor'){ line+=' — sees own trips in My Trips (Vendor)'; }
+        else if(CU.plant){ line+=' at <i>'+_myAccessEsc(locName)+'</i>'; }
+        else { line+=' <span style="color:#b45309">⚠ no plant allocated</span>'; }
+        plantDuties.push('<li style="margin:2px 0">'+line+'</li>');
+      }
+    });
+    if(plantDuties.length){
+      visBody+=rowLine('VMS duties','<ul style="margin:0;padding-left:18px;font-size:12px">'+plantDuties.join('')+'</ul>');
+    }
+  }
+
+  // Build modal
+  overlay.innerHTML='<div style="background:#f8fafc;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid #e2e8f0">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:linear-gradient(135deg,#175c60,#0d9488);color:#fff;border-radius:14px 14px 0 0">'
+      +'<div><div style="font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase">🔍 My Access</div><div style="font-size:11px;opacity:.85;margin-top:2px">What this account is allowed to do</div></div>'
+      +'<button onclick="document.getElementById(\'myAccessOverlay\').style.display=\'none\'" style="background:rgba(255,255,255,.2);color:#fff;border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:15px;font-weight:700">×</button>'
+    +'</div>'
+    +'<div style="padding:12px 14px">'
+      +section('👤 Profile', profile)
+      +section('🎭 Roles', rolesBody)
+      +section('📍 Allocated Plant', plantBody)
+      +section('👁️ Visibility', visBody)
+    +'</div></div>';
+  overlay.style.display='flex';
+}
+// Helper used inside _showMyAccess: VMS-specific role chips only.
+function rolesAsVmsChips(roles){
+  var vmsRoles=['VMS Admin','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Plant Head','Vendor'];
+  var has=vmsRoles.filter(function(r){return roles.indexOf(r)>=0;});
+  if(!has.length) return '<span style="color:#94a3b8;font-style:italic;font-size:11px">none</span>';
+  return has.map(function(r){return '<span style="display:inline-block;padding:2px 9px;border-radius:11px;font-size:10px;font-weight:700;background:#cffafe;color:#155e75;margin:2px 4px 2px 0;border:1px solid rgba(0,0,0,.08)">'+_myAccessEsc(r)+'</span>';}).join('');
+}
+
+// V117+ — "My Access" floating button + modal hidden per user request.
+// _showMyAccess() / _myAccessInject() are kept as no-ops below so any
+// external callers don't break, and the auto-inject poller is removed.
+// Re-enable by restoring the original bodies (see git history).
+function _myAccessInject(){ /* hidden */ }
+// Sweep up any pre-existing FAB / modal left over from earlier sessions.
+(function(){
+  try{
+    var fab=document.getElementById('myAccessFab'); if(fab) fab.remove();
+    var ov=document.getElementById('myAccessOverlay'); if(ov) ov.remove();
+  }catch(e){}
+})();
 
 // ═══ NOTIFICATION & MODAL HELPERS ═════════════════════════════════════════
 function notify(msg,err=false){
