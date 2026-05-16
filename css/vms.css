@@ -268,6 +268,14 @@
     .card{padding:16px;margin-bottom:14px;overflow:visible}
     .card-header{flex-direction:column;align-items:flex-start;gap:10px}
     .card-header>div:last-child{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}
+    /* Master pages — keep toolbar in one row on NSM (+ button, Export/Import,
+       Hide Inactive). Overrides the generic .card-header column-stack rule
+       above. Horizontal scroll allowed if the row exceeds viewport width. */
+    #pageVTypes .card-header,
+    #pageVendors .card-header,
+    #pageVehicles .card-header,
+    #pageDrivers .card-header,
+    #pageUserPlantAlloc .card-header{flex-direction:row!important;align-items:center;flex-wrap:nowrap!important;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 
     /* Tables — horizontal scroll with min-width hint */
     .table-wrap{overflow:auto;max-height:calc(100vh - 180px);-webkit-overflow-scrolling:touch}
@@ -706,6 +714,171 @@
   #tLocations thead th.sortable:hover, #tVTypes thead th.sortable:hover,
   #tVendors  thead th.sortable:hover, #tVehicles thead th.sortable:hover,
   #tDrivers  thead th.sortable:hover { background: #e2e8f0 !important; color: #1e293b !important; }
+  /* V117+ — User Plant Allocation table styled to match Location Master
+     (light slate borders + headers). Overrides win over the inline
+     styles emitted in vms.html / renderUserPlantAlloc via !important. */
+  #tUserPlantAlloc {
+    border: 1px solid #cbd5e1 !important;
+  }
+  #tUserPlantAlloc thead th {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 9px 12px !important;
+  }
+  /* Allocate Plant / Vendor headers keep a faint tint hint so the
+     editable columns remain visually distinguishable. */
+  #tUserPlantAlloc thead th.upaEditable[data-col="plant"] {
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    border-color: #93c5fd !important;
+  }
+  #tUserPlantAlloc thead th.upaEditable[data-col="vendor"] {
+    background: #fffbeb !important;
+    color: #92400e !important;
+    border-color: #fcd34d !important;
+  }
+  #tUserPlantAlloc tbody td {
+    border: 1px solid #e2e8f0 !important;
+  }
+  #tUserPlantAlloc .upaSortIco { color: var(--accent) !important; }
+
+  /* V117+ — User Plant Allocation card-mode for narrow screens.
+     The 9-col grid is unmanageable on phones, so each user becomes a
+     stacked card. Username + Full Name form the title; the five role
+     ticks become labelled chips; Allocate Plant / Vendor sit in their
+     own coloured panels at the bottom, still clickable to open the picker. */
+  @media (max-width: 768px) {
+    #pageUserPlantAlloc .table-wrap {
+      overflow-y: visible !important;
+      overflow-x: visible !important;
+      max-height: none !important;
+      flex: none !important;
+    }
+    #tUserPlantAlloc {
+      display: block !important;
+      border: none !important;
+      width: 100% !important;
+    }
+    #tUserPlantAlloc thead { display: none !important; }
+    #tUserPlantAlloc tbody { display: block !important; }
+    #tUserPlantAlloc tbody tr {
+      display: block !important;
+      border: 1.5px solid #64748b !important;
+      border-radius: 10px !important;
+      padding: 10px 12px !important;
+      margin-bottom: 8px !important;
+      background: #fff !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,.08) !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    #tUserPlantAlloc tbody td {
+      display: block !important;
+      border: none !important;
+      padding: 2px 0 !important;
+      width: 100% !important;
+      white-space: normal !important;
+      word-break: break-word !important;
+    }
+    /* User (col 1) — small mono label */
+    #tUserPlantAlloc tbody td:nth-child(1) {
+      font-size: 11px !important;
+      color: #64748b !important;
+      font-family: var(--mono) !important;
+      font-weight: 700 !important;
+    }
+    #tUserPlantAlloc tbody td:nth-child(1)::before {
+      content: 'User: ';
+      color: #475569;
+      font-weight: 800;
+      font-family: inherit;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: .3px;
+      margin-right: 4px;
+    }
+    /* Full Name (col 2) — card title */
+    #tUserPlantAlloc tbody td:nth-child(2) {
+      font-size: 14px !important;
+      font-weight: 800 !important;
+      color: #0f172a !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      padding: 0 0 6px !important;
+      margin-bottom: 6px !important;
+    }
+    /* Role ticks (cols 3-7) — inline chips with small labels */
+    #tUserPlantAlloc tbody td:nth-child(3),
+    #tUserPlantAlloc tbody td:nth-child(4),
+    #tUserPlantAlloc tbody td:nth-child(5),
+    #tUserPlantAlloc tbody td:nth-child(6),
+    #tUserPlantAlloc tbody td:nth-child(7) {
+      display: inline-flex !important;
+      width: auto !important;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px !important;
+      padding: 2px 0 !important;
+      margin: 2px 10px 2px 0 !important;
+      text-align: left !important;
+    }
+    #tUserPlantAlloc tbody td:nth-child(3)::before { content: 'KAP Sec'; }
+    #tUserPlantAlloc tbody td:nth-child(4)::before { content: 'Trip Booking'; }
+    #tUserPlantAlloc tbody td:nth-child(5)::before { content: 'Mat Recv'; }
+    #tUserPlantAlloc tbody td:nth-child(6)::before { content: 'Trip Apprv'; }
+    #tUserPlantAlloc tbody td:nth-child(7)::before { content: 'Plant Head'; }
+    #tUserPlantAlloc tbody td:nth-child(3)::before,
+    #tUserPlantAlloc tbody td:nth-child(4)::before,
+    #tUserPlantAlloc tbody td:nth-child(5)::before,
+    #tUserPlantAlloc tbody td:nth-child(6)::before,
+    #tUserPlantAlloc tbody td:nth-child(7)::before {
+      color: #475569;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 9px;
+      letter-spacing: .3px;
+    }
+    /* Allocate Plant (col 8) — tinted blue panel */
+    #tUserPlantAlloc tbody td:nth-child(8) {
+      background: rgba(59,130,246,.10) !important;
+      border: 1px dashed #93c5fd !important;
+      border-radius: 8px !important;
+      padding: 6px 8px !important;
+      margin-top: 8px !important;
+    }
+    #tUserPlantAlloc tbody td:nth-child(8)::before {
+      content: '✏️ Allocate Plant';
+      display: block;
+      font-weight: 800;
+      color: #1e3a8a;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      margin-bottom: 4px;
+    }
+    /* Allocate Vendor (col 9) — tinted amber panel */
+    #tUserPlantAlloc tbody td:nth-child(9) {
+      background: rgba(245,158,11,.10) !important;
+      border: 1px dashed #fcd34d !important;
+      border-radius: 8px !important;
+      padding: 6px 8px !important;
+      margin-top: 6px !important;
+    }
+    #tUserPlantAlloc tbody td:nth-child(9)::before {
+      content: '✏️ Allocate Vendor';
+      display: block;
+      font-weight: 800;
+      color: #92400e;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      margin-bottom: 4px;
+    }
+  }
+
   #tLocations tbody td, #tVTypes tbody td, #tVendors tbody td,
   #tVehicles tbody td, #tDrivers tbody td {
     border: 1px solid #e2e8f0;

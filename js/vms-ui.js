@@ -2041,9 +2041,14 @@ function setDashTab(tab){
 function initTdDates(){
   const _e1=document.getElementById('tdFrom');const _e2=document.getElementById('tdTo');
   if(_e1&&!_e1.value){
-    const r=_last7DaysRange();
-    _e1.value=r.from;updDateBtnLbl('tdFrom');
-    if(_e2){_e2.value=r.to;updDateBtnLbl('tdTo');}
+    // V38 — 1W = last 7 days rolling (today−6 → today).
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    const fmt=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    const f=new Date(now); f.setDate(now.getDate()-6);
+    _e1.value=fmt(f);updDateBtnLbl('tdFrom');
+    if(_e2){_e2.value=fmt(now);updDateBtnLbl('tdTo');}
+    setTimeout(()=>updDrBtns('td','tdFrom','tdTo'),30);
   }
 }
 
@@ -2226,9 +2231,9 @@ function setDateRange(fromId,toId,preset,renderFn,grpId){
   if(preset==='today'){
     from=to=fmt(now);
   } else if(preset==='week'){
-    const f=new Date(now);f.setDate(now.getDate()-now.getDay()+1);
-    const t=new Date(f);t.setDate(f.getDate()+6);
-    from=fmt(f);to=fmt(t);
+    // V38 — 1W = last 7 days rolling (today−6 → today), not calendar week.
+    const f=new Date(now);f.setDate(now.getDate()-6);
+    from=fmt(f);to=fmt(now);
   } else if(preset==='month'){
     const f=new Date(now.getFullYear(),now.getMonth(),1);
     const t=new Date(now.getFullYear(),now.getMonth()+1,0);
@@ -2263,11 +2268,11 @@ function updDrBtns(grpId,fromId,toId){
   const tv=document.getElementById(toId)?.value||'';
   // Compute expected ranges
   const todayS=fmt(now);
-  const wf=new Date(now);wf.setDate(now.getDate()-now.getDay()+1);
-  const wt=new Date(wf);wt.setDate(wf.getDate()+6);
+  // V38 — 1W is now last-7-days rolling (today−6 → today), not calendar week.
+  const last7From=fmt(new Date(now.getTime()-6*86400000));
   const ranges={
     today:[todayS,todayS],
-    week:[fmt(wf),fmt(wt)],
+    week:[last7From,todayS],
     month:[fmt(new Date(now.getFullYear(),now.getMonth(),1)),fmt(new Date(now.getFullYear(),now.getMonth()+1,0))],
     year:[now.getFullYear()+'-01-01',now.getFullYear()+'-12-31']
   };
@@ -4783,7 +4788,7 @@ async function _kapAutoCloseSpotEntry(){
   if(!candidates.length){ notify('No open Spot Entries older than today.'); return; }
   if(!confirm('Auto-close '+candidates.length+' open Spot Entry record(s) (entered before today)?\n\nNo exit photo will be captured.')) return;
   var btn=document.getElementById('kapAutoCloseSpotBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Processing…'; }
+  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
   var nowIso=new Date().toISOString();
   var ok=0, fail=0;
   for(var i=0;i<candidates.length;i++){
@@ -4795,7 +4800,7 @@ async function _kapAutoCloseSpotEntry(){
     if(await _dbSave('spotTrips',s)){ ok++; }
     else { Object.assign(s,bak); fail++; }
   }
-  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Auto Close Spot Entry'; }
+  if(btn){ btn.disabled=false; btn.style.opacity=''; }
   try{ renderKap(); updBadges(); }catch(e){}
   notify('Auto Close Spot Entry: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
 }
@@ -4819,7 +4824,7 @@ async function _kapAutoEmptyExit(){
   if(!candidates.length){ notify('No pending Empty Exit older than today.'); return; }
   if(!confirm('Auto-exit '+candidates.length+' pending Empty Exit segment(s) (older than today)?\n\nNo photo will be captured.')) return;
   var btn=document.getElementById('kapAutoEmptyExitBtn');
-  if(btn){ btn.disabled=true; btn.textContent='Processing…'; }
+  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
   var nowIso=new Date().toISOString();
   var ok=0, fail=0;
   for(var i=0;i<candidates.length;i++){
@@ -4832,9 +4837,40 @@ async function _kapAutoEmptyExit(){
     if(await _dbSave('segments',seg)){ ok++; }
     else { Object.assign(seg.steps[5],bak); fail++; }
   }
-  if(btn){ btn.disabled=false; btn.innerHTML='⚡ Auto Empty Exit'; }
+  if(btn){ btn.disabled=false; btn.style.opacity=''; }
   try{ renderKap(); renderDash(); renderTripBooking(); renderMyTrips(); updBadges(); }catch(e){}
   notify('Auto Empty Exit: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
+}
+
+// V38 — KS history modals (Exit / Entry / Spot). Open the modal, run the
+// corresponding render so the body reflects current data, refresh date
+// preset highlights since they share group IDs with the old inline panel.
+function _kapHistExitShow(){
+  var m=document.getElementById('kapHistExitModal'); if(!m) return;
+  m.style.display='flex'; m.classList.add('open');
+  if(typeof renderKap==='function') try{ renderKap(); }catch(e){}
+}
+function _kapHistExitHide(){
+  var m=document.getElementById('kapHistExitModal'); if(!m) return;
+  m.style.display='none'; m.classList.remove('open');
+}
+function _kapHistEntryShow(){
+  var m=document.getElementById('kapHistEntryModal'); if(!m) return;
+  m.style.display='flex'; m.classList.add('open');
+  if(typeof renderKap==='function') try{ renderKap(); }catch(e){}
+}
+function _kapHistEntryHide(){
+  var m=document.getElementById('kapHistEntryModal'); if(!m) return;
+  m.style.display='none'; m.classList.remove('open');
+}
+function _kapHistSpotShow(){
+  var m=document.getElementById('kapHistSpotModal'); if(!m) return;
+  m.style.display='flex'; m.classList.add('open');
+  if(typeof renderSpotHistory==='function') try{ renderSpotHistory(); }catch(e){}
+}
+function _kapHistSpotHide(){
+  var m=document.getElementById('kapHistSpotModal'); if(!m) return;
+  m.style.display='none'; m.classList.remove('open');
 }
 function _renderKapInner(){
   const _savedPop=_kapGetOpenPopup(); // save before re-render destroys DOM
@@ -5604,10 +5640,19 @@ function renderSpotHistory(){
   const myLoc=byId(DB.locations,myLocId);
 
   const spots=[...(DB.spotTrips||[])].sort((a,b)=>(b.entryTime||'').localeCompare(a.entryTime||''));
-  // Init spot history date range if not set (default: today)
+  // V38 — 1W = last 7 days rolling (today−6 → today).
   const _shf=document.getElementById('spotHistFrom');const _sht=document.getElementById('spotHistTo');
-  if(_shf&&!_shf.value){const _n=new Date();const _td=_n.getFullYear()+'-'+String(_n.getMonth()+1).padStart(2,'0')+'-'+String(_n.getDate()).padStart(2,'0');_shf.value=_td;updDateBtnLbl('spotHistFrom');_sht.value=_td;updDateBtnLbl('spotHistTo');}
+  if(_shf&&!_shf.value){
+    const _n=new Date();
+    const _pad=n=>String(n).padStart(2,'0');
+    const _fmt=d=>d.getFullYear()+'-'+_pad(d.getMonth()+1)+'-'+_pad(d.getDate());
+    const _f=new Date(_n);_f.setDate(_n.getDate()-6);
+    _shf.value=_fmt(_f);updDateBtnLbl('spotHistFrom');
+    if(_sht){_sht.value=_fmt(_n);updDateBtnLbl('spotHistTo');}
+    setTimeout(()=>updDrBtns('spotHist','spotHistFrom','spotHistTo'),30);
+  }
   const _fromV=_shf?.value||'';const _toV=_sht?.value||'';
+  const _spotSrch=String((document.getElementById('spotSearch')||{}).value||'').trim().toLowerCase();
   const d30=new Date();d30.setDate(d30.getDate()-30);
   const filtered=spots.filter(s=>{
     if(!isSuperAdmin&&new Date(s.date)<d30) return false;
@@ -5615,6 +5660,10 @@ function renderSpotHistory(){
     const sDate=(s.entryTime||s.date||'').slice(0,10);
     if(_fromV&&sDate<_fromV) return false;
     if(_toV&&sDate>_toV) return false;
+    if(_spotSrch){
+      const hay=((s.id||'')+' '+(s.vehicleNum||'')+' '+(s.driverName||'')+' '+(s.driverMobile||'')+' '+(s.supplier||'')+' '+(s.challan||'')).toLowerCase();
+      if(hay.indexOf(_spotSrch)<0) return false;
+    }
     return true;
   });
 
@@ -5682,11 +5731,14 @@ async function deleteSpotEntry(id){
 }
 
 function initHistDates(fromId, toId, grpId){
-  // Default to last 7 days (today-6 → today). Rolling window, not calendar week.
-  const r=_last7DaysRange();
+  // V38 — 1W = last 7 days rolling (today−6 → today).
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const fmt=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const f=new Date(now); f.setDate(now.getDate()-6);
   const fe=document.getElementById(fromId);const te=document.getElementById(toId);
-  if(fe&&!fe.value){fe.value=r.from;updDateBtnLbl(fromId);}
-  if(te&&!te.value){te.value=r.to;updDateBtnLbl(toId);}
+  if(fe&&!fe.value){fe.value=fmt(f);updDateBtnLbl(fromId);}
+  if(te&&!te.value){te.value=fmt(now);updDateBtnLbl(toId);}
   if(grpId)setTimeout(()=>updDrBtns(grpId,fromId,toId),50);
 }
 
@@ -6496,10 +6548,14 @@ async function doMR(){
 // ═══ TRIP APPROVALS ═════════════════════════════════════════════════════
 let _apTab='pending';
 function initApproveDates(){
-  const r=_last7DaysRange();
+  // V38 — 1W = last 7 days rolling (today−6 → today).
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const fmt=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const f=new Date(now); f.setDate(now.getDate()-6);
   const fe=document.getElementById('approveFrom');const te=document.getElementById('approveTo');
-  if(fe&&!fe.value){fe.value=r.from;updDateBtnLbl('approveFrom');}
-  if(te&&!te.value){te.value=r.to;updDateBtnLbl('approveTo');}
+  if(fe&&!fe.value){fe.value=fmt(f);updDateBtnLbl('approveFrom');}
+  if(te&&!te.value){te.value=fmt(now);updDateBtnLbl('approveTo');}
   setTimeout(()=>updDrBtns('approve','approveFrom','approveTo'),30);
 }
 
@@ -7132,7 +7188,7 @@ function renderUsers(){
     <td>${u.roles.filter(r=>r!=='Super Admin'||isViewerSA).map(r=>r==='Super Admin'
       ?`<span class="badge" style="margin-right:3px;background:rgba(139,92,246,.18);color:var(--purple)">⭐ SA</span>`
       :`<span class="badge badge-blue" style="margin-right:3px">${r}</span>`).join('')}${(u.hwmsRoles||[]).length?'<br>'+u.hwmsRoles.map(r=>`<span class="badge" style="margin-right:3px;background:rgba(139,92,246,.12);color:#7c3aed;margin-top:2px">${r}</span>`).join(''):''}</td>
-    <td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openUserModal('${u.id}')">✏️</button>${!(u.roles||[]).includes('Super Admin')?`<button class="action-btn" onclick="_resetUserPwd('${u.id}')" title="Reset Password" style="color:#f59e0b">🔑</button>`:''}<button class="action-btn" onclick="del('users','${u.id}',renderUsers)">🗑️</button></td>
+    <td style="white-space:nowrap" onclick="event.stopPropagation()"><button class="action-btn" onclick="openUserModal('${u.id}')">✏️</button>${!(u.roles||[]).includes('Super Admin')?`<button class="action-btn" onclick="_resetUserPwd('${u.id}')" title="Reset Password" style="color:#f59e0b">🔑</button>`:''}<button class="action-btn" onclick="del('users','${u.id}',renderUsers)" title="Delete" style="background:#fee2e2;border:1px solid #f87171;color:#dc2626;padding:4px 8px;border-radius:6px;cursor:pointer;line-height:0">${_masterDelIconSvg}</button></td>
   </tr>`;
   }).join('')||'<tr><td colspan="10" class="empty-state" style="padding:32px;text-align:center;color:var(--text3);font-size:13px">No users found — <a href="#" onclick="event.preventDefault()" style="color:var(--accent)">check connection</a></td></tr>';
 }
@@ -7311,11 +7367,14 @@ async function saveUser(){
 }
 
 // Vehicle Types
-// V117+ — Master delete-button HTML. Disabled (greyed, no onclick) when
-// the record is referenced by any trip; tooltip explains why.
+// V117+ — Master delete-button HTML. Uses an inline SVG trash icon so
+// it renders crisply at any size and inherits currentColor (no fuzzy
+// emoji rendering across OSes). Disabled (greyed) when the record is
+// referenced by any trip; tooltip explains why.
+var _masterDelIconSvg='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1.2 13.5A2 2 0 0 1 15.8 21H8.2a2 2 0 0 1-1.99-1.5L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
 function _masterDelBtn(table,id,used,renderFn){
-  if(used) return '<button class="action-btn" disabled title="Used in trips — cannot delete" style="opacity:.35;cursor:not-allowed">🗑️</button>';
-  return '<button class="action-btn" onclick="del(\''+table+'\',\''+id+'\','+renderFn+')">🗑️</button>';
+  if(used) return '<button class="action-btn" disabled title="Used in trips — cannot delete" style="opacity:.35;cursor:not-allowed;background:transparent;border:none;padding:4px;color:#64748b">'+_masterDelIconSvg+'</button>';
+  return '<button class="action-btn" onclick="del(\''+table+'\',\''+id+'\','+renderFn+')" title="Delete" style="background:#fee2e2;border:1px solid #f87171;color:#dc2626;padding:4px 8px;border-radius:6px;cursor:pointer;line-height:0">'+_masterDelIconSvg+'</button>';
 }
 function renderVTypes(){
   // Precompute usage: any trip referencing this vehicle type OR any
@@ -7991,10 +8050,10 @@ function renderUserPlantAlloc(){
     _upaEnsureHrmsLoaded();
   }
   var srch=String((document.getElementById('upaSearch')||{}).value||'').trim().toLowerCase();
-  var showInact=!!(document.getElementById('upaShowInactive')||{}).checked;
+  var hideInact=!!(document.getElementById('upaHideInactive')||{}).checked;
   var users=(DB.users||[]).filter(function(u){
     if(!u) return false;
-    if(!showInact && u.inactive===true) return false;
+    if(hideInact && u.inactive===true) return false;
     var apps=u.apps||[]; var roles=u.roles||[];
     if(!apps.includes('vms') && !roles.includes('Super Admin')) return false;
     if(srch){
@@ -8064,7 +8123,7 @@ function renderUserPlantAlloc(){
     // Cell borders use the same 1.5px slate as the header for a clean
     // grid. The two "Allocate …" columns get a tinted background so it's
     // visually obvious those are the only editable cells.
-    var _cellBd='border:1.5px solid rgba(51,65,85,.5)';
+    var _cellBd='border:1px solid #e2e8f0';
     var _editPlantCellBg='background:rgba(219,234,254,.55)';   // light blue
     var _editVendCellBg='background:rgba(254,243,199,.6)';     // light amber
     return '<tr data-uid="'+u.id+'" '+(u.inactive===true?'style="opacity:.65;background:rgba(239,68,68,.05)"':(dirty?'style="background:rgba(251,191,36,.08)"':''))+'>'
@@ -8223,6 +8282,24 @@ function _locNameLiveCheckEsc(s){return String(s).replace(/&/g,'&amp;').replace(
     var lbl=t.getAttribute('data-tip')||'';
     if(!lbl) return;
     var el=tip(); el.textContent=lbl; el.style.display='block';
+    // V38 — opt-in wrap mode (data-tip-wrap="1") for long descriptive tooltips
+    // like Auto Empty Exit / Auto Close Spot Entry. Short single-word labels
+    // (Import / Export) keep the default single-line behaviour.
+    if(t.hasAttribute('data-tip-wrap')){
+      el.style.whiteSpace='normal';
+      el.style.maxWidth='240px';
+      el.style.textTransform='none';
+      el.style.letterSpacing='.2px';
+      el.style.lineHeight='1.35';
+      el.style.textAlign='center';
+    } else {
+      el.style.whiteSpace='nowrap';
+      el.style.maxWidth='';
+      el.style.textTransform='';
+      el.style.letterSpacing='';
+      el.style.lineHeight='';
+      el.style.textAlign='';
+    }
     // Position centred above the arrow, clamped to viewport.
     var r=t.getBoundingClientRect();
     var vw=window.innerWidth||document.documentElement.clientWidth;
@@ -8490,7 +8567,7 @@ function openRateHistory(encodedKey){
         ${isSA&&r.status==='pending'?`<button class="action-btn" style="color:#16a34a" onclick="approveRate('${r.id}');openRateHistory(document.getElementById('rhRouteKey').value)" title="Approve">✓</button>`:''}
         ${isSA&&r.status==='pending'?`<button class="action-btn" style="color:#dc2626" onclick="rejectRate('${r.id}');openRateHistory(document.getElementById('rhRouteKey').value)" title="Reject">✗</button>`:''}
         <button class="action-btn" onclick="rhEditRate('${r.id}')" title="Edit">✏️</button>
-        <button class="action-btn" style="color:#dc2626" onclick="delRate('${r.id}')" title="Delete">🗑️</button>
+        <button class="action-btn" onclick="delRate('${r.id}')" title="Delete" style="background:#fee2e2;border:1px solid #f87171;color:#dc2626;padding:4px 8px;border-radius:6px;cursor:pointer;line-height:0">${_masterDelIconSvg}</button>
       </div>`:''}
     </div>`;
   }).join(''):'<div style="color:var(--text3);font-size:12px;padding:8px">No rate periods recorded yet.</div>';
