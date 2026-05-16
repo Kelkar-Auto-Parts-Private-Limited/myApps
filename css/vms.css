@@ -88,6 +88,25 @@
   .page-header{margin-bottom:4px}
   .page-title{font-size:18px;font-weight:800}.page-sub{font-size:12px;color:var(--text2);margin-top:2px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  /* V38 — Strip the white .card panel chrome on every Masters-menu page so
+     the table sits directly on the app background. Layout-only .card rules
+     (display:flex / flex-direction etc. used by Locations, Vehicles,
+     Drivers, UPA) survive — they live on the same selector with !important;
+     here we only neutralise the visual chrome. */
+  #pageUsers > .card,
+  #pageVTypes > .card,
+  #pageDrivers > .card,
+  #pageVendors > .card,
+  #pageVehicles > .card,
+  #pageLocations > .card,
+  #pageTripRates > .card,
+  #pageUserPlantAlloc > .card{
+    background:transparent !important;
+    border:none !important;
+    box-shadow:none !important;
+    padding:0 !important;
+    margin-bottom:0 !important;
+  }
   .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
   .card-title{font-size:15px;font-weight:700}
   .table-wrap{overflow:auto;max-height:calc(100vh - 220px);-webkit-overflow-scrolling:touch}
@@ -876,6 +895,92 @@
       text-transform: uppercase;
       letter-spacing: .3px;
       margin-bottom: 4px;
+    }
+
+    /* V38 — Trip Rate Master (TRM) NSM card view. The 8-col table is
+       unmanageable on phones, so each rate becomes a stacked card.
+       Vehicle Type is the card title; route pills follow; rate / valid
+       dates / periods sit as labelled rows; the edit ✏️ floats top-right. */
+    #pageTripRates > .card > div[style*="max-height:calc(100vh"] {
+      max-height: none !important;
+      overflow: visible !important;
+      border: none !important;
+      border-radius: 0 !important;
+    }
+    #tRates {
+      display: block !important;
+      width: 100% !important;
+      font-size: 13px !important;
+    }
+    #tRates thead { display: none !important; }
+    #tRates tbody { display: block !important; }
+    #tRates tbody tr {
+      display: block !important;
+      position: relative !important;
+      border: 1.5px solid #64748b !important;
+      border-radius: 10px !important;
+      padding: 10px 12px !important;
+      margin-bottom: 8px !important;
+      background: #fff !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,.08) !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    #tRates tbody td {
+      display: block !important;
+      border: none !important;
+      padding: 3px 0 !important;
+      width: 100% !important;
+      white-space: normal !important;
+      text-align: left !important;
+    }
+    /* Hide row-number cell */
+    #tRates tbody td:nth-child(1) { display: none !important; }
+    /* Vehicle Type (col 2) — card title */
+    #tRates tbody td:nth-child(2) {
+      font-size: 15px !important;
+      font-weight: 800 !important;
+      color: #0f172a !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      padding: 0 0 6px !important;
+      margin-bottom: 6px !important;
+      padding-right: 36px !important;  /* leave room for ✏️ corner button */
+    }
+    /* Route (col 3) — full width pills */
+    #tRates tbody td:nth-child(3) {
+      padding: 4px 0 6px !important;
+    }
+    /* Rate / Valid / Periods / Status — labelled rows */
+    #tRates tbody td:nth-child(4),
+    #tRates tbody td:nth-child(5),
+    #tRates tbody td:nth-child(6),
+    #tRates tbody td:nth-child(7) {
+      padding: 4px 0 !important;
+      text-align: left !important;
+    }
+    #tRates tbody td:nth-child(4)::before { content: 'Rate: '; }
+    #tRates tbody td:nth-child(5)::before { content: 'Valid: '; }
+    #tRates tbody td:nth-child(6)::before { content: 'Periods: '; }
+    #tRates tbody td:nth-child(7)::before { content: 'Status: '; }
+    #tRates tbody td:nth-child(4)::before,
+    #tRates tbody td:nth-child(5)::before,
+    #tRates tbody td:nth-child(6)::before,
+    #tRates tbody td:nth-child(7)::before {
+      color: #475569;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: .3px;
+      margin-right: 6px;
+    }
+    /* Edit ✏️ (col 8) — float top-right inside card */
+    #tRates tbody td:nth-child(8) {
+      position: absolute !important;
+      top: 8px !important;
+      right: 8px !important;
+      width: auto !important;
+      padding: 0 !important;
     }
   }
 

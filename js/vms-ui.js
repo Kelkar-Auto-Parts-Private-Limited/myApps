@@ -1598,20 +1598,20 @@ function _runInitApp(){
     _navigateTo('hwms.html');
     return;
   } else {
-    // Role-based preferred landing page
-    var _preferred=isAdminOrSA?'Dashboard'
-      :CU.roles.includes('KAP Security')?'KapSec'
-      :CU.roles.includes('Trip Approver')?'Approve'
-      :CU.roles.includes('Material Receiver')?'MR'
-      :CU.roles.includes('Trip Booking User')?'TripBooking'
-      :CU.roles.includes('Vendor')?'VendorTrips'
-      :'Dashboard';
-    // If Role Settings override access, skip to the first nav item the
-    // user can actually see. Prevents e.g. a Plant Head with View=None
-    // on Dashboard from landing on a page they shouldn't reach.
+    // V38 — Fixed priority sequence for landing page: DB → TB → KS → MR → TA.
+    // Walk the list and land on the first one the user can actually see (via
+    // _navVisible, which honours Role-Settings View permissions). Replaces
+    // the older role-name-based mapping so the order is the same for every
+    // user regardless of which roles they hold, but a user without any of
+    // those 5 pages still falls back to the first nav item they CAN see.
+    var _landingPriority=['Dashboard','TripBooking','KapSec','MR','Approve'];
     var _navItems=NAV.filter(function(it){return !it.sec&&it.app==='vms'&&it.id!=='MyApps';});
-    var _landingItem=_navItems.find(function(it){return it.id===_preferred&&_navVisible(it);})
-      ||_navItems.find(function(it){return _navVisible(it);});
+    var _landingItem=null;
+    for(var _li=0;_li<_landingPriority.length;_li++){
+      var _cand=_navItems.find(function(it){return it.id===_landingPriority[_li]&&_navVisible(it);});
+      if(_cand){ _landingItem=_cand; break; }
+    }
+    if(!_landingItem) _landingItem=_navItems.find(function(it){return _navVisible(it);});
     if(_landingItem){
       showPage(_landingItem.p,_landingItem.id);
       if(_landingItem.id==='Dashboard'&&_mc) _mc.scrollTop=0;
@@ -3620,8 +3620,10 @@ function onChallanPhoto(input, thumbId){
     thumb.classList.add('has-photo');
     input._photoData=dataUrl; // set immediately for preview
     if(typeof updateTbPrompt==='function')updateTbPrompt();
-    // Compress in background, update stored data when done
-    compressImage(file).then(c=>{input._photoData=c;}).catch(()=>{});
+    // V38 — Stash compression promise so bookTrip can await it before save.
+    // Without this, tapping Save on a slow mobile connection uploaded the
+    // full 3–5MB camera dataURL and timed out / dropped the photo.
+    input._compressPromise=compressImage(file,100).then(c=>{ if(c) input._photoData=c; return c; }).catch(()=>{});
   };
   reader.readAsDataURL(file);
 }
@@ -3794,6 +3796,15 @@ async function _doBookTrip(){
   var _actKey=_editingTripId?'action.editTrip':'action.bookTrip';
   if(typeof permCanAct==='function'&&!permCanAct('VMS',_actKey)){
     notify('⚠ You do not have permission to '+(_editingTripId?'edit':'book')+' trips.',true);return;
+  }
+  // V38 — Wait for every pending photo compression in the booking modal
+  // (legacy tbP1/2/3 + every challan row's file input) before reading any
+  // field values. Without this, tapping Save on a slow mobile connection
+  // uploaded raw multi-MB camera dataURLs and frequently timed out.
+  var _tbModal=document.getElementById('mTripBooking');
+  if(_tbModal){
+    showSpinner('Uploading photos…');
+    try{ await _awaitAllInputCompress(_tbModal); } finally { hideSpinner(); }
   }
   const s=document.getElementById('tbStart').value;
   const d1=document.getElementById('tbDest1').value;
@@ -4845,8 +4856,26 @@ async function _kapAutoEmptyExit(){
 // V38 — KS history modals (Exit / Entry / Spot). Open the modal, run the
 // corresponding render so the body reflects current data, refresh date
 // preset highlights since they share group IDs with the old inline panel.
+// V38 — Relocate modal to <body> on first show so it escapes any
+// .page{isolation:isolate} stacking context — without this the modal sits
+// beneath the fixed topbar (z-index:150 in root) because its .page parent
+// owns a stacking context that caps the modal at .page's painting layer.
+function _kapModalPortal(m){
+  if(m && m.parentNode && m.parentNode!==document.body){
+    document.body.appendChild(m);
+  }
+}
 function _kapHistExitShow(){
   var m=document.getElementById('kapHistExitModal'); if(!m) return;
+  _kapModalPortal(m);
+  // Sync modal-search with the live outside-search so opening the modal
+  // shows the same filter state the user already had on the page.
+  try{
+    var outS=document.getElementById('kapSearchExit');
+    var modS=document.getElementById('kapHistExitModalSearch');
+    var modX=document.getElementById('kapHistExitModalSearchX');
+    if(modS && outS){ modS.value=outS.value||''; if(modX) modX.style.display=modS.value?'block':'none'; }
+  }catch(e){}
   m.style.display='flex'; m.classList.add('open');
   if(typeof renderKap==='function') try{ renderKap(); }catch(e){}
 }
@@ -4856,6 +4885,13 @@ function _kapHistExitHide(){
 }
 function _kapHistEntryShow(){
   var m=document.getElementById('kapHistEntryModal'); if(!m) return;
+  _kapModalPortal(m);
+  try{
+    var outS=document.getElementById('kapSearchEntry');
+    var modS=document.getElementById('kapHistEntryModalSearch');
+    var modX=document.getElementById('kapHistEntryModalSearchX');
+    if(modS && outS){ modS.value=outS.value||''; if(modX) modX.style.display=modS.value?'block':'none'; }
+  }catch(e){}
   m.style.display='flex'; m.classList.add('open');
   if(typeof renderKap==='function') try{ renderKap(); }catch(e){}
 }
@@ -4865,6 +4901,7 @@ function _kapHistEntryHide(){
 }
 function _kapHistSpotShow(){
   var m=document.getElementById('kapHistSpotModal'); if(!m) return;
+  _kapModalPortal(m);
   m.style.display='flex'; m.classList.add('open');
   if(typeof renderSpotHistory==='function') try{ renderSpotHistory(); }catch(e){}
 }
@@ -5264,8 +5301,7 @@ function _renderKapInner(){
     const stepLabel=step===1?'Gate Exit':'Gate Entry';
     const stepIcon=step===1?'🚪':'🏁';
     const clr=step===1?'#dc2626':'#16a34a';
-    histHtml+=`<div>
-      <div style="margin-top:20px;padding-top:16px;border-top:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">📋 ${stepLabel} History (${histSegs.length})</div>`;
+    histHtml+=`<div>`;
     histHtml+=histSegs.map(seg=>{
       const trip=byId(DB.trips,seg.tripId);
       const drv=byId(DB.drivers,trip?.driverId);
@@ -5349,7 +5385,7 @@ function _renderKapInner(){
           +`<span style="${_locPillStyle(lt?.colour,13)}">${lt?.name||'?'}</span>`;
       }).join('');
 
-      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
+      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #64748b;border-radius:10px;margin-bottom:8px;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
         <!-- Line 1: Trip ID + Vehicle -->
         <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
           <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${_cTid(trip?.id||seg.tripId)}</span>
@@ -6223,6 +6259,7 @@ function renderMR(){
           <div style="background:#fff;border:2px solid #000;border-radius:16px;max-width:540px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
             <!-- Popup header -->
             <div style="padding:14px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0">
+              <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px;letter-spacing:.3px">📦 Confirm Receipt of Material</div>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:#fff;background:var(--accent);padding:4px 14px;border-radius:10px">${_cTid(seg.tripId)}</span>
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;padding:4px 14px;border-radius:10px">${vnum(trip?.vehicleId)}</span>
@@ -6365,7 +6402,7 @@ function renderMRHistory(){
         +`<span style="${_locPillStyle(lt?.colour,13)}">${lt?.name||'?'}</span>`;
     })();
 
-    return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:6px;position:relative;padding-left:38px" onclick="toggleMrCard('${cardId}')">
+    return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;background:var(--surface);border:2px solid #64748b;border-radius:10px;margin-bottom:6px;position:relative;padding-left:38px" onclick="toggleMrCard('${cardId}')">
       <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${segs.length-si}</div>
       <!-- Line 1: Trip ID + Vehicle -->
       <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
@@ -6410,6 +6447,18 @@ if(typeof window!=='undefined') window._mrHistOpenIds = _mrHistOpenIds;
 // the body reflects the latest data and current date range.
 function _mrHistShow(){
   var m=document.getElementById('mrHistModal'); if(!m) return;
+  // V38 — Move modal to <body> so it escapes any .page{isolation:isolate}
+  // stacking context and renders above the topbar.
+  if(typeof _kapModalPortal==='function') _kapModalPortal(m);
+  else if(m.parentNode && m.parentNode!==document.body) document.body.appendChild(m);
+  // Sync modal-search with the live outside-search so the user sees the same
+  // filter state inside the popup.
+  try{
+    var outS=document.getElementById('mrTripSearch');
+    var modS=document.getElementById('mrHistModalSearch');
+    var modX=document.getElementById('mrHistModalSearchX');
+    if(modS && outS){ modS.value=outS.value||''; if(modX) modX.style.display=modS.value?'block':'none'; }
+  }catch(e){}
   m.style.display='flex';
   m.classList.add('open');
   if(typeof renderMR==='function') try{ renderMR(); }catch(e){}
@@ -6500,7 +6549,14 @@ async function doMRInline(segId, receiptType){
   seg.steps[3].discrepancy=(receiptType==='discrepancy');
   seg.steps[3].notReceived=(receiptType==='not_received');
   await advance(seg);if(!await _dbSave('segments',seg)) return;
-  if(typeof cm==='function') cm('mMR');// auto-close the MR popup after success
+  // V38 — Close BOTH the legacy #mMR modal (if open) AND the actual inline
+  // mr_pop_<sid> overlay the user just acted from. doMRInline is now the
+  // primary ack entry point (the legacy modal flow rarely fires), so without
+  // _closePop the popup stayed visible after a successful acknowledgement.
+  if(typeof cm==='function') cm('mMR');
+  if(typeof _closePop==='function'){
+    try{ _closePop('mr_pop_'+segId.replace(/-/g,'_')); }catch(e){}
+  }
   renderMR();renderTripBooking();updBadges();
   const msgs={received:'✅ Material receipt acknowledged!',not_received:'Material Not Received recorded.',discrepancy:'⚠ Receipt with discrepancy recorded.'};
   notify(msgs[receiptType]||'Material receipt acknowledged!');
@@ -6509,6 +6565,13 @@ function revokeMR(segId){
   const seg=byId(DB.segments,segId);
   if(!seg){notify('⚠ Segment not found: '+segId,true);return;}
   document.getElementById('revokeMRSegId').value=segId;
+  // V38 — Portal the revoke modal to <body> so it escapes any .page
+  // stacking context AND the parent mr_pop_<sid> overlay it's launched
+  // from — otherwise the revoke dialog renders behind the popup.
+  if(typeof _kapModalPortal==='function'){
+    var _rm=document.getElementById('mRevokeMR');
+    if(_rm) _kapModalPortal(_rm);
+  }
   om('mRevokeMR');
 }
 async function _doRevokeMR(){
@@ -6770,6 +6833,7 @@ function renderApprove(){
         <div id="${_apPopId}" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:12px" onclick="if(event.target===this)_closePop('${_apPopId}')">
           <div style="background:#fff;border:2px solid #000;border-radius:16px;max-width:580px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
             <div style="padding:14px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0">
+              <div style="font-size:14px;font-weight:800;color:var(--accent);margin-bottom:8px;letter-spacing:.3px">✅ Confirm Trip Approval</div>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:#fff;background:var(--accent);padding:4px 14px;border-radius:10px">${_cTid(tripId)}</span>
                 <span style="font-family:var(--mono);font-size:28px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;padding:4px 14px;border-radius:10px">${vnum(trip?.vehicleId)}</span>
@@ -6944,7 +7008,7 @@ function renderApprove(){
       }).join('');
     })();
 
-    return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:none;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;position:relative;padding-left:26px" onclick="toggleApCard('${cardId}')">
+    return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;background:var(--surface);border:2px solid #64748b;border-radius:10px;margin-bottom:8px;position:relative;padding-left:26px" onclick="toggleApCard('${cardId}')">
       <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${sortedGroups.length-gi}</div>
       <!-- Line 1: Trip ID + Vehicle -->
       <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
@@ -6996,6 +7060,14 @@ if(typeof window!=='undefined') window._apOpenIds = _apOpenIds;
 // V117+ — Historical TA popup show/hide.
 function _apHistShow(){
   var m=document.getElementById('apHistModal'); if(!m) return;
+  if(typeof _kapModalPortal==='function') _kapModalPortal(m);
+  else if(m.parentNode && m.parentNode!==document.body) document.body.appendChild(m);
+  try{
+    var outS=document.getElementById('approveTripSearch');
+    var modS=document.getElementById('apHistModalSearch');
+    var modX=document.getElementById('apHistModalSearchX');
+    if(modS && outS){ modS.value=outS.value||''; if(modX) modX.style.display=modS.value?'block':'none'; }
+  }catch(e){}
   m.style.display='flex';
   m.classList.add('open');
   if(typeof renderApprove==='function') try{ renderApprove(); }catch(e){}
@@ -7042,6 +7114,12 @@ function revokeApproval(baseId){
   // Open modal instead of browser confirm (browser confirm can be silently blocked)
   document.getElementById('revokeBaseId').value=baseId;
   document.getElementById('revokeBaseIdDisplay').textContent=baseId;
+  // V38 — Portal so the revoke dialog renders above the ap_pop_<tripId>
+  // overlay it was launched from.
+  if(typeof _kapModalPortal==='function'){
+    var _rc=document.getElementById('mRevokeConfirm');
+    if(_rc) _kapModalPortal(_rc);
+  }
   om('mRevokeConfirm');
 }
 async function _doRevoke(){
@@ -7155,6 +7233,12 @@ async function doTripApprovalInline(tripId, action, receiptType){
       }
     }
     notify(`Trip ${tripId} rejected.`);
+  }
+  // V38 — Close the inline ap_pop_<tripId> overlay after a successful
+  // approve/reject so the user sees the list refresh instead of the now-
+  // stale trip card. Matches the doMRInline close-on-success behaviour.
+  if(typeof _closePop==='function'){
+    try{ _closePop('ap_pop_'+tripId.replace(/[^a-z0-9]/gi,'_')); }catch(e){}
   }
   renderApprove();updBadges();renderDash();
   }catch(e){ console.error('doTripApprovalInline error:',e); notify('⚠ Approval error: '+e.message,true); }
@@ -7456,7 +7540,14 @@ function openDrvModal(id){
 }
 async function saveDriver(){
   const id=document.getElementById('eDrvId').value;const name=document.getElementById('drvName').value.trim();const mobile=document.getElementById('drvMob').value;const dlExpiry=document.getElementById('drvDL').value;const vendorId=document.getElementById('drvVendorS').value;
-  const photoData=document.getElementById('drvPhotoFile')?._data;
+  // V38 — Wait for any pending photo compression BEFORE reading _data, so a
+  // raw multi-MB dataURL never reaches _dbSave on slow mobile connections.
+  const _drvPhoto=document.getElementById('drvPhotoFile');
+  if(_drvPhoto && _drvPhoto._compressPromise){
+    showSpinner('Uploading photo…');
+    try{ await _awaitInputCompress(_drvPhoto); } finally { hideSpinner(); }
+  }
+  const photoData=_drvPhoto?._data;
   if(!name){modalErr('mDriver','Name required');return;}if(mobile&&mobile.length!==10){modalErr('mDriver','Mobile must be 10 digits');return;}
   if(!id){
     const _inactDrv=DB.drivers.find(d=>d&&d.name.trim().toLowerCase()===name.toLowerCase()&&d.id!==id&&d.inactive===true);
@@ -7480,7 +7571,10 @@ function onDrvPhoto(input){
     const thumb=document.getElementById('drvPhotoThumb');
     if(thumb){thumb.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;thumb.style.border='2px solid var(--green)';}
     document.getElementById('drvPhotoClear').style.display='inline';
-    compressImage(f).then(c=>{input._data=c;}).catch(()=>{});
+    // V38 — Stash promise so saveDriver can await compression before
+    // calling _dbSave (otherwise a fast Save tap uploads the raw multi-MB
+    // dataURL, which is what was failing on slow mobile networks).
+    input._compressPromise=compressImage(f,100).then(c=>{ if(c) input._data=c; return c; }).catch(()=>{});
   };
   reader.readAsDataURL(f);
 }

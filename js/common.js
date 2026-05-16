@@ -3360,6 +3360,34 @@ function _pwdErrors(pwd){
   return errs;
 }
 
+// V38 — Await any pending compression promise stashed on a file input by
+// onDrvPhoto / onChallanPhoto / etc. Saves uniformly call this before
+// reading the photo data so a fast tap on Save can't smuggle an uncompressed
+// multi-MB dataURL into the DB on a slow mobile connection.
+async function _awaitInputCompress(input){
+  if(!input) return;
+  var p=input._compressPromise;
+  if(p && typeof p.then==='function'){
+    try{ await p; }catch(e){}
+  }
+}
+// V38 — Same as above but for every file input inside a container (used by
+// flows like Trip Booking where the form has many photo inputs across
+// challan rows). Returns true if any compression was actually awaited so
+// the caller can show / hide its "Uploading photo…" spinner correctly.
+async function _awaitAllInputCompress(rootEl){
+  if(!rootEl) return false;
+  var inputs=rootEl.querySelectorAll('input[type=file]');
+  var promises=[];
+  for(var i=0;i<inputs.length;i++){
+    var p=inputs[i]._compressPromise;
+    if(p && typeof p.then==='function') promises.push(p);
+  }
+  if(!promises.length) return false;
+  try{ await Promise.all(promises); }catch(e){}
+  return true;
+}
+
 // ═══ IMAGE COMPRESSION ════════════════════════════════════════════════════
 async function compressImage(file,maxKB=100){
   return new Promise(res=>{
