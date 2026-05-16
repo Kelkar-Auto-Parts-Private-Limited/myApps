@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260516-V66">
+<meta name="app-build" content="260516-V154">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260516-V66">
+<link rel="stylesheet" href="css/mtts.css?v=260516-V154">
 </head>
 <body style="display:none">
 
@@ -163,16 +163,19 @@
   <div class="page" id="pageMttsTickets" style="display:none">
     <div class="page-header"><div class="page-title">Tickets</div><div class="page-sub">Breakdown tickets across the lifecycle</div></div>
     <div class="card">
-      <div class="mtts-summary-bar">
-        <div id="mttsTicketSummary" class="mtts-summary-chips"></div>
-        <div class="mtts-summary-actions">
-          <button class="btn btn-primary" id="btnMttsRaise" onclick="_mttsTicketRaiseOpen()">+ Raise Ticket</button>
+      <!-- V38 — ONE unified sticky panel holding the summary counters,
+           Raise Ticket button, AND the filter row (search + plant + X)
+           so the top stack reads as a single frozen header. Filter row
+           is rendered into #mttsTicketFiltersHost by _mttsRenderTickets. -->
+      <div class="mtts-tickets-stickyhead" id="mttsTicketsStickyHead">
+        <div id="mttsTicketConfirmAlert" class="mtts-confirm-alert" style="display:none" onclick="_mttsAlertOpenFirstConfirm()"></div>
+        <div class="mtts-summary-bar">
+          <div id="mttsTicketSummary" class="mtts-summary-chips"></div>
+          <div class="mtts-summary-actions">
+            <button class="btn btn-primary" id="btnMttsRaise" onclick="_mttsTicketRaiseOpen()" style="font-size:15px;font-weight:900;padding:10px 18px;letter-spacing:.3px">+ Raise New Ticket</button>
+          </div>
         </div>
-      </div>
-      <div id="mttsTicketTabs" class="mtts-ticket-tabs">
-        <button type="button" class="mtts-ticket-tab" data-tab="all" onclick="_mttsTicketTabSet('all')">All</button>
-        <button type="button" class="mtts-ticket-tab" data-tab="raised" onclick="_mttsTicketTabSet('raised')">Raised by me</button>
-        <button type="button" class="mtts-ticket-tab" data-tab="mine" onclick="_mttsTicketTabSet('mine')">Allocated to me</button>
+        <div id="mttsTicketFiltersHost"></div>
       </div>
       <div id="mttsTicketTableWrap" class="table-wrap"></div>
     </div>
@@ -181,7 +184,7 @@
 
 <!-- RAISE TICKET MODAL — mobile-first layout -->
 <div class="modal-overlay" id="mMttsRaise"><div class="modal mtts-raise-modal" style="max-width:420px;padding:12px 14px">
-  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsRaiseTitle" style="font-size:16px">🎫 Raise Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
+  <div class="modal-header" style="margin-bottom:10px"><div class="modal-title" id="mttsRaiseTitle" style="font-size:20px;font-weight:900;letter-spacing:.3px">🎫 Raise New Ticket</div><button type="button" class="mtts-raise-close" onclick="cm('mMttsRaise')" title="Close (Esc)" aria-label="Close">×</button></div>
   <div class="mtts-raise-grid">
     <div class="mtts-raise-full mtts-raise-picks">
       <div class="mtts-raise-pickblock">
@@ -200,30 +203,45 @@
         <div id="mttsRaiseAssetBtns" class="mtts-chip-row" style="display:none"></div>
       </div>
     </div>
-    <div class="form-group mtts-raise-full mtts-raise-divider"></div>
-    <div class="form-group mtts-raise-full"><label>Breakdown Type *</label>
+    <div class="mtts-raise-full mtts-raise-section">
+      <div class="mtts-raise-section-hd">🚨 Asset Condition</div>
       <div class="mtts-bd-radios" id="mttsRaiseBreakdownRadios">
-        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="stopped"><span>🛑 Stopped</span></label>
-        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="partial"><span>⚠ Partially</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="stopped"><span>🛑 Completely Stopped</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="partial"><span>⚠ Running with Alert</span></label>
         <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBreakdown" value="pm"><span>🔧 PM Required</span></label>
       </div>
     </div>
-    <div class="form-group mtts-raise-full">
-      <label>Breakdown Since *</label>
-      <div class="mtts-bd-when">
-        <div class="mtts-bd-date-btn" style="flex:1;min-width:0" onclick="_mttsRaiseBdDateOpenPicker()">
-          <span class="mtts-bd-date-icon">📅</span>
-          <span class="mtts-bd-date-label" id="mttsRaiseBdDateLabel">—</span>
-          <input type="date" id="mttsRaiseBdDate" onchange="_mttsRaiseBdDateChanged()">
-        </div>
-        <select id="mttsRaiseBdTime" onchange="_mttsRaiseTimeChanged()" style="flex:1;min-width:0"></select>
+    <div class="mtts-raise-full mtts-raise-section">
+      <div class="mtts-raise-section-hd">🔧 Breakdown Type</div>
+      <div class="mtts-bd-radios mtts-bd-radios-4" id="mttsRaiseBdCategoryRadios">
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBdCategory" value="electrical"><span>⚡ Electrical</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBdCategory" value="mechanical"><span>🔧 Mechanical</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBdCategory" value="unknown"><span>❔ Don't Know</span></label>
+        <label class="mtts-bd-opt"><input type="radio" name="mttsRaiseBdCategory" value="other"><span>❓ Other</span></label>
       </div>
     </div>
     <div class="form-group mtts-raise-full"><label>Description / Symptoms *</label>
       <textarea id="mttsRaiseDesc" rows="2" placeholder="What's wrong? When did it start?"></textarea>
     </div>
     <div class="form-group mtts-raise-full">
-      <label>Photos (max 3)</label>
+      <label>Breakdown Since *</label>
+      <div class="mtts-bd-when">
+        <div class="mtts-bd-date-btn" onclick="_mttsRaiseBdDateOpenPicker()">
+          <span class="mtts-bd-date-icon">📅</span>
+          <span class="mtts-bd-date-label" id="mttsRaiseBdDateLabel">—</span>
+          <input type="date" id="mttsRaiseBdDate" onchange="_mttsRaiseBdDateChanged()">
+        </div>
+        <div class="mtts-bd-time-wrap">
+          <input type="text" id="mttsRaiseBdTime" inputmode="numeric" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" maxlength="5" class="mtts-bd-time-input" onkeydown="_mttsRaiseBdTimeKey(event)" oninput="_mttsRaiseBdTimeInput()" onblur="_mttsRaiseBdTimeBlur()">
+          <div class="mtts-bd-time-steppers">
+            <button type="button" class="mtts-bd-time-step is-up" onclick="_mttsRaiseBdTimeStep(1)" aria-label="Step time up by 15 minutes" title="Snap up to next 15-minute step">▲</button>
+            <button type="button" class="mtts-bd-time-step is-dn" onclick="_mttsRaiseBdTimeStep(-1)" aria-label="Step time down by 15 minutes" title="Snap down to previous 15-minute step">▼</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-group mtts-raise-full">
+      <label>Photos * <span style="font-weight:600;color:var(--text3);font-size:11px;letter-spacing:0;text-transform:none">(at least 1, max 3)</span></label>
       <input type="file" id="mttsRaisePhotos" accept="image/*" multiple capture="environment" onchange="_mttsRaisePickPhotos(event)" style="display:none">
       <div id="mttsRaisePhotoPreview" class="mtts-photo-thumbs"></div>
     </div>
@@ -253,12 +271,16 @@
 </div></div>
 
 <!-- TECHNICIAN ACTION MODAL -->
-<div class="modal-overlay" id="mMttsTechAct"><div class="modal mtts-techact-modal" style="max-width:540px;padding:14px 16px">
-  <div class="modal-header"><div class="modal-title">🔧 Update Ticket</div><div class="modal-close" onclick="cm('mMttsTechAct')">×</div></div>
+<div class="modal-overlay" id="mMttsTechAct"><div class="modal mtts-techact-modal mtts-techact-modal-v128" style="max-width:540px;padding:14px 16px">
+  <div class="modal-header" style="gap:8px;align-items:center">
+    <div class="modal-title" style="flex:1;min-width:0">🔧 Update Ticket</div>
+    <button type="button" class="btn btn-secondary mtts-techact-history-btn" onclick="_mttsTechActOpenHistory()" style="padding:6px 12px;font-size:12px;font-weight:800;border:1.5px solid #64748b;background:#fff;color:#0f172a;border-radius:8px;cursor:pointer">📜 History</button>
+    <div class="modal-close" onclick="cm('mMttsTechAct')">×</div>
+  </div>
   <input type="hidden" id="mttsTechActTicketId">
   <input type="hidden" id="mttsTechActEditIdx">
   <div id="mttsTechActTicketLbl" class="mtts-techact-ticket-lbl"></div>
-  <div class="form-group"><label>Status *</label>
+  <div class="form-group mtts-techact-section"><label>Update the status from following *</label>
     <input type="hidden" id="mttsTechActStatus" value="">
     <div class="mtts-status-btns" id="mttsTechActStatusBtns">
       <button type="button" data-st="awaiting_spares" class="mtts-status-btn is-yellow" onclick="_mttsTechActPickStatus('awaiting_spares')">⏳ Awaiting Spares</button>
@@ -267,13 +289,10 @@
       <button type="button" data-st="repair_done" class="mtts-status-btn is-green" onclick="_mttsTechActPickStatus('repair_done')">✓ Repair Done — Ticket Closed</button>
     </div>
   </div>
-  <div class="form-group"><label>Notes</label>
-    <textarea id="mttsTechActNote" rows="2" placeholder="What was done / what's needed"></textarea>
-  </div>
-  <div class="form-group" id="mttsTechActRootWrap" style="display:none"><label>Root cause (optional)</label>
+  <div class="form-group mtts-techact-section" id="mttsTechActRootWrap" style="display:none"><label>Root cause (optional)</label>
     <input type="text" id="mttsTechActRoot" placeholder="What caused this?">
   </div>
-  <div class="form-group" id="mttsTechActPhotoWrap">
+  <div class="form-group mtts-techact-section" id="mttsTechActPhotoWrap">
     <label id="mttsTechActPhotoLbl">Photos (max 3)</label>
     <input type="file" id="mttsTechActPhotos" accept="image/*" multiple capture="environment" onchange="_mttsTechActPickPhotos(event)" style="display:none">
     <div id="mttsTechActPhotoPreview"></div>
@@ -283,16 +302,16 @@
     <button class="btn btn-secondary" onclick="cm('mMttsTechAct')" style="padding:8px 14px">Cancel</button>
     <button class="btn btn-primary" onclick="_mttsTicketActionSubmit()" style="padding:8px 14px">Save</button>
   </div>
-  <div id="mttsTechActHistoryWrap" style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
-    <div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">Ticket History</div>
-    <div id="mttsTechActHistory" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:#fff;padding:3px"></div>
+  <div id="mttsTechActHistoryWrap" style="display:none">
+    <div id="mttsTechActHistory"></div>
   </div>
 </div></div>
 
 <!-- MANAGER APPROVAL MODAL -->
 <div class="modal-overlay" id="mMttsApprove"><div class="modal" style="max-width:540px">
-  <div class="modal-header"><div class="modal-title">✅ Approve / Close Ticket</div><div class="modal-close" onclick="cm('mMttsApprove')">×</div></div>
+  <div class="modal-header"><div class="modal-title" id="mttsApproveTitle">✅ Approve / Close Ticket</div><div class="modal-close" onclick="cm('mMttsApprove')">×</div></div>
   <input type="hidden" id="mttsApproveTicketId">
+  <input type="hidden" id="mttsApproveMode" value="approve">
   <div id="mttsApproveTicketLbl" class="mtts-techact-ticket-lbl"></div>
   <div class="form-group">
     <label>External Service &amp; Spares Cost Applicable?</label>
@@ -322,8 +341,9 @@
   </div>
   <div class="modal-error" id="mttsApproveErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-    <button class="btn btn-secondary" onclick="_mttsTicketApproveReject()">↩ Send Back to Tech</button>
-    <button class="btn btn-primary" onclick="_mttsTicketApproveConfirm()">Approve &amp; Close</button>
+    <button class="btn btn-secondary" id="mttsApproveSendBack" onclick="_mttsTicketApproveReject()">↩ Send Back to Tech</button>
+    <button class="btn btn-primary" id="mttsApproveSubmit" onclick="_mttsTicketApproveConfirm()">Approve &amp; Close</button>
+    <button class="btn btn-primary" id="mttsApproveSaveExp" onclick="_mttsTicketExpenseSave()" style="display:none">💾 Save Expense Data</button>
   </div>
 </div></div>
 
@@ -593,7 +613,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260516-V66"></script>
-<script src="js/mtts-ui.js?v=260516-V66"></script>
+<script src="js/common.js?v=260516-V154"></script>
+<script src="js/mtts-ui.js?v=260516-V154"></script>
 </body>
 </html>

@@ -333,23 +333,51 @@ function _ensureTripChallans(tripIds){
   var run=(async function(){
     try{
       var CHUNK=25;
+      // V38 — Per-ID fallback (see _ensureSegmentSteps for rationale): if
+      // a chunk fails or skips a row, retry each missing ID individually so
+      // one bad row never sinks the whole batch.
+      var missing=[];
       for(var i=0;i<todo.length;i+=CHUNK){
         var batch=todo.slice(i,i+CHUNK);
         try{
           var res=await _sb.from(SB_TABLES['trips'])
             .select('code,challans1,challans2,challans3')
             .in('code',batch);
-          if(res.error){ console.warn('_ensureTripChallans error:',res.error.message); continue; }
-          (res.data||[]).forEach(function(row){
-            var rec=byId(DB.trips||[],row.code);
-            if(!rec) return;
-            rec.challans1=row.challans1||[];
-            rec.challans2=row.challans2||[];
-            rec.challans3=row.challans3||[];
-            _loadedChallansTripIds[row.code]=true;
-          });
+          if(res.error){ console.warn('_ensureTripChallans error:',res.error.message); }
+          else {
+            (res.data||[]).forEach(function(row){
+              var rec=byId(DB.trips||[],row.code);
+              if(!rec) return;
+              rec.challans1=row.challans1||[];
+              rec.challans2=row.challans2||[];
+              rec.challans3=row.challans3||[];
+              _loadedChallansTripIds[row.code]=true;
+            });
+          }
         }catch(e){ console.warn('_ensureTripChallans chunk exception:',e.message); }
-        batch.forEach(function(id){delete _inflightChallansLoad[id];});
+        batch.forEach(function(id){
+          delete _inflightChallansLoad[id];
+          if(!_loadedChallansTripIds[id]) missing.push(id);
+        });
+      }
+      for(var j=0;j<missing.length;j++){
+        var mid=missing[j];
+        try{
+          var r1=await _sb.from(SB_TABLES['trips'])
+            .select('code,challans1,challans2,challans3')
+            .eq('code',mid).limit(1);
+          if(r1.error||!r1.data||!r1.data.length){
+            console.warn('_ensureTripChallans per-id miss:',mid,r1.error&&r1.error.message);
+            continue;
+          }
+          var rec1=byId(DB.trips||[],mid);
+          if(rec1){
+            rec1.challans1=r1.data[0].challans1||[];
+            rec1.challans2=r1.data[0].challans2||[];
+            rec1.challans3=r1.data[0].challans3||[];
+            _loadedChallansTripIds[mid]=true;
+          }
+        }catch(e){ console.warn('_ensureTripChallans per-id exception:',mid,e.message); }
       }
       if(!_kapPopupOpen&&typeof _onRefreshViews==='function') _onRefreshViews();
       // If a popup is currently open (MR/Approve detail), re-render the page
@@ -406,20 +434,52 @@ function _ensureSegmentSteps(segIds){
   (async function(){
     try{
       var CHUNK=25;
+      // V38 — Per-ID fallback for any IDs that don't end up loaded after the
+      // chunk fetch. Catches both chunk-level errors (a bad row breaking the
+      // whole batch) and silent omissions (Supabase returning fewer rows than
+      // asked for). Without this, a single problematic segment in a chunk of
+      // 25 takes the other 24 photos down with it on every render.
+      var missing=[];
       for(var i=0;i<todo.length;i+=CHUNK){
         var batch=todo.slice(i,i+CHUNK);
+        var chunkOk=false;
         try{
           var res=await _sb.from(SB_TABLES['segments'])
             .select('code,steps').in('code',batch);
-          if(res.error){ console.warn('_ensureSegmentSteps error:',res.error.message); continue; }
-          (res.data||[]).forEach(function(row){
-            var rec=byId(DB.segments||[],row.code);
-            if(!rec||!row.steps) return;
-            rec.steps=row.steps;
-            _loadedStepsSegIds[row.code]=true;
-          });
+          if(res.error){ console.warn('_ensureSegmentSteps error:',res.error.message); }
+          else {
+            chunkOk=true;
+            (res.data||[]).forEach(function(row){
+              var rec=byId(DB.segments||[],row.code);
+              if(!rec||!row.steps) return;
+              rec.steps=row.steps;
+              _loadedStepsSegIds[row.code]=true;
+            });
+          }
         }catch(e){ console.warn('_ensureSegmentSteps chunk exception:',e.message); }
-        batch.forEach(function(id){delete _inflightStepsLoad[id];});
+        batch.forEach(function(id){
+          delete _inflightStepsLoad[id];
+          if(!_loadedStepsSegIds[id]) missing.push(id);
+        });
+      }
+      // Per-ID retries: re-fetch each missing segment individually. A bad
+      // single row will fail again on its own, but the rest of the batch
+      // gets a clean pass. Best-effort — no aggregate fail signal.
+      for(var j=0;j<missing.length;j++){
+        var mid=missing[j];
+        try{
+          var r1=await _sb.from(SB_TABLES['segments'])
+            .select('code,steps').eq('code',mid).limit(1);
+          if(r1.error||!r1.data||!r1.data.length){
+            console.warn('_ensureSegmentSteps per-id miss:',mid,r1.error&&r1.error.message);
+            continue;
+          }
+          var rec1=byId(DB.segments||[],mid);
+          if(rec1&&r1.data[0].steps){
+            rec1.steps=r1.data[0].steps;
+            _loadedStepsSegIds[mid]=true;
+          }
+        }catch(e){ console.warn('_ensureSegmentSteps per-id exception:',mid,e.message); }
       }
       if(!_kapPopupOpen&&typeof _onRefreshViews==='function') _onRefreshViews();
       if(_currentOpenPopId) _refreshOpenPopup();
@@ -507,24 +567,52 @@ function _ensureSpotPhotos(spotIds){
   return (async function(){
     try{
       var CHUNK=25;
+      // V38 — Per-ID fallback (see _ensureSegmentSteps for rationale).
+      var missing=[];
       for(var i=0;i<todo.length;i+=CHUNK){
         var batch=todo.slice(i,i+CHUNK);
         try{
           var res=await _sb.from(SB_TABLES['spotTrips'])
             .select('code,challan_photo,driver_photo,entry_vehicle_photo,exit_vehicle_photo')
             .in('code',batch);
-          if(res.error){console.warn('_ensureSpotPhotos error:',res.error.message);continue;}
-          (res.data||[]).forEach(function(row){
-            var rec=byId(DB.spotTrips||[],row.code);
-            if(!rec) return;
-            if(row.challan_photo) rec.challanPhoto=row.challan_photo;
-            if(row.driver_photo) rec.driverPhoto=row.driver_photo;
-            if(row.entry_vehicle_photo) rec.entryVehiclePhoto=row.entry_vehicle_photo;
-            if(row.exit_vehicle_photo) rec.exitVehiclePhoto=row.exit_vehicle_photo;
-            _loadedSpotPhotosIds[row.code]=true;
-          });
-        }catch(e){console.warn('_ensureSpotPhotos chunk exception:',e.message);}
-        batch.forEach(function(id){delete _inflightSpotPhotosLoad[id];});
+          if(res.error){ console.warn('_ensureSpotPhotos error:',res.error.message); }
+          else {
+            (res.data||[]).forEach(function(row){
+              var rec=byId(DB.spotTrips||[],row.code);
+              if(!rec) return;
+              if(row.challan_photo) rec.challanPhoto=row.challan_photo;
+              if(row.driver_photo) rec.driverPhoto=row.driver_photo;
+              if(row.entry_vehicle_photo) rec.entryVehiclePhoto=row.entry_vehicle_photo;
+              if(row.exit_vehicle_photo) rec.exitVehiclePhoto=row.exit_vehicle_photo;
+              _loadedSpotPhotosIds[row.code]=true;
+            });
+          }
+        }catch(e){ console.warn('_ensureSpotPhotos chunk exception:',e.message); }
+        batch.forEach(function(id){
+          delete _inflightSpotPhotosLoad[id];
+          if(!_loadedSpotPhotosIds[id]) missing.push(id);
+        });
+      }
+      for(var j=0;j<missing.length;j++){
+        var mid=missing[j];
+        try{
+          var r1=await _sb.from(SB_TABLES['spotTrips'])
+            .select('code,challan_photo,driver_photo,entry_vehicle_photo,exit_vehicle_photo')
+            .eq('code',mid).limit(1);
+          if(r1.error||!r1.data||!r1.data.length){
+            console.warn('_ensureSpotPhotos per-id miss:',mid,r1.error&&r1.error.message);
+            continue;
+          }
+          var row1=r1.data[0];
+          var rec1=byId(DB.spotTrips||[],mid);
+          if(rec1){
+            if(row1.challan_photo) rec1.challanPhoto=row1.challan_photo;
+            if(row1.driver_photo) rec1.driverPhoto=row1.driver_photo;
+            if(row1.entry_vehicle_photo) rec1.entryVehiclePhoto=row1.entry_vehicle_photo;
+            if(row1.exit_vehicle_photo) rec1.exitVehiclePhoto=row1.exit_vehicle_photo;
+            _loadedSpotPhotosIds[mid]=true;
+          }
+        }catch(e){ console.warn('_ensureSpotPhotos per-id exception:',mid,e.message); }
       }
     }finally{
       todo.forEach(function(id){delete _inflightSpotPhotosLoad[id];});
@@ -4517,7 +4605,7 @@ function _spotAddChallanRow(no='',photo=''){
   const noQ=no.replace(/"/g,'&quot;');
   // Grid cell: challan text above photo, × in top-right corner
   row.style.cssText='display:flex;flex-direction:column;gap:3px;position:relative';
-  row.innerHTML=`<input type="text" id="spotChallanNo_${i}" value="${noQ}" placeholder="Challan no." style="padding:4px 6px;font-size:13px;border:1.5px solid var(--border2);border-radius:6px;box-sizing:border-box;width:100%">`
+  row.innerHTML=`<input type="text" id="spotChallanNo_${i}" value="${noQ}" placeholder="Challan no." style="padding:4px 6px;font-size:15px;border:1.5px solid var(--border2);border-radius:6px;box-sizing:border-box;width:100%">`
     +`<div id="spotChallanThumb_${i}" onclick="_showPhotoChoice('spotChallanFile_${i}','spotChallanThumb_${i}')" style="height:60px;border:2px dashed var(--border2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;background:var(--surface2);cursor:pointer">${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover">`:'📄'}</div>`
     +`<input type="file" id="spotChallanFile_${i}" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotChallanThumb_${i}')">`
     +(i>1?`<button onclick="document.getElementById('spotChallanRow_${i}').remove()" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;padding:0;line-height:1;z-index:1">×</button>`:'');
@@ -4534,14 +4622,11 @@ function _spotGetChallans(){
 }
 function _kapOpenSpotPopup(spotId){
   _kapPopupOpen=true;
-  // Update location badge
-  const mySpotLoc=byId(DB.locations,CU.plant);
+  // V147 — User-plant badge next to the popup Trip ID is hidden per UX
+  // feedback. Element kept in the DOM (just blanked + hidden) so any
+  // legacy reference doesn't throw.
   const badge=document.getElementById('spotLocBadgePopup');
-  if(badge&&mySpotLoc){
-    const c=mySpotLoc.colour||'var(--accent)';const tc=colourContrast(mySpotLoc.colour||'');
-    badge.style.cssText=`font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:${c};color:${tc}`;
-    badge.textContent=mySpotLoc.name;
-  }
+  if(badge){ badge.textContent=''; badge.style.display='none'; }
   const exitSec=document.getElementById('spotExitSection');
   const popupId=document.getElementById('spotPopupId');
   if(spotId){
@@ -4566,6 +4651,7 @@ function _kapOpenSpotPopup(spotId){
     document.getElementById('spotVehNum').value=s.vehicleNum||'';
     document.getElementById('spotDriverName').value=s.driverName||'';
     document.getElementById('spotDriverMob').value=s.driverMobile||'';
+    _fmtSpotMob(document.getElementById('spotDriverMob'));
     document.getElementById('spotSupplier').value=s.supplier||'';
     _spotInitChallans(s.challans||(s.challan?[{no:s.challan,photo:s.challanPhoto||''}]:[]));
     document.getElementById('spotEntryRemarks').value=s.entryRemarks||'';
@@ -4662,18 +4748,71 @@ function _kapOpenSpotPopup(spotId){
     if(cb) cb.style.display='none';
   }
   const el=document.getElementById('mSpotEntry');
-  if(el) el.style.display='flex';
+  if(el){
+    // V145 — Open centered (both axes) and above every other overlay /
+    // sticky / popup on the page. Reparented to <body> so any ancestor
+    // with `isolation:isolate` / `transform` doesn't cap our z-index or
+    // clip the popup. Inner card is scrolled to top so the header is
+    // visible immediately; body scroll is locked while the popup is
+    // open so it can't be pushed out of view.
+    if(el.parentNode!==document.body){
+      try{ document.body.appendChild(el); }catch(e){}
+    }
+    el.style.display='flex';
+    el.style.alignItems='center';
+    el.style.justifyContent='center';
+    el.style.zIndex='2147483647';// max 32-bit int — beats every other z-index in the app
+    try{
+      el.scrollTop=0;
+      var _inner=el.firstElementChild;
+      if(_inner && _inner.scrollTo) _inner.scrollTo(0,0);
+      else if(_inner) _inner.scrollTop=0;
+    }catch(e){}
+    try{
+      document.documentElement.style.overflow='hidden';
+      document.body.style.overflow='hidden';
+    }catch(e){}
+    // V148 — Escape key closes the popup; backdrop clicks NO LONGER
+    // dismiss it (only the X button or Esc does). Single window-level
+    // listener installed once and reused across opens.
+    if(!_kapSpotPopupEscBound){
+      _kapSpotPopupEscBound=true;
+      document.addEventListener('keydown',function(ev){
+        if(ev.key==='Escape' && _kapPopupOpen){
+          var _el=document.getElementById('mSpotEntry');
+          if(_el && _el.style.display!=='none'){ ev.preventDefault(); _kapCloseSpotPopup(); }
+        }
+      });
+    }
+  }
 }
+var _kapSpotPopupEscBound=false;
 function _kapCloseSpotPopup(){
   _kapPopupOpen=false;
   const el=document.getElementById('mSpotEntry');
   if(el) el.style.display='none';
+  // V142 — Restore body scroll on close.
+  try{
+    document.documentElement.style.overflow='';
+    document.body.style.overflow='';
+  }catch(e){}
 }
 function _kapOpenPopup(popId){
   _kapPopupOpen=true;
   const el=document.getElementById(popId);
   if(el) el.style.display='flex';
+  // V150 — Esc closes any open kap_pop_* popup. Listener bound once
+  // and reused across opens; only fires when one is actually open.
+  if(!_kapInlinePopupEscBound){
+    _kapInlinePopupEscBound=true;
+    document.addEventListener('keydown',function(ev){
+      if(ev.key!=='Escape') return;
+      var openId=(typeof _kapGetOpenPopup==='function')?_kapGetOpenPopup():null;
+      if(openId){ ev.preventDefault(); _kapClosePopup(openId); }
+    });
+  }
 }
+var _kapInlinePopupEscBound=false;
 function _kapClosePopup(popId){
   _kapPopupOpen=false;
   const el=document.getElementById(popId);
@@ -5165,10 +5304,15 @@ function _renderKapInner(){
       }).filter(Boolean).join('');
       // Build popup id
       const popId='kap_pop_'+seg.id.replace(/[^a-z0-9]/gi,'_');
+      // V151 — Serial-number strip colour-codes the card type at a glance:
+      //   Exit (cs===1)        → red
+      //   Empty Exit (isStep5) → red (still an exit)
+      //   Entry (everything else, cs===2) → green
+      const _serialBg=(cs===1||_isStep5)?'#dc2626':'#16a34a';
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD — click opens popup -->
         <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenPopup('${popId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
-          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${serialNo}</div>
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:${_serialBg};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${serialNo}</div>
           <!-- Main row: Trip ID + Vehicle + action badge -->
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(seg.tripId)}</span>
@@ -5183,8 +5327,9 @@ function _renderKapInner(){
           ${_isStep5?'<div style="padding:0 12px 8px"><span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;border:2px solid #fb923c;color:#c2410c;font-size:13px;font-weight:900;padding:4px 14px;border-radius:6px;animation:flashOrange 1.2s ease-in-out infinite">📤 EMPTY EXIT</span></div>':''}
         </div>
 
-        <!-- POPUP OVERLAY -->
-        <div id="${popId}" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:12px" onclick="if(event.target===this)this.style.display='none'">
+        <!-- POPUP OVERLAY — V150: backdrop click no longer dismisses;
+             only the ✕ button or Esc closes the popup. -->
+        <div id="${popId}" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:12px">
           <div style="background:#fff;border:2px solid #000;border-radius:16px;max-width:540px;width:100%;max-height:calc(100vh - 24px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
             <!-- Popup header -->
             <div style="padding:14px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0">
@@ -5250,8 +5395,8 @@ function _renderKapInner(){
                   const _btn=!_canRecord
                     ?`<button class="btn" disabled title="View-only access — contact admin for record permission" style="height:52px;flex:1;font-size:12px;font-weight:700;opacity:.5;cursor:not-allowed;white-space:nowrap;background:var(--surface2);color:var(--text3);border:1.5px dashed var(--border2)">🔒 View Only</button>`
                     :_gateExitBlocked
-                    ?`<button class="btn btn-danger" disabled style="height:52px;flex:1;font-size:14px;font-weight:800;opacity:.4;cursor:not-allowed;white-space:nowrap">${btnLabel}</button>`
-                    :`<button class="btn ${btnCls}" onclick="doKapInline('${seg.id}',${_isStep5?5:cs})" style="height:52px;flex:1;font-size:14px;font-weight:800;white-space:nowrap">${btnLabel}</button>`;
+                    ?`<button class="btn btn-danger" disabled style="height:52px;flex:1;font-size:17px;font-weight:800;opacity:.4;cursor:not-allowed;white-space:nowrap">${btnLabel}</button>`
+                    :`<button class="btn ${btnCls}" onclick="doKapInline('${seg.id}',${_isStep5?5:cs})" style="height:52px;flex:1;font-size:17px;font-weight:800;white-space:nowrap">${btnLabel}</button>`;
                   const _closeBtn=`<button onclick="_kapClosePopup('${popId}')" style="height:52px;width:52px;flex-shrink:0;font-size:22px;font-weight:900;background:var(--surface2);border:2px solid var(--border2);border-radius:8px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center" title="Close">✕</button>`;
                   return _btn+_closeBtn+_warn;
                 })()}
@@ -5385,7 +5530,7 @@ function _renderKapInner(){
           +`<span style="${_locPillStyle(lt?.colour,13)}">${lt?.name||'?'}</span>`;
       }).join('');
 
-      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #64748b;border-radius:10px;margin-bottom:8px;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
+      return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #64748b;border-radius:10px;margin-bottom:8px;${myStyle};position:relative;padding-left:26px" onclick="toggleKapHistCard('${hid}')"><div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:${clr};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${histSegs.length-histSegs.indexOf(seg)}</div>
         <!-- Line 1: Trip ID + Vehicle -->
         <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
           <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${_cTid(trip?.id||seg.tripId)}</span>
@@ -5440,7 +5585,74 @@ function toggleKapHistCard(hid){
 function renderSpotTab(){
   updBadges();
   initDfLast7Days('spotHist','spotHistFrom','spotHistTo');
+  // V142 — Open spot entries (still inside, no exitTime) live ON the
+  // Spot Entry tab itself so the guard sees pending vehicles without
+  // opening the History modal.
+  if(typeof _renderSpotOpenList==='function') _renderSpotOpenList();
   renderSpotHistory();
+}
+// V142 — Render every open (no exitTime) spot trip the current user is
+// allowed to see, using the same card markup as the History list. Shows
+// an empty-state message when every spot trip has exited.
+function _renderSpotOpenList(){
+  var list=document.getElementById('kapSpotOpenList');
+  if(!list) return;
+  var countEl=document.getElementById('kapSpotOpenCount');
+  if(!CU) { list.innerHTML=''; if(countEl) countEl.textContent='0'; return; }
+  var isSA=(CU.roles||[]).indexOf('Super Admin')>=0;
+  // Same scoping the history list uses: SA sees all locations, others
+  // are restricted to their own location(s) via _isMyLocation.
+  var open=(DB.spotTrips||[]).filter(function(s){
+    if(!s||s.exitTime) return false;
+    if(!isSA && typeof _isMyLocation==='function' && !_isMyLocation(s.location)) return false;
+    return true;
+  });
+  // Newest-entered first so the freshest vehicles are at the top.
+  open.sort(function(a,b){return String(b.entryTime||b.date||'').localeCompare(String(a.entryTime||a.date||''));});
+  if(countEl) countEl.textContent=String(open.length);
+  if(!open.length){
+    var totalSpots=(DB.spotTrips||[]).filter(function(s){
+      if(!s) return false;
+      if(!isSA && typeof _isMyLocation==='function' && !_isMyLocation(s.location)) return false;
+      return true;
+    }).length;
+    var msg=totalSpots
+      ? '✅ All spot entries have exited — nothing pending.'
+      : 'No pending Spot entries';
+    list.innerHTML='<div class="empty-state" style="padding:18px 14px;border:1.5px dashed #cbd5e1;border-radius:10px;background:#f8fafc;text-align:center;font-size:13px;font-weight:700;color:#475569">'+msg+'</div>';
+    return;
+  }
+  try{ if(typeof _ensureSpotPhotos==='function') _ensureSpotPhotos(open.map(function(s){return s.id;})); }catch(e){}
+  var now=new Date();
+  var fmt=function(t){return t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';};
+  var isSuperAdmin=isSA;
+  list.innerHTML=open.map(function(s,_idx){
+    var _entryTs2=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
+    var isStaleCard=_entryTs2>0&&(now.getTime()-_entryTs2)>48*3600000;
+    var borderClr=isStaleCard?'#94a3b8':'#dc2626';
+    var statusDot=isStaleCard?'🔒':'🔴';
+    // V151 — Yellow serial strip on the left for spot-entry recognition,
+    // matching the red (exit) / green (entry) strips on KAP trip cards.
+    var _serialNo=open.length-_idx;
+    return '<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid '+borderClr+';border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenSpotPopup(\''+s.id+'\')" onmouseover="this.style.boxShadow=\'0 4px 18px rgba(0,0,0,.12)\'" onmouseout="this.style.boxShadow=\'\'">'+
+      '<div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#eab308;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#000;user-select:none">'+_serialNo+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;min-width:0;flex-wrap:nowrap">'+
+        '<span style="font-size:16px;flex-shrink:0">'+statusDot+'</span>'+
+        '<span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">'+s.id+'</span>'+
+        '<span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:#000;background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">'+(s.vehicleNum||'')+'</span>'+
+        '<div style="flex:1"></div>'+
+        '<span style="font-size:18px;color:var(--text3);font-weight:300;flex-shrink:0">›</span>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;padding:2px 12px 8px;flex-wrap:wrap;font-size:11px">'+
+        (s.challan?'<span style="background:#f0fafa;border:1px solid #b3dfe0;padding:1px 6px;border-radius:4px;color:#1d6f73;font-weight:700">📄 '+s.challan+'</span>':'')+
+        (s.driverName?'<span style="color:var(--text2);font-weight:600">🧑 '+s.driverName+'</span>':'')+
+        (s.supplier?'<span style="color:var(--text3)">· '+s.supplier+'</span>':'')+
+        (isStaleCard?'<span style="background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;padding:1px 6px;border-radius:4px;font-weight:800;font-size:10px">Locked</span>':'')+
+        '<span style="color:var(--text3);margin-left:auto;white-space:nowrap">'+fmt(s.entryTime)+'</span>'+
+        (isSuperAdmin?'<button onclick="event.stopPropagation();deleteSpotEntry(\''+s.id+'\')" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:5px;font-size:11px;padding:2px 7px;cursor:pointer;font-weight:700;flex-shrink:0">🗑</button>':'')+
+      '</div>'+
+    '</div>';
+  }).join('');
 }
 
 function onSpotPhoto(input, thumbId){
@@ -5510,7 +5722,9 @@ async function submitSpotEntry(){
     notify('⚠ You do not have permission to record spot entries.',true);return;
   }
   const vehNum=document.getElementById('spotVehNum').value.trim().toUpperCase();
-  const driverMob=document.getElementById('spotDriverMob').value.trim();
+  // V148 — Mobile is now displayed as "XXXX XX XXXX"; strip spaces to
+  // validate and to persist the canonical 10-digit form.
+  const driverMob=_digitsOnly(document.getElementById('spotDriverMob').value);
   if(!vehNum){notify('Vehicle number is required',true);return;}
   if(driverMob&&driverMob.length!==10){notify('Driver mobile must be 10 digits',true);return;}
   // Edit mode?
@@ -5691,6 +5905,9 @@ function renderSpotHistory(){
   const _spotSrch=String((document.getElementById('spotSearch')||{}).value||'').trim().toLowerCase();
   const d30=new Date();d30.setDate(d30.getDate()-30);
   const filtered=spots.filter(s=>{
+    // V144 — Historical Spot Entries shows only EXITED trips; still-inside
+    // vehicles live on the Spot Entry tab's "Open Spot Entries" list.
+    if(!s.exitTime) return false;
     if(!isSuperAdmin&&new Date(s.date)<d30) return false;
     if(!isSA&&!_isMyLocation(s.location)) return false;
     const sDate=(s.entryTime||s.date||'').slice(0,10);
@@ -5704,7 +5921,7 @@ function renderSpotHistory(){
   });
 
   if(!filtered.length){
-    list.innerHTML='<div class="empty-state">No spot entries in the last 30 days'+(myLoc?` for ${myLoc.name}`:'')+'</div>';
+    list.innerHTML='<div class="empty-state">No exited spot entries in this period'+(myLoc?` for ${myLoc.name}`:'')+'</div>';
     return;
   }
   // Eager photo preload — kick off a batched fetch for the visible rows so
@@ -5713,7 +5930,7 @@ function renderSpotHistory(){
   const now=new Date();
   const hrs24=24*60*60*1000;
   const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
-  list.innerHTML=filtered.map(s=>{
+  list.innerHTML=filtered.map((s,_idx)=>{
     const isInside=!s.exitTime;
     const isAutoExited=!isInside&&(s.exitRemarks||'').indexOf('Auto-exit')>=0;
     const _entryTs2=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
@@ -5721,7 +5938,11 @@ function renderSpotHistory(){
     const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
     const borderClr=isStaleCard?'#94a3b8':(isInside?'#dc2626':(isAutoExited?'#f59e0b':'#16a34a'));
     const statusDot=isStaleCard?'🔒':(isInside?'🔴':(isAutoExited?'🟡':'🟢'));
-    return `<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff" onclick="_kapOpenSpotPopup('${s.id}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+    // V151 — Yellow serial strip on the left, matching the spot-entry
+    // colour-coding used on the Open Spot Entries tab.
+    const _serialNo=filtered.length-_idx;
+    return `<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenSpotPopup('${s.id}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#eab308;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#000;user-select:none">${_serialNo}</div>
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;min-width:0;flex-wrap:nowrap">
         <span style="font-size:16px;flex-shrink:0">${statusDot}</span>
         <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${s.id}</span>
@@ -6002,6 +6223,12 @@ async function doKapInline(segId,step){
     notify('⚠ Photo too large after compression — please retake / pick a smaller image.',true);
     return;
   }
+  // V38 — Snapshot the step + segment state BEFORE mutation so we can hard-
+  // revert if the photo silently drops on save (size limit / RLS rewrite /
+  // partial write). Predates advance(seg), which may flip currentStep / status.
+  var _origStep=Object.assign({},seg.steps[step]||{});
+  var _origCurrentStep=seg.currentStep;
+  var _origStatus=seg.status;
   seg.steps[step].done=true;
   seg.steps[step].time=new Date().toISOString();
   seg.steps[step].by=CU.id;
@@ -6010,16 +6237,37 @@ async function doKapInline(segId,step){
   if(_capturedPhoto){seg.steps[step].photo=_capturedPhoto;delete _inlinePhotos[sid];}
   if(_inlineStreams[sid]){_inlineStreams[sid].getTracks().forEach(t=>t.stop());delete _inlineStreams[sid];}
   await advance(seg);if(!await _dbSave('segments',seg)) return;
-  // Post-save verification — confirm the photo column actually persisted.
-  // If it dropped (size limit / RLS rewrite), restore the captured photo to
-  // the in-memory cache and surface a loud warning so the user re-saves.
+  // V38 — Post-save verification + auto-retry + hard revert.
+  //   1. Re-fetch the segment from Supabase and check the photo column.
+  //   2. If the photo dropped, retry _dbSave once (handles transient network
+  //      truncation that is the dominant failure mode on slow mobile).
+  //   3. If the retry still doesn't persist the photo, revert the segment
+  //      to the pre-mutation snapshot, save the revert so the DB matches
+  //      memory, restore _inlinePhotos[sid] so the user can retake without
+  //      re-photographing, and bail out BEFORE the success notify fires.
+  //      Net effect: the step stays "not done" until a photo really lands.
   try{
     if(_sbReady&&_sb&&_capturedPhoto){
-      const _vc=await _sb.from(SB_TABLES['segments']).select('code,steps').eq('code',seg.id).limit(1);
-      const _vph=_vc&&_vc.data&&_vc.data[0]&&_vc.data[0].steps&&_vc.data[0].steps[step]&&_vc.data[0].steps[step].photo;
+      var _vc=await _sb.from(SB_TABLES['segments']).select('code,steps').eq('code',seg.id).limit(1);
+      var _vph=_vc&&_vc.data&&_vc.data[0]&&_vc.data[0].steps&&_vc.data[0].steps[step]&&_vc.data[0].steps[step].photo;
       if(!_vph){
-        _inlinePhotos[sid]=_capturedPhoto;// restore for retry
-        notify('⚠ Photo did not persist to the server. Please re-save.',true);
+        // Attempt #2 — same segment object, same photo, single retry.
+        await _dbSave('segments',seg);
+        var _vc2=await _sb.from(SB_TABLES['segments']).select('code,steps').eq('code',seg.id).limit(1);
+        var _vph2=_vc2&&_vc2.data&&_vc2.data[0]&&_vc2.data[0].steps&&_vc2.data[0].steps[step]&&_vc2.data[0].steps[step].photo;
+        if(!_vph2){
+          // Hard revert. Roll back the in-memory step + currentStep + status,
+          // persist the rollback so the row in the DB matches what the user
+          // sees, then surface a loud error and stop.
+          seg.steps[step]=_origStep;
+          seg.currentStep=_origCurrentStep;
+          seg.status=_origStatus;
+          try{ await _dbSave('segments',seg); }catch(e){}
+          _inlinePhotos[sid]=_capturedPhoto;
+          notify('⚠ Photo did not persist after retry. Step has been reverted — please retake the photo and try again.',true);
+          renderKap();renderDash();updBadges();
+          return;
+        }
       }
     }
   }catch(e){}
@@ -6241,7 +6489,7 @@ function renderMR(){
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD -->
         <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_openPop('${_mrPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
-          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pending.length-_si}</div>
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pending.length-_si}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(seg.tripId)}</span>
             <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
@@ -6403,7 +6651,7 @@ function renderMRHistory(){
     })();
 
     return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;background:var(--surface);border:2px solid #64748b;border-radius:10px;margin-bottom:6px;position:relative;padding-left:38px" onclick="toggleMrCard('${cardId}')">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${segs.length-si}</div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${segs.length-si}</div>
       <!-- Line 1: Trip ID + Vehicle -->
       <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
         <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${baseTripId}</span>
@@ -6817,7 +7065,7 @@ function renderApprove(){
       return `<div style="margin-bottom:8px">
         <!-- COMPACT CARD -->
         <div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_openPop('${_apPopId}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
-          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pendingTrips.length-_apIdx}</div>
+          <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#65a30d;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pendingTrips.length-_apIdx}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(tripId)}</span>
             <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
@@ -7009,7 +7257,7 @@ function renderApprove(){
     })();
 
     return `<div class="seg-card" style="padding:0;overflow:hidden;cursor:pointer;background:var(--surface);border:2px solid #64748b;border-radius:10px;margin-bottom:8px;position:relative;padding-left:26px" onclick="toggleApCard('${cardId}')">
-      <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:rgba(0,0,0,0.28);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${sortedGroups.length-gi}</div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:#65a30d;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${sortedGroups.length-gi}</div>
       <!-- Line 1: Trip ID + Vehicle -->
       <div style="display:flex;align-items:center;gap:6px;padding:7px 10px 3px;min-width:0">
         <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${baseId}</span>
@@ -7714,6 +7962,21 @@ document.getElementById('vehIns').value=v?.insExpiry||'';
   const vehInactiveCb=document.getElementById('vehInactive');if(vehInactiveCb)vehInactiveCb.checked=v?.inactive===true;
   document.getElementById('mVehTitle').textContent=id?'Edit Vehicle':'Add Vehicle';om('mVehicle');
 }
+// V148 — Format a 10-digit driver mobile as "XXXX XX XXXX" while typing.
+// Stripping the spaces re-applies the input length cap; the save path
+// already trims and validates digit-only via _digitsOnly.
+function _fmtSpotMob(el){
+  if(!el) return;
+  var caretAtEnd=(el.selectionStart===null||el.selectionEnd===el.value.length);
+  var d=String(el.value||'').replace(/\D/g,'').slice(0,10);
+  var out=d;
+  if(d.length>4 && d.length<=6) out=d.slice(0,4)+' '+d.slice(4);
+  else if(d.length>6) out=d.slice(0,4)+' '+d.slice(4,6)+' '+d.slice(6);
+  el.value=out;
+  if(caretAtEnd){try{el.selectionStart=el.selectionEnd=out.length;}catch(_){}}
+}
+// Strip spaces / non-digits from a mobile field for validation + storage.
+function _digitsOnly(s){return String(s||'').replace(/\D/g,'');}
 function fmtVehNum(el){
   // Enforce format: AA00-AA-0000 (2 alpha, 2 digit, hyphen, 1-2 alpha, hyphen, 1-4 digit)
   let raw=el.value.replace(/[^a-zA-Z0-9]/g,'').toUpperCase();

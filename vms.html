@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-build" content="260516-V66">
+<meta name="app-build" content="260516-V154">
 <title>KAP — VMS</title>
 
 <!-- xlsx removed for Claude app compatibility -->
 <!-- Local mode: no external dependencies -->
-<link rel="stylesheet" href="css/vms.css?v=260516-V66">
+<link rel="stylesheet" href="css/vms.css?v=260516-V154">
 
 </head>
 <body>
@@ -162,7 +162,7 @@
              mobile). Range buttons on row 1, date pickers on row 2 of
              a 4-col grid so the panel stays compact next to the search. -->
         <div style="display:flex;flex-direction:row;justify-content:flex-start;align-items:flex-start;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px">
-          <input type="text" id="dashTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" title="Search Trip ID or Vehicle" oninput="renderDashTrips()" style="font-size:14px;padding:9px 30px 9px 12px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:150px;min-width:150px;max-width:150px;box-sizing:border-box;font-weight:700;flex:0 0 auto;align-self:center">
+          <input type="text" id="dashTripSearch" placeholder="🔍 Search…" title="Search Trip ID or Vehicle" oninput="renderDashTrips()" size="8" style="font-size:13px;padding:6px 8px 6px 6px;border:2px solid var(--accent);border-radius:8px;background:#fff;color:var(--text);font-family:var(--mono);width:72px;min-width:72px;max-width:72px;box-sizing:content-box;font-weight:700;flex:0 0 auto;align-self:center">
           <div class="df-block" id="dfb_td" style="grid-template-columns:repeat(4,1fr);grid-template-rows:auto auto;flex:0 0 auto">
             <button id="drb_td_today" class="dr-btn" onclick="setDateRange('tdFrom','tdTo','today',renderDashTrips,'td')">1D</button>
             <button id="drb_td_week" class="dr-btn dr-btn-active" onclick="setDateRange('tdFrom','tdTo','week',renderDashTrips,'td')">1W</button>
@@ -379,7 +379,7 @@
           <div style="font-size:22px;margin-bottom:4px">📋</div>
           <div style="font-size:12px;font-weight:800;letter-spacing:.3px">SPOT ENTRY</div>
           <div style="margin-top:5px;min-height:22px;display:flex;justify-content:center">
-            <span id="kapCountTabSpot" class="kap-tab-count" style="font-size:12px;background:#16a34a;display:none"></span>
+            <span id="kapCountTabSpot" class="kap-tab-count" style="font-size:12px;background:#dc2626;display:none"></span>
           </div>
         </button>
       </div>
@@ -418,10 +418,17 @@
           <button id="kapAutoCloseSpotBtn" class="vms-ie-arrow" data-tip="Auto Close Spot Entry — close all open spot entries older than today (SA + VMS Admin)" data-tip-wrap="1" onclick="_kapAutoCloseSpotEntry()" style="display:none;width:40px;height:40px;padding:0;font-size:22px;font-weight:900;border:2px solid #f59e0b;background:#fef3c7;color:#92400e;border-radius:10px;cursor:pointer;flex:0 0 auto;align-items:center;justify-content:center;line-height:1">⚡</button>
           <span id="spotLocBadge" style="display:none"></span>
         </div>
+        <!-- V142 — Open spot entries (entered but not yet exited) live here.
+             Empty state shows when every spot trip has exited. -->
+        <div id="kapSpotOpenHeader" style="display:flex;align-items:center;gap:8px;margin:4px 0 8px;font-size:12px;font-weight:800;color:var(--text2);letter-spacing:.4px;text-transform:uppercase">
+          <span>🔴 Open Spot Entries</span>
+          <span id="kapSpotOpenCount" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 7px;background:#dc2626;color:#fff;font-family:var(--mono);font-size:12px;font-weight:900;border-radius:10px">0</span>
+        </div>
+        <div id="kapSpotOpenList"></div>
 
 
         <!-- SPOT ENTRY / EXIT POPUP (single popup for both) -->
-        <div id="mSpotEntry" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:8px" onclick="if(event.target===this)_kapCloseSpotPopup()">
+        <div id="mSpotEntry" style="display:none;position:fixed;inset:0;z-index:100000;background:rgba(30,40,70,.55);align-items:center;justify-content:center;padding:8px">
           <div style="background:#fff;border:2px solid #000;border-radius:16px;max-width:520px;width:100%;max-height:calc(100vh - 16px);overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.35)">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0">
               <div style="display:flex;align-items:center;gap:8px">
@@ -432,25 +439,25 @@
                 </div>
                 <span id="spotLocBadgePopup" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px"></span>
               </div>
-              <button onclick="_kapCloseSpotPopup()" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;font-size:18px;font-weight:900;cursor:pointer;padding:5px 12px;line-height:1;border-radius:8px">✕ Close</button>
+              <button type="button" onclick="_kapCloseSpotPopup()" aria-label="Close" title="Close (Esc)" style="background:#dc2626;color:#fff;border:none;width:38px;height:38px;font-size:22px;font-weight:900;cursor:pointer;padding:0;line-height:1;border-radius:50%;box-shadow:0 2px 8px rgba(220,38,38,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
             </div>
             <div id="spotEntrySection">
               <div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px">
                 <!-- Vehicle No (full width) -->
                 <div style="display:flex;flex-direction:column;gap:1px">
-                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Vehicle No. *</label>
-                  <input type="text" id="spotVehNum" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900">
+                  <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Vehicle No. *</label>
+                  <input type="text" id="spotVehNum" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900;background:#fef08a;color:#000">
                 </div>
                 <!-- Driver Name + Mobile stacked, driver photo to the right -->
                 <div style="display:flex;align-items:stretch;gap:8px">
                   <div style="flex:1;display:flex;flex-direction:column;gap:5px">
                     <div style="display:flex;flex-direction:column;gap:1px">
-                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Driver Name</label>
-                      <input type="text" id="spotDriverName" placeholder="Full name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                      <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Driver Name</label>
+                      <input type="text" id="spotDriverName" placeholder="Full name" style="padding:6px 8px;font-size:16px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
                     </div>
                     <div style="display:flex;flex-direction:column;gap:1px">
-                      <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Mobile</label>
-                      <input type="tel" id="spotDriverMob" maxlength="10" placeholder="10 digits" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                      <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Mobile</label>
+                      <input type="tel" id="spotDriverMob" maxlength="12" placeholder="XXXX XX XXXX" oninput="_fmtSpotMob(this)" style="padding:6px 8px;font-size:16px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-family:var(--mono);letter-spacing:.5px">
                     </div>
                   </div>
                   <!-- Driver photo — full height of both fields -->
@@ -462,13 +469,13 @@
                 </div>
                 <!-- Supplier -->
                 <div style="display:flex;flex-direction:column;gap:1px">
-                  <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Supplier</label>
-                  <input type="text" id="spotSupplier" placeholder="Supplier / Party name" style="padding:6px 8px;font-size:14px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                  <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Supplier</label>
+                  <input type="text" id="spotSupplier" placeholder="Supplier / Party name" style="padding:6px 8px;font-size:16px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
                 </div>
                 <!-- Challans: 3 per row, each = [text above photo] -->
                 <div>
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers</label>
+                    <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Challan Numbers</label>
                     <button onclick="_spotAddChallanRow()" style="font-size:10px;padding:2px 8px;background:#f0fafa;border:1px solid #b3dfe0;border-radius:5px;color:#1d6f73;font-weight:700;cursor:pointer">+ Add</button>
                   </div>
                   <div id="spotChallanRows" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
@@ -481,29 +488,29 @@
                 <!-- Left: Entry remarks + vehicle photo + Record Entry -->
                 <div style="flex:1;padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">
                   <div style="display:flex;flex-direction:column;gap:1px">
-                    <label style="font-size:9px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Entry Remarks</label>
-                    <input type="text" id="spotEntryRemarks" placeholder="Optional notes" style="padding:5px 8px;font-size:13px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
+                    <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Entry Remarks</label>
+                    <input type="text" id="spotEntryRemarks" placeholder="Optional notes" style="padding:5px 8px;font-size:15px;border:1.5px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box">
                   </div>
                   <div style="position:relative;align-self:flex-start">
                     <div id="spotVehThumb" onclick="_showPhotoChoice('spotVehFile','spotVehThumb')" style="width:80px;height:80px;border:2px dashed var(--border2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--text3);overflow:hidden;background:var(--surface2);cursor:pointer">🚗</div>
                     <input type="file" id="spotVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotVehThumb')">
                     <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Vehicle *</span>
                   </div>
-                  <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🏁 Record Entry</button>
+                  <button id="spotSubmitBtn" class="btn btn-green" onclick="submitSpotEntry()" style="font-size:15px;padding:9px 16px;font-weight:800;border-radius:9px">🏁 Record Entry</button>
                   <input type="hidden" id="spotEditId">
                 </div>
                 <!-- Right: Exit (hidden until vehicle is inside) -->
                 <div id="spotExitSection" style="display:none;flex:1;padding:10px 14px 14px;border-left:2px solid #dc2626;background:rgba(220,38,38,.02);flex-direction:column;gap:6px;min-width:0">
                   <div style="display:flex;flex-direction:column;gap:1px">
-                    <label style="font-size:9px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.4px">Exit Remarks</label>
-                    <input type="text" id="spotExitRemarks" placeholder="Optional" style="padding:5px 8px;font-size:13px;border:1.5px solid #fca5a5;border-radius:7px;width:100%;box-sizing:border-box">
+                    <label style="font-size:11px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.4px">Exit Remarks</label>
+                    <input type="text" id="spotExitRemarks" placeholder="Optional" style="padding:5px 8px;font-size:15px;border:1.5px solid #fca5a5;border-radius:7px;width:100%;box-sizing:border-box">
                   </div>
                   <div style="position:relative;align-self:flex-start">
                     <div id="spotExitVehThumb" onclick="_showPhotoChoice('spotExitVehFile','spotExitVehThumb')" style="width:80px;height:80px;border:2px dashed #fca5a5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;background:#fff5f5;cursor:pointer">🚗</div>
                     <input type="file" id="spotExitVehFile" accept="image/*" capture="environment" style="display:none" onchange="onSpotPhoto(this,'spotExitVehThumb')">
                     <span style="font-size:8px;font-weight:700;color:var(--text3);text-transform:uppercase;display:block;text-align:center;margin-top:2px">Exit Photo</span>
                   </div>
-                  <button id="spotExitBtn" class="btn btn-danger" onclick="doSpotExit()" style="font-size:13px;padding:9px 16px;font-weight:800;border-radius:9px">🚪 Record Exit</button>
+                  <button id="spotExitBtn" class="btn btn-danger" onclick="doSpotExit()" style="font-size:15px;padding:9px 16px;font-weight:800;border-radius:9px">🚪 Record Exit</button>
                   <input type="hidden" id="spotExitId">
                 </div>
               </div>
@@ -660,8 +667,8 @@
         <div id="ratePendingList"></div>
       </div>
       <!-- Sortable frozen-header rate table -->
-      <div style="overflow:auto;max-height:calc(100vh - 280px);-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:10px">
-        <table id="tRates" style="width:100%;border-collapse:collapse;font-size:14px">
+      <div style="overflow:auto;max-height:calc(100vh - 280px);max-width:fit-content;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:10px">
+        <table id="tRates" style="width:auto;border-collapse:collapse;font-size:14px">
           <thead id="rateHead">
             <tr>
               <th data-col="num"   style="position:sticky;top:0;z-index:2;background:#f1f5f9;padding:10px 12px;font-size:12px;font-weight:800;color:var(--text2);text-align:left;border-bottom:2px solid var(--border2);white-space:nowrap;cursor:default;user-select:none;min-width:36px">#</th>
@@ -689,7 +696,7 @@
           <span id="upaDirtyHint" style="font-size:11px;color:#b45309;font-weight:600;display:none;flex:0 0 auto;white-space:nowrap">● Unsaved</span>
           <button id="upaSaveAllBtn" class="btn btn-primary" onclick="_upaSaveAll()" style="font-size:12px;padding:7px 14px;margin-left:auto;white-space:nowrap;flex:0 0 auto">💾 Save All</button>
         </div>
-        <div class="table-wrap" style="overflow-y:auto;overflow-x:hidden;position:relative;flex:1;min-height:0"><table id="tUserPlantAlloc" style="width:100%;font-size:12px;border-collapse:separate;border-spacing:0;border:1.5px solid rgba(30,41,59,.5);table-layout:auto">
+        <div class="table-wrap" style="overflow:auto;position:relative;flex:1;min-height:0;max-width:fit-content"><table id="tUserPlantAlloc" style="width:auto;font-size:12px;border-collapse:separate;border-spacing:0;border:1.5px solid rgba(30,41,59,.5);table-layout:auto">
           <thead><tr>
             <th class="upaSortable" data-col="username" onclick="_upaSort('username')" style="white-space:normal;padding:11px 12px;cursor:pointer;user-select:none;line-height:1.35;border:1.5px solid rgba(30,41,59,.5);background:#99a0aa;color:#fff;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0;z-index:5">Username <span class="upaSortIco" data-col="username"></span></th>
             <th class="upaSortable" data-col="fullName" onclick="_upaSort('fullName')" style="white-space:normal;padding:11px 12px;cursor:pointer;user-select:none;line-height:1.35;border:1.5px solid rgba(30,41,59,.5);background:#99a0aa;color:#fff;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0;z-index:5">Full Name <span class="upaSortIco" data-col="fullName"></span></th>
@@ -1352,8 +1359,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260516-V66"></script>
-<script src="js/vms-logic.js?v=260516-V66"></script>
-<script src="js/vms-ui.js?v=260516-V66"></script>
+<script src="js/common.js?v=260516-V154"></script>
+<script src="js/vms-logic.js?v=260516-V154"></script>
+<script src="js/vms-ui.js?v=260516-V154"></script>
 </body>
 </html>

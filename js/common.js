@@ -375,41 +375,53 @@ function _toRow(tbl, rec) {
     primary_names:r.primaryNames||[],
     inactive:!!r.inactive
   };
-  if(tbl==='mttsAssets') return {
-    code:r.id,
-    // Text codes — kept until Phase 3 drops them; the id columns are now
-    // the source of truth (FK-enforced) but JS still keeps both in sync.
-    plant:r.plant||'',asset_type:r.assetType||'',primary_name:r.primaryName||'',
-    plant_id:r.plantId||null,asset_type_id:r.assetTypeId||null,primary_name_id:r.primaryNameId||null,
-    name_extension:r.nameExtension||'',
-    name:r.name||'',
-    description:r.description||'',serial_no:r.serialNo||'',
-    // Postgres date / timestamptz columns reject empty strings — coalesce
-    // to null so an unset field saves cleanly. Asset install_date defaults
-    // to 2020-01-01 (per spec) when neither persisted nor entered.
-    install_date:r.installDate||'2020-01-01',
-    make:r.make||'',model:r.model||'',
-    warranty:r.warranty||{},amc:r.amc||{},
-    criticality:r.criticality||'Medium',
-    status:r.status||'Active',transfer_history:r.transferHistory||[]
-  };
-  if(tbl==='mttsTickets') return {
-    code:r.id,
-    asset_code:r.assetCode||'',plant:r.plant||'',
-    asset_id:r.assetId||null,plant_id:r.plantId||null,
-    breakdown_type:r.breakdownType||'',
-    breakdown_since:r.breakdownSince||null,
-    status:r.status||'open',raised_by:r.raisedBy||'',
-    // timestamptz columns: null for unset values (empty string fails the
-    // Postgres parser).
-    raised_at:r.raisedAt||null,
-    photos_raise:r.photosRaise||[],assigned_to:r.assignedTo||[],
-    assigned_at:r.assignedAt||null,assigned_by:r.assignedBy||'',
-    tech_actions:r.techActions||[],close_photos:r.closePhotos||[],root_cause:r.rootCause||'',
-    cost_service:r.costService||0,cost_spares:r.costSpares||0,
-    invoice_photos:r.invoicePhotos||[],approved_by:r.approvedBy||'',
-    approved_at:r.approvedAt||null
-  };
+  if(tbl==='mttsAssets'){
+    // V38 — Build the row dynamically so transfer_history is OMITTED when
+    // the in-memory record didn't carry it (boot strips this column for
+    // perf; loaded lazily by _mttsLoadAssetHistory). Sending the key with
+    // an empty array would wipe the saved history.
+    var _aRow={
+      code:r.id,
+      plant:r.plant||'',asset_type:r.assetType||'',primary_name:r.primaryName||'',
+      plant_id:r.plantId||null,asset_type_id:r.assetTypeId||null,primary_name_id:r.primaryNameId||null,
+      name_extension:r.nameExtension||'',
+      name:r.name||'',
+      description:r.description||'',serial_no:r.serialNo||'',
+      install_date:r.installDate||'2020-01-01',
+      make:r.make||'',model:r.model||'',
+      warranty:r.warranty||{},amc:r.amc||{},
+      criticality:r.criticality||'Medium',
+      status:r.status||'Active'
+    };
+    if(r.transferHistory!==undefined) _aRow.transfer_history=r.transferHistory;
+    return _aRow;
+  }
+  if(tbl==='mttsTickets'){
+    // V38 — Build the row dynamically so photo arrays are OMITTED when the
+    // in-memory record didn't carry them (boot strips these columns for
+    // perf; loaded lazily by _mttsLoadTicketPhotos). Sending an empty
+    // array for a stripped column would silently wipe the saved photos.
+    var _tRow={
+      code:r.id,
+      asset_code:r.assetCode||'',plant:r.plant||'',
+      asset_id:r.assetId||null,plant_id:r.plantId||null,
+      breakdown_type:r.breakdownType||'',
+      breakdown_since:r.breakdownSince||null,
+      status:r.status||'open',raised_by:r.raisedBy||'',
+      raised_at:r.raisedAt||null,
+      assigned_to:r.assignedTo||[],
+      assigned_at:r.assignedAt||null,assigned_by:r.assignedBy||'',
+      tech_actions:r.techActions||[],
+      root_cause:r.rootCause||'',
+      cost_service:r.costService||0,cost_spares:r.costSpares||0,
+      approved_by:r.approvedBy||'',
+      approved_at:r.approvedAt||null
+    };
+    if(r.photosRaise!==undefined)   _tRow.photos_raise=r.photosRaise;
+    if(r.closePhotos!==undefined)   _tRow.close_photos=r.closePhotos;
+    if(r.invoicePhotos!==undefined) _tRow.invoice_photos=r.invoicePhotos;
+    return _tRow;
+  }
   return null;
 }
 
@@ -511,20 +523,67 @@ function _fromRow(tbl, row) {
     installDate:row.install_date||'2020-01-01',make:row.make||'',model:row.model||'',
     warranty:row.warranty||{},amc:row.amc||{},
     criticality:row.criticality||'Medium',
-    status:row.status||'Active',transferHistory:row.transfer_history||[]
+    status:row.status||'Active',
+    // V38 — `undefined` (not `[]`) when the column wasn't in the select so
+    // _toRow can omit it on save instead of wiping the DB value.
+    transferHistory:('transfer_history' in row)?(row.transfer_history||[]):undefined
   };
-  if(tbl==='mttsTickets') return {
-    id:row.code,_dbId:row.id,
-    assetCode:row.asset_code||'',plant:row.plant||'',
-    assetId:row.asset_id||null,plantId:row.plant_id||null,
-    breakdownType:row.breakdown_type||'',breakdownSince:row.breakdown_since||'',
-    status:row.status||'open',
-    raisedBy:row.raised_by||'',raisedAt:row.raised_at||'',photosRaise:row.photos_raise||[],
-    assignedTo:row.assigned_to||[],assignedAt:row.assigned_at||'',assignedBy:row.assigned_by||'',
-    techActions:row.tech_actions||[],closePhotos:row.close_photos||[],rootCause:row.root_cause||'',
-    costService:row.cost_service||0,costSpares:row.cost_spares||0,
-    invoicePhotos:row.invoice_photos||[],approvedBy:row.approved_by||'',approvedAt:row.approved_at||''
-  };
+  if(tbl==='mttsTickets'){
+    var _trec={
+      id:row.code,_dbId:row.id,
+      assetCode:row.asset_code||'',plant:row.plant||'',
+      assetId:row.asset_id||null,plantId:row.plant_id||null,
+      breakdownType:row.breakdown_type||'',breakdownSince:row.breakdown_since||'',
+      status:row.status||'open',
+      raisedBy:row.raised_by||'',raisedAt:row.raised_at||'',
+      assignedTo:row.assigned_to||[],assignedAt:row.assigned_at||'',assignedBy:row.assigned_by||'',
+      techActions:row.tech_actions||[],rootCause:row.root_cause||'',
+      costService:row.cost_service||0,costSpares:row.cost_spares||0,
+      approvedBy:row.approved_by||'',approvedAt:row.approved_at||'',
+      // V38 — `undefined` (not `[]`) when the column wasn't in the select so
+      // saving an unloaded ticket doesn't wipe its photos from the DB.
+      photosRaise:('photos_raise' in row)?(row.photos_raise||[]):undefined,
+      closePhotos:('close_photos' in row)?(row.close_photos||[]):undefined,
+      invoicePhotos:('invoice_photos' in row)?(row.invoice_photos||[]):undefined
+    };
+    // V124 — Derive per-lifecycle flags from techActions instead of storing
+    // them on dedicated columns (no schema migration needed). The save path
+    // already persists techActions verbatim, so a 'raiser_confirmed' entry
+    // round-trips and we rebuild the flag here. Confirm wins only if it
+    // came AFTER the latest repair_done / challenge / reassign / reallocate
+    // / assigned — i.e., no later reset action overrode it.
+    var _acts=Array.isArray(_trec.techActions)?_trec.techActions:[];
+    var _iConfirm=-1, _iReset=-1, _iWip=-1, _iChallenge=-1;
+    for(var _i=0;_i<_acts.length;_i++){
+      var _a=_acts[_i]; if(!_a) continue;
+      var _act=_a.action;
+      if(_act==='raiser_confirmed') _iConfirm=_i;
+      else if(_act==='repair_done'||_act==='reallocated'||_act==='reassigned'||_act==='assigned') _iReset=_i;
+      if(_act==='repair_done_challenged'){ _iReset=_i; _iChallenge=_i; }
+      if(_act==='work_in_progress') _iWip=_i;
+    }
+    if(_iConfirm>=0 && _iConfirm>_iReset){
+      _trec.confirmedByRaiser=true;
+      _trec.confirmedAt=_acts[_iConfirm].at||'';
+      _trec.confirmedBy=_acts[_iConfirm].by||'';
+    } else {
+      _trec.confirmedByRaiser=false;
+      _trec.confirmedAt='';
+      _trec.confirmedBy='';
+    }
+    if(_iChallenge>=0){
+      var _ch=_acts[_iChallenge]||{};
+      _trec.challengedReason=_ch.note||'';
+      _trec.challengedAt=_ch.at||'';
+      _trec.challengedBy=_ch.by||'';
+    }
+    if(_iWip>=0){
+      var _w=_acts[_iWip]||{};
+      _trec.startedAt=_w.at||'';
+      _trec.startedBy=_w.by||'';
+    }
+    return _trec;
+  }
   return null;
 }
 
@@ -851,7 +910,15 @@ function _rtApply(tbl, action, row){
     if(!rec) return;
     if(!DB[tbl]) DB[tbl]=[];
     const idx = DB[tbl].findIndex(r=>r.id===rec.id);
+    const _wasNew = idx < 0;
     if(idx>=0){ DB[tbl][idx]=rec; } else { DB[tbl].push(rec); }
+    // V38 — Toast on a newly-inserted MTTS ticket from any other user, so
+    // the MM / techs see TR raises within seconds (and the visible card /
+    // table list will repaint via _rtRefreshFor below). Skip echoes of
+    // the current user's own raise.
+    if(_wasNew && tbl==='mttsTickets' && CU && rec.raisedBy && rec.raisedBy!==(CU.name||CU.id)){
+      try{ if(typeof notify==='function') notify('🔔 New ticket raised: '+rec.id); }catch(e){}
+    }
     // ── Sync CU when current user's record is updated via Realtime ──
     if(tbl==='users' && CU && rec.id===CU.id){
       Object.assign(CU,{fullName:rec.fullName,name:rec.name,mobile:rec.mobile,email:rec.email,photo:rec.photo,roles:rec.roles,plant:rec.plant,apps:rec.apps,inactive:rec.inactive});
@@ -927,6 +994,15 @@ function _rtRefreshFor(tbl){
       // ── HRMS employee changes (ECR approvals, edits) ──
       // Refresh badge always; refresh whichever HRMS view is currently active
       // so other users see ECR approvals/rejections without a manual refresh.
+      // V38 — MTTS tickets realtime hook. When an INSERT/UPDATE/DELETE on
+      // mtts_tickets lands, repaint the tickets card / table list AND the
+      // sidebar badge so other users see new raises within seconds.
+      if(tbl==='mttsTickets'){
+        _try(()=>{ if(typeof _mttsUpdateTicketBadge==='function') _mttsUpdateTicketBadge(); });
+        if(pid==='pageMttsTickets'){
+          _try(()=>{ if(typeof _mttsRenderTickets==='function') _mttsRenderTickets(); });
+        }
+      }
       if(tbl==='hrmsEmployees'){
         _try(()=>{ if(typeof _hrmsUpdateChangeReqBadge==='function') _hrmsUpdateChangeReqBadge(); });
         _try(()=>{ if(typeof _hrmsUpdateMyApprovalsBadge==='function') _hrmsUpdateMyApprovalsBadge(); });
@@ -1596,6 +1672,7 @@ function _isInvalidSessionErr(err){
 //     so behaviour degrades gracefully.
 var _kapKeepAliveTimer=null;
 var _kapKeepAliveBusy=false;
+var _kapLastPingAt=0;
 async function _kapSessionPing(){
   if(_kapKeepAliveBusy) return;
   _kapKeepAliveBusy=true;
@@ -1612,18 +1689,35 @@ async function _kapSessionPing(){
     // (which extends the server-side session TTL) instead of returning
     // immediately from the localStorage cache.
     await _authVerifySession(u,t,true);
+    _kapLastPingAt=Date.now();
   }catch(_){/* ignore — failure is handled by real RPCs */}
   _kapKeepAliveBusy=false;
 }
 function _kapStartSessionKeepAlive(){
   if(_kapKeepAliveTimer) return;
-  _kapKeepAliveTimer=setInterval(_kapSessionPing, 5*60*1000);
-  // Visibility hook — ping the moment the tab regains focus so an idle
-  // tab doesn't surface a stale-token modal on the user's next click.
+  // V38 — interval cut from 5 min → 2 min. Typical Supabase session TTL is
+  // ~15 min; pinging every 2 min keeps the token refreshed even if a tab
+  // briefly missed a tick (sleep / app switch).
+  _kapKeepAliveTimer=setInterval(_kapSessionPing, 2*60*1000);
   try{
     document.addEventListener('visibilitychange',function(){
       if(!document.hidden) _kapSessionPing();
     });
+  }catch(_){}
+  // V38 — Interaction-driven pre-check: throttled to once per 30s. If the
+  // user comes back to a long-idle tab and clicks/types, this fires a
+  // ping immediately so the very next RPC sees a fresh session. The
+  // 30s throttle keeps it cheap during active use.
+  try{
+    var _kickPing=function(){
+      var now=Date.now();
+      if(now-_kapLastPingAt<30000) return; // throttled
+      _kapLastPingAt=now; // optimistically claim the slot
+      _kapSessionPing();
+    };
+    document.addEventListener('mousedown',_kickPing,true);
+    document.addEventListener('keydown',_kickPing,true);
+    document.addEventListener('touchstart',_kickPing,{passive:true,capture:true});
   }catch(_){}
   // Eager first ping. Runs in the background (await chain inside the
   // function handles the Supabase init wait), so it doesn't delay the
@@ -1944,7 +2038,15 @@ async function _dbDel(tbl, id){
 
 // ═══ BOOT DB ══════════════════════════════════════════════════════════════
 async function bootDB(){
-  showSpinner('Connecting to database…');
+  // V38 — When the app's #dbSplash overlay is already on-screen, suppress the
+  // global spinner: both display the same "Connecting to database…" message
+  // and stacking them produces two simultaneous indicators on a blank
+  // screen. The splash already covers the viewport and bootDB updates
+  // splashMsg with the same text below.
+  var _splashEl=document.getElementById('dbSplash');
+  var _splashVisible=!!(_splashEl && _splashEl.style.display && _splashEl.style.display!=='none');
+  var _ownSpinner=!_splashVisible;
+  if(_ownSpinner) showSpinner('Connecting to database…');
   try{
   _getActiveTables().forEach(k => DB[k] = []);
 
@@ -2111,12 +2213,16 @@ async function bootDB(){
   _sbSetStatus('offline', 'Offline');
   if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
   _startBgReconnect();
-  }finally{ hideSpinner(); }
+  }finally{ if(_ownSpinner) hideSpinner(); }
 }
 
 // Background sync: fetch hot tables FIRST (fast), then cold tables
 var _bgSyncDone=false;
-var _HOT_TABLES=['trips','segments','spotTrips','hrmsEmployees'];
+// V38 — mttsTickets added to hot tables so MTTS gets the same realtime
+// push + 60s polling treatment as VMS trips/segments. Before this, MTTS
+// tickets only refreshed on the 10-minute full sync — TR raises wouldn't
+// surface on the MM's screen until the user manually refreshed.
+var _HOT_TABLES=['trips','segments','spotTrips','hrmsEmployees','mttsTickets'];
 function _getHotTables(){
   var active=_getActiveTables();
   return _HOT_TABLES.filter(function(t){return active.indexOf(t)>=0;});
@@ -3977,7 +4083,11 @@ async function _downloadFolderZip(items, zipName){
     files[it.name]=new Uint8Array(await it.blob.arrayBuffer());
   }
   var zipBlob=_buildZipBlob(files,'application/zip');
-  _triggerDownload(zipBlob, zipName||'Folder.zip');
+  // V38 — Pass zipName=null to skip the download and just return the blob
+  // (used by the Send-Email flow to attach the same ZIP the export button
+  // would download).
+  if(zipName!==null) _triggerDownload(zipBlob, zipName||'Folder.zip');
+  return zipBlob;
 }
 
 

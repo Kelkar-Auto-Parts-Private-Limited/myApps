@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-<meta name="app-build" content="260516-V66">
+<meta name="app-build" content="260516-V154">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260516-V66">
+<link rel="stylesheet" href="css/hrms.css?v=260516-V154">
 </head>
 <body>
 
@@ -957,6 +957,7 @@
           </div>
           <button class="hrms-allow-locked" onclick="_hrmsOrSalExport('all')" id="hrmsSalExportBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
           <button class="hrms-allow-locked" onclick="_hrmsWorkerSalarySlip()" id="hrmsWorkerSlipBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:6px;cursor:pointer">🧾 Worker's Salary Slip</button>
+          <button class="hrms-allow-locked" onclick="_hrmsOpenSlipEmail()" id="hrmsWorkerSlipEmailBtn" style="display:none;padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:6px;cursor:pointer">✉ Send Email</button>
         </div>
         <div id="hrmsSalGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -970,6 +971,7 @@
           <div class="hrms-pay-tab" id="hrmsPayTabNeft" onclick="_hrmsPayTab('neft')" style="padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3)">NEFT</div>
           <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
             <button class="hrms-allow-locked" onclick="_hrmsPayExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export</button>
+            <button class="hrms-allow-locked" onclick="_hrmsOpenEmailReport('payment')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:6px;cursor:pointer">✉ Send Email</button>
           </div>
         </div>
         <div id="hrmsPayGrid" style="overflow:auto;flex:1"></div>
@@ -1000,7 +1002,7 @@
             <div id="ac_hrmsContractEmpSearch" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:280px;overflow-y:auto;background:#fff;border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10000;margin-top:2px"></div>
           </div>
           <div id="hrmsContractTeamFilter" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-          <div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export Excel</button></div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:6px"><button class="hrms-allow-locked" onclick="_hrmsContractExport()" id="hrmsContractExportBtn" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">📤 Export Excel</button><button class="hrms-allow-locked" onclick="_hrmsOpenEmailReport('contract')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:6px;cursor:pointer">✉ Send Email</button></div>
         </div>
         <div id="hrmsContractGrid" style="overflow:auto;flex:1"></div>
       </div>
@@ -1018,6 +1020,29 @@
 <div class="modal-overlay" id="mHrmsEmpEdit" data-confirm-close="true" style="z-index:800"><div class="modal" style="max-width:1500px;width:96vw;height:92vh;display:flex;flex-direction:column;padding:0;position:relative">
   <button onclick="_hrmsEmpClose()" title="Close (Esc)" style="position:absolute;top:8px;right:10px;background:transparent;border:1.5px solid var(--border);width:30px;height:30px;font-size:18px;color:var(--text2);cursor:pointer;line-height:1;border-radius:50%;font-weight:800;z-index:30;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='#fee2e2';this.style.color='#dc2626';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='transparent';this.style.color='var(--text2)';this.style.borderColor='var(--border)'">✕</button>
   <div id="hrmsEmpModalContent" style="overflow:auto;padding:16px 20px;flex:1"></div>
+</div></div>
+
+<!-- SEND SALARY SLIP EMAIL MODAL (V38) -->
+<div class="modal-overlay" id="mHrmsSlipEmail"><div class="modal" style="max-width:520px;width:96vw">
+  <div class="modal-header"><div class="modal-title">✉ Email Worker's Salary Slip</div><div class="modal-close" onclick="cm('mHrmsSlipEmail')">×</div></div>
+  <div style="padding:6px 0 14px;font-size:12px;color:var(--text3)">Generates the same PDF as the <strong>Worker's Salary Slip</strong> button and emails it from <code style="font-family:var(--mono);background:var(--surface2);padding:1px 6px;border-radius:4px">noreply@kelkarauto.com</code>. Subject, To and CC are remembered for next time.</div>
+  <div class="form-group" style="margin-bottom:10px">
+    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px">SUBJECT</label>
+    <input type="text" id="hrmsSlipEmailSubject" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box">
+  </div>
+  <div class="form-group" style="margin-bottom:10px">
+    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px">TO <span style="color:var(--text3);font-weight:400">(comma-separated for multiple)</span></label>
+    <input type="text" id="hrmsSlipEmailTo" placeholder="name@example.com, name2@example.com" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;font-family:var(--mono)">
+  </div>
+  <div class="form-group" style="margin-bottom:10px">
+    <label style="display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:3px">CC <span style="color:var(--text3);font-weight:400">(optional, comma-separated)</span></label>
+    <input type="text" id="hrmsSlipEmailCc" placeholder="name@example.com" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;box-sizing:border-box;font-family:var(--mono)">
+  </div>
+  <div id="hrmsSlipEmailStatus" style="display:none;font-size:12px;font-weight:700;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="cm('mHrmsSlipEmail')">Cancel</button>
+    <button id="hrmsSlipEmailSendBtn" class="btn btn-primary" onclick="_hrmsSendSlipEmail()">✉ Send Email</button>
+  </div>
 </div></div>
 
 <!-- MONTH PICKER MODAL -->
@@ -1227,8 +1252,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260516-V66"></script>
-<script src="js/hrms-logic.js?v=260516-V66"></script>
-<script src="js/hrms-ui.js?v=260516-V66"></script>
+<script src="js/common.js?v=260516-V154"></script>
+<script src="js/hrms-logic.js?v=260516-V154"></script>
+<script src="js/hrms-ui.js?v=260516-V154"></script>
 </body>
 </html>

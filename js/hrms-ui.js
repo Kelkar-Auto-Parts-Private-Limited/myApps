@@ -27364,7 +27364,21 @@ function _hrmsPayExport(){
   if(!Object.keys(details).length){notify('No salary data. Open Salary tab first.',true);return;}
   _hrmsPayDatePrompt(function(payDate){_hrmsPayExportGen(payDate);});
 }
-function _hrmsPayExportGen(payDate){
+// V38 — Promise-returning variant so the email flow can await a blob.
+function _hrmsPayExportPromise(){
+  return new Promise(function(resolve){
+    if(!_hrmsHasAccess('action.exportPayments')){notify('Access denied',true);return resolve(null);}
+    var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return resolve(null);}
+    var details=window._hrmsSalDetails||{};
+    if(!Object.keys(details).length){notify('No salary data. Open Salary tab first.',true);return resolve(null);}
+    _hrmsPayDatePrompt(function(payDate){
+      var out=_hrmsPayExportGen(payDate,{returnBlob:true});
+      resolve(out);
+    });
+  });
+}
+function _hrmsPayExportGen(payDate,opts){
+  opts=opts||{};
   var mk=_hrmsMonth;
   var details=window._hrmsSalDetails||{};
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
@@ -27470,9 +27484,13 @@ function _hrmsPayExportGen(payDate){
   var allSheets=[{name:'Cosmos',data:cosData,stripeStart:4,stripeCount:cosN,borderStart:3,borderCount:cosN+2,noFilter:true,noFreeze:true,merges:cosMerges,
     colWidths:[5,35,23,13],printTitleRow:[0,3]}];
   allSheets=allSheets.concat(neftSheets);
-  _downloadMultiSheetXlsx(allSheets,'Cosmos_Salary_'+_mn[+p[1]]+'_'+p[0].slice(2)+'.xlsx');
+  var _payFname='Cosmos_Salary_'+_mn[+p[1]]+'_'+p[0].slice(2)+'.xlsx';
+  if(opts.returnBlob){
+    var _blob=_downloadMultiSheetXlsx(allSheets,null);
+    return {blob:_blob, filename:_payFname, mk:_hrmsMonth, rowCount:cosmosRows.length+neftRows.length};
+  }
+  _downloadMultiSheetXlsx(allSheets,_payFname);
   notify('📤 Exported Cosmos ('+cosmosRows.length+') + NEFT ('+neftRows.length+', '+neftSheets.length+' sheet'+(neftSheets.length!==1?'s':'')+')');
-
 }
 
 // ═══ ESI/PF LIST TAB ═════════════════════════════════════════════════════
@@ -27684,7 +27702,7 @@ function _hrmsRenderEsiPfList(){
   var _tdEsi=_td+';'+_bgEsi;
   // Header + summary block — natural height, sits above the scrollable table wrapper. Drops position:sticky since the table wrapper below scrolls independently inside the flex-column panel.
   var h='<div style="background:#fff;padding-bottom:8px;flex-shrink:0">';
-  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:13px;font-weight:800;color:var(--text)">ESI / PF List \u2014 '+monthLabel+' ('+rows.length+' employees)</div><div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsEsiPfExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div></div>';
+  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:13px;font-weight:800;color:var(--text)">ESI / PF List \u2014 '+monthLabel+' ('+rows.length+' employees)</div><div style="margin-left:auto;display:flex;gap:6px"><button class="hrms-allow-locked" onclick="_hrmsEsiPfExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button><button class="hrms-allow-locked" onclick="_hrmsOpenEmailReport(\'esipf\')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:6px;cursor:pointer">\u2709 Send Email</button></div></div>';
   // Summary — two side-by-side cards
   h+='<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">';
   // PF card
@@ -27767,10 +27785,11 @@ function _hrmsRenderEsiPfList(){
   window._hrmsEsiPfRows=rows;
 }
 
-function _hrmsEsiPfExport(){
-  if(!_hrmsHasAccess('action.exportEsiPf')){notify('Access denied',true);return;}
+function _hrmsEsiPfExport(opts){
+  opts=opts||{};
+  if(!_hrmsHasAccess('action.exportEsiPf')){notify('Access denied',true);return null;}
   var rows=window._hrmsEsiPfRows;
-  if(!rows||!rows.length){notify('No ESI/PF data. Open the tab first.',true);return;}
+  if(!rows||!rows.length){notify('No ESI/PF data. Open the tab first.',true);return null;}
   var mk=_hrmsMonth||'';
   var headers=['Sr.','Name','Name','UAN No.','ESI No.','PF No.','Gross Salary','Payable Days (P+PH)','Basic + DA (PF) Capped','Basic + DA (ESI)','ESI @ '+(_hrmsStatutory.esiWorker||0.75)+'%','PF @ '+(_hrmsStatutory.pfWorker||12)+'%'];
   var out=[headers];
@@ -27787,10 +27806,16 @@ function _hrmsEsiPfExport(){
   out.push({bold:true,cells:['','','','','','Total',{_n:tot.gross},tot.payableDays,{_n:tot.basicDA},
     _anyEsi?{_n:tot.basicDaEsi}:'',
     {_n:tot.esi},{_n:tot.pf}]});
-  _downloadMultiSheetXlsx([{name:'ESI PF List',data:out,stripeStart:1,stripeCount:rows.length,borderStart:0,borderCount:rows.length+2,
+  var _esiSheet=[{name:'ESI PF List',data:out,stripeStart:1,stripeCount:rows.length,borderStart:0,borderCount:rows.length+2,
     colWidths:[4,30,30,16,16,30,14,10,14,14,10,10],
-    rowHeights:{0:50}}],'ESI_PF_List_'+mk+'.xlsx');
+    rowHeights:{0:50}}];
+  var _esiFname='ESI_PF_List_'+mk+'.xlsx';
+  if(opts.returnBlob){
+    return {blob:_downloadMultiSheetXlsx(_esiSheet,null), filename:_esiFname, mk:mk, rowCount:rows.length};
+  }
+  _downloadMultiSheetXlsx(_esiSheet,_esiFname);
   notify('\ud83d\udce4 Exported ESI/PF list ('+rows.length+' employees)');
+  return null;
 }
 
 // ═══ PT DETAILS TAB ══════════════════════════════════════════════════════
@@ -27854,7 +27879,7 @@ function _hrmsRenderPtDetails(){
   var canExport=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportPt');
   var h='<div style="position:sticky;top:0;z-index:3;background:#fff;padding-bottom:8px">';
   h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="font-size:13px;font-weight:800;color:var(--text)">PT Details \u2014 '+monthLabel+' (On Roll)</div>';
-  if(canExport) h+='<div style="margin-left:auto"><button class="hrms-allow-locked" onclick="_hrmsPtExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button></div>';
+  if(canExport) h+='<div style="margin-left:auto;display:flex;gap:6px"><button class="hrms-allow-locked" onclick="_hrmsPtExport()" style="padding:6px 14px;font-size:12px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;border-radius:6px;cursor:pointer">\ud83d\udce4 Export</button><button class="hrms-allow-locked" onclick="_hrmsOpenEmailReport(\'pt\')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#fef3c7;border:1.5px solid #fcd34d;color:#92400e;border-radius:6px;cursor:pointer">\u2709 Send Email</button></div>';
   h+='</div>';
   // Rules-applied summary — all configured rules, plus a tail row for
   // employees who didn't match any rule (only shown if count > 0 since the
@@ -27916,12 +27941,16 @@ function _hrmsRenderPtDetails(){
 // header restates on every record. Uses jsPDF + AutoTable (already loaded
 // in hrms.html). Scoped to On Roll Worker category, matching the business
 // need for monthly wage reconciliation that only wage workers require.
-function _hrmsWorkerSalarySlip(){
-  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportWorkerSlip')){notify('Access denied',true);return;}
-  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+function _hrmsWorkerSalarySlip(opts){
+  // V38 — Optional opts.returnBlob: skip the auto-download and return
+  // {blob, filename, mk, rowCount} so the Send-Email flow can attach the
+  // same PDF the download button would produce.
+  opts=opts||{};
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportWorkerSlip')){notify('Access denied',true);return null;}
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return null;}
   var details=window._hrmsSalDetails||{};
-  if(!Object.keys(details).length){notify('No salary data. Open Salary tab first.',true);return;}
-  if(!window.jspdf||!window.jspdf.jsPDF){notify('PDF library not loaded',true);return;}
+  if(!Object.keys(details).length){notify('No salary data. Open Salary tab first.',true);return null;}
+  if(!window.jspdf||!window.jspdf.jsPDF){notify('PDF library not loaded',true);return null;}
   var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var p=mk.split('-');var mo=+p[1];var monthLabel=_mn[mo]+'-'+p[0].slice(2);// e.g. "Mar-26"
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
@@ -28070,8 +28099,13 @@ function _hrmsWorkerSalarySlip(){
   // open the PDF inline in a new tab \u2014 some Chrome / Edge configs
   // default to in-tab PDF preview when doc.save() is used.
   var _slipFname="Workers_Salary_Slip_"+mk+".pdf";
+  var _blob=null;
+  try{ _blob=doc.output('blob'); }catch(_e){}
+  if(opts.returnBlob){
+    // Email flow \u2014 caller will attach the PDF.
+    return {blob:_blob, filename:_slipFname, mk:mk, rowCount:rows.length};
+  }
   try{
-    var _blob=doc.output('blob');
     var _url=URL.createObjectURL(_blob);
     var _a=document.createElement('a');
     _a.href=_url; _a.download=_slipFname;
@@ -28083,12 +28117,190 @@ function _hrmsWorkerSalarySlip(){
     doc.save(_slipFname);
   }
   notify("\ud83d\udcc4 Worker's Salary Slip generated ("+rows.length+' workers)');
+  return null;
 }
 
-function _hrmsPtExport(){
-  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportPt')){notify('Access denied',true);return;}
+// \u2550\u2550\u2550 V38 \u2014 Generic HRMS report email pipeline \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// One modal (#mHrmsSlipEmail) drives all "email me this export" buttons.
+// A small per-report config supplies the subject template, settings key,
+// permission check, and the buildBlob() function. Defaults persist
+// company-wide in hrmsSettings keyed per-report so each tab remembers
+// its own subject/to/cc independently.
+var _hrmsEmailReports = {
+  workerSlip: {
+    title: "Worker's Salary Slip",
+    settingsKey: 'emailDefaultsWorkerSlip',
+    permKey: 'action.exportWorkerSlip',
+    defaultSubject: "Worker's Salary Slip \u2014 {month}",
+    bodyTemplate: function(meta){ return 'Please find attached the Worker\'s Salary Slip for <strong>'+meta.mk+'</strong> ('+meta.rowCount+' workers).'; },
+    buildBlob: function(){ return _hrmsWorkerSalarySlip({returnBlob:true}); }
+  },
+  payment: {
+    title: 'KAP Salary Payment (Cosmos + NEFT)',
+    settingsKey: 'emailDefaultsPayment',
+    permKey: 'action.exportPayments',
+    defaultSubject: 'KAP Salary Payment \u2014 {month}',
+    bodyTemplate: function(meta){ return 'Please find attached the Cosmos + NEFT salary payment file for <strong>'+meta.mk+'</strong>.'; },
+    buildBlob: function(){ return _hrmsPayExportPromise(); }
+  },
+  esipf: {
+    title: 'KAP ESI / PF List',
+    settingsKey: 'emailDefaultsEsiPf',
+    permKey: 'action.exportEsiPf',
+    defaultSubject: 'KAP ESI / PF List \u2014 {month}',
+    bodyTemplate: function(meta){ return 'Please find attached the ESI / PF list for <strong>'+meta.mk+'</strong> ('+meta.rowCount+' employees).'; },
+    buildBlob: function(){ return _hrmsEsiPfExport({returnBlob:true}); }
+  },
+  pt: {
+    title: 'KAP PT Summary',
+    settingsKey: 'emailDefaultsPt',
+    permKey: 'action.exportPt',
+    defaultSubject: 'KAP PT Summary \u2014 {month}',
+    bodyTemplate: function(meta){ return 'Please find attached the PT summary for <strong>'+meta.mk+'</strong>.'; },
+    buildBlob: function(){ return _hrmsPtExport({returnBlob:true}); }
+  },
+  contract: {
+    title: 'Contract Salary',
+    settingsKey: 'emailDefaultsContract',
+    permKey: 'action.exportContract',
+    defaultSubject: 'Contract Salary \u2014 {month}',
+    bodyTemplate: function(meta){ return 'Please find attached the contract salary export for <strong>'+meta.mk+'</strong> ('+meta.rowCount+' employees).'; },
+    buildBlob: function(){ return _hrmsContractExport({returnBlob:true}); }
+  }
+};
+var _hrmsEmailCurrentReport = null;
+
+function _hrmsEmailDefaults(settingsKey, defaultSubject){
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key===settingsKey;});
+  return (rec&&rec.data)||{subject:defaultSubject,to:'',cc:''};
+}
+function _hrmsOpenEmailReport(reportKey){
+  var cfg=_hrmsEmailReports[reportKey];
+  if(!cfg){notify('Unknown report: '+reportKey,true);return;}
+  if(cfg.permKey && typeof _hrmsHasAccess==='function' && !_hrmsHasAccess(cfg.permKey)){notify('Access denied',true);return;}
+  if(!_hrmsMonth){notify('Select a month first',true);return;}
+  _hrmsEmailCurrentReport=reportKey;
+  var d=_hrmsEmailDefaults(cfg.settingsKey, cfg.defaultSubject);
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p=_hrmsMonth.split('-');var monLabel=_mn[+p[1]]+'-'+p[0].slice(2);
+  var subj=(d.subject||cfg.defaultSubject).replace(/\{month\}/g,monLabel);
+  document.getElementById('hrmsSlipEmailSubject').value=subj;
+  document.getElementById('hrmsSlipEmailTo').value=d.to||'';
+  document.getElementById('hrmsSlipEmailCc').value=d.cc||'';
+  var titleEl=document.querySelector('#mHrmsSlipEmail .modal-title');
+  if(titleEl) titleEl.textContent='\u2709 Email '+cfg.title;
+  var st=document.getElementById('hrmsSlipEmailStatus');
+  if(st){ st.style.display='none'; st.textContent=''; }
+  var btn=document.getElementById('hrmsSlipEmailSendBtn');
+  if(btn){ btn.disabled=false; btn.textContent='\u2709 Send Email'; }
+  om('mHrmsSlipEmail');
+}
+// Back-compat alias \u2014 keep existing Worker's Salary Slip button working.
+function _hrmsOpenSlipEmail(){ _hrmsOpenEmailReport('workerSlip'); }
+function _hrmsSlipEmailSetStatus(msg,kind){
+  var st=document.getElementById('hrmsSlipEmailStatus'); if(!st) return;
+  var bg=kind==='err'?'#fee2e2':(kind==='ok'?'#dcfce7':'#fef3c7');
+  var fg=kind==='err'?'#991b1b':(kind==='ok'?'#166534':'#92400e');
+  var br=kind==='err'?'#fca5a5':(kind==='ok'?'#86efac':'#fcd34d');
+  st.style.cssText='font-size:12px;font-weight:700;padding:6px 10px;border-radius:6px;margin-bottom:8px;background:'+bg+';color:'+fg+';border:1px solid '+br;
+  st.textContent=msg; st.style.display='block';
+}
+function _hrmsSplitEmails(s){
+  return String(s||'').split(/[,;\s]+/).map(function(x){return x.trim();}).filter(Boolean);
+}
+function _hrmsBlobToBase64(blob){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var s=String(fr.result||''); var i=s.indexOf(','); res(i>=0?s.slice(i+1):s);
+    };
+    fr.onerror=function(){rej(new Error('FileReader failed'));};
+    fr.readAsDataURL(blob);
+  });
+}
+async function _hrmsSendSlipEmail(){
+  var reportKey=_hrmsEmailCurrentReport||'workerSlip';
+  var cfg=_hrmsEmailReports[reportKey];
+  if(!cfg){ _hrmsSlipEmailSetStatus('Internal: unknown report.','err'); return; }
+  var sub=String(document.getElementById('hrmsSlipEmailSubject').value||'').trim();
+  var toRaw=String(document.getElementById('hrmsSlipEmailTo').value||'').trim();
+  var ccRaw=String(document.getElementById('hrmsSlipEmailCc').value||'').trim();
+  if(!sub){ _hrmsSlipEmailSetStatus('Subject is required.','err'); return; }
+  var toArr=_hrmsSplitEmails(toRaw); var ccArr=_hrmsSplitEmails(ccRaw);
+  if(!toArr.length){ _hrmsSlipEmailSetStatus('At least one To address is required.','err'); return; }
+  var _emailRe=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  var _bad=toArr.concat(ccArr).filter(function(e){return !_emailRe.test(e);});
+  if(_bad.length){ _hrmsSlipEmailSetStatus('Invalid address: '+_bad[0],'err'); return; }
+  var btn=document.getElementById('hrmsSlipEmailSendBtn');
+  if(btn){ btn.disabled=true; btn.textContent='\u23f3 Building file\u2026'; }
+  _hrmsSlipEmailSetStatus('Building '+cfg.title+'\u2026','info');
+  var built;
+  try{ built=await Promise.resolve(cfg.buildBlob()); }
+  catch(e){ _hrmsSlipEmailSetStatus('Build failed: '+(e&&e.message||e),'err'); if(btn){btn.disabled=false;btn.textContent='\u2709 Send Email';} return; }
+  if(!built||!built.blob){ _hrmsSlipEmailSetStatus('Build returned no data \u2014 cancelled?','err'); if(btn){btn.disabled=false;btn.textContent='\u2709 Send Email';} return; }
+  var b64;
+  try{ b64=await _hrmsBlobToBase64(built.blob); }
+  catch(e){ _hrmsSlipEmailSetStatus('Could not encode attachment: '+e.message,'err'); if(btn){btn.disabled=false;btn.textContent='\u2709 Send Email';} return; }
+  if(btn) btn.textContent='\u23f3 Sending\u2026';
+  _hrmsSlipEmailSetStatus('Sending email\u2026','info');
+  // Pick a sensible MIME type from the filename extension.
+  var _ext=String(built.filename||'').toLowerCase().split('.').pop();
+  var _mime= _ext==='pdf'?'application/pdf'
+           :_ext==='zip'?'application/zip'
+           :_ext==='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+           :_ext==='xls'?'application/vnd.ms-excel'
+           :'application/octet-stream';
+  // V38 \u2014 Edge Function call. Function name 'send-email' and payload shape
+  // below are the assumed standard. Adjust here if your tested function
+  // expects a different signature.
+  var payload={
+    from:'noreply@kelkarauto.com',
+    to:toArr,
+    cc:ccArr.length?ccArr:undefined,
+    subject:sub,
+    html:'<p>'+cfg.bodyTemplate(built)+'</p><p style="font-size:12px;color:#64748b;margin-top:16px">\u2014 Sent automatically from Kelkar HRMS. Do not reply.</p>',
+    attachments:[{
+      filename:built.filename,
+      content:b64,
+      contentType:_mime
+    }]
+  };
+  var _ok=false, _errMsg='';
+  try{
+    if(!_sb||!_sb.functions||typeof _sb.functions.invoke!=='function'){
+      throw new Error('Supabase functions client unavailable. Is the page connected to Supabase?');
+    }
+    var resp=await _sb.functions.invoke('send-email',{body:payload});
+    if(resp&&resp.error){ throw new Error(resp.error.message||String(resp.error)); }
+    _ok=true;
+  }catch(e){
+    _errMsg=e&&e.message||String(e);
+  }
+  if(!_ok){
+    _hrmsSlipEmailSetStatus('Send failed: '+_errMsg,'err');
+    if(btn){ btn.disabled=false; btn.textContent='\u2709 Send Email'; }
+    return;
+  }
+  // Persist defaults \u2014 store the subject with {month} substituted back so
+  // next month auto-substitutes correctly. Each report has its own row
+  // (cfg.settingsKey) so subject/to/cc are independent per tab.
+  var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var p2=(_hrmsMonth||'').split('-');var monLabel=_mn[+p2[1]||0]+'-'+(p2[0]||'').slice(2);
+  var subjForSave=monLabel?sub.split(monLabel).join('{month}'):sub;
+  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key===cfg.settingsKey;});
+  var row=rec?Object.assign({},rec):{id:'set_'+(typeof uid==='function'?uid():Date.now().toString(36)),key:cfg.settingsKey};
+  row.data={subject:subjForSave,to:toRaw,cc:ccRaw};
+  try{ await _dbSave('hrmsSettings',row); }catch(e){ /* persist failure is non-fatal */ }
+  _hrmsSlipEmailSetStatus('\u2713 Email sent to '+toArr.length+' recipient(s).','ok');
+  setTimeout(function(){ cm('mHrmsSlipEmail'); }, 1100);
+  notify('\u2709 '+cfg.title+' emailed.');
+}
+
+function _hrmsPtExport(opts){
+  opts=opts||{};
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.exportPt')){notify('Access denied',true);return null;}
   var agg=window._hrmsPtRuleAgg;
-  if(!agg){notify('No PT data. Open the tab first.',true);return;}
+  if(!agg){notify('No PT data. Open the tab first.',true);return null;}
   var noMatch=window._hrmsPtNoMatchAgg;
   var totals=window._hrmsPtTotals||{head:0,pt:0};
   var mk=_hrmsMonth||'';
@@ -28113,9 +28325,15 @@ function _hrmsPtExport(){
   agg.forEach(_row);
   if(noMatch&&noMatch.count>0) _row(noMatch);
   out.push({bold:true,cells:['','','','','Total',totals.head,{_n:_r(totals.pt)},'']});
-  _downloadMultiSheetXlsx([{name:'PT Details',data:out,stripeStart:1,stripeCount:agg.length+(noMatch&&noMatch.count>0?1:0),borderStart:0,borderCount:out.length,
-    colWidths:[4,22,10,8,12,12,14,30]}],'PT_Details_'+mk+'.xlsx');
+  var _ptSheet=[{name:'PT Details',data:out,stripeStart:1,stripeCount:agg.length+(noMatch&&noMatch.count>0?1:0),borderStart:0,borderCount:out.length,
+    colWidths:[4,22,10,8,12,12,14,30]}];
+  var _ptFname='PT_Details_'+mk+'.xlsx';
+  if(opts.returnBlob){
+    return {blob:_downloadMultiSheetXlsx(_ptSheet,null), filename:_ptFname, mk:mk, rowCount:agg.length};
+  }
+  _downloadMultiSheetXlsx(_ptSheet,_ptFname);
   notify('\ud83d\udce4 Exported PT details');
+  return null;
 }
 
 // ═══ AMOUNT IN WORDS (Indian: Lakhs/Crores) ═════════════════════════════
@@ -30335,11 +30553,12 @@ function _hrmsContractEmpSearchClear(){
   inp.focus();
 }
 
-async function _hrmsContractExport(){
-  if(!_hrmsHasAccess('action.exportContract')){notify('Access denied',true);return;}
-  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return;}
+async function _hrmsContractExport(opts){
+  opts=opts||{};
+  if(!_hrmsHasAccess('action.exportContract')){notify('Access denied',true);return null;}
+  var mk=_hrmsMonth;if(!mk){notify('Select a month first',true);return null;}
   var rows=_hrmsContractCache[mk]||[];
-  if(!rows.length){notify('No contract salary data to export',true);return;}
+  if(!rows.length){notify('No contract salary data to export',true);return null;}
   var headers=['Emp Code','Name','DOJ','Team','Plant','Role','Rate/Day','Sal/Month','P','OT','OT@S','PH','P+PH','A','Total OT','OT@1','For Present','For OT@1','Sp.Allow','Gross Salary','Basic + DA (PF) Capped','PF','Basic + DA (ESI)','ESI','Total Salary','Commission 8%','Total Bill','Diwali Bonus','CTC'];
   // Cell wrappers. _curr → Indian currency #,##,##0 ; _dec → fixed 1-decimal "0.0".
   // Empty values flow through as plain '' so the cell stays blank without
@@ -30473,8 +30692,14 @@ async function _hrmsContractExport(){
     items.push({name:folderName+'/'+_safeName(team)+'_'+monSuffix+'.xlsx',
       blob:_buildMultiSheetXlsxBlob([_sheetOpts(sheetName,built)])});
   });
-  await _downloadFolderZip(items, folderName+'.zip');
+  var _zipFname=folderName+'.zip';
+  if(opts.returnBlob){
+    var _zipBlob=await _downloadFolderZip(items, null);
+    return {blob:_zipBlob, filename:_zipFname, mk:mk, rowCount:rows.length};
+  }
+  await _downloadFolderZip(items, _zipFname);
   notify('📤 Exported contract salary ('+rows.length+' employees, '+(teamList.length+1)+' files)');
+  return null;
 }
 
 // ═══ CONTRACT SALARY — REFERENCE FILE COMPARE ════════════════════════════
@@ -31603,6 +31828,11 @@ function _hrmsRenderSavedSalary(yr,mo,catFilter){
       var _hasWorker=emps.some(function(it){return((it&&it.category)||(it&&it.d&&it.d.category)||'').toLowerCase()==='worker';});
       var _canSlip=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportWorkerSlip');
       _slipBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
+      // V38 — Mirror visibility on the Send-Email button. Same permission key
+      // and visibility rules as the slip download so a user can email what
+      // they're allowed to download.
+      var _emailBtn=document.getElementById('hrmsWorkerSlipEmailBtn');
+      if(_emailBtn) _emailBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
     }
   }
 }
@@ -31987,6 +32217,8 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
       var _hasWorker=emps.some(function(it){return(it.category||'').toLowerCase()==='worker';});
       var _canSlip=(typeof _hrmsHasAccess!=='function')||_hrmsHasAccess('action.exportWorkerSlip');
       _slipBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
+      var _emailBtn=document.getElementById('hrmsWorkerSlipEmailBtn');
+      if(_emailBtn) _emailBtn.style.display=(_hasWorker&&_canSlip)?'':'none';
     }
   }
   // Auto-save balances in background
