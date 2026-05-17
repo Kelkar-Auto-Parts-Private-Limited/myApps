@@ -351,6 +351,8 @@ function showPortal(){
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=canManageUsers?'':'none';
   var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isSuper||isHwmsAdmin)?'':'none';
   var psPerm=document.getElementById('psNavPermissions');if(psPerm)psPerm.style.display=isSuper?'':'none';
+  // V53 — Backup nav is Super-Admin only.
+  var psBk=document.getElementById('psNavBackup');if(psBk)psBk.style.display=isSuper?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
@@ -382,6 +384,7 @@ function showTab(tab){
   // than the CSS rule and would otherwise hide the chain.
   if(permSec) permSec.style.display=tab==='permissions'?'flex':'none';
   document.getElementById('dbStorageSection').style.display=tab==='dbstorage'?'block':'none';
+  var _bkSec=document.getElementById('backupSection');if(_bkSec)_bkSec.style.display=tab==='backup'?'block':'none';
   // Sidebar nav highlighting
   document.querySelectorAll('.ps-nav').forEach(n=>n.classList.remove('active'));
   var sn=document.getElementById('psNav'+tab.charAt(0).toUpperCase()+tab.slice(1));
@@ -399,6 +402,7 @@ function showTab(tab){
   if(tab==='users'&&!_canUsers){showTab('apps');return;}
   if(tab==='permissions'&&!_isSA){showTab('apps');return;}
   if(tab==='dbstorage'&&!_canDb){showTab('apps');return;}
+  if(tab==='backup'&&!_isSA){showTab('apps');return;}
   // Users tab AND permissions tab both use a viewport-locked, contained-
   // scroll layout. Body classes drive the CSS flex chain.
   document.body.classList.toggle('tab-users',tab==='users');
@@ -419,7 +423,8 @@ function showTab(tab){
     users:       {h:'👥 User Management',  s:'Manage users, app access and roles'},
     profile:     {h:'👤 My Profile',       s:'Update your account details'},
     permissions: {h:'🔐 Access Management', s:''},
-    dbstorage:   {h:'📊 DB Storage',       s:'Database tables and storage usage'}
+    dbstorage:   {h:'📊 DB Storage',       s:'Database tables and storage usage'},
+    backup:      {h:'💾 Backup',           s:'Download an Excel backup per app'}
   };
   var _th=_tabHeads[tab]||_tabHeads.apps;
   if(tab==='apps'){
@@ -435,6 +440,7 @@ function showTab(tab){
   if(tab==='profile') ppLoadProfile();
   if(tab==='permissions') renderPermissions();
   if(tab==='dbstorage') renderPortalDbStorage();
+  if(tab==='backup') renderPortalBackup();
 }
 
 // Title bar for Access Management is fixed at "🔐 Access Management" —
@@ -846,8 +852,21 @@ function renderAppGrid(){
   function _appsAllows(appId){
     if(isSuperAdmin) return true;
     if(!_userApps.length) return true; // no explicit restriction
-    return _userApps.indexOf(appId)>=0;
+    if(_userApps.indexOf(appId)>=0) return true;
+    // V2 — Module-admin role implies app access even when the user's
+    // explicit apps[] list doesn't include the app. Prevents an admin
+    // role from being silently shadowed by a stale apps-list entry.
+    if(appId==='maintenance' && (CU.mttsRoles||[]).some(function(r){return r==='MTTS Admin'||r==='Maintenance Manager';})) return true;
+    if(appId==='hrms' && (CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0) return true;
+    if(appId==='hwms' && (CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0) return true;
+    return false;
   }
+  // V4 — Diagnostic: log per-app visibility for the current user so we
+  // can see which gate is hiding the MTTS / other tiles.
+  try{
+    var _diag=PORTAL_APPS.map(function(a){return a.id+'(role='+_hasAnyRoleFor(a.id)+',apps='+_appsAllows(a.id)+')';}).join(' ');
+    console.log('[portal appGrid] user='+(CU&&CU.name)+' isSA='+isSuperAdmin+' mtts='+JSON.stringify(CU&&CU.mttsRoles||[])+' apps='+JSON.stringify(CU&&CU.apps||[])+' tiles='+_diag);
+  }catch(_){}
   const visibleApps=PORTAL_APPS.filter(a=>(_appsAllows(a.id)&&_hasAnyRoleFor(a.id))||(APP_ACTIVE[a.id]===false&&isSuperAdmin));
   if(!visibleApps.length){
     grid.innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);font-size:14px;grid-column:1/-1">No apps assigned yet. Contact your admin to request access.</div>';
@@ -861,6 +880,8 @@ function renderAppGrid(){
   }).join('');
 }
 function openApp(id,file){
+  // V5 — Diagnostic: confirm click reaches openApp.
+  try{ console.log('[openApp] id='+id+' file='+file+' preFetchDone='+_portalPreFetchDone+' sbReady='+_sbReady); }catch(_){}
   if(!file){notify('Module not yet available',true);return;}
   // If pre-fetch already loaded all tables, navigate immediately
   if(_portalPreFetchDone){
@@ -2710,4 +2731,215 @@ async function _permSaveData(md){
   await _dbSave('hrmsSettings',rec);
   hideSpinner();
   _permRenderRoles();
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// V53 — BACKUP MODULE (Super Admin only)
+// One Excel file per app, one sheet per table inside. Photos / base64
+// blobs are skipped to keep file sizes manageable.
+// ──────────────────────────────────────────────────────────────────────────
+
+// App → list of tables that belong to it. Shared tables (users, locations)
+// are included with the apps that consume them so each backup file is
+// self-contained even when restored in isolation.
+const _BK_APP_TABLES = {
+  vms: {
+    label:'VMS', icon:'🚚',
+    tables:['users','locations','vehicleTypes','vendors','drivers','vehicles',
+            'tripRates','trips','segments','spotTrips','hrmsSettings']
+  },
+  hrms: {
+    label:'HRMS', icon:'👥',
+    tables:['users','locations','hrmsEmployees','hrmsCompanies','hrmsCategories',
+            'hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments',
+            'hrmsDesignations','hrmsAttendance','hrmsDayTypes','hrmsAlterations',
+            'hrmsPrintFormats','hrmsSettings','hrmsAdvances','hrmsMonthData']
+  },
+  hwms: {
+    label:'HWMS', icon:'📦',
+    tables:['users','locations','hwmsParts','hwmsInvoices','hwmsContainers',
+            'hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge',
+            'hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates',
+            'hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts',
+            'hrmsSettings']
+  },
+  mtts: {
+    label:'MTTS', icon:'🔧',
+    tables:['users','locations','mttsPlants','mttsAssetTypes',
+            'mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets',
+            'hrmsSettings']
+  },
+  security: {
+    label:'Security', icon:'📹',
+    tables:['users','locations','checkpoints','guards','roundSchedules',
+            'hrmsSettings']
+  }
+};
+
+// Column-name patterns to strip from every backup row. The whitelist of
+// short legitimate columns is kept narrow on purpose — anything that
+// looks like a photo/image/signature payload is dropped.
+const _BK_SKIP_COL_PATTERNS = [
+  /^photo$/i, /photos?$/i, /_photos?$/i,
+  /^picture$/i, /^image$/i, /_image$/i,
+  /^signature$/i,
+  /close_photos/i, /invoice_photos/i, /photos_raise/i, /photos_resume/i,
+  /^avatar$/i
+];
+
+function _bkShouldSkipCol(colName){
+  if(!colName) return false;
+  for(var i=0;i<_BK_SKIP_COL_PATTERNS.length;i++){
+    if(_BK_SKIP_COL_PATTERNS[i].test(colName)) return true;
+  }
+  return false;
+}
+
+// Heuristic: any string > 8KB is almost certainly base64 image bloat.
+// Truncate so the cell still hints at what was there, but the file
+// doesn't balloon.
+function _bkScrubValue(v){
+  if(v==null) return '';
+  if(typeof v==='string'){
+    if(v.length>8192 || /^data:[^;]+;base64,/.test(v)) return '[binary stripped]';
+    return v;
+  }
+  if(typeof v==='object'){
+    // JSONB / array values — stringify, but recursively scrub embedded
+    // base64 payloads first so embedded photo arrays don't bloat the cell.
+    try{
+      var json=JSON.stringify(v,function(_k,_v){
+        if(typeof _v==='string' && (_v.length>4096 || /^data:[^;]+;base64,/.test(_v))) return '[stripped]';
+        return _v;
+      });
+      if(json && json.length>16384) return json.slice(0,16384)+'…[truncated]';
+      return json||'';
+    }catch(e){ return ''; }
+  }
+  return v;
+}
+
+function _bkSanitizeSheetName(name){
+  // Excel sheet names: max 31 chars, no : \ / ? * [ ]
+  var s=String(name||'Sheet').replace(/[:\\\/\?\*\[\]]/g,'_');
+  if(s.length>31) s=s.slice(0,31);
+  return s;
+}
+
+function renderPortalBackup(){
+  var body=document.getElementById('bkCardsBody'); if(!body) return;
+  var html='';
+  Object.keys(_BK_APP_TABLES).forEach(function(appId){
+    var def=_BK_APP_TABLES[appId];
+    var tblCount=def.tables.length;
+    html+='<div style="border:1.5px solid var(--border);border-radius:10px;padding:14px;background:#f8fafc">'+
+      '<div style="font-size:14px;font-weight:900;color:var(--text);margin-bottom:6px">'+def.icon+' '+def.label+'</div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">'+tblCount+' tables</div>'+
+      '<button id="bkBtn_'+appId+'" onclick="_bkDownloadApp(\''+appId+'\')" '+
+      'style="width:100%;font-size:12px;padding:8px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:800;cursor:pointer">'+
+      '⬇ Download .xlsx</button>'+
+    '</div>';
+  });
+  body.innerHTML=html;
+  var st=document.getElementById('bkStatusBody'); if(st) st.innerHTML='';
+}
+
+function _bkSetStatus(html, append){
+  var st=document.getElementById('bkStatusBody'); if(!st) return;
+  if(append) st.innerHTML+=html; else st.innerHTML=html;
+}
+
+async function _bkFetchTable(tbl){
+  if(!SB_TABLES[tbl]) return [];
+  if(!_sb){ return DB[tbl]||[]; }
+  try{
+    var rows=[];
+    var pageSize=1000, from=0;
+    while(true){
+      var res=await _sb.from(SB_TABLES[tbl]).select('*').range(from,from+pageSize-1);
+      if(res.error){ console.warn('[backup] fetch failed',tbl,res.error); break; }
+      var batch=res.data||[];
+      rows=rows.concat(batch);
+      if(batch.length<pageSize) break;
+      from+=pageSize;
+    }
+    return rows;
+  }catch(e){
+    console.warn('[backup] fetch threw',tbl,e);
+    return DB[tbl]||[];
+  }
+}
+
+function _bkBuildSheetFromRows(tbl, rows){
+  if(!rows || !rows.length){
+    return {name:_bkSanitizeSheetName(tbl), data:[['(empty)']]};
+  }
+  // Build a stable column set: union of all keys across rows, minus
+  // skip-pattern columns. Sort so output is deterministic — `id`
+  // anchors first, the rest alphabetically.
+  var keySet={};
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i]; if(!r||typeof r!=='object') continue;
+    for(var k in r){ if(Object.prototype.hasOwnProperty.call(r,k) && !_bkShouldSkipCol(k)) keySet[k]=true; }
+  }
+  var cols=Object.keys(keySet).sort(function(a,b){
+    if(a==='id') return -1; if(b==='id') return 1;
+    return a.localeCompare(b);
+  });
+  var data=[cols];
+  for(var j=0;j<rows.length;j++){
+    var row=rows[j]||{};
+    var line=new Array(cols.length);
+    for(var c=0;c<cols.length;c++) line[c]=_bkScrubValue(row[cols[c]]);
+    data.push(line);
+  }
+  return {
+    name:_bkSanitizeSheetName(tbl),
+    data:data,
+    stripeStart:1, stripeCount:rows.length,
+    borderStart:0, borderCount:rows.length+1
+  };
+}
+
+async function _bkDownloadApp(appId){
+  var def=_BK_APP_TABLES[appId]; if(!def){ notify('Unknown app',true); return; }
+  var btn=document.getElementById('bkBtn_'+appId);
+  if(btn){ btn.disabled=true; btn.textContent='Fetching…'; btn.style.opacity='.6'; }
+  _bkSetStatus('<div>⏳ Fetching <b>'+def.label+'</b> tables…</div>');
+  var sheets=[];
+  var totalRows=0;
+  for(var i=0;i<def.tables.length;i++){
+    var tbl=def.tables[i];
+    _bkSetStatus('<div>⏳ '+def.label+': fetching <code>'+tbl+'</code> ('+(i+1)+'/'+def.tables.length+')…</div>');
+    var rows=await _bkFetchTable(tbl);
+    totalRows+=rows.length;
+    sheets.push(_bkBuildSheetFromRows(tbl,rows));
+  }
+  if(typeof _downloadMultiSheetXlsx!=='function'){
+    notify('Excel writer not available',true);
+    if(btn){ btn.disabled=false; btn.textContent='⬇ Download .xlsx'; btn.style.opacity='1'; }
+    return;
+  }
+  var stamp=new Date();
+  var fname='KAP-'+def.label+'-Backup-'+
+    stamp.getFullYear()+
+    String(stamp.getMonth()+1).padStart(2,'0')+
+    String(stamp.getDate()).padStart(2,'0')+'-'+
+    String(stamp.getHours()).padStart(2,'0')+
+    String(stamp.getMinutes()).padStart(2,'0')+'.xlsx';
+  _downloadMultiSheetXlsx(sheets,fname);
+  _bkSetStatus('<div>✅ <b>'+def.label+'</b> — '+sheets.length+' sheets, '+totalRows.toLocaleString()+' rows → <code>'+fname+'</code></div>',true);
+  if(btn){ btn.disabled=false; btn.textContent='⬇ Download .xlsx'; btn.style.opacity='1'; }
+}
+
+async function _bkDownloadAll(){
+  var btn=document.getElementById('bkAllBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Working…'; btn.style.opacity='.6'; }
+  _bkSetStatus('');
+  var keys=Object.keys(_BK_APP_TABLES);
+  for(var i=0;i<keys.length;i++){
+    await _bkDownloadApp(keys[i]);
+  }
+  if(btn){ btn.disabled=false; btn.textContent='⬇ Download All'; btn.style.opacity='1'; }
+  _bkSetStatus('<div style="margin-top:8px;font-weight:700;color:#15803d">✅ All backups generated.</div>',true);
 }

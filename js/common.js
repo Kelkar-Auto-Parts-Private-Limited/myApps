@@ -359,6 +359,56 @@ function _toRow(tbl, rec) {
     ded_pt:r.dedPT||0,ded_pf:r.dedPF||0,ded_esi:r.dedESI||0,ded_adv:r.dedAdv||0,
     ded_tds:r.dedTDS||0,ded_other:r.dedOther||0,ded_total:r.dedTotal||0,
     net:r.net||0,meta:r.meta||{}};
+  // V38 — Resolve a username (or user-code) to vms_users._dbId for FK
+  // columns that pair with legacy text fields. Returns null when no
+  // match. Cheap linear scan over DB.users; users table is small.
+  if(typeof _mttsResolveUserIdLocal!=='function'){
+    window._mttsResolveUserIdLocal=function(name){
+      if(!name) return null;
+      var s=String(name);
+      var arr=DB.users||[];
+      for(var _i=0;_i<arr.length;_i++){
+        var u=arr[_i]; if(!u) continue;
+        if(u.name===s || u.id===s) return u._dbId||null;
+      }
+      return null;
+    };
+  }
+  // V38 — Resolve a primary-name code to mttsAssetPrimaryNames._dbId.
+  if(typeof _mttsResolvePrimaryNameIdLocal!=='function'){
+    window._mttsResolvePrimaryNameIdLocal=function(code){
+      if(!code) return null;
+      var arr=DB.mttsAssetPrimaryNames||[];
+      for(var _j=0;_j<arr.length;_j++){
+        var p=arr[_j]; if(!p) continue;
+        if(p.id===code) return p._dbId||null;
+      }
+      return null;
+    };
+  }
+  // V38 — Ensure every techActions[] entry that has `by` also carries
+  // `by_id` (FK to vms_users.id). Mirrors the Gap-3 backfill. Also
+  // populates `tech_ids` for actions that carry a `techs:[names]`
+  // payload (allocate / reassign / revoke).
+  if(typeof _mttsEnrichTechActionByIdsLocal!=='function'){
+    window._mttsEnrichTechActionByIdsLocal=function(actions){
+      if(!Array.isArray(actions)) return actions;
+      for(var _k=0;_k<actions.length;_k++){
+        var a=actions[_k]; if(!a) continue;
+        if(a.by && a.by_id==null){
+          var uid=_mttsResolveUserIdLocal(a.by);
+          if(uid!=null) a.by_id=uid;
+        }
+        if(Array.isArray(a.techs) && !Array.isArray(a.tech_ids)){
+          a.tech_ids=a.techs.map(function(n){return _mttsResolveUserIdLocal(n);}).filter(function(x){return x!=null;});
+        }
+        if(Array.isArray(a.prevTechs) && !Array.isArray(a.prev_tech_ids)){
+          a.prev_tech_ids=a.prevTechs.map(function(n){return _mttsResolveUserIdLocal(n);}).filter(function(x){return x!=null;});
+        }
+      }
+      return actions;
+    };
+  }
   if(tbl==='mttsPlants') return {
     code:r.id,name:r.name||'',address:r.address||'',color:r.color||'',inactive:!!r.inactive
   };
@@ -368,13 +418,25 @@ function _toRow(tbl, rec) {
   if(tbl==='mttsAssetPrimaryNames') return {
     code:r.id,name:r.name||'',asset_type:r.assetType||'',color:r.color||'',inactive:!!r.inactive
   };
-  if(tbl==='mttsAgencies') return {
-    code:r.id,name:r.name||'',address:r.address||'',
-    contact_name:r.contactName||'',email:r.email||'',
-    contact1:r.contact1||'',contact2:r.contact2||'',
-    primary_names:r.primaryNames||[],
-    inactive:!!r.inactive
-  };
+  if(tbl==='mttsAgencies'){
+    // V38 — Write both the legacy text codes AND the FK id array. Code
+    // path that creates / edits an agency still passes `primaryNames`
+    // (text codes); we resolve each to its _dbId here.
+    var _pNames=r.primaryNames||[];
+    var _pIds=[];
+    for(var _pi=0;_pi<_pNames.length;_pi++){
+      var _pid=_mttsResolvePrimaryNameIdLocal(_pNames[_pi]);
+      if(_pid!=null) _pIds.push(_pid);
+    }
+    return {
+      code:r.id,name:r.name||'',address:r.address||'',
+      contact_name:r.contactName||'',email:r.email||'',
+      contact1:r.contact1||'',contact2:r.contact2||'',
+      primary_names:_pNames,
+      primary_name_ids:_pIds,
+      inactive:!!r.inactive
+    };
+  }
   if(tbl==='mttsAssets'){
     // V38 — Build the row dynamically so transfer_history is OMITTED when
     // the in-memory record didn't carry it (boot strips this column for
@@ -401,21 +463,40 @@ function _toRow(tbl, rec) {
     // in-memory record didn't carry them (boot strips these columns for
     // perf; loaded lazily by _mttsLoadTicketPhotos). Sending an empty
     // array for a stripped column would silently wipe the saved photos.
+    // V38 — Enrich techActions with by_id (paired with by) before save.
+    if(Array.isArray(r.techActions)) _mttsEnrichTechActionByIdsLocal(r.techActions);
+    // V38 — Resolve every text user-reference to its vms_users._dbId.
+    // Best-effort: legacy users not matching any DB.users row get null.
+    var _raisedById   =(r.raisedById   !=null)?r.raisedById   :_mttsResolveUserIdLocal(r.raisedBy);
+    var _assignedById =(r.assignedById !=null)?r.assignedById :_mttsResolveUserIdLocal(r.assignedBy);
+    var _approvedById =(r.approvedById !=null)?r.approvedById :_mttsResolveUserIdLocal(r.approvedBy);
+    var _confirmedById=(r.confirmedById!=null)?r.confirmedById:_mttsResolveUserIdLocal(r.confirmedBy);
+    var _challengedById=(r.challengedById!=null)?r.challengedById:_mttsResolveUserIdLocal(r.challengedBy);
+    var _assignedToArr=Array.isArray(r.assignedTo)?r.assignedTo:[];
+    var _assignedToIds=_assignedToArr.map(function(n){return _mttsResolveUserIdLocal(n);}).filter(function(x){return x!=null;});
     var _tRow={
       code:r.id,
       asset_code:r.assetCode||'',plant:r.plant||'',
       asset_id:r.assetId||null,plant_id:r.plantId||null,
       breakdown_type:r.breakdownType||'',
       breakdown_since:r.breakdownSince||null,
-      status:r.status||'open',raised_by:r.raisedBy||'',
+      status:r.status||'open',
+      raised_by:r.raisedBy||'',
+      raised_by_id:_raisedById||null,
       raised_at:r.raisedAt||null,
-      assigned_to:r.assignedTo||[],
-      assigned_at:r.assignedAt||null,assigned_by:r.assignedBy||'',
+      assigned_to:_assignedToArr,
+      assigned_to_ids:_assignedToIds,
+      assigned_at:r.assignedAt||null,
+      assigned_by:r.assignedBy||'',
+      assigned_by_id:_assignedById||null,
       tech_actions:r.techActions||[],
       root_cause:r.rootCause||'',
       cost_service:r.costService||0,cost_spares:r.costSpares||0,
       approved_by:r.approvedBy||'',
-      approved_at:r.approvedAt||null
+      approved_by_id:_approvedById||null,
+      approved_at:r.approvedAt||null,
+      confirmed_by_id:_confirmedById||null,
+      challenged_by_id:_challengedById||null
     };
     if(r.photosRaise!==undefined)   _tRow.photos_raise=r.photosRaise;
     if(r.closePhotos!==undefined)   _tRow.close_photos=r.closePhotos;
@@ -512,6 +593,7 @@ function _fromRow(tbl, row) {
     contactName:row.contact_name||'',email:row.email||'',
     contact1:row.contact1||'',contact2:row.contact2||'',
     primaryNames:row.primary_names||[],
+    primaryNameIds:row.primary_name_ids||[],
     inactive:!!row.inactive
   };
   if(tbl==='mttsAssets') return {
@@ -536,10 +618,19 @@ function _fromRow(tbl, row) {
       breakdownType:row.breakdown_type||'',breakdownSince:row.breakdown_since||'',
       status:row.status||'open',
       raisedBy:row.raised_by||'',raisedAt:row.raised_at||'',
+      raisedById:row.raised_by_id||null,
       assignedTo:row.assigned_to||[],assignedAt:row.assigned_at||'',assignedBy:row.assigned_by||'',
+      assignedToIds:row.assigned_to_ids||[],
+      assignedById:row.assigned_by_id||null,
       techActions:row.tech_actions||[],rootCause:row.root_cause||'',
       costService:row.cost_service||0,costSpares:row.cost_spares||0,
       approvedBy:row.approved_by||'',approvedAt:row.approved_at||'',
+      approvedById:row.approved_by_id||null,
+      // V38 — confirmed / challenged FK ids round-trip even though
+      // confirmedBy / challengedBy text fields are still derived from
+      // techActions (no DB columns for those names yet).
+      confirmedById:row.confirmed_by_id||null,
+      challengedById:row.challenged_by_id||null,
       // V38 — `undefined` (not `[]`) when the column wasn't in the select so
       // saving an unloaded ticket doesn't wipe its photos from the DB.
       photosRaise:('photos_raise' in row)?(row.photos_raise||[]):undefined,

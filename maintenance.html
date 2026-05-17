@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260516-V154">
+<meta name="app-build" content="260517-V54">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260516-V154">
+<link rel="stylesheet" href="css/mtts.css?v=260517-V54">
 </head>
 <body style="display:none">
 
@@ -65,21 +65,14 @@
 <!-- Main Content -->
 <div class="mtts-content" id="mttsApp" style="display:none">
 
-  <!-- DASHBOARD -->
+  <!-- DASHBOARD — V156: page header chrome (title sub-text and the two
+       filter dropdowns) stripped. The hidden mttsDashPeriod + mttsDashSub
+       + mttsDashPlantFilter inputs remain in the DOM so legacy code that
+       reads them keeps working. -->
   <div class="page" id="pageMttsDashboard" style="display:none">
-    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-      <div><div class="page-title">Dashboard</div><div class="page-sub" id="mttsDashSub">Last 12 months · monthwise</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="mttsDashPeriod" onchange="_mttsDashboardRender()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text)">
-          <option value="12m" selected>Last 12 months</option>
-          <option value="6m">Last 6 months</option>
-          <option value="3m">Last 3 months</option>
-          <option value="ytd">Year to date</option>
-          <option value="all">All time</option>
-        </select>
-        <select id="mttsDashPlantFilter" onchange="_mttsDashboardRender()" style="font-size:12px;padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);color:var(--text);min-width:130px"><option value="">All plants</option></select>
-      </div>
-    </div>
+    <select id="mttsDashPeriod" style="display:none"><option value="12m" selected></option></select>
+    <select id="mttsDashPlantFilter" style="display:none"><option value=""></option></select>
+    <span id="mttsDashSub" style="display:none"></span>
     <div id="mttsDashBody"></div>
   </div>
 
@@ -274,7 +267,7 @@
 <div class="modal-overlay" id="mMttsTechAct"><div class="modal mtts-techact-modal mtts-techact-modal-v128" style="max-width:540px;padding:14px 16px">
   <div class="modal-header" style="gap:8px;align-items:center">
     <div class="modal-title" style="flex:1;min-width:0">🔧 Update Ticket</div>
-    <button type="button" class="btn btn-secondary mtts-techact-history-btn" onclick="_mttsTechActOpenHistory()" style="padding:6px 12px;font-size:12px;font-weight:800;border:1.5px solid #64748b;background:#fff;color:#0f172a;border-radius:8px;cursor:pointer">📜 History</button>
+    <button type="button" class="btn btn-secondary mtts-techact-history-btn" onclick="_mttsTechActShowDetail()" style="padding:6px 12px;font-size:12px;font-weight:800;border:1.5px solid #64748b;background:#fff;color:#0f172a;border-radius:8px;cursor:pointer">📜 History</button>
     <div class="modal-close" onclick="cm('mMttsTechAct')">×</div>
   </div>
   <input type="hidden" id="mttsTechActTicketId">
@@ -283,10 +276,10 @@
   <div class="form-group mtts-techact-section"><label>Update the status from following *</label>
     <input type="hidden" id="mttsTechActStatus" value="">
     <div class="mtts-status-btns" id="mttsTechActStatusBtns">
-      <button type="button" data-st="awaiting_spares" class="mtts-status-btn is-yellow" onclick="_mttsTechActPickStatus('awaiting_spares')">⏳ Awaiting Spares</button>
-      <button type="button" data-st="awaiting_agency" class="mtts-status-btn is-yellow" onclick="_mttsTechActPickStatus('awaiting_agency')">🏢 Awaiting external Agency</button>
-      <button type="button" data-st="scrapped" class="mtts-status-btn is-red" onclick="_mttsTechActPickStatus('scrapped')">🚫 Not Repairable (Scrap)</button>
-      <button type="button" data-st="repair_done" class="mtts-status-btn is-green" onclick="_mttsTechActPickStatus('repair_done')">✓ Repair Done — Ticket Closed</button>
+      <button type="button" data-st="awaiting_spares" class="mtts-status-btn is-grey has-radio" onclick="_mttsTechActPickStatus('awaiting_spares')"><span class="mtts-status-radio"></span><span class="mtts-status-lbl">⏳ Awaiting Spares</span></button>
+      <button type="button" data-st="awaiting_agency" class="mtts-status-btn is-grey has-radio" onclick="_mttsTechActPickStatus('awaiting_agency')"><span class="mtts-status-radio"></span><span class="mtts-status-lbl">🏢 Awaiting external Agency</span></button>
+      <button type="button" data-st="partial_done" class="mtts-status-btn is-yellow has-radio" onclick="_mttsTechActPickStatus('partial_done')"><span class="mtts-status-radio"></span><span class="mtts-status-lbl">⏸ Partial work done, <b>Pause</b> for now</span></button>
+      <button type="button" data-st="repair_done" class="mtts-status-btn is-green has-radio" onclick="_mttsTechActPickStatus('repair_done')"><span class="mtts-status-radio"></span><span class="mtts-status-lbl">✓ Repair Done — Ticket Closed</span></button>
     </div>
   </div>
   <div class="form-group mtts-techact-section" id="mttsTechActRootWrap" style="display:none"><label>Root cause (optional)</label>
@@ -308,20 +301,24 @@
 </div></div>
 
 <!-- MANAGER APPROVAL MODAL -->
-<div class="modal-overlay" id="mMttsApprove"><div class="modal" style="max-width:540px">
+<div class="modal-overlay" id="mMttsApprove"><div class="modal mtts-approve-modal" style="max-width:540px">
   <div class="modal-header"><div class="modal-title" id="mttsApproveTitle">✅ Approve / Close Ticket</div><div class="modal-close" onclick="cm('mMttsApprove')">×</div></div>
   <input type="hidden" id="mttsApproveTicketId">
   <input type="hidden" id="mttsApproveMode" value="approve">
+  <input type="hidden" id="mttsApproveExt" value="yes">
   <div id="mttsApproveTicketLbl" class="mtts-techact-ticket-lbl"></div>
-  <div class="form-group">
-    <label>External Service &amp; Spares Cost Applicable?</label>
-    <input type="hidden" id="mttsApproveExt" value="no">
-    <div class="mtts-status-btns" id="mttsApproveExtBtns" style="grid-template-columns:1fr 1fr">
-      <button type="button" data-ext="no" class="mtts-status-btn is-green" onclick="_mttsApprovePickExt('no')">No external cost</button>
-      <button type="button" data-ext="yes" class="mtts-status-btn is-yellow" onclick="_mttsApprovePickExt('yes')">Yes — external cost</button>
-    </div>
-  </div>
-  <div id="mttsApproveExtFields" style="display:none">
+  <!-- V21/V23 — Yes/No buttons retired; checkbox in the panel legend
+       drives the toggle. Default is ENABLED (checked) so the manager
+       sees the cost fields right away and only unchecks for internal-
+       only repairs. _mttsApprovePickExt('yes') runs on every open and
+       keeps this in sync. -->
+  <fieldset id="mttsApproveExtFields" class="mtts-approve-ext-panel">
+    <legend>
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:900;color:#92400e;letter-spacing:.5px;text-transform:uppercase">
+        <input type="checkbox" id="mttsApproveExtChk" checked onchange="_mttsApprovePickExt(this.checked?'yes':'no')" style="width:auto;margin:0;accent-color:#92400e">
+        💸 External Cost Details
+      </label>
+    </legend>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group"><label>External Service Cost (₹)</label>
         <input type="number" id="mttsApproveCostSvc" min="0" step="0.01" placeholder="0.00">
@@ -335,7 +332,7 @@
       <input type="file" id="mttsApprovePhotos" accept="image/*" multiple onchange="_mttsApprovePickPhotos(event)" style="display:none">
       <div id="mttsApprovePhotoPreview"></div>
     </div>
-  </div>
+  </fieldset>
   <div class="form-group"><label>Manager note</label>
     <input type="text" id="mttsApproveNote" placeholder="Optional">
   </div>
@@ -527,55 +524,85 @@
 <div class="modal-overlay" id="mMttsAsset"><div class="modal mtts-asset-modal" style="max-width:880px;padding:18px 20px">
   <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsAssetTitle">🛠 Add Asset</div><div class="modal-close" onclick="cm('mMttsAsset')">×</div></div>
   <input type="hidden" id="mttsAssetId">
-  <div class="mtts-asset-grid">
-    <div class="form-group mtts-asset-full"><label>Plant *</label>
-      <input type="hidden" id="mttsAssetPlant">
-      <div id="mttsAssetPlantBtns" class="mtts-chip-row"></div>
+  <input type="hidden" id="mttsAssetName">
+
+  <!-- Panel 1: Identity (Plant + Asset Type + Name)
+       V52 — Plant and Asset Type switched from chip buttons to combo
+       boxes (select). The render functions still drive the option list
+       and the same change-side-effects (asset-type change refreshes
+       Primary Name) so existing logic is preserved. -->
+  <fieldset class="mtts-asset-panel">
+    <legend>🏭 Identity</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group"><label>Plant *</label>
+        <select id="mttsAssetPlant"></select>
+      </div>
+      <div class="form-group mtts-asset-span2"><label>Asset Type *</label>
+        <select id="mttsAssetType"></select>
+      </div>
+      <div class="form-group mtts-asset-span2"><label>Primary Name *</label>
+        <select id="mttsAssetPrimary"><option value="">— Select —</option></select>
+      </div>
+      <div class="form-group"><label>Name Extension</label>
+        <input type="text" id="mttsAssetNameExt" placeholder="e.g. 8KW, Top Coat" maxlength="60">
+      </div>
     </div>
-    <div class="form-group mtts-asset-full"><label>Asset Type *</label>
-      <input type="hidden" id="mttsAssetType">
-      <div id="mttsAssetTypeBtns" class="mtts-chip-row"></div>
+  </fieldset>
+
+  <!-- Panel 2: Equipment Details (Description + Serial/Make/Model) -->
+  <fieldset class="mtts-asset-panel">
+    <legend>📋 Equipment Details</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Description</label>
+        <textarea id="mttsAssetDesc" rows="2" placeholder="Optional"></textarea>
+      </div>
+      <div class="form-group"><label>Serial No</label>
+        <input type="text" id="mttsAssetSerial" placeholder="Optional">
+      </div>
+      <div class="form-group"><label>Make</label>
+        <input type="text" id="mttsAssetMake" placeholder="Optional">
+      </div>
+      <div class="form-group"><label>Model</label>
+        <input type="text" id="mttsAssetModel" placeholder="Optional">
+      </div>
     </div>
-    <div class="form-group"><label>Primary Name *</label>
-      <select id="mttsAssetPrimary"><option value="">— Select —</option></select>
+  </fieldset>
+
+  <!-- Panel 3: Classification (Status + Priority) — V52 moved below
+       Equipment Details so the visual flow matches data-entry order:
+       identity → what is it → how should we treat it → coverage. -->
+  <fieldset class="mtts-asset-panel">
+    <legend>⚙️ Classification</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group"><label>Status *</label>
+        <select id="mttsAssetStatus">
+          <option value="Active" selected>Active</option>
+          <option value="Inactive">Inactive</option>
+          <option value="Scrap">Scrap</option>
+        </select>
+      </div>
+      <div class="form-group mtts-asset-span2"><label>Priority *</label>
+        <input type="hidden" id="mttsAssetCrit" value="Medium">
+        <div id="mttsAssetCritBtns" class="mtts-chip-row"></div>
+      </div>
     </div>
-    <div class="form-group"><label>Name Extension</label>
-      <input type="text" id="mttsAssetNameExt" placeholder="e.g. 8KW, Top Coat, Pretreatment" maxlength="60">
+  </fieldset>
+
+  <!-- Panel 4: Dates (Install + Warranty + AMC) -->
+  <fieldset class="mtts-asset-panel">
+    <legend>📅 Dates &amp; Coverage</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group"><label>Installation Date</label>
+        <input type="date" id="mttsAssetInstall" value="2020-01-01">
+      </div>
+      <div class="form-group"><label>Warranty Until</label>
+        <input type="date" id="mttsAssetWarranty">
+      </div>
+      <div class="form-group"><label>AMC Until</label>
+        <input type="date" id="mttsAssetAmc">
+      </div>
     </div>
-    <div class="form-group"><label>Status *</label>
-      <select id="mttsAssetStatus">
-        <option value="Active" selected>Active</option>
-        <option value="Inactive">Inactive</option>
-        <option value="Scrap">Scrap</option>
-      </select>
-    </div>
-    <input type="hidden" id="mttsAssetName">
-    <div class="form-group mtts-asset-full"><label>Description</label>
-      <textarea id="mttsAssetDesc" rows="2" placeholder="Optional"></textarea>
-    </div>
-    <div class="form-group"><label>Serial No</label>
-      <input type="text" id="mttsAssetSerial" placeholder="Optional">
-    </div>
-    <div class="form-group"><label>Make</label>
-      <input type="text" id="mttsAssetMake" placeholder="Optional">
-    </div>
-    <div class="form-group"><label>Model</label>
-      <input type="text" id="mttsAssetModel" placeholder="Optional">
-    </div>
-    <div class="form-group"><label>Installation Date</label>
-      <input type="date" id="mttsAssetInstall" value="2020-01-01">
-    </div>
-    <div class="form-group"><label>Warranty Until</label>
-      <input type="date" id="mttsAssetWarranty">
-    </div>
-    <div class="form-group"><label>AMC Until</label>
-      <input type="date" id="mttsAssetAmc">
-    </div>
-    <div class="form-group mtts-asset-full"><label>Priority *</label>
-      <input type="hidden" id="mttsAssetCrit" value="Medium">
-      <div id="mttsAssetCritBtns" class="mtts-chip-row"></div>
-    </div>
-  </div>
+  </fieldset>
   <div id="mttsAssetTransferWrap" style="display:none;margin-top:8px;padding:6px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px">
     <div style="font-size:11px;font-weight:800;color:#9a3412;margin-bottom:2px">📦 Transfer History</div>
     <div id="mttsAssetTransferList" style="font-size:11px;color:var(--text2);line-height:1.5"></div>
@@ -613,7 +640,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260516-V154"></script>
-<script src="js/mtts-ui.js?v=260516-V154"></script>
+<script src="js/common.js?v=260517-V54"></script>
+<script src="js/mtts-ui.js?v=260517-V54"></script>
 </body>
 </html>

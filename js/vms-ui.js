@@ -867,12 +867,23 @@ function renderMyApps(){
   if(!grid) return;
   var userApps=CU.apps||[];
   var isAdmin=(CU.roles||[]).some(function(r){return r==='Super Admin'||r==='VMS Admin';});
-  var APP_FILES_MAP={vms:null,hwms:'hwms.html',security:'security.html',maintenance:null,review:null,hrms:'hrms.html'};
+  // V2 — Module-admin roles imply implicit app access. Otherwise the
+  // portal tile stays disabled for a fresh "MTTS Admin"-only user even
+  // though _mttsHasAccess inside maintenance.html grants full access.
+  var _mttsR=CU.mttsRoles||[];
+  var _hrmsR=CU.hrmsRoles||[];
+  var _hwmsR=CU.hwmsRoles||[];
+  var _moduleAdmin={
+    maintenance: _mttsR.indexOf('MTTS Admin')>=0 || _mttsR.indexOf('Maintenance Manager')>=0,
+    hrms:        _hrmsR.indexOf('HRMS Admin')>=0,
+    hwms:        _hwmsR.indexOf('HWMS Admin')>=0
+  };
+  var APP_FILES_MAP={vms:null,hwms:'hwms.html',security:'security.html',maintenance:'maintenance.html',review:null,hrms:'hrms.html'};
   var APP_ACTIVE_MAP={vms:true,hwms:true,security:true,maintenance:true,review:false,hrms:true};
   grid.innerHTML=PORTAL_APPS.map(function(app){
     var file=APP_FILES_MAP[app.id]||null;
     var active=APP_ACTIVE_MAP[app.id]||false;
-    var hasAccess=isAdmin||userApps.includes(app.id);
+    var hasAccess=isAdmin||userApps.includes(app.id)||!!_moduleAdmin[app.id];
     var enabled=active&&hasAccess;
     var onclick='';
     if(enabled){

@@ -231,11 +231,15 @@
      viewport so the table is the only thing that scrolls. The card-header
      (title + Add button), summary line, and the filter / column-header
      rows inside the table all stay frozen at the top. */
-  body.mtts-tight-page .main-content{overflow:hidden!important}
+  body.mtts-tight-page .mtts-content{overflow:hidden!important}
   body.mtts-tight-page .page.active{display:flex;flex-direction:column;height:100%;padding-bottom:0}
   body.mtts-tight-page .card{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin-bottom:0;padding:14px 16px 8px}
   body.mtts-tight-page .card-header{margin-bottom:8px}
-  body.mtts-tight-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none;scrollbar-gutter:stable}
+  body.mtts-tight-page .table-wrap{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;scrollbar-gutter:stable}
+  /* V156 — Asset Master wrap: force the vertical scrollbar to live on the
+     inner container regardless of card vs table view, so the page header
+     and filter row stay frozen while the asset list scrolls. */
+  body.mtts-tight-page #mttsAssetTableWrap{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
   /* Tickets page — filter strip sticks to the top of the scrolling
      table-wrap; the cards scroll underneath it. */
   body.mtts-tight-page .mtts-tcard-filters{position:sticky;top:0;z-index:5;margin-bottom:6px}
@@ -247,12 +251,35 @@
   .mtts-status-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .mtts-status-btn{padding:10px 12px;font-size:13px;font-weight:700;background:#fff;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;line-height:1.2;transition:background .15s,filter .1s,box-shadow .15s}
   .mtts-status-btn:hover{filter:brightness(.97)}
-  .mtts-status-btn.is-yellow{border-color:#f59e0b;color:#92400e}
-  .mtts-status-btn.is-red{border-color:#dc2626;color:#991b1b}
-  .mtts-status-btn.is-green{border-color:#16a34a;color:#15803d}
-  .mtts-status-btn.is-yellow.is-selected{background:#fef3c7;box-shadow:0 0 0 2px #fde68a inset}
-  .mtts-status-btn.is-red.is-selected{background:#fee2e2;box-shadow:0 0 0 2px #fca5a5 inset}
-  .mtts-status-btn.is-green.is-selected{background:#dcfce7;box-shadow:0 0 0 2px #86efac inset}
+  /* V37 — Status buttons coloured by intent:
+       is-grey   → awaiting (paused at vendor / parts)
+       is-yellow → partial done / pause
+       is-green  → repair done
+       is-red    → legacy "Not Repairable" (kept for old call sites)
+     Each button always wears its tint; a radio dot at the left fills
+     in when the option is selected so the active choice is visible
+     even without changing the background contrast. */
+  .mtts-status-btn.is-grey  {border-color:#94a3b8;color:#0f172a;background:#e2e8f0}
+  .mtts-status-btn.is-yellow{border-color:#f59e0b;color:#92400e;background:#fef3c7}
+  .mtts-status-btn.is-red   {border-color:#dc2626;color:#991b1b;background:#fee2e2}
+  .mtts-status-btn.is-green {border-color:#16a34a;color:#15803d;background:#dcfce7}
+  .mtts-status-btn.is-selected{box-shadow:0 0 0 3px rgba(15,23,42,.12)}
+  .mtts-status-btn.is-grey.is-selected  {box-shadow:0 0 0 3px #475569}
+  .mtts-status-btn.is-yellow.is-selected{box-shadow:0 0 0 3px #b45309}
+  .mtts-status-btn.is-red.is-selected   {box-shadow:0 0 0 3px #b91c1c}
+  .mtts-status-btn.is-green.is-selected {box-shadow:0 0 0 3px #15803d}
+  .mtts-status-btn.has-radio{display:flex;align-items:center;gap:10px}
+  .mtts-status-btn .mtts-status-radio{
+    width:18px;height:18px;border-radius:50%;
+    border:2px solid currentColor;background:#fff;flex-shrink:0;
+    position:relative;
+    transition:background .12s, border-color .12s;
+  }
+  .mtts-status-btn.is-selected .mtts-status-radio{
+    background:currentColor;
+    box-shadow:0 0 0 3px rgba(255,255,255,.85) inset;
+  }
+  .mtts-status-btn .mtts-status-lbl{flex:1;min-width:0}
   @media(max-width:520px){.mtts-status-btns{grid-template-columns:1fr}}
   /* Update Ticket — prominent ticket info card displayed at the top of
      the modal so the technician sees id, asset, plant, status, priority
@@ -776,6 +803,107 @@
   .mtts-asset-grid .form-group{margin-bottom:0}
   .mtts-asset-span2{grid-column:span 2}
   .mtts-asset-full{grid-column:1 / -1}
+  /* V50 — Edit Asset form: group fields into labeled panels (Identity /
+     Classification / Equipment Details / Dates) so each section reads as
+     its own card. Panels use a subtle border + tinted legend chip so the
+     boundaries are clear without competing with the field borders. */
+  .mtts-asset-panel{
+    border:1.5px solid #cbd5e1;
+    border-radius:10px;
+    padding:10px 14px 12px;
+    margin:0 0 12px;
+    background:#f8fafc;
+    min-width:0;
+  }
+  .mtts-asset-panel:last-of-type{margin-bottom:6px}
+  .mtts-asset-panel > legend{
+    padding:2px 10px;
+    margin-left:6px;
+    background:#0f172a;
+    color:#fff;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.3px;
+    border-radius:5px;
+    text-transform:uppercase;
+  }
+  /* Fieldset zero-out so our padding/grid control the layout cleanly. */
+  .mtts-asset-modal fieldset.mtts-asset-panel{
+    min-inline-size:auto;
+  }
+  .mtts-asset-modal fieldset.mtts-asset-panel[disabled]{
+    opacity:.7;
+  }
+
+  /* V48 — Edit Asset form: white background + darker borders on every input,
+     select, and textarea so fields read as distinct, editable surfaces (the
+     default form-control style fades into the modal body). Matches the
+     Approve-modal treatment so the visual language is consistent. */
+  .mtts-asset-modal input[type=text],
+  .mtts-asset-modal input[type=number],
+  .mtts-asset-modal input[type=date],
+  .mtts-asset-modal input[type=email],
+  .mtts-asset-modal input[type=tel],
+  .mtts-asset-modal select,
+  .mtts-asset-modal textarea{
+    background:#fff !important;
+    border:1.5px solid #475569 !important;
+    color:var(--text);
+  }
+  .mtts-asset-modal input[type=text]:focus,
+  .mtts-asset-modal input[type=number]:focus,
+  .mtts-asset-modal input[type=date]:focus,
+  .mtts-asset-modal input[type=email]:focus,
+  .mtts-asset-modal input[type=tel]:focus,
+  .mtts-asset-modal select:focus,
+  .mtts-asset-modal textarea:focus{
+    border-color:#0f172a !important;
+    outline:none;
+    box-shadow:0 0 0 2px rgba(15,23,42,0.10);
+  }
+  /* V49 — `.mtts-chip-row` is absolute-positioned for the Raise-Ticket
+     dropdown panels (top:100% of the pickblock). The Asset edit modal
+     reuses the same class for Plant / Asset-Type / Priority chip rows
+     INLINE, so we need to override the absolute layout back to a normal
+     wrapping flex row — otherwise all chip rows escape to `.modal`
+     (which has a transform, creating a containing block) and stack at
+     its bottom edge, hiding Plant + Asset Type and dumping Priority
+     below the Save/Cancel buttons. */
+  .mtts-asset-modal .mtts-chip-row{
+    position:static !important;
+    display:flex !important;
+    flex-direction:row !important;
+    flex-wrap:wrap !important;
+    gap:6px !important;
+    margin-top:0 !important;
+    padding:0 !important;
+    background:transparent !important;
+    border:none !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    max-height:none !important;
+    overflow:visible !important;
+    z-index:auto !important;
+  }
+  .mtts-asset-modal .mtts-chip{
+    width:auto !important;
+    padding:6px 12px !important;
+    border:1.5px solid #475569 !important;
+    border-radius:6px !important;
+    background:#fff !important;
+    color:var(--text) !important;
+    font-size:14px !important;
+  }
+  .mtts-asset-modal .mtts-chip:hover{
+    background:rgba(42,154,160,.10) !important;
+    color:var(--accent) !important;
+    border-color:var(--accent) !important;
+  }
+  .mtts-asset-modal .mtts-chip.is-active{
+    background:var(--accent) !important;
+    color:#fff !important;
+    border-color:var(--accent) !important;
+  }
   @media (max-width:900px){
     .mtts-asset-grid{grid-template-columns:1fr 1fr}
     .mtts-asset-span2{grid-column:1 / -1}
@@ -926,10 +1054,17 @@
   .mtts-chip-swatch{display:inline-block;width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
   /* V139 — Per-picker tweaks. Bumped chip font +2px so plant / asset-type
      options read more clearly; vertical padding cut so more options fit
-     in the dropdown without scrolling. */
-  #mttsRaisePlantBtns .mtts-chip{padding:6px 14px;font-size:19px;border-radius:7px}
-  #mttsRaiseTypeBtns .mtts-chip{padding:5px 14px;font-size:18px;border-radius:6px;gap:10px}
-  #mttsRaiseTypeBtns .mtts-chip-icon{font-size:20px;line-height:1;display:inline-flex;align-items:center}
+     in the dropdown without scrolling.
+     V51 — Vertical padding zeroed so consecutive items in the dropdown
+     touch (no gap between rows); font sizes bumped another +2px for
+     legibility. line-height:1.2 from .mtts-chip still keeps the text
+     from clipping.
+     V52 — line-height tightened to 1.05 so consecutive items have
+     effectively zero vertical space between them (the extra 5% buys
+     just enough room for descenders without showing a gap). */
+  #mttsRaisePlantBtns .mtts-chip{padding:0 14px;font-size:21px;border-radius:7px;line-height:1.05}
+  #mttsRaiseTypeBtns .mtts-chip{padding:0 14px;font-size:20px;border-radius:6px;gap:10px;line-height:1.05}
+  #mttsRaiseTypeBtns .mtts-chip-icon{font-size:22px;line-height:1;display:inline-flex;align-items:center}
   /* Breakdown radio chips — one tap-target per option, fits 3 across on phones. */
   .mtts-bd-radios{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
   /* V38 — 4-option variant for Breakdown Type (Electrical / Mechanical /
@@ -1113,12 +1248,80 @@
   .mtts-tcard-actions{display:flex;justify-content:space-between;align-items:center;gap:6px;border-top:1px solid #f1f5f9;padding-top:5px;margin-top:auto}
   .mtts-tcard-actions-left{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
   .mtts-tcard-actions-right{display:flex;gap:4px;flex-shrink:0}
-  .mtts-tcard-iconbtn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1.5px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;padding:0;line-height:1;transition:filter .15s,background .15s}
+  /* V27 — Bump action-button hit-area on ticket cards ~25% for easier
+     mobile tap. Vertical padding goes up; font size is unchanged so the
+     text stays at its current weight / scale. Targets every button in
+     the card action row (Start Work / Update Status / Resume / Confirm
+     / Approve & Close / Reallocate / Expense Data / etc.) and the side-
+     icon edit / delete buttons. */
+  .mtts-tcard-actions button{padding-top:10px !important;padding-bottom:10px !important}
+  .mtts-tcard-iconbtn{width:35px !important;height:35px !important;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1.5px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer;padding:0;line-height:1;transition:filter .15s,background .15s}
   .mtts-tcard-iconbtn:hover{filter:brightness(.96)}
   .mtts-tcard-iconbtn.is-edit{border-color:#f59e0b;color:#b45309;background:#fffbea}
   .mtts-tcard-iconbtn.is-edit:hover{background:#fde68a}
   .mtts-tcard-iconbtn.is-del{border-color:#dc2626;color:#dc2626;background:#fef2f2}
   .mtts-tcard-iconbtn.is-del:hover{background:#fecaca}
+  /* V28 — Corner ownership flag (bottom-right triangle).
+       • is-allotted → grey  (matches "My Tickets" scope button)
+       • is-raised   → pink  (matches "Tickets by me" scope button)
+     Triangle drawn with CSS borders, anchored to the bottom-right
+     corner of the card; .mtts-tcard must be position:relative (set
+     inline in the renderer). Pointer-events:none so the card click
+     still fires through it. */
+  .mtts-tcard-flag{
+    position:absolute;
+    right:0;bottom:0;
+    width:0;height:0;
+    border-style:solid;
+    border-width:0 0 28px 28px;
+    border-color:transparent;
+    pointer-events:none;
+    z-index:1;
+  }
+  .mtts-tcard-flag.is-allotted{border-bottom-color:#64748b}
+  .mtts-tcard-flag.is-raised   {border-bottom-color:#db2777}
+  /* V29 — WIP status badge flashes (subtle pulse) so the in-progress
+     ticket stands out from open / allotted / awaiting siblings in a
+     long list. Paused (partial_done) WIP intentionally doesn't get
+     this class — see _mttsStatusBadgeBig. */
+  @keyframes mttsStatusFlash{
+    0%,100%{filter:brightness(1);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+    50%{filter:brightness(1.18);box-shadow:0 0 0 4px rgba(234,179,8,.3),0 1px 3px rgba(0,0,0,.15)}
+  }
+  .mtts-status-flash{animation:mttsStatusFlash 1.4s ease-in-out infinite}
+  /* V29 — High-priority pill flashes until the ticket reaches Repair
+     Done. Pulses scale + a halo ring so it reads as urgent without
+     occupying more space. Other priorities render statically. */
+  @keyframes mttsPrioFlash{
+    0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(220,38,38,.55),0 1px 3px rgba(0,0,0,.15)}
+    50%{transform:scale(1.12);box-shadow:0 0 0 6px rgba(220,38,38,0),0 1px 3px rgba(0,0,0,.15)}
+  }
+  .mtts-prio-flash{animation:mttsPrioFlash 1.2s ease-in-out infinite}
+  /* V36 — HP Asset Status chip (dashboard). Status colour on the
+     background, short asset name on the chip; hovering reveals the
+     full asset name + status in a prominent dark callout, similar to
+     the bucket-counter tooltip. Native title="…" stays for keyboard /
+     accessibility users. */
+  .mtts-hp-chip{position:relative}
+  .mtts-hp-chip:hover::after,.mtts-hp-chip:focus-visible::after{
+    content:attr(data-mtts-tip);
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    background:#0f172a;color:#fff;
+    padding:8px 12px;border-radius:8px;
+    font-size:13px;font-weight:800;letter-spacing:.3px;
+    line-height:1.3;text-align:center;
+    white-space:normal;word-break:break-word;
+    width:max-content;max-width:min(280px,calc(100vw - 32px));
+    pointer-events:none;
+    z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25);
+    animation:mttsHpTipIn .12s ease-out;
+  }
+  .mtts-hp-chip:hover::before,.mtts-hp-chip:focus-visible::before{
+    content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);
+    border:6px solid transparent;border-top-color:#0f172a;
+    pointer-events:none;z-index:60;
+  }
+  @keyframes mttsHpTipIn{from{opacity:0;transform:translate(-50%,4px)}to{opacity:1;transform:translate(-50%,0)}}
   /* ── Allocate Technician picker ─────────────────────────────────────────
      Replace the tight checkbox list with a button grid; each button is a
      full tap target carrying the tech's name, optional meta line, and a
@@ -1149,7 +1352,7 @@
      so the rest of the form stays usable. Font bumped from the chip-row
      baseline (+2px) for easier reading on phone. */
   .mtts-raise-asset-list{display:flex;flex-direction:column;width:100%;max-height:300px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;background:#fff}
-  .mtts-raise-asset-row{display:flex;align-items:center;gap:8px;padding:2px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:20px;font-weight:600;color:var(--text);transition:background .15s;line-height:1.1}
+  .mtts-raise-asset-row{display:flex;align-items:center;gap:8px;padding:0 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:22px;font-weight:600;color:var(--text);transition:background .15s;line-height:1.05}
   .mtts-raise-asset-row:last-child{border-bottom:none}
   .mtts-raise-asset-row:hover{background:#f8fafc}
   .mtts-raise-asset-row.is-selected{background:#eff6ff;color:var(--accent)}
@@ -1185,25 +1388,43 @@
      viewport with a small safety inset). Native title is kept for
      accessibility. */
   .mtts-bucket-btn{position:relative}
+  /* V42 — Bucket-counter hover tooltip drops BELOW the button (was
+     above) so it doesn't get clipped by the sticky top-bar. Edge
+     buttons anchor the callout to their button edge instead of
+     centering it, so the leftmost button's tooltip never overflows
+     to the left of the viewport (and same on the right). */
   .mtts-bucket-btn:hover::after,.mtts-bucket-btn:focus-visible::after{
     content:attr(data-mtts-tip);
-    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
     background:#0f172a;color:#fff;
     padding:8px 12px;border-radius:8px;
     font-size:13px;font-weight:700;letter-spacing:.2px;
-    line-height:1.35;text-align:center;
+    line-height:1.35;text-align:left;
     white-space:normal;word-break:break-word;
-    width:max-content;max-width:min(260px,calc(100vw - 32px));
+    width:max-content;max-width:min(260px,calc(100vw - 16px));
     pointer-events:none;
-    z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.25);
+    z-index:1000;box-shadow:0 6px 20px rgba(0,0,0,.25);
     animation:mttsBucketTipIn .12s ease-out;
   }
   .mtts-bucket-btn:hover::before,.mtts-bucket-btn:focus-visible::before{
-    content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);
-    border:6px solid transparent;border-top-color:#0f172a;
-    pointer-events:none;z-index:50;
+    content:'';position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);
+    border:6px solid transparent;border-bottom-color:#0f172a;
+    pointer-events:none;z-index:1000;
   }
-  @keyframes mttsBucketTipIn{from{opacity:0;transform:translate(-50%,4px)}to{opacity:1;transform:translate(-50%,0)}}
+  /* Left edge — anchor tooltip + arrow to the button's left edge. */
+  .mtts-bucket-row .mtts-bucket-btn:first-child:hover::after,
+  .mtts-bucket-row .mtts-bucket-btn:first-child:focus-visible::after{left:0;transform:none}
+  .mtts-bucket-row .mtts-bucket-btn:first-child:hover::before,
+  .mtts-bucket-row .mtts-bucket-btn:first-child:focus-visible::before{left:14px;transform:none}
+  /* Right edge — anchor to the button's right edge. */
+  .mtts-bucket-row .mtts-bucket-btn:last-child:hover::after,
+  .mtts-bucket-row .mtts-bucket-btn:last-child:focus-visible::after{left:auto;right:0;transform:none}
+  .mtts-bucket-row .mtts-bucket-btn:last-child:hover::before,
+  .mtts-bucket-row .mtts-bucket-btn:last-child:focus-visible::before{left:auto;right:14px;transform:none}
+  @keyframes mttsBucketTipIn{from{opacity:0;transform:translate(-50%,-4px)}to{opacity:1;transform:translate(-50%,0)}}
+  /* Edge variants override the entrance translate so they don't snap. */
+  .mtts-bucket-row .mtts-bucket-btn:first-child:hover::after,
+  .mtts-bucket-row .mtts-bucket-btn:last-child:hover::after{animation:none}
   /* V124 — Pulsing red count badge on the scope buttons (All Tickets /
      My Allotted Tickets / Tickets Raised by me). Drives the user's eye
      to outstanding work. Pulse only fires when count>0 (class applied
@@ -1213,6 +1434,80 @@
     50%{transform:scale(1.08);box-shadow:0 0 0 6px rgba(220,38,38,0), 0 0 0 1.5px rgba(255,255,255,.5) inset}
   }
   .mtts-scope-count-pulse{animation:mttsScopePulse 1.4s ease-in-out infinite}
+  /* V18 — Prominent hover tooltip for the Breakdown Since / Downtime
+     chip on ticket cards. Label is hidden by default; hovering the
+     HH:MM chip reveals a dark callout above with the contextual label
+     ("Breakdown Since" or "Downtime"). Native title="…" stays in place
+     for accessibility / keyboard users. */
+  .mtts-bd-chip{position:relative;cursor:default}
+  .mtts-bd-chip:hover::after,.mtts-bd-chip:focus::after{
+    content:attr(data-mtts-tip);
+    position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    background:#0f172a;color:#fff;
+    padding:7px 13px;border-radius:8px;
+    font-family:var(--sans);font-size:13px;font-weight:800;letter-spacing:.4px;
+    text-transform:uppercase;white-space:nowrap;
+    pointer-events:none;z-index:50;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);
+    animation:mttsBdTipIn .12s ease-out;
+  }
+  .mtts-bd-chip:hover::before,.mtts-bd-chip:focus::before{
+    content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%);
+    border:6px solid transparent;border-top-color:#0f172a;
+    pointer-events:none;z-index:50;
+  }
+  @keyframes mttsBdTipIn{from{opacity:0;transform:translate(-50%,4px)}to{opacity:1;transform:translate(-50%,0)}}
+  /* V20 — External-cost details panel on the Approve / Expense Data
+     modal. Always rendered; the fieldset's native [disabled] attribute
+     greys out inner inputs when "No external cost" is selected. The
+     wrapper switches to a muted look (dashed border, slate background)
+     so the user can see what fields would be in play if they toggle
+     back to "Yes". */
+  .mtts-approve-ext-panel{
+    border:2px solid #f59e0b;
+    background:#fffbeb;
+    border-radius:10px;
+    padding:10px 14px 4px;
+    margin:8px 0 12px;
+    transition:background .15s, border-color .15s, opacity .15s;
+  }
+  .mtts-approve-ext-panel>legend{
+    padding:0 8px;
+    font-size:11px;
+    font-weight:900;
+    color:#92400e;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+  }
+  .mtts-approve-ext-panel.is-disabled{
+    border:2px dashed #cbd5e1;
+    background:#f8fafc;
+    opacity:.7;
+  }
+  .mtts-approve-ext-panel.is-disabled>legend{color:var(--text3)}
+  .mtts-approve-ext-panel[disabled]{cursor:not-allowed}
+  .mtts-approve-ext-panel[disabled] input,
+  .mtts-approve-ext-panel[disabled] label{cursor:not-allowed}
+  /* V21 — Approve / Expense Data modal: white-bg inputs with dark
+     slate borders so the form reads as clearly editable, not a soft
+     pastel sheet. Overrides the global cream input bg. */
+  .mtts-approve-modal input[type=text],
+  .mtts-approve-modal input[type=number],
+  .mtts-approve-modal textarea{
+    background:#fff !important;
+    border:1.5px solid #475569 !important;
+    color:var(--text);
+  }
+  .mtts-approve-modal input[type=text]:focus,
+  .mtts-approve-modal input[type=number]:focus,
+  .mtts-approve-modal textarea:focus{
+    border-color:#0f172a !important;
+    outline:none;
+  }
+  .mtts-approve-modal .mtts-approve-ext-panel[disabled] input[type=number]{
+    background:#f1f5f9 !important;
+    border-color:#cbd5e1 !important;
+  }
   /* V138 — Flashing alert banner above the Raise Ticket button. Surfaces
      repair_done tickets the current user raised that still need their
      Confirm/Challenge. Clicking the banner opens the review popup for
