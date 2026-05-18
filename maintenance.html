@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260518-V34">
+<meta name="app-build" content="260518-V38">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260518-V34">
+<link rel="stylesheet" href="css/mtts.css?v=260518-V38">
 </head>
 <body style="display:none">
 
@@ -293,7 +293,7 @@
   <div class="modal-error" id="mttsTechActErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
     <button class="btn btn-secondary" onclick="cm('mMttsTechAct')" style="padding:8px 14px">Cancel</button>
-    <button class="btn btn-primary" onclick="_mttsTicketActionSubmit()" style="padding:8px 14px">Save</button>
+    <button class="btn btn-primary" onclick="_mttsTicketActionConfirm()" style="padding:8px 14px">Save</button>
   </div>
   <div id="mttsTechActHistoryWrap" style="display:none">
     <div id="mttsTechActHistory"></div>
@@ -658,9 +658,9 @@
     <div id="mttsAssetTransferList" style="font-size:11px;color:var(--text2);line-height:1.5"></div>
   </div>
   <div class="modal-error" id="mttsAssetErr"></div>
-  <div style="display:flex;gap:8px;justify-content:space-between;margin-top:10px">
+  <div class="mtts-asset-modal-footer">
     <button class="btn btn-secondary" id="mttsAssetTransferBtn" onclick="_mttsAssetTransferOpen()" style="display:none">📦 Transfer to another plant</button>
-    <div style="display:flex;gap:8px;margin-left:auto">
+    <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="cm('mMttsAsset')">Cancel</button>
       <button class="btn btn-secondary" id="mttsAssetSaveNextBtn" onclick="_mttsAssetSave('next')">Save &amp; Add Next</button>
       <button class="btn btn-primary" id="mttsAssetSaveBtn" onclick="_mttsAssetSave('close')">Save &amp; Close</button>
@@ -690,7 +690,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V34"></script>
-<script src="js/mtts-ui.js?v=260518-V34"></script>
+<script src="js/common.js?v=260518-V38"></script>
+<script src="js/mtts-ui.js?v=260518-V38"></script>
 </body>
 </html>

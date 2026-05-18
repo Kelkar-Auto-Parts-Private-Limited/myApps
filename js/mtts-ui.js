@@ -2117,7 +2117,7 @@ function _mttsRenderTickets(){
   var canRaise=(typeof _mttsCanRaise==='function')?_mttsCanRaise():true;
   var filterHtml=
     '<div class="mtts-tcard-filters" style="flex-wrap:nowrap;align-items:center;gap:6px">'+
-      '<input type="search" id="mttsTicketSearch" placeholder="🔍 Search…" oninput="_mttsRenderTickets()" value="'+inlineSearchVal+'" style="flex:0 0 auto;width:20ch;min-width:0">'+
+      '<input type="search" id="mttsTicketSearch" placeholder="🔍 Search…" oninput="_mttsRenderTickets()" value="'+inlineSearchVal+'" style="flex:0 0 auto;width:15ch;min-width:0">'+
       '<select id="mttsTicketPlantFilter" onchange="_mttsRenderTickets()" style="flex:0 0 auto;width:auto;min-width:0">'+plantOpts+'</select>'+
       '<button type="button" onclick="_mttsTicketResetFilters()" title="Clear all filters and reset sort order" '+
         'style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:2px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;cursor:pointer;font-weight:900;font-size:18px;line-height:1">'+
@@ -2269,6 +2269,10 @@ function _mttsRenderTickets(){
       if(_mttsIsSA()&&!_mttsCanEditTicket(t)){
         sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsTicketDelete(\''+idEsc+'\')" title="Delete ticket and history (Super Admin)" aria-label="Delete ticket">🗑</button>';
       }
+      // V36 (260518) — Screenshot button: copies the ticket card as a
+      // PNG image to the user's clipboard, so they can paste it into
+      // WhatsApp / email / etc. Always visible on every card.
+      sideAct+='<button class="mtts-tcard-iconbtn mtts-tcard-screencap" onclick="'+stop+'_mttsTicketCopyCardImage(this,\''+idEsc+'\')" title="Copy card as image" aria-label="Copy card as image" style="border-color:#a5b4fc;color:#4338ca;background:#eef2ff">📋</button>';
       var hasActions=!!(primaryAct||sideAct);
       // Build the card itself. Header line carries id + plant pill + asset
       // name (the three identifiers in reading order); priority chip is
@@ -3742,6 +3746,68 @@ function _mttsCanEditTicket(t){
 function _mttsTicketEditOpen(id){
   _mttsTicketRaiseOpen(id);
 }
+
+// V36 (260518) — Copy a ticket card to the clipboard as a PNG image so
+// the user can paste it into WhatsApp / email / chat / etc. Renders
+// the card via html2canvas (lazy-loaded from CDN, same source HWMS
+// uses for its PDF export). Falls back to a plain-text copy if the
+// library can't load or ClipboardItem isn't available.
+var _mttsTicketCopyLibsLoaded=false;
+async function _mttsLoadHtml2Canvas(){
+  if(_mttsTicketCopyLibsLoaded && typeof html2canvas==='function') return true;
+  if(typeof html2canvas==='function'){ _mttsTicketCopyLibsLoaded=true; return true; }
+  try{
+    await new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload=res; s.onerror=rej; document.head.appendChild(s);
+    });
+    _mttsTicketCopyLibsLoaded=(typeof html2canvas==='function');
+    return _mttsTicketCopyLibsLoaded;
+  }catch(e){
+    return false;
+  }
+}
+async function _mttsTicketCopyCardImage(btn, id){
+  var t=(DB.mttsTickets||[]).find(function(x){return x&&x.id===id;});
+  if(!t){ notify('Ticket not found',true); return; }
+  var cardEl=btn && btn.closest('.mtts-tcard');
+  if(!cardEl){ notify('Card not found',true); return; }
+  // Visual feedback on the button while we work.
+  var origTxt=btn.textContent;
+  btn.disabled=true; btn.textContent='⏳';
+  try{
+    var ok=await _mttsLoadHtml2Canvas();
+    if(!ok){ notify('⚠ Screenshot library failed to load — check internet',true); return; }
+    // Snapshot the card. backgroundColor:null preserves the card's
+    // own bg/plant stripe; scale:2 gives a crisp image for retina
+    // screens + smaller paste-targets.
+    var canvas=await html2canvas(cardEl,{
+      backgroundColor:'#ffffff',
+      scale:2,
+      useCORS:true,
+      logging:false
+    });
+    var blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
+    if(!blob){ notify('⚠ Could not encode image',true); return; }
+    if(!navigator.clipboard || !window.ClipboardItem){
+      // Older browser fallback — open the PNG in a new tab so user
+      // can right-click → Copy Image manually.
+      var url=URL.createObjectURL(blob);
+      window.open(url,'_blank');
+      notify('Browser does not support clipboard image — opened in new tab',true);
+      return;
+    }
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    notify('📋 Card copied to clipboard — paste anywhere');
+  }catch(e){
+    try{ console.warn('[mtts] copy card failed',e); }catch(_){}
+    notify('⚠ Copy failed: '+(e && e.message ? e.message : 'unknown'),true);
+  }finally{
+    btn.disabled=false; btn.textContent=origTxt;
+  }
+}
+
 async function _mttsTicketDelete(id){
   var t=(DB.mttsTickets||[]).find(function(x){return x&&x.id===id;});
   if(!t){notify('Ticket not found',true);return;}
@@ -4302,6 +4368,125 @@ function _mttsTechActRefreshFields(){
   var photoLbl=document.getElementById('mttsTechActPhotoLbl');
   if(photoLbl) photoLbl.textContent=(st==='repair_done')?'Closure photos (max 3) *':'Photos (max 3)';
 }
+// V36 (260518) — Confirmation popup shown when the user clicks Save in
+// the Update Ticket modal. Surfaces the ticket card replica + a
+// summary of the new update, with a "Copy Screenshot" affordance for
+// pasting into a chat / email and a "Post Update" button that actually
+// persists the change via _mttsTicketActionSubmit.
+function _mttsTicketActionConfirm(){
+  var err=document.getElementById('mttsTechActErr');
+  var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
+  var id=document.getElementById('mttsTechActTicketId').value;
+  var t=byId(DB.mttsTickets||[],id);
+  if(!t){ _showErr('Ticket not found'); return; }
+  if(!(_mttsIsTechnicianOnTicket(t)||_mttsIsSA()||_mttsIsMttsAdmin()||_mttsIsManager())){
+    _showErr('You are not assigned to this ticket'); return;
+  }
+  var newStatus=document.getElementById('mttsTechActStatus').value;
+  if(!newStatus){ _showErr('Please select a status'); _mttsFlashFieldErr('mttsTechActStatusBtns'); return; }
+  var root=document.getElementById('mttsTechActRoot').value.trim();
+  var photoCount=(_mttsTechActPhotosBuf||[]).length;
+  if(newStatus==='repair_done' && photoCount===0){
+    _showErr('At least one closure photo is required for "Repair done"');
+    return;
+  }
+  // Build the popup.
+  var statusLbl=(_MTTS_STATUS_LABEL && _MTTS_STATUS_LABEL[newStatus])||newStatus;
+  var summaryCard=_mttsTicketSummaryHtml(t);
+  var plantColor=_mttsPlantColor(t.plant)||'#94a3b8';
+  var cardBgMap={open:'#fee2e2',assigned:'#dbeafe',work_in_progress:'#fef9c3',awaiting_spares:'#ffedd5',awaiting_agency:'#ffedd5',repair_done:'#dcfce7',repair_done_challenged:'#fee2e2',closed:'#bbf7d0',scrapped:'#fed7aa'};
+  var cardBg=cardBgMap[t.status]||'#fff';
+  var photoStrip='';
+  if(photoCount){
+    photoStrip='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">'+
+      _mttsTechActPhotosBuf.slice(0,3).map(function(src){
+        return '<img src="'+String(src).replace(/"/g,'&quot;')+'" style="width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid var(--border)">';
+      }).join('')+
+    '</div>';
+  }
+  var rootHtml=root?'<div style="margin-top:6px;font-size:12px;background:#fef3c7;border-left:3px solid #fbbf24;padding:6px 10px;border-radius:0 6px 6px 0"><b>Root cause:</b> '+root.replace(/</g,'&lt;')+'</div>':'';
+  var by=CU?(CU.name||CU.id||''):'';
+  var ov=document.createElement('div');
+  ov.id='mttsActionConfirmOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483646;padding:10px;overflow:auto';
+  ov.innerHTML=
+    '<div id="mttsActionConfirmBox" style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(720px,98vw);max-height:calc(100vh - 20px);overflow:auto;padding:14px 14px 12px;position:relative;display:flex;flex-direction:column;gap:10px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="font-size:13px;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;flex:1">📤 Confirm Update</div>'+
+        '<button type="button" onclick="_mttsTicketActionConfirmClose()" aria-label="Close" title="Close" style="width:30px;height:30px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:16px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'+
+      '</div>'+
+      // Ticket card replica
+      '<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+';position:relative;cursor:default;margin:0">'+
+        summaryCard+
+      '</div>'+
+      // Update summary
+      '<div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:8px 12px">'+
+        '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">This update</div>'+
+        '<div style="font-size:14px;font-weight:800;color:var(--text)">'+statusLbl+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:2px">by '+_mttsUserDisp(by)+' · '+_mttsFmtISTDateTime(new Date().toISOString())+(photoCount?(' · '+photoCount+' photo'+(photoCount>1?'s':'')):'')+'</div>'+
+        rootHtml+
+        photoStrip+
+      '</div>'+
+      // Action row
+      '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">'+
+        '<button type="button" onclick="_mttsTicketActionConfirmCopy(this)" style="font-size:13px;padding:8px 14px;font-weight:800;background:#eef2ff;border:1.5px solid #a5b4fc;color:#4338ca;border-radius:6px;cursor:pointer">📋 Copy Screenshot</button>'+
+        '<button type="button" onclick="_mttsTicketActionConfirmClose()" style="font-size:13px;padding:8px 14px;font-weight:800;background:#fff;border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">Cancel</button>'+
+        '<button type="button" onclick="_mttsTicketActionConfirmPost(this)" style="font-size:13px;padding:8px 16px;font-weight:900;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer">📤 Post Update</button>'+
+      '</div>'+
+    '</div>';
+  ov.addEventListener('click',function(e){ if(e.target===ov) _mttsTicketActionConfirmClose(); });
+  document.body.appendChild(ov);
+  // Esc closes the confirmation popup (NOT the underlying Update modal).
+  var escH=function(ev){ if(ev.key==='Escape'){ ev.preventDefault(); _mttsTicketActionConfirmClose(); document.removeEventListener('keydown',escH); } };
+  ov._escH=escH;
+  document.addEventListener('keydown',escH);
+}
+function _mttsTicketActionConfirmClose(){
+  var ov=document.getElementById('mttsActionConfirmOverlay');
+  if(!ov) return;
+  if(ov._escH) try{ document.removeEventListener('keydown',ov._escH); }catch(_){}
+  ov.remove();
+}
+async function _mttsTicketActionConfirmCopy(btn){
+  // Snapshot the inner popup box (ticket card + summary), not the
+  // dark overlay backdrop.
+  var box=document.getElementById('mttsActionConfirmBox');
+  if(!box){ notify('Nothing to copy',true); return; }
+  var origTxt=btn.textContent;
+  btn.disabled=true; btn.textContent='⏳';
+  try{
+    var ok=await _mttsLoadHtml2Canvas();
+    if(!ok){ notify('⚠ Screenshot library failed to load — check internet',true); return; }
+    var canvas=await html2canvas(box,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false});
+    var blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
+    if(!blob){ notify('⚠ Could not encode image',true); return; }
+    if(!navigator.clipboard || !window.ClipboardItem){
+      var url=URL.createObjectURL(blob);
+      window.open(url,'_blank');
+      notify('Browser does not support clipboard image — opened in new tab',true);
+      return;
+    }
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    notify('📋 Update summary copied to clipboard');
+  }catch(e){
+    try{ console.warn('[mtts] copy confirm failed',e); }catch(_){}
+    notify('⚠ Copy failed: '+(e && e.message ? e.message : 'unknown'),true);
+  }finally{
+    btn.disabled=false; btn.textContent=origTxt;
+  }
+}
+async function _mttsTicketActionConfirmPost(btn){
+  btn.disabled=true; btn.textContent='⏳ Posting…';
+  try{
+    await _mttsTicketActionSubmit();
+  } finally {
+    btn.disabled=false; btn.textContent='📤 Post Update';
+  }
+  // _mttsTicketActionSubmit closes the Update Ticket modal on success.
+  // Close the confirmation popup too.
+  _mttsTicketActionConfirmClose();
+}
+
 async function _mttsTicketActionSubmit(){
   var err=document.getElementById('mttsTechActErr');
   var _showErr=function(m){if(err){err.textContent=m;err.style.display='block';}};
@@ -5348,13 +5533,16 @@ function _mttsDashHpStatus(assets){
   '</div>';
   // V36 — Custom card frame so the date picker can sit BESIDE the
   // title in the card header (rather than below it as a separate row).
+  // V35 (260518) — Side padding stripped down so the plant cards
+  // inside this panel get the full viewport width. Top/bottom kept
+  // for breathing room with the header + the dashboard above/below.
   var _mkCard=function(inner){
-    return '<div class="card" style="margin-bottom:12px">'+
-      '<div class="card-header" style="border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+    return '<div class="card" style="margin-bottom:12px;padding:12px 4px 8px">'+
+      '<div class="card-header" style="border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 6px 8px">'+
         '<div class="card-title">High Priority Asset Status</div>'+
         picker+
       '</div>'+
-      '<div style="padding:6px 12px 10px">'+inner+'</div>'+
+      '<div style="padding:6px 4px 4px">'+inner+'</div>'+
     '</div>';
   };
   if(!plantKeys.length){
@@ -5462,11 +5650,15 @@ function _mttsDashHpStatus(assets){
     }).join('');
     var plantNm=_mttsPlantLabel(plant)||plant;
     var plantBg=_mttsPlantColor(plant)||'#94a3b8';
-    return '<div style="border:1.5px solid var(--border);border-left:5px solid '+plantBg+';border-radius:10px;padding:8px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px;min-width:0">'+
-      '<div style="display:flex;align-items:center;gap:8px;min-width:0">'+
-        _mttsPlantBadgeShort(plant)+
-        '<span style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
-        '<span style="flex:0 0 auto;font-size:11px;color:var(--text2)"><b style="color:'+(nDown>0?'#dc2626':'#16a34a')+';font-size:13px">'+nDown+'</b>/'+arr.length+'</span>'+
+    var plantFg=(typeof _mttsBgToFg==='function')?_mttsBgToFg(plantBg):'#0f172a';
+    // V36 (260518) — Plant header simplified to a single full-width
+    // pill that uses the plant's color as its background. Short-form
+    // badge dropped to declutter; the down/total count sits on the
+    // right inside the same pill.
+    return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px;min-width:0">'+
+      '<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;background:'+plantBg+';color:'+plantFg+';min-width:0">'+
+        '<span style="font-size:13px;font-weight:900;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
+        '<span style="flex:0 0 auto;font-size:11px;font-weight:800"><b style="font-size:13px">'+nDown+'</b>/'+arr.length+'</span>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:24px">'+chips+'</div>'+
       '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);border-top:1px dashed var(--border);padding-top:5px;margin-top:auto">'+

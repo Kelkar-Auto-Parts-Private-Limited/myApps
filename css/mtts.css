@@ -811,7 +811,7 @@
   }
 
   /* Asset edit modal — compact 3-column grid */
-  .mtts-asset-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .mtts-asset-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
   .mtts-asset-grid .form-group{margin-bottom:0}
   .mtts-asset-span2{grid-column:span 2}
   .mtts-asset-full{grid-column:1 / -1}
@@ -914,15 +914,36 @@
      Classification / Equipment Details / Dates) so each section reads as
      its own card. Panels use a subtle border + tinted legend chip so the
      boundaries are clear without competing with the field borders. */
+  /* V36 (260518) — Reduce text sizes inside the Add/Edit Asset modal
+     by 1px across the board (label / input / select / textarea / legend
+     / modal title / preview / req-asterisk) for a more compact look.
+     V38 (260518) — Padding tightened on form controls so the box
+     hugs the text (the global 10px 14px made the controls look
+     oversized for their content). */
+  .mtts-asset-modal label{font-size:11px}
+  .mtts-asset-modal input[type=text],
+  .mtts-asset-modal input[type=number],
+  .mtts-asset-modal input[type=date],
+  .mtts-asset-modal input[type=email],
+  .mtts-asset-modal input[type=tel],
+  .mtts-asset-modal select,
+  .mtts-asset-modal textarea{font-size:13px;padding:5px 9px}
+  .mtts-asset-modal .modal-title{font-size:17px}
+  .mtts-asset-modal .mtts-req{font-size:17px}
+  .mtts-asset-modal .mtts-asset-preview-name{font-size:14px}
+  .mtts-asset-modal .mtts-asset-preview-lbl{font-size:9px}
+  .mtts-asset-modal .mtts-asset-panel > legend{font-size:9px}
+  .mtts-asset-modal .mtts-asset-preview-plant span,
+  .mtts-asset-modal .mtts-asset-preview-plant:empty::before{font-size:11px}
   .mtts-asset-panel{
     border:1.5px solid #cbd5e1;
     border-radius:10px;
-    padding:10px 14px 12px;
-    margin:0 0 12px;
+    padding:6px 12px 8px;
+    margin:0 0 8px;
     background:#f8fafc;
     min-width:0;
   }
-  .mtts-asset-panel:last-of-type{margin-bottom:6px}
+  .mtts-asset-panel:last-of-type{margin-bottom:4px}
   /* V16 (260518) — Toned down: dark slate pill swapped for a subtle
      muted-text label with no background. Keeps the section break
      visible without competing with field labels for attention. */
@@ -940,6 +961,33 @@
   /* Fieldset zero-out so our padding/grid control the layout cleanly. */
   .mtts-asset-modal fieldset.mtts-asset-panel{
     min-inline-size:auto;
+  }
+  /* V35 (260518) — Sticky header + footer inside the scrolling modal so
+     the X close button and the Save / Cancel buttons stay visible
+     regardless of scroll position (especially under mobile browser
+     chrome). */
+  .mtts-asset-modal .modal-header{
+    position:sticky;
+    top:0;
+    background:#fff;
+    z-index:5;
+    padding-bottom:6px;
+    margin-bottom:6px;
+    border-bottom:1px solid #e2e8f0;
+  }
+  .mtts-asset-modal-footer{
+    position:sticky;
+    bottom:0;
+    background:#fff;
+    z-index:5;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px solid #e2e8f0;
+    display:flex;
+    gap:8px;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
   }
   .mtts-asset-modal fieldset.mtts-asset-panel[disabled]{
     opacity:.7;
@@ -1055,7 +1103,20 @@
       font-size:13px !important;
       padding:6px 6px;
     }
-    .mtts-asset-modal{width:100vw!important;max-width:100vw!important;max-height:100vh!important;height:100vh;border-radius:0!important;padding:14px!important;transform:none!important}
+    /* V35 (260518) — Mobile sheet: use dynamic viewport (dvh) so the
+       browser address bar / bottom system nav don't clip the modal
+       header (X button) or footer (Cancel / Save). Also honour the
+       device safe-area insets (iOS notch / Android edge) and tighten
+       padding for compactness. */
+    .mtts-asset-modal{
+      width:100vw!important;max-width:100vw!important;
+      max-height:100dvh!important;height:100dvh;
+      border-radius:0!important;
+      padding:10px 12px!important;
+      padding-top:max(10px,env(safe-area-inset-top))!important;
+      padding-bottom:max(10px,env(safe-area-inset-bottom))!important;
+      transform:none!important;
+    }
     .mtts-asset-modal input,.mtts-asset-modal select,.mtts-asset-modal textarea{font-size:16px!important}
   }
 
