@@ -14,7 +14,11 @@ var _SYNC_SELECT={
   // on-demand by _loadTripChallans() when a trip is opened.
   'vms_trips':'id,code,booked_by,plant,date,start_loc,dest1,dest2,dest3,driver_id,vehicle_id,vehicle_type_id,actual_vehicle_type_id,vendor,description,trip_cat_id,challan1,weight1,challan2,weight2,challan3,weight3,edited_by,edited_at,cancelled,updated_at',
   'vms_segments':'id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at',
-  'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at'
+  'vms_spot_trips':'id,code,vehicle_num,supplier,challan,driver_name,driver_mobile,entry_remarks,date,entry_time,entry_by,location,exit_time,exit_by,exit_remarks,updated_at',
+  // V90 (260518) — Strip photos from users + drivers across every app boot.
+  // Loaded on-demand via _loadPhotos (registered in _PHOTO_DB_COLS).
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at',
+  'vms_drivers':'id,code,name,mobile,vendor_id,dl_expiry,inactive,updated_at'
 };
 
 // Date filtering: only fetch recent data, load history on-demand

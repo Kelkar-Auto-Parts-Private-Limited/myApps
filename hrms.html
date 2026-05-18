@@ -1,11 +1,11 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-<meta name="app-build" content="260518-V87">
+<meta name="app-build" content="260518-V115">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260518-V87">
+<link rel="stylesheet" href="css/hrms.css?v=260518-V115">
 </head>
 <body>
 
@@ -416,30 +416,37 @@
   <!-- UTILITIES: Day-wise Attendance -->
   <div class="page" id="pageHrmsUtilDailyAtt" style="flex-direction:column">
     <div class="card" style="flex:1;display:flex;flex-direction:column">
-      <!-- Page-level header — date selector is now the visual anchor.
-           The redundant date label was dropped (the selector itself
-           shows the active date), but the element stays as a hook for
-           the "no data" warning. -->
-      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">
+      <!-- V104 — Three-slot header row:
+             LEFT   → date picker pill
+             MIDDLE → #hrmsDasUnknownSlot (filled by Manpower tab with the
+                      Unknown Emp Code chips; empty on other tabs)
+             RIGHT  → Settings ⚙ button
+           The unknown slot is a flex:1 spacer so the picker hugs the left
+           edge and the Settings button hugs the right edge regardless of
+           how many chips are in the middle. -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 6px;background:linear-gradient(180deg,#eef2ff,#c7d2fe);border:1.5px solid var(--accent);border-radius:6px;box-shadow:0 1px 3px rgba(67,56,202,.18)">
           <span style="font-size:11px;font-weight:900;color:var(--accent);letter-spacing:.2px">📅</span>
           <button onclick="_hrmsDasShiftHistDate(-1)" title="Previous day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">◀</button>
           <input type="date" id="hrmsDasHistDate" onchange="_hrmsDasLoadFromHistory()" style="font-size:11px;font-weight:800;padding:3px 5px;border:1px solid var(--accent);border-radius:4px;font-family:var(--sans);color:#0f172a;background:#fff">
           <button onclick="_hrmsDasShiftHistDate(1)" title="Next day" style="padding:3px 6px;font-size:11px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer;line-height:1">▶</button>
         </span>
-        <div id="hrmsDasDateLabel" style="font-size:14px;font-weight:800;color:#dc2626;letter-spacing:.3px;text-align:center"></div>
+        <div id="hrmsDasUnknownSlot" style="flex:1 1 auto;min-width:0"></div>
+        <button id="hrmsDasExportBtn" onclick="_hrmsDasExport()" title="Export current view to Excel (.xlsx)" style="padding:6px 12px;font-size:13px;font-weight:800;background:#16a34a;border:1.5px solid #15803d;color:#fff;border-radius:6px;cursor:pointer;line-height:1;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="font-size:14px;line-height:1">⬇</span><span>Excel</span></button>
+        <button id="hrmsDasPrintBtn" onclick="_hrmsDasPrintPdf()" title="Print / Save as PDF" style="padding:6px 12px;font-size:13px;font-weight:800;background:#2563eb;border:1.5px solid #1d4ed8;color:#fff;border-radius:6px;cursor:pointer;line-height:1;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="font-size:14px;line-height:1">🖨</span><span>PDF</span></button>
+        <button id="hrmsDasAllocSettingsBtn" onclick="_hrmsOpenAllocSettingsModal()" title="Manpower Allocation Settings" style="padding:6px 14px;font-size:13px;font-weight:800;background:#f1f5f9;border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;line-height:1;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="font-size:16px;line-height:1">⚙</span><span>Settings</span></button>
       </div>
+      <div id="hrmsDasDateLabel" style="font-size:14px;font-weight:800;color:#dc2626;letter-spacing:.3px;text-align:center;margin-bottom:8px"></div>
       <!-- Tab strip — the three primary tabs are now sidebar
-           sub-menu items so the inline buttons are hidden. The
-           strip itself stays in flow so the Settings ⚙ button on
-           the right end remains reachable. -->
+           sub-menu items so the inline buttons are hidden. The Settings
+           button moved up to the date-picker row, so this strip carries
+           only the (hidden) tab buttons. -->
       <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:10px;flex-wrap:nowrap;overflow-x:auto;align-items:center">
         <div id="hrmsDasTabBtn_manpower" onclick="_hrmsDasSetTab('manpower')" style="display:none">👷 Allocation vs Actual Manpower</div>
         <div id="hrmsDasTabBtn_deptdetails" onclick="_hrmsDasSetTab('deptdetails')" style="display:none">📋 Department-wise Attendance</div>
         <div id="hrmsDasTabBtn_teamwise" onclick="_hrmsDasSetTab('teamwise')" style="display:none">👥 Team-wise Attendance Record</div>
         <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="display:none">📋 Role Group Setting</div>
         <div id="hrmsDasTabBtn_alloc" onclick="_hrmsDasSetTab('alloc')" style="display:none">🎯 MP Alloc Setting</div>
-        <button id="hrmsDasAllocSettingsBtn" onclick="_hrmsOpenAllocSettingsModal()" title="Manpower Allocation Settings" style="margin-left:auto;padding:6px 14px;font-size:13px;font-weight:800;background:#f1f5f9;border:1.5px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;line-height:1;align-self:center;white-space:nowrap;display:inline-flex;align-items:center;gap:6px"><span style="font-size:16px;line-height:1">⚙</span><span>Settings</span></button>
       </div>
 
       <!-- TAB: Manpower Data -->
@@ -1252,8 +1259,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V87"></script>
-<script src="js/hrms-logic.js?v=260518-V87"></script>
-<script src="js/hrms-ui.js?v=260518-V87"></script>
+<script src="js/common.js?v=260518-V115"></script>
+<script src="js/hrms-logic.js?v=260518-V115"></script>
+<script src="js/hrms-ui.js?v=260518-V115"></script>
 </body>
 </html>

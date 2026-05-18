@@ -7,6 +7,15 @@ if(typeof _COMMON_LOADED==='undefined'){
   throw new Error('Common.js not loaded');
 }
 
+// V90 (260518) — Strip users.photo at Security boot; lazy-load via
+// _loadPhotos when needed. _syncMergeRows lives in common.js with
+// the same shape, so locally-loaded photos survive subsequent syncs.
+var _SYNC_SELECT = {
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+};
+var _PHOTO_PRESERVE = { 'users':['photo'] };
+var _PHOTO_DB_COLS  = { 'vms_users':['photo'] };
+
 // ═══ NAVIGATION ══════════════════════════════════════════════════════════
 // Security page → permission key (in _PERM_KEYS.Security).
 var _SEC_PAGE_PERM_KEY={
@@ -412,6 +421,8 @@ async function _secBoot(){
   // hrmsSettings holds role-permission data (shared across apps); required
   // for permCanView / permCanAct to work in Security nav + page enforcement.
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules','hrmsSettings'];
+  // V91 — access gate: users without Security access bounce back to portal.
+  if(typeof _gateAppAccess==='function' && !_gateAppAccess('security')) return;
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }
   if(splash) splash.style.display='none';
   var su=_sessionGet('kap_session_user')||localStorage.getItem('kap_rm_user');

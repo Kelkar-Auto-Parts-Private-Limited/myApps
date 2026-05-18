@@ -21,7 +21,24 @@ if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSetti
 //     modal's history tab.
 var _SYNC_SELECT={
   'mtts_tickets':'id,code,asset_code,plant,asset_id,plant_id,breakdown_type,breakdown_since,status,raised_by,raised_at,assigned_to,assigned_at,assigned_by,tech_actions,root_cause,cost_service,cost_spares,approved_by,approved_at,updated_at',
-  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at'
+  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at',
+  // V90 — strip users.photo at MTTS boot.
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+};
+// V90 — preserve on-demand user photos across MTTS syncs.
+var _PHOTO_PRESERVE = { 'users':['photo'] };
+var _PHOTO_DB_COLS  = { 'vms_users':['photo'] };
+
+// V92 (260518) — Date-filtered boot for mtts_tickets. Most active work is
+// on tickets raised in the last ~90 days; older ones are closed history
+// rarely needed except for archival lookup. Boot now pulls only the
+// recent window, which dramatically shrinks the boot payload (was ~15 MB
+// from tech_actions accumulating over years; cap drops it to ~2-3 MB).
+// Older tickets become accessible on demand via the existing search /
+// "load older" flows (or a future _mttsLoadOlderTicketsOnce helper).
+var _DATE_FILTER_DAYS=90;
+var _DATE_FILTER_COL={
+  'mtts_tickets':'raised_at'
 };
 
 // V38 — Lazy-fetch the three photo arrays for one ticket. Dedup tracker
@@ -83,6 +100,8 @@ async function _mttsLoadAssetHistory(id){
   // body stays hidden until _mttsLaunch flips it on, so there's no FOUC
   // while bootDB runs. No second loading screen.
   // Wait for Supabase + DB to load (handled in common.js bootDB).
+  // V91 — access gate: users without MTTS access bounce back to portal.
+  if(typeof _gateAppAccess==='function' && !_gateAppAccess('mtts')) return;
   if(typeof bootDB==='function'){
     bootDB().then(function(){
       var u=_sessionGet('kap_session_user');

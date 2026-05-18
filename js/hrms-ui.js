@@ -96,8 +96,94 @@ async function _hrmsAttImpLogDelete(id,mk){
 // by _hrmsAttImpLogLoadMonth(mk). Kept as a no-op so any stale code doesn't crash.
 async function _ensureAttImportLog(){ /* V87 — superseded */ }
 
+// V89 (260518) — Photo-excluded sync select for hrms_employees. The `photo`
+// column is base64-encoded employee photos (~50 KB each × ~500 employees
+// = ~25–35 MB per fetch). Boot + every full sync used to pull the whole
+// column, even when no employee detail was open. V89 strips photo from
+// the sync select and loads it on-demand via _hrmsEnsureEmployeePhotos.
+// V95 (260518) — V89 photo-strip restored with the correct column list.
+// The earlier list had `updated_at` at the end but hrms_employees has no
+// such column in this schema (verified via information_schema), so the
+// SELECT errored and the merge wiped DB.hrmsEmployees to [] on every
+// boot. Removed `updated_at`, also removed `photo` (loaded on-demand via
+// _loadPhotos), kept every other column the _fromRow mapper expects.
+var _SYNC_SELECT = {
+  'hrms_employees':'id,code,emp_code,name,last_name,first_name,middle_name,department,sub_department,designation,email,mobile,date_of_joining,date_of_birth,gender,status,reporting_to,location,pan_no,aadhaar_no,employment_type,team_name,category,esi_no,pf_no,uan,date_of_left,roll,salary_day,salary_month,extra,bank_name,branch_name,acct_no,ifsc,periods,no_pl',
+  // V90 — strip users.photo at HRMS boot.
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+};
+var _PHOTO_PRESERVE = { 'hrmsEmployees':['photo'], 'users':['photo'] };
+var _PHOTO_DB_COLS  = { 'hrms_employees':['photo'], 'vms_users':['photo'] };
+
+// Standard photo-preserving merge — mirrors VMS/HWMS _syncMergeRows so that
+// a sync (boot, bgSync, manual refresh) doesn't overwrite locally-loaded
+// photos with empty values. `replace=true` swaps the array, `false` does
+// an upsert merge.
+function _syncMergeRows(localTbl,newParsed,replace){
+  var pf=_PHOTO_PRESERVE[localTbl]||[];
+  var existing=DB[localTbl]||[];
+  if(replace){
+    if(pf.length){
+      var oldMap={};existing.forEach(function(r){oldMap[r.id]=r;});
+      newParsed.forEach(function(r){
+        var old=oldMap[r.id];
+        if(!old) return;
+        pf.forEach(function(f){ if(old[f]&&!r[f]) r[f]=old[f]; });
+      });
+    }
+    DB[localTbl]=newParsed;
+  } else {
+    var idMap={};for(var i=0;i<existing.length;i++) idMap[existing[i].id]=i;
+    newParsed.forEach(function(rec){
+      if(idMap[rec.id]!==undefined){
+        var old=existing[idMap[rec.id]];
+        if(pf.length) pf.forEach(function(f){ if(old[f]&&!rec[f]) rec[f]=old[f]; });
+        existing[idMap[rec.id]]=rec;
+      } else { existing.push(rec); }
+    });
+    DB[localTbl]=existing;
+  }
+}
+
+// On-demand fetch of the `photo` column for a batch of employee codes.
+// Deduped via _hrmsLoadedEmpPhotos so re-renders don't refetch. Inflight
+// guard so two near-simultaneous calls share the same network round-trip.
+var _hrmsLoadedEmpPhotos = {};
+var _hrmsInflightEmpPhotos = {};
+async function _hrmsEnsureEmployeePhotos(empCodes){
+  if(!_sb||!_sbReady) return;
+  if(!Array.isArray(empCodes)||!empCodes.length) return;
+  var todo=empCodes.filter(function(c){
+    if(!c||_hrmsLoadedEmpPhotos[c]||_hrmsInflightEmpPhotos[c]) return false;
+    var rec=byId(DB.hrmsEmployees||[],c);
+    if(rec&&rec.photo) { _hrmsLoadedEmpPhotos[c]=true; return false; }
+    return !!rec;
+  });
+  if(!todo.length) return;
+  todo.forEach(function(c){ _hrmsInflightEmpPhotos[c]=true; });
+  try{
+    // IN-list capped at 100 per call to stay under URL length limits.
+    for(var i=0;i<todo.length;i+=100){
+      var batch=todo.slice(i,i+100);
+      var res=await _sb.from('hrms_employees').select('code,photo').in('code',batch);
+      if(res.error||!Array.isArray(res.data)){ continue; }
+      res.data.forEach(function(row){
+        var rec=byId(DB.hrmsEmployees||[],row.code);
+        if(rec&&row.photo) rec.photo=row.photo;
+        _hrmsLoadedEmpPhotos[row.code]=true;
+      });
+    }
+    if(typeof _onRefreshViews==='function') try{ _onRefreshViews(); }catch(_){}
+  } catch(e){ console.warn('_hrmsEnsureEmployeePhotos:',e&&e.message); }
+  finally { todo.forEach(function(c){ delete _hrmsInflightEmpPhotos[c]; }); }
+}
+
 // ── Boot — no separate login, uses portal session ──
 (async function(){
+  // V91 — access gate. Block boot for users without HRMS access; redirect
+  // back to portal so we never fetch the multi-MB HRMS table set into a
+  // browser that can't display it.
+  if(typeof _gateAppAccess==='function' && !_gateAppAccess('hrms')) return;
   try{await bootDB();}catch(e){console.error('HRMS boot error:',e);}
   var splash=document.getElementById('dbSplash');
   if(splash) splash.style.display='none';
@@ -282,7 +368,13 @@ async function _hrmsManualRefresh(){
           _hrmsAttImpLogCache={};_hrmsAttImpLogInflight={};
         }
         var res=await q;
-        if(!res.error&&res.data) DB[tbl]=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+        if(res.error||!res.data) return;
+        var parsed=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
+        // V89 — use _syncMergeRows so locally-loaded employee photos
+        // (loaded on-demand by _hrmsEnsureEmployeePhotos) survive the
+        // photo-stripped manual refresh.
+        if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,parsed,true);
+        else DB[tbl]=parsed;
       }));
       // Public hrms_employees has salary_day=0/salary_month=0 after the
       // lockdown migration. Re-pull salary from the RPC and re-apply so
@@ -2454,6 +2546,11 @@ async function _hrmsScrubDayTypes(){
 // Shift the selected month by ±N months. The ▶ button is disabled in
 // the header when we're already at the current month, but the JS still
 // guards so direct calls can't push past today's month either.
+// V114 — Plant filter MOVED from the dashboard Team-wise Daily Headcount
+// section to the "📅 Team-wise Attendance" popup (see _hrmsDasTwMdRender).
+// The setter below is kept as a no-op shim so any lingering callers /
+// cached buttons don't crash.
+function _hrmsDashTeamHcSetPlant(){ /* V114 — superseded */ }
 function _hrmsDashTeamHcShiftMonth(delta){
   var t=new Date();
   var todayMk=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
@@ -2790,6 +2887,9 @@ function _hrmsDashTeamHcSection(allEmps){
   // when the viewport crosses the 700px threshold (orientation change,
   // browser resize, etc.).
   if(typeof _hrmsDashTeamHcBindResize==='function') _hrmsDashTeamHcBindResize();
+  // V114 — Plant filter removed from this dashboard section; it lives on
+  // the "📅 Team-wise Attendance" popup now (_hrmsDasTwMdRender). The
+  // dashboard chart shows all plants again.
   // Selected month drives the chart. State lives on
   // `window._hrmsDashTeamHcMonth` (YYYY-MM). Defaults to today's month;
   // the ◀ ▶ navigator caps at today's month so future months can't be
@@ -2829,7 +2929,10 @@ function _hrmsDashTeamHcSection(allEmps){
     if(b==='— No team —') return -1;
     return a.localeCompare(b);
   });
-  if(!teamKeys.length) return '';
+  // V114 — Plant picker removed from this section (lives on the popup now).
+  if(!teamKeys.length){
+    return '';
+  }
   // Background fetch for missing historical months (and the current
   // month) so the section can populate as data arrives.
   var monthsBack=6;
@@ -3098,7 +3201,7 @@ function _hrmsDashTeamHcSection(allEmps){
       +'<span style="font-size:12px;font-weight:800;color:var(--accent);padding:3px 10px;border:1.5px solid var(--accent);border-radius:4px;background:#fff;min-width:96px;text-align:center;letter-spacing:.2px">'+(MON_NAMES[curMo-1]||'')+' '+curYr+'</span>'
       +'<button'+_nextOnClick+(_atToday?' disabled':'')+' title="'+(_atToday?'Already at the current month':'Next month')+'" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;'+_nextDisStyle+'line-height:1">▶</button>'
     +'</span>'
-    +'<button onclick="_hrmsDasTwShowMonthly({team:\'__TOTAL__\'})" title="Open Team-wise Attendance popup with team / month filters" style="margin-left:auto;padding:6px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(124,58,237,.25)">📅 Team-wise Attendance</button>'
+    +'<button onclick="_hrmsDasTwShowMonthly({team:\'__TOTAL__\'})" title="Open Team-wise Attendance popup with team / month / plant filters" style="margin-left:auto;padding:6px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(124,58,237,.25)">📅 Team-wise Attendance</button>'
     +'</div>';
   // ── Lane renderer ────────────────────────────────────────────────
   // Builds one horizontal team strip: team label on the left, SVG with
@@ -15472,6 +15575,10 @@ function _hrmsDasTwShowGroupEmps(idx,kind){
 var _hrmsTwMdMonth=null;
 var _hrmsTwMdSelEts=null;    // null = all emp types; array of canonical names otherwise
 var _hrmsTwMdTeamName='__ALL__';
+// V114 — Plant filter for the Team-wise Attendance popup. '__ALL__' = no
+// filter; otherwise an exact plant string matching the value emp records
+// carry in period.location / emp.location (same shape as scopeRows below).
+var _hrmsTwMdPlant='__ALL__';
 
 function _hrmsDasTwShowMonthly(initialOpts){
   // Default the month from the main page's selected date on first open.
@@ -15533,6 +15640,8 @@ function _hrmsDasTwMdClose(){
 
 function _hrmsDasTwMdSetMonth(mk){_hrmsTwMdMonth=mk;_hrmsDasTwMdRender();}
 function _hrmsDasTwMdSetTeamName(name){_hrmsTwMdTeamName=name||'__ALL__';_hrmsDasTwMdRender();}
+// V114 — Plant setter mirroring team/month so the popup state is uniform.
+function _hrmsDasTwMdSetPlant(pl){_hrmsTwMdPlant=pl||'__ALL__';_hrmsDasTwMdRender();}
 function _hrmsDasTwMdToggleEt(et){
   var canon=['On Roll','Contract','Piece Rate'];
   if(et==='__ALL__'){_hrmsTwMdSelEts=null;_hrmsDasTwMdRender();return;}
@@ -15607,7 +15716,9 @@ function _hrmsDasTwMdRender(){
     for(var k in selEtSet){if(n.indexOf(k)>=0||k.indexOf(n)>=0) return true;}
     return false;
   };
-  // Scope rows to main page's emp-type + team + ContractorSup scope.
+  // Scope rows to popup's emp-type + team + plant + ContractorSup scope.
+  // V114 — Plant filter added (`_hrmsTwMdPlant`). '__ALL__' = no filter.
+  var selPlant=_hrmsTwMdPlant||'__ALL__';
   var scopeRows=[];
   allEmps.forEach(function(e){
     if(!e||!e.empCode) return;
@@ -15615,6 +15726,7 @@ function _hrmsDasTwMdRender(){
     if(!c) return;
     if(!etFilter(c.et)) return;
     if(selTeam!=='__ALL__'&&c.team!==selTeam) return;
+    if(selPlant!=='__ALL__'&&c.plant!==selPlant) return;
     if(supScope&&!supScope.teamNames[c.team]) return;
     scopeRows.push({emp:e,empCode:String(e.empCode).trim(),et:c.et,team:c.team,plant:c.plant});
   });
@@ -15900,12 +16012,39 @@ function _hrmsDasTwMdRender(){
     +'<span style="font-size:11px;font-weight:800;color:#64748b">MONTH</span>'
     +'<select onchange="_hrmsDasTwMdSetMonth(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:130px;cursor:pointer">'+monthSelOpts+'</select>'
     +'</span>';
+  // V114 — PLANT picker. Derive options from the in-scope (pre-plant-filter)
+  // rows so the user only sees plants that actually have employees in the
+  // current team+emp-type slice. The dropdown sits beside Team / Month.
+  var _allPlantsForPick={};
+  allEmps.forEach(function(e){
+    if(!e||!e.empCode) return;
+    var c=ctxByCode[String(e.empCode).trim()];
+    if(!c) return;
+    if(!etFilter(c.et)) return;
+    if(selTeam!=='__ALL__'&&c.team!==selTeam) return;
+    if(supScope&&!supScope.teamNames[c.team]) return;
+    if(c.plant) _allPlantsForPick[c.plant]=true;
+  });
+  var plantPickOpts=Object.keys(_allPlantsForPick).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});
+  var plantSelOpts='<option value="__ALL__"'+(selPlant==='__ALL__'?' selected':'')+'>All Plants</option>';
+  plantPickOpts.forEach(function(pl){
+    plantSelOpts+='<option value="'+_esc(pl)+'"'+(pl===selPlant?' selected':'')+'>'+_esc(pl)+'</option>';
+  });
+  if(selPlant!=='__ALL__'&&!_allPlantsForPick[selPlant]){
+    // Keep an out-of-range selection visible so the user can switch back to All.
+    plantSelOpts+='<option value="'+_esc(selPlant)+'" selected>'+_esc(selPlant)+'</option>';
+  }
+  var pickPlant='<span style="display:inline-flex;gap:6px;align-items:center">'
+    +'<span style="font-size:11px;font-weight:800;color:#64748b">PLANT</span>'
+    +'<select onchange="_hrmsDasTwMdSetPlant(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:160px;cursor:pointer">'+plantSelOpts+'</select>'
+    +'</span>';
   // V67: per-request the popup only exposes Team + Month pickers. The
   // emp-type pills are still computed (the underlying selEts filter is
   // still applied — driven by the caller's `team` arg, e.g. __KAP__
   // implies On Roll) but they're no longer rendered.
+  // V114: PLANT picker added beside Team + Month.
   var pickerRow='<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:8px">'
-    +pickTeam+pickMonth+'</div>';
+    +pickTeam+pickMonth+pickPlant+'</div>';
   // ── Chart. On narrow viewports (mobile), the axes flip — dates on
   // the Y axis, headcount on the X axis — so the chart reads as a
   // scrollable list of rows instead of a cramped horizontal strip.
@@ -16717,6 +16856,22 @@ function _hrmsDasTwRender(){
       var aBadge='<span style="display:inline-block;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:0 6px;border-radius:7px;font-weight:800;font-size:13px;margin-left:3px">'+a+'</span>';
       return pBadge+aBadge;
     };
+    // V109 — Plant names combo. The tile row below shows short forms
+    // (P1, P2, …) which is compact but unhelpful when plant names are
+    // unfamiliar. This dropdown lists the full names alongside the
+    // tiles and updates the same _hrmsDasTwPlant state.
+    var _plantSelEsc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');};
+    var _plantSelOnchange='onchange="_hrmsDasTwSetPlant(this.value===\'__ALL__\'?\'__ALL__\':this.value)"';
+    var _plantSelOpts='<option value="__ALL__"'+(allActive?' selected':'')+'>All Plants</option>'
+      +plantKeys.map(function(pl){
+        var sel=(pl===_hrmsDasTwPlant)?' selected':'';
+        return '<option value="'+_plantSelEsc(pl)+'"'+sel+'>'+_plantSelEsc(pl)+'</option>';
+      }).join('');
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">'
+      +'<span style="font-size:11px;color:#475569;font-weight:700">Plant filter:</span>'
+      +'<select '+_plantSelOnchange+' style="font-size:12px;padding:4px 10px;border:1.5px solid var(--accent);border-radius:6px;background:#fff;font-weight:700;color:var(--accent);cursor:pointer;min-width:160px">'
+      +_plantSelOpts+'</select>'
+      +'</div>';
     // Compact rectangular tiles — wider than tall so P & A badges
     // sit on a single line without wrapping. Layout: All · HO · P1 · P2 · …
     // Tile width bumped a touch to fit the +2px P/A badge size.
@@ -18159,6 +18314,28 @@ function _hrmsDasRender(){
   // ── Build per-plant Allocation Comparison HTML ──
   var alloc=_hrmsDasBuildAllocActuals(st);
   var compPlants=alloc.plants;
+  // V112 — Apply scope filter so a Plant Head only sees their own
+  // plant on the comparison strip (defaultScopeByRole on the perm key
+  // gives them scope='plant'; the resolver populates `out.plants` from
+  // the user's own emp.location). Dept Head likewise → dept scope's
+  // out.plants is the depts' parent plants. Admin can override either
+  // default via Access Management.
+  try{
+    if(typeof _hrmsResolveScope==='function'){
+      var _mpSc=_hrmsResolveScope('HRMS','tab.das.manpower');
+      if(_mpSc && _mpSc.kind && _mpSc.kind!=='all'){
+        var _allowed=_mpSc.plants||{};
+        if(Object.keys(_allowed).length){
+          compPlants=compPlants.filter(function(pl){return !!_allowed[pl];});
+        } else {
+          // Scope is narrower than 'all' but resolved to no plants —
+          // user has the role but isn't mapped to any plant. Show empty
+          // so they don't see other plants' data.
+          compPlants=[];
+        }
+      }
+    }
+  }catch(_){}
   var compDepts=alloc.depts;
   var compGroups=alloc.groups;
   var compHtmlByPlant={};
@@ -18232,8 +18409,9 @@ function _hrmsDasRender(){
         var w=bold?'900':'700';
         return '<td style="padding:4px 4px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+w+';font-family:var(--mono);border-bottom:'+hairBd+(extra||'')+'">'+(val||'—')+'</td>';
       };
-      var ph='<div style="font-size:11px;color:var(--text3);margin:0 0 10px"><b>AL</b> = Allocated · <b style="color:#15803d">P</b> = Actual Present · <b style="color:#b91c1c">S</b> = Shortage (<i>max(AL − P, 0)</i>). Departments are grouped by their common allocated role-groups (max '+_HRMS_ALLOC_MAX_GROUPS_PER_DEPT+' groups per department).</div>';
-      ph+='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;border:2px solid #94a3b8;border-radius:8px;padding:0">';
+      // V103 — Legend strip removed; AL / P / S column headers carry
+      // enough meaning on their own once the user knows the page.
+      var ph='<div style="flex:1;min-height:0;max-height:calc(100vh - 220px);width:100%;max-width:100%;overflow:auto;border:2px solid #94a3b8;border-radius:8px;padding:0">';
 
       if(!clusters.length){
         ph+='<div style="padding:24px;text-align:center;color:#94a3b8;font-size:12px">No departments with present or allocated headcount in this plant.</div>';
@@ -18278,12 +18456,19 @@ function _hrmsDasRender(){
         // single shared column geometry guarantees vertical alignment
         // with every other cluster's header strip + Total column.
         ph+='<tr>';
-        ph+='<th style="padding:5px 10px;text-align:left;color:#fff;font-weight:900;background:#475569;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+cl.depts.length+' dept(s) sharing this group set"></th>';
+        // V107 — Role-group header row background: light brown (#e8d5b7,
+        // a soft tan), black text. V106 used pure white; user wanted a
+        // subtle warm tone so the header row visually anchors above the
+        // dept rows below.
+        ph+='<th style="padding:5px 10px;text-align:left;color:#0f172a;font-weight:800;background:#e8d5b7;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+cl.depts.length+' dept(s) sharing this group set"></th>';
         slots.forEach(function(gid){
           var gName=gid?((groupById[gid]&&groupById[gid].name)||gid):'';
-          ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#475569;color:#fff;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gName?_hrmsEsc(gName):'<span style="color:#cbd5e1">—</span>')+'</th>';
+          // V101 — Wrap long role-group names instead of truncating with
+          // ellipsis. Helps when groups like "Powder Coater (Senior - Old)"
+          // would otherwise lose their suffix in the narrow 3-col slot.
+          ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#e8d5b7;color:#0f172a;font-weight:800;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-right:'+groupBd+';white-space:normal;word-break:break-word;line-height:1.25">'+(gName?_hrmsEsc(gName):'<span style="color:#94a3b8">—</span>')+'</th>';
         });
-        ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#312e81;color:#fff;font-weight:900;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-left:'+groupBd+'"></th>';
+        ph+='<th colspan="3" style="padding:5px 4px;text-align:center;background:#e8d5b7;color:#0f172a;font-weight:800;font-size:11px;border-top:'+(clIdx===0?'1px solid #94a3b8':'2px solid #94a3b8')+';border-bottom:'+hairBd+';border-left:'+groupBd+'"></th>';
         ph+='</tr>';
         cl.depts.forEach(function(dept){
           var rowAct=0,rowAlloc=0;
@@ -18365,29 +18550,159 @@ function _hrmsDasRender(){
   compPlants.forEach(function(plant){h+=renderTab(plant,'🏭 '+plant);});
   h+='</div>';
 
-  if(compHtmlByPlant[activeTab]) h+=compHtmlByPlant[activeTab];
-  else h+=compEmptyMsg;
-
+  // V104 — Unknown-emp-codes banner now lives in the dedicated header
+  // slot `#hrmsDasUnknownSlot` (between the date picker and the action
+  // buttons) instead of inside the table body. The header row stays at
+  // one line; the table gets the full vertical span underneath.
+  var _unknownBanner='';
   if(st.unmatched.length){
     var _unkChips=st.unmatched.map(function(u){
       var ec=String(u.code||'');
       var ecEsc=ec.replace(/'/g,"\\'");
-      // Pre-existing employee (e.g. unknown because they're _isNewEcr or
-      // their flat status differs) gets a "view" link; otherwise an "Add"
-      // link that opens the new-employee form pre-filled with this code.
       var existing=(DB.hrmsEmployees||[]).find(function(e){return(e.empCode||'').toUpperCase().trim()===ec.toUpperCase().trim();});
       if(existing){
         return '<a href="javascript:void(0)" onclick="_hrmsOpenEmpByCode(\''+ecEsc+'\')" style="color:#dc2626;font-weight:800;text-decoration:underline;cursor:pointer;padding:1px 4px;border-radius:3px;background:#fee2e2" title="View / edit existing employee">'+ec+'</a>';
       }
       return '<a href="javascript:void(0)" onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="color:#dc2626;font-weight:800;text-decoration:underline;cursor:pointer;padding:1px 4px;border-radius:3px;background:#fee2e2" title="Add new employee with this code">'+ec+' +</a>';
     }).join(' · ');
-    h+='<div style="margin-top:16px;padding:10px 12px;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;font-size:12px;color:#7f1d1d">'+
-       '<b>Unknown emp codes ('+st.unmatched.length+')</b> — not found in Employee master; excluded from the head count. Click a code to add or view that employee:<br>'+
-       '<div style="margin-top:6px;font-family:var(--mono);font-size:11px;max-height:120px;overflow:auto;line-height:1.9">'+
-       _unkChips+
-       '</div></div>';
+    _unknownBanner='<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;font-size:12px;color:#7f1d1d;max-width:100%;overflow:hidden">'+
+       '<b style="flex:0 0 auto">Unknown Emp Code:</b>'+
+       '<span style="font-family:var(--mono);font-size:11px;line-height:1.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto">'+_unkChips+'</span>'+
+       '</span>';
   }
+  // Push the banner into the header slot; clear it when empty so leftover
+  // chips from a prior date don't linger when the new date has no unknowns.
+  try{
+    var _unkSlot=document.getElementById('hrmsDasUnknownSlot');
+    if(_unkSlot) _unkSlot.innerHTML=_unknownBanner;
+  }catch(_){}
+
+  if(compHtmlByPlant[activeTab]) h+=compHtmlByPlant[activeTab];
+  else h+=compEmptyMsg;
+
   body.innerHTML=h;
+}
+
+// V108 — Direct-download, TEXT-SEARCHABLE PDF of the active tab's full
+// table. Uses jsPDF + autoTable's html-mode (already loaded for HRMS
+// print formats). Captures the entire <table> element from the DOM —
+// the table is fully rendered, not virtualised, so every row makes it
+// into the PDF regardless of scroll position. didParseCell carries the
+// inline cell colours (light-brown header, red shortage, green present,
+// etc.) into the PDF, and didDrawPage adds the title line on every page.
+// Multi-page is automatic when the table is taller than A3 landscape.
+function _hrmsDasPrintPdf(){
+  if(!window.jspdf||!window.jspdf.jsPDF){ if(typeof notify==='function') notify('PDF library not loaded',true); return; }
+  var body=document.getElementById('hrmsDasBody');
+  if(!body){ if(typeof notify==='function') notify('Nothing to print',true); return; }
+  // Grab the visible table for whichever tab is active. Manpower /
+  // teamwise / deptdetails all render a single <table> into the body
+  // container, so first-match works for any of them.
+  var table=body.querySelector('table');
+  if(!table){ if(typeof notify==='function') notify('No table to export on this tab',true); return; }
+
+  var dateInp=document.getElementById('hrmsDasHistDate');
+  var dateStr=(dateInp&&dateInp.value)||new Date().toISOString().slice(0,10);
+  // V110 — Format date for PDF header: YYYY-MM-DD → dd-MMM-yy (e.g. 18-May-26)
+  var _MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _dateFmt=(function(){
+    var p=String(dateStr).split('-');
+    if(p.length!==3) return dateStr;
+    return String(+p[2]).padStart(2,'0')+'-'+(_MON[+p[1]-1]||'?')+'-'+String(+p[0]).slice(-2);
+  })();
+  // V110 — Active plant name (the tab currently selected in the comparison
+  // strip). _hrmsDasCompareTab tracks it. Falls back to '—' when no plant
+  // tab is active yet.
+  var _plantHdr=(typeof _hrmsDasCompareTab==='string'&&_hrmsDasCompareTab)?_hrmsDasCompareTab:'—';
+
+  if(typeof showSpinner==='function') showSpinner('Generating PDF…');
+  try{
+    // V108 — A4 portrait. V110 — tighter cell padding + 8pt body so the
+    // table fits within the 198mm content area while staying readable.
+    var doc=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true,putOnlyUsedFonts:true});
+    var pageW=doc.internal.pageSize.getWidth();
+    // Parse a CSS colour string ("rgb(...)" / "rgba(...)" / "#hex") to
+    // the [r,g,b] array autoTable expects. Returns null for transparent
+    // / unset values so autoTable falls back to defaults.
+    var _toRgb=function(css){
+      if(!css) return null;
+      if(css==='transparent'||css==='rgba(0, 0, 0, 0)') return null;
+      var m=css.match(/rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+      if(m) return [+m[1],+m[2],+m[3]];
+      if(css.charAt(0)==='#'){
+        var h=css.slice(1);
+        if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+        return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];
+      }
+      return null;
+    };
+    doc.autoTable({
+      html: table,
+      startY: 14,
+      margin: {left:4,right:4,top:14,bottom:8},
+      tableWidth: 'auto',
+      styles: {
+        // V113 — Body 10→8pt and dept column narrowed (-25%) so the
+        // wider clusters get more horizontal room on A4 portrait.
+        // overflow:'linebreak' lets dept names wrap rather than blow
+        // out the column width.
+        fontSize: 8,
+        cellPadding: 0.3,
+        overflow: 'linebreak',
+        lineColor: [148,163,184],
+        lineWidth: 0.1,
+        valign: 'middle'
+      },
+      headStyles: { fontStyle:'bold', fontSize:8, textColor:[15,23,42] },
+      // V113 — Department column narrowed to 24 mm (~25% less than the
+      // auto-fit default for typical dept names). Long names wrap to a
+      // second line; the freed horizontal space goes to the AL/P/S cells
+      // which were getting cramped at 10pt body.
+      columnStyles: { 0: { cellWidth: 24 } },
+      bodyStyles: { textColor:[15,23,42] },
+      // Lift per-cell colours / weight from the source HTMLTableCellElement
+      // so the light-brown role-group header, red/green AL/P/S cells, and
+      // dark footer row carry over. Uses computed style so CSS variables
+      // and inline `style=` both resolve.
+      didParseCell: function(data){
+        try{
+          var src=data.cell.raw;
+          if(!src||!src.style) return;
+          var cs=window.getComputedStyle(src);
+          var bg=_toRgb(cs.backgroundColor);
+          if(bg) data.cell.styles.fillColor=bg;
+          var fg=_toRgb(cs.color);
+          if(fg) data.cell.styles.textColor=fg;
+          var fw=parseInt(cs.fontWeight,10);
+          if(fw>=700) data.cell.styles.fontStyle='bold';
+          // Right-align numeric AL/P/S cells (autoTable defaults to left).
+          var ta=cs.textAlign;
+          if(ta==='center') data.cell.styles.halign='center';
+          else if(ta==='right') data.cell.styles.halign='right';
+        }catch(_){}
+      },
+      // V110 — Per-page header: "<Plant Name> — Allocation vs Actual
+      // Manpower — dd-MMM-yy" centered, with page number on the right.
+      didDrawPage: function(){
+        doc.setFontSize(11);
+        doc.setTextColor(15,23,42);
+        var title=_plantHdr+'  —  Allocation vs Actual Manpower  —  '+_dateFmt;
+        var tw=doc.getTextWidth(title);
+        doc.text(title, (pageW-tw)/2, 9);
+        doc.setFontSize(7);
+        doc.setTextColor(100,116,139);
+        doc.text('Page '+doc.internal.getNumberOfPages(), pageW-18, 9);
+      }
+    });
+    // V110 — Filename now includes plant short-form when a tab is active.
+    var _fnPlant=_plantHdr.replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'')||'AllPlants';
+    doc.save('Manpower_'+_fnPlant+'_'+_dateFmt+'.pdf');
+    if(typeof notify==='function') notify('📥 PDF downloaded');
+  }catch(e){
+    console.error(e);
+    if(typeof notify==='function') notify('⚠ PDF generation failed: '+(e&&e.message),true);
+  }
+  if(typeof hideSpinner==='function') hideSpinner();
 }
 
 // Drill-down: show the list of employees behind a head-count cell.
@@ -28499,8 +28814,13 @@ async function _hrmsLoadRolls(){
   if(!DB.hrmsSettings) DB.hrmsSettings=[];
   var rec=DB.hrmsSettings.find(function(r){return r.key==='rolls';});
   if(rec) return;
-  // Seed defaults with a sentinel from='2000-01' so they apply to every month
-  rec={id:'s'+uid(),key:'rolls',data:{rolls:_HRMS_DEFAULT_ROLLS.map(function(r){
+  // V100 (260518) — use a stable id ('hs_rolls') so this seed path and
+  // _hrmsSaveRollDef's fallback (which also uses 'hs_rolls') target the
+  // SAME row. The previous random `'s'+uid()` id created a brand-new
+  // row every time the seed fired against an empty DB.hrmsSettings,
+  // which is why ~10 duplicate `rolls` rows accumulated in the DB.
+  // Seed defaults with a sentinel from='2000-01' so they apply to every month.
+  rec={id:'hs_rolls',key:'rolls',data:{rolls:_HRMS_DEFAULT_ROLLS.map(function(r){
     return {code:r[1],name:r[0],history:[{from:'2000-01',rate:r[2]}]};
   })}};
   DB.hrmsSettings.push(rec);

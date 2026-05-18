@@ -396,10 +396,16 @@ var _PHOTO_PRESERVE={
   'spotTrips':['challanPhoto','driverPhoto','entryVehiclePhoto','exitVehiclePhoto'],
   // challans1/2/3 hold base64 photos and are excluded from the boot select —
   // preserve any locally-loaded copies so realtime/bgSync don't wipe them.
-  'trips':['photo1','photo2','photo3','challans1','challans2','challans3']
+  'trips':['photo1','photo2','photo3','challans1','challans2','challans3'],
+  // V90 — users.photo + drivers.photo are stripped from sync; preserve
+  // anything loaded on-demand via _loadPhotos so subsequent syncs don't wipe.
+  'users':['photo'],
+  'drivers':['photo']
 };
 var _PHOTO_DB_COLS={
-  'vms_spot_trips':['challan_photo','driver_photo','entry_vehicle_photo','exit_vehicle_photo']
+  'vms_spot_trips':['challan_photo','driver_photo','entry_vehicle_photo','exit_vehicle_photo'],
+  'vms_users':['photo'],
+  'vms_drivers':['photo']
 };
 // _syncSelect → moved to vms-logic.js
 
@@ -927,6 +933,8 @@ async function _appBoot(){
   // Add essential lookup tables to hot sync so they load immediately
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicles','drivers','locations','vendors'];
 
+  // V91 — access gate: users without VMS access bounce back to portal.
+  if(typeof _gateAppAccess==='function' && !_gateAppAccess('vms')) return;
   try{
     await bootDB();
   }catch(e){

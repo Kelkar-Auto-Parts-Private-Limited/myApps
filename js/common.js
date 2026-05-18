@@ -2307,9 +2307,16 @@ async function bootDB(){
   _getActiveTables().forEach(k => DB[k] = []);
 
   // ── Step 1: localStorage handoff (cross-page navigation fast-path) ─────
-  // Single-use cache, populated by `_navigateTo` and consumed once on
-  // boot. Per-user keyed via the session user so a previous user's
-  // cached subset doesn't bleed into a different login.
+  // Multi-use cache, populated by `_navigateTo` AND periodically by
+  // _bgSyncHot (V97). Per-user keyed via the session user so a previous
+  // user's cached subset doesn't bleed into a different login.
+  // V97 (260518) — Two freshness tiers:
+  //   • <5 min ("fresh"): use cache, light background revalidation
+  //   • 5 min – 24h ("stale"): use cache but fetch deltas via watermarks
+  //   • >24h: drop the cache, fall through to a full fetch
+  // Watermarks (max updated_at per table) are persisted in the cache so
+  // a hard refresh after long idle still does ~10 KB of delta fetches
+  // instead of the full ~3-5 MB boot.
   var _cacheUser=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
   var _cacheKey='kap_db_cache'+(_cacheUser?('_'+String(_cacheUser).toLowerCase()):'');
   try{
@@ -2317,10 +2324,21 @@ async function bootDB(){
     if(_cached){
       var _cObj = JSON.parse(_cached);
       var _age = Date.now() - (_cObj.ts||0);
-      if(_age < 60000){
+      var _FRESH_MS = 300000;     // 5 min
+      var _STALE_MS = 86400000;   // 24 h
+      if(_age < _STALE_MS){
         _getActiveTables().forEach(function(t){ if(Array.isArray(_cObj[t])) DB[t]=_cObj[t]; });
-        localStorage.removeItem(_cacheKey);
-        console.log('bootDB: instant from localStorage cache (~'+_age+'ms old) — users='+(DB.users||[]).length);
+        // V97 — restore watermarks so the post-boot revalidation can
+        // do incremental delta fetches via _bgSyncFromSupabase /
+        // _bgSyncHot using `.gt('updated_at', watermark)`.
+        if(_cObj._watermarks && typeof _lastBgSyncAt!=='undefined'){
+          Object.keys(_cObj._watermarks).forEach(function(k){
+            _lastBgSyncAt[k]=_cObj._watermarks[k];
+          });
+        }
+        // Don't delete the cache — V97 keeps it around for the next
+        // hard refresh. _bgSyncHot's periodic writer keeps it fresh.
+        console.log('bootDB: cache '+(_age<_FRESH_MS?'fresh':'stale')+' ('+Math.round(_age/1000)+'s old) — users='+(DB.users||[]).length);
         if(!_sbReady) _initSupabase();
         // hrmsSettings holds role permissions — if empty or missing in cache,
         // block boot to refetch synchronously. Portal's pre-fetch is async and
@@ -2383,6 +2401,7 @@ async function bootDB(){
         }
         return;
       } else {
+        // Cache older than 24h — drop it and do a full fetch.
         try{localStorage.removeItem(_cacheKey);}catch(_){}
       }
     }
@@ -2472,6 +2491,9 @@ async function bootDB(){
       console.log('bootDB: ready (Supabase) — users='+DB.users.length);
       _bgSyncDone=true;
       _sbSetStatus('ok');
+      // V88 — boot just loaded current state; set watermark to "now" so the
+      // first hot-poll fetches only changes from this point forward.
+      if(typeof _bgSyncResetWatermarks==='function') _bgSyncResetWatermarks();
       if(typeof _migrateStep3Skip==='function') _migrateStep3Skip(); if(typeof _migrateStep4Skip==='function') _migrateStep4Skip(); _onPostBoot();
       _sbStartRealtime();
       return;
@@ -2524,18 +2546,38 @@ function _bgSyncFromSupabase(){
          .not('key','like','altImpFile_*')
          .not('key','like','advImpFile_*');
     }
+    // V97 — incremental fetch when a watermark exists for this table.
+    // Drops a routine full-sync of ~5 MB down to a few KB of changed rows.
+    // First-ever sync (no watermark) still pulls the full set to seed
+    // DB[tbl]. After the merge below, _bgSyncResetWatermarks advances
+    // the watermark for the next cycle.
+    var _isIncremental = !!(_lastBgSyncAt && _lastBgSyncAt[tbl]);
+    if(_isIncremental) q=q.gt('updated_at', _lastBgSyncAt[tbl]);
     const {data,error} = await q;
     if(error) return null;
-    return {tbl, rows: data||[]};
+    return {tbl, rows: data||[], incremental: _isIncremental};
   })).then(results=>{
     if(!results) return;
     var _hrmsEmpsRefreshed=false;
-    results.filter(Boolean).forEach(({tbl,rows})=>{
+    results.filter(Boolean).forEach(({tbl,rows,incremental})=>{
+      // V97 — incremental returns only changed rows; an empty result
+      // means nothing changed since the last watermark and DB[tbl]
+      // should stay intact (NOT be wiped).
+      if(incremental && !rows.length) return;
       var _parsed=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
       // Preserve on-demand-loaded step photos for segments before merge
       if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
-      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
-      else DB[tbl]=_parsed;
+      // V97 — replace on full sync (first-ever), upsert on incremental.
+      // Same semantics as the V96 fix to _bgSyncHot.
+      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,!incremental);
+      else if(incremental){
+        var arr=DB[tbl]||(DB[tbl]=[]);
+        var idMap={};for(var i=0;i<arr.length;i++) idMap[arr[i].id]=i;
+        _parsed.forEach(function(rec){
+          if(idMap[rec.id]!==undefined) arr[idMap[rec.id]]=rec;
+          else arr.push(rec);
+        });
+      } else { DB[tbl]=_parsed; }
       if(tbl==='hrmsEmployees') _hrmsEmpsRefreshed=true;
     });
     // The public hrms_employees table carries salary_day=0 / salary_month=0
@@ -2547,6 +2589,13 @@ function _bgSyncFromSupabase(){
     }
     console.log('bgSync: full — '+_getActiveTables().length+' tables, users='+(DB.users||[]).length);
     _bgSyncDone=true;
+    // V88/V97 — refresh watermarks for every active table (not just
+    // _HOT_TABLES) so the next bgSync pass — full or hot — has an
+    // accurate incremental anchor.
+    if(typeof _bgSyncResetWatermarks==='function') _bgSyncResetWatermarks();
+    // V97 — persist the freshly synced state + watermarks so the next
+    // hard refresh inside the 24h window finds a usable cache.
+    if(typeof _writeBootCache==='function') _writeBootCache();
     // Always set status to 'ok' after a successful sync — especially important when
     // boot timed out or cache was empty and status was still 'connecting'.
     if(_sbStatus!=='ok') _sbSetStatus('ok');
@@ -2558,32 +2607,80 @@ function _bgSyncFromSupabase(){
 }
 
 // Hot sync: only trips/segments/spotTrips — ALWAYS refresh views (no flawed change detection)
+// V88 (260518) — Incremental delta polling. The 60s hot poll used to
+// pull the entire date-windowed table per cycle (~1 MB+) as a safety
+// net for realtime-missed events. Realtime is reliable in practice,
+// so deltas are almost always 0–3 rows. Filtering on `updated_at`
+// shrinks each poll to just-changed rows; payload drops to a few KB
+// on a quiet minute, zero bytes when nothing changed.
+// DELETE detection still relies on realtime (incremental can't see
+// deleted rows); the every-10-min full sync mops up any drift.
+var _lastBgSyncAt = {}; // tbl -> ISO timestamp
+function _bgSyncResetWatermarks(){
+  // V97 — reset every active table, not just hot tables, so the next
+  // _bgSyncFromSupabase pass can also do incremental fetches.
+  var now=new Date().toISOString();
+  _getActiveTables().forEach(function(t){ _lastBgSyncAt[t]=now; });
+}
 function _bgSyncHot(){
   if(!_sbReady||!_sb) return;
   var hotTbls=_getHotTables();
   if(!hotTbls.length) return;
+  var pollStartedAt=new Date().toISOString();
   Promise.all(hotTbls.map(async tbl=>{
     const sbTbl=SB_TABLES[tbl];
     const sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
     var q=_sb.from(sbTbl).select(sel).limit(10000);
     if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+    // Only rows changed since last poll. First-ever poll (no watermark)
+    // still pulls the full window once to establish the baseline.
+    if(_lastBgSyncAt[tbl]) q=q.gt('updated_at', _lastBgSyncAt[tbl]);
     const {data,error} = await q;
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{
     if(!results) return;
     results.filter(Boolean).forEach(({tbl,rows})=>{
+      if(!rows.length) return; // nothing changed — keep DB as-is
       var _parsed=rows.map(r=>_fromRow(tbl,r)).filter(Boolean);
       // Preserve on-demand-loaded step photos for segments before merge
       if(tbl==='segments'&&typeof _stripStepPhotos==='function') _stripStepPhotos(_parsed);
-      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,true);
-      else DB[tbl]=_parsed;
+      // V96 (260518) — CRITICAL FIX. V88's incremental hot poll was passing
+      // `replace=true` to _syncMergeRows, which WIPED DB[tbl] to just the
+      // few rows that changed in the last 60s. Between hot polls and the
+      // every-10-min full sync, the in-memory DB was nearly empty — and
+      // every full sync re-fetched the whole table to restore it. That
+      // explains the ~250 MB / hour egress on vms_segments alongside the
+      // "data disappears" UI symptoms. Incremental updates MUST upsert,
+      // never replace.
+      if(typeof _syncMergeRows==='function') _syncMergeRows(tbl,_parsed,false);
+      else {
+        // Same upsert-merge as a fallback when no app _syncMergeRows exists.
+        var arr=DB[tbl]||(DB[tbl]=[]);
+        var idMap={};for(var i=0;i<arr.length;i++) idMap[arr[i].id]=i;
+        _parsed.forEach(function(rec){
+          if(idMap[rec.id]!==undefined) arr[idMap[rec.id]]=rec;
+          else arr.push(rec);
+        });
+      }
     });
+    // Advance watermark per table even if no rows came back.
+    hotTbls.forEach(function(t){ _lastBgSyncAt[t]=pollStartedAt; });
     _bgSyncDone=true;
     if(_sbStatus!=='ok') _sbSetStatus('ok');
     if(!_kapPopupOpen) _onRefreshViews();
+    // V97 — write boot cache periodically (every 2nd successful poll,
+    // i.e. ~2 min) so a hard refresh after the page is open finds a
+    // recent cache and can stale-revalidate instead of doing a full
+    // boot fetch. The cache writer is small (no Supabase calls), and
+    // localStorage handles the JSON.stringify in tens of ms.
+    try{
+      _bgSyncHotCacheCount=(_bgSyncHotCacheCount||0)+1;
+      if(_bgSyncHotCacheCount%2===0 && typeof _writeBootCache==='function') _writeBootCache();
+    }catch(e){ /* swallow */ }
   }).catch(e=>console.warn('bgSyncHot error:',e.message));
 }
+var _bgSyncHotCacheCount=0;
 
 // Two-tier polling:
 //   • Every 60s: hot tables only (trips, segments, spotTrips) — catches missed realtime events
@@ -2786,7 +2883,7 @@ var _PERM_KEYS={
     {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance'},
     {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance'},
     {key:'page.empAtt',label:'👤 Employee Attendance & Late Mark',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant','Department Head':'dept'}},
     {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance'},
     // scopeOptions exposes a per-role scope dropdown beside the
     // None/View/Full segment in Access Management. The chosen value is
@@ -5032,6 +5129,131 @@ function _isStrongPwd(pwd){
 
 // Sync column selection — each app sets _SYNC_SELECT before this is called
 function _syncSelect(sbTbl){return (typeof _SYNC_SELECT!=='undefined'&&_SYNC_SELECT[sbTbl])||'*';}
+
+// V91 (260518) — Pre-boot access gate. Before an app calls bootDB() (which
+// pulls its full _APP_TABLES set), check the cached portal user. If the
+// user has no role / no apps-list access for this app, redirect back to
+// the portal so we never fetch the app's data into a browser that
+// shouldn't see it. Fail-open when no cached user exists (e.g., direct
+// URL hit, expired cache) so the login flow still works.
+// Returns true to proceed with boot, false if redirected.
+function _gateAppAccess(appId){
+  var u=null;
+  try{ var s=localStorage.getItem('kap_current_user'); if(s) u=JSON.parse(s); }catch(e){}
+  if(!u) return true; // fail open — no cache yet, let downstream auth handle
+  var roles=u.roles||[];
+  if(roles.indexOf('Super Admin')>=0) return true;
+  var hasRole=false, appsOk=true;
+  var apps=u.apps||[];
+  if(apps.length){
+    // Explicit apps list — gate by membership. Empty list = legacy/no restriction.
+    appsOk = apps.indexOf(appId)>=0;
+  }
+  if(appId==='vms'){
+    var VMS_ROLES=['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Helper'];
+    hasRole=roles.some(function(r){return VMS_ROLES.indexOf(r)>=0;});
+  } else if(appId==='security'){
+    var SEC_ROLES=['Super Admin','Guard','Viewer','Security Admin','Plant Head','KAP Security'];
+    hasRole=roles.some(function(r){return SEC_ROLES.indexOf(r)>=0;});
+  } else if(appId==='hwms'){
+    hasRole=(u.hwmsRoles||[]).length>0 || (u.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
+  } else if(appId==='hrms'){
+    hasRole=(u.hrmsRoles||[]).length>0 || (u.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
+  } else if(appId==='mtts' || appId==='maintenance'){
+    hasRole=(u.mttsRoles||[]).length>0 ||
+            (u.mttsRoles||[]).some(function(r){return r==='MTTS Admin'||r==='Maintenance Manager';});
+  } else {
+    return true; // unknown app — don't gate
+  }
+  if(!hasRole || !appsOk){
+    console.warn('🛑 Access gate: '+u.name+' has no '+appId+' access (hasRole='+hasRole+', appsOk='+appsOk+') — redirecting to portal');
+    try{
+      // Notify if hook exists; otherwise hard redirect.
+      if(typeof notify==='function') notify('You don\'t have access to this app — back to portal.', true);
+      setTimeout(function(){ window.location.replace('index.html'); }, 250);
+    }catch(e){ window.location.replace('index.html'); }
+    return false;
+  }
+  return true;
+}
+
+// V97 (260518) — Centralised cache writer. Used by _navigateTo (existing
+// fast-path on in-app navigation) and by _bgSyncHot (periodic refresh
+// every 2 min) so a hard refresh after long idle still finds a recent
+// cache. Includes _watermarks per table so the post-cache revalidation
+// can do incremental delta fetches via `.gt('updated_at', watermark)`.
+function _writeBootCache(){
+  try{
+    if(typeof DB==='undefined' || typeof _getActiveTables!=='function') return;
+    if(!DB.users || !DB.users.length) return; // nothing meaningful to cache yet
+    var u=(typeof _sessionGet==='function')?(_sessionGet('kap_session_user')||''):'';
+    if(!u) return;
+    var key='kap_db_cache_'+String(u).toLowerCase();
+    // V97 — preserve existing entries from any prior cache for tables NOT
+    // in the current app's _APP_TABLES (mirrors _navigateTo's behaviour).
+    // Without this, the cache loses HRMS tables when VMS writes it and
+    // vice-versa, forcing the destination app to re-fetch them.
+    var cache={};
+    try{
+      var raw=localStorage.getItem(key);
+      if(raw){
+        var ec=JSON.parse(raw)||{};
+        Object.keys(ec).forEach(function(k){
+          if(k==='ts' || k==='_watermarks') return;
+          if(Array.isArray(ec[k])&&ec[k].length) cache[k]=ec[k];
+        });
+        // Carry forward prior watermarks too; the current app will only
+        // refresh watermarks for its own _APP_TABLES.
+        if(ec._watermarks && typeof _lastBgSyncAt==='object'){
+          Object.keys(ec._watermarks).forEach(function(k){
+            if(_lastBgSyncAt[k]==null) _lastBgSyncAt[k]=ec._watermarks[k];
+          });
+        }
+      }
+    }catch(e){}
+    _getActiveTables().forEach(function(t){
+      if(DB[t]&&DB[t].length) cache[t]=DB[t];
+      else if(!cache[t]) cache[t]=[];
+    });
+    cache.ts=Date.now();
+    cache._watermarks=Object.assign({}, (typeof _lastBgSyncAt==='object'&&_lastBgSyncAt)||{});
+    localStorage.setItem(key, JSON.stringify(cache));
+  }catch(e){
+    // localStorage quota exceeded etc — swallow, no fatal impact.
+    if(e && e.name!=='QuotaExceededError') console.warn('_writeBootCache:', e.message);
+  }
+}
+
+// V90 (260518) — Default photo-preserving merge. Apps that ship their own
+// `_syncMergeRows` (vms-logic.js, hwms-ui.js, hrms-ui.js) override this via
+// declaration order; otherwise this fallback runs. Preserves locally-loaded
+// fields listed in `_PHOTO_PRESERVE[localTbl]` so a post-boot sync (which
+// strips photos via `_SYNC_SELECT`) doesn't wipe on-demand-loaded values.
+function _syncMergeRows(localTbl,newParsed,replace){
+  var pf=(typeof _PHOTO_PRESERVE!=='undefined'&&_PHOTO_PRESERVE[localTbl])||[];
+  var existing=DB[localTbl]||[];
+  if(replace){
+    if(pf.length){
+      var oldMap={};existing.forEach(function(r){oldMap[r.id]=r;});
+      newParsed.forEach(function(r){
+        var old=oldMap[r.id];
+        if(!old) return;
+        pf.forEach(function(f){ if(old[f]&&!r[f]) r[f]=old[f]; });
+      });
+    }
+    DB[localTbl]=newParsed;
+  } else {
+    var idMap={};for(var i=0;i<existing.length;i++) idMap[existing[i].id]=i;
+    newParsed.forEach(function(rec){
+      if(idMap[rec.id]!==undefined){
+        var old=existing[idMap[rec.id]];
+        if(pf.length) pf.forEach(function(f){ if(old[f]&&!rec[f]) rec[f]=old[f]; });
+        existing[idMap[rec.id]]=rec;
+      } else { existing.push(rec); }
+    });
+    DB[localTbl]=existing;
+  }
+}
 
 // Date cutoff — each app sets _DATE_FILTER_DAYS
 function _dateCutoff(days){

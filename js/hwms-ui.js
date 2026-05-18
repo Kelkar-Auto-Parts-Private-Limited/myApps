@@ -1048,13 +1048,21 @@ function _getLoadedTables(){
 // ═══ PHOTO-EXCLUDED SYNC ═════════════════════════════════════════════════
 var _SYNC_SELECT={
   'hwms_parts':'id,code,part_number,part_revision,description,status,net_weight_kg,uom,hsn_code,packing_type,packing_dimensions,qty_per_package,packing_weight,ex_works_rate,freight,warehouse_cost,icc_cost,final_rate,rate_valid_from,rate_valid_to,rates,part_photo,packing_photo,updated_at',
-  'hwms_containers':'id,code,container_number,container_serial_number,expected_pickup_date,pickup_date,status,reach_date,expected_reach_date,reached_date,carrier_id,carrier_name,carrier_inv_number,carrier_inv_date,carrier_inv_amount,entry_summary_number,es_date,es_amount,tariff_paid,tariff_percent,confirmed,updated_at'
+  'hwms_containers':'id,code,container_number,container_serial_number,expected_pickup_date,pickup_date,status,reach_date,expected_reach_date,reached_date,carrier_id,carrier_name,carrier_inv_number,carrier_inv_date,carrier_inv_amount,entry_summary_number,es_date,es_amount,tariff_paid,tariff_percent,confirmed,updated_at',
+  // V90 — strip users.photo at HWMS boot.
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
 };
 
 // ── Date filtering: only fetch recent data, load history on-demand ──
-var _DATE_FILTER_DAYS=60;
+// V93 (260518) — Bumped from 60 to 180 days. payment_receipts is the only
+// table currently filtered (its JSONB blobs — line_items / si_updates /
+// mi_updates / manual_payments — were ~5 MB on Sawai's boot). 180 days
+// covers typical payment approval cycles. Inventory tables (parts /
+// invoices / containers / sub_invoices) stay unfiltered because they
+// need full history for stock + landed-cost calculations.
+var _DATE_FILTER_DAYS=180;
 var _DATE_FILTER_COL={
-  // hwms tables: not filtered — need full data for inventory/SI calculations
+  'hwms_payment_receipts':'payment_date'
 };
 var _dateFilterLoaded={};
 
@@ -1098,11 +1106,14 @@ async function _loadOlderData(localTbl,extraDays){
 }
 var _PHOTO_PRESERVE={
   'hwmsParts':['partPhoto','packingPhoto'],
-  'hwmsContainers':['carrierInvPhoto','esPhoto']
+  'hwmsContainers':['carrierInvPhoto','esPhoto'],
+  // V90 — preserve user photos loaded on-demand across syncs.
+  'users':['photo']
 };
 var _PHOTO_DB_COLS={
   'hwms_parts':['part_photo','packing_photo'],
-  'hwms_containers':['carrier_inv_photo','es_photo']
+  'hwms_containers':['carrier_inv_photo','es_photo'],
+  'vms_users':['photo']
 };
 // _syncSelect is in common.js
 
@@ -1538,6 +1549,9 @@ async function _hwmsBoot(){
   if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts','hrmsSettings'];
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['hwmsContainers','hwmsInvoices','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts'];
   
+  // V91 — access gate before bootDB. Users without HWMS access never
+  // trigger the ~30 MB HWMS table fetch.
+  if(typeof _gateAppAccess==='function' && !_gateAppAccess('hwms')) return;
   // Boot DB — suppress Common.js spinner since HWMS has its own splash
   var _origShowSpinner=window.showSpinner;
   var _origHideSpinner=window.hideSpinner;
