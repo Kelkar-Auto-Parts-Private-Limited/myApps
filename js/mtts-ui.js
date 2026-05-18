@@ -2590,11 +2590,12 @@ async function _mttsCompressFiles(files,maxKB){
 // filled slots show the thumbnail with a × remove button. All callers keep
 // the buffer at ≤3 entries and compress every captured file to ~100KB
 // before storing the data URL — see _mttsCompressFiles below.
-function _mttsRenderPhotoTiles(targetId,buf,removeFnName,fileInputId){
+function _mttsRenderPhotoTiles(targetId,buf,removeFnName,fileInputId,maxSlots){
   var el=document.getElementById(targetId);if(!el) return;
   el.classList.add('mtts-photo-thumbs');
   var slots=[];
-  for(var i=0;i<3;i++){
+  var _max=(maxSlots>0)?maxSlots:3;
+  for(var i=0;i<_max;i++){
     if(buf[i]){
       slots.push('<div class="mtts-photo-tile has-img">'+
         '<img src="'+buf[i]+'">'+
@@ -2625,15 +2626,17 @@ function _mttsRaisePickPhotos(ev){
 function _mttsRaiseRemovePhoto(i){_mttsRaisePhotosBuf.splice(i,1);_mttsRenderRaisePhotoTiles();}
 
 function _mttsRenderTechActPhotoTiles(){
-  _mttsRenderPhotoTiles('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto','mttsTechActPhotos');
+  // V41 (260518) — Update Ticket limited to 2 photo tiles so the form
+  // can sit beside the Notes textarea without overflowing.
+  _mttsRenderPhotoTiles('mttsTechActPhotoPreview',_mttsTechActPhotosBuf,'_mttsTechActRemovePhoto','mttsTechActPhotos',2);
 }
 function _mttsTechActPickPhotos(ev){
   var files=Array.from(ev.target.files||[]);
   ev.target.value='';
   if(!files.length) return;
   _mttsCompressFiles(files,100).then(function(arr){
-    arr.forEach(function(d){if(_mttsTechActPhotosBuf.length<3) _mttsTechActPhotosBuf.push(d);});
-    if(_mttsTechActPhotosBuf.length>3) _mttsTechActPhotosBuf=_mttsTechActPhotosBuf.slice(0,3);
+    arr.forEach(function(d){if(_mttsTechActPhotosBuf.length<2) _mttsTechActPhotosBuf.push(d);});
+    if(_mttsTechActPhotosBuf.length>2) _mttsTechActPhotosBuf=_mttsTechActPhotosBuf.slice(0,2);
     _mttsRenderTechActPhotoTiles();
   });
 }
@@ -4317,11 +4320,17 @@ function _mttsTicketActionOpen(id,editIdx){
     _mttsTechActPickStatus('');
   }
   document.getElementById('mttsTechActRoot').value=existing?'':'';
+  // V38 (260518) — Notes textarea re-added (was retired in V134). When
+  // editing an existing entry we seed the textarea with its prior note
+  // so the user can review / amend; for new updates the field starts
+  // empty.
+  var _noteEl=document.getElementById('mttsTechActNote');
+  if(_noteEl) _noteEl.value=existing?(existing.note||''):'';
 
   // Date / time fields removed — every update now stamps the current
   // system clock at submit time (or preserves the original `at` when
   // editing an existing entry).
-  _mttsTechActPhotosBuf=existing&&Array.isArray(existing.photos)?existing.photos.slice(0,3):[];
+  _mttsTechActPhotosBuf=existing&&Array.isArray(existing.photos)?existing.photos.slice(0,2):[];
   _mttsRenderTechActPhotoTiles();
   document.getElementById('mttsTechActPhotos').value='';
   _mttsTechActRefreshFields();
@@ -4366,7 +4375,7 @@ function _mttsTechActRefreshFields(){
   var showRoot=(st==='repair_done'||st==='scrapped');
   if(rootWrap) rootWrap.style.display=showRoot?'':'none';
   var photoLbl=document.getElementById('mttsTechActPhotoLbl');
-  if(photoLbl) photoLbl.textContent=(st==='repair_done')?'Closure photos (max 3) *':'Photos (max 3)';
+  if(photoLbl) photoLbl.textContent=(st==='repair_done')?'Closure photos (max 2) *':'Photos (max 2)';
 }
 // V36 (260518) — Confirmation popup shown when the user clicks Save in
 // the Update Ticket modal. Surfaces the ticket card replica + a
@@ -4390,48 +4399,69 @@ function _mttsTicketActionConfirm(){
     _showErr('At least one closure photo is required for "Repair done"');
     return;
   }
+  // V38 (260518) — Pick up the user's note so the confirmation popup
+  // can echo it back before posting.
+  var _noteElC=document.getElementById('mttsTechActNote');
+  var noteVal=_noteElC?String(_noteElC.value||'').trim():'';
   // Build the popup.
   var statusLbl=(_MTTS_STATUS_LABEL && _MTTS_STATUS_LABEL[newStatus])||newStatus;
   var summaryCard=_mttsTicketSummaryHtml(t);
   var plantColor=_mttsPlantColor(t.plant)||'#94a3b8';
   var cardBgMap={open:'#fee2e2',assigned:'#dbeafe',work_in_progress:'#fef9c3',awaiting_spares:'#ffedd5',awaiting_agency:'#ffedd5',repair_done:'#dcfce7',repair_done_challenged:'#fee2e2',closed:'#bbf7d0',scrapped:'#fed7aa'};
   var cardBg=cardBgMap[t.status]||'#fff';
-  var photoStrip='';
+  // V43 (260518) — Photos rendered as a side-column (right) on the
+  // confirmation popup so they sit beside the text (status, meta,
+  // note, root) instead of below — Notes column on the left, Photos
+  // column on the right, stacked vertically inside.
+  var photoCol='';
   if(photoCount){
-    photoStrip='<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">'+
-      _mttsTechActPhotosBuf.slice(0,3).map(function(src){
-        return '<img src="'+String(src).replace(/"/g,'&quot;')+'" style="width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid var(--border)">';
+    photoCol='<div style="display:flex;flex-direction:column;gap:4px;flex:0 0 auto;align-self:flex-start">'+
+      _mttsTechActPhotosBuf.slice(0,2).map(function(src){
+        return '<img src="'+String(src).replace(/"/g,'&quot;')+'" style="width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">';
       }).join('')+
     '</div>';
   }
   var rootHtml=root?'<div style="margin-top:6px;font-size:12px;background:#fef3c7;border-left:3px solid #fbbf24;padding:6px 10px;border-radius:0 6px 6px 0"><b>Root cause:</b> '+root.replace(/</g,'&lt;')+'</div>':'';
+  var noteHtml=noteVal?'<div style="margin-top:6px;font-size:13px;color:var(--text);line-height:1.4;white-space:pre-wrap;padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px"><b style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:3px">Notes</b>'+noteVal.replace(/</g,'&lt;')+'</div>':'';
   var by=CU?(CU.name||CU.id||''):'';
   var ov=document.createElement('div');
   ov.id='mttsActionConfirmOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483646;padding:10px;overflow:auto';
+  // V38 (260518) — Wrap the ticket card + update summary in a
+  // dedicated `mttsActionConfirmContent` block so the screenshot copy
+  // can target just the content (excluding the popup header and the
+  // action buttons row).
   ov.innerHTML=
     '<div id="mttsActionConfirmBox" style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(720px,98vw);max-height:calc(100vh - 20px);overflow:auto;padding:14px 14px 12px;position:relative;display:flex;flex-direction:column;gap:10px">'+
       '<div style="display:flex;align-items:center;gap:10px">'+
         '<div style="font-size:13px;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;flex:1">📤 Confirm Update</div>'+
         '<button type="button" onclick="_mttsTicketActionConfirmClose()" aria-label="Close" title="Close" style="width:30px;height:30px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:16px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'+
       '</div>'+
-      // Ticket card replica
-      '<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+';position:relative;cursor:default;margin:0">'+
-        summaryCard+
+      '<div id="mttsActionConfirmContent" style="display:flex;flex-direction:column;gap:10px;background:#fff;padding:4px">'+
+        // Ticket card replica
+        '<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+';position:relative;cursor:default;margin:0">'+
+          summaryCard+
+        '</div>'+
+        // Update summary — two columns: text on the left, photos on
+        // the right.
+        '<div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:8px 12px">'+
+          '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">This update</div>'+
+          '<div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">'+
+            '<div style="flex:1 1 220px;min-width:0">'+
+              '<div style="font-size:14px;font-weight:800;color:var(--text)">'+statusLbl+'</div>'+
+              '<div style="font-size:11px;color:var(--text3);margin-top:2px">by '+_mttsUserDisp(by)+' · '+_mttsFmtISTDateTime(new Date().toISOString())+(photoCount?(' · '+photoCount+' photo'+(photoCount>1?'s':'')):'')+'</div>'+
+              noteHtml+
+              rootHtml+
+            '</div>'+
+            photoCol+
+          '</div>'+
+        '</div>'+
       '</div>'+
-      // Update summary
-      '<div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:8px 12px">'+
-        '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">This update</div>'+
-        '<div style="font-size:14px;font-weight:800;color:var(--text)">'+statusLbl+'</div>'+
-        '<div style="font-size:11px;color:var(--text3);margin-top:2px">by '+_mttsUserDisp(by)+' · '+_mttsFmtISTDateTime(new Date().toISOString())+(photoCount?(' · '+photoCount+' photo'+(photoCount>1?'s':'')):'')+'</div>'+
-        rootHtml+
-        photoStrip+
-      '</div>'+
-      // Action row
+      // Action row (excluded from screenshot)
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">'+
         '<button type="button" onclick="_mttsTicketActionConfirmCopy(this)" style="font-size:13px;padding:8px 14px;font-weight:800;background:#eef2ff;border:1.5px solid #a5b4fc;color:#4338ca;border-radius:6px;cursor:pointer">📋 Copy Screenshot</button>'+
         '<button type="button" onclick="_mttsTicketActionConfirmClose()" style="font-size:13px;padding:8px 14px;font-weight:800;background:#fff;border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">Cancel</button>'+
-        '<button type="button" onclick="_mttsTicketActionConfirmPost(this)" style="font-size:13px;padding:8px 16px;font-weight:900;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer">📤 Post Update</button>'+
+        '<button type="button" onclick="_mttsTicketActionConfirmPost(this)" style="font-size:13px;padding:8px 16px;font-weight:900;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer">📤 Confirm Ticket Update</button>'+
       '</div>'+
     '</div>';
   ov.addEventListener('click',function(e){ if(e.target===ov) _mttsTicketActionConfirmClose(); });
@@ -4448,9 +4478,10 @@ function _mttsTicketActionConfirmClose(){
   ov.remove();
 }
 async function _mttsTicketActionConfirmCopy(btn){
-  // Snapshot the inner popup box (ticket card + summary), not the
-  // dark overlay backdrop.
-  var box=document.getElementById('mttsActionConfirmBox');
+  // V38 (260518) — Snapshot only the ticket card + update summary
+  // (excludes the popup header and the Cancel / Post Update buttons
+  // so the copied image is just the shareable content).
+  var box=document.getElementById('mttsActionConfirmContent');
   if(!box){ notify('Nothing to copy',true); return; }
   var origTxt=btn.textContent;
   btn.disabled=true; btn.textContent='⏳';
@@ -4480,7 +4511,7 @@ async function _mttsTicketActionConfirmPost(btn){
   try{
     await _mttsTicketActionSubmit();
   } finally {
-    btn.disabled=false; btn.textContent='📤 Post Update';
+    btn.disabled=false; btn.textContent='📤 Confirm Ticket Update';
   }
   // _mttsTicketActionSubmit closes the Update Ticket modal on success.
   // Close the confirmation popup too.
@@ -4495,16 +4526,12 @@ async function _mttsTicketActionSubmit(){
   if(!(_mttsIsTechnicianOnTicket(t)||_mttsIsSA()||_mttsIsMttsAdmin()||_mttsIsManager())){_showErr('You are not assigned to this ticket');return;}
   var newStatus=document.getElementById('mttsTechActStatus').value;
   if(!newStatus){_showErr('Please select a status');_mttsFlashFieldErr('mttsTechActStatusBtns');return;}
-  // V134 — Notes textarea retired from the Update Ticket form. When editing
-  // an existing entry we keep its prior note intact (so the audit trail
-  // isn't silently wiped); new entries are saved with an empty note.
-  var existingEntry=null;
-  var _editIdxRaw=document.getElementById('mttsTechActEditIdx').value;
-  if(_editIdxRaw!==''){
-    var _eIdx=parseInt(_editIdxRaw,10);
-    if(!isNaN(_eIdx)) existingEntry=(t.techActions||[])[_eIdx]||null;
-  }
-  var note=existingEntry?(existingEntry.note||''):'';
+  // V38 (260518) — Notes textarea brought back. Read the user-typed
+  // value; for new entries this is the fresh note, for edits it's
+  // whatever the user kept or amended (prior value was pre-seeded in
+  // _mttsTicketActionOpen, so untouched edits preserve audit trail).
+  var _noteEl0=document.getElementById('mttsTechActNote');
+  var note=_noteEl0?String(_noteEl0.value||'').trim():'';
   var root=document.getElementById('mttsTechActRoot').value.trim();
   var editIdxRaw=document.getElementById('mttsTechActEditIdx').value;
   var editIdx=editIdxRaw===''?null:parseInt(editIdxRaw,10);
@@ -4515,7 +4542,7 @@ async function _mttsTicketActionSubmit(){
   if(newStatus==='repair_done'&&_mttsTechActPhotosBuf.length===0){_showErr('At least one closure photo is required for "Repair done"');return;}
   var bak=Object.assign({},t);
   t.techActions=Array.isArray(t.techActions)?t.techActions.slice():[];
-  var stepPhotos=_mttsTechActPhotosBuf.slice(0,3);
+  var stepPhotos=_mttsTechActPhotosBuf.slice(0,2);
   var entry={
     action:newStatus,by:CU?(CU.name||CU.id||''):'',at:atIso,
     note:note,photos:stepPhotos

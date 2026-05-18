@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260518-V38">
+<meta name="app-build" content="260518-V45">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260518-V38">
+<link rel="stylesheet" href="css/mtts.css?v=260518-V45">
 </head>
 <body style="display:none">
 
@@ -285,15 +285,20 @@
   <div class="form-group mtts-techact-section" id="mttsTechActRootWrap" style="display:none"><label>Root cause (optional)</label>
     <input type="text" id="mttsTechActRoot" placeholder="What caused this?">
   </div>
-  <div class="form-group mtts-techact-section" id="mttsTechActPhotoWrap">
-    <label id="mttsTechActPhotoLbl">Photos (max 3)</label>
-    <input type="file" id="mttsTechActPhotos" accept="image/*" multiple capture="environment" onchange="_mttsTechActPickPhotos(event)" style="display:none">
-    <div id="mttsTechActPhotoPreview"></div>
+  <div class="mtts-techact-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+    <div class="form-group mtts-techact-section" id="mttsTechActPhotoWrap" style="flex:1 1 200px;min-width:0;margin-bottom:0">
+      <label id="mttsTechActPhotoLbl">Photos (max 3)</label>
+      <input type="file" id="mttsTechActPhotos" accept="image/*" multiple capture="environment" onchange="_mttsTechActPickPhotos(event)" style="display:none">
+      <div id="mttsTechActPhotoPreview"></div>
+    </div>
+    <div class="form-group mtts-techact-section" style="flex:1 1 220px;min-width:0;margin-bottom:0"><label>Notes (optional)</label>
+      <textarea id="mttsTechActNote" rows="3" maxlength="500" placeholder="What was checked, parts needed, ETA…" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" style="resize:vertical"></textarea>
+    </div>
   </div>
   <div class="modal-error" id="mttsTechActErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
     <button class="btn btn-secondary" onclick="cm('mMttsTechAct')" style="padding:8px 14px">Cancel</button>
-    <button class="btn btn-primary" onclick="_mttsTicketActionConfirm()" style="padding:8px 14px">Save</button>
+    <button class="btn btn-primary" onclick="_mttsTicketActionConfirm()" style="padding:8px 14px">📤 Post Update</button>
   </div>
   <div id="mttsTechActHistoryWrap" style="display:none">
     <div id="mttsTechActHistory"></div>
@@ -690,7 +695,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V38"></script>
-<script src="js/mtts-ui.js?v=260518-V38"></script>
+<script src="js/common.js?v=260518-V45"></script>
+<script src="js/mtts-ui.js?v=260518-V45"></script>
 </body>
 </html>
