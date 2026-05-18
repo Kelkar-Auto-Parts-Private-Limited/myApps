@@ -179,7 +179,15 @@ async function _mttsManualRefresh(){
       await Promise.all((_APP_TABLES||[]).map(async function(tbl){
         var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
         var sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
-        var res=await _sb.from(sbTbl).select(sel).limit(10000);
+        // V82/V86 — drop attImportLog + raw import-file rows; MTTS doesn't use either.
+        var q=_sb.from(sbTbl).select(sel).limit(10000);
+        if(sbTbl==='hrms_settings'){
+          q=q.neq('key','attImportLog')
+             .not('key','like','attImpFile_*')
+             .not('key','like','altImpFile_*')
+             .not('key','like','advImpFile_*');
+        }
+        var res=await q;
         if(!res.error&&res.data) DB[tbl]=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
       }));
     }

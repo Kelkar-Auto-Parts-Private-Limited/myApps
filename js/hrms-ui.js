@@ -9,6 +9,93 @@ if(typeof _sb==='undefined'||typeof DB==='undefined'){
 if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsCompanies','hrmsCategories','hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments','hrmsDesignations','hrmsDayTypes','hrmsPrintFormats','hrmsSettings'];
 // hrmsAttendance loaded on-demand per month, not on boot
 
+// V87 (260518) — attImportLog moved from hrms_settings (one bloated jsonb
+// row) to its own table `hrms_att_import_log`. Reads/writes now target
+// that table directly. Cache is per-month so a render only pulls the rows
+// for the visible month (rather than the entire 100-entry history). The
+// boot filter on `hrms_settings.attImportLog` from V82/V86 stays in place
+// — the dead row is dropped in Phase 3 cleanup SQL.
+var _hrmsAttImpLogCache    = {};   // mk -> [camelCased entries]
+var _hrmsAttImpLogInflight = {};   // mk -> Promise
+function _attImpLogFromRow(r){
+  if(!r) return null;
+  return {
+    id: r.id,
+    timestamp: r.timestamp,
+    type: r.type || 'essl',
+    fileName: r.file_name || '',
+    fileSize: r.file_size || 0,
+    monthKey: r.month_key || '',
+    action: r.action || '',
+    totalRows: r.total_rows || 0,
+    employees: r.employees || 0,
+    added: r.added || 0,
+    updated: r.updated || 0,
+    errors: r.errors || 0,
+    affectedEmps: Array.isArray(r.affected_emps) ? r.affected_emps : [],
+    affectedDays: r.affected_days || {},
+    importedBy: r.imported_by || ''
+  };
+}
+function _attImpLogToRow(e){
+  return {
+    id: e.id,
+    timestamp: e.timestamp,
+    type: e.type || 'essl',
+    file_name: e.fileName || '',
+    file_size: e.fileSize || null,
+    month_key: e.monthKey || '',
+    action: e.action || '',
+    total_rows: e.totalRows || 0,
+    employees: e.employees || 0,
+    added: e.added || 0,
+    updated: e.updated || 0,
+    errors: e.errors || 0,
+    affected_emps: e.affectedEmps || [],
+    affected_days: e.affectedDays || {},
+    imported_by: e.importedBy || ''
+  };
+}
+async function _hrmsAttImpLogLoadMonth(mk){
+  if(!mk) return [];
+  if(_hrmsAttImpLogCache[mk]) return _hrmsAttImpLogCache[mk];
+  if(_hrmsAttImpLogInflight[mk]) return _hrmsAttImpLogInflight[mk];
+  if(typeof _sb==='undefined'||!_sb||!_sbReady) return [];
+  _hrmsAttImpLogInflight[mk]=(async function(){
+    try{
+      var res=await _sb.from('hrms_att_import_log').select('*')
+        .eq('month_key',mk).order('timestamp',{ascending:false});
+      if(res.error){ console.warn('attImpLog load:',res.error.message); _hrmsAttImpLogCache[mk]=[]; return []; }
+      _hrmsAttImpLogCache[mk]=(res.data||[]).map(_attImpLogFromRow).filter(Boolean);
+      return _hrmsAttImpLogCache[mk];
+    } finally { delete _hrmsAttImpLogInflight[mk]; }
+  })();
+  return _hrmsAttImpLogInflight[mk];
+}
+async function _hrmsAttImpLogInsert(entry){
+  if(!_sb||!_sbReady) throw new Error('Supabase not ready');
+  var res=await _sb.from('hrms_att_import_log').insert(_attImpLogToRow(entry)).select('*').single();
+  if(res.error) throw res.error;
+  var camel=_attImpLogFromRow(res.data);
+  var mk=camel.monthKey;
+  if(_hrmsAttImpLogCache[mk]) _hrmsAttImpLogCache[mk]=[camel].concat(_hrmsAttImpLogCache[mk]);
+  return camel;
+}
+async function _hrmsAttImpLogPatchDays(id,newAffectedDays){
+  if(!_sb||!_sbReady) throw new Error('Supabase not ready');
+  var res=await _sb.from('hrms_att_import_log').update({affected_days:newAffectedDays}).eq('id',id);
+  if(res.error) throw res.error;
+}
+async function _hrmsAttImpLogDelete(id,mk){
+  if(!_sb||!_sbReady) throw new Error('Supabase not ready');
+  var res=await _sb.from('hrms_att_import_log').delete().eq('id',id);
+  if(res.error) throw res.error;
+  if(mk&&_hrmsAttImpLogCache[mk]) _hrmsAttImpLogCache[mk]=_hrmsAttImpLogCache[mk].filter(function(e){return e.id!==id;});
+}
+// Legacy back-compat shim — earlier call sites used to await this; superseded
+// by _hrmsAttImpLogLoadMonth(mk). Kept as a no-op so any stale code doesn't crash.
+async function _ensureAttImportLog(){ /* V87 — superseded */ }
+
 // ── Boot — no separate login, uses portal session ──
 (async function(){
   try{await bootDB();}catch(e){console.error('HRMS boot error:',e);}
@@ -183,7 +270,18 @@ async function _hrmsManualRefresh(){
       await Promise.all((_APP_TABLES||[]).map(async function(tbl){
         var sbTbl=SB_TABLES[tbl];if(!sbTbl) return;
         var sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
-        var res=await _sb.from(sbTbl).select(sel).limit(10000);
+        // V82/V86 — drop attImportLog + raw import-file rows at refresh.
+        // V87 — attImportLog now lives in hrms_att_import_log; invalidate
+        // the per-month cache so the next render hits the fresh data.
+        var q=_sb.from(sbTbl).select(sel).limit(10000);
+        if(sbTbl==='hrms_settings'){
+          q=q.neq('key','attImportLog')
+             .not('key','like','attImpFile_*')
+             .not('key','like','altImpFile_*')
+             .not('key','like','advImpFile_*');
+          _hrmsAttImpLogCache={};_hrmsAttImpLogInflight={};
+        }
+        var res=await q;
         if(!res.error&&res.data) DB[tbl]=res.data.map(function(r){return _fromRow(tbl,r);}).filter(Boolean);
       }));
       // Public hrms_employees has salary_day=0/salary_month=0 after the
@@ -22932,12 +23030,13 @@ async function _hrmsRevokeUnknownEmp(empCode){
 
 function _hrmsRenderEsslImportLog(){
   var el=document.getElementById('hrmsEsslImportLog');if(!el) return;
-  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
-  var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
-  imports=imports.filter(function(e){return(e.type||'essl')==='essl';});
-  // Filter to the currently selected month only
   var mk=_hrmsMonth;
-  if(mk) imports=imports.filter(function(e){return(e.monthKey||'')===mk;});
+  // V87 — per-month lazy fetch from hrms_att_import_log. Cache miss kicks
+  // off a load and re-renders when data lands. Idempotent after first hit.
+  if(mk && !_hrmsAttImpLogCache[mk] && typeof _hrmsAttImpLogLoadMonth==='function'){
+    _hrmsAttImpLogLoadMonth(mk).then(function(){ try{ _hrmsRenderEsslImportLog(); }catch(_){} });
+  }
+  var imports = mk ? (_hrmsAttImpLogCache[mk]||[]).filter(function(e){return(e.type||'essl')==='essl';}) : [];
   var monthLabel=mk?_hrmsMonthLabel(mk):'';
   // If the attendance cache for this month isn't loaded yet, fetch it
   // in the background and re-render once it's populated. Daywise
@@ -23092,19 +23191,26 @@ async function _hrmsDeleteEsslDay(mk,day){
     }
     // Strip this day from import log attributions for the same month so
     // the inline cell credit doesn't outlive the data it points at.
-    var logRec=(DB.hrmsSettings||[]).find(function(rr){return rr.key==='attImportLog';});
-    if(logRec&&logRec.data&&Array.isArray(logRec.data.imports)){
-      var changed=false;
-      logRec.data.imports.forEach(function(imp){
-        if(!imp||(imp.monthKey||'')!==mk||!imp.affectedDays) return;
-        Object.keys(imp.affectedDays).forEach(function(ec){
-          var arr=imp.affectedDays[ec]||[];
-          var keep=arr.filter(function(v){var s=String(v);return s!==dk&&s!==dkPad;});
-          if(keep.length!==arr.length){imp.affectedDays[ec]=keep;changed=true;}
-          if(!keep.length) delete imp.affectedDays[ec];
-        });
+    // V87 — iterate the month's rows in hrms_att_import_log and PATCH each
+    // mutated affected_days back. Cache is updated in place via the camel
+    // entries returned by the load helper.
+    var monthEntries = await _hrmsAttImpLogLoadMonth(mk);
+    for(var ki=0; ki<monthEntries.length; ki++){
+      var imp=monthEntries[ki];
+      if(!imp||!imp.affectedDays) continue;
+      var changedHere=false;
+      var newDays={};
+      Object.keys(imp.affectedDays).forEach(function(ec){
+        var arr=imp.affectedDays[ec]||[];
+        var keep=arr.filter(function(v){var s=String(v);return s!==dk&&s!==dkPad;});
+        if(keep.length!==arr.length) changedHere=true;
+        if(keep.length) newDays[ec]=keep;
       });
-      if(changed) await _dbSave('hrmsSettings',logRec);
+      if(changedHere){
+        imp.affectedDays=newDays;
+        try{ await _hrmsAttImpLogPatchDays(imp.id, newDays); }
+        catch(eP){ console.warn('attImpLog patch days:', eP&&eP.message); }
+      }
     }
     delete _hrmsAttCache[mk];
     delete _hrmsAltCache[mk];
@@ -23119,11 +23225,20 @@ async function _hrmsDeleteEsslDay(mk,day){
 
 async function _hrmsDeleteEsslImport(logId){
   if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
-  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
-  var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
-  var idx=imports.findIndex(function(e){return e.id===logId;});
-  if(idx<0){notify('Import log entry not found',true);return;}
-  var entry=imports[idx];
+  // V87 — entry lives in hrms_att_import_log. Try cache first (set by
+  // the current view's recent load), fall back to a direct fetch-by-id.
+  var entry=null;
+  Object.keys(_hrmsAttImpLogCache).some(function(mkK){
+    var arr=_hrmsAttImpLogCache[mkK]||[];
+    for(var i=0;i<arr.length;i++) if(arr[i].id===logId){ entry=arr[i]; return true; }
+  });
+  if(!entry && _sb && _sbReady){
+    try{
+      var rRes=await _sb.from('hrms_att_import_log').select('*').eq('id',logId).limit(1);
+      if(!rRes.error && rRes.data && rRes.data.length) entry=_attImpLogFromRow(rRes.data[0]);
+    }catch(eF){ console.warn('attImpLog fetch by id:',eF&&eF.message); }
+  }
+  if(!entry){notify('Import log entry not found',true);return;}
   var mk=entry.monthKey||'';
   if(mk&&typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
     notify('⚠ '+_hrmsMonthLabel(mk)+' is locked. Unlock to delete import.',true);return;
@@ -23139,71 +23254,12 @@ async function _hrmsDeleteEsslImport(logId){
     Object.keys(entry.affectedDays).forEach(function(ec){
       affectedDays[ec]=(entry.affectedDays[ec]||[]).map(String);
     });
-  } else {
-    // Legacy entry — try to reconstruct from the stored file
-    showSpinner('Loading file to reconstruct day-level changes…');
-    try{
-      var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImpFile_'+logId;});
-      if(!fileRec&&_sb&&_sbReady){
-        var {data}=await _sb.from('hrms_settings').select('*').eq('code','hs_attImpFile_'+logId).maybeSingle();
-        if(data) fileRec=_fromRow('hrmsSettings',data);
-      }
-      if(fileRec&&fileRec.data&&fileRec.data.base64){
-        var blob=_hrmsB642Blob(fileRec.data.base64);
-        var buf=await blob.arrayBuffer();
-        var rows=await _parseXLSX(buf);
-        var _norm=function(k){return String(k||'').replace(/\([^)]*\)/g,'').replace(/[\s._\-\/]+/g,'').toLowerCase();};
-        var hMap={};
-        if(rows.length) Object.keys(rows[0]).forEach(function(k){var n=_norm(k);if(!hMap[n])hMap[n]=k;});
-        var _pick=function(r,keys){for(var i=0;i<keys.length;i++){var w=_norm(keys[i]);if(hMap[w]&&r[hMap[w]]!==undefined&&r[hMap[w]]!=='') return r[hMap[w]];}return '';};
-        // Mirror _fd from _hrmsImportAttendanceFromRows so the day extracted
-        // here matches the day the import originally wrote. Anything less
-        // robust risks returning a different day, which would leave the
-        // imported data un-trimmed in the delete.
-        var _fdLegacy=function(v){
-          var s=(v||'').toString().trim();if(!s) return '';
-          if(/^\d+(\.\d+)?$/.test(s)){
-            var n=+s;
-            if(n>30000&&n<60000){
-              var ed=new Date(Math.round((n-25569)*86400000));
-              if(!isNaN(ed)) return ed.getUTCFullYear()+'-'+String(ed.getUTCMonth()+1).padStart(2,'0')+'-'+String(ed.getUTCDate()).padStart(2,'0');
-            }
-          }
-          var iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
-          if(iso) return iso[1]+'-'+String(+iso[2]).padStart(2,'0')+'-'+String(+iso[3]).padStart(2,'0');
-          var dmy=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:[\sT,].*)?$/);
-          if(dmy){
-            var dd=+dmy[1],mm=+dmy[2],yy=+dmy[3];if(yy<100) yy+=2000;
-            if(mm>12&&dd<=12){var tmp=dd;dd=mm;mm=tmp;}
-            if(dd>=1&&dd<=31&&mm>=1&&mm<=12) return yy+'-'+String(mm).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
-          }
-          var dmm=s.match(/^(\d{1,2})[\s\-\/]([A-Za-z]{3,})[\s\-\/,]+(\d{2,4})(?:[\sT,].*)?$/);
-          if(dmm){
-            var mons={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-            var dM=+dmm[1],mM=mons[dmm[2].slice(0,3).toLowerCase()],yM=+dmm[3];
-            if(yM<100) yM+=2000;
-            if(dM>=1&&dM<=31&&mM) return yM+'-'+String(mM).padStart(2,'0')+'-'+String(dM).padStart(2,'0');
-          }
-          var dd2=new Date(s);if(isNaN(dd2)) return '';
-          return dd2.getFullYear()+'-'+String(dd2.getMonth()+1).padStart(2,'0')+'-'+String(dd2.getDate()).padStart(2,'0');
-        };
-        var _fdDay=function(v){
-          var iso=_fdLegacy(v);if(!iso) return '';
-          var pp=iso.split('-');return pp.length===3?String(+pp[2]):'';
-        };
-        affectedDays={};
-        rows.forEach(function(r){
-          var ec=((_pick(r,['Emp Code','Employee Code','EmpCode','Code'])||'')+'').trim();
-          if(!ec) return;
-          var day=_fdDay(_pick(r,['Date','Att Date','AttDate']));
-          if(!day) return;
-          (affectedDays[ec]=affectedDays[ec]||[]).push(day);
-        });
-        if(!Object.keys(affectedDays).length) affectedDays=null;
-      }
-    }catch(e){console.error(e);}
-    hideSpinner();
   }
+  // V86 — Legacy-entry reconstruction path removed. The fallback used to
+  // fetch hs_attImpFile_<logId>, re-parse the original upload, and recover
+  // affectedDays. Both the file rows and the re-download UI are gone, so
+  // legacy entries (those imported before affectedDays metadata existed)
+  // now fall through to the whole-record-wipe confirm below.
 
   // Confirm with the user — surface what we know and what we don't
   if(!affectedDays){
@@ -23249,16 +23305,11 @@ async function _hrmsDeleteEsslImport(logId){
         if(await _dbSave('hrmsAttendance',r)) wiped++;
       }
     }
-    // Remove log entry
-    imports.splice(idx,1);
-    await _dbSave('hrmsSettings',logRec);
-    // Remove the stored file record
-    var fileRecIdx=(DB.hrmsSettings||[]).findIndex(function(r){return r.key==='attImpFile_'+logId;});
-    if(fileRecIdx>=0){
-      var fRec=DB.hrmsSettings[fileRecIdx];
-      await _dbDel('hrmsSettings',fRec.id);
-      DB.hrmsSettings.splice(fileRecIdx,1);
-    }
+    // V87 — Remove the log row from the dedicated table.
+    try{ await _hrmsAttImpLogDelete(logId, mk); }
+    catch(eD){ console.warn('attImpLog delete:', eD&&eD.message); }
+    // V86 — File-row cleanup removed; no attImpFile_<logId> rows exist
+    // anymore. The cleanup SQL drops any leftovers from earlier imports.
     // Drop the cached attendance for this month so the next render pulls
     // fresh records from the DB. Avoids any stale in-memory days re-appearing
     // in the muster roll.
@@ -23691,37 +23742,17 @@ function _hrmsRenderAltImportLog(){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);color:#2563eb;font-weight:700">'+(e.employees||0)+'</td>';
     h+='<td style="'+_td+';font-size:11px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-weight:700;background:'+(e.action==='replace'?'#fef3c7;color:#b45309':'#dcfce7;color:#15803d')+'">'+(e.action==='replace'?'REPLACE':'NEW')+'</span></td>';
     h+='<td style="'+_td+';font-size:11px;color:var(--text2)">'+(e.importedBy||'—')+'</td>';
-    h+='<td style="'+_td+';text-align:center"><button onclick="_hrmsDownloadAltImport(\''+e.id+'\',\''+(e.fileName||'file').replace(/[\'"\\]/g,'')+'\')" title="Download original file" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer">⬇ Download</button></td>';
+    // V86 — ⬇ Download column removed (file copies no longer kept on the server).
     h+='</tr>';
   });
   h+='</tbody></table></div>';
   el.innerHTML=h;
 }
 
-async function _hrmsDownloadAltImport(logId,fileName){
-  var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='altImpFile_'+logId;});
-  if(!fileRec&&_sb&&_sbReady){
-    showSpinner('Fetching file…');
-    try{
-      var {data,error}=await _sb.from('hrms_settings').select('*').eq('code','hs_altImpFile_'+logId).maybeSingle();
-      if(!error&&data) fileRec=_fromRow('hrmsSettings',data);
-      if(fileRec){
-        if(!DB.hrmsSettings) DB.hrmsSettings=[];
-        DB.hrmsSettings.push(fileRec);
-      }
-    }catch(e){console.error(e);}
-    hideSpinner();
-  }
-  if(!fileRec||!fileRec.data||!fileRec.data.base64){notify('⚠ File not found in database',true);return;}
-  try{
-    var blob=_hrmsB642Blob(fileRec.data.base64);
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=url;a.download=fileRec.data.fileName||fileName||'alteration_import.xlsx';
-    document.body.appendChild(a);a.click();
-    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
-    notify('📥 Download started');
-  }catch(e){notify('⚠ Download failed: '+e.message,true);}
-}
+// V86 — _hrmsDownloadAltImport / _hrmsDownloadAdvImport / _hrmsDownloadEsslImport
+// removed. File rows (altImpFile_* / advImpFile_* / attImpFile_*) are no
+// longer written by imports, and existing rows are scheduled for deletion
+// via the cleanup SQL.
 
 // Render advance import history in the Advances panel — mirrors ESSL/Alt.
 function _hrmsRenderAdvImportLog(){
@@ -23752,7 +23783,7 @@ function _hrmsRenderAdvImportLog(){
   h+='<th style="'+_th+';text-align:right">Updated</th>';
   h+='<th style="'+_th+'">Action</th>';
   h+='<th style="'+_th+'">By</th>';
-  h+='<th style="'+_th+';text-align:center">File</th>';
+  // V86 — File-download column removed.
   h+='</tr></thead><tbody>';
   imports.forEach(function(e){
     h+='<tr>';
@@ -23766,64 +23797,14 @@ function _hrmsRenderAdvImportLog(){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);color:#2563eb;font-weight:700">'+(e.updated||0)+'</td>';
     h+='<td style="'+_td+';font-size:11px"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-weight:700;background:'+_actionBg(e.action)+'">'+_actionLabel(e.action)+'</span></td>';
     h+='<td style="'+_td+';font-size:11px;color:var(--text2)">'+(e.importedBy||'—')+'</td>';
-    h+='<td style="'+_td+';text-align:center"><button class="hrms-allow-locked" onclick="_hrmsDownloadAdvImport(\''+e.id+'\',\''+(e.fileName||'file').replace(/[\'"\\]/g,'')+'\')" title="Download original file" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dbeafe;border:1px solid #93c5fd;color:#1d4ed8;border-radius:4px;cursor:pointer">⬇ Download</button></td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
   el.innerHTML=h;
 }
 
-async function _hrmsDownloadAdvImport(logId,fileName){
-  var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='advImpFile_'+logId;});
-  if(!fileRec&&_sb&&_sbReady){
-    showSpinner('Fetching file…');
-    try{
-      var {data,error}=await _sb.from('hrms_settings').select('*').eq('code','hs_advImpFile_'+logId).maybeSingle();
-      if(!error&&data) fileRec=_fromRow('hrmsSettings',data);
-      if(fileRec){
-        if(!DB.hrmsSettings) DB.hrmsSettings=[];
-        DB.hrmsSettings.push(fileRec);
-      }
-    }catch(e){console.error(e);}
-    hideSpinner();
-  }
-  if(!fileRec||!fileRec.data||!fileRec.data.base64){notify('⚠ File not found in database',true);return;}
-  try{
-    var blob=_hrmsB642Blob(fileRec.data.base64);
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=url;a.download=fileRec.data.fileName||fileName||'advances_import.xlsx';
-    document.body.appendChild(a);a.click();
-    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
-    notify('📥 Download started');
-  }catch(e){notify('⚠ Download failed: '+e.message,true);}
-}
-
-async function _hrmsDownloadEsslImport(logId,fileName){
-  // Find the file record
-  var fileRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImpFile_'+logId;});
-  // If not in memory (not pre-loaded), fetch from Supabase
-  if(!fileRec&&_sb&&_sbReady){
-    showSpinner('Fetching file…');
-    try{
-      var {data,error}=await _sb.from('hrms_settings').select('*').eq('code','hs_attImpFile_'+logId).maybeSingle();
-      if(!error&&data) fileRec=_fromRow('hrmsSettings',data);
-      if(fileRec){
-        if(!DB.hrmsSettings) DB.hrmsSettings=[];
-        DB.hrmsSettings.push(fileRec);
-      }
-    }catch(e){console.error(e);}
-    hideSpinner();
-  }
-  if(!fileRec||!fileRec.data||!fileRec.data.base64){notify('⚠ File not found in database',true);return;}
-  try{
-    var blob=_hrmsB642Blob(fileRec.data.base64);
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=url;a.download=fileRec.data.fileName||fileName||'attendance_import.xlsx';
-    document.body.appendChild(a);a.click();
-    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
-    notify('📥 Download started');
-  }catch(e){notify('⚠ Download failed: '+e.message,true);}
-}
+// V86 — _hrmsDownloadAdvImport / _hrmsDownloadEsslImport removed alongside
+// _hrmsDownloadAltImport. See note above the alt block.
 
 // ArrayBuffer → base64 (safe for large files)
 function _hrmsAb2b64(buf){
@@ -24147,49 +24128,14 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
             affectedDays:affectedDays,
             importedBy:(CU?(CU.name||CU.id||''):'')
           };
-          // Save metadata (small, fast to list)
-          var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
-          if(!logRec){
-            logRec={id:'hs_attImpLog',key:'attImportLog',data:{imports:[]}};
-            if(!DB.hrmsSettings) DB.hrmsSettings=[];
-            DB.hrmsSettings.push(logRec);
-          }
-          if(!logRec.data.imports) logRec.data.imports=[];
-          logRec.data.imports.unshift(logEntry);
-          // Keep only most recent 100 log entries in metadata
-          if(logRec.data.imports.length>100) logRec.data.imports.length=100;
+          // V87 — Insert into the dedicated hrms_att_import_log table.
           if(typeof _spinnerMsg==='function') _spinnerMsg('Saving import log…');
           if(typeof clearSpinnerProgress==='function') clearSpinnerProgress();
-          await _dbSave('hrmsSettings',logRec);
-          // Save file content separately — only if we have a real file buffer
-          // (in-memory imports from the converter button skip this). Two
-          // measurable phases here, both surfaced on the spinner so the
-          // user knows the wait is meaningful, not a hang:
-          //   1) Base64 encode (CPU/IO via FileReader, real progress events)
-          //   2) Upload to Supabase (single PUT, indeterminate but labelled)
-          if(_fileBuf){
-            var sizeKb=Math.max(1,Math.round((_fileSize||_fileBuf.byteLength||0)/1024));
-            if(typeof _spinnerMsg==='function') _spinnerMsg('Encoding file ('+sizeKb+' KB)…');
-            var b64=await _hrmsAb2b64WithProgress(_fileBuf,'Encoding file');
-            if(typeof clearSpinnerProgress==='function') clearSpinnerProgress();
-            if(typeof _spinnerMsg==='function') _spinnerMsg('Uploading file copy ('+sizeKb+' KB) to database…');
-            var fileRec={id:'hs_attImpFile_'+logId,key:'attImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
-            if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
-            // Cap the file-copy upload at 60s. The encoded payload can be
-            // multi-megabytes; a stalled Supabase request used to leave
-            // the spinner stuck forever, forcing the user to refresh.
-            // Promise.race resolves as soon as either side finishes —
-            // the underlying _dbSave keeps running in the background if
-            // it eventually returns.
-            var _fileSavePromise=_dbSave('hrmsSettings',fileRec);
-            var _timeoutId;
-            var _fileSaveTimeout=new Promise(function(_,rej){
-              _timeoutId=setTimeout(function(){rej(new Error('File-copy upload timed out (60s) — main import already saved'));},60000);
-            });
-            try{
-              await Promise.race([_fileSavePromise,_fileSaveTimeout]);
-            } finally { clearTimeout(_timeoutId); }
-          }
+          await _hrmsAttImpLogInsert(logEntry);
+          // V86 (260518) — Raw upload-file copy removed. Used to live at
+          // hs_attImpFile_<logId> for an admin re-download path; now off
+          // both ways (UI dropped + DB rows deleted) so each import skips
+          // the multi-MB base64 round-trip.
         }catch(logErr){console.warn('Import log save failed:',logErr);notify('⚠ Import log save skipped: '+logErr.message,true);}
         finally { hideSpinner(); if(typeof clearSpinnerProgress==='function') clearSpinnerProgress(); }
 
@@ -31600,13 +31546,7 @@ async function _hrmsImportAdvances(inputEl){
           advLogRec.data.imports.unshift(logEntry);
           if(advLogRec.data.imports.length>100) advLogRec.data.imports.length=100;
           await _dbSave('hrmsSettings',advLogRec);
-          // Save file content separately so the log stays small
-          if(_fileBuf){
-            var b64=_hrmsAb2b64(_fileBuf);
-            var fileRec={id:'hs_advImpFile_'+logId,key:'advImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
-            if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
-            await _dbSave('hrmsSettings',fileRec);
-          }
+          // V86 — Raw upload-file copy removed (see ESSL import for context).
         }catch(logErr){console.warn('Advance import log save failed:',logErr);}
 
         _hrmsAdvCache={};
@@ -33421,11 +33361,7 @@ async function _hrmsImportAlteration(inputEl){
           logRec.data.imports.unshift(logEntry);
           if(logRec.data.imports.length>100) logRec.data.imports.length=100;
           await _dbSave('hrmsSettings',logRec);
-          // Save file content separately
-          var b64=_hrmsAb2b64(_fileBuf);
-          var fileRec={id:'hs_altImpFile_'+logId,key:'altImpFile_'+logId,data:{fileName:_fileName,base64:b64}};
-          if(!DB.hrmsSettings.find(function(r){return r.id===fileRec.id;})) DB.hrmsSettings.push(fileRec);
-          await _dbSave('hrmsSettings',fileRec);
+          // V86 — Raw upload-file copy removed (see ESSL import for context).
         }catch(logErr){console.warn('Alteration log save failed:',logErr);}
 
         hideSpinner();
@@ -33882,16 +33818,16 @@ async function _hrmsMyAttLoadSavedEmp(mk,empCode){
 }
 
 // Returns an object keyed by day-number (1..31) with `true` for days
-// that have ESSL imports recorded for the given month (per attImportLog).
+// that have ESSL imports recorded for the given month. V87 — reads from
+// the per-month _hrmsAttImpLogCache populated by _hrmsAttImpLogLoadMonth.
 // Used by My Attendance to leave still-not-imported working days blank
 // instead of marking them Absent — the system simply doesn't know yet.
 function _hrmsImportedDaysFor(mk){
   var out={};
   if(!mk) return out;
-  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='attImportLog';});
-  var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
+  var imports=_hrmsAttImpLogCache[mk]||[];
   imports.forEach(function(imp){
-    if(!imp||(imp.monthKey||'')!==mk||!imp.affectedDays) return;
+    if(!imp||!imp.affectedDays) return;
     Object.keys(imp.affectedDays).forEach(function(ec){
       var arr=imp.affectedDays[ec]||[];
       for(var i=0;i<arr.length;i++){
@@ -33909,6 +33845,10 @@ async function _hrmsMyAttCalcMonth(emp,monthKey){
   // Per-employee fetch — only the logged-in user's rows from
   // hrms_attendance + hrms_alterations, not the whole month.
   await _hrmsMyAttFetchEmp(monthKey,emp.empCode);
+  // V87 — load this month's import log into the per-month cache before
+  // _hrmsImportedDaysFor reads it (otherwise the calendar would show
+  // every working day as "not yet imported" until the cache populates).
+  if(typeof _hrmsAttImpLogLoadMonth==='function') await _hrmsAttImpLogLoadMonth(monthKey);
   var p=monthKey.split('-');var yr=+p[0],mo=+p[1];
   var daysInMonth=new Date(yr,mo,0).getDate();
   var slot=(_hrmsMyAttEmpCache[monthKey]||{})[emp.empCode]||{};

@@ -1359,7 +1359,13 @@ bootDB=async function(){
     // Still grab hrmsSettings if missing — permissions need it.
     if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
       try{
-        var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
+        // V83/V86 — drop attImportLog + raw import-file rows at HWMS boot.
+        var _hsR=await _sb.from('hrms_settings').select('*')
+          .neq('key','attImportLog')
+          .not('key','like','attImpFile_*')
+          .not('key','like','altImpFile_*')
+          .not('key','like','advImpFile_*')
+          .limit(1000);
         if(!_hsR.error){ DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean); }
       }catch(_){}
     }

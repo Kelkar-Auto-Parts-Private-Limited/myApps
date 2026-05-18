@@ -235,6 +235,123 @@ function _vmsEnsureDataForDate(fromDate,cb){
   var daysNeeded=Math.ceil((new Date(cutoff+'T00:00:00')-new Date(fromDate+'T00:00:00'))/(86400000))+7;
   Promise.all(['trips','segments','spotTrips'].map(function(t){return _loadOlderData(t,daysNeeded);})).then(function(){if(cb)cb();});
 }
+
+// V65 (260518) — One-shot per-session load of ALL pending segments
+// (status not Completed/Locked) so MR / TA pages see segments older
+// than the rolling 31-day boot window. Without this, the page badge
+// drops from "actual backlog" to "last-31-days only" on every refresh.
+// Triggered lazily on first render of either page; re-fires the
+// render once data is in.
+var _vmsAllPendingLoaded=false;
+var _vmsAllPendingInFlight=false;
+async function _vmsLoadAllPendingSegmentsOnce(after){
+  if(_vmsAllPendingLoaded){ if(after) after(false); return; }
+  if(_vmsAllPendingInFlight){ if(after) after(false); return; }
+  if(!_sb||!_sbReady){ if(after) after(false); return; }
+  _vmsAllPendingInFlight=true;
+  var added=0;
+  try{
+    if(typeof showSpinner==='function') showSpinner('Loading older pending trips…');
+    // V82 (260518) — switched back to steps_light (photo-stripped, server-
+    // side trigger-maintained copy) instead of full steps. Pulling full
+    // steps for every pending segment was the dominant egress source
+    // (~30+ MB per MR/TA visit due to base64 photos). steps_light has
+    // every field the list view needs; per-segment photos lazy-load via
+    // _loadTripCardPhotos when the popup opens. _stripStepPhotos marks
+    // any photo field as '__deferred__' so subsequent views render the
+    // placeholder until on-demand load fires.
+    var sel='id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at';
+    var out=[];
+    var pageSize=1000, from=0;
+    while(true){
+      var res=await _sb.from('vms_segments').select(sel)
+        .not('status','in','(Completed,Locked)')
+        .range(from,from+pageSize-1);
+      if(res.error||!Array.isArray(res.data)) break;
+      out=out.concat(res.data);
+      if(res.data.length<pageSize) break;
+      from+=pageSize;
+    }
+    var parsed=out.map(function(row){return _fromRow('segments',row);}).filter(Boolean);
+    if(typeof _stripStepPhotos==='function') _stripStepPhotos(parsed);
+    added=_vmsMergeSegments(parsed);
+    // Pull the matching trips so cards can render vehicle / route data.
+    var tripIds=[]; var seen={};
+    parsed.forEach(function(s){ if(s.tripId && !seen[s.tripId]){ seen[s.tripId]=1; tripIds.push(s.tripId); } });
+    try{ await _vmsFetchMissingTrips(tripIds); }catch(_){}
+    _vmsAllPendingLoaded=true;
+  }catch(e){ try{console.warn('_vmsLoadAllPendingSegmentsOnce:',e.message);}catch(_){} }
+  finally{
+    _vmsAllPendingInFlight=false;
+    if(typeof hideSpinner==='function') hideSpinner();
+  }
+  if(after) after(added>0);
+}
+
+// V50 (260518) — When MR / TA renders a list of pending segments and
+// the corresponding trip (with vehicle / challan / route info) isn't
+// in DB.trips because it falls outside the rolling 31-day fetch
+// window, transparently load the missing trips' history.
+// V52 (260518) — Fix infinite recursion: cb only fires after a real
+// load (silent return when no missing trips).
+// V53 (260518) — Fetch missing trips DIRECTLY by `code` instead of
+// extending the date window. The earlier path used the segment's
+// date as the load anchor, but segments that survive past their trip
+// (recent segment, very old trip) had a date inside the window, so
+// _vmsEnsureDataForDate bailed out and the trips never loaded. Now we
+// do a one-shot `select … in code (…)` for the exact missing trip ids,
+// bypassing the date filter entirely. Dedup via a per-id-set hash so
+// the same fetch doesn't refire on every re-render.
+var _vmsAutoLoadedForSegs={};
+var _vmsFetchingMissingTrips=false;
+async function _vmsFetchMissingTrips(tripIds){
+  if(!_sb||!_sbReady) return false;
+  if(!Array.isArray(tripIds)||!tripIds.length) return false;
+  // Filter out ones we already have (race between two callers).
+  var missing=tripIds.filter(function(id){return id && !byId(DB.trips,id);});
+  if(!missing.length) return false;
+  var added=0;
+  try{
+    if(typeof showSpinner==='function') showSpinner('Loading older trips…');
+    // IN-list capped at 100 ids per call to stay under URL length limits.
+    for(var i=0;i<missing.length;i+=100){
+      var batch=missing.slice(i,i+100);
+      var sel=(typeof _syncSelect==='function')?_syncSelect('vms_trips'):'*';
+      var res=await _sb.from('vms_trips').select(sel).in('code',batch);
+      if(res.error||!res.data) continue;
+      var parsed=res.data.map(function(row){return _fromRow('trips',row);}).filter(Boolean);
+      var arr=DB.trips||[];
+      var idMap={}; for(var j=0;j<arr.length;j++) idMap[arr[j].id]=j;
+      parsed.forEach(function(rec){
+        if(idMap[rec.id]===undefined){ arr.push(rec); added++; }
+      });
+      DB.trips=arr;
+    }
+  }catch(e){ try{console.warn('_vmsFetchMissingTrips error:',e.message);}catch(_){} }
+  finally{ if(typeof hideSpinner==='function') hideSpinner(); }
+  return added>0;
+}
+function _vmsEnsureTripsForSegments(segs,cb){
+  if(!Array.isArray(segs)||!segs.length) return;
+  if(_vmsFetchingMissingTrips) return; // already in flight
+  var missing=[];
+  for(var i=0;i<segs.length;i++){
+    var s=segs[i]; if(!s||!s.tripId) continue;
+    if(byId(DB.trips,s.tripId)) continue;
+    if(missing.indexOf(s.tripId)<0) missing.push(s.tripId);
+  }
+  if(!missing.length) return;
+  // Dedup so the same set of missing ids doesn't refire on every
+  // re-render. Key is the sorted id list.
+  var key=missing.slice().sort().join(',');
+  if(_vmsAutoLoadedForSegs[key]) return;
+  _vmsAutoLoadedForSegs[key]=true;
+  _vmsFetchingMissingTrips=true;
+  _vmsFetchMissingTrips(missing).then(function(added){
+    _vmsFetchingMissingTrips=false;
+    if(added && typeof cb==='function') cb();
+  }).catch(function(){ _vmsFetchingMissingTrips=false; });
+}
 // Supabase table name → date column name
 // _DATE_FILTER_COL → moved to vms-logic.js
 var _dateFilterLoaded={}; // tbl → earliest date loaded (ISO string)
@@ -749,7 +866,13 @@ bootDB=async function(){
           // now so permCanAct has data by the time _tryAutoLogin runs.
           if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
             try{
-              var _hsR=await _sb.from('hrms_settings').select('*').limit(1000);
+              // V83/V86 — drop attImportLog + raw import-file rows at VMS boot.
+              var _hsR=await _sb.from('hrms_settings').select('*')
+                .neq('key','attImportLog')
+                .not('key','like','attImpFile_*')
+                .not('key','like','altImpFile_*')
+                .not('key','like','advImpFile_*')
+                .limit(1000);
               if(!_hsR.error){
                 DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
                 console.log('bootDB(VMS): hrmsSettings synced — rows='+DB.hrmsSettings.length);
@@ -1562,12 +1685,12 @@ const NAV=[
   {id:'TripRates', l:'Trip Rates',    i:'💰',p:'pageTripRates', r:['VMS Admin','Super Admin'],      count:'tripRates', cid:'cTripRates', badge:'bTR',permKey:'page.tripRates',app:'vms'},
   // V117 — User × Plant role-allocation matrix. SA + VMS Admin only.
   {id:'UserPlantAlloc', l:'User Plant Allocation', i:'🧩', p:'pageUserPlantAlloc', r:['Super Admin','VMS Admin'], app:'vms'},
-  // SYSTEM section + Helper page hidden from sidebar. The page itself
-  // still exists and _buildTripStatusHtml powers the right-click trip
-  // status popup, so removing the nav doesn't break any functionality.
-  // Un-comment to restore.
-  // {sec:'SYSTEM',app:'vms'},
-  // {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
+  // SYSTEM section + Helper page. V78 (260518) — Restored from the V117
+  // hidden state so the PostgREST egress counter is reachable. Super Admin
+  // only. The right-click trip-status popup still uses _buildTripStatusHtml
+  // independently of the nav entry.
+  {sec:'SYSTEM',app:'vms'},
+  {id:'Helper',l:'Helper',i:'📖',p:'pageHelper',r:['Super Admin'],app:'vms'},
 ];
 
 function initApp(){
@@ -2029,8 +2152,12 @@ function _showPhotoChoice(fileInputId, thumbId, onDone){
   const inp=document.getElementById(fileInputId);
   if(!inp) return;
   if(_isMobileOrTablet()){
-    // Mobile/Tablet: show Camera vs Gallery choice
-    _showMobilePhotoMenu(fileInputId);
+    // V45 (260518) — Mobile / tablet bypasses the Camera-vs-Gallery
+    // sheet and goes straight to the OS camera. The earlier picker
+    // sheet was hiding behind modal overlays (modal-overlay sits at
+    // z-index 100000 here, equal to the menu) and added an extra
+    // tap for the on-site guard whose only use case is the camera.
+    _photoChoiceCam();
   } else {
     // Desktop: open file picker
     inp.removeAttribute('capture');
@@ -2043,7 +2170,7 @@ function _showMobilePhotoMenu(fileInputId){
   var old=document.getElementById('_mobilePhotoMenu');if(old)old.remove();
   var menu=document.createElement('div');
   menu.id='_mobilePhotoMenu';
-  menu.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200000;display:flex;align-items:flex-end;justify-content:center';
+  menu.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:2147483647;display:flex;align-items:flex-end;justify-content:center';
   menu.onclick=function(e){if(e.target===menu)menu.remove();};
   menu.innerHTML='<div style="background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:400px;margin-bottom:0">'
     +'<div style="font-size:15px;font-weight:800;margin-bottom:16px;text-align:center">Attach Photo / Document</div>'
@@ -4187,10 +4314,18 @@ function renderMyTrips(){
   const isSA=(CU.roles||[]).includes('Super Admin')||(CU.roles||[]).includes('VMS Admin');
   let trips=_tripsForMyBookingPlant();
   // Trip ID search filter
+  // V46 (260518) — When the user types a trip-ID search, bypass the
+  // date-range filter so old / legacy trips (outside the default
+  // last-7-days window) can be located and deleted by name. Without
+  // this, trips like "6P2-116" that have no vehicle but pre-date the
+  // window were invisible on TB and only surfaced on MR / TA.
   const tbSearch=(document.getElementById('tbTripSearch')?.value||'').toLowerCase();
-  if(tbSearch) trips=trips.filter(t=>(t.id||'').toLowerCase().includes(tbSearch));
-  if(fromVal)trips=trips.filter(t=>(t.date||'').slice(0,10)>=fromVal);
-  if(toVal)trips=trips.filter(t=>(t.date||'').slice(0,10)<=toVal);
+  if(tbSearch){
+    trips=trips.filter(t=>(t.id||'').toLowerCase().includes(tbSearch));
+  } else {
+    if(fromVal)trips=trips.filter(t=>(t.date||'').slice(0,10)>=fromVal);
+    if(toVal)trips=trips.filter(t=>(t.date||'').slice(0,10)<=toVal);
+  }
   // Sort by date descending (newest first)
   trips.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
@@ -4869,6 +5004,23 @@ function _closePop(popId){
   try{renderMR();}catch(e){}
   try{renderApprove();}catch(e){}
 }
+// V70 (260518) — Esc closes the open Confirm Receipt / Confirm Trip Approval
+// popup. These popups use inline ids (`mr_pop_<sid>` / `ap_pop_<tripid>`) so
+// they don't match the global Esc handler's `[id$="Pop"]` / `.modal-overlay`
+// selectors. Capture-phase + stopImmediatePropagation so the global handler
+// doesn't also fire on the same press and peel off an outer modal.
+if(!window._vmsPopEscBound){
+  window._vmsPopEscBound=true;
+  window.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    if(!_popOpen||!_currentOpenPopId) return;
+    var el=document.getElementById(_currentOpenPopId);
+    if(!el||el.style.display==='none') return;
+    _closePop(_currentOpenPopId);
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  },true);
+}
 // Resolve popId → trip id (works for mr_pop_/ap_pop_/kap_pop_ prefixes)
 function _tripIdForPopId(popId){
   if(!popId) return '';
@@ -4964,6 +5116,227 @@ async function _kapAutoCloseSpotEntry(){
   if(btn){ btn.disabled=false; btn.style.opacity=''; }
   try{ renderKap(); updBadges(); }catch(e){}
   notify('Auto Close Spot Entry: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
+}
+
+// V55 (260518) — Pull every segment dated before `cutoff` whose status
+// isn't yet Completed/Locked directly from Supabase.
+// V60 (260518) — Anchored on the TRIP's booking date (trip.date) instead
+// of segment.date — segment.date is the row's creation timestamp and
+// drifts forward whenever a trip is edited / segments are rebuilt, so
+// the old sweep was missing segments whose trip pre-dated the cutoff
+// but whose segments had been touched recently. Now: fetch trips
+// where date < cutoff, batch-load their segments, return whichever
+// aren't Completed/Locked. Also seeds DB.trips so downstream cards
+// can find vehicle / route info.
+async function _vmsFetchOldPendingSegments(cutoff){
+  if(!_sb||!_sbReady) return [];
+  // 1. Get every old trip's code.
+  var tripIds=[];
+  try{
+    var pageSize=1000, from=0;
+    while(true){
+      var tr=await _sb.from('vms_trips').select('code').lt('date',cutoff).range(from,from+pageSize-1);
+      if(tr.error||!Array.isArray(tr.data)) break;
+      tripIds=tripIds.concat(tr.data.map(function(r){return r.code;}));
+      if(tr.data.length<pageSize) break;
+      from+=pageSize;
+    }
+  }catch(e){ try{console.warn('fetch old trip ids:',e.message);}catch(_){} return []; }
+  if(!tripIds.length) return [];
+  // 2. Fetch their segments in IN-list batches of 100. V82 (260518) —
+  // switched from `steps` back to `steps_light` (server-side photo-stripped
+  // copy). The Auto MR / Auto TA flows below only inspect step-state flags
+  // (done/skip/by/time), which steps_light carries — and they read the
+  // segment one more time inside the per-segment loop right before save,
+  // so any tiny trigger-lag on steps_light at list-time is washed out
+  // before we mutate. Saves ~30+ MB of base64 photos per click.
+  var sel='id,code,trip_id,label,s_loc,d_loc,criteria,trip_cat_id,steps_light,status,date,current_step,updated_at';
+  var out=[];
+  for(var i=0;i<tripIds.length;i+=100){
+    var batch=tripIds.slice(i,i+100);
+    try{
+      var sr=await _sb.from('vms_segments').select(sel)
+        .in('trip_id',batch)
+        .not('status','in','(Completed,Locked)');
+      if(sr.error||!Array.isArray(sr.data)) continue;
+      out=out.concat(sr.data);
+    }catch(e){ try{console.warn('fetch segs for batch:',e.message);}catch(_){} }
+  }
+  // 3. Also seed DB.trips with these trip IDs so the UI can show details.
+  try{ await _vmsFetchMissingTrips(tripIds); }catch(_){}
+  var parsed=out.map(function(row){return _fromRow('segments',row);}).filter(Boolean);
+  if(typeof _stripStepPhotos==='function') _stripStepPhotos(parsed);
+  return parsed;
+}
+
+// Merge a list of segment records into DB.segments (insert or update
+// by id). Useful after a one-shot Supabase pull so the sweep sees the
+// freshly-loaded segments alongside the in-memory ones.
+function _vmsMergeSegments(recs){
+  if(!Array.isArray(recs)||!recs.length) return 0;
+  var arr=DB.segments||(DB.segments=[]);
+  var idMap={}; for(var j=0;j<arr.length;j++) idMap[arr[j].id]=j;
+  var added=0;
+  recs.forEach(function(rec){
+    if(idMap[rec.id]===undefined){ arr.push(rec); idMap[rec.id]=arr.length-1; added++; }
+    else { arr[idMap[rec.id]]=rec; }
+  });
+  return added;
+}
+
+// V47 (260518) — Auto-receive every pending MR (step 3) for trips
+// dated before 2026-05-01. SA / VMS Admin only. No challan / vehicle
+// validation; step is marked done with an audit remark and the
+// segment is advanced. Failures roll back the segment state.
+// V55 (260518) — Now pulls older pending segments directly from
+// Supabase first so the rolling 31-day in-memory window doesn't hide
+// candidates.
+async function _vmsAutoReceiveOld(){
+  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
+    notify('⚠ Only Super Admin / VMS Admin can run Auto Receive.',true); return;
+  }
+  var CUTOFF='2026-05-01';
+  try{ if(typeof showSpinner==='function') showSpinner('Scanning older segments…'); }catch(_){}
+  var fetched=await _vmsFetchOldPendingSegments(CUTOFF);
+  _vmsMergeSegments(fetched);
+  try{ if(typeof hideSpinner==='function') hideSpinner(); }catch(_){}
+  // V60 (260518) — Cutoff applied against the TRIP's booking date
+  // (trip.date), not the segment row's creation timestamp. Old trips
+  // whose segments were recently re-built (segment.date drifts to now)
+  // were otherwise being missed.
+  var candidates=(DB.segments||[]).filter(function(s){
+    if(!s) return false;
+    if(s.status==='Completed'||s.status==='Locked') return false;
+    if(s.steps&&(s.steps[3]?.done||s.steps[3]?.skip)) return false;
+    if(typeof stepsOneAndTwoDone==='function' && !stepsOneAndTwoDone(s)) return false;
+    var trip=byId(DB.trips,s.tripId);
+    var d=(trip&&trip.date)?String(trip.date).slice(0,10):'';
+    if(!d) return false;
+    return d<CUTOFF;
+  });
+  if(!candidates.length){ notify('No pending Material Receipts older than '+CUTOFF+'.'); return; }
+  if(!confirm('Auto-receive '+candidates.length+' pending MR segment(s) for trips dated before '+CUTOFF+'?\n\nNo challan / vehicle checks will be enforced.')) return;
+  var btn=document.getElementById('mrAutoReceiveBtn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
+  var nowIso=new Date().toISOString();
+  var who=CU?(CU.fullName||CU.name||CU.id):'';
+  var ok=0, fail=0;
+  for(var i=0;i<candidates.length;i++){
+    var seg=candidates[i];
+    var bak=JSON.parse(JSON.stringify(seg));
+    if(!seg.steps) seg.steps={};
+    if(!seg.steps[3]) seg.steps[3]={};
+    seg.steps[3].done=true;
+    seg.steps[3].time=nowIso;
+    seg.steps[3].by=CU.id;
+    seg.steps[3].remarks='[Auto Receive] by '+who+' (trip dated before '+CUTOFF+')';
+    seg.steps[3].discrepancy=false;
+    seg.steps[3].notReceived=false;
+    try{ if(typeof advance==='function') await advance(seg); }catch(_){}
+    if(await _dbSave('segments',seg)){ ok++; }
+    else { Object.assign(seg,bak); fail++; }
+  }
+  if(btn){ btn.disabled=false; btn.style.opacity=''; }
+  try{ renderMR(); renderTripBooking(); updBadges(); }catch(e){}
+  notify('Auto Receive: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
+}
+
+// V47 (260518) — Auto-approve every pending Trip Approval (step 4)
+// for segments whose trip is dated before 2026-05-01. SA / VMS Admin
+// only. Sets seg.status=Active and stamps an audit remark.
+// V55 (260518) — Pulls older pending segments directly from Supabase
+// first so the rolling 31-day in-memory window doesn't hide
+// candidates.
+// V59 (260518) — Strict sequence enforcement: step 3 (MR) must be
+// done before step 4 (TA). If you want to clear a backlog, run
+// ⚡ Auto Receive first, then ⚡ Auto Approve. Auto Approve will
+// surface a clear count of segments still blocked on MR so the user
+// knows the receive sweep is needed.
+async function _vmsAutoApproveOld(){
+  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
+    notify('⚠ Only Super Admin / VMS Admin can run Auto Approve.',true); return;
+  }
+  var CUTOFF='2026-05-01';
+  try{ if(typeof showSpinner==='function') showSpinner('Scanning older segments…'); }catch(_){}
+  var fetched=await _vmsFetchOldPendingSegments(CUTOFF);
+  _vmsMergeSegments(fetched);
+  try{ if(typeof hideSpinner==='function') hideSpinner(); }catch(_){}
+  // V60 (260518) — Cutoff applied against the TRIP's booking date
+  // (trip.date), not segment.date. Filter eligible (step 1+2+3 done,
+  // step 4 not done) and also count segments blocked on MR.
+  var _tripDate=function(s){
+    var trip=byId(DB.trips,s.tripId);
+    return (trip&&trip.date)?String(trip.date).slice(0,10):'';
+  };
+  // V62 (260518) — Accept step 1 / 2 as either `done` OR `skip` (some
+  // trips have no KAP gate exit / entry — step is marked skip at
+  // build time). Earlier filter only checked `done` and silently
+  // dropped externally-originating trips. `stepsOneAndTwoDone` already
+  // handles this correctly via the same OR.
+  var _stepsOneTwoOk=function(s){
+    return s.steps && (s.steps[1]?.done||s.steps[1]?.skip) && (s.steps[2]?.done||s.steps[2]?.skip);
+  };
+  // V63 (260518) — Also skip segments where step 4 is `skip:true`.
+  // Those are external-origin trips with no Trip Approver assigned —
+  // they don't need approval and counting them inflated the candidate
+  // total vs the TA-badge count.
+  var candidates=(DB.segments||[]).filter(function(s){
+    if(!s) return false;
+    if(s.status==='Completed'||s.status==='Locked') return false;
+    if(s.steps&&(s.steps[4]?.done||s.steps[4]?.skip)) return false;
+    if(!_stepsOneTwoOk(s)) return false;
+    if(!(s.steps[3]?.done||s.steps[3]?.skip)) return false;
+    var d=_tripDate(s);
+    if(!d) return false;
+    return d<CUTOFF;
+  });
+  var blockedByMr=(DB.segments||[]).filter(function(s){
+    if(!s) return false;
+    if(s.status==='Completed'||s.status==='Locked') return false;
+    if(s.steps&&(s.steps[4]?.done||s.steps[4]?.skip)) return false;
+    if(!_stepsOneTwoOk(s)) return false;
+    if(s.steps&&(s.steps[3]?.done||s.steps[3]?.skip)) return false;
+    var d=_tripDate(s);
+    if(!d) return false;
+    return d<CUTOFF;
+  }).length;
+  if(!candidates.length){
+    var msg0='No pending Trip Approvals older than '+CUTOFF+' have completed Material Receipt.';
+    if(blockedByMr) msg0+='\n\n'+blockedByMr+' segment(s) are still waiting on MR — click ⚡ Auto Receive on the MR page first.';
+    notify(msg0,!!blockedByMr); return;
+  }
+  // V65 (260518) — Lead with the distinct-trip count so the number
+  // matches the TA-badge / page count (which is grouped by trip).
+  // The segment count is shown as detail since the sweep actually
+  // stamps step 4 per-segment (some trips have 2-3 segments).
+  var distinctTrips=(function(){var u={};candidates.forEach(function(s){if(s.tripId) u[s.tripId]=1;});return Object.keys(u).length;})();
+  var msg='Auto-approve '+distinctTrips+' trip(s) dated before '+CUTOFF+'?';
+  if(candidates.length!==distinctTrips) msg+='\n\n('+candidates.length+' segment(s) total — some trips have multiple legs.)';
+  if(blockedByMr) msg+='\n\nNote: '+blockedByMr+' additional segment(s) are still blocked on Material Receipt (step 3) — run ⚡ Auto Receive on the MR page first to clear those too.';
+  if(!confirm(msg)) return;
+  var btn=document.getElementById('apAutoApproveBtn');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
+  var nowIso=new Date().toISOString();
+  var who=CU?(CU.fullName||CU.name||CU.id):'';
+  var ok=0, fail=0;
+  for(var i=0;i<candidates.length;i++){
+    var seg=candidates[i];
+    var bak=JSON.parse(JSON.stringify(seg));
+    if(!seg.steps) seg.steps={};
+    if(!seg.steps[4]) seg.steps[4]={};
+    seg.steps[4].done=true;
+    seg.steps[4].rejected=false;
+    seg.steps[4].time=nowIso;
+    seg.steps[4].by=CU.id;
+    seg.steps[4].remarks='[Auto Approve] by '+who+' (trip dated before '+CUTOFF+')';
+    seg.status='Active';
+    try{ if(typeof advance==='function') await advance(seg); }catch(_){}
+    if(await _dbSave('segments',seg)){ ok++; }
+    else { Object.assign(seg,bak); fail++; }
+  }
+  if(btn){ btn.disabled=false; btn.style.opacity=''; }
+  try{ renderApprove(); renderTripBooking(); updBadges(); }catch(e){}
+  notify('Auto Approve: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
 }
 
 // V117+ — Auto-close every pending Empty Exit (step 5) for segments
@@ -5150,7 +5523,7 @@ function _renderKapInner(){
 
       // Vehicle badge: always read-only on KAP page
       let vehBadge=hasVeh
-        ?`<span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vehNum}</span>`
+        ?`<span style="font-family:var(--mono);font-size:20px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vehNum}</span>`
         :`<span class="flash-red" style="font-family:var(--mono);font-size:24px;font-weight:900;border-radius:8px;padding:2px 10px;flex-shrink:0">No Vehicle</span>`;
 
       // Build all segment rows
@@ -5439,12 +5812,16 @@ function _renderKapInner(){
     const loc=step===1?byId(DB.locations,s.sLoc):byId(DB.locations,s.dLoc);
     return _vmsLocHasRoleUser(loc,'KAP Security',CU.id) || st.by===CU.id;
   });
-  if(!srch&&fromVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
-  if(!srch&&toVal)histSegs=histSegs.filter(s=>(s.date||'').slice(0,10)<=toVal);
+  // V72 (260518) — Filter by the action time (steps[step].time), not the
+  // segment creation timestamp (s.date). Otherwise the date panel ignores
+  // when the gate exit / entry actually happened.
+  if(!srch&&fromVal)histSegs=histSegs.filter(s=>(s.steps[step]?.time||'').slice(0,10)>=fromVal);
+  if(!srch&&toVal)histSegs=histSegs.filter(s=>(s.steps[step]?.time||'').slice(0,10)<=toVal);
   if(srch)histSegs=histSegs.filter(s=>s.tripId.toLowerCase().includes(srch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(srch));
-  // Eager-load step photos for visible history rows so gate-exit/entry
-  // thumbnails render without requiring each card to be opened first.
-  try{ _ensureStepPhotosForList(histSegs); }catch(e){}
+  // V83 (260518) — Eager photo load REMOVED. KS history cards collapse the
+  // photo rows inside `<div id="${hid}" style="display:none">` so the
+  // pre-fetch only filled hidden DOM. toggleKapHistCard() already calls
+  // _loadTripCardPhotos on expand. Was the largest egress source on KS.
   histSegs.sort((a,b)=>{
     const ta=a.steps[step]?.time?new Date(a.steps[step].time).getTime():0;
     const tb=b.steps[step]?.time?new Date(b.steps[step].time).getTime():0;
@@ -5547,6 +5924,8 @@ function _renderKapInner(){
           <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:#fff;background:var(--accent);padding:3px 9px;border-radius:6px;flex-shrink:0;letter-spacing:.4px">${_cTid(trip?.id||seg.tripId)}</span>
           <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:var(--text);background:#fef08a;border:1.5px solid #ca8a04;border-radius:6px;padding:2px 8px;flex-shrink:0">${vnum(trip?.vehicleId)}</span>
         </div>
+        <!-- V77: Actor + action time, below ID/vehicle row -->
+        <div style="padding:0 10px 3px;font-size:11px;color:#475569;font-weight:600">By: <strong style="color:${isMine?'var(--accent)':'#0f172a'}">${byName}${isMine?' (You)':''}</strong> on <span style="font-family:var(--mono);font-weight:700;color:#0f172a">${st.time?new Date(st.time).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+', '+new Date(st.time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}):'—'}</span></div>
         <!-- Line 2: Coloured route pills -->
         <div style="padding:2px 10px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${histRoutePills}</div>
         <!-- Expanded details -->
@@ -5641,16 +6020,17 @@ function _renderSpotOpenList(){
     var _entryTs2=s.entryTime?new Date(s.entryTime).getTime():(s.date?new Date(s.date+'T00:00:00').getTime():0);
     var isStaleCard=_entryTs2>0&&(now.getTime()-_entryTs2)>48*3600000;
     var borderClr=isStaleCard?'#94a3b8':'#dc2626';
-    var statusDot=isStaleCard?'🔒':'🔴';
-    // V151 — Yellow serial strip on the left for spot-entry recognition,
-    // matching the red (exit) / green (entry) strips on KAP trip cards.
+    // V53 (260518) — Red/green status dot removed; the card's border
+    // colour + stale-lock emoji already telegraph the state. Vehicle
+    // number font also trimmed 2px (18→16, 35→33) per the KS / MR /
+    // TA / history font sweep.
     var _serialNo=open.length-_idx;
     return '<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid '+borderClr+';border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenSpotPopup(\''+s.id+'\')" onmouseover="this.style.boxShadow=\'0 4px 18px rgba(0,0,0,.12)\'" onmouseout="this.style.boxShadow=\'\'">'+
       '<div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#eab308;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#000;user-select:none">'+_serialNo+'</div>'+
       '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;min-width:0;flex-wrap:nowrap">'+
-        '<span style="font-size:16px;flex-shrink:0">'+statusDot+'</span>'+
+        (isStaleCard?'<span style="font-size:16px;flex-shrink:0">🔒</span>':'')+
         '<span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">'+s.id+'</span>'+
-        '<span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:#000;background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">'+(s.vehicleNum||'')+'</span>'+
+        '<span style="font-family:var(--mono);font-size:20px;font-weight:900;color:#000;background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">'+(s.vehicleNum||'')+'</span>'+
         '<div style="flex:1"></div>'+
         '<span style="font-size:18px;color:var(--text3);font-weight:300;flex-shrink:0">›</span>'+
       '</div>'+
@@ -5948,16 +6328,16 @@ function renderSpotHistory(){
     const isStaleCard=isInside&&_entryTs2>0&&(now.getTime()-_entryTs2)>48*3600000;
     const fmt=t=>t?new Date(t).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}):'—';
     const borderClr=isStaleCard?'#94a3b8':(isInside?'#dc2626':(isAutoExited?'#f59e0b':'#16a34a'));
-    const statusDot=isStaleCard?'🔒':(isInside?'🔴':(isAutoExited?'🟡':'🟢'));
-    // V151 — Yellow serial strip on the left, matching the spot-entry
-    // colour-coding used on the Open Spot Entries tab.
+    // V53 (260518) — Red/green/yellow dot indicator removed; the card
+    // colours + isInside red tint on the vehicle pill already telegraph
+    // state. Vehicle number font trimmed 2px (18→16, 35→33).
     const _serialNo=filtered.length-_idx;
     return `<div style="padding:0;overflow:hidden;cursor:pointer;border:2px solid #000;border-radius:10px;margin-bottom:8px;transition:box-shadow .15s;background:#fff;position:relative;padding-left:30px" onclick="_kapOpenSpotPopup('${s.id}')" onmouseover="this.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'" onmouseout="this.style.boxShadow=''">
       <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#eab308;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#000;user-select:none">${_serialNo}</div>
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;min-width:0;flex-wrap:nowrap">
-        <span style="font-size:16px;flex-shrink:0">${statusDot}</span>
+        ${isStaleCard?'<span style="font-size:16px;flex-shrink:0">🔒</span>':''}
         <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${s.id}</span>
-        <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:${isInside?'#dc2626':'var(--text)'};background:${isInside?'rgba(239,68,68,.08)':'#fef08a'};border:2px solid ${isInside?'#fca5a5':'#ca8a04'};border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${s.vehicleNum}</span>
+        <span style="font-family:var(--mono);font-size:20px;font-weight:900;color:${isInside?'#dc2626':'var(--text)'};background:${isInside?'rgba(239,68,68,.08)':'#fef08a'};border:2px solid ${isInside?'#fca5a5':'#ca8a04'};border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${s.vehicleNum}</span>
         <div style="flex:1"></div>
         <span style="font-size:18px;color:var(--text3);font-weight:300;flex-shrink:0">›</span>
       </div>
@@ -6421,6 +6801,12 @@ function renderMR(){
   // Skip re-render while popup is open to prevent flicker
   if(_popOpen) return;
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
+  // V47 (260518) — Auto Receive button is SA / VMS Admin only.
+  try{ var _aRcvBtn=document.getElementById('mrAutoReceiveBtn'); if(_aRcvBtn) _aRcvBtn.style.display=isSA?'inline-flex':'none'; }catch(e){}
+  // V65 (260518) — Lazy-load every older pending segment on first
+  // open of MR this session so the page reflects the actual backlog,
+  // not just the rolling 31-day window.
+  try{ _vmsLoadAllPendingSegmentsOnce(function(added){ if(added) renderMR(); }); }catch(e){}
   const _myTripIds=new Set(tripsForMyPlant().map(t=>t.id));
   let pending=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked')return false;
@@ -6428,6 +6814,10 @@ function renderMR(){
     if(!stepsOneAndTwoDone(s))return false;
     return canDoStep(s,3);
   });
+  // V50 (260518) — Auto-fetch older trips when pending segments reference
+  // trips that aren't in DB.trips (older than the rolling fetch window).
+  // Triggers once per earliest-missing-date; re-renders MR after the load.
+  try{ _vmsEnsureTripsForSegments(pending, function(){ renderMR(); }); }catch(e){}
   // Trip ID search filter
   const mrSearch=(document.getElementById('mrTripSearch')?.value||'').toLowerCase();
   if(mrSearch) pending=pending.filter(s=>s.tripId.toLowerCase().includes(mrSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(mrSearch));
@@ -6437,9 +6827,11 @@ function renderMR(){
   // Pending content
   // Sort by trip booking date descending (newest first)
   pending.sort((a,b)=>{const ta=byId(DB.trips,a.tripId);const tb=byId(DB.trips,b.tripId);return (tb?.date||'').localeCompare(ta?.date||'');});
-  // Eager-load step photos for visible MR cards — exit/entry thumbnails
-  // pulled from seg.steps[1/2].photo are otherwise empty until card-open.
-  try{ _ensureStepPhotosForList(pending); }catch(e){}
+  // V83 (260518) — Eager photo load REMOVED. MR pending step photos only
+  // render inside the popup (mr_pop_*) which has display:none until
+  // _openPop fires; _openPop already calls _loadTripCardPhotos. The
+  // always-visible card row shows trip-id / vehicle / route pills only —
+  // none of those need step photos.
   if(!pending.length){document.getElementById('mrPendingContent').innerHTML='<div class="empty-state" style="padding:12px">No pending material receipts</div>';}
   else{
     document.getElementById('mrPendingContent').innerHTML=pending.map((seg,_si)=>{
@@ -6503,7 +6895,7 @@ function renderMR(){
           <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pending.length-_si}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(seg.tripId)}</span>
-            <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
+            <span style="font-family:var(--mono);font-size:20px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
             <div style="flex:1"></div>
             <span style="font-size:18px;color:var(--text3);font-weight:300;flex-shrink:0">›</span>
           </div>
@@ -6610,8 +7002,10 @@ function renderMRHistory(){
     const tripPlantMatch=_mrTripIds.has(s.tripId);
     return _vmsLocHasRoleUser(loc,'Material Receiver',CU.id)||s.steps[3]?.by===CU.id||tripPlantMatch;
   });
-  if(fromVal)segs=segs.filter(s=>(s.date||'').slice(0,10)>=fromVal);
-  if(toVal)segs=segs.filter(s=>(s.date||'').slice(0,10)<=toVal);
+  // V72 (260518) — Filter by step 3 action time (when MR was acknowledged),
+  // not segment creation timestamp. Date panel must drive what's shown.
+  if(fromVal)segs=segs.filter(s=>(s.steps[3]?.time||'').slice(0,10)>=fromVal);
+  if(toVal)segs=segs.filter(s=>(s.steps[3]?.time||'').slice(0,10)<=toVal);
   const mrHistSearch=(document.getElementById('mrTripSearch')?.value||'').toLowerCase();
   if(mrHistSearch) segs=segs.filter(s=>s.tripId.toLowerCase().includes(mrHistSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(mrHistSearch));
   segs.sort((a,b)=>(b.steps[3]?.time||'').localeCompare(a.steps[3]?.time||''));
@@ -6669,6 +7063,8 @@ function renderMRHistory(){
         <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:var(--text);background:#fef08a;border:1.5px solid #ca8a04;border-radius:6px;padding:2px 8px;flex-shrink:0">${vnum(trip?.vehicleId)}</span>
         ${mrDiscrep?`<span style="font-size:10px;font-weight:700;color:#dc2626;white-space:nowrap">⚠ Discrepancy</span>`:''}
       </div>
+      <!-- V77: Actor + action time, below ID/vehicle row -->
+      <div style="padding:0 10px 3px;font-size:11px;color:#475569;font-weight:600">By: <strong style="color:#0f172a">${rcvdByName}</strong> on <span style="font-family:var(--mono);font-weight:700;color:#0f172a">${st3?.time?new Date(st3.time).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+', '+new Date(st3.time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}):'—'}</span></div>
       <!-- Line 2: Coloured route pills -->
       <div style="padding:2px 10px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${mrRoutePills}</div>
       <!-- Collapsible details -->
@@ -6720,7 +7116,13 @@ function _mrHistShow(){
   }catch(e){}
   m.style.display='flex';
   m.classList.add('open');
-  if(typeof renderMR==='function') try{ renderMR(); }catch(e){}
+  // V70 (260518) — Auto-fetch older trips when the history modal opens with
+  // a from-date that precedes the rolling 31-day boot window, so the user
+  // doesn't see an empty list until they jiggle the date picker.
+  try{
+    var fv=document.getElementById('mrHistFrom')?.value||'';
+    _vmsEnsureDataForDate(fv, function(){ if(typeof renderMR==='function') try{ renderMR(); }catch(e){} });
+  }catch(e){ if(typeof renderMR==='function') try{ renderMR(); }catch(_){} }
 }
 function _mrHistHide(){
   var m=document.getElementById('mrHistModal'); if(!m) return;
@@ -6886,6 +7288,12 @@ function renderApprove(){
   if(_popOpen) return;
   initApproveDates();
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
+  // V47 (260518) — Auto Approve button is SA / VMS Admin only.
+  try{ var _aApBtn=document.getElementById('apAutoApproveBtn'); if(_aApBtn) _aApBtn.style.display=isSA?'inline-flex':'none'; }catch(e){}
+  // V65 (260518) — Lazy-load every older pending segment on first
+  // open of TA this session so the visible count is the real backlog,
+  // not the 31-day window snapshot.
+  try{ _vmsLoadAllPendingSegmentsOnce(function(added){ if(added) renderApprove(); }); }catch(e){}
 
   // Helper: is current user an approver for this segment's destination location?
 
@@ -6893,11 +7301,19 @@ function renderApprove(){
   let pendingSegs=DB.segments.filter(s=>{
     if(s.status==='Completed'||s.status==='Locked')return false;
     if(!stepsOneAndTwoDone(s))return false;
+    // V59 (260518) — Enforce step sequence: Material Receipt (step 3)
+    // must be done or skipped before the segment is visible on TA.
+    // Applies to Super Admin too — the lifecycle is strictly
+    // sequential.
+    if(!(s.steps[3]?.done||s.steps[3]?.skip)) return false;
     const isPendingStep4=!s.steps[4]?.done&&!s.steps[4]?.rejected;
     const isRejected=s.status==='Rejected'||s.steps[4]?.rejected;
     if(!isPendingStep4&&!isRejected)return false;
     return canDoStep(s,4);
   });
+  // V50 (260518) — Auto-fetch older trips when pending segments reference
+  // trips that aren't in DB.trips (older than the rolling fetch window).
+  try{ _vmsEnsureTripsForSegments(pendingSegs, function(){ renderApprove(); }); }catch(e){}
   // Trip ID search filter
   const apSearch=(document.getElementById('approveTripSearch')?.value||'').toLowerCase();
   if(apSearch) pendingSegs=pendingSegs.filter(s=>s.tripId.toLowerCase().includes(apSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(apSearch));
@@ -6921,11 +7337,8 @@ function renderApprove(){
 
   // Eager-load step photos for visible Approve cards — gate-exit/entry
   // thumbnails are pulled from seg.steps[1/2].photo.
-  try{
-    var _apVisIds={};pendingTrips.forEach(function(e){_apVisIds[e[0]]=1;});
-    var _apSegsAll=(DB.segments||[]).filter(function(s){return s&&_apVisIds[s.tripId];});
-    _ensureStepPhotosForList(_apSegsAll);
-  }catch(e){}
+  // V83 (260518) — Eager photo load REMOVED. TA pending step photos only
+  // render inside the popup (ap_pop_*); _openPop calls _loadTripCardPhotos.
 
   // Sort pending trips by booking date descending (newest first)
   pendingTrips.sort((a,b)=>{const ta=byId(DB.trips,a[0]);const tb=byId(DB.trips,b[0]);return (tb?.date||'').localeCompare(ta?.date||'');});
@@ -7079,7 +7492,7 @@ function renderApprove(){
           <div style="position:absolute;left:0;top:0;bottom:0;width:24px;background:#65a30d;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;user-select:none">${pendingTrips.length-_apIdx}</div>
           <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 4px;flex-wrap:nowrap;min-width:0">
             <span style="font-family:var(--mono);font-size:21px;font-weight:900;color:#fff;background:var(--accent);padding:2px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap">${_cTid(tripId)}</span>
-            <span style="font-family:var(--mono);font-size:clamp(18px,5vw,35px);font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
+            <span style="font-family:var(--mono);font-size:20px;font-weight:900;color:var(--text);background:#fef08a;border:2px solid #ca8a04;border-radius:8px;padding:2px 10px;flex-shrink:0;white-space:nowrap">${vnum(trip?.vehicleId)}</span>
             ${isRejectedTrip?'<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fef2f2;border:1px solid #fca5a5;padding:1px 6px;border-radius:4px">⚠ Rejected</span>':''}
             <div style="flex:1"></div>
             ${costBadge}
@@ -7154,10 +7567,11 @@ function renderApprove(){
   if(toVal)comp=comp.filter(s=>(s.steps[4]?.time||'').slice(0,10)<=toVal);
   if(apSearch) comp=comp.filter(s=>s.tripId.toLowerCase().includes(apSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(apSearch));
 
-  // Eager-load step photos for the completed list too — without this the
-  // gate-exit/entry thumbnails on closed cards stay empty until each card
-  // is opened individually (the pending list above already does this).
-  try{ _ensureStepPhotosForList(comp); }catch(e){}
+  // V83 (260518) — Eager photo load REMOVED. TA completed cards keep step
+  // photos inside `<div id="${cardId}" style="display:none">` so
+  // pre-fetching meant pulling tens of MB of base64 into hidden DOM.
+  // toggleApCard() lazy-loads via _loadTripCardPhotos on expand. This was
+  // the dominant ~30+ MB egress source on pageApprove.
 
   // Group by base trip ID (strip -R1, -R2 suffix for grouping)
   const baseTripId=tid=>tid.replace(/-R\d+$/,'');
@@ -7276,6 +7690,8 @@ function renderApprove(){
         <span style="font-family:var(--mono);font-size:20px;font-weight:800;color:var(--text);background:#fef08a;border:1.5px solid #ca8a04;border-radius:6px;padding:2px 8px;flex-shrink:0">${vnum(t?.vehicleId)}</span>
         ${rate&&canSeeAmt?`<span style="font-size:12px;font-weight:800;color:#16a34a;font-family:var(--mono)">₹${rate.rate.toLocaleString()}</span>`:''}
       </div>
+      <!-- V77: Approver + approval time, below ID/vehicle row -->
+      <div style="padding:0 10px 3px;font-size:11px;color:#475569;font-weight:600">By: <strong style="color:#0f172a">${approverName}</strong> on <span style="font-family:var(--mono);font-weight:700;color:#0f172a">${approvalTimeMs?new Date(approvalTimeMs).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+', '+new Date(approvalTimeMs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}):'—'}</span></div>
       <!-- Line 2: Coloured route pills -->
       <div style="padding:2px 10px 8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">${apRoutePills}</div>
       <!-- Expanded details -->
@@ -7329,7 +7745,12 @@ function _apHistShow(){
   }catch(e){}
   m.style.display='flex';
   m.classList.add('open');
-  if(typeof renderApprove==='function') try{ renderApprove(); }catch(e){}
+  // V70 (260518) — Auto-fetch older trips when the Historical TA modal opens
+  // with a from-date that precedes the rolling 31-day boot window.
+  try{
+    var fv=document.getElementById('approveFrom')?.value||'';
+    _vmsEnsureDataForDate(fv, function(){ if(typeof renderApprove==='function') try{ renderApprove(); }catch(e){} });
+  }catch(e){ if(typeof renderApprove==='function') try{ renderApprove(); }catch(_){} }
 }
 function _apHistHide(){
   var m=document.getElementById('apHistModal'); if(!m) return;
@@ -10473,6 +10894,127 @@ document.addEventListener('keydown', function(e){
 });
 
 // ═══ HELPER PAGE (Super Admin only) ══════════════════════════════════════
+// V80 (260518) — Fetch the persisted egress log for the selected window
+// and render an aggregated table (user × page × kind). Reads are excluded
+// from the in-memory counters (URL filter in common.js) to avoid the
+// "measure the measurement" loop.
+async function _egressLoadAllUsers(){
+  var body=document.getElementById('egressAllUsersBody');
+  if(!body) return;
+  if(!_sb||!_sbReady){ body.innerHTML='<div style="color:#dc2626;font-weight:700">Supabase client not ready.</div>'; return; }
+  var winSel=document.getElementById('egressWindowSel');
+  var days=parseInt(winSel?winSel.value:'7',10)||7;
+  var since=new Date(Date.now()-days*86400000).toISOString();
+  body.innerHTML='<div style="color:var(--text3)">Loading…</div>';
+  try{
+    var res=await _sb.from('vms_egress_log')
+      .select('user_id,user_name,page_id,kind,table_name,bytes,count,at')
+      .gte('at', since)
+      .order('at',{ascending:false})
+      .limit(20000);
+    if(res.error) throw res.error;
+    var rows=res.data||[];
+    if(!rows.length){ body.innerHTML='<div style="color:var(--text3)">No log rows in this window. If you just provisioned the table, give the next 30-second flush a moment.</div>'; return; }
+    // Aggregate user × page → rest/ws/total + table breakdown + first/last at
+    var agg={};
+    rows.forEach(function(r){
+      var k=(r.user_id||'?')+'|'+(r.page_id||'?');
+      if(!agg[k]) agg[k]={user_id:r.user_id,user_name:r.user_name||'',page_id:r.page_id,rest:{c:0,b:0},ws:{c:0,b:0},tables:{},firstAt:r.at||'',lastAt:r.at||''};
+      var a=agg[k];
+      var kind=(r.kind==='ws')?'ws':'rest';
+      a[kind].c+=(r.count||0);
+      a[kind].b+=(r.bytes||0);
+      if(r.at){
+        if(!a.firstAt||r.at<a.firstAt) a.firstAt=r.at;
+        if(!a.lastAt||r.at>a.lastAt) a.lastAt=r.at;
+      }
+      if(r.table_name){
+        if(!a.tables[r.table_name]) a.tables[r.table_name]={c:0,b:0};
+        a.tables[r.table_name].c+=(r.count||0);
+        a.tables[r.table_name].b+=(r.bytes||0);
+      }
+    });
+    var fmt=function(n){if(!n||n<1024)return (n||0)+' B';if(n<1024*1024)return (n/1024).toFixed(1)+' KB';return (n/1024/1024).toFixed(2)+' MB';};
+    var fmtTs=function(iso){
+      if(!iso) return '—';
+      var d=new Date(iso); if(isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
+    };
+    var entries=Object.values(agg).sort(function(a,b){return (b.rest.b+b.ws.b)-(a.rest.b+a.ws.b);});
+    var totRestB=entries.reduce(function(s,e){return s+e.rest.b;},0);
+    var totWsB=entries.reduce(function(s,e){return s+e.ws.b;},0);
+    var totRestC=entries.reduce(function(s,e){return s+e.rest.c;},0);
+    var totWsC=entries.reduce(function(s,e){return s+e.ws.c;},0);
+    // Default sort: most-recently active first.
+    entries.sort(function(a,b){ return (b.lastAt||'').localeCompare(a.lastAt||''); });
+    var rowsHtml=entries.map(function(a){
+      var tbls=Object.entries(a.tables).sort(function(x,y){return y[1].b-x[1].b;});
+      var tblTxt=tbls.slice(0,3).map(function(t){return t[0]+' ('+fmt(t[1].b)+')';}).join(', ');
+      var more=tbls.length>3?' +'+(tbls.length-3):'';
+      return '<tr>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-weight:700">'+(a.user_name||a.user_id||'?')+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">'+a.page_id+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--text2);white-space:nowrap">'+fmtTs(a.firstAt)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:#0f172a;font-weight:700;white-space:nowrap">'+fmtTs(a.lastAt)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.rest.c+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.rest.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.ws.c+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.ws.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800">'+fmt(a.rest.b+a.ws.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;color:var(--text2)">'+(tblTxt||'—')+more+'</td>'
+        +'</tr>';
+    }).join('');
+    body.innerHTML=
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+rows.length+' log rows · '+entries.length+' user×page combos · last '+days+'d · REST <strong style="color:#0f172a">'+fmt(totRestB)+'</strong> ('+totRestC+' calls) · WS <strong style="color:#0f172a">'+fmt(totWsB)+'</strong> ('+totWsC+' frames) · Combined <strong style="color:#0f172a">'+fmt(totRestB+totWsB)+'</strong></div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">'
+      +'<thead><tr style="background:var(--surface2)">'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">User</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">First seen</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Last seen</th>'
+      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>'
+      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>'
+      +'</tr><tr style="background:var(--surface2)">'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Calls</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Frames</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>'
+      +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+  }catch(e){
+    var msg=(e&&e.message)||String(e);
+    body.innerHTML='<div style="color:#dc2626;font-weight:700;font-size:12px">Error: '+msg+'</div>'
+      +'<div style="color:var(--text2);font-size:11px;margin-top:6px">If the table doesn\'t exist yet, run the SQL DDL shown below in the Supabase SQL editor, then come back and try again.</div>'
+      +'<details style="margin-top:8px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px"><summary style="cursor:pointer;font-weight:700;font-size:12px;color:#334155">📜 vms_egress_log DDL</summary>'
+      +'<pre style="font-size:10px;line-height:1.4;white-space:pre-wrap;color:#0f172a;font-family:var(--mono);margin:6px 0 0">'+_egressDdlText()+'</pre></details>';
+  }
+}
+function _egressDdlText(){
+  return [
+    'CREATE TABLE IF NOT EXISTS public.vms_egress_log (',
+    '  id          uuid primary key default gen_random_uuid(),',
+    '  user_id     text,',
+    '  user_name   text,',
+    '  page_id     text,',
+    '  kind        text check (kind in (\'rest\',\'ws\')),',
+    '  table_name  text,',
+    '  bytes       bigint  not null default 0,',
+    '  count       integer not null default 1,',
+    '  at          timestamptz not null default now()',
+    ');',
+    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_at        ON public.vms_egress_log (at desc);',
+    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_user_page ON public.vms_egress_log (user_id, page_id, at desc);',
+    '',
+    'ALTER TABLE public.vms_egress_log ENABLE ROW LEVEL SECURITY;',
+    'DROP POLICY IF EXISTS "egress_log_insert" ON public.vms_egress_log;',
+    'CREATE POLICY "egress_log_insert" ON public.vms_egress_log FOR INSERT TO anon WITH CHECK (true);',
+    'DROP POLICY IF EXISTS "egress_log_select" ON public.vms_egress_log;',
+    'CREATE POLICY "egress_log_select" ON public.vms_egress_log FOR SELECT TO anon USING (true);',
+    '',
+    'NOTIFY pgrst, \'reload schema\';'
+  ].join('\n');
+}
 function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const s=(title,color,content)=>`<div style="background:${color};border-radius:10px;padding:16px 18px;margin-bottom:14px">
@@ -10516,7 +11058,91 @@ function renderHelper(){
     </tr>`;
   });
 
+  // V78 (260518) — Supabase egress counter (this session). V79 adds the
+  // REST vs WS split. Aggregates from window._egressStats populated by
+  // common.js wrappers. Sorted by total bytes desc; "Reset" wipes the
+  // in-memory map.
+  const _eg=window._egressStats||{};
+  const _egFmt=function(n){
+    if(!n||n<1024) return (n||0)+' B';
+    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+    return (n/1024/1024).toFixed(2)+' MB';
+  };
+  const _egEntries=Object.entries(_eg).sort((a,b)=>(b[1].bytes||0)-(a[1].bytes||0));
+  const _egTotalBytes=_egEntries.reduce((s,e)=>s+(e[1].bytes||0),0);
+  const _egTotalCalls=_egEntries.reduce((s,e)=>s+(e[1].count||0),0);
+  const _egTotalRest=_egEntries.reduce((s,e)=>s+(e[1].rest?.bytes||0),0);
+  const _egTotalWs=_egEntries.reduce((s,e)=>s+(e[1].ws?.bytes||0),0);
+  const _egRows=_egEntries.length
+    ?_egEntries.map(([pid,rec])=>{
+      const tbls=Object.entries(rec.tables||{}).sort((a,b)=>(b[1].bytes||0)-(a[1].bytes||0));
+      const tblSummary=tbls.slice(0,3).map(([n,r])=>n+' ('+_egFmt(r.bytes)+')').join(', ');
+      const more=tbls.length>3?' +'+(tbls.length-3)+' more':'';
+      const restB=rec.rest?.bytes||0, restC=rec.rest?.count||0;
+      const wsB=rec.ws?.bytes||0, wsC=rec.ws?.count||0;
+      return `<tr>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">${pid}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">${restC}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">${_egFmt(restB)}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">${wsC}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">${_egFmt(wsB)}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800;color:#0f172a">${_egFmt(rec.bytes||0)}</td>
+        <td style="padding:6px 10px;border:1px solid var(--border);font-size:11px;color:var(--text2)">${tblSummary||'—'}${more}</td>
+      </tr>`;
+    }).join('')
+    :'<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">No Supabase traffic recorded yet this session</td></tr>';
+
   el.innerHTML=`
+  <!-- SUPABASE EGRESS — ALL USERS (persisted) -->
+  <div style="background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(99,102,241,.08));border:2px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:18px">
+    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#6d28d9;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      🗂 Supabase Egress — All Users
+      <span style="font-size:10px;font-weight:600;color:#581c87;text-transform:none;letter-spacing:0">from vms_egress_log (persisted)</span>
+      <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:10px;font-weight:700;color:#581c87">Window
+          <select id="egressWindowSel" style="margin-left:4px;font-size:11px;padding:2px 6px;border:1px solid #c4b5fd;border-radius:5px;background:#fff;font-weight:700">
+            <option value="1">Last 1d</option>
+            <option value="7" selected>Last 7d</option>
+            <option value="30">Last 30d</option>
+          </select>
+        </label>
+        <button onclick="_egressLoadAllUsers()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer">⤓ Load</button>
+        <button onclick="window._egressFlush&&window._egressFlush().then(()=>setTimeout(_egressLoadAllUsers,400))" title="Flush in-memory batch to DB, then reload" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:6px;cursor:pointer">↻ Flush + Load</button>
+      </span>
+    </div>
+    <div id="egressAllUsersBody" style="font-size:11px;color:var(--text2)">Click <strong>⤓ Load</strong> to fetch aggregated egress across all users for the selected window. Fetching this view itself is excluded from the counters.</div>
+  </div>
+
+  <!-- SUPABASE EGRESS USAGE -->
+  <div style="background:linear-gradient(135deg,rgba(234,88,12,.08),rgba(245,158,11,.08));border:2px solid #ea580c;border-radius:12px;padding:14px 16px;margin-bottom:18px">
+    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#c2410c;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      🌐 Supabase Egress — Session
+      <span style="font-size:10px;font-weight:600;color:#9a3412;text-transform:none;letter-spacing:0">${CU?.fullName||CU?.name||'—'} · in-memory only</span>
+      <span style="margin-left:auto;display:inline-flex;gap:6px">
+        <button onclick="renderHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>
+        <button onclick="if(window._egressReset){window._egressReset();}renderHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#ea580c;border:1.5px solid #ea580c;border-radius:6px;cursor:pointer">↺ Reset</button>
+      </span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Total: <strong style="color:#0f172a">${_egTotalCalls}</strong> events · REST <strong style="color:#0f172a">${_egFmt(_egTotalRest)}</strong> · WS <strong style="color:#0f172a">${_egFmt(_egTotalWs)}</strong> · Combined <strong style="color:#0f172a">${_egFmt(_egTotalBytes)}</strong></div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">
+        <thead><tr style="background:var(--surface2)">
+          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>
+          <th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>
+          <th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>
+          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>
+          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>
+        </tr><tr style="background:var(--surface2)">
+          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Calls</th>
+          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>
+          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Frames</th>
+          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>
+        </tr></thead>
+        <tbody>${_egRows}</tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- TRIP ID ALLOCATION TOOL -->
   <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
     <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">
@@ -10929,12 +11555,36 @@ function _buildTripStatusHtml(tripIdRaw){
     if(seg.status==='Completed') segStatus='<span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Completed</span>';
     else if(seg.status==='Locked') segStatus='<span style="background:#f1f5f9;color:#64748b;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700">Locked</span>';
     
-    // Steps status — each step shows the allocated/owner plant as a
-    // colored badge so the user can see which location is responsible
-    // for that step (e.g. step 4 Approval may be owned by source plant
-    // on KAP→External segments, by booking plant on External→* etc.).
-    let stepsHtml='<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">';
+    // Steps status. V72 (260518) — Compacted layout:
+    //  • Location-specific steps (1 Gate Exit, 2 Gate Entry, 5 Empty Exit)
+    //    show the segment endpoint location at the TOP of the panel.
+    //  • User-specific steps (3 Mat Receipt, 4 Approval) show the actor
+    //    user at the BOTTOM of the panel (only when known — i.e. done).
+    // Anything not applicable renders as nothing.
+    let stepsHtml='<div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">';
     const stepNames=['','Gate Exit','Gate Entry','Mat Receipt','Approval','Empty Exit'];
+    // Per-step canonical plant resolution — falls back to the segment's
+    // start/destination loc when step.ownerLoc / step.loc aren't populated
+    // on legacy segments. Step 4 (Approval) prefers the TB plant when set
+    // (approval ownership lives with the booking user on Ext-source trips).
+    const _resolveStepLoc=(i,step)=>{
+      const explicit=step.ownerLoc||step.loc;
+      if(explicit) return explicit;
+      if(i===1) return seg.sLoc;
+      if(i===2||i===3||i===5) return seg.dLoc;
+      if(i===4) return tbPlantLoc?.id||seg.sLoc||seg.dLoc;
+      return '';
+    };
+    const _locPillHtml=(locId,marginCss,isSkip)=>{
+      if(!locId) return '';
+      const loc=byId(DB.locations,locId);
+      const pBg=loc?.colour||'#e2e8f0';
+      const pFg=loc?colourContrast(pBg):'#64748b';
+      const label=loc?.name||locId;
+      return `<div style="background:${pBg};color:${pFg};padding:1px 5px;border-radius:7px;font-size:9px;font-weight:800;letter-spacing:.2px;line-height:1.2;border:1px solid rgba(0,0,0,.08);${marginCss};opacity:${isSkip?'.45':'1'}" title="${label}">${label}</div>`;
+    };
+    const _locStep={1:true,2:true,5:true};
+    const _userStep={3:true,4:true};
     for(let i=1;i<=5;i++){
       const step=seg.steps[i]||{};
       const isSkip=step.skip;
@@ -10944,24 +11594,19 @@ function _buildTripStatusHtml(tripIdRaw){
       if(isSkip){stepCls='background:#f1f5f9;color:#cbd5e1;text-decoration:line-through';stepIcon='—';}
       else if(isDone){stepCls='background:#dcfce7;color:#16a34a';stepIcon='✓';}
       else if(seg.currentStep===i){stepCls='background:#fef9c3;color:#92400e';stepIcon='●';}
-      const stepBy=isDone&&step.by?byId(DB.users,step.by)?.name||step.by:'';
+      const stepBy=isDone&&step.by?(byId(DB.users,step.by)?.fullName||byId(DB.users,step.by)?.name||step.by):'';
       const stepTime=isDone&&step.time?new Date(step.time).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-      // Allocated plant pill — step.ownerLoc (preferred) or step.loc.
-      // Skipped steps still get a muted pill so the column lines up.
-      const ownLocId=step.ownerLoc||step.loc||'';
-      const ownLoc=ownLocId?byId(DB.locations,ownLocId):null;
-      let plantPill='';
-      if(ownLoc){
-        const pBg=ownLoc.colour||'#e2e8f0';
-        const pFg=colourContrast(pBg);
-        plantPill=`<div style="margin-top:3px;background:${pBg};color:${pFg};padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.3px;line-height:1.2;border:1px solid rgba(0,0,0,.08);opacity:${isSkip?'.45':'1'}" title="Allocated plant — ${ownLoc.name||''}">${ownLoc.name||ownLocId}</div>`;
-      } else if(!isSkip) {
-        plantPill=`<div style="margin-top:3px;color:#cbd5e1;font-size:9px;font-style:italic">— no plant —</div>`;
+      const stepLocId=_resolveStepLoc(i,step);
+      const topLabel=_locStep[i]?_locPillHtml(stepLocId,'margin-bottom:2px',isSkip):'';
+      let bottomLabel='';
+      if(_userStep[i]){
+        bottomLabel+=_locPillHtml(stepLocId,'margin-top:2px',isSkip);
+        if(stepBy) bottomLabel+=`<div style="font-size:9px;font-weight:600;margin-top:1px;color:#15803d">${stepBy}</div>`;
       }
-      stepsHtml+=`<div style="padding:4px 8px;border-radius:6px;font-size:10px;font-weight:700;${stepCls};text-align:center;min-width:80px">
+      stepsHtml+=`<div style="padding:3px 6px;border-radius:6px;font-size:10px;font-weight:700;${stepCls};text-align:center;min-width:72px">
+        ${topLabel}
         <div>${stepIcon} ${stepNames[i]}</div>
-        ${plantPill}
-        ${stepBy?`<div style="font-size:9px;font-weight:500;margin-top:2px">${stepBy}</div>`:''}
+        ${bottomLabel}
         ${stepTime?`<div style="font-size:9px;font-weight:400;opacity:.7">${stepTime}</div>`:''}
       </div>`;
     }
@@ -10977,12 +11622,12 @@ function _buildTripStatusHtml(tripIdRaw){
       return `<span style="display:inline-block;background:${bg};color:${fg};padding:2px 9px;border-radius:11px;font-size:11px;font-weight:800;border:1px solid rgba(0,0,0,.12);letter-spacing:.2px">${loc.name||'?'}${typeChip}</span>`;
     };
     const routeBadges=`${_routePill(sLoc,seg.sLoc)} <span style="color:var(--accent);font-weight:900;margin:0 4px">→</span> ${_routePill(dLoc,seg.dLoc)}`;
-    segsHtml+=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
-        <span style="font-weight:800;color:var(--accent)">Segment ${seg.label}</span>
+    segsHtml+=`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:6px">
+        <span style="font-weight:800;color:var(--accent);font-size:12px">Segment ${seg.label}</span>
         ${segStatus}
       </div>
-      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:12px;margin-bottom:2px">${routeBadges}</div>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;font-size:11px;margin-bottom:2px">${routeBadges}</div>
       ${stepsHtml}
     </div>`;
   });
@@ -11003,23 +11648,23 @@ function _buildTripStatusHtml(tripIdRaw){
   })();
   return `
     <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="background:linear-gradient(135deg,rgba(42,154,160,.1),rgba(34,197,94,.1));padding:14px 16px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="background:linear-gradient(135deg,rgba(42,154,160,.1),rgba(34,197,94,.1));padding:9px 12px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div>
-            <div style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)">${trip.id}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">Booked: ${tripDate} by ${bookedBy?.fullName||bookedBy?.name||'—'}${_tbPlantPill}</div>
+            <div style="font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent);line-height:1.1">${trip.id}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:1px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">Booked: ${tripDate} by ${bookedBy?.fullName||bookedBy?.name||'—'}${_tbPlantPill}</div>
           </div>
           ${overallStatus}
         </div>
       </div>
-      <div style="padding:14px 16px">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px">
-          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Route</div><div style="font-size:13px;font-weight:600">${routeHtml}</div></div>
-          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Vehicle</div><div style="font-size:13px;font-family:var(--mono);font-weight:700">${vehicle?.number||'—'}</div></div>
-          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Driver</div><div style="font-size:13px">${driver?.name||'—'}</div></div>
-          <div><div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Vendor</div><div style="font-size:13px">${vendor?.name||trip.vendor||'—'}</div></div>
+      <div style="padding:9px 12px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:9px">
+          <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:1px">Route</div><div style="font-size:12px;font-weight:600">${routeHtml}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:1px">Vehicle</div><div style="font-size:12px;font-family:var(--mono);font-weight:700">${vehicle?.number||'—'}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:1px">Driver</div><div style="font-size:12px">${driver?.name||'—'}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:1px">Vendor</div><div style="font-size:12px">${vendor?.name||trip.vendor||'—'}</div></div>
         </div>
-        <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px;text-transform:uppercase">Segments (${segs.length})</div>
+        <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:5px;text-transform:uppercase">Segments (${segs.length})</div>
         ${segsHtml||'<div style="color:var(--text3);font-size:12px">No segments found</div>'}
       </div>
     </div>
@@ -11046,7 +11691,7 @@ function _tripStatusPopupShow(tripId){
     document.body.appendChild(overlay);
   }
   const body=_buildTripStatusHtml(tripId);
-  overlay.innerHTML='<div style="background:#fff;max-width:720px;width:100%;max-height:88vh;overflow-y:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid #e2e8f0">'
+  overlay.innerHTML='<div style="background:#fff;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid #e2e8f0">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff;border-radius:12px 12px 0 0">'
       +'<div style="font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase">🔍 Trip Status</div>'
       +'<button onclick="document.getElementById(\'tripStatusPopup\').style.display=\'none\'" style="background:rgba(255,255,255,.2);color:#fff;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;font-weight:700">×</button>'

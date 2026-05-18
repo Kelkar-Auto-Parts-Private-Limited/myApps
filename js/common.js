@@ -141,6 +141,168 @@ else _appBuildStart();
 const SUPABASE_URL = 'https://ehzfknwkerafblnibhps.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoemZrbndrZXJhZmJsbmliaHBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMzc5NDEsImV4cCI6MjA4ODYxMzk0MX0.fNj15dY0fc4N1KCdRll_dTAmN295WZKB6sUYCPxjN_8';
 
+// V78 (260518) — Lightweight per-page Supabase egress counter. V79 adds
+// Realtime websocket traffic alongside the REST traffic. Both are
+// in-memory only — reset on refresh, current-user session only. Exposed
+// for the VMS Helper page (see renderHelper).
+//
+// Shape: window._egressStats[pageId] = {
+//   count, bytes,                                // totals
+//   rest: {count,bytes}, ws: {count,bytes},      // per-kind splits
+//   tables: { tableName: {count,bytes,kind} }    // best-effort breakdown
+// }
+window._egressStats = window._egressStats || {};
+// V80 (260518) — Persisted-across-sessions egress log. _egressBump tallies
+// the in-session map AND aggregates into _egressBatch keyed by
+// user|page|kind|table. _egressFlush() bulk-INSERTs the batch into the
+// vms_egress_log table every 30s, on visibilitychange→hidden, and on
+// beforeunload. Schema is the user's responsibility (DDL provided in the
+// helper-page Setup panel). Failed flushes silently re-merge the buffer.
+window._egressBatch = window._egressBatch || {};
+window._egressBump = function (pageId, kind, tbl, bytes) {
+  if (!window._egressStats[pageId]) {
+    window._egressStats[pageId] = { count: 0, bytes: 0, rest: { count: 0, bytes: 0 }, ws: { count: 0, bytes: 0 }, tables: {} };
+  }
+  var rec = window._egressStats[pageId];
+  rec.count++;
+  rec.bytes += bytes;
+  if (!rec[kind]) rec[kind] = { count: 0, bytes: 0 };
+  rec[kind].count++;
+  rec[kind].bytes += bytes;
+  if (tbl) {
+    if (!rec.tables[tbl]) rec.tables[tbl] = { count: 0, bytes: 0 };
+    rec.tables[tbl].count++;
+    rec.tables[tbl].bytes += bytes;
+  }
+  // Aggregate into the persisted batch.
+  try {
+    var uid = (typeof CU !== 'undefined' && CU && CU.id) ? String(CU.id) : '';
+    if (!uid) return;
+    var k = uid + '|' + pageId + '|' + kind + '|' + (tbl || '');
+    if (!window._egressBatch[k]) {
+      window._egressBatch[k] = {
+        user_id: uid,
+        user_name: (CU.fullName || CU.name || '') + '',
+        page_id: pageId,
+        kind: kind,
+        table_name: tbl || null,
+        bytes: 0,
+        count: 0
+      };
+    }
+    var b = window._egressBatch[k];
+    b.bytes += bytes;
+    b.count += 1;
+  } catch (e) { /* never break the measured request */ }
+};
+window._egressReset = function () { window._egressStats = {}; };
+window._egressFlush = async function () {
+  if (!_sb || !_sbReady) return;
+  var keys = Object.keys(window._egressBatch || {});
+  if (!keys.length) return;
+  var snap = window._egressBatch;
+  window._egressBatch = {};
+  var rows = keys.map(function (k) { return snap[k]; });
+  try {
+    var res = await _sb.from('vms_egress_log').insert(rows);
+    if (res && res.error) throw res.error;
+  } catch (e) {
+    // Re-merge so we try again next flush; cap the buffer at 5000 keys.
+    rows.forEach(function (r) {
+      var k2 = r.user_id + '|' + r.page_id + '|' + r.kind + '|' + (r.table_name || '');
+      if (!window._egressBatch[k2]) window._egressBatch[k2] = r;
+      else { window._egressBatch[k2].bytes += r.bytes; window._egressBatch[k2].count += r.count; }
+    });
+    var kk = Object.keys(window._egressBatch);
+    if (kk.length > 5000) {
+      // Drop oldest insertion order by trimming half. Telemetry, not auditing.
+      kk.slice(0, kk.length - 2500).forEach(function (x) { delete window._egressBatch[x]; });
+    }
+  }
+};
+if (typeof window !== 'undefined' && !window._egressFlushBound) {
+  window._egressFlushBound = true;
+  setInterval(function () { try { window._egressFlush(); } catch (e) { } }, 30000);
+  window.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') { try { window._egressFlush(); } catch (e) { } }
+  });
+  window.addEventListener('beforeunload', function () { try { window._egressFlush(); } catch (e) { } });
+}
+
+// REST hook — wrap window.fetch once.
+if (typeof window !== 'undefined' && !window._egressInterceptorBound) {
+  window._egressInterceptorBound = true;
+  var _egressOrigFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    var url = (typeof input === 'string') ? input : (input && input.url) || '';
+    var isSb = url && url.indexOf(SUPABASE_URL) === 0 && url.indexOf('/rest/v1/') >= 0;
+    if (!isSb) return _egressOrigFetch(input, init);
+    var tbl = (url.match(/\/rest\/v1\/([a-zA-Z0-9_]+)/) || [])[1] || '';
+    // Don't track the egress-log writes themselves (or the readback view) —
+    // would create a feedback loop where flushes inflate the next batch.
+    if (tbl === 'vms_egress_log' || tbl === 'vms_egress_summary_7d') return _egressOrigFetch(input, init);
+    var pageEl = document.querySelector('.page.active');
+    var pageId = (pageEl && pageEl.id) || '(boot)';
+    var fire = function (b) { window._egressBump(pageId, 'rest', tbl, b); };
+    return _egressOrigFetch(input, init).then(function (res) {
+      try {
+        var cl = res.headers.get('content-length');
+        if (cl) fire(parseInt(cl, 10) || 0);
+        else res.clone().text().then(function (txt) { fire(txt ? txt.length : 0); }).catch(function () { });
+      } catch (e) { /* ignore */ }
+      return res;
+    });
+  };
+}
+
+// WS hook — wrap the WebSocket constructor once. Counts inbound
+// frame bytes for sockets whose URL points at the Supabase host
+// (typically wss://<proj>.supabase.co/realtime/v1/websocket?…). Tries to
+// peek at the JSON envelope to attribute traffic to a table.
+if (typeof window !== 'undefined' && window.WebSocket && !window._wsInterceptorBound) {
+  window._wsInterceptorBound = true;
+  var _SbHost = '';
+  try { _SbHost = SUPABASE_URL.replace(/^https?:\/\//, ''); } catch (e) { _SbHost = ''; }
+  var _OrigWS = window.WebSocket;
+  var _WrapWS = function (url, protocols) {
+    var ws = protocols === undefined ? new _OrigWS(url) : new _OrigWS(url, protocols);
+    var isSb = typeof url === 'string' && _SbHost && url.indexOf(_SbHost) >= 0;
+    if (isSb) {
+      ws.addEventListener('message', function (ev) {
+        try {
+          var bytes = 0;
+          if (typeof ev.data === 'string') bytes = ev.data.length;
+          else if (ev.data && ev.data.byteLength) bytes = ev.data.byteLength;
+          else if (ev.data && ev.data.size) bytes = ev.data.size;
+          var pageEl = document.querySelector('.page.active');
+          var pageId = (pageEl && pageEl.id) || '(realtime)';
+          var tbl = '';
+          if (typeof ev.data === 'string') {
+            try {
+              var msg = JSON.parse(ev.data);
+              var topic = msg && msg.topic ? String(msg.topic) : '';
+              // topic looks like "realtime:public:vms_segments"
+              var m = topic.match(/:([a-zA-Z0-9_]+)$/);
+              if (m) tbl = m[1];
+              // For broadcast/postgres_changes events, msg.payload.table is more authoritative
+              var pTbl = msg && msg.payload && (msg.payload.table || (msg.payload.data && msg.payload.data.table));
+              if (pTbl) tbl = pTbl;
+            } catch (e) { /* not JSON — leave tbl blank */ }
+          }
+          window._egressBump(pageId, 'ws', tbl, bytes);
+        } catch (e) { /* swallow — measurement must never break realtime */ }
+      });
+    }
+    return ws;
+  };
+  _WrapWS.prototype = _OrigWS.prototype;
+  // Copy static constants (CONNECTING/OPEN/CLOSING/CLOSED).
+  for (var _wsk in _OrigWS) { try { _WrapWS[_wsk] = _OrigWS[_wsk]; } catch (e) { } }
+  _WrapWS.CONNECTING = _OrigWS.CONNECTING; _WrapWS.OPEN = _OrigWS.OPEN;
+  _WrapWS.CLOSING = _OrigWS.CLOSING; _WrapWS.CLOSED = _OrigWS.CLOSED;
+  window.WebSocket = _WrapWS;
+}
+
 // Supabase table name mapping (JS tbl name → Supabase table name)
 const SB_TABLES = {
   users:'vms_users', vehicleTypes:'vms_vehicle_types', vendors:'vms_vendors',
@@ -2167,7 +2329,16 @@ async function bootDB(){
         if(_getActiveTables().indexOf('hrmsSettings')>=0 && _sbReady && _sb
             && (!Array.isArray(DB.hrmsSettings) || DB.hrmsSettings.length===0)){
           try{
-            var _hsRes=await _sb.from('hrms_settings').select('*').limit(1000);
+            // V82/V86 — exclude the attImportLog metadata row AND the
+            // raw import-file copies (attImpFile_*/altImpFile_*/advImpFile_*).
+            // The file rows store base64-encoded uploads (~5 MB combined)
+            // and are no longer accessed from the UI as of V86.
+            var _hsRes=await _sb.from('hrms_settings').select('*')
+              .neq('key','attImportLog')
+              .not('key','like','attImpFile_*')
+              .not('key','like','altImpFile_*')
+              .not('key','like','advImpFile_*')
+              .limit(1000);
             if(!_hsRes.error){
               DB.hrmsSettings=(_hsRes.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
               console.log('bootDB: hrmsSettings synced on cache-hit — rows='+DB.hrmsSettings.length);
@@ -2245,6 +2416,13 @@ async function bootDB(){
             var sel=(typeof _syncSelect==='function')?_syncSelect(sbTbl):'*';
             var q=_sb.from(sbTbl).select(sel).limit(10000);
             if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
+            // V82/V86 — drop attImportLog + the raw import-file rows at boot.
+            if(sbTbl==='hrms_settings'){
+              q=q.neq('key','attImportLog')
+                 .not('key','like','attImpFile_*')
+                 .not('key','like','altImpFile_*')
+                 .not('key','like','advImpFile_*');
+            }
             const _res2=await q;
             data=_res2.data; error=_res2.error;
           }
@@ -2338,7 +2516,15 @@ function _bgSyncFromSupabase(){
       return {tbl, rows: Array.isArray(data)?data:[]};
     }
     const sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
-    const {data,error} = await _sb.from(sbTbl).select(sel).limit(10000);
+    // V82/V86 — bgSync also skips attImportLog + raw import-file rows.
+    var q=_sb.from(sbTbl).select(sel).limit(10000);
+    if(sbTbl==='hrms_settings'){
+      q=q.neq('key','attImportLog')
+         .not('key','like','attImpFile_*')
+         .not('key','like','altImpFile_*')
+         .not('key','like','advImpFile_*');
+    }
+    const {data,error} = await q;
     if(error) return null;
     return {tbl, rows: data||[]};
   })).then(results=>{

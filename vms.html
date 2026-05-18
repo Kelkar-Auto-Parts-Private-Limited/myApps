@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-build" content="260518-V45">
+<meta name="app-build" content="260518-V87">
 <title>KAP — VMS</title>
 
 <!-- xlsx removed for Claude app compatibility -->
 <!-- Local mode: no external dependencies -->
-<link rel="stylesheet" href="css/vms.css?v=260518-V45">
+<link rel="stylesheet" href="css/vms.css?v=260518-V87">
 
 </head>
 <body>
@@ -446,7 +446,7 @@
                 <!-- Vehicle No (full width) -->
                 <div style="display:flex;flex-direction:column;gap:1px">
                   <label style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.4px">Vehicle No. *</label>
-                  <input type="text" id="spotVehNum" placeholder="MH12-AB-0047" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900;background:#fef08a;color:#000">
+                  <input type="text" id="spotVehNum" placeholder="XXXX-XX-XXXX" oninput="fmtVehNum(this)" maxlength="13" style="font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:6px 8px;font-size:17px;border:2px solid var(--border2);border-radius:7px;width:100%;box-sizing:border-box;font-weight:900;background:#fef08a;color:#000">
                 </div>
                 <!-- Driver Name + Mobile stacked, driver photo to the right -->
                 <div style="display:flex;align-items:stretch;gap:8px">
@@ -592,7 +592,7 @@
     <!-- MATERIAL RECEIPT -->
     <div class="page" id="pageMR">
       <span class="page-title" style="display:none">Material Receipt</span>
-      <div class="page-header" style="padding:18px 0 4px;display:flex!important;align-items:center;gap:8px;position:sticky;top:-8px;z-index:40;background:#fff;margin-top:-8px;flex-wrap:nowrap"><div style="position:relative;width:200px;flex:0 0 auto"><input type="text" id="mrTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderMR();document.getElementById('mrSearchX').style.display=this.value?'block':'none'" style="font-size:14px;padding:9px 30px 9px 12px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="mrSearchX" onclick="document.getElementById('mrTripSearch').value='';this.style.display='none';renderMR()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:2px;line-height:1">✕</span></div><button onclick="_mrHistShow()" title="Show earlier acknowledged trips (Historical Material Receipts)" style="font-size:13px;padding:9px 14px;font-weight:800;border:2px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;cursor:pointer;white-space:nowrap;flex:0 0 auto">📅 Historical MR</button></div>
+      <div class="page-header" style="padding:18px 0 4px;display:flex!important;align-items:center;gap:8px;position:sticky;top:-8px;z-index:40;background:#fff;margin-top:-8px;flex-wrap:nowrap"><div style="position:relative;width:200px;flex:0 0 auto"><input type="text" id="mrTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderMR();document.getElementById('mrSearchX').style.display=this.value?'block':'none'" style="font-size:14px;padding:9px 30px 9px 12px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="mrSearchX" onclick="document.getElementById('mrTripSearch').value='';this.style.display='none';renderMR()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:2px;line-height:1">✕</span></div><button onclick="_mrHistShow()" title="Show earlier acknowledged trips (Historical Material Receipts)" style="font-size:13px;padding:9px 14px;font-weight:800;border:2px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;cursor:pointer;white-space:nowrap;flex:0 0 auto">📅 Historical MR</button><button id="mrAutoReceiveBtn" onclick="_vmsAutoReceiveOld()" title="⚡ Auto Receive — auto-receive every pending MR for trips dated before 1 May 2026 (Super Admin / VMS Admin only)" aria-label="Auto Receive" style="display:none;font-size:18px;padding:0;width:38px;height:38px;font-weight:900;border:2px solid #16a34a;background:#fff;color:#16a34a;border-radius:10px;cursor:pointer;flex:0 0 auto;line-height:1;align-items:center;justify-content:center">⚡</button></div>
       <!-- Pending section -->
       <div id="mrPendingContent"></div>
       <!-- Historical MR modal (date panel + acknowledged trip cards) -->
@@ -606,7 +606,7 @@
               <button id="drb_mrHist_week" class="dr-btn dr-btn-active" onclick="setDateRange('mrHistFrom','mrHistTo','week',renderMR,'mrHist')">1W</button>
               <button id="drb_mrHist_month" class="dr-btn" onclick="setDateRange('mrHistFrom','mrHistTo','month',renderMR,'mrHist')">1M</button>
               <button id="drb_mrHist_year" class="dr-btn" onclick="setDateRange('mrHistFrom','mrHistTo','year',renderMR,'mrHist')">1Y</button>
-              <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="mrHistFromLbl">📅 —</span><input type="date" id="mrHistFrom" onchange="updDateBtnLbl('mrHistFrom');updDrBtns('mrHist','mrHistFrom','mrHistTo');renderMR()" class="u-photo-input-overlay"></div>
+              <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="mrHistFromLbl">📅 —</span><input type="date" id="mrHistFrom" onchange="updDateBtnLbl('mrHistFrom');updDrBtns('mrHist','mrHistFrom','mrHistTo');_vmsEnsureDataForDate(this.value,renderMR)" class="u-photo-input-overlay"></div>
               <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="mrHistToLbl">📅 —</span><input type="date" id="mrHistTo" onchange="updDateBtnLbl('mrHistTo');updDrBtns('mrHist','mrHistFrom','mrHistTo');renderMR()" class="u-photo-input-overlay"></div>
             </div>
           </div>
@@ -618,7 +618,7 @@
     <!-- TRIP APPROVALS -->
     <div class="page" id="pageApprove">
       <span class="page-title" style="display:none">Trip Approvals</span>
-      <div class="page-header" style="padding:18px 0 4px;display:flex!important;align-items:center;gap:8px;position:sticky;top:-8px;z-index:40;background:#fff;margin-top:-8px;flex-wrap:nowrap"><div style="position:relative;width:200px;flex:0 0 auto"><input type="text" id="approveTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderApprove();document.getElementById('apSearchX').style.display=this.value?'block':'none'" style="font-size:14px;padding:9px 30px 9px 12px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="apSearchX" onclick="document.getElementById('approveTripSearch').value='';this.style.display='none';renderApprove()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:2px;line-height:1">✕</span></div><button onclick="_apHistShow()" title="Show earlier approved trips (Historical Trip Approvals)" style="font-size:13px;padding:9px 14px;font-weight:800;border:2px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;cursor:pointer;white-space:nowrap;flex:0 0 auto">📅 Historical TA</button></div>
+      <div class="page-header" style="padding:18px 0 4px;display:flex!important;align-items:center;gap:8px;position:sticky;top:-8px;z-index:40;background:#fff;margin-top:-8px;flex-wrap:nowrap"><div style="position:relative;width:200px;flex:0 0 auto"><input type="text" id="approveTripSearch" placeholder="🔍 Search Trip ID or Vehicle…" oninput="renderApprove();document.getElementById('apSearchX').style.display=this.value?'block':'none'" style="font-size:14px;padding:9px 30px 9px 12px;border:2px solid var(--accent);border-radius:10px;background:#fff;color:var(--text);font-family:var(--mono);width:100%;box-sizing:border-box;font-weight:700"><span id="apSearchX" onclick="document.getElementById('approveTripSearch').value='';this.style.display='none';renderApprove()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:900;color:var(--text3);cursor:pointer;display:none;padding:2px;line-height:1">✕</span></div><button onclick="_apHistShow()" title="Show earlier approved trips (Historical Trip Approvals)" style="font-size:13px;padding:9px 14px;font-weight:800;border:2px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;cursor:pointer;white-space:nowrap;flex:0 0 auto">📅 Historical TA</button><button id="apAutoApproveBtn" onclick="_vmsAutoApproveOld()" title="⚡ Auto Approve — auto-approve every pending Trip Approval for trips dated before 1 May 2026 (Super Admin / VMS Admin only)" aria-label="Auto Approve" style="display:none;font-size:18px;padding:0;width:38px;height:38px;font-weight:900;border:2px solid #16a34a;background:#fff;color:#16a34a;border-radius:10px;cursor:pointer;flex:0 0 auto;line-height:1;align-items:center;justify-content:center">⚡</button></div>
       <!-- Pending section -->
       <div id="approveContent"></div>
       <!-- Historical TA modal (date panel + approved trip cards) -->
@@ -632,7 +632,7 @@
               <button id="drb_approve_week" class="dr-btn dr-btn-active" onclick="setDateRange('approveFrom','approveTo','week',renderApprove,'approve')">1W</button>
               <button id="drb_approve_month" class="dr-btn" onclick="setDateRange('approveFrom','approveTo','month',renderApprove,'approve')">1M</button>
               <button id="drb_approve_year" class="dr-btn" onclick="setDateRange('approveFrom','approveTo','year',renderApprove,'approve')">1Y</button>
-              <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="approveFromLbl">📅 —</span><input type="date" id="approveFrom" onchange="updDateBtnLbl('approveFrom');updDrBtns('approve','approveFrom','approveTo');renderApprove()" class="u-photo-input-overlay"></div>
+              <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="approveFromLbl">📅 —</span><input type="date" id="approveFrom" onchange="updDateBtnLbl('approveFrom');updDrBtns('approve','approveFrom','approveTo');_vmsEnsureDataForDate(this.value,renderApprove)" class="u-photo-input-overlay"></div>
               <div class="date-btn" style="grid-column:span 2" onclick="const _i=this.querySelector('input');try{_i.showPicker()}catch(e){_i.focus();_i.click()}"><span class="date-btn-label" id="approveToLbl">📅 —</span><input type="date" id="approveTo" onchange="updDateBtnLbl('approveTo');updDrBtns('approve','approveFrom','approveTo');renderApprove()" class="u-photo-input-overlay"></div>
             </div>
           </div>
@@ -1359,8 +1359,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V45"></script>
-<script src="js/vms-logic.js?v=260518-V45"></script>
-<script src="js/vms-ui.js?v=260518-V45"></script>
+<script src="js/common.js?v=260518-V87"></script>
+<script src="js/vms-logic.js?v=260518-V87"></script>
+<script src="js/vms-ui.js?v=260518-V87"></script>
 </body>
 </html>
