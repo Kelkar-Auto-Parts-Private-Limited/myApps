@@ -3422,8 +3422,51 @@ function modalErr(modalId,msg){
 function modalErrClear(modalId){
   const el=document.getElementById('merr_'+modalId);if(el)el.style.display='none';
 }
-function om(id){const el=document.getElementById(id);if(el){el.style.display='flex';el.classList.add('open');modalErrClear(id);}else console.error('om: missing modal id='+id);}
-function cm(id){const el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('open');}else console.error('cm: missing modal id='+id);}
+// V1 (260518) — Mobile back-button support: every om() pushes a
+// throwaway history state so the OS Back gesture closes the topmost
+// open modal instead of navigating away from the page. cm() pops the
+// matching state. A flag is used to suppress the popstate that our own
+// history.back() triggers when we close programmatically.
+const _kapModalStack=[];           // stack of open modal ids (om/cm scope)
+const _kapModalClosers={};         // id → custom close fn (for bespoke overlays)
+let _kapSkipNextPopstate=false;    // set true when cm() rolls history back
+let _kapPopstateInProgress=false;  // set true while popstate is closing a modal
+function _kapPushModalHist(id, customCloseFn){
+  if(_kapModalStack.indexOf(id)>=0) return;  // already pushed (re-open)
+  _kapModalStack.push(id);
+  if(typeof customCloseFn==='function') _kapModalClosers[id]=customCloseFn;
+  try{ history.pushState({_kapModal:id, _kapDepth:_kapModalStack.length},'',location.href); }catch(_){}
+}
+function _kapPopModalHist(id){
+  const idx=_kapModalStack.lastIndexOf(id);
+  if(idx<0) return;
+  _kapModalStack.splice(idx,1);
+  delete _kapModalClosers[id];
+  if(_kapPopstateInProgress) return;  // popstate is already consuming the entry
+  // Programmatic close — consume our pushed entry so the user's history
+  // stays clean. The resulting popstate is a no-op (skip flag).
+  _kapSkipNextPopstate=true;
+  try{ history.back(); }catch(_){ _kapSkipNextPopstate=false; }
+}
+window.addEventListener('popstate',function(){
+  if(_kapSkipNextPopstate){ _kapSkipNextPopstate=false; return; }
+  if(!_kapModalStack.length) return;  // No modal — let the navigation proceed
+  // Close the topmost open modal as if the user had tapped its ✕.
+  _kapPopstateInProgress=true;
+  const topId=_kapModalStack[_kapModalStack.length-1];
+  const customClose=_kapModalClosers[topId];
+  try{
+    if(customClose) customClose();
+    else cm(topId);
+  }catch(_){}
+  _kapPopstateInProgress=false;
+});
+function om(id){const el=document.getElementById(id);if(el){el.style.display='flex';el.classList.add('open');modalErrClear(id);_kapPushModalHist(id);
+  // V12 (260518) — Always reopen at the top so the user lands on the
+  // modal header / first panel, not whatever was last scrolled to.
+  var _inner=el.querySelector('.modal'); if(_inner) _inner.scrollTop=0;
+}else console.error('om: missing modal id='+id);}
+function cm(id){const el=document.getElementById(id);if(el){el.style.display='none';el.classList.remove('open');_kapPopModalHist(id);}else console.error('cm: missing modal id='+id);}
 // ─── Global Escape-to-close for all popups ─────────────────────────
 // Walks the modal stack on Esc and closes the topmost open layer:
 //   1. Standard `.modal-overlay.open` modals (om / cm controlled).
@@ -3441,13 +3484,34 @@ if(!window._appEscapeBound){
     // (1) Inline popovers come FIRST — pickers / cell editors /
     // emp-list popups can nest inside a modal, and the user expects
     // Escape to dismiss the popover before the outer modal.
+    // V7 (260518) — Visibility filter rewritten. The old test
+    // `offsetParent!==null || position==='fixed'` matched hidden
+    // popups too (inline `style="display:none;position:fixed;…"`
+    // still computes position:fixed), so Esc would peel them off one
+    // at a time before reaching the popup the user actually wanted to
+    // close. Now we explicitly skip display:none / visibility:hidden.
+    // Persistent overlays declared in HTML carry data-persist so the
+    // global handler HIDES them (display:none) rather than removing
+    // them — `.remove()` on the permanent host meant the next open
+    // attempt got null back and silently failed.
     var inline=[].slice.call(document.querySelectorAll(
       '[id$="Overlay"]:not(.modal-overlay), [id$="Pop"], [id$="Popup"]'))
-      .filter(function(n){return n.offsetParent!==null||window.getComputedStyle(n).position==='fixed';});
+      .filter(function(n){
+        var cs=window.getComputedStyle(n);
+        if(cs.display==='none') return false;
+        if(cs.visibility==='hidden') return false;
+        return n.offsetParent!==null || cs.position==='fixed';
+      });
     if(inline.length){
       var lastInline=inline[inline.length-1];
       if(lastInline){
-        lastInline.remove();
+        if(lastInline.dataset && lastInline.dataset.persist==='true'){
+          // Persistent host — just hide it; an app-specific close fn
+          // (if any) will clean inner state on the next open.
+          lastInline.style.display='none';
+        } else {
+          lastInline.remove();
+        }
         e.preventDefault();
         e.stopPropagation();
         return;

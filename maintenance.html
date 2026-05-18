@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260517-V54">
+<meta name="app-build" content="260518-V25">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260517-V54">
+<link rel="stylesheet" href="css/mtts.css?v=260518-V25">
 </head>
 <body style="display:none">
 
@@ -345,7 +345,7 @@
 </div></div>
 
 <!-- TICKET DETAIL OVERLAY (read-only viewer) -->
-<div id="mttsTicketDetailOverlay" style="display:none"></div>
+<div id="mttsTicketDetailOverlay" style="display:none" data-persist="true"></div>
 
 </div>
 
@@ -361,33 +361,42 @@
 </div>
 
 <!-- PLANT EDIT MODAL -->
-<div class="modal-overlay" id="mMttsPlant"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title" id="mttsPlantTitle">🏭 Add Plant</div><div class="modal-close" onclick="cm('mMttsPlant')">×</div></div>
+<div class="modal-overlay" id="mMttsPlant"><div class="modal mtts-asset-modal" style="max-width:480px;padding:18px 20px">
+  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsPlantTitle">🏭 Add Plant</div><div class="modal-close" onclick="cm('mMttsPlant')">×</div></div>
   <input type="hidden" id="mttsPlantIdHidden">
   <input type="hidden" id="mttsPlantCode">
-  <div class="form-group"><label>Name *</label>
-    <input type="text" id="mttsPlantName" placeholder="e.g. KAP1, KAP1 — Pune Plant" maxlength="60">
-    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets / tickets.</div>
-  </div>
-  <div class="form-group"><label>Address</label>
-    <textarea id="mttsPlantAddress" rows="3" placeholder="Plant address (optional)"></textarea>
-  </div>
-  <div class="form-group">
-    <label>Color (optional)</label>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span id="mttsPlantColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#fed7aa;flex-shrink:0"></span>
-      <span id="mttsPlantColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#fed7aa</span>
-      <button type="button" onclick="_mttsPlantColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
-      <input type="hidden" id="mttsPlantColor" value="#fed7aa">
+  <fieldset class="mtts-asset-panel">
+    <legend>🏷 Identity</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Name <span class="mtts-req">*</span></label>
+        <input type="text" id="mttsPlantName" placeholder="e.g. KAP1, KAP1 — Pune Plant" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets / tickets.</div>
+      </div>
+      <div class="form-group mtts-asset-full"><label>Address</label>
+        <textarea id="mttsPlantAddress" rows="3" placeholder="Plant address (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+      </div>
     </div>
-  </div>
-  <div class="form-group">
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
-      <input type="checkbox" id="mttsPlantInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
-    </label>
-  </div>
+  </fieldset>
+  <fieldset class="mtts-asset-panel">
+    <legend>🎨 Display &amp; Status</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Color (optional)</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="mttsPlantColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#fed7aa;flex-shrink:0"></span>
+          <span id="mttsPlantColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#fed7aa</span>
+          <button type="button" onclick="_mttsPlantColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
+          <input type="hidden" id="mttsPlantColor" value="#fed7aa">
+        </div>
+      </div>
+      <div class="form-group mtts-asset-full">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="mttsPlantInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
+        </label>
+      </div>
+    </div>
+  </fieldset>
   <div class="modal-error" id="mttsPlantErr"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
     <button class="btn btn-secondary" onclick="cm('mMttsPlant')">Cancel</button>
     <button class="btn btn-primary" onclick="_mttsPlantSave()">Save</button>
   </div>
@@ -405,30 +414,39 @@
 </div>
 
 <!-- ASSET TYPE EDIT MODAL -->
-<div class="modal-overlay" id="mMttsAtype"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title" id="mttsAtypeTitle">🏷 Add Asset Type</div><div class="modal-close" onclick="cm('mMttsAtype')">×</div></div>
+<div class="modal-overlay" id="mMttsAtype"><div class="modal mtts-asset-modal" style="max-width:480px;padding:18px 20px">
+  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsAtypeTitle">🏷 Add Asset Type</div><div class="modal-close" onclick="cm('mMttsAtype')">×</div></div>
   <input type="hidden" id="mttsAtypeIdHidden">
   <input type="hidden" id="mttsAtypeCode">
-  <div class="form-group"><label>Name *</label>
-    <input type="text" id="mttsAtypeName" placeholder="e.g. Machinery, Building, IT Devices" maxlength="60">
-    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
-  </div>
-  <div class="form-group">
-    <label>Color (optional)</label>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span id="mttsAtypeColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#dbeafe;flex-shrink:0"></span>
-      <span id="mttsAtypeColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#dbeafe</span>
-      <button type="button" onclick="_mttsAtypeColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
-      <input type="hidden" id="mttsAtypeColor" value="#dbeafe">
+  <fieldset class="mtts-asset-panel">
+    <legend>🏷 Identity</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Name <span class="mtts-req">*</span></label>
+        <input type="text" id="mttsAtypeName" placeholder="e.g. Machinery, Building, IT Devices" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
+      </div>
     </div>
-  </div>
-  <div class="form-group">
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
-      <input type="checkbox" id="mttsAtypeInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
-    </label>
-  </div>
+  </fieldset>
+  <fieldset class="mtts-asset-panel">
+    <legend>🎨 Display &amp; Status</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Color (optional)</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="mttsAtypeColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#dbeafe;flex-shrink:0"></span>
+          <span id="mttsAtypeColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#dbeafe</span>
+          <button type="button" onclick="_mttsAtypeColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
+          <input type="hidden" id="mttsAtypeColor" value="#dbeafe">
+        </div>
+      </div>
+      <div class="form-group mtts-asset-full">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="mttsAtypeInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
+        </label>
+      </div>
+    </div>
+  </fieldset>
   <div class="modal-error" id="mttsAtypeErr"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
     <button class="btn btn-secondary" onclick="cm('mMttsAtype')">Cancel</button>
     <button class="btn btn-primary" onclick="_mttsAtypeSave()">Save</button>
   </div>
@@ -488,32 +506,41 @@
 </div></div>
 
 <!-- ASSET PRIMARY NAME EDIT MODAL -->
-<div class="modal-overlay" id="mMttsAprim"><div class="modal" style="max-width:480px">
-  <div class="modal-header"><div class="modal-title" id="mttsAprimTitle">🔤 Add Primary Name</div><div class="modal-close" onclick="cm('mMttsAprim')">×</div></div>
+<div class="modal-overlay" id="mMttsAprim"><div class="modal mtts-asset-modal" style="max-width:480px;padding:18px 20px">
+  <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsAprimTitle">🔤 Add Primary Name</div><div class="modal-close" onclick="cm('mMttsAprim')">×</div></div>
   <input type="hidden" id="mttsAprimIdHidden">
-  <div class="form-group"><label>Asset Type *</label>
-    <select id="mttsAprimAssetType"><option value="">— Select Asset Type first —</option></select>
-  </div>
-  <div class="form-group"><label>Name *</label>
-    <input type="text" id="mttsAprimName" placeholder="e.g. PC Oven, CNC Laser, Compressor" maxlength="60">
-    <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
-  </div>
-  <div class="form-group">
-    <label>Color (optional)</label>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span id="mttsAprimColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#bbf7d0;flex-shrink:0"></span>
-      <span id="mttsAprimColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#bbf7d0</span>
-      <button type="button" onclick="_mttsAprimColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
-      <input type="hidden" id="mttsAprimColor" value="#bbf7d0">
+  <fieldset class="mtts-asset-panel">
+    <legend>🏷 Identity</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Asset Type <span class="mtts-req">*</span></label>
+        <select id="mttsAprimAssetType" autocomplete="off"><option value="">— Select Asset Type first —</option></select>
+      </div>
+      <div class="form-group mtts-asset-full"><label>Name <span class="mtts-req">*</span></label>
+        <input type="text" id="mttsAprimName" placeholder="e.g. PC Oven, CNC Laser, Compressor" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Editable. Renaming auto-updates all referencing assets.</div>
+      </div>
     </div>
-  </div>
-  <div class="form-group">
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
-      <input type="checkbox" id="mttsAprimInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
-    </label>
-  </div>
+  </fieldset>
+  <fieldset class="mtts-asset-panel">
+    <legend>🎨 Display &amp; Status</legend>
+    <div class="mtts-asset-grid">
+      <div class="form-group mtts-asset-full"><label>Color (optional)</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="mttsAprimColorSwatch" style="display:inline-block;width:32px;height:32px;border:1.5px solid var(--border2);border-radius:6px;background:#bbf7d0;flex-shrink:0"></span>
+          <span id="mttsAprimColorHex" style="font-family:var(--mono);font-size:12px;color:var(--text2);font-weight:700">#bbf7d0</span>
+          <button type="button" onclick="_mttsAprimColorPopupOpen()" style="margin-left:auto;font-size:12px;padding:6px 12px;font-weight:700;background:#fff;border:1px solid var(--border2);color:var(--text2);border-radius:6px;cursor:pointer">🎨 Pick color</button>
+          <input type="hidden" id="mttsAprimColor" value="#bbf7d0">
+        </div>
+      </div>
+      <div class="form-group mtts-asset-full">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="mttsAprimInactive" style="width:auto;height:auto;cursor:pointer"> Mark inactive
+        </label>
+      </div>
+    </div>
+  </fieldset>
   <div class="modal-error" id="mttsAprimErr"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
     <button class="btn btn-secondary" onclick="cm('mMttsAprim')">Cancel</button>
     <button class="btn btn-secondary" id="mttsAprimSaveNextBtn" onclick="_mttsAprimSave('next')">Save &amp; Add Next</button>
     <button class="btn btn-primary" id="mttsAprimSaveBtn" onclick="_mttsAprimSave('close')">Save &amp; Close</button>
@@ -523,6 +550,15 @@
 <!-- ASSET EDIT MODAL — wider 3-col grid for compact entry -->
 <div class="modal-overlay" id="mMttsAsset"><div class="modal mtts-asset-modal" style="max-width:880px;padding:18px 20px">
   <div class="modal-header" style="margin-bottom:8px"><div class="modal-title" id="mttsAssetTitle">🛠 Add Asset</div><div class="modal-close" onclick="cm('mMttsAsset')">×</div></div>
+  <!-- V9 (260518) — Live preview of the asset name the user will see
+       on tickets / asset list. Updates as Plant + Asset Type + Primary
+       Name + Name Extension change. Plant rendered as the colored
+       short-form badge for instant recognition. -->
+  <div id="mttsAssetPreview" class="mtts-asset-preview">
+    <span class="mtts-asset-preview-lbl">Preview</span>
+    <span class="mtts-asset-preview-plant" id="mttsAssetPreviewPlant"></span>
+    <span class="mtts-asset-preview-name" id="mttsAssetPreviewName"></span>
+  </div>
   <input type="hidden" id="mttsAssetId">
   <input type="hidden" id="mttsAssetName">
 
@@ -534,17 +570,21 @@
   <fieldset class="mtts-asset-panel">
     <legend>🏭 Identity</legend>
     <div class="mtts-asset-grid">
-      <div class="form-group"><label>Plant *</label>
-        <select id="mttsAssetPlant"></select>
+      <div class="mtts-asset-pair">
+        <div class="form-group"><label>Plant <span class="mtts-req">*</span></label>
+          <select id="mttsAssetPlant" autocomplete="off"></select>
+        </div>
+        <div class="form-group mtts-asset-span2"><label>Asset Type <span class="mtts-req">*</span></label>
+          <select id="mttsAssetType" autocomplete="off"></select>
+        </div>
       </div>
-      <div class="form-group mtts-asset-span2"><label>Asset Type *</label>
-        <select id="mttsAssetType"></select>
-      </div>
-      <div class="form-group mtts-asset-span2"><label>Primary Name *</label>
-        <select id="mttsAssetPrimary"><option value="">— Select —</option></select>
-      </div>
-      <div class="form-group"><label>Name Extension</label>
-        <input type="text" id="mttsAssetNameExt" placeholder="e.g. 8KW, Top Coat" maxlength="60">
+      <div class="mtts-asset-pair">
+        <div class="form-group mtts-asset-span2"><label>Primary Name <span class="mtts-req">*</span></label>
+          <select id="mttsAssetPrimary" autocomplete="off"><option value="">— Select —</option></select>
+        </div>
+        <div class="form-group"><label>Name Extension</label>
+          <input type="text" id="mttsAssetNameExt" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="_mttsAssetUpdatePreview()">
+        </div>
       </div>
     </div>
   </fieldset>
@@ -554,16 +594,18 @@
     <legend>📋 Equipment Details</legend>
     <div class="mtts-asset-grid">
       <div class="form-group mtts-asset-full"><label>Description</label>
-        <textarea id="mttsAssetDesc" rows="2" placeholder="Optional"></textarea>
+        <textarea id="mttsAssetDesc" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
       </div>
-      <div class="form-group"><label>Serial No</label>
-        <input type="text" id="mttsAssetSerial" placeholder="Optional">
-      </div>
-      <div class="form-group"><label>Make</label>
-        <input type="text" id="mttsAssetMake" placeholder="Optional">
+      <div class="mtts-asset-pair">
+        <div class="form-group"><label>Serial No</label>
+          <input type="text" id="mttsAssetSerial" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="form-group"><label>Make</label>
+          <input type="text" id="mttsAssetMake" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </div>
       </div>
       <div class="form-group"><label>Model</label>
-        <input type="text" id="mttsAssetModel" placeholder="Optional">
+        <input type="text" id="mttsAssetModel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
     </div>
   </fieldset>
@@ -574,16 +616,18 @@
   <fieldset class="mtts-asset-panel">
     <legend>⚙️ Classification</legend>
     <div class="mtts-asset-grid">
-      <div class="form-group"><label>Status *</label>
-        <select id="mttsAssetStatus">
-          <option value="Active" selected>Active</option>
-          <option value="Inactive">Inactive</option>
-          <option value="Scrap">Scrap</option>
-        </select>
-      </div>
-      <div class="form-group mtts-asset-span2"><label>Priority *</label>
-        <input type="hidden" id="mttsAssetCrit" value="Medium">
-        <div id="mttsAssetCritBtns" class="mtts-chip-row"></div>
+      <div class="mtts-asset-pair">
+        <div class="form-group"><label>Status <span class="mtts-req">*</span></label>
+          <select id="mttsAssetStatus" autocomplete="off">
+            <option value="Active" selected>Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Scrap">Scrap</option>
+          </select>
+        </div>
+        <div class="form-group mtts-asset-span2"><label>Priority <span class="mtts-req">*</span></label>
+          <input type="hidden" id="mttsAssetCrit" value="Medium">
+          <div id="mttsAssetCritBtns" class="mtts-chip-row"></div>
+        </div>
       </div>
     </div>
   </fieldset>
@@ -592,14 +636,16 @@
   <fieldset class="mtts-asset-panel">
     <legend>📅 Dates &amp; Coverage</legend>
     <div class="mtts-asset-grid">
-      <div class="form-group"><label>Installation Date</label>
-        <input type="date" id="mttsAssetInstall" value="2020-01-01">
-      </div>
-      <div class="form-group"><label>Warranty Until</label>
-        <input type="date" id="mttsAssetWarranty">
-      </div>
-      <div class="form-group"><label>AMC Until</label>
-        <input type="date" id="mttsAssetAmc">
+      <div class="mtts-asset-trio">
+        <div class="form-group"><label>Installation Date</label>
+          <input type="date" id="mttsAssetInstall" value="2020-01-01">
+        </div>
+        <div class="form-group"><label>Warranty Until</label>
+          <input type="date" id="mttsAssetWarranty">
+        </div>
+        <div class="form-group"><label>AMC Until</label>
+          <input type="date" id="mttsAssetAmc">
+        </div>
       </div>
     </div>
   </fieldset>
@@ -640,7 +686,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260517-V54"></script>
-<script src="js/mtts-ui.js?v=260517-V54"></script>
+<script src="js/common.js?v=260518-V25"></script>
+<script src="js/mtts-ui.js?v=260518-V25"></script>
 </body>
 </html>

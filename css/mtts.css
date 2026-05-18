@@ -803,6 +803,101 @@
   .mtts-asset-grid .form-group{margin-bottom:0}
   .mtts-asset-span2{grid-column:span 2}
   .mtts-asset-full{grid-column:1 / -1}
+  /* V8 (260518) — Pair wrapper: transparent on desktop/tablet (children
+     act as direct grid items so existing span2/full classes still
+     work), but becomes a 2-col grid on NSM so Status+Priority and
+     SerialNo+Make sit side by side instead of stacking.
+     V10 (260518) — `.mtts-asset-trio` is the 3-col sibling, used for
+     the Dates & Coverage panel so Install / Warranty / AMC stay on a
+     single row on narrow screens too. */
+  .mtts-asset-pair,
+  .mtts-asset-trio{display:contents}
+  /* V9 (260518) — Live asset-name preview banner at the top of the
+     Add/Edit Asset modal. Tight one-line strip with the plant short
+     code as a coloured badge followed by the composed name. */
+  .mtts-asset-preview{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:#f1f5f9;
+    border:1.5px solid #cbd5e1;
+    border-radius:8px;
+    padding:8px 12px;
+    margin:0 0 12px;
+    min-height:36px;
+    flex-wrap:wrap;
+  }
+  .mtts-asset-preview-lbl{
+    font-size:10px;
+    font-weight:800;
+    color:var(--text3);
+    text-transform:uppercase;
+    letter-spacing:.6px;
+    flex-shrink:0;
+  }
+  .mtts-asset-preview-plant{
+    display:inline-flex;
+    align-items:center;
+    flex-shrink:0;
+  }
+  .mtts-asset-preview-plant:empty::before{
+    content:'—';
+    display:inline-block;
+    padding:2px 9px;
+    border-radius:8px;
+    font-size:12px;
+    font-weight:900;
+    background:#e2e8f0;
+    color:var(--text3);
+    font-family:var(--mono);
+  }
+  .mtts-asset-preview-name{
+    font-size:15px;
+    font-weight:800;
+    color:var(--text);
+    line-height:1.2;
+    flex:1 1 auto;
+    min-width:0;
+    word-break:break-word;
+  }
+  .mtts-asset-preview-name:empty::before{
+    content:'asset name appears here as you fill the Identity fields';
+    color:var(--text3);
+    font-weight:600;
+    font-style:italic;
+    font-size:13px;
+  }
+
+  /* V5 (260518) — Red asterisk for mandatory-field labels in the Add /
+     Edit Asset modal. Kept generic so other forms can opt in by
+     wrapping their `*` in <span class="mtts-req">.
+     V8 (260518) — More prominent: bumped size + tightened line-height
+     so it sits next to the label baseline without dragging the row
+     height. */
+  .mtts-req{
+    display:inline-block;
+    color:#dc2626;
+    font-weight:900;
+    font-size:18px;
+    line-height:0.6;
+    margin-left:4px;
+    vertical-align:middle;
+    text-shadow:0 1px 0 rgba(220,38,38,.25);
+  }
+
+  /* V24 (260518) — Edit Asset modal must sit above the Ticket Detail
+     overlay (z-index 2147483646). When SA clicks the asset name link
+     inside a ticket detail, the asset edit modal otherwise opens at
+     the default modal-overlay z-index (100000) — invisibly behind.
+     Same bump applied to the three master modals so they pop above
+     any in-flight overlay too. */
+  #mMttsAsset.modal-overlay,
+  #mMttsPlant.modal-overlay,
+  #mMttsAtype.modal-overlay,
+  #mMttsAprim.modal-overlay{
+    z-index:2147483646 !important;
+  }
+
   /* V50 — Edit Asset form: group fields into labeled panels (Identity /
      Classification / Equipment Details / Dates) so each section reads as
      its own card. Panels use a subtle border + tinted legend chip so the
@@ -816,15 +911,18 @@
     min-width:0;
   }
   .mtts-asset-panel:last-of-type{margin-bottom:6px}
+  /* V16 (260518) — Toned down: dark slate pill swapped for a subtle
+     muted-text label with no background. Keeps the section break
+     visible without competing with field labels for attention. */
   .mtts-asset-panel > legend{
-    padding:2px 10px;
-    margin-left:6px;
-    background:#0f172a;
-    color:#fff;
-    font-size:12px;
-    font-weight:800;
-    letter-spacing:.3px;
-    border-radius:5px;
+    padding:0 6px;
+    margin-left:4px;
+    background:transparent;
+    color:var(--text3);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.5px;
+    border-radius:0;
     text-transform:uppercase;
   }
   /* Fieldset zero-out so our padding/grid control the layout cleanly. */
@@ -911,6 +1009,40 @@
   @media (max-width:640px){
     .mtts-asset-grid{grid-template-columns:1fr;gap:8px}
     .mtts-asset-span2,.mtts-asset-full{grid-column:1 / -1}
+    /* V8 (260518) — Pair wrappers become real 2-col grids on NSM and
+     stretch full-row inside the parent grid. Children's existing
+     span2 / full classes are reset to a single col inside the pair
+     so the pairing isn't broken by Priority's span2.
+     V10 (260518) — trio = 3-col variant for the Dates & Coverage row.
+     Tighter gap so three date inputs fit a phone width. */
+    .mtts-asset-pair{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      grid-column:1 / -1;
+    }
+    .mtts-asset-trio{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:6px;
+      grid-column:1 / -1;
+    }
+    .mtts-asset-pair > .form-group,
+    .mtts-asset-pair > .mtts-asset-span2,
+    .mtts-asset-pair > .mtts-asset-full,
+    .mtts-asset-trio > .form-group,
+    .mtts-asset-trio > .mtts-asset-span2,
+    .mtts-asset-trio > .mtts-asset-full{
+      grid-column:auto !important;
+    }
+    /* Date inputs on NSM trio: shrink to fit three across without
+       overflowing — date controls have a hefty native minimum width. */
+    .mtts-asset-trio input[type=date]{
+      width:100%;
+      min-width:0;
+      font-size:13px !important;
+      padding:6px 6px;
+    }
     .mtts-asset-modal{width:100vw!important;max-width:100vw!important;max-height:100vh!important;height:100vh;border-radius:0!important;padding:14px!important;transform:none!important}
     .mtts-asset-modal input,.mtts-asset-modal select,.mtts-asset-modal textarea{font-size:16px!important}
   }
@@ -1212,7 +1344,10 @@
      Card grid replaces the wide-table list so each ticket reads as a
      self-contained block — fits a phone screen without horizontal scroll
      and shows every column inline. */
-  .mtts-tcard-filters{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px}
+  /* V2 (260518) — Filter row is flat: dropped the grey panel chrome
+     (background / border / padding) so the search box, plant select,
+     ✕ and + Ticket button float directly over the page. */
+  .mtts-tcard-filters{display:flex;flex-wrap:wrap;gap:6px;padding:0;background:transparent;border:none;border-radius:0;margin-bottom:6px}
   .mtts-tcard-filters>*{flex:1 1 150px;min-width:0;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text)}
   .mtts-tcard-filters>input[type=search]{flex:2 1 220px}
   /* V38 — Cards capped at 550px each so they don't stretch wide on
@@ -1326,8 +1461,13 @@
      Replace the tight checkbox list with a button grid; each button is a
      full tap target carrying the tech's name, optional meta line, and a
      load chip showing how many in-progress tickets they currently hold. */
-  .mtts-alloc-techgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;padding:6px}
-  .mtts-alloc-techbtn{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;background:#fff;border:2px solid var(--border);border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);transition:border-color .15s,background .15s,box-shadow .15s}
+  /* V1 (260518) — Tech cards compacted: padding + gap tightened so each
+     card hugs its text. Font sizes kept identical (14/11/11) so the
+     content stays just as readable; only the surrounding whitespace
+     shrinks. Grid step reduced from 170 → 140 so 3 cards fit on a
+     phone instead of 2. */
+  .mtts-alloc-techgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;padding:4px}
+  .mtts-alloc-techbtn{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:5px 8px;background:#fff;border:2px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);transition:border-color .15s,background .15s,box-shadow .15s}
   .mtts-alloc-techbtn:hover{border-color:var(--accent)}
   .mtts-alloc-techbtn.is-selected{border-color:#0ea5e9;background:#eff6ff;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
   .mtts-alloc-techbtn.is-selected::after{content:"✓";position:absolute;top:6px;right:8px;font-weight:900;color:#0ea5e9;font-size:14px}
@@ -1371,8 +1511,8 @@
     .mtts-ticket-tab{flex:1 1 33%;padding:9px 6px;font-size:12px;text-align:center;border-radius:0}
   }
   @media (max-width:640px){
-    .mtts-alloc-techgrid{grid-template-columns:1fr 1fr;gap:6px;padding:4px}
-    .mtts-alloc-techbtn{padding:9px 10px}
+    .mtts-alloc-techgrid{grid-template-columns:1fr 1fr;gap:5px;padding:4px}
+    .mtts-alloc-techbtn{padding:5px 8px}
   }
   @media (max-width:640px){
     .mtts-tcards{grid-template-columns:1fr;gap:10px}

@@ -471,9 +471,26 @@ function _mttsAssetMM(asset){
 // around the hyphen so legacy records (saved as "Primary-Extension") render
 // the same way as new ones. Falls back to the stored asset.name when the
 // primary/extension fields aren't both populated.
+// V23 (260518) — Prefer the FK id (`primaryNameId` → mtts_asset_primary_names.id)
+// when resolving the display label for an asset's primary name; fall
+// back to the legacy `primaryName` text code so older data without an
+// FK still renders. This makes the relationship genuinely id-driven:
+// renaming the user-facing code on the master no longer risks orphaning
+// the asset's reference.
+function _mttsAssetPrimaryNameLabelByDbId(dbId){
+  if(!dbId) return '';
+  var arr=DB.mttsAssetPrimaryNames||[];
+  for(var i=0;i<arr.length;i++){
+    var p=arr[i];
+    if(p && p._dbId===dbId) return p.name||p.id||'';
+  }
+  return '';
+}
 function _mttsAssetComposedName(asset){
   if(!asset) return '';
-  var prim=asset.primaryName?(_mttsAssetPrimaryNameLabel(asset.primaryName)||asset.primaryName):'';
+  var prim='';
+  if(asset.primaryNameId) prim=_mttsAssetPrimaryNameLabelByDbId(asset.primaryNameId);
+  if(!prim && asset.primaryName) prim=_mttsAssetPrimaryNameLabel(asset.primaryName)||asset.primaryName;
   var ext=asset.nameExtension||'';
   if(prim&&ext) return prim+' - '+ext;
   if(prim) return prim;
@@ -883,6 +900,11 @@ function _mttsAssetOpen(id, preset){
     // data), fall back to blank and let the user pick. The legacy
     // composite name still shows below for reference.
     if(a&&primVal&&primSel.value!==primVal){primSel.value='';}
+    // V9 (260518) — bind once: refresh preview when Primary Name changes.
+    if(!primSel._mttsPrevBound){
+      primSel._mttsPrevBound=true;
+      primSel.addEventListener('change',function(){ _mttsAssetUpdatePreview(); });
+    }
   }
   var extEl=document.getElementById('mttsAssetNameExt');
   if(extEl) extEl.value=a?(a.nameExtension||''):((preset&&preset.nameExtension)||'');
@@ -947,6 +969,14 @@ function _mttsAssetOpen(id, preset){
     modalEl.addEventListener('keydown',modalEl._mttsKeyHandler);
   }
   if(typeof om==='function') om('mMttsAsset'); else { document.getElementById('mMttsAsset').classList.add('open'); }
+  // V11 (260518) — Reset scroll to the top on every open so the user
+  // always sees the preview banner + Identity panel first. The inner
+  // .modal div is the scrolling container (overflow:auto + max-height
+  // 90vh); the overlay itself never scrolls.
+  var _scrollHost=document.querySelector('#mMttsAsset .modal');
+  if(_scrollHost) _scrollHost.scrollTop=0;
+  // V9 (260518) — Paint the live preview once the form is populated.
+  _mttsAssetUpdatePreview();
   // Save & Add Next: drop focus straight on the Primary Name select so
   // the user can keep typing without re-picking plant / type / priority.
   if(!a&&preset){
@@ -1170,6 +1200,9 @@ async function _mttsAssetSave(mode){
     // asset (e.g. via the SA / MTTS-Admin asset-name link) pick up the
     // new name immediately.
     if(typeof _mttsRenderTickets==='function') _mttsRenderTickets();
+    // V20 (260518) — Refresh the dashboard so the HP Asset Status
+    // chips reflect the new asset (its composed name + plant block).
+    if(typeof _mttsDashboardRender==='function') _mttsDashboardRender();
     if(mode==='next'){
       // Reopen the form with plant / asset type / priority pre-selected
       // so the user can rapidly enter a batch. Focus lands on Primary
@@ -1186,6 +1219,9 @@ async function _mttsAssetSave(mode){
   // on any ticket card that references this asset (and on the cards
   // open in modal headers via _mttsTicketSummaryHtml).
   if(typeof _mttsRenderTickets==='function') _mttsRenderTickets();
+  // V20 (260518) — Dashboard refresh so the HP Asset Status block
+  // shows the updated composed name / plant chip immediately.
+  if(typeof _mttsDashboardRender==='function') _mttsDashboardRender();
 }
 
 // ── Transfer flow ─────────────────────────────────────────────────────────
@@ -1906,19 +1942,22 @@ function _mttsRenderTickets(){
         work:   {bg:'#e2e8f0', fg:'#1e293b', bd:'#94a3b8', sel:'#475569'},
         raised: {bg:'#fce7f3', fg:'#831843', bd:'#f9a8d4', sel:'#db2777'}
       };
-      sumHtml+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch;margin-bottom:6px">';
+      // V1 (260518) — Force single-row layout: `flex-wrap:nowrap` and
+      // `min-width:0` so all three scope buttons share a row even on the
+      // narrowest phones. Vertical padding bumped + line-height eased so
+      // the label inside can wrap to 2 lines (e.g. "Tickets by me") and
+      // still read centred.
+      sumHtml+='<div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:stretch;margin-bottom:6px">';
       scopes.forEach(function(s){
         var isAct=(fScope===s.k);
         var th=_scopeTheme[s.k]||_scopeTheme.all;
         var bg=th.bg, fg=th.fg, bd=th.bd;
-        // Selected-state halo: 3px ring in the deeper theme colour
-        // around the existing border.
         var selectedRing=isAct?(';box-shadow:0 0 0 3px '+th.sel+';outline:none'):'';
         var pulseCls=(s.n>0)?' mtts-scope-count-pulse':'';
         sumHtml+='<button type="button" onclick="_mttsTicketScopeSet(\''+s.k+'\')" title="'+s.tip+'" '+
-          'style="flex:1 1 0;min-width:120px;padding:6px 10px;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';border-radius:8px;font-size:12px;font-weight:800;letter-spacing:.3px;cursor:pointer;line-height:1.15;display:inline-flex;align-items:center;justify-content:center;gap:8px'+selectedRing+'">'+
-            '<span style="white-space:normal;text-align:center">'+s.l+'</span>'+
-            '<span class="'+pulseCls.trim()+'" style="font-family:var(--mono);font-size:13px;font-weight:900;background:#dc2626;color:#fff;padding:1px 8px;border-radius:10px;min-width:24px;text-align:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.5) inset">'+s.n+'</span>'+
+          'style="flex:1 1 0;min-width:0;padding:8px 8px;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';border-radius:8px;font-size:12px;font-weight:800;letter-spacing:.3px;cursor:pointer;line-height:1.2;display:inline-flex;align-items:center;justify-content:center;gap:6px'+selectedRing+'">'+
+            '<span style="white-space:normal;text-align:center;flex:1 1 auto;min-width:0">'+s.l+'</span>'+
+            '<span class="'+pulseCls.trim()+'" style="flex:0 0 auto;font-family:var(--mono);font-size:13px;font-weight:900;background:#dc2626;color:#fff;padding:1px 8px;border-radius:10px;min-width:24px;text-align:center;box-shadow:0 0 0 1.5px rgba(255,255,255,.5) inset">'+s.n+'</span>'+
           '</button>';
       });
       sumHtml+='</div>';
@@ -1999,7 +2038,7 @@ function _mttsRenderTickets(){
         'style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:2px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;cursor:pointer;font-weight:900;font-size:18px;line-height:1">'+
         '✕'+
       '</button>'+
-      (canRaise?'<button type="button" id="btnMttsRaiseInline" onclick="_mttsTicketRaiseOpen()" style="flex:0 0 auto;font-size:13px;font-weight:900;padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;letter-spacing:.3px;white-space:nowrap">+ Raise Ticket</button>':'')+
+      (canRaise?'<button type="button" id="btnMttsRaiseInline" onclick="_mttsTicketRaiseOpen()" style="flex:0 0 auto;font-size:13px;font-weight:900;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;letter-spacing:.3px;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;line-height:1"><span style="font-size:22px;font-weight:900;line-height:1">+</span><span>Ticket</span></button>':'')+
     '</div>';
   var filterHost=document.getElementById('mttsTicketFiltersHost');
   if(filterHost) filterHost.innerHTML=filterHtml;
@@ -3223,7 +3262,8 @@ function _mttsAssetRenderPlantBtns(){
 function _mttsAssetPickPlant(code){
   var sel=document.getElementById('mttsAssetPlant');
   if(sel && sel.value!==code) sel.value=code;
-  // Hook kept for backward-compat — no downstream side effect today.
+  // V9 (260518) — refresh the live preview when the plant changes.
+  _mttsAssetUpdatePreview();
 }
 
 function _mttsAssetRenderTypeBtns(){
@@ -3258,6 +3298,31 @@ function _mttsAssetPickType(code){
   if(sel && sel.value!==code) sel.value=code;
   // Primary name list is type-scoped — refresh when type changes.
   _mttsPopulateAssetPrimaryNameOptions();
+  // V9 (260518) — refresh the live preview (asset type changing may
+  // empty the Primary Name pick, which the preview reflects).
+  _mttsAssetUpdatePreview();
+}
+
+// V9 (260518) — Live preview of the composed asset name shown at the
+// top of the Add/Edit Asset modal. Mirrors the composition logic in
+// _mttsAssetSave so what the user sees here is exactly what gets
+// stored: "<primary label> - <name extension>" (extension optional),
+// preceded by the colored short-form plant badge.
+function _mttsAssetUpdatePreview(){
+  var plantEl=document.getElementById('mttsAssetPlant');
+  var typeEl=document.getElementById('mttsAssetType');
+  var primEl=document.getElementById('mttsAssetPrimary');
+  var extEl=document.getElementById('mttsAssetNameExt');
+  var plantOut=document.getElementById('mttsAssetPreviewPlant');
+  var nameOut=document.getElementById('mttsAssetPreviewName');
+  if(!plantOut || !nameOut) return;
+  var plantCode=plantEl?plantEl.value:'';
+  plantOut.innerHTML=plantCode?_mttsPlantBadgeShort(plantCode):'';
+  var primCode=primEl?primEl.value:'';
+  var primLbl=primCode?(_mttsAssetPrimaryNameLabel(primCode)||primCode):'';
+  var ext=extEl?String(extEl.value||'').trim():'';
+  var composed=primLbl ? (ext?(primLbl+' - '+ext):primLbl) : '';
+  nameOut.textContent=composed;
 }
 
 function _mttsAssetRenderCritBtns(){
@@ -3694,23 +3759,25 @@ function _mttsTicketAllocateOpen(id){
 
   // Prominent ticket-info block on the allocate modal: id + plant pill on
   // the top line, asset name big, the raised description quoted below,
-  // breakdown + raised meta as a small footer line.
-  var assetNm=_mttsAssetLabel(asset);
-  var assetTypeLbl=asset?(asset.assetType||''):'';
-  var raisedAct=(t.techActions||[]).find(function(a){return a&&a.action==='raised';});
-  var descTxt=raisedAct?(raisedAct.note||''):'';
-  var bdLbl=_MTTS_BREAKDOWN_LABEL[t.breakdownType]||t.breakdownType||'';
-  var raisedDate=_mttsFmtISTDate(t.raisedAt);
-  var esc=function(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  // V1 (260518) — Replaced the bespoke .mtts-alloc-info panel with the
+  // shared _mttsTicketSummaryHtml replica so the Allocate Technician
+  // modal opens with the **exact** same card the user clicked. The
+  // wrapper mirrors the list-card chrome (plant-colour stripe, status
+  // tint, owner corner-flag) so the link reads as one continuous card.
+  var _allocSummary=_mttsTicketSummaryHtml(t);
+  var _allocPlantColor=_mttsPlantColor(t.plant)||'#94a3b8';
+  var _allocBgMap={open:'#fee2e2',assigned:'#dbeafe',work_in_progress:'#fef9c3',awaiting_spares:'#ffedd5',awaiting_agency:'#ffedd5',repair_done:'#dcfce7',repair_done_challenged:'#fee2e2',closed:'#bbf7d0',scrapped:'#fed7aa'};
+  var _allocCardBg=_allocBgMap[t.status]||'#fff';
+  var _allocMeKey=CU?(CU.name||CU.id):'';
+  var _allocIsMineRaised=_allocMeKey && t.raisedBy===_allocMeKey;
+  var _allocIsMineAllotted=_mttsIsTechnicianOnTicket(t);
+  var _allocOwnerFlag='';
+  if(_allocIsMineRaised) _allocOwnerFlag='<span class="mtts-tcard-flag is-raised" title="Raised by me"></span>';
+  else if(_allocIsMineAllotted) _allocOwnerFlag='<span class="mtts-tcard-flag is-allotted" title="Allotted to me"></span>';
   document.getElementById('mttsAllocTicketLbl').innerHTML=
-    '<div class="mtts-alloc-info">'+
-      '<div class="mtts-alloc-info-head">'+
-        '<span class="mtts-alloc-info-id">'+esc(t.id)+'</span>'+
-        _mttsPlantBadge(t.plant)+
-      '</div>'+
-      '<div class="mtts-alloc-info-asset">'+esc(assetNm)+(assetTypeLbl?' <span class="mtts-alloc-info-atype">'+esc(assetTypeLbl)+'</span>':'')+'</div>'+
-      (descTxt?'<div class="mtts-alloc-info-desc">'+esc(descTxt)+'</div>':'')+
-      '<div class="mtts-alloc-info-meta">'+esc(bdLbl)+' · raised '+esc(raisedDate)+'</div>'+
+    '<div class="mtts-tcard" style="--plant-color:'+_allocPlantColor+';background:'+_allocCardBg+';position:relative;cursor:default" onclick="event.stopPropagation()">'+
+      _allocOwnerFlag+
+      _allocSummary+
     '</div>';
   // Reassign mode = the ticket already has technicians on it. The
   // header flips to "Reassign Technician" and no checkboxes are
@@ -4829,12 +4896,50 @@ function _mttsLightbox(src){
   var existing=document.getElementById('mttsLightbox');if(existing) existing.remove();
   var ov=document.createElement('div');
   ov.id='mttsLightbox';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200001;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px';
-  ov.innerHTML='<button onclick="event.stopPropagation();var e=document.getElementById(\'mttsLightbox\');if(e)e.remove();" style="position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;border:none;font-size:24px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+  // V1 (260518) — z-index bumped to the max 32-bit value so the lightbox
+  // ALWAYS sits on top of the Ticket Detail overlay (which itself uses
+  // 2147483646 to escape modal stacking contexts). Was 200001 — anything
+  // less than the detail overlay loses to it.
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2147483647;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px';
+  // Prominent red ✕ matching the Ticket Detail close button.
+  // V1 (260518) — onclick routes through _lbClose (declared below) via
+  // addEventListener so the history-stack pop runs too.
+  ov.innerHTML='<button id="_mttsLbClose" aria-label="Close" title="Close (Esc)" style="position:absolute;top:14px;right:14px;width:46px;height:46px;border-radius:50%;background:#dc2626;color:#fff;border:none;font-size:26px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(220,38,38,.55),0 0 0 3px rgba(255,255,255,.85);z-index:1">✕</button>'+
     '<img src="'+String(src).replace(/"/g,'&quot;')+'" style="max-width:96vw;max-height:92vh;object-fit:contain;border-radius:8px;box-shadow:0 30px 80px rgba(0,0,0,.6)">';
-  ov.onclick=function(){ov.remove();document.removeEventListener('keydown',escHandler);};
-  var escHandler=function(ev){if(ev.key==='Escape'){ov.remove();document.removeEventListener('keydown',escHandler);}};
-  document.addEventListener('keydown',escHandler);
+  // V5 (260518) — Lightbox stays independent of the history stack —
+  // the same round-trip pattern caused issues on the Ticket Detail
+  // overlay, so we keep the lightbox simple: click anywhere / Esc / ✕
+  // closes it directly.
+  // V8 (260518) — Esc handler registered on WINDOW in capture phase so
+  // it fires BEFORE the document-bound global Esc handler in common.js.
+  // Without this, the global handler (which closes the Ticket Detail
+  // behind the lightbox) ran first and called stopPropagation —
+  // swallowing Esc#1 entirely, so the user needed Esc#2 to actually
+  // dismiss the photo. We also call stopImmediatePropagation so the
+  // ticket-detail behind the lightbox doesn't close as a side effect.
+  var _lbClose=function(){
+    if(!ov.parentNode) return;
+    ov.remove();
+    window.removeEventListener('keydown',escHandler,true);
+  };
+  ov.onclick=function(){ _lbClose(); };
+  var escHandler=function(ev){
+    if(ev.key!=='Escape') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(typeof ev.stopImmediatePropagation==='function') ev.stopImmediatePropagation();
+    _lbClose();
+  };
+  window.addEventListener('keydown',escHandler,true);
+  // Wire the prominent ✕ button to _lbClose with stopPropagation so the
+  // click doesn't bubble to the overlay's onclick (which would also
+  // close, but via a duplicate path).
+  var _xBtn=ov.querySelector('#_mttsLbClose');
+  if(_xBtn){ _xBtn.addEventListener('click',function(ev){ ev.stopPropagation(); _lbClose(); }); }
+  // V1 (260518) — Append to <body> end so no ancestor stacking context
+  // (e.g. an opener overlay that itself has transform/filter set) can
+  // trap us behind it. The z-index above only beats peers in the same
+  // stacking context — the reparent guarantees we're a top-level peer.
   document.body.appendChild(ov);
 }
 
@@ -4863,51 +4968,56 @@ function _mttsTicketDetail(id){
   // single-line format. Sort newest-first.
   var actEntries=(t.techActions||[]).map(function(a,i){return {a:a,i:i};});
   actEntries.sort(function(x,y){return String(y.a.at||'').localeCompare(String(x.a.at||''));});
-  var actTh='padding:7px 10px;font-size:11px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)';
-  var actTd='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
-  var actBodyRows=actEntries.map(function(p,n){
+  // V1 (260518) — Compact 2-column layout for NMS visibility:
+  //   • # column dropped (entries are time-ordered anyway).
+  //   • When/Action and Notes/ETA folded into a single Activity column
+  //     (when on row 1, action+by on row 2, note/eta/techs below).
+  //   • Photos pinned to the last column with smaller thumbs (36×36)
+  //     so the table fits a narrow screen without horizontal scroll.
+  var actTh='padding:5px 7px;font-size:10px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;text-transform:uppercase;letter-spacing:.4px;color:var(--text2)';
+  var actTd='padding:6px 7px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  var actBodyRows=actEntries.map(function(p){
     var a=p.a;
     var when=_mttsFmtISTDateTimeShort(a.at);
     var rowPhotos=resolveRowPhotos(a);
+    // V5 (260518) — Photos stacked vertically (one above the other).
+    // When the row has NO photos, show a single empty placeholder
+    // frame so the column keeps its rhythm without leaving an obvious
+    // empty hole. When the row HAS photos, stack them; no extra
+    // placeholder.
+    var _photoFrame='width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;display:block';
+    var _frameBlank='width:36px;height:36px;border-radius:4px;border:1px dashed var(--border);background:#f8fafc;display:block';
     var photos=rowPhotos.length
-      ?'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rowPhotos.map(function(src){return '<img src="'+src+'" onclick="event.stopPropagation();_mttsLightbox(\''+String(src).replace(/'/g,"\\'")+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer">';}).join('')+'</div>'
-      :'<span style="color:var(--text3)">—</span>';
-    var editedBadge=a.editedAt?'<div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:2px">edited '+_mttsFmtISTDate(a.editedAt)+'</div>':'';
-    var notesCell='';
-    if(a.note) notesCell+='<div style="color:var(--text);font-size:13px;line-height:1.4;white-space:pre-wrap">'+String(a.note).replace(/</g,'&lt;')+'</div>';
-    if(a.eta) notesCell+='<div style="font-size:10px;color:#92400e;margin-top:3px;font-weight:700">ETA: '+a.eta+'</div>';
-    if(a.techs&&a.techs.length) notesCell+='<div style="font-size:10px;color:var(--text3);margin-top:3px">Techs: <b>'+a.techs.map(function(u){return _mttsUserDisp(u);}).join(', ')+'</b></div>';
-    if(!notesCell) notesCell='<span style="color:var(--text3)">—</span>';
+      ?'<div style="display:flex;flex-direction:column;gap:3px">'+rowPhotos.map(function(src){return '<img src="'+src+'" onclick="event.stopPropagation();_mttsLightbox(\''+String(src).replace(/'/g,"\\'")+'\')" style="'+_photoFrame+'">';}).join('')+'</div>'
+      :'<span style="'+_frameBlank+'"></span>';
+    var editedBadge=a.editedAt?'<div style="font-size:9px;color:var(--text3);font-style:italic;margin-top:1px">edited '+_mttsFmtISTDate(a.editedAt)+'</div>':'';
+    var noteHtml='';
+    if(a.note) noteHtml+='<div style="color:var(--text);font-size:12px;line-height:1.35;white-space:pre-wrap;margin-top:2px">'+String(a.note).replace(/</g,'&lt;')+'</div>';
+    if(a.eta) noteHtml+='<div style="font-size:10px;color:#92400e;margin-top:2px;font-weight:700">ETA: '+a.eta+'</div>';
+    if(a.techs&&a.techs.length) noteHtml+='<div style="font-size:10px;color:var(--text3);margin-top:2px">Techs: <b>'+a.techs.map(function(u){return _mttsUserDisp(u);}).join(', ')+'</b></div>';
     return '<tr>'+
-      '<td style="'+actTd+';font-family:var(--mono);color:var(--text3);text-align:center">'+(actEntries.length-n)+'</td>'+
-      // V34 — Date/Time + Action/By merged into a single column:
-      // line 1 = date/time (mono), line 2 = action label, line 3 = by.
       '<td style="'+actTd+';line-height:1.3">'+
-        '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);word-break:break-word">'+when+'</div>'+
-        '<div style="font-size:12px;font-weight:800;color:var(--text);margin-top:3px">'+(actLbls[a.action]||a.action)+'</div>'+
-        (a.by?'<div style="font-size:10px;color:var(--text3);font-weight:600;margin-top:2px">by '+_mttsUserDisp(a.by)+'</div>':'')+
+        '<div style="font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--text3);word-break:break-word">'+when+'</div>'+
+        '<div style="font-size:12px;font-weight:800;color:var(--text);margin-top:1px">'+(actLbls[a.action]||a.action)+(a.by?' <span style="font-size:10px;color:var(--text3);font-weight:600">· by '+_mttsUserDisp(a.by)+'</span>':'')+'</div>'+
+        noteHtml+
         editedBadge+
       '</td>'+
-      '<td style="'+actTd+'">'+notesCell+'</td>'+
-      '<td style="'+actTd+'">'+photos+'</td>'+
+      '<td style="'+actTd+';width:40px;min-width:40px;max-width:40px;text-align:center;padding:6px 2px">'+photos+'</td>'+
     '</tr>';
   }).join('');
-  // V34 — Date/Time + Action/By folded into a single column. Notes still
-  // gets the major share so long technician comments don't push the
-  // other columns off-screen.
+  // V6 (260518) — Photos column hard-locked to 40px (one 36px thumb
+  // plus 2px of breathing room on each side). Photos stack vertically
+  // inside that fixed-width slot. Header collapses to a tiny camera
+  // emoji so "Photos" text can't widen the column.
   var actHtml=actEntries.length
     ? '<div style="overflow:auto;border:1px solid var(--border);border-radius:8px;background:#fff"><table style="width:100%;border-collapse:collapse;table-layout:fixed">'+
         '<colgroup>'+
-          '<col style="width:36px">'+
-          '<col style="width:170px">'+
-          '<col>'+              // Notes — takes the rest
-          '<col style="width:120px">'+
+          '<col>'+
+          '<col style="width:40px">'+
         '</colgroup>'+
         '<thead><tr>'+
-          '<th style="'+actTh+';text-align:center">#</th>'+
-          '<th style="'+actTh+'">When / Action</th>'+
-          '<th style="'+actTh+'">Notes / ETA</th>'+
-          '<th style="'+actTh+'">Photos</th>'+
+          '<th style="'+actTh+'">Activity</th>'+
+          '<th style="'+actTh+';text-align:center;padding:5px 2px" title="Photos">📷</th>'+
         '</tr></thead><tbody>'+actBodyRows+'</tbody></table></div>'
     : '<div style="padding:18px;text-align:center;color:var(--text3);font-size:12px;font-style:italic">No activity yet.</div>';
   // V32/V34 — Top header is a 1:1 replica of the tickets-list card via
@@ -4936,9 +5046,13 @@ function _mttsTicketDetail(id){
   // V39 — z-index bumped above .modal-overlay (100000) so the History
   // popup (opened from inside the Update Ticket modal) sits on top of
   // it instead of hiding behind.
-  var html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483646;padding:16px;overflow:auto" onclick="if(event.target===this)_mttsCloseTicketDetail()">'+
-    '<div style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(900px,96vw);max-height:calc(100vh - 32px);overflow:auto;padding:20px 22px;position:relative">'+
-      '<button type="button" onclick="_mttsCloseTicketDetail()" aria-label="Close" title="Close (Esc)" style="position:absolute;top:14px;right:14px;width:40px;height:40px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:22px;font-weight:900;cursor:pointer;line-height:1;box-shadow:0 2px 8px rgba(220,38,38,.4);display:flex;align-items:center;justify-content:center;z-index:1">✕</button>'+
+  // V2 (260518) — Overlay padding tightened (16px → 6px) and inner card
+  // padding cut from 20px 22px → 12px 10px so the activity table can
+  // use the full mobile viewport width. The right edge no longer shows
+  // a wide blank gutter that read like an unused trailing column.
+  var html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483646;padding:6px;overflow:auto" onclick="if(event.target===this)_mttsCloseTicketDetail()">'+
+    '<div style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(900px,98vw);max-height:calc(100vh - 12px);overflow:auto;padding:12px 10px;position:relative">'+
+      '<button type="button" onclick="_mttsCloseTicketDetail()" aria-label="Close" title="Close (Esc)" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:900;cursor:pointer;line-height:1;box-shadow:0 1px 4px rgba(220,38,38,.4);display:flex;align-items:center;justify-content:center;z-index:1">✕</button>'+
       '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-right:48px">🎫 Ticket Details</div>'+
       // V34 — Ticket-card replica with full chrome (plant-colour stripe,
       // status-tinted bg, owner corner-flag).
@@ -4960,6 +5074,9 @@ function _mttsTicketDetail(id){
     try{ document.body.appendChild(ov); }catch(e){}
   }
   ov.innerHTML=html;ov.style.display='block';
+  // V5 (260518) — Reverted the history-stack hook here too; the round-
+  // trip was breaking the second open. Standard modals (om/cm path)
+  // still support the OS back button.
   // Live-tick the breakdown timer inside the summary block.
   if(typeof _mttsStartLiveTimer==='function') _mttsStartLiveTimer();
   // V32 — Wire Escape-to-close, bound once and reused across opens.
@@ -4976,6 +5093,10 @@ var _mttsTicketDetailEscBound=false;
 function _mttsCloseTicketDetail(){
   var ov=document.getElementById('mttsTicketDetailOverlay');
   if(ov) ov.style.display='none';
+  // V5 (260518) — Reverted history-stack hook. The push/back round-trip
+  // was interfering with subsequent opens (second click failed to
+  // re-show). The overlay stays independent of the back-button stack
+  // for now; Esc + ✕ + outside-click still close it.
 }
 
 
@@ -5012,8 +5133,11 @@ function _mttsDashboardRender(){
     return true;
   });
 
+  // V18 (260518) — Top summary counter strip removed per user request.
+  // The same counts are visible inside each downstream section (HP
+  // Asset cards, plant table, tickets table), so a separate header
+  // strip was redundant.
   body.innerHTML=
-    _mttsDashTiles(tickets)+
     _mttsDashHpStatus(assets)+
     _mttsDashPlantAssetStatus(tickets,assets)+
     _mttsDashTechLoad(tickets)+
@@ -5022,6 +5146,33 @@ function _mttsDashboardRender(){
     _mttsDashTrend(tickets,win)+
     _mttsDashCosts(tickets)+
     _mttsDashUpkeep(assets);
+}
+
+// V13 (260518) — Abbreviate an asset display name to its compact form
+// for chip labels. Letter-only words contribute their initial (joined
+// into a run when consecutive); digit-bearing tokens and ALL-CAPS
+// acronyms pass through verbatim. Single-word names stay readable
+// (initial alone would be too cryptic).
+//   "Air compressor 50HP shot blasting" → "AC 50HP SB"
+//   "CNC Laser"                         → "CNC L"
+//   "Compressor"                        → "Compressor"
+function _mttsShortAssetLabel(name){
+  var n=String(name||'').trim();
+  if(!n) return '';
+  var tokens=n.split(/\s+/);
+  if(tokens.length===1) return tokens[0].length>12?tokens[0].slice(0,12)+'…':tokens[0];
+  var out=[];
+  var initials='';
+  var flush=function(){ if(initials){ out.push(initials); initials=''; } };
+  tokens.forEach(function(tk){
+    if(!tk) return;
+    var hasDigit=/\d/.test(tk);
+    var isAcronym=tk.length>1 && /[A-Za-z]/.test(tk) && tk===tk.toUpperCase();
+    if(hasDigit||isAcronym){ flush(); out.push(tk); }
+    else { initials+=(tk.charAt(0).toUpperCase()); }
+  });
+  flush();
+  return out.join(' ')||n;
 }
 
 // V33 — Dashboard "HP Asset Status — <date>" panel. One row per plant;
@@ -5083,7 +5234,7 @@ function _mttsDashHpStatus(assets){
   var _mkCard=function(inner){
     return '<div class="card" style="margin-bottom:12px">'+
       '<div class="card-header" style="border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-        '<div class="card-title">HP Asset Status</div>'+
+        '<div class="card-title">High Priority Asset Status</div>'+
         picker+
       '</div>'+
       '<div style="padding:6px 12px 10px">'+inner+'</div>'+
@@ -5093,9 +5244,9 @@ function _mttsDashHpStatus(assets){
     return _mkCard('<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No High-priority assets configured'+(fPlant?' for the selected plant':'')+'.</div>');
   }
   var legend='<div style="display:flex;align-items:center;gap:14px;font-size:10px;color:var(--text2);padding:0 2px 8px">'+
-    '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#dc2626;border:1px solid rgba(0,0,0,.15)"></span>Active ticket</span>'+
+    '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#f87171;border:1px solid rgba(0,0,0,.15)"></span>Active ticket</span>'+
     '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#f59e0b;border:1px solid rgba(0,0,0,.15)"></span>Repair done — awaiting</span>'+
-    '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#16a34a;border:1px solid rgba(0,0,0,.15)"></span>Healthy</span>'+
+    '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#4ade80;border:1px solid rgba(0,0,0,.15)"></span>Healthy</span>'+
     (isFuture?'<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#e2e8f0;border:1px solid rgba(0,0,0,.15)"></span>Future</span>':'')+
   '</div>';
   // Per-asset status for the selected day. Walks the asset's tickets.
@@ -5119,9 +5270,14 @@ function _mttsDashHpStatus(assets){
       if(s==='repair_done') Y=Y||t;
       else if(s!=='closed' && s!=='scrapped') R=R||t;
     }
-    if(R) return {clr:'#dc2626',sev:2,ticket:R};
+    // V21 (260518) — Active-ticket red softened from #dc2626 → #f87171
+    // so the block is less aggressive on the eye while still reading
+    // as "red". White chip text stays legible against this tone.
+    if(R) return {clr:'#f87171',sev:2,ticket:R};
     if(Y) return {clr:'#f59e0b',sev:1,ticket:Y};
-    return {clr:'#16a34a',sev:0,ticket:null};
+    // V22 (260518) — Healthy green softened from #16a34a → #4ade80 to
+    // match the lighter red and yellow tones in the same panel.
+    return {clr:'#4ade80',sev:0,ticket:null};
   };
   // Per-plant downtime for the day (HP-asset sum, clipped).
   var assetDtForDay=function(aid){
@@ -5137,43 +5293,66 @@ function _mttsDashHpStatus(assets){
     });
     return tot;
   };
-  var lanes=plantKeys.map(function(plant){
+  // V12 (260518) — Each plant rendered as a self-contained card so
+  // multiple plants seat side by side on wide screens (auto-fill grid,
+  // 280px min track). On narrow viewports the grid collapses to a
+  // single column so each plant card still gets a full row.
+  var laneCards=plantKeys.map(function(plant){
     var arr=hpByPlant[plant];
     var statuses=arr.map(function(a){return {a:a,st:statusForDay(a.id)};});
-    // Red first within each plant.
-    statuses.sort(function(x,y){return y.st.sev-x.st.sev;});
+    // V15 (260518) — Sort alphabetically by asset name (irrespective of
+    // status) so the layout is stable day-to-day.
+    statuses.sort(function(x,y){
+      var na=String(_mttsAssetComposedName(x.a)||x.a.id||'');
+      var nb=String(_mttsAssetComposedName(y.a)||y.a.id||'');
+      return na.localeCompare(nb);
+    });
     var nDown=statuses.filter(function(x){return x.st.sev>=1;}).length;
     var dtMs=arr.reduce(function(s,a){return s+assetDtForDay(a.id);},0);
-    // V36 — Each HP asset gets a small labelled chip: status colour
-    // background + short asset name (truncated). Hover reveals the full
-    // name + status in a prominent dark tooltip (.mtts-hp-chip in CSS).
     var chips=statuses.map(function(x){
-      var name=_mttsAssetLabel(x.a)||x.a.id;
+      // V15 (260518) — Short name uses ONLY primary name + extension
+      // (no make/model/serial appended). Equal-size square blocks per
+      // asset so the cluster reads as a uniform grid.
+      var name=_mttsAssetComposedName(x.a)||x.a.id;
       var nameEsc=String(name).replace(/"/g,'&quot;');
-      var shortRaw=String(name).trim();
-      var short=shortRaw.length>10?shortRaw.slice(0,10)+'…':shortRaw;
+      var short=_mttsShortAssetLabel(name);
       var statusLbl=x.st.sev===2?'Active ticket':x.st.sev===1?'Repair done — awaiting':isFuture?'Future':'Healthy';
       var tip=name+' · '+statusLbl+(x.st.ticket?' · '+x.st.ticket.id:'');
-      var click=x.st.ticket?' onclick="event.stopPropagation();_mttsTicketDetail(\''+String(x.st.ticket.id).replace(/'/g,"\\'")+'\')"':' onclick="event.stopPropagation();notify(\''+name.replace(/'/g,"\\'")+' — '+statusLbl+'\')"';
+      // V17 (260518) — Red blocks (sev 2 = active ticket) keep their
+      // existing behaviour and open the ticket detail. Every other
+      // colour (green / yellow / future) opens the asset detail
+      // (_mttsAssetOpen — edit mode for SA, view mode for everyone
+      // else, so the asset name is also editable for SA).
+      var assetIdEsc=String(x.a.id||'').replace(/'/g,"\\'");
+      var ticketIdEsc=x.st.ticket?String(x.st.ticket.id).replace(/'/g,"\\'"):'';
+      var click=(x.st.sev===2 && x.st.ticket)
+        ?' onclick="event.stopPropagation();_mttsTicketDetail(\''+ticketIdEsc+'\')"'
+        :' onclick="event.stopPropagation();_mttsAssetOpen(\''+assetIdEsc+'\')"';
+      // V22 (260518) — Healthy bg lightened to #4ade80 — switch text
+      // to dark slate so the short label stays legible (white on the
+      // lighter green is borderline).
       var fg='#fff';
-      if(x.st.sev===0 && !isFuture) fg='#fff';// green
-      else if(x.st.sev===1) fg='#0f172a';// yellow → dark text
-      else if(isFuture) fg='#475569';// future grey → muted
-      return '<span class="mtts-hp-chip" data-mtts-tip="'+nameEsc+' · '+statusLbl+'" title="'+tip.replace(/"/g,'&quot;')+'" '+click+' style="display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:6px;background:'+x.st.clr+';color:'+fg+';font-size:11px;font-weight:800;letter-spacing:.2px;border:1.5px solid rgba(0,0,0,.15);cursor:pointer;flex-shrink:0;line-height:1;white-space:nowrap">'+short+'</span>';
+      if(x.st.sev===0 && !isFuture) fg='#0f172a';
+      else if(x.st.sev===1) fg='#0f172a';
+      else if(isFuture) fg='#475569';
+      return '<div class="mtts-hp-chip" data-mtts-tip="'+nameEsc+' · '+statusLbl+'" title="'+tip.replace(/"/g,'&quot;')+'" '+click+' style="width:62px;height:62px;display:inline-flex;align-items:center;justify-content:center;padding:4px;border-radius:8px;background:'+x.st.clr+';color:'+fg+';font-size:10.5px;font-weight:800;letter-spacing:.1px;border:1.5px solid rgba(0,0,0,.15);cursor:pointer;flex:0 0 62px;line-height:1.1;text-align:center;word-break:break-word;overflow:hidden;box-sizing:border-box">'+short+'</div>';
     }).join('');
     var plantNm=_mttsPlantLabel(plant)||plant;
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap">'+
-      '<div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;min-width:170px">'+
+    var plantBg=_mttsPlantColor(plant)||'#94a3b8';
+    return '<div style="border:1.5px solid var(--border);border-left:5px solid '+plantBg+';border-radius:10px;padding:8px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px;min-width:0">'+
+      '<div style="display:flex;align-items:center;gap:8px;min-width:0">'+
         _mttsPlantBadgeShort(plant)+
-        '<span style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
+        '<span style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
+        '<span style="flex:0 0 auto;font-size:11px;color:var(--text2)"><b style="color:'+(nDown>0?'#dc2626':'#16a34a')+';font-size:13px">'+nDown+'</b>/'+arr.length+'</span>'+
       '</div>'+
-      '<div style="flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:4px;flex-wrap:wrap">'+chips+'</div>'+
-      '<div style="flex:0 0 auto;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text2)">'+
-        '<span><b style="color:'+(nDown>0?'#dc2626':'#16a34a')+';font-size:13px">'+nDown+'</b> / '+arr.length+' down</span>'+
-        '<span style="font-family:var(--mono);font-weight:800;color:'+(dtMs>0?'#dc2626':'#16a34a')+'">DT '+fmtHM(dtMs)+'</span>'+
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:24px">'+chips+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);border-top:1px dashed var(--border);padding-top:5px;margin-top:auto">'+
+        '<span style="text-transform:uppercase;letter-spacing:.5px;font-weight:800">Downtime</span>'+
+        '<span style="margin-left:auto;font-family:var(--mono);font-weight:900;font-size:12px;color:'+(dtMs>0?'#dc2626':'#16a34a')+'">'+fmtHM(dtMs)+'</span>'+
       '</div>'+
     '</div>';
   }).join('');
+  var lanes='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">'+laneCards+'</div>';
   // Total plant DT for the day across all plants shown.
   var totalDt=0;
   plantKeys.forEach(function(p){
@@ -5443,23 +5622,24 @@ function _mttsDashTiles(tickets){
   });
   var totalCost=0;
   tickets.forEach(function(t){if(t.status==='closed') totalCost+=(+t.costService||0)+(+t.costSpares||0);});
+  // V12 (260518) — Summary tiles shrunk ~50%: padding halved, value
+  // font 24→14, label font 11→9, min-width 140→90, border-left 4→3.
+  // Priority strip tightened in proportion.
   var tile=function(lbl,val,clr,bg){
-    return '<div style="flex:1;min-width:140px;padding:14px 16px;background:'+bg+';border:1px solid '+clr+'33;border-left:4px solid '+clr+';border-radius:8px">'+
-      '<div style="font-size:11px;font-weight:800;color:'+clr+';text-transform:uppercase;letter-spacing:0.5px">'+lbl+'</div>'+
-      '<div style="font-size:24px;font-weight:900;color:var(--text);margin-top:2px">'+val+'</div></div>';
+    return '<div style="flex:1;min-width:90px;padding:6px 9px;background:'+bg+';border:1px solid '+clr+'33;border-left:3px solid '+clr+';border-radius:6px">'+
+      '<div style="font-size:9px;font-weight:800;color:'+clr+';text-transform:uppercase;letter-spacing:.4px">'+lbl+'</div>'+
+      '<div style="font-size:14px;font-weight:900;color:var(--text);margin-top:1px;line-height:1.1">'+val+'</div></div>';
   };
-  // Compact priority chip strip — sits beside the top-line tiles so the
-  // open vs. priority breakdown is visible at a glance.
-  var priTile='<div style="flex:1;min-width:200px;padding:10px 14px;background:#fff;border:1px solid var(--border);border-radius:8px">'+
-    '<div style="font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Active by Priority</div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
-      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca"><span style="font-size:10px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.5px">High</span><b style="font-size:16px;color:#7f1d1d">'+pri.High+'</b></span>'+
-      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a"><span style="font-size:10px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.5px">Medium</span><b style="font-size:16px;color:#78350f">'+pri.Medium+'</b></span>'+
-      '<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0"><span style="font-size:10px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.5px">Low</span><b style="font-size:16px;color:#14532d">'+pri.Low+'</b></span>'+
-      (pri.Unset?'<span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:#f8fafc;border:1px solid var(--border)"><span style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Unset</span><b style="font-size:16px;color:var(--text2)">'+pri.Unset+'</b></span>':'')+
+  var priTile='<div style="flex:1;min-width:160px;padding:5px 9px;background:#fff;border:1px solid var(--border);border-radius:6px">'+
+    '<div style="font-size:9px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Active by Priority</div>'+
+    '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca"><span style="font-size:8px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.4px">High</span><b style="font-size:11px;color:#7f1d1d">'+pri.High+'</b></span>'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a"><span style="font-size:8px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.4px">Medium</span><b style="font-size:11px;color:#78350f">'+pri.Medium+'</b></span>'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0"><span style="font-size:8px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.4px">Low</span><b style="font-size:11px;color:#14532d">'+pri.Low+'</b></span>'+
+      (pri.Unset?'<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;background:#f8fafc;border:1px solid var(--border)"><span style="font-size:8px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Unset</span><b style="font-size:11px;color:var(--text2)">'+pri.Unset+'</b></span>':'')+
     '</div>'+
   '</div>';
-  return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
     tile('Raised',c.raised,'#0ea5e9','#f0f9ff')+
     tile('Open',c.open,'#dc2626','#fef2f2')+
     tile('In Progress',c.inprog,'#f59e0b','#fffbeb')+
