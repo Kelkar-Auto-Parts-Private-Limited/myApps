@@ -21,7 +21,7 @@ if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSetti
 //     modal's history tab.
 var _SYNC_SELECT={
   'mtts_tickets':'id,code,asset_code,plant,asset_id,plant_id,breakdown_type,breakdown_since,status,raised_by,raised_at,assigned_to,assigned_at,assigned_by,tech_actions,root_cause,cost_service,cost_spares,approved_by,approved_at,updated_at',
-  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at'
+  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at'
 };
 
 // V38 — Lazy-fetch the three photo arrays for one ticket. Dedup tracker
@@ -779,11 +779,17 @@ function _mttsRenderAssets(){
       if(canEd&&refs===0) sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsAssetDeleteFromTable(\''+idEsc+'\')" title="Delete asset">🗑</button>';
       else if(canEd&&refs>0) sideAct+='<button class="mtts-tcard-iconbtn is-del" disabled title="In use — '+refs+' ticket(s) reference this asset" style="opacity:.5;cursor:not-allowed">🗑</button>';
       var plantColor=_mttsPlantColor(a.plant)||'#94a3b8';
+      // V26 (260518) — Dashboard Asset Name (DA Name) surfaced under
+      // the full asset name so users see how the dashboard chip will
+      // render this asset at a glance.
+      var _daName=String(a.dashboardName||'').trim();
+      var _daHtml=_daName?'<div class="mtts-tcard-daname" title="Dashboard Asset Name">🏷 '+String(_daName).replace(/</g,'&lt;')+'</div>':'';
       html+='<div class="mtts-tcard" style="--plant-color:'+plantColor+'" onclick="_mttsAssetOpen(\''+idEsc+'\')">'+
         '<div class="mtts-tcard-head">'+
           '<div class="mtts-tcard-headline">'+
             '<div class="mtts-tcard-headtop">'+_mttsPlantBadge(a.plant)+'<span class="mtts-tcard-sep">·</span><span class="mtts-tcard-type">'+(a.assetType||'—')+'</span></div>'+
             '<div class="mtts-tcard-asset">'+(_mttsAssetComposedName(a)||'—')+'</div>'+
+            _daHtml+
             (mm?'<div class="mtts-tcard-meta">'+mm+'</div>':'')+
           '</div>'+
           '<span class="mtts-tcard-prio '+crit+'">'+crit+'</span>'+
@@ -821,11 +827,15 @@ function _mttsAssetTableHtml(rows,critClr,statusClr){
   var th='padding:9px 12px;font-size:12px;font-weight:800;background:#f1f5f9;border-bottom:2px solid var(--border);text-align:left;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 rgba(0,0,0,.04)';
   var td='padding:8px 12px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:top';
   var canEd=_mttsHasAccess('action.editAsset');
+  // V26 (260518) — Added "DA Name" column (Dashboard Asset Name) between
+  // Asset and Make/Model so the dashboard short label is visible in the
+  // table view too.
   var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
     '<th style="'+th+'">#</th>'+
     '<th style="'+th+'">Plant</th>'+
     '<th style="'+th+'">Type</th>'+
     '<th style="'+th+'">Asset</th>'+
+    '<th style="'+th+'">DA Name</th>'+
     '<th style="'+th+'">Make / Model</th>'+
     '<th style="'+th+'">Serial</th>'+
     '<th style="'+th+'">Installed</th>'+
@@ -834,7 +844,7 @@ function _mttsAssetTableHtml(rows,critClr,statusClr){
     '<th style="'+th+';text-align:center;width:130px">Actions</th>'+
   '</tr></thead><tbody>';
   if(!rows.length){
-    html+='<tr><td colspan="10" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>';
+    html+='<tr><td colspan="11" style="padding:30px 20px;text-align:center;color:var(--text3);font-size:13px">No assets match the current filters.</td></tr>';
   }
   rows.forEach(function(a,i){
     var idEsc=String(a.id||'').replace(/'/g,"\\'");
@@ -850,6 +860,7 @@ function _mttsAssetTableHtml(rows,critClr,statusClr){
       '<td style="'+td+'">'+_mttsPlantBadge(a.plant)+'</td>'+
       '<td style="'+td+'">'+(a.assetType||'—')+'</td>'+
       '<td style="'+td+';font-weight:700">'+(_mttsAssetComposedName(a)||'—')+'</td>'+
+      '<td style="'+td+';font-family:var(--mono);font-size:12px;font-weight:700;color:#0f172a">'+(String(a.dashboardName||'').replace(/</g,'&lt;')||'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>'+
       '<td style="'+td+';color:var(--text2)">'+(mm||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:12px">'+(a.serialNo||'—')+'</td>'+
       '<td style="'+td+';font-family:var(--mono);font-size:12px;color:var(--text3)">'+(a.installDate||'—')+'</td>'+
@@ -909,6 +920,19 @@ function _mttsAssetOpen(id, preset){
   var extEl=document.getElementById('mttsAssetNameExt');
   if(extEl) extEl.value=a?(a.nameExtension||''):((preset&&preset.nameExtension)||'');
   document.getElementById('mttsAssetName').value=a?(a.name||''):((preset&&preset.name)||'');
+  // V26 (260518) — Auto-fill the Dashboard Asset Name only on FIRST
+  // entry. Any stored value (matching auto-fill or not) locks the
+  // field so subsequent opens preserve what was saved. The user can
+  // clear the field to re-enable the one-time auto-fill on next
+  // Primary / Extension change.
+  var dashEl=document.getElementById('mttsAssetDashName');
+  if(dashEl){
+    var dashStored=a?(a.dashboardName||''):((preset&&preset.dashboardName)||'');
+    dashEl.value=dashStored;
+    _mttsAssetDashNameTouched=!!dashStored;
+  } else {
+    _mttsAssetDashNameTouched=false;
+  }
   document.getElementById('mttsAssetDesc').value=a?(a.description||''):((preset&&preset.description)||'');
   document.getElementById('mttsAssetSerial').value=a?(a.serialNo||''):((preset&&preset.serialNo)||'');
   document.getElementById('mttsAssetInstall').value=a?(a.installDate||'2020-01-01'):((preset&&preset.installDate)||'2020-01-01');
@@ -1158,6 +1182,9 @@ async function _mttsAssetSave(mode){
     _mttsFlashFieldErr('mttsAssetPrimary','mttsAssetNameExt','mttsAssetMake');
     return;
   }
+  // V25 (260518) — Dashboard Asset Name: free-text override of what
+  // the dashboard chip shows. Empty → falls back to composed name.
+  var dashName=_t('mttsAssetDashName');
   var data={
     plant:plant,
     plantId:_mttsResolveDbId(DB.mttsPlants,plant),
@@ -1167,6 +1194,7 @@ async function _mttsAssetSave(mode){
     primaryNameId:_mttsResolveDbId(DB.mttsAssetPrimaryNames,primaryCode),
     nameExtension:ext,
     name:name,
+    dashboardName:dashName,
     description:_t('mttsAssetDesc'),
     serialNo:_t('mttsAssetSerial'),
     installDate:document.getElementById('mttsAssetInstall').value||'2020-01-01',
@@ -3308,11 +3336,23 @@ function _mttsAssetPickType(code){
 // _mttsAssetSave so what the user sees here is exactly what gets
 // stored: "<primary label> - <name extension>" (extension optional),
 // preceded by the colored short-form plant badge.
+// V25 (260518) — Now also drives the editable "Dashboard Asset Name"
+// field. Field auto-fills from the composed name until the user
+// manually edits it (touched flag), after which Primary / Extension
+// changes leave the dashboard name alone. The dashboard chip
+// abbreviation uses this name when present.
+var _mttsAssetDashNameTouched=false;
+function _mttsAssetDashNameTouch(){
+  _mttsAssetDashNameTouched=true;
+  // Re-render the preview footer so any other dependents pick up the
+  // manually-typed name immediately.
+  _mttsAssetUpdatePreview();
+}
 function _mttsAssetUpdatePreview(){
   var plantEl=document.getElementById('mttsAssetPlant');
-  var typeEl=document.getElementById('mttsAssetType');
   var primEl=document.getElementById('mttsAssetPrimary');
   var extEl=document.getElementById('mttsAssetNameExt');
+  var dashEl=document.getElementById('mttsAssetDashName');
   var plantOut=document.getElementById('mttsAssetPreviewPlant');
   var nameOut=document.getElementById('mttsAssetPreviewName');
   if(!plantOut || !nameOut) return;
@@ -3322,7 +3362,22 @@ function _mttsAssetUpdatePreview(){
   var primLbl=primCode?(_mttsAssetPrimaryNameLabel(primCode)||primCode):'';
   var ext=extEl?String(extEl.value||'').trim():'';
   var composed=primLbl ? (ext?(primLbl+' - '+ext):primLbl) : '';
-  nameOut.textContent=composed;
+  // V26 (260518) — Default auto-fill is the **initials** form of the
+  // composed name (e.g. "Air Conditioner - 02" → "AC 02"). User can
+  // edit it freely; the touched flag stops further auto-overwrites.
+  var initialsForm=composed?_mttsShortAssetLabel(composed):'';
+  if(dashEl && !_mttsAssetDashNameTouched){
+    dashEl.value=initialsForm;
+  }
+  // V29 (260518) — Preview shows the full composed name (Primary +
+  // Extension) followed by the Dashboard Asset Name in parentheses
+  // whenever it differs from the composed name. The plant chip already
+  // sits next to this label, so the full line reads:
+  // [P1] Air Conditioner - 02 (AC 02)
+  var dashName=dashEl?String(dashEl.value||'').trim():'';
+  var shown=composed||initialsForm||'';
+  if(dashName && dashName!==composed) shown = (shown ? (shown+' ') : '') + '('+dashName+')';
+  nameOut.textContent=shown;
 }
 
 function _mttsAssetRenderCritBtns(){
@@ -5160,12 +5215,17 @@ function _mttsShortAssetLabel(name){
   var n=String(name||'').trim();
   if(!n) return '';
   var tokens=n.split(/\s+/);
-  if(tokens.length===1) return tokens[0].length>12?tokens[0].slice(0,12)+'…':tokens[0];
+  // Filter out punctuation-only tokens like "-" or "/".
+  tokens=tokens.filter(function(tk){return tk && /[A-Za-z0-9]/.test(tk);});
+  if(!tokens.length) return n;
+  if(tokens.length===1){
+    var only=tokens[0];
+    return only.length>12?only.slice(0,12)+'…':only;
+  }
   var out=[];
   var initials='';
   var flush=function(){ if(initials){ out.push(initials); initials=''; } };
   tokens.forEach(function(tk){
-    if(!tk) return;
     var hasDigit=/\d/.test(tk);
     var isAcronym=tk.length>1 && /[A-Za-z]/.test(tk) && tk===tk.toUpperCase();
     if(hasDigit||isAcronym){ flush(); out.push(tk); }
@@ -5303,8 +5363,8 @@ function _mttsDashHpStatus(assets){
     // V15 (260518) — Sort alphabetically by asset name (irrespective of
     // status) so the layout is stable day-to-day.
     statuses.sort(function(x,y){
-      var na=String(_mttsAssetComposedName(x.a)||x.a.id||'');
-      var nb=String(_mttsAssetComposedName(y.a)||y.a.id||'');
+      var na=String(x.a&&x.a.dashboardName||_mttsAssetComposedName(x.a)||x.a.id||'');
+      var nb=String(y.a&&y.a.dashboardName||_mttsAssetComposedName(y.a)||y.a.id||'');
       return na.localeCompare(nb);
     });
     var nDown=statuses.filter(function(x){return x.st.sev>=1;}).length;
@@ -5313,9 +5373,15 @@ function _mttsDashHpStatus(assets){
       // V15 (260518) — Short name uses ONLY primary name + extension
       // (no make/model/serial appended). Equal-size square blocks per
       // asset so the cluster reads as a uniform grid.
-      var name=_mttsAssetComposedName(x.a)||x.a.id;
+      // V26 (260518) — Dashboard Asset Name is the short form itself
+      // (auto-filled with initials, user-overridable). Use it verbatim;
+      // tooltip carries the full composed name. Only fall back to the
+      // composed-name abbreviation when DA Name is missing (legacy).
+      var fullName=_mttsAssetComposedName(x.a) || x.a.id;
+      var dash=String(x.a&&x.a.dashboardName||'').trim();
+      var short=dash || _mttsShortAssetLabel(fullName);
+      var name=fullName;
       var nameEsc=String(name).replace(/"/g,'&quot;');
-      var short=_mttsShortAssetLabel(name);
       var statusLbl=x.st.sev===2?'Active ticket':x.st.sev===1?'Repair done — awaiting':isFuture?'Future':'Healthy';
       var tip=name+' · '+statusLbl+(x.st.ticket?' · '+x.st.ticket.id:'');
       // V17 (260518) — Red blocks (sev 2 = active ticket) keep their

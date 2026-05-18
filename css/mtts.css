@@ -1365,6 +1365,22 @@
   .mtts-tcard-sep{color:var(--text3);font-weight:600}
   .mtts-tcard-asset{font-size:15px;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word}
   .mtts-tcard-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--text3)}
+  /* V26 (260518) — Dashboard Asset Name chip on asset cards. Slate
+     mono so it reads as a short label (matches the dashboard chip). */
+  .mtts-tcard-daname{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:800;
+    color:#0f172a;
+    background:#e2e8f0;
+    border-radius:5px;
+    padding:1px 7px;
+    margin-top:2px;
+    letter-spacing:.3px;
+    line-height:1.3;
+    align-self:flex-start;
+  }
   .mtts-tcard-type{padding:1px 7px;background:#f1f5f9;border-radius:5px;font-weight:700;color:var(--text2);letter-spacing:.3px}
   .mtts-tcard-prio{display:inline-block;padding:2px 8px;border-radius:9px;font-size:10px;font-weight:800;letter-spacing:.3px;flex-shrink:0;align-self:flex-start}
   .mtts-tcard-prio.High{background:#fee2e2;color:#dc2626}

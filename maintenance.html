@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260518-V25">
+<meta name="app-build" content="260518-V31">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260518-V25">
+<link rel="stylesheet" href="css/mtts.css?v=260518-V31">
 </head>
 <body style="display:none">
 
@@ -586,6 +586,10 @@
           <input type="text" id="mttsAssetNameExt" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="_mttsAssetUpdatePreview()">
         </div>
       </div>
+      <div class="form-group mtts-asset-full"><label>Dashboard Asset Name</label>
+        <input type="text" id="mttsAssetDashName" maxlength="80" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="_mttsAssetDashNameTouch()">
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Auto-filled from Primary Name + Name Extension. Edit to set a custom short label that the dashboard will abbreviate.</div>
+      </div>
     </div>
   </fieldset>
 
@@ -594,7 +598,7 @@
     <legend>📋 Equipment Details</legend>
     <div class="mtts-asset-grid">
       <div class="form-group mtts-asset-full"><label>Description</label>
-        <textarea id="mttsAssetDesc" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+        <input type="text" id="mttsAssetDesc" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="mtts-asset-pair">
         <div class="form-group"><label>Serial No</label>
@@ -686,7 +690,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V25"></script>
-<script src="js/mtts-ui.js?v=260518-V25"></script>
+<script src="js/common.js?v=260518-V31"></script>
+<script src="js/mtts-ui.js?v=260518-V31"></script>
 </body>
 </html>

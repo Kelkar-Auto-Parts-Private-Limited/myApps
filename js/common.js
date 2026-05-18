@@ -447,6 +447,8 @@ function _toRow(tbl, rec) {
       plant:r.plant||'',asset_type:r.assetType||'',primary_name:r.primaryName||'',
       plant_id:r.plantId||null,asset_type_id:r.assetTypeId||null,primary_name_id:r.primaryNameId||null,
       name_extension:r.nameExtension||'',
+      // V25 (260518) — Editable dashboard label override.
+      dashboard_name:r.dashboardName||'',
       name:r.name||'',
       description:r.description||'',serial_no:r.serialNo||'',
       install_date:r.installDate||'2020-01-01',
@@ -601,6 +603,7 @@ function _fromRow(tbl, row) {
     plant:row.plant||'',assetType:row.asset_type||'',primaryName:row.primary_name||'',
     plantId:row.plant_id||null,assetTypeId:row.asset_type_id||null,primaryNameId:row.primary_name_id||null,
     nameExtension:row.name_extension||'',
+    dashboardName:row.dashboard_name||'',
     name:row.name||'',description:row.description||'',serialNo:row.serial_no||'',
     installDate:row.install_date||'2020-01-01',make:row.make||'',model:row.model||'',
     warranty:row.warranty||{},amc:row.amc||{},
