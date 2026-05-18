@@ -595,7 +595,20 @@ function _mttsPopulatePlantOptions(){
 // In-table filter state — preserved across renders since the per-column
 // dropdowns live inside the thead and get rebuilt on every _mttsRenderAssets
 // call.
-var _mttsAssetState={plant:'',type:'',status:'Active',search:'',view:''};
+// V32 (260518) — sortKey + sortDir hold the table-sort state. sortKey
+// is the column key (name | plant | assetType | dashboardName | mm |
+// serial | installDate | criticality | status). sortDir is 'asc' or
+// 'desc'. Empty key → fall back to the default plant→type→name sort.
+var _mttsAssetState={plant:'',type:'',status:'Active',search:'',view:'',sortKey:'',sortDir:'asc'};
+function _mttsAssetSetSort(key){
+  if(_mttsAssetState.sortKey===key){
+    _mttsAssetState.sortDir=(_mttsAssetState.sortDir==='asc')?'desc':'asc';
+  } else {
+    _mttsAssetState.sortKey=key;
+    _mttsAssetState.sortDir='asc';
+  }
+  _mttsRenderAssets();
+}
 var _mttsAprimState={type:'',status:'',search:'',view:''};
 // Resolve the saved view preference (cards | table) from localStorage on
 // first read; default to cards. Mobile (≤700px) ignores the saved choice
@@ -650,10 +663,13 @@ function _mttsAgencyToggleView(){
 // DOM inputs directly — the render functions read DOM values back
 // into state at the top, so clearing only state would get clobbered.
 function _mttsAssetClearFilters(){
-  ['mttsAssetPlantFilter','mttsAssetTypeFilter','mttsAssetStatusFilter','mttsAssetSearch'].forEach(function(id){
+  ['mttsAssetPlantFilter','mttsAssetTypeFilter','mttsAssetSearch'].forEach(function(id){
     var el=document.getElementById(id);if(el) el.value='';
   });
   _mttsAssetState.plant='';_mttsAssetState.type='';_mttsAssetState.status='';_mttsAssetState.search='';
+  // V32 (260518) — Also drop the column sort so the table returns to
+  // the default plant→type→name ordering.
+  _mttsAssetState.sortKey='';_mttsAssetState.sortDir='asc';
   _mttsRenderAssets();
 }
 function _mttsAprimClearFilters(){
@@ -728,11 +744,40 @@ function _mttsRenderAssets(){
   var critClr={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
   var statusClr={Active:'#16a34a',Inactive:'#94a3b8',Scrap:'#dc2626'};
   var plantLbl=function(v){return _mttsPlantLabel(v);};
-  var rows=assets.slice().sort(function(a,b){
-    var pl=String(a.plant||'').localeCompare(String(b.plant||''));if(pl) return pl;
-    var tp=String(a.assetType||'').localeCompare(String(b.assetType||''));if(tp) return tp;
-    return String(a.name||'').localeCompare(String(b.name||''));
-  });
+  // V32 (260518) — Honor the user-selected sort first. Fall back to
+  // the default plant→type→name ordering when no header is selected.
+  var rows=assets.slice();
+  var sortKey=_mttsAssetState.sortKey;
+  var sortDir=(_mttsAssetState.sortDir==='desc')?-1:1;
+  var _sortVal=function(a){
+    switch(sortKey){
+      case 'plant':         return _mttsPlantLabel(a.plant)||'';
+      case 'assetType':     return a.assetType||'';
+      case 'name':          return _mttsAssetComposedName(a)||'';
+      case 'dashboardName': return a.dashboardName||'';
+      case 'mm':            return [a.make,a.model].filter(Boolean).join(' / ');
+      case 'serial':        return a.serialNo||'';
+      case 'installDate':   return a.installDate||'';
+      case 'criticality':   return ({High:1,Medium:2,Low:3}[a.criticality]||9)+' '+(a.criticality||'');
+      case 'status':        return ({Active:1,Inactive:2,Scrap:3}[a.status]||9)+' '+(a.status||'');
+    }
+    return '';
+  };
+  if(sortKey){
+    rows.sort(function(a,b){
+      var av=String(_sortVal(a)).toLowerCase();
+      var bv=String(_sortVal(b)).toLowerCase();
+      if(av<bv) return -1*sortDir;
+      if(av>bv) return  1*sortDir;
+      return 0;
+    });
+  } else {
+    rows.sort(function(a,b){
+      var pl=String(a.plant||'').localeCompare(String(b.plant||''));if(pl) return pl;
+      var tp=String(a.assetType||'').localeCompare(String(b.assetType||''));if(tp) return tp;
+      return String(a.name||'').localeCompare(String(b.name||''));
+    });
+  }
   // Card grid layout — same `.mtts-tcards` / `.mtts-tcard` pattern the
   // tickets page uses. Wider screens can switch to a table layout via
   // the view-mode toggle (saved per page in localStorage). Mobile is
@@ -746,19 +791,17 @@ function _mttsRenderAssets(){
   var typeOpts='<option value="">All types</option>'+typesArr.map(function(t){
     return '<option value="'+t.value+'"'+(t.value===fType?' selected':'')+'>'+t.label+'</option>';
   }).join('');
-  var statusArr=['Active','Inactive','Scrap'];
-  var statusOpts='<option value="">All statuses</option>'+statusArr.map(function(s){
-    return '<option value="'+s+'"'+(s===fStatus?' selected':'')+'>'+s+'</option>';
-  }).join('');
   var inlineSearchVal=fSearchRaw.replace(/"/g,'&quot;');
   var viewBtn='<button type="button" class="btn btn-secondary mtts-view-toggle" onclick="_mttsAssetToggleView()" title="Switch view" style="font-size:12px;padding:6px 10px">'+(view==='table'?'🗂 Cards':'📊 Table')+'</button>';
+  // V32 (260518) — Status filter combo removed (rarely used; Status
+  // column header now sorts when clicked). X clear button made bigger
+  // and red so it reads as the primary "reset" affordance.
   var html='<div class="mtts-tcard-filters">'+
     '<input type="search" id="mttsAssetSearch" placeholder="🔍 name / serial / make…" oninput="_mttsRenderAssets()" value="'+inlineSearchVal+'">'+
     '<select id="mttsAssetPlantFilter" onchange="_mttsRenderAssets()">'+plantOpts+'</select>'+
     '<select id="mttsAssetTypeFilter" onchange="_mttsRenderAssets()">'+typeOpts+'</select>'+
-    '<select id="mttsAssetStatusFilter" onchange="_mttsRenderAssets()">'+statusOpts+'</select>'+
     viewBtn+
-    '<button type="button" class="btn btn-secondary" onclick="_mttsAssetClearFilters()" title="Reset filters and search" style="font-size:12px;padding:6px 10px">✕ Clear</button>'+
+    '<button type="button" onclick="_mttsAssetClearFilters()" title="Reset filters, search and sort" style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;border:2px solid #dc2626;background:#fff;color:#dc2626;border-radius:8px;cursor:pointer;font-weight:900;font-size:20px;line-height:1">✕</button>'+
   '</div>';
   if(view==='table'){
     html+=_mttsAssetTableHtml(rows,critClr,statusClr);
@@ -830,17 +873,31 @@ function _mttsAssetTableHtml(rows,critClr,statusClr){
   // V26 (260518) — Added "DA Name" column (Dashboard Asset Name) between
   // Asset and Make/Model so the dashboard short label is visible in the
   // table view too.
-  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+  // V31 (260518) — Inner wrap uses overflow-x:auto only (horizontal
+  // scroll for wide tables) so wheel events bubble up to the outer
+  // #mttsAssetTableWrap, which owns vertical scrolling under the
+  // mtts-tight-page flex chain. With overflow:auto here, the inner
+  // div was intercepting wheel events and the asset list lost its
+  // vertical scrollbar.
+  // V32 (260518) — Clickable sortable headers. _mttsAssetSetSort cycles
+  // asc↔desc on the same column, switches direction otherwise.
+  var sortKey=_mttsAssetState.sortKey;
+  var sortDir=_mttsAssetState.sortDir;
+  var _arrow=function(k){ return k===sortKey ? (sortDir==='desc' ? ' ▼':' ▲') : ' '; };
+  var _hCell=function(k,label){
+    return '<th style="'+th+';cursor:pointer;user-select:none" onclick="_mttsAssetSetSort(\''+k+'\')" title="Sort by '+label+'">'+label+_arrow(k)+'</th>';
+  };
+  var html='<div style="border:1.5px solid var(--border);border-radius:8px;background:#fff;overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
     '<th style="'+th+'">#</th>'+
-    '<th style="'+th+'">Plant</th>'+
-    '<th style="'+th+'">Type</th>'+
-    '<th style="'+th+'">Asset</th>'+
-    '<th style="'+th+'">DA Name</th>'+
-    '<th style="'+th+'">Make / Model</th>'+
-    '<th style="'+th+'">Serial</th>'+
-    '<th style="'+th+'">Installed</th>'+
-    '<th style="'+th+'">Priority</th>'+
-    '<th style="'+th+'">Status</th>'+
+    _hCell('plant','Plant')+
+    _hCell('assetType','Type')+
+    _hCell('name','Asset')+
+    _hCell('dashboardName','DA Name')+
+    _hCell('mm','Make / Model')+
+    _hCell('serial','Serial')+
+    _hCell('installDate','Installed')+
+    _hCell('criticality','Priority')+
+    _hCell('status','Status')+
     '<th style="'+th+';text-align:center;width:130px">Actions</th>'+
   '</tr></thead><tbody>';
   if(!rows.length){

@@ -239,7 +239,19 @@
   /* V156 — Asset Master wrap: force the vertical scrollbar to live on the
      inner container regardless of card vs table view, so the page header
      and filter row stay frozen while the asset list scrolls. */
-  body.mtts-tight-page #mttsAssetTableWrap{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
+  /* V32 (260518) — Keep the flex:1 1 auto + min-height:0 pattern, but
+     also fall back to max-height when the flex chain can't propagate
+     a constrained height (e.g., when this rule loads before the page
+     gets the .active class and the parent .page isn't flex yet). The
+     max-height guarantees a non-zero scrollable height. */
+  body.mtts-tight-page #mttsAssetTableWrap{
+    flex:1 1 auto;
+    min-height:0;
+    max-height:calc(100vh - 200px);
+    overflow-y:auto;
+    overflow-x:hidden;
+    scrollbar-gutter:stable;
+  }
   /* Tickets page — filter strip sticks to the top of the scrolling
      table-wrap; the cards scroll underneath it. */
   body.mtts-tight-page .mtts-tcard-filters{position:sticky;top:0;z-index:5;margin-bottom:6px}
