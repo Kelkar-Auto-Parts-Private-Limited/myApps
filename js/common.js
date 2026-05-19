@@ -1120,7 +1120,7 @@ async function _forceSyncAll(){
         if(useRpc){
           res=await _sb.rpc('hwms_upsert',{p_username:_fsAuth.u,p_token:_fsAuth.t,p_table:sbTbl,p_row:row});
         } else {
-          res=await _sb.from(sbTbl).upsert(row, {onConflict:'code'}).select();
+          res=await _sb.from(sbTbl).upsert(row, {onConflict:'code'}).select('code');
         }
         if(res.error){ console.error('ForceSync error ['+tbl+']:', res.error.message); failed++; }
         else saved++;
@@ -1157,7 +1157,7 @@ window._diagSB = async function(){
     // anon can upsert non-sensitive columns.
     try{
       const testRow={code:'__diag_test__',name:'_diag',full_name:'Diag Test',mobile:'',roles:[],hwms_roles:[],plant:'',apps:[],photo:'',inactive:true};
-      const {error:we} = await _sb.from('vms_users').upsert(testRow,{onConflict:'code'}).select();
+      const {error:we} = await _sb.from('vms_users').upsert(testRow,{onConflict:'code'}).select('code');
       if(we) console.error('❌ Test write error:', we.message);
       else console.log('✅ Test write OK (test row left in place — soft-delete via inactive=true)');
     }catch(e){ console.error('❌ Test write exception:', e.message); }
@@ -2117,7 +2117,11 @@ async function _dbSave(tbl, record){
       if(_useRpc){
         _res=await _sb.rpc('hwms_upsert',{p_username:_rpcAuth.u,p_token:_rpcAuth.t,p_table:_sbTbl,p_row:row});
       } else {
-        _res=await _sb.from(_sbTbl).upsert(row, {onConflict:'code'}).select();
+        // RETURNING `code` only — bare .select() expands to RETURNING *
+        // which trips Phase 2a/2c column REVOKEs on vms_users (password,
+        // session_token) and hrms_employees (12 PII columns). Result row
+        // isn't read downstream — only _res.error matters.
+        _res=await _sb.from(_sbTbl).upsert(row, {onConflict:'code'}).select('code');
       }
       const error=_res&&_res.error;
       if(error){
