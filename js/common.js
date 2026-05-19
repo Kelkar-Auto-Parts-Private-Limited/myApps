@@ -3015,7 +3015,7 @@ var _PERM_KEYS={
     // Sidebar — 📊 Day-wise Attendance (collapsible group + 4 sub-pages)
     {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
-    {key:'page.empAtt',label:'👤 Employee Attendance & Late Mark',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'page.empAtt',label:'👤 Emp Attendance & Late Mark',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant','Department Head':'dept'}},
     {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant','Department Head':'dept'}},
     // scopeOptions exposes a per-role scope dropdown beside the

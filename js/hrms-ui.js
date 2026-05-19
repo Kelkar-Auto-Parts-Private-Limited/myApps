@@ -259,6 +259,15 @@ async function _hrmsLaunch(){
   // id via saveHrmsEmp, and plant renames cascade via _hrmsCascadePlantRename.
   try{ if(typeof _hrmsBackfillLocationIds==='function') _hrmsBackfillLocationIds(); }
   catch(e){ console.warn('plant locationId backfill failed:',e.message); }
+  // Phase 5 — silent backfill for month-specific plant + department.
+  // Fire-and-forget so it doesn't block the rest of the boot. The
+  // function persists only when the user has write access (SA / HR
+  // Manager / HRMS Admin); read-only users get the fix in-memory.
+  try{
+    if(typeof _hrmsBackfillOrgSalMonthly==='function'){
+      _hrmsBackfillOrgSalMonthly().catch(function(e){ console.warn('orgSal monthly backfill error:',e&&e.message); });
+    }
+  }catch(e){ console.warn('orgSal monthly backfill setup:',e.message); }
   // Topbar avatar — photo if available, otherwise 2-letter initials.
   (function(){
     var av=document.getElementById('hrmsUserAvatar');if(!av) return;
@@ -479,7 +488,7 @@ var _hrmsPageTitles={
   pageHrmsUtilAttConv:'Utilities — Attendance Excel Converter',
   pageHrmsUtilDailyAtt:'Day-wise Attendance',
   pageHrmsPlantwiseAtt:'Plant-wise Attendance',
-  pageHrmsEmpAtt:'Employee Attendance & Late Mark',
+  pageHrmsEmpAtt:'Emp Attendance & Late Mark',
   pageHrmsUtilMonthlyHc:'Utilities — Monthly Headcount Graph Plant-wise',
   pageHrmsUtilUpdateEmp:'Utilities — Update Employee'
 };
@@ -832,29 +841,34 @@ function hrmsGo(pid,opt){
 }
 
 // ═══ NAVIGATION / SIDEBAR ════════════════════════════════════════════════
-function _hrmsToggleMasters(){
-  var g=document.getElementById('hrmsMastersGroup');
-  var a=document.getElementById('hrmsMastersArrow');
-  var open=g.style.display==='none';
-  g.style.display=open?'block':'none';
-  a.textContent=open?'▼':'▶';
+// Sidebar collapsible groups. Behaves as an accordion — opening one
+// closes every other open group so the menu stays compact on mobile.
+var _hrmsNavGroups=[
+  {g:'hrmsDasNavGroup',  a:'hrmsDasNavArrow'},
+  {g:'hrmsMastersGroup', a:'hrmsMastersArrow'},
+  {g:'hrmsUtilsGroup',   a:'hrmsUtilsArrow'}
+];
+function _hrmsCloseOtherNavGroups(keepGroupId){
+  _hrmsNavGroups.forEach(function(grp){
+    if(grp.g===keepGroupId) return;
+    var el=document.getElementById(grp.g);
+    var ar=document.getElementById(grp.a);
+    if(el) el.style.display='none';
+    if(ar) ar.textContent='▶';
+  });
 }
-function _hrmsToggleUtilities(){
-  var g=document.getElementById('hrmsUtilsGroup');
-  var a=document.getElementById('hrmsUtilsArrow');
+function _hrmsToggleNavGroup(groupId,arrowId){
+  var g=document.getElementById(groupId);
+  var a=document.getElementById(arrowId);
   if(!g||!a) return;
   var open=g.style.display==='none';
+  if(open) _hrmsCloseOtherNavGroups(groupId);
   g.style.display=open?'block':'none';
   a.textContent=open?'▼':'▶';
 }
-function _hrmsToggleDasNav(){
-  var g=document.getElementById('hrmsDasNavGroup');
-  var a=document.getElementById('hrmsDasNavArrow');
-  if(!g||!a) return;
-  var open=g.style.display==='none';
-  g.style.display=open?'block':'none';
-  a.textContent=open?'▼':'▶';
-}
+function _hrmsToggleMasters(){  _hrmsToggleNavGroup('hrmsMastersGroup','hrmsMastersArrow'); }
+function _hrmsToggleUtilities(){_hrmsToggleNavGroup('hrmsUtilsGroup','hrmsUtilsArrow'); }
+function _hrmsToggleDasNav(){   _hrmsToggleNavGroup('hrmsDasNavGroup','hrmsDasNavArrow'); }
 
 // ===== SIDEBAR TOGGLE =====
 var _hrmsSidebarHidden=false;
@@ -1874,6 +1888,108 @@ async function _hrmsSetPlantColor(plantId,color){
 // In-memory backfill: stamp locationId on every emp/period that has
 // a location name but no locationId yet. Idempotent. Reads only
 // DB.hrmsEmployees + DB.hrmsCompanies; never saves.
+// Phase 6 — month-specific plant + department lookup helpers. Read
+// order: salaryMonths[mk].x → approved period covering mk → flat emp.x.
+// Every month-scoped UI / report should use these instead of touching
+// emp.location or period.location directly, so the month-specific
+// edits from Phase 3 propagate everywhere.
+function _hrmsEmpPlantForMk(emp,mk){
+  if(!emp) return '';
+  var sm=emp.salaryMonths&&emp.salaryMonths[mk];
+  if(sm&&sm.location) return sm.location;
+  var periods=(emp.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+  for(var i=0;i<periods.length;i++){
+    var p=periods[i];
+    var pf=String(p.from||'').slice(0,7);
+    var pt=p.to?String(p.to).slice(0,7):'';
+    if(pf&&pf<=mk&&(!pt||pt>=mk)&&p.location) return p.location;
+  }
+  return emp.location||'';
+}
+function _hrmsEmpDeptForMk(emp,mk){
+  if(!emp) return '';
+  var sm=emp.salaryMonths&&emp.salaryMonths[mk];
+  // Pick the dept field based on the month's category (per-month wins).
+  var cat=String((sm&&sm.category)||'').toLowerCase();
+  if(!cat){
+    // Fall back to the period covering mk, then the flat emp category.
+    var pCat=(emp.periods||[]).find(function(p){
+      var pf=String(p&&p.from||'').slice(0,7);var pt=p&&p.to?String(p.to).slice(0,7):'';
+      return pf&&pf<=mk&&(!pt||pt>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+    });
+    cat=String((pCat&&pCat.category)||emp.category||'').toLowerCase();
+  }
+  var deptField=cat.indexOf('staff')>=0?'subDepartment':'department';
+  if(sm&&sm[deptField]) return sm[deptField];
+  var periods=(emp.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+  for(var i=0;i<periods.length;i++){
+    var p=periods[i];
+    var pf=String(p.from||'').slice(0,7);
+    var pt=p.to?String(p.to).slice(0,7):'';
+    if(pf&&pf<=mk&&(!pt||pt>=mk)&&p[deptField]) return p[deptField];
+  }
+  return emp[deptField]||'';
+}
+
+// Phase 5 — silent backfill that fills any salaryMonths[mk].location /
+// .department (or .subDepartment for Staff) that's missing, using the
+// covering approved period or the flat emp value as fallback. Runs on
+// every HRMS boot but self-deactivates: once the values are present in
+// the DB, subsequent boots see them populated and skip the row. Only
+// persists when the logged-in user has write access (SA / HR Manager /
+// HRMS Admin); for read-only users it still applies the changes
+// in-memory so the current session shows correct values.
+async function _hrmsBackfillOrgSalMonthly(){
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  if(!emps.length) return;
+  var _coveringFor=function(emp,mk){
+    var periods=(emp.periods||[]).filter(function(p){return p&&(!p._wfStatus||p._wfStatus==='approved');});
+    for(var i=0;i<periods.length;i++){
+      var p=periods[i];
+      var pf=String(p.from||'').slice(0,7);
+      var pt=p.to?String(p.to).slice(0,7):'';
+      if(pf&&pf<=mk&&(!pt||pt>=mk)) return p;
+    }
+    return null;
+  };
+  var changed=[];
+  emps.forEach(function(e){
+    if(!e||!e.salaryMonths||typeof e.salaryMonths!=='object') return;
+    var modified=false;
+    Object.keys(e.salaryMonths).forEach(function(mk){
+      var sm=e.salaryMonths[mk]; if(!sm||typeof sm!=='object') return;
+      var pCov=_coveringFor(e,mk);
+      // Determine dept field based on the month's category (preferring
+      // the period's category, then flat emp), so a Worker-converted-
+      // to-Staff history backfills the right field per month.
+      var cat=String(sm.category||(pCov&&pCov.category)||e.category||'').toLowerCase();
+      var deptField=cat.indexOf('staff')>=0?'subDepartment':'department';
+      if(!sm.location){
+        var loc=(pCov&&pCov.location)||e.location||'';
+        if(loc){ sm.location=loc; modified=true; }
+      }
+      if(!sm[deptField]){
+        var dept=(pCov&&pCov[deptField])||e[deptField]||'';
+        if(dept){ sm[deptField]=dept; modified=true; }
+      }
+    });
+    if(modified) changed.push(e);
+  });
+  if(!changed.length) return;
+  // Persist only with write access — read-only users keep the
+  // in-memory fix until someone with write access boots.
+  var roles=(typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[];
+  var canWrite=(typeof _hrmsIsSuperAdmin==='function'&&_hrmsIsSuperAdmin())
+    ||roles.indexOf('HR Manager')>=0||roles.indexOf('HRMS Admin')>=0;
+  if(!canWrite) return;
+  if(typeof _dbSaveBulk==='function'){
+    try{
+      await _dbSaveBulk('hrmsEmployees',changed,'Backfilling per-month plant/dept…');
+      console.log('🔧 OrgSal monthly backfill — wrote',changed.length,'employee(s)');
+    }catch(err){ console.warn('OrgSal monthly backfill failed:',err&&err.message); }
+  }
+}
+
 function _hrmsBackfillLocationIds(){
   var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
   var companies=(typeof DB!=='undefined'&&DB.hrmsCompanies)||[];
@@ -5096,7 +5212,7 @@ function _hrmsBuildPeriodTableForNewEmp(){
   var body=document.getElementById('hrmsEmpPeriodBody');
   if(!body) return;
   if(!_hrmsEmpPeriods||!_hrmsEmpPeriods.length){
-    body.innerHTML='<tr><td colspan="18" style="padding:18px;text-align:center;color:var(--text3);font-size:13px"><div style="margin-bottom:6px;font-weight:700;color:var(--text)">First revision will be seeded after Date of Joining is set on the Details tab.</div><div>Use the Details tab to enter DOJ, then return here to fill in plant / employment / salary.</div></td></tr>';
+    body.innerHTML='<tr><td colspan="19" style="padding:18px;text-align:center;color:var(--text3);font-size:13px"><div style="margin-bottom:6px;font-weight:700;color:var(--text)">First revision will be seeded after Date of Joining is set on the Details tab.</div><div>Use the Details tab to enter DOJ, then return here to fill in plant / employment / salary.</div></td></tr>';
     return;
   }
   // Reuse the option-builders MonthTable uses so dropdowns look identical.
@@ -5627,13 +5743,46 @@ function _hrmsMonthTableEnsurePData(emp,monthKeys){
   }).catch(function(){_hrmsMonthTablePFetching=false;});
 }
 
+// Direct save for month-specific Plant + Department. Bypasses the ECR /
+// approval flow — these are month-scoped facts the user can correct
+// without a round-trip. Unlocked months only. Permission: action.editEmployee
+// (existing employee-edit grant). Writes to emp.salaryMonths[mk] then
+// _dbSave('hrmsEmployees', emp) and re-renders the table.
+async function _hrmsMonthSetOrgField(empId,mk,field,value){
+  if(typeof _hrmsHasAccess==='function'&&!_hrmsHasAccess('action.editEmployee')){
+    notify('Access denied — action.editEmployee required',true); return;
+  }
+  if(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk)){
+    notify('⚠ '+(_hrmsMonthLabel?_hrmsMonthLabel(mk):mk)+' is locked — unlock to change.',true); return;
+  }
+  var emp=byId(DB.hrmsEmployees||[],empId);
+  if(!emp){ notify('Employee not found',true); return; }
+  if(!emp.salaryMonths||typeof emp.salaryMonths!=='object') emp.salaryMonths={};
+  if(!emp.salaryMonths[mk]) emp.salaryMonths[mk]={};
+  emp.salaryMonths[mk][field]=value;
+  // Mirror master FK ids so plant-rename cascades and downstream
+  // consumers that prefer IDs over names keep working.
+  if(field==='location'){
+    var pRec=(DB.hrmsCompanies||[]).find(function(x){return x&&x.name===value;});
+    emp.salaryMonths[mk].locationId=pRec?pRec.id:'';
+  } else if(field==='department'){
+    var plantHere=emp.salaryMonths[mk].location||emp.location||'';
+    var dRec=(DB.hrmsDepartments||[]).find(function(x){return x&&x.name===value&&(!x.plant||x.plant===plantHere);});
+    emp.salaryMonths[mk].departmentId=dRec?dRec.id:'';
+  }
+  var ok=await _dbSave('hrmsEmployees',emp);
+  if(!ok){ notify('⚠ Save failed',true); return; }
+  notify('✅ '+(emp.empCode||'')+' · '+(_hrmsMonthLabel?_hrmsMonthLabel(mk):mk)+' · '+field+' updated');
+  if(typeof _hrmsBuildMonthTable==='function') _hrmsBuildMonthTable();
+}
+
 function _hrmsBuildMonthTable(){
   var body=document.getElementById('hrmsEmpPeriodBody');
   if(!body) return;
   var empId=document.getElementById('hrmsEmpId')?.value;
   var emp=empId?byId(DB.hrmsEmployees||[],empId):null;
   if(!emp){
-    body.innerHTML='<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Save the employee first, then assign monthly Org &amp; Salary data here.</td></tr>';
+    body.innerHTML='<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">Save the employee first, then assign monthly Org &amp; Salary data here.</td></tr>';
     return;
   }
   if(!emp.salaryMonths||typeof emp.salaryMonths!=='object') emp.salaryMonths={};
@@ -5657,7 +5806,7 @@ function _hrmsBuildMonthTable(){
   // earlier than DOJ shows just the month label with empty cells.
   var _dojMk=emp.dateOfJoining?String(emp.dateOfJoining).slice(0,7):'';
   if(!monthKeys.length){
-    body.innerHTML='<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">No monthly snapshots yet — loading from Att &amp; Salary index…</td></tr>';
+    body.innerHTML='<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">No monthly snapshots yet — loading from Att &amp; Salary index…</td></tr>';
     return;
   }
   // Lazy-fetch attendance + saved-month snapshots for any visible month
@@ -5691,7 +5840,7 @@ function _hrmsBuildMonthTable(){
     // overwritten) can also leave pre-DOJ snapshots in salaryMonths.
     if(_dojMk&&mk<_dojMk){
       var _bl='<td style="padding:4px 3px;text-align:center;font-weight:800;color:var(--text3)">'+_hrmsMonthLabel(mk)+'</td>';
-      for(var _bj=0;_bj<16;_bj++) _bl+='<td style="padding:4px 3px">&nbsp;</td>';
+      for(var _bj=0;_bj<17;_bj++) _bl+='<td style="padding:4px 3px">&nbsp;</td>';
       return '<tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;border-left:5px solid #e2e8f0">'+_bl+'</tr>';
     }
     var s=emp.salaryMonths[mk]||{};
@@ -5805,12 +5954,29 @@ function _hrmsBuildMonthTable(){
         ? '<button onclick="_hrmsOpenInitialDataPopup(\''+startArgE+'\','+(locked?'true':'false')+')" title="'+_dataNote+'" style="font-size:10px;padding:2px 6px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:3px;cursor:pointer">📝 Data</button>'+initCntChipE
         : '<span style="color:var(--text3)">—</span>';
       cells+='<td style="padding:4px 3px;text-align:center;white-space:nowrap" title="'+_dataNote+'">'+dataInnerE+'</td>';
-      cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'location\',this.value)" style="font-size:13px;font-weight:700;padding:2px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;width:100%;background:'+(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(v.location):'#ffffff')+';color:#1e293b" title="'+_hrmsEsc(v.location||'')+'">'+opts.plant(v.location||'')+'</select></td>';
+      // Plant — direct save (Phase 3/4). Bypasses the ECR / approval
+      // diff. Same select shape as the read-mode unlocked cell so the
+      // page-level Save button isn't required for plant changes.
+      cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthSetOrgField(\''+emp.id+'\',\''+mk+'\',\'location\',this.value)" style="font-size:13px;font-weight:700;padding:2px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;width:100%;background:'+(typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(v.location):'#ffffff')+';color:#1e293b" title="'+_hrmsEsc(v.location||'')+'">'+opts.plant(v.location||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'employmentType\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsEmpTypes',v.employmentType||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'category\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsCategories',v.category||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'teamName\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.team(v.teamName||'',v.employmentType||'')+'</select></td>';
-      // Department column removed — set Department from the employee
-      // table itself (Department cell on the main Employees list).
+      // Department — direct save (Phase 3). Same select shape as the
+      // read-mode unlocked cell; writes to salaryMonths[mk][deptField]
+      // immediately, no approval round-trip.
+      (function(){
+        var _dF=deptField, _dV=deptVal;
+        if(!_dV){
+          var _pCov=(emp.periods||[]).find(function(p){
+            var pFrom=String(p.from||'').slice(0,7);
+            var pTo=p.to?String(p.to).slice(0,7):'';
+            return pFrom&&pFrom<=mk&&(!pTo||pTo>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+          });
+          _dV=(_pCov&&_pCov[_dF])||emp[_dF]||'';
+        }
+        var _plantHere=v.location||emp.location||'';
+        cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthSetOrgField(\''+emp.id+'\',\''+mk+'\',\''+_dF+'\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel(deptTbl,_dV,_plantHere)+'</select></td>';
+      })();
       // Role — Worker-only field; disabled for Staff and shown blank.
       var disRoleM=isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':'';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'roll\',this.value)" '+disRoleM+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(isStaff?'<option value="">--</option>':opts.roll(v.roll||''))+'</select></td>';
@@ -5842,8 +6008,8 @@ function _hrmsBuildMonthTable(){
       // operator doesn't see "On Leave" or duplicated org/sal values
       // copied from the proposed period. 16 empty cells to match column
       // count after Month / P / Gross (was 15, +1 for the Tag column,
-      // then −1 for the removed Department column).
-      for(var _bi=0;_bi<15;_bi++) cells+='<td style="padding:4px 3px">&nbsp;</td>';
+      // then +1 for the re-added Department column).
+      for(var _bi=0;_bi<16;_bi++) cells+='<td style="padding:4px 3px">&nbsp;</td>';
     } else {
       // Read-mode cells with pending overlay.
       // Status + Rejoinee Date + Data sit before Plant — the operator's
@@ -5878,13 +6044,53 @@ function _hrmsBuildMonthTable(){
         ? '<button onclick="_hrmsOpenInitialDataPopup(\''+startArg+'\','+(locked?'true':'false')+')" title="'+_dataNote+'" style="font-size:10px;padding:2px 6px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:3px;cursor:pointer">📝 Data</button>'+initCntChip
         : '<span style="color:var(--text3)">—</span>';
       cells+='<td style="padding:4px 3px;text-align:center;white-space:nowrap" title="'+_dataNote+'">'+dataInner+'</td>';
-      var plantClr=typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(v.location):'#ffffff';
-      cells+='<td style="padding:4px 3px;background:'+plantClr+';color:#1e293b;font-weight:700;text-align:center" title="'+_hrmsEsc(v.location||'')+'">'+_diff('location',_hrmsEsc(_plantShort(v.location)||'—'))+'</td>';
+      // Plant — inline editable on unlocked rows (Phase 3). Direct save
+      // via _hrmsMonthSetOrgField; no approval. Locked rows render as
+      // plain text with the plant color background.
+      (function(){
+        var _curLoc=v.location||'';
+        if(!_curLoc){
+          var _pC=(emp.periods||[]).find(function(p){
+            var pf=String(p.from||'').slice(0,7);var pt=p.to?String(p.to).slice(0,7):'';
+            return pf&&pf<=mk&&(!pt||pt>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+          });
+          _curLoc=(_pC&&_pC.location)||emp.location||'';
+        }
+        var _pClr=typeof _hrmsGetPlantColor==='function'?_hrmsGetPlantColor(_curLoc):'#ffffff';
+        if(locked){
+          cells+='<td style="padding:4px 3px;background:'+_pClr+';color:#1e293b;font-weight:700;text-align:center" title="'+_hrmsEsc(_curLoc)+'">'+_diff('location',_hrmsEsc(_plantShort(_curLoc)||'—'))+'</td>';
+        } else {
+          cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthSetOrgField(\''+emp.id+'\',\''+mk+'\',\'location\',this.value)" title="'+_hrmsEsc(_curLoc)+'" style="font-size:13px;font-weight:700;padding:2px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;width:100%;background:'+_pClr+';color:#1e293b">'+opts.plant(_curLoc)+'</select></td>';
+        }
+      })();
       cells+='<td style="padding:4px 3px">'+_diff('employmentType',_hrmsEsc(v.employmentType||'—'))+'</td>';
       cells+='<td style="padding:4px 3px">'+_diff('category',_hrmsEsc(v.category||'—'))+'</td>';
       cells+='<td style="padding:4px 3px">'+_diff('teamName',_hrmsEsc(v.teamName||'—'))+'</td>';
-      // Department column removed from the Org & Sal Revisions table —
-      // set Department from the main Employees list instead.
+      // Department — inline editable on unlocked rows (Phase 3). Direct
+      // save via _hrmsMonthSetOrgField; no approval. Source for current
+      // value: salaryMonths[mk].(sub)department → covering period → flat.
+      // Staff uses subDepartment + hrmsSubDepartments; Worker uses
+      // department + hrmsDepartments filtered by the row's plant.
+      (function(){
+        var _dF=deptField, _dV=deptVal;
+        if(!_dV){
+          var _pCov=(emp.periods||[]).find(function(p){
+            var pFrom=String(p.from||'').slice(0,7);
+            var pTo=p.to?String(p.to).slice(0,7):'';
+            return pFrom&&pFrom<=mk&&(!pTo||pTo>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+          });
+          _dV=(_pCov&&_pCov[_dF])||emp[_dF]||'';
+        }
+        if(locked){
+          cells+='<td style="padding:4px 3px;font-size:12px">'+_diff(_dF,_hrmsEsc(_dV||'—'))+'</td>';
+        } else {
+          var _curLocForDept=v.location||((emp.periods||[]).find(function(p){
+            var pf=String(p.from||'').slice(0,7);var pt=p.to?String(p.to).slice(0,7):'';
+            return pf&&pf<=mk&&(!pt||pt>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+          })||{}).location||emp.location||'';
+          cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthSetOrgField(\''+emp.id+'\',\''+mk+'\',\''+_dF+'\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel(deptTbl,_dV,_curLocForDept)+'</select></td>';
+        }
+      })();
       cells+='<td style="padding:4px 3px;font-family:var(--mono)">'+_diff('roll',_hrmsEsc(v.roll||'—'))+'</td>';
       // Salary visibility — single bucket-aware gate covers sal/day,
       // sal/mon and Sp Allow together (matches the edit-row rule above).
@@ -7377,8 +7583,14 @@ async function _hrmsDetailsSave(){
       // orgS would falsely report a change whenever a pending /
       // proposed value was seeded into the draft (because those
       // values, by definition, differ from what's saved).
+      // Phase 4 — Plant + Department are month-scoped direct-edit
+      // fields and bypass approval entirely (see _hrmsMonthSetOrgField).
+      // Exclude them from the diff so a change here NEVER produces a
+      // proposed period / pending entry.
+      var _approvalExcluded={location:1,locationId:1,department:1,departmentId:1,subDepartment:1};
       var base=window._hrmsMonthEditDraftBase||{};
       Object.keys(_hrmsMonthEditDraft).forEach(function(k){
+        if(_approvalExcluded[k]) return;
         var nv=_hrmsMonthEditDraft[k];
         var bv=(base[k]==null?'':base[k]);
         if(String(nv)!==String(bv)){
@@ -7405,8 +7617,12 @@ async function _hrmsDetailsSave(){
     });
     if(orgMatchingP){
       // Mirror the FULL draft onto the matching proposed period so the
-      // ECR card stays in sync with the per-month pending.
+      // ECR card stays in sync with the per-month pending. Phase 4 —
+      // Plant + Department are excluded; those are direct-save fields
+      // and their authoritative value lives on salaryMonths[mk], not
+      // on the proposed period.
       Object.keys(_hrmsMonthEditDraft).forEach(function(k){
+        if(_approvalExcluded[k]) return;
         orgMatchingP[k]=_hrmsMonthEditDraft[k];
       });
       orgMatchingP.submittedAt=new Date().toISOString();
@@ -7415,9 +7631,13 @@ async function _hrmsDetailsSave(){
       // No proposed period for this month yet — synthesise one so the
       // ECR Change Requests page surfaces the change and SA can act
       // on it. The new period inherits all draft values; from-month
-      // = the row's mk, to=null (open until approval clips).
+      // = the row's mk, to=null (open until approval clips). Plant +
+      // Department excluded per Phase 4.
       var newP={};
-      Object.keys(_hrmsMonthEditDraft).forEach(function(k){newP[k]=_hrmsMonthEditDraft[k];});
+      Object.keys(_hrmsMonthEditDraft).forEach(function(k){
+        if(_approvalExcluded[k]) return;
+        newP[k]=_hrmsMonthEditDraft[k];
+      });
       newP.from=orgMk;
       newP.to=null;
       newP._wfStatus='proposed';
@@ -7492,6 +7712,16 @@ function _hrmsUpdateDetailsToolbar(){
 // discarding; on confirm (or when clean), revert inputs to the
 // snapshot and flip back to view mode.
 function _hrmsDetailsCancel(){
+  // Add Employee context — the hidden #hrmsEmpId is empty when the
+  // modal was opened for a brand-new emp. Cancel here means "throw
+  // away this draft and close the popup" — no confirm prompt, no
+  // edit-mode flip, just close. There's nothing to preserve.
+  var _idEl=document.getElementById('hrmsEmpId');
+  var _isNew=!_idEl||!_idEl.value;
+  if(_isNew){
+    if(typeof cm==='function') cm('mHrmsEmpEdit');
+    return;
+  }
   if(_hrmsDetailsDirty){
     if(!confirm('Discard unsaved changes and exit edit mode?')) return;
     if(typeof _hrmsDetailsReset==='function'){
@@ -8851,7 +9081,7 @@ function openHrmsEmpModal(id){
     +'<div id="hrmsEmpTabPanel_orgsal" style="display:none">'
     +'<div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;padding-bottom:3px;border-bottom:2px solid var(--accent-light);display:flex;align-items:center;justify-content:space-between"><span>Organization &amp; Salary (Revisions)</span><div style="display:flex;gap:6px;text-transform:none;letter-spacing:0"><span style="font-size:10px;font-weight:600;color:var(--text3)">Edits per-month → approval queue</span><button type="button" id="hrmsRejoinBtn" onclick="_hrmsRejoinEmployee()" style="display:none;font-size:10px;padding:3px 12px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer">🔄 Rejoin</button></div></div>'
     +'<div id="hrmsEmpEditingHint" style="display:none;font-size:11px;font-weight:800;color:#dc2626;text-align:right;margin:-4px 0 4px;letter-spacing:.2px">Editing — click <b>Save</b> at the top</div>'
-    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9;color:#000"><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Month</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:right">P</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px;text-align:right">Gross</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Status</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:56px;text-align:center" title="Activity tag — AC: active · IA: inactive (absent the whole month or after a PIA mark) · PIA: month has a manual partial-inactive mark. Only Contract / Piece Rate employees carry a tag.">Tag</th><th style="padding:6px 4px;font-size:11px;font-weight:900;color:#000;width:78px;min-width:78px;max-width:78px;text-align:center;white-space:normal;line-height:1.15" title="For Rejoinee rows only — sets the start of the 7-day Initial IN/OUT window">Rejoinee<br>Date</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:70px;text-align:center" title="Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)">Data</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:55px;text-align:center">Plant</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Emp Type</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Category</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Team</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px">Role</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:88px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:center">ESI</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:100px">Remarks</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
+    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f1f5f9;color:#000"><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Month</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:right">P</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px;text-align:right">Gross</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:78px;text-align:center">Status</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:56px;text-align:center" title="Activity tag — AC: active · IA: inactive (absent the whole month or after a PIA mark) · PIA: month has a manual partial-inactive mark. Only Contract / Piece Rate employees carry a tag.">Tag</th><th style="padding:6px 4px;font-size:11px;font-weight:900;color:#000;width:78px;min-width:78px;max-width:78px;text-align:center;white-space:normal;line-height:1.15" title="For Rejoinee rows only — sets the start of the 7-day Initial IN/OUT window">Rejoinee<br>Date</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:70px;text-align:center" title="Enter initial IN/OUT data for this employee before punching registration (Upto max 1week from date of joining)">Data</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:55px;text-align:center">Plant</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Emp Type</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Category</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px">Team</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:90px">Department</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px">Role</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sal/Day</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:88px;text-align:right">Sal/Mon</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:68px;text-align:right">Sp.Allow</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:50px;text-align:center">ESI</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:100px">Remarks</th><th style="padding:6px 4px;font-size:12px;font-weight:900;color:#000;min-width:80px"></th></tr></thead><tbody id="hrmsEmpPeriodBody"></tbody></table></div>'
     +'</div>'
     +'</div>';
   // Open as modal popup
@@ -10061,8 +10291,17 @@ async function _hrmsAttFetchIndex(){
     if(attRes.error){console.error('Att index fetch error:',attRes.error.message);return;}
     if(altRes.error){console.warn('Alt index fetch error:',altRes.error.message);}
     if(metaRes.error){console.warn('Month-data meta fetch error:',metaRes.error.message);}
-    var attRows=attRes.data||[];
-    var altRows=altRes.data||[];
+    // Apply the persistent ESSL emp-code exclusion list per-row using
+    // each row's own month_key — addition takes effect from the month
+    // of addition and history is preserved.
+    var _exclRow=function(r){
+      var c=String(r&&r.emp_code||'').trim().toUpperCase(); if(!c) return false;
+      var mk=String(r&&r.month_key||'');
+      var set=(typeof _hrmsEsslExclSetForMonth==='function')?_hrmsEsslExclSetForMonth(mk):{};
+      return !!set[c];
+    };
+    var attRows=(attRes.data||[]).filter(function(r){return !_exclRow(r);});
+    var altRows=(altRes.data||[]).filter(function(r){return !_exclRow(r);});
     var metaRows=metaRes.data||[];
     // Saved headcount per locked month, keyed by month_key.
     var savedHeadcount={};
@@ -10202,8 +10441,18 @@ async function _hrmsAttFetchMonth(monthKey){
     hideSpinner();
     if(attRes.error) console.error('Att fetch error:',attRes.error.message);
     if(altRes.error) console.error('Alt fetch error:',altRes.error.message);
-    _hrmsAttCache[monthKey]=(attRes.data||[]).map(function(row){return _fromRow('hrmsAttendance',row);}).filter(Boolean);
-    _hrmsAltCache[monthKey]=(altRes.data||[]).map(function(row){return _fromRow('hrmsAlterations',row);}).filter(Boolean);
+    // Apply the persistent ESSL emp-code exclusion list to historical
+    // reads. Month-effective semantics: a code is filtered only when
+    // its effectiveFrom <= monthKey, so an addition takes effect from
+    // the month of addition and pre-existing history stays visible.
+    var _esslExcl=(typeof _hrmsEsslExclSetForMonth==='function')?_hrmsEsslExclSetForMonth(monthKey):{};
+    var _exclFilter=function(rec){
+      if(!rec) return false;
+      var c=String(rec.empCode||'').trim().toUpperCase();
+      return !c||!_esslExcl[c];
+    };
+    _hrmsAttCache[monthKey]=(attRes.data||[]).map(function(row){return _fromRow('hrmsAttendance',row);}).filter(_exclFilter);
+    _hrmsAltCache[monthKey]=(altRes.data||[]).map(function(row){return _fromRow('hrmsAlterations',row);}).filter(_exclFilter);
     // Self-heal: every approved alteration request stored under
     // emp.extra.altRequests for this month should have a matching
     // synthetic row in hrms_alterations. The original approval flow
@@ -11338,10 +11587,15 @@ function _hrmsCollectUnknownForMonth(mk){
     var k=String(e&&e.empCode||'').trim().toUpperCase();
     if(k) empMap[k]=true;
   });
+  // Persistent ESSL exclusion list — month-effective. A code is hidden
+  // from the Unknown list only for months >= its effectiveFrom, so
+  // history (before the user added the code) still shows it as unknown.
+  var esslExcl=(typeof _hrmsEsslExclSetForMonth==='function')?_hrmsEsslExclSetForMonth(mk):{};
   var scan=function(rec){
     var ec=String(rec.empCode||'').trim();
     if(!ec) return;
     if(empMap[ec.toUpperCase()]) return;
+    if(esslExcl[ec.toUpperCase()]) return;
     var days=rec.days||{};
     var dayCount=0,hasIn=false;
     for(var dk in days){
@@ -11622,17 +11876,25 @@ async function _hrmsRenderUnknownTab(yr,mo){
   h+='<th style="'+_th+'">Emp Code</th>';
   h+='<th style="'+_th+'">Name (from file)</th>';
   h+='<th style="'+_th+';width:120px;text-align:right">Days w/ Punch</th>';
-  h+='<th style="'+_th+';width:90px;text-align:center">Action</th>';
+  h+='<th style="'+_th+';width:170px;text-align:center">Action</th>';
   h+='</tr></thead><tbody>';
+  var canIgnore=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('settings.esslatt'):true;
   codes.forEach(function(ec,i){
     var info=u[ec]||{};
     var ecEsc=ec.replace(/'/g,"\\'");
     var codeCell=canAdd
       ?'<a href="javascript:void(0)" onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="font-family:var(--mono);font-weight:800;color:var(--accent);text-decoration:underline" title="Click to add a new employee with this code">'+ec+'</a>'
       :'<span style="font-family:var(--mono);font-weight:800;color:var(--text2)">'+ec+'</span>';
-    var actionBtn=canAdd
+    var addBtn=canAdd
       ?'<button onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dcfce7;border:1px solid #86efac;color:#15803d;border-radius:4px;cursor:pointer">+ Add</button>'
-      :'<span style="color:var(--text3);font-size:11px">—</span>';
+      :'';
+    // 🚫 Ignore — adds the code to the persistent ESSL exclusion list so
+    // future imports skip it and historical caches hide it. Disabled
+    // (greyed) for users without settings.esslatt access.
+    var ignoreBtn=canIgnore
+      ?'<button onclick="_hrmsEsslExclAddFromUnknown(\''+ecEsc+'\')" title="Add to ESSL exclusion list — future imports skip this code, and historical attendance is hidden too" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;border-radius:4px;cursor:pointer;margin-left:4px">🚫 Ignore</button>'
+      :'';
+    var actionBtn=(addBtn||ignoreBtn)?(addBtn+ignoreBtn):'<span style="color:var(--text3);font-size:11px">—</span>';
     h+='<tr>';
     h+='<td style="'+_td+';text-align:center;color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
     h+='<td style="'+_td+'">'+codeCell+'</td>';
@@ -17732,20 +17994,20 @@ function _hrmsDasTwRender(){
     var wStyle='';
     if(c.width) wStyle=';width:'+c.width+'px;min-width:'+c.width+'px;max-width:'+c.width+'px';
     else if(c.minWidth) wStyle=';min-width:'+c.minWidth+'px';
-    h+='<th class="hrms-tw-col-'+(c.key||'idx')+'" style="'+_twThSt+';text-align:'+c.align+';white-space:nowrap;vertical-align:middle'+wStyle+'">'
+    h+='<th class="hrms-tw-col-'+(c.key||'idx')+'" style="'+_twThSt+';text-align:'+c.align+';white-space:normal;word-break:break-word;line-height:1.2;vertical-align:middle'+wStyle+'">'
       +labelHtml
       +'</th>';
   });
   // In Time / Out Time are their own columns now, placed right before
   // the P/A · 45-day bar so the bar lines up with the rest of the row
   // without an embedded two-line layout.
-  h+='<th class="hrms-tw-col-inTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">In Time</th>';
-  h+='<th class="hrms-tw-col-outTime" style="'+_twThSt+';text-align:center;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">Out Time</th>';
+  h+='<th class="hrms-tw-col-inTime" style="'+_twThSt+';text-align:center;white-space:normal;word-break:break-word;line-height:1.2;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">In Time</th>';
+  h+='<th class="hrms-tw-col-outTime" style="'+_twThSt+';text-align:center;white-space:normal;word-break:break-word;line-height:1.2;border-left:1px solid #e2e8f0;vertical-align:middle;width:70px;min-width:70px">Out Time</th>';
   // P/A pill rendered inline with the 45-day P/A bar — single visual row.
-  h+='<th title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:nowrap;border-left:2px solid #e2e8f0;vertical-align:middle;width:360px;min-width:360px;max-width:360px">'
+  h+='<th title="P/A for the selected day · 45-day P/A history (oldest on the left, selected day outlined at the end)" style="'+_twThSt+';text-align:left;font-size:11px;white-space:normal;word-break:break-word;line-height:1.2;border-left:2px solid #e2e8f0;vertical-align:middle;width:360px;min-width:360px;max-width:360px">'
     +'P/A · 45-day'
     +'</th>';
-  h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="'+_twThSt+';text-align:center;font-size:11px;white-space:nowrap;border-left:1px solid #e2e8f0;vertical-align:middle">PIA</th>';
+  h+='<th title="PIA — partially inactive for the month (manual mark). IA — inactive (auto: no attendance this month). Only Contract / Piece Rate emps carry these tags." style="'+_twThSt+';text-align:center;font-size:11px;white-space:normal;word-break:break-word;line-height:1.2;border-left:1px solid #e2e8f0;vertical-align:middle">PIA</th>';
   h+='</tr></thead><tbody>';
   // Sort strictly by the active rule (default = plantwise → empCode);
   // P/A status does NOT split the rows. Absent rows are visually
@@ -24815,6 +25077,161 @@ function _hrmsB642Blob(b64,mime){
   return new Blob([bytes],{type:mime||'application/octet-stream'});
 }
 
+// ─── ESSL Import — persistent emp-code exclusion list ──────────────────────
+// Stored in appSettings under key 'esslExclusions' as an array of
+// {code, effectiveFrom} entries. Each entry's effectiveFrom is a
+// 'YYYY-MM' month key — the code is filtered ONLY for months >= that
+// value (i.e., addition takes effect from the month the user added it;
+// past months keep showing the code's data). Plain-string entries from
+// pre-V42 data are coerced to effectiveFrom='0000-01' (always-exclude).
+function _hrmsEsslGetExclEntries(){
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='esslExclusions';});
+  var raw=(rec&&rec.data&&Array.isArray(rec.data.codes))?rec.data.codes:[];
+  return raw.map(function(c){
+    if(typeof c==='string') return {code:String(c||'').trim().toUpperCase(), effectiveFrom:'0000-01'};
+    return {code:String((c&&c.code)||'').trim().toUpperCase(), effectiveFrom:String((c&&c.effectiveFrom)||'0000-01')};
+  }).filter(function(e){return !!e.code;});
+}
+// Returns a {code:true} map of codes that are excluded for the given
+// month key (effectiveFrom <= mk). Used by every filter site.
+function _hrmsEsslExclSetForMonth(mk){
+  var s={}, key=mk||'9999-99';
+  _hrmsEsslGetExclEntries().forEach(function(e){
+    if(e.effectiveFrom<=key) s[e.code]=true;
+  });
+  return s;
+}
+// Ever-excluded set (no month filter). Used where month context isn't
+// available or for "is this code in the list at all" lookups.
+function _hrmsEsslExclSet(){ return _hrmsEsslExclSetForMonth('9999-99'); }
+// Legacy alias — returns just the flat code list. Kept so any older
+// call sites that only need the codes (e.g., dedupe checks) keep
+// working with the new shape.
+function _hrmsEsslGetExclList(){
+  return _hrmsEsslGetExclEntries().map(function(e){return e.code;});
+}
+async function _hrmsEsslSaveExclEntries(entries){
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='esslExclusions';});
+  if(!rec){
+    rec={id:'esslExclusions',key:'esslExclusions',data:{codes:entries}};
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
+  } else {
+    rec.data=rec.data||{};
+    rec.data.codes=entries;
+  }
+  return await _dbSave('appSettings',rec);
+}
+// Returns the month key used as "effective from" for a new addition —
+// the user's current viewing month, falling back to the calendar
+// current month.
+function _hrmsEsslCurEffectiveFrom(){
+  if(window._hrmsAttSelectedMonth) return String(_hrmsAttSelectedMonth);
+  if(window._hrmsMonth) return String(_hrmsMonth);
+  if(typeof _hrmsCurMonth==='function'){
+    try{ return _hrmsCurMonth(); }catch(_){}
+  }
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function _hrmsEsslExclRender(){
+  var el=document.getElementById('hrmsEsslExclList');if(!el) return;
+  var entries=_hrmsEsslGetExclEntries().sort(function(a,b){return a.code.localeCompare(b.code);});
+  if(!entries.length){
+    el.innerHTML='<span style="font-size:11px;color:#92400e;font-style:italic">No codes excluded yet.</span>';
+    return;
+  }
+  var _esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,"\\'");};
+  var _mon=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _lbl=function(mk){
+    if(!mk||mk==='0000-01') return 'all months';
+    var p=String(mk).split('-');
+    return 'from '+(_mon[+p[1]]||p[1])+' '+p[0];
+  };
+  el.innerHTML=entries.map(function(e){
+    return '<span title="Effective '+_esc(_lbl(e.effectiveFrom))+'" style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:1.5px solid #f59e0b;color:#92400e;font-family:var(--mono);font-weight:800;font-size:11px;padding:3px 4px 3px 9px;border-radius:12px">'
+      +_esc(e.code)
+      +'<span style="font-family:var(--sans);font-weight:600;font-size:10px;color:#a16207;margin-left:4px">'+_esc(_lbl(e.effectiveFrom))+'</span>'
+      +'<button onclick="_hrmsEsslExclRemove(\''+_esc(e.code)+'\')" title="Remove" style="background:none;border:none;color:#dc2626;font-weight:900;cursor:pointer;font-size:14px;padding:0 4px;line-height:1">×</button>'
+      +'</span>';
+  }).join('');
+}
+// Drops matching rows from any loaded att/alt caches but ONLY for
+// months >= effectiveFrom (so addition doesn't retro-wipe history).
+function _hrmsEsslExclDropFromCaches(code, effectiveFrom){
+  code=String(code||'').toUpperCase();
+  effectiveFrom=String(effectiveFrom||'0000-01');
+  ['_hrmsAttCache','_hrmsAltCache'].forEach(function(cn){
+    var cache=window[cn]; if(!cache) return;
+    Object.keys(cache).forEach(function(mk){
+      if(mk<effectiveFrom) return;
+      cache[mk]=(cache[mk]||[]).filter(function(r){return String(r.empCode||'').toUpperCase()!==code;});
+    });
+  });
+}
+// Re-render the Unknown Emp Codes tab + badge after the exclusion list
+// changes — the user expects the just-ignored code to vanish from the
+// list immediately.
+function _hrmsEsslExclRefreshUnknown(){
+  if(typeof _hrmsRenderUnknownTab==='function'&&window._hrmsAttSelectedMonth){
+    var mp=String(_hrmsAttSelectedMonth).split('-');
+    try{ _hrmsRenderUnknownTab(+mp[0],+mp[1]); }catch(_){}
+  }
+  if(typeof _hrmsUpdateUnknownBadge==='function') try{ _hrmsUpdateUnknownBadge(); }catch(_){}
+  if(typeof _onRefreshViews==='function') try{ _onRefreshViews(); }catch(_){}
+}
+
+async function _hrmsEsslExclAdd(){
+  if(!_hrmsHasAccess('settings.esslatt')){notify('Access denied',true);return;}
+  var inp=document.getElementById('hrmsEsslExclInput');if(!inp) return;
+  var code=String(inp.value||'').trim().toUpperCase();
+  if(!code){notify('⚠ Enter an emp code',true);inp.focus();return;}
+  var entries=_hrmsEsslGetExclEntries();
+  if(entries.some(function(e){return e.code===code;})){notify('Already in the list',true);inp.value='';return;}
+  var eff=_hrmsEsslCurEffectiveFrom();
+  entries.push({code:code, effectiveFrom:eff});
+  var ok=await _hrmsEsslSaveExclEntries(entries);
+  if(ok){
+    _hrmsEsslExclDropFromCaches(code, eff);
+    notify('✅ '+code+' excluded from '+eff+' onwards');
+    inp.value=''; inp.focus();
+    _hrmsEsslExclRender();
+    _hrmsEsslExclRefreshUnknown();
+  } else { notify('⚠ Save failed',true); }
+}
+async function _hrmsEsslExclRemove(code){
+  if(!_hrmsHasAccess('settings.esslatt')){notify('Access denied',true);return;}
+  if(!code) return;
+  code=String(code).toUpperCase();
+  if(!confirm('Remove '+code+' from the ESSL exclusion list?')) return;
+  var entries=_hrmsEsslGetExclEntries().filter(function(e){return e.code!==code;});
+  var ok=await _hrmsEsslSaveExclEntries(entries);
+  if(ok){
+    notify('✅ '+code+' removed');
+    _hrmsEsslExclRender();
+    _hrmsEsslExclRefreshUnknown();
+  } else { notify('⚠ Save failed',true); }
+}
+// Add an emp code straight from the Unknown Emp Codes list. The
+// effective-from month is the currently-viewed month so the addition
+// applies only to that month and later — history stays intact.
+async function _hrmsEsslExclAddFromUnknown(empCode){
+  if(!_hrmsHasAccess('settings.esslatt')){notify('Access denied',true);return;}
+  var code=String(empCode||'').trim().toUpperCase();
+  if(!code) return;
+  var eff=_hrmsEsslCurEffectiveFrom();
+  if(!confirm('Ignore '+code+' from '+eff+' onwards?\n\nHistory before '+eff+' is preserved. Reversible from Settings → ESSL Data → Excluded Emp Codes.')) return;
+  var entries=_hrmsEsslGetExclEntries();
+  if(!entries.some(function(e){return e.code===code;})){
+    entries.push({code:code, effectiveFrom:eff});
+    var ok=await _hrmsEsslSaveExclEntries(entries);
+    if(!ok){ notify('⚠ Save failed',true); return; }
+  }
+  _hrmsEsslExclDropFromCaches(code, eff);
+  notify('✅ '+code+' excluded from '+eff+' onwards');
+  _hrmsEsslExclRefreshUnknown();
+}
+
 async function _hrmsImportAttendance(inputEl){
   if(!_hrmsHasAccess('action.importEssl')){notify('Access denied',true);return;}
   var file=inputEl.files[0];if(!file)return;inputEl.value='';
@@ -24957,6 +25374,13 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
         // the file contains vs. how the parser interpreted it. If the user
         // reports a wrong-day mapping, this is the first thing to check.
         var _diagSample=[];
+        // Persistent emp-code exclusion list (Settings → ESSL Data →
+        // Excluded Emp Codes). Month-effective: a row is dropped only
+        // when its monthKey >= the code's effectiveFrom. So importing
+        // older months continues to ingest the now-excluded code's
+        // historical data, while imports for the effective month and
+        // later silently skip it.
+        var _excludedSeen={};
         for(var i=0;i<rows.length;i++){
           var r=rows[i];
           var empCode=(_getRow(r,['Emp Code','Employee Code','EmpCode','Code'])||'').toString().trim();
@@ -24967,8 +25391,15 @@ async function _hrmsImportAttendanceFromRows(rows,_fileName,_fileSize,_fileBuf){
           if(!attDate){badRows.push('Row '+(i+2)+': Invalid or missing date for '+empCode);continue;}
           var dp=attDate.split('-');
           var monthKey=dp[0]+'-'+dp[1];
+          var _exclMonthSet=(typeof _hrmsEsslExclSetForMonth==='function')?_hrmsEsslExclSetForMonth(monthKey):{};
+          if(_exclMonthSet[empCode.toUpperCase()]){ _excludedSeen[empCode]=(_excludedSeen[empCode]||0)+1; continue; }
           importedMonths[monthKey]=true;
           parsedRows.push({empCode:empCode,attDate:attDate,monthKey:monthKey,day:+dp[2],r:r});
+        }
+        var _exclCodeList=Object.keys(_excludedSeen);
+        if(_exclCodeList.length){
+          var _exclRowTotal=_exclCodeList.reduce(function(a,k){return a+_excludedSeen[k];},0);
+          console.log('Attendance Import: skipped '+_exclRowTotal+' row(s) from '+_exclCodeList.length+' excluded code(s):', _excludedSeen);
         }
         console.log('Attendance Import: date parser sample →',_diagSample);
         console.log('Attendance Import: example day keys generated →',
@@ -26051,7 +26482,13 @@ async function _hrmsSaveMonthData(mk){
     var emp=empMap[ec];if(!emp) return;
     var ex=emp.extra||{};
 
-    var empLoc=d.location||emp.location||'';
+    // Phase 6 — pull plant + department from the month-specific source
+    // so the locked snapshot freezes the values that were in effect for
+    // THIS month, not whatever is on the active period / flat emp today.
+    var empLoc=d.location||(typeof _hrmsEmpPlantForMk==='function'?_hrmsEmpPlantForMk(emp,mk):emp.location)||'';
+    var empCatMk=String(d.category||(emp.salaryMonths&&emp.salaryMonths[mk]&&emp.salaryMonths[mk].category)||emp.category||'').toLowerCase();
+    var empDept=(typeof _hrmsEmpDeptForMk==='function')?_hrmsEmpDeptForMk(emp,mk):(empCatMk.indexOf('staff')>=0?(emp.subDepartment||''):(emp.department||''));
+    var empDeptField=empCatMk.indexOf('staff')>=0?'subDepartment':'department';
     var empDayTypes={};
     for(var dd=1;dd<=daysInMonth;dd++){
       empDayTypes[String(dd)]=_hrmsGetDayType(mk,dd,yr,mo,empLoc);
@@ -26063,7 +26500,11 @@ async function _hrmsSaveMonthData(mk){
       id:'hmd_'+mk+'_'+ec,monthKey:mk,empCode:ec,
       name:_hrmsDispName(emp),firstName:emp.firstName||'',lastName:emp.lastName||'',middleName:emp.middleName||'',
       location:empLoc,category:d.category||emp.category||'',
-      department:emp.department||'',subDepartment:emp.subDepartment||'',
+      // Department lands on the field matching the month's category; the
+      // other field is left untouched (Staff → subDepartment, Worker →
+      // department). Lock-time freeze.
+      department:empDeptField==='department'?empDept:(emp.department||''),
+      subDepartment:empDeptField==='subDepartment'?empDept:(emp.subDepartment||''),
       designation:emp.designation||'',employmentType:emp.employmentType||'',
       dateOfJoining:emp.dateOfJoining||'',dateOfBirth:emp.dateOfBirth||'',
       gender:emp.gender||'',status:emp.status||'Active',
@@ -26139,9 +26580,11 @@ async function _hrmsSaveMonthData(mk){
       id:'hmd_'+mk+'_'+cr.empCode,monthKey:mk,empCode:cr.empCode,
       name:cr.name||(emp?_hrmsDispName(emp):''),
       firstName:emp?(emp.firstName||''):'',lastName:emp?(emp.lastName||''):'',middleName:emp?(emp.middleName||''):'',
-      location:cr.plant||(emp?(emp.location||''):''),
+      location:cr.plant||(emp?((typeof _hrmsEmpPlantForMk==='function'?_hrmsEmpPlantForMk(emp,mk):emp.location)||''):''),
       category:cr.cat||(emp?(emp.category||''):''),
-      department:emp?(emp.department||''):'',subDepartment:emp?(emp.subDepartment||''):'',
+      // Phase 6 — month-specific department for the locked contract row.
+      department:emp?((typeof _hrmsEmpDeptForMk==='function'?_hrmsEmpDeptForMk(emp,mk):emp.department)||''):'',
+      subDepartment:emp?(emp.subDepartment||''):'',
       designation:emp?(emp.designation||''):'',employmentType:'Contract',
       dateOfJoining:cr.doj||(emp?(emp.dateOfJoining||''):''),
       dateOfBirth:emp?(emp.dateOfBirth||''):'',gender:emp?(emp.gender||''):'',
@@ -27031,7 +27474,10 @@ function _appSettingsSubTab(tab){
     _hrmsRenderOtRules();
   }
   if(tab==='otrules'){_hrmsOtRulesEditMode=false;_hrmsRenderOtRules();}
-  if(tab==='esslatt') _hrmsRenderEsslImportLog();
+  if(tab==='esslatt'){
+    _hrmsRenderEsslImportLog();
+    if(typeof _hrmsEsslExclRender==='function') _hrmsEsslExclRender();
+  }
   if(tab==='myapprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
   if(tab==='altimport') _hrmsRenderAltImportLog();
   if(tab==='alteration'){
@@ -33016,7 +33462,10 @@ async function _hrmsRenderOrSalary(yr,mo,catFilter){
   var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
 
   // Filter: All active On Roll employees
-  var _getPLoc=function(e){var periods=e.periods||[];for(var i=0;i<periods.length;i++){if(!periods[i].to&&!periods[i]._wfStatus)return periods[i].location||e.location||'';}return e.location||'';};
+  // Phase 6 — plant lookup is now month-specific: read from
+  // salaryMonths[mk].location → covering period → flat. Falls back to
+  // the old "active period" rule only via the helper's chain.
+  var _getPLoc=function(e){return _hrmsEmpPlantForMk(e,mk);};
   // Month boundaries for DOJ/DOL gating
   var _salMonthStart=mk+'-01';// "2026-01-01"
   var _salMonthEnd=mk+'-'+String(daysInMonth).padStart(2,'0');// "2026-01-31"
