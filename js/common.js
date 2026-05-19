@@ -1145,17 +1145,16 @@ window._diagSB = async function(){
       if(error) console.error('❌ Test query error:', error.message);
       else console.log('✅ Test query OK — sample codes:', data?.map(r=>r.code));
     }catch(e){ console.error('❌ Test query exception:', e.message); }
-    // Test write
+    // 260519-V36 — Test write now skips the sensitive `password` column
+    // (locked down in Phase 2a so anon can't write it; SECURITY DEFINER
+    // RPCs own that field). Also skips the cleanup DELETE since anon's
+    // DELETE on vms_users is now revoked. The diagnostic still proves
+    // anon can upsert non-sensitive columns.
     try{
-      const testRow={code:'__diag_test__',name:'_diag',password:'x',full_name:'Diag Test',mobile:'',roles:[],hwms_roles:[],plant:'',apps:[],photo:'',inactive:true};
+      const testRow={code:'__diag_test__',name:'_diag',full_name:'Diag Test',mobile:'',roles:[],hwms_roles:[],plant:'',apps:[],photo:'',inactive:true};
       const {error:we} = await _sb.from('vms_users').upsert(testRow,{onConflict:'code'}).select();
       if(we) console.error('❌ Test write error:', we.message);
-      else{
-        console.log('✅ Test write OK');
-        // Clean up
-        await _sb.from('vms_users').delete().eq('code','__diag_test__');
-        console.log('✅ Test cleanup OK');
-      }
+      else console.log('✅ Test write OK (test row left in place — soft-delete via inactive=true)');
     }catch(e){ console.error('❌ Test write exception:', e.message); }
   } else {
     console.warn('⚠ Supabase client not ready — check CDN load');
