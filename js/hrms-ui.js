@@ -11934,11 +11934,15 @@ async function _hrmsRenderUnknownTab(yr,mo){
   var _td='padding:6px 10px;font-size:13px;border-bottom:1px solid #e2e8f0';
   h+='<div style="border:1.5px solid var(--border);border-radius:8px;overflow:hidden">';
   h+='<table style="width:100%;border-collapse:collapse"><thead><tr>';
+  // Leading × column — single-click to exclude the code (adds to
+  // ESSL exclusion list + drops from the unknown list immediately).
+  // The trailing Action column is gone; "+ Add" is reachable via the
+  // Emp Code link.
+  h+='<th style="'+_th+';width:36px;text-align:center"></th>';
   h+='<th style="'+_th+';width:60px;text-align:center">#</th>';
   h+='<th style="'+_th+'">Emp Code</th>';
   h+='<th style="'+_th+'">Name (from file)</th>';
   h+='<th style="'+_th+';width:120px;text-align:right">Days w/ Punch</th>';
-  h+='<th style="'+_th+';width:170px;text-align:center">Action</th>';
   h+='</tr></thead><tbody>';
   var canIgnore=(typeof _hrmsHasAccess==='function')?_hrmsHasAccess('settings.esslatt'):true;
   codes.forEach(function(ec,i){
@@ -11947,22 +11951,15 @@ async function _hrmsRenderUnknownTab(yr,mo){
     var codeCell=canAdd
       ?'<a href="javascript:void(0)" onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="font-family:var(--mono);font-weight:800;color:var(--accent);text-decoration:underline" title="Click to add a new employee with this code">'+ec+'</a>'
       :'<span style="font-family:var(--mono);font-weight:800;color:var(--text2)">'+ec+'</span>';
-    var addBtn=canAdd
-      ?'<button onclick="_hrmsAddEmpWithCode(\''+ecEsc+'\')" style="padding:3px 10px;font-size:11px;font-weight:700;background:#dcfce7;border:1px solid #86efac;color:#15803d;border-radius:4px;cursor:pointer">+ Add</button>'
-      :'';
-    // 🚫 Ignore — adds the code to the persistent ESSL exclusion list so
-    // future imports skip it and historical caches hide it. Disabled
-    // (greyed) for users without settings.esslatt access.
-    var ignoreBtn=canIgnore
-      ?'<button onclick="_hrmsEsslExclAddFromUnknown(\''+ecEsc+'\')" title="Add to ESSL exclusion list — future imports skip this code, and historical attendance is hidden too" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;border-radius:4px;cursor:pointer;margin-left:4px">🚫 Ignore</button>'
-      :'';
-    var actionBtn=(addBtn||ignoreBtn)?(addBtn+ignoreBtn):'<span style="color:var(--text3);font-size:11px">—</span>';
+    var removeIcon=canIgnore
+      ?'<button onclick="_hrmsEsslExclAddFromUnknown(\''+ecEsc+'\')" title="Add to ESSL exclusion list — future imports skip this code, and historical attendance is hidden too" style="background:none;border:none;color:#dc2626;font-size:18px;font-weight:900;cursor:pointer;line-height:1;padding:0 4px">×</button>'
+      :'<span style="color:var(--text3)">·</span>';
     h+='<tr>';
+    h+='<td style="'+_td+';text-align:center">'+removeIcon+'</td>';
     h+='<td style="'+_td+';text-align:center;color:var(--text3);font-family:var(--mono)">'+(i+1)+'</td>';
     h+='<td style="'+_td+'">'+codeCell+'</td>';
     h+='<td style="'+_td+';color:var(--text2)">'+(info.name?_hrmsEsc(info.name):'<span style="color:var(--text3)">—</span>')+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);font-weight:700">'+(info.days||0)+'</td>';
-    h+='<td style="'+_td+';text-align:center">'+actionBtn+'</td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
