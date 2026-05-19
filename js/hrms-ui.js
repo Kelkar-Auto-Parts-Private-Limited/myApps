@@ -5790,6 +5790,12 @@ async function _hrmsMonthSetOrgField(empId,mk,field,value){
   if(field==='location'){
     var pRec=(DB.hrmsCompanies||[]).find(function(x){return x&&x.name===value;});
     emp.salaryMonths[mk].locationId=pRec?pRec.id:'';
+    // Plant changed — Worker department is plant-specific, so the
+    // previously-selected dept may not belong to the new plant. Reset
+    // department + departmentId to blank so the operator picks fresh.
+    // Staff subDepartment is NOT plant-bound; leave it alone.
+    emp.salaryMonths[mk].department='';
+    emp.salaryMonths[mk].departmentId='';
   } else if(field==='department'){
     var plantHere=emp.salaryMonths[mk].location||emp.location||'';
     var dRec=(DB.hrmsDepartments||[]).find(function(x){return x&&x.name===value&&(!x.plant||x.plant===plantHere);});
@@ -5803,8 +5809,18 @@ async function _hrmsMonthSetOrgField(empId,mk,field,value){
   // Phase 4 approval-exclude list, so this never feeds the diff.
   if(window._hrmsMonthEditDraft&&_hrmsEditingMonthMk===mk){
     _hrmsMonthEditDraft[field]=value;
-    if(field==='location'&&emp.salaryMonths[mk].locationId!==undefined){
-      _hrmsMonthEditDraft.locationId=emp.salaryMonths[mk].locationId;
+    if(field==='location'){
+      if(emp.salaryMonths[mk].locationId!==undefined){
+        _hrmsMonthEditDraft.locationId=emp.salaryMonths[mk].locationId;
+      }
+      // Mirror the dept reset onto the draft so the rebuilt select
+      // doesn't pre-select a stale option from before the plant change.
+      _hrmsMonthEditDraft.department='';
+      _hrmsMonthEditDraft.departmentId='';
+      if(window._hrmsMonthEditDraftBase){
+        _hrmsMonthEditDraftBase.department='';
+        _hrmsMonthEditDraftBase.departmentId='';
+      }
     }
     if(field==='department'&&emp.salaryMonths[mk].departmentId!==undefined){
       _hrmsMonthEditDraft.departmentId=emp.salaryMonths[mk].departmentId;
