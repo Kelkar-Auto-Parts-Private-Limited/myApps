@@ -5261,9 +5261,12 @@ function _hrmsBuildPeriodTableForNewEmp(){
   cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'category\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.sel('hrmsCategories',p.category||''):'<option value="">--</option>')+'</select></td>';
   // 10. Team
   cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'teamName\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.team(p.teamName||'',p.employmentType||''):'<option value="">--</option>')+'</select></td>';
-  // Department column removed from the Org & Sal Revisions table — set
-  // the employee's Department from the main Employees list. Keeping this
-  // comment here makes the column numbering match _hrmsBuildMonthTable.
+  // 10b. Department — Worker uses hrmsDepartments (filtered by plant);
+  // Staff uses hrmsSubDepartments. Routes through _hrmsNewEmpPeriodSet
+  // → _hrmsPeriodFieldChange, same path that handles cascade resets
+  // (plant change clears Worker dept; category flip clears the
+  // unused dept field).
+  cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\''+deptField+'\',this.value)" '+disCommon+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(opts?opts.sel(deptTbl,deptVal,p.location||''):'<option value="">--</option>')+'</select></td>';
   // 11. Role — Worker-only field; disabled (and shown blank) for Staff.
   var disRole=canEdit?(isStaff?'disabled style="opacity:0.4;background:#f1f5f9"':''):'disabled style="opacity:0.6;background:#f1f5f9"';
   cells+='<td style="padding:4px 3px"><select onchange="_hrmsNewEmpPeriodSet(\'roll\',this.value)" '+disRole+' style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+(isStaff?'<option value="">--</option>':(opts?opts.roll(p.roll||''):'<option value="">--</option>'))+'</select></td>';
