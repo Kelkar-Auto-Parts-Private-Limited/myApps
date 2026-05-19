@@ -235,6 +235,24 @@ async function _hrmsLaunch(){
   // those columns from anon.
   try{ if(typeof _hrmsPiiFetchAll==='function') await _hrmsPiiFetchAll(); }
   catch(e){ console.warn('pii fetch on boot failed:',e.message); }
+  // Photo pre-load — _hrmsEnsureEmployeePhotos was never wired into a
+  // render path, so emp.photo stayed empty even after Phase 2c boot
+  // (which excludes photo from _SYNC_SELECT). Bulk-fetch every emp that
+  // has a non-empty photo per the existence map; the function batches
+  // in groups of 100. Fire-and-forget so it doesn't gate the rest of
+  // the boot.
+  (function(){
+    var doIt=async function(){
+      try{
+        if(typeof _hrmsFetchPhotoExists==='function') await _hrmsFetchPhotoExists();
+        var codes=Object.keys(window._hrmsEmpsWithPhoto||{});
+        if(codes.length&&typeof _hrmsEnsureEmployeePhotos==='function'){
+          await _hrmsEnsureEmployeePhotos(codes);
+        }
+      }catch(e){ console.warn('photo pre-load failed:',e.message); }
+    };
+    doIt();
+  })();
   // Plant FK — stamp emp.extra.locationId + period.locationId / monthly
   // salaryMonths[mk].locationId for any legacy record that has a plant
   // name but no id yet. In-memory only on boot; new writes persist the
