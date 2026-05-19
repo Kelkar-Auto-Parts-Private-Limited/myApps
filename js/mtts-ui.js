@@ -3,10 +3,10 @@
 // Phase 2 (planned): ticket lifecycle (raise → allocate → act → close → approve)
 // Phase 3 (planned): dashboard (counts / costs / PM-AMC-warranty due-overdue)
 
-// Tables this app needs at boot. hrmsSettings is included because the
+// Tables this app needs at boot. appSettings is included because the
 // shared rolePermissions blob lives there (used by permCanView /
 // permCanAct against MTTS keys).
-if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets'];
+if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','appSettings','mttsPlants','mttsAssetTypes','mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets'];
 
 // V38 — Strip heavy photo / history JSONB columns at boot. Loaded on-demand
 // by _mttsLoadTicketPhotos / _mttsLoadAssetHistory when the user opens the
@@ -23,7 +23,7 @@ var _SYNC_SELECT={
   'mtts_tickets':'id,code,asset_code,plant,asset_id,plant_id,breakdown_type,breakdown_since,status,raised_by,raised_at,assigned_to,assigned_at,assigned_by,tech_actions,root_cause,cost_service,cost_spares,approved_by,approved_at,updated_at',
   'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at',
   // V90 — strip users.photo at MTTS boot.
-  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
 // V90 — preserve on-demand user photos across MTTS syncs.
 var _PHOTO_PRESERVE = { 'users':['photo'] };
@@ -200,7 +200,7 @@ async function _mttsManualRefresh(){
         var sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
         // V82/V86 — drop attImportLog + raw import-file rows; MTTS doesn't use either.
         var q=_sb.from(sbTbl).select(sel).limit(10000);
-        if(sbTbl==='hrms_settings'){
+        if(sbTbl==='app_settings'){
           q=q.neq('key','attImportLog')
              .not('key','like','attImpFile_*')
              .not('key','like','altImpFile_*')

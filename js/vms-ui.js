@@ -352,6 +352,58 @@ function _vmsEnsureTripsForSegments(segs,cb){
     if(added && typeof cb==='function') cb();
   }).catch(function(){ _vmsFetchingMissingTrips=false; });
 }
+
+// 260519-V13 — MR/TA-only users don't have every vehicle row in DB.vehicles
+// (RLS-scoped sync), so card badges fell back to "-". Mirror the missing-trip
+// loader: collect vehicleIds referenced by the visible trips, fetch the
+// missing rows in one IN(...) batch, then re-render. Dedup per id-set so a
+// stable page doesn't refire.
+var _vmsAutoLoadedForVehs={};
+var _vmsFetchingMissingVehs=false;
+async function _vmsFetchMissingVehicles(vehIds){
+  if(!_sb||!_sbReady) return false;
+  if(!Array.isArray(vehIds)||!vehIds.length) return false;
+  var missing=vehIds.filter(function(id){return id && !byId(DB.vehicles,id);});
+  if(!missing.length) return false;
+  var added=0;
+  try{
+    if(typeof showSpinner==='function') showSpinner('Loading vehicle details…');
+    for(var i=0;i<missing.length;i+=100){
+      var batch=missing.slice(i,i+100);
+      var sel=(typeof _syncSelect==='function')?_syncSelect('vms_vehicles'):'*';
+      var res=await _sb.from('vms_vehicles').select(sel).in('code',batch);
+      if(res.error||!res.data) continue;
+      var parsed=res.data.map(function(row){return _fromRow('vehicles',row);}).filter(Boolean);
+      var arr=DB.vehicles||[];
+      var idMap={}; for(var j=0;j<arr.length;j++) idMap[arr[j].id]=j;
+      parsed.forEach(function(rec){
+        if(idMap[rec.id]===undefined){ arr.push(rec); added++; }
+      });
+      DB.vehicles=arr;
+    }
+  }catch(e){ try{console.warn('_vmsFetchMissingVehicles error:',e.message);}catch(_){} }
+  finally{ if(typeof hideSpinner==='function') hideSpinner(); }
+  return added>0;
+}
+function _vmsEnsureVehiclesForTrips(trips,cb){
+  if(!Array.isArray(trips)||!trips.length) return;
+  if(_vmsFetchingMissingVehs) return;
+  var missing=[];
+  for(var i=0;i<trips.length;i++){
+    var t=trips[i]; if(!t||!t.vehicleId) continue;
+    if(byId(DB.vehicles,t.vehicleId)) continue;
+    if(missing.indexOf(t.vehicleId)<0) missing.push(t.vehicleId);
+  }
+  if(!missing.length) return;
+  var key=missing.slice().sort().join(',');
+  if(_vmsAutoLoadedForVehs[key]) return;
+  _vmsAutoLoadedForVehs[key]=true;
+  _vmsFetchingMissingVehs=true;
+  _vmsFetchMissingVehicles(missing).then(function(added){
+    _vmsFetchingMissingVehs=false;
+    if(added && typeof cb==='function') cb();
+  }).catch(function(){ _vmsFetchingMissingVehs=false; });
+}
 // Supabase table name → date column name
 // _DATE_FILTER_COL → moved to vms-logic.js
 var _dateFilterLoaded={}; // tbl → earliest date loaded (ISO string)
@@ -867,23 +919,23 @@ bootDB=async function(){
           console.log('bootDB(VMS): instant from cache — users='+(DB.users||[]).length);
           if(typeof _vmsUpdateSyncTime==='function')_vmsUpdateSyncTime();
           if(typeof _initSupabase==='function'&&!_sbReady) _initSupabase();
-          // Portal's pre-fetch is async with a 4s timeout, so hrmsSettings
+          // Portal's pre-fetch is async with a 4s timeout, so appSettings
           // can be cached as [] when the tile is clicked early. Sync-refetch
           // now so permCanAct has data by the time _tryAutoLogin runs.
-          if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
+          if(_sbReady&&_sb&&(!Array.isArray(DB.appSettings)||DB.appSettings.length===0)){
             try{
               // V83/V86 — drop attImportLog + raw import-file rows at VMS boot.
-              var _hsR=await _sb.from('hrms_settings').select('*')
+              var _hsR=await _sb.from('app_settings').select('*')
                 .neq('key','attImportLog')
                 .not('key','like','attImpFile_*')
                 .not('key','like','altImpFile_*')
                 .not('key','like','advImpFile_*')
                 .limit(1000);
               if(!_hsR.error){
-                DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
-                console.log('bootDB(VMS): hrmsSettings synced — rows='+DB.hrmsSettings.length);
-              } else { console.warn('bootDB(VMS): hrmsSettings err:',_hsR.error.message); }
-            }catch(e){ console.warn('bootDB(VMS): hrmsSettings fetch failed:',e.message); }
+                DB.appSettings=(_hsR.data||[]).map(function(r){return _fromRow('appSettings',r);}).filter(Boolean);
+                console.log('bootDB(VMS): appSettings synced — rows='+DB.appSettings.length);
+              } else { console.warn('bootDB(VMS): appSettings err:',_hsR.error.message); }
+            }catch(e){ console.warn('bootDB(VMS): appSettings fetch failed:',e.message); }
           }
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
@@ -927,9 +979,9 @@ async function _appBoot(){
   console.log('VMS: _appBoot starting...');
   var splash=document.getElementById('dbSplash');
   // Set all VMS tables before boot
-  // hrmsSettings holds role-permission data (shared across apps), needed for
+  // appSettings holds role-permission data (shared across apps), needed for
   // permCanView / permCanAct to work in VMS nav and page-level enforcement.
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips','hrmsSettings'];
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','vehicleTypes','drivers','vendors','vehicles','locations','tripRates','trips','segments','spotTrips','userPlantAlloc','appSettings'];
   // Add essential lookup tables to hot sync so they load immediately
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['trips','segments','spotTrips','vehicles','drivers','locations','vendors'];
 
@@ -1932,13 +1984,30 @@ function updBadges(){
   _updTopbarUser();
 }
 
+// 260519-V14 — Icon-only refresh button on the VMS topbar (next to the
+// avatar). Forces a true-full sync by clearing the lastTs watermarks, so
+// every row in scope comes back rather than just deltas. The button spins
+// during the in-flight window; _onRefreshViews repaints the active page
+// when the data lands.
+async function _vmsTopbarRefresh(){
+  var btn=document.getElementById('vmsTopbarRefresh');
+  if(btn){btn.disabled=true;btn.style.opacity='0.55';btn.style.transform='rotate(360deg)';}
+  try{
+    if(typeof _vmsFullIncr!=='undefined'){ _vmsFullIncr.lastTs={}; }
+    if(typeof _bgSyncFromSupabase==='function') _bgSyncFromSupabase();
+  }catch(e){
+    console.warn('VMS refresh err:',e);
+    if(typeof notify==='function') notify('⚠ Refresh failed: '+(e.message||e),true);
+  }
+  setTimeout(function(){
+    if(btn){btn.disabled=false;btn.style.opacity='';btn.style.transform='';}
+  },1500);
+}
+
 function _updTopbarUser(){
   if(!CU)return;
-  const locEl=document.getElementById('topbarLocName');
   const avEl=document.getElementById('topbarAvatar');
-  if(!locEl||!avEl)return;
-  const loc=byId(DB.locations,CU.plant);
-  locEl.textContent=loc?loc.name:'';
+  if(!avEl)return;
   if(CU.photo){
     avEl.innerHTML=`<img src="${CU.photo}" alt="">`;
   } else {
@@ -6826,6 +6895,13 @@ function renderMR(){
   // trips that aren't in DB.trips (older than the rolling fetch window).
   // Triggers once per earliest-missing-date; re-renders MR after the load.
   try{ _vmsEnsureTripsForSegments(pending, function(){ renderMR(); }); }catch(e){}
+  // 260519-V13 — MR-only users have a scoped DB.vehicles set (RLS), so
+  // card vehicle badges can fall back to '-'. Lazy-fetch the missing
+  // vehicle rows referenced by visible pending segments and re-render.
+  try{
+    var _mrTripsForVeh=pending.map(function(s){return byId(DB.trips,s.tripId);}).filter(Boolean);
+    _vmsEnsureVehiclesForTrips(_mrTripsForVeh, function(){ renderMR(); });
+  }catch(e){}
   // Trip ID search filter
   const mrSearch=(document.getElementById('mrTripSearch')?.value||'').toLowerCase();
   if(mrSearch) pending=pending.filter(s=>s.tripId.toLowerCase().includes(mrSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(mrSearch));
@@ -7322,6 +7398,13 @@ function renderApprove(){
   // V50 (260518) — Auto-fetch older trips when pending segments reference
   // trips that aren't in DB.trips (older than the rolling fetch window).
   try{ _vmsEnsureTripsForSegments(pendingSegs, function(){ renderApprove(); }); }catch(e){}
+  // 260519-V13 — TA-only users have a scoped DB.vehicles set (RLS), so
+  // card vehicle badges can fall back to '-'. Lazy-fetch the missing
+  // vehicle rows referenced by visible pending segments and re-render.
+  try{
+    var _apTripsForVeh=pendingSegs.map(function(s){return byId(DB.trips,s.tripId);}).filter(Boolean);
+    _vmsEnsureVehiclesForTrips(_apTripsForVeh, function(){ renderApprove(); });
+  }catch(e){}
   // Trip ID search filter
   const apSearch=(document.getElementById('approveTripSearch')?.value||'').toLowerCase();
   if(apSearch) pendingSegs=pendingSegs.filter(s=>s.tripId.toLowerCase().includes(apSearch)||vnum(byId(DB.trips,s.tripId)?.vehicleId).toLowerCase().includes(apSearch));
@@ -8735,7 +8818,7 @@ function _upaPickerOpen(ev,uid){
   var picker=document.getElementById('upaPicker'); if(!picker) return;
   var kapLocs=(DB.locations||[]).filter(function(l){return l&&l.type==='KAP'&&!l.inactive;})
     .sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''));});
-  var curPlant=(_upaEdits[uid]&&_upaEdits[uid].plant!==undefined)?_upaEdits[uid].plant:((byId(DB.users,uid)||{}).plant||'');
+  var curPlant=(_upaEdits[uid]&&_upaEdits[uid].plant!==undefined)?_upaEdits[uid].plant:_userPlant(uid);
   var html='<div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">';
   html+='<div style="font-size:10px;font-weight:700;color:var(--text3);padding:0 4px 2px;text-transform:uppercase;letter-spacing:.5px">Select KAP plant</div>';
   html+='<div onclick="_upaPickerPick(\''+uid+'\',\'\')" style="display:inline-block;background:#f1f5f9;color:#64748b;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;cursor:pointer;border:1px dashed #94a3b8;text-align:center"'+(curPlant===''?' style="outline:2px solid var(--accent)"':'')+'>— None —</div>';
@@ -8801,7 +8884,7 @@ function _upaUpdateDirtyHint(){
   var any=Object.keys(_upaEdits).some(function(uid){
     var e=_upaEdits[uid]||{}; var u=byId(DB.users,uid); if(!u) return false;
     var dbVend=_upaVendorForUser(uid); var dbVendId=dbVend?dbVend.id:'';
-    if(e.plant!==undefined && e.plant!==(u.plant||'')) return true;
+    if(e.plant!==undefined && e.plant!==_userPlant(uid)) return true;
     if(e.vendor!==undefined && e.vendor!==dbVendId) return true;
     return false;
   });
@@ -8824,7 +8907,7 @@ function _upaSortKey(u,col){
   if(col==='mr') return _isAdmin||roles.includes('Material Receiver')?1:0;
   if(col==='ap') return _isAdmin||roles.includes('Trip Approver')?1:0;
   if(col==='plant'){
-    var locId=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:(u.plant||'');
+    var locId=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:_userPlant(u.id);
     var l=byId(DB.locations||[],locId); return String(l?l.name:'').toLowerCase();
   }
   if(col==='ph') return _isAdmin||roles.includes('Plant Head')?1:0;
@@ -8902,10 +8985,11 @@ function renderUserPlantAlloc(){
       ? '<span style="display:inline-block;background:#b45309;color:#fff;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-left:6px;border:1px solid rgba(0,0,0,.12)" title="Super Admin">★ SA</span>'
       : (isVA?'<span style="display:inline-block;background:#1d4ed8;color:#fff;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.4px;margin-left:6px;border:1px solid rgba(0,0,0,.12)" title="VMS Admin"># VMS Admin</span>':'');
     var dbVend=_upaVendorForUser(u.id); var dbVendId=dbVend?dbVend.id:'';
-    var curPlant=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:(u.plant||'');
+    var dbPlant=_userPlant(u.id);
+    var curPlant=(_upaEdits[u.id]&&_upaEdits[u.id].plant!==undefined)?_upaEdits[u.id].plant:dbPlant;
     var curVend=(_upaEdits[u.id]&&_upaEdits[u.id].vendor!==undefined)?_upaEdits[u.id].vendor:dbVendId;
     var inactBadge=u.inactive===true?' <span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:4px;border:1px solid #fca5a5">Inactive</span>':'';
-    var dirty=(_upaEdits[u.id]&&((_upaEdits[u.id].plant!==undefined&&_upaEdits[u.id].plant!==(u.plant||''))||(_upaEdits[u.id].vendor!==undefined&&_upaEdits[u.id].vendor!==dbVendId)));
+    var dirty=(_upaEdits[u.id]&&((_upaEdits[u.id].plant!==undefined&&_upaEdits[u.id].plant!==dbPlant)||(_upaEdits[u.id].vendor!==undefined&&_upaEdits[u.id].vendor!==dbVendId)));
     // Role-gated cells:
     //  • Vendor-role users: plant N/A, vendor pickable.
     //  • Non-Vendor users:  plant pickable, vendor N/A.
@@ -8949,7 +9033,7 @@ async function _upaSaveAll(){
     var uid=uids[i]; var e=_upaEdits[uid]; var u=byId(DB.users,uid);
     if(!u){ delete _upaEdits[uid]; continue; }
     var isVendorRole=(u.roles||[]).indexOf('Vendor')>=0;
-    var dbPlant=u.plant||'';
+    var dbPlant=_userPlant(uid);
     var dbVend=_upaVendorForUser(uid); var dbVendId=dbVend?dbVend.id:'';
     var newPlant=(e.plant!==undefined)?e.plant:dbPlant;
     var newVendId=(e.vendor!==undefined)?e.vendor:dbVendId;
@@ -8966,11 +9050,31 @@ async function _upaSaveAll(){
     if(!plantTouched && !vendorTouched){ delete _upaEdits[uid]; noop++; continue; }
     var ok=true;
     console.log('UPA save uid='+uid+' plant: '+(dbPlant||'(none)')+' → '+(newPlant||'(none)')+'  vendor: '+(dbVendId||'(none)')+' → '+(newVendId||'(none)'));
-    // 1) user.plant — always write when explicitly picked, even if same.
+    // 260519-V11 — Plant allocation now lives in vms_user_plant_allocations.
+    // Strategy: primary write to UPA; dual-write to user.plant as a
+    // transitional mirror so legacy readers (any u.plant site we haven't
+    // migrated yet) stay coherent. If the UPA write succeeds and the
+    // user.plant mirror fails, the in-memory u.plant is rolled back but
+    // the UPA save is left intact — the helper masks the mismatch.
     if(plantTouched){
-      var uBak={plant:u.plant};
-      u.plant=newPlant;
-      if(!await _dbSave('users',u)){ Object.assign(u,uBak); ok=false; }
+      // (a) Upsert the UPA row.
+      var upaArr=DB.userPlantAlloc||(DB.userPlantAlloc=[]);
+      var upaRow=upaArr.find(function(r){return r&&r.id===uid;});
+      var upaBak=upaRow?{plant:upaRow.plant}:null;
+      if(!upaRow){ upaRow={id:uid,plant:newPlant}; upaArr.push(upaRow); }
+      else { upaRow.plant=newPlant; }
+      var upaOk=await _dbSave('userPlantAlloc',upaRow);
+      if(!upaOk){
+        // Rollback in-memory mirror so a retry sees the prior state.
+        if(upaBak){ upaRow.plant=upaBak.plant; }
+        else { upaArr.splice(upaArr.indexOf(upaRow),1); }
+        ok=false;
+      } else {
+        // (b) Transitional mirror to users.plant.
+        var uBak={plant:u.plant};
+        u.plant=newPlant;
+        if(!await _dbSave('users',u)){ Object.assign(u,uBak); }
+      }
     }
     // 2) vendor.userId reconciliation — vendor↔user is 1-to-1.
     if(ok && vendorTouched){
@@ -10902,127 +11006,10 @@ document.addEventListener('keydown', function(e){
 });
 
 // ═══ HELPER PAGE (Super Admin only) ══════════════════════════════════════
-// V80 (260518) — Fetch the persisted egress log for the selected window
-// and render an aggregated table (user × page × kind). Reads are excluded
-// from the in-memory counters (URL filter in common.js) to avoid the
-// "measure the measurement" loop.
-async function _egressLoadAllUsers(){
-  var body=document.getElementById('egressAllUsersBody');
-  if(!body) return;
-  if(!_sb||!_sbReady){ body.innerHTML='<div style="color:#dc2626;font-weight:700">Supabase client not ready.</div>'; return; }
-  var winSel=document.getElementById('egressWindowSel');
-  var days=parseInt(winSel?winSel.value:'7',10)||7;
-  var since=new Date(Date.now()-days*86400000).toISOString();
-  body.innerHTML='<div style="color:var(--text3)">Loading…</div>';
-  try{
-    var res=await _sb.from('vms_egress_log')
-      .select('user_id,user_name,page_id,kind,table_name,bytes,count,at')
-      .gte('at', since)
-      .order('at',{ascending:false})
-      .limit(20000);
-    if(res.error) throw res.error;
-    var rows=res.data||[];
-    if(!rows.length){ body.innerHTML='<div style="color:var(--text3)">No log rows in this window. If you just provisioned the table, give the next 30-second flush a moment.</div>'; return; }
-    // Aggregate user × page → rest/ws/total + table breakdown + first/last at
-    var agg={};
-    rows.forEach(function(r){
-      var k=(r.user_id||'?')+'|'+(r.page_id||'?');
-      if(!agg[k]) agg[k]={user_id:r.user_id,user_name:r.user_name||'',page_id:r.page_id,rest:{c:0,b:0},ws:{c:0,b:0},tables:{},firstAt:r.at||'',lastAt:r.at||''};
-      var a=agg[k];
-      var kind=(r.kind==='ws')?'ws':'rest';
-      a[kind].c+=(r.count||0);
-      a[kind].b+=(r.bytes||0);
-      if(r.at){
-        if(!a.firstAt||r.at<a.firstAt) a.firstAt=r.at;
-        if(!a.lastAt||r.at>a.lastAt) a.lastAt=r.at;
-      }
-      if(r.table_name){
-        if(!a.tables[r.table_name]) a.tables[r.table_name]={c:0,b:0};
-        a.tables[r.table_name].c+=(r.count||0);
-        a.tables[r.table_name].b+=(r.bytes||0);
-      }
-    });
-    var fmt=function(n){if(!n||n<1024)return (n||0)+' B';if(n<1024*1024)return (n/1024).toFixed(1)+' KB';return (n/1024/1024).toFixed(2)+' MB';};
-    var fmtTs=function(iso){
-      if(!iso) return '—';
-      var d=new Date(iso); if(isNaN(d.getTime())) return iso;
-      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
-    };
-    var entries=Object.values(agg).sort(function(a,b){return (b.rest.b+b.ws.b)-(a.rest.b+a.ws.b);});
-    var totRestB=entries.reduce(function(s,e){return s+e.rest.b;},0);
-    var totWsB=entries.reduce(function(s,e){return s+e.ws.b;},0);
-    var totRestC=entries.reduce(function(s,e){return s+e.rest.c;},0);
-    var totWsC=entries.reduce(function(s,e){return s+e.ws.c;},0);
-    // Default sort: most-recently active first.
-    entries.sort(function(a,b){ return (b.lastAt||'').localeCompare(a.lastAt||''); });
-    var rowsHtml=entries.map(function(a){
-      var tbls=Object.entries(a.tables).sort(function(x,y){return y[1].b-x[1].b;});
-      var tblTxt=tbls.slice(0,3).map(function(t){return t[0]+' ('+fmt(t[1].b)+')';}).join(', ');
-      var more=tbls.length>3?' +'+(tbls.length-3):'';
-      return '<tr>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-weight:700">'+(a.user_name||a.user_id||'?')+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">'+a.page_id+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--text2);white-space:nowrap">'+fmtTs(a.firstAt)+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:#0f172a;font-weight:700;white-space:nowrap">'+fmtTs(a.lastAt)+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.rest.c+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.rest.b)+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.ws.c+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.ws.b)+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800">'+fmt(a.rest.b+a.ws.b)+'</td>'
-        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;color:var(--text2)">'+(tblTxt||'—')+more+'</td>'
-        +'</tr>';
-    }).join('');
-    body.innerHTML=
-      '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+rows.length+' log rows · '+entries.length+' user×page combos · last '+days+'d · REST <strong style="color:#0f172a">'+fmt(totRestB)+'</strong> ('+totRestC+' calls) · WS <strong style="color:#0f172a">'+fmt(totWsB)+'</strong> ('+totWsC+' frames) · Combined <strong style="color:#0f172a">'+fmt(totRestB+totWsB)+'</strong></div>'
-      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">'
-      +'<thead><tr style="background:var(--surface2)">'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">User</th>'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">First seen</th>'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Last seen</th>'
-      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>'
-      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>'
-      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>'
-      +'</tr><tr style="background:var(--surface2)">'
-      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Calls</th>'
-      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>'
-      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Frames</th>'
-      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>'
-      +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
-  }catch(e){
-    var msg=(e&&e.message)||String(e);
-    body.innerHTML='<div style="color:#dc2626;font-weight:700;font-size:12px">Error: '+msg+'</div>'
-      +'<div style="color:var(--text2);font-size:11px;margin-top:6px">If the table doesn\'t exist yet, run the SQL DDL shown below in the Supabase SQL editor, then come back and try again.</div>'
-      +'<details style="margin-top:8px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px"><summary style="cursor:pointer;font-weight:700;font-size:12px;color:#334155">📜 vms_egress_log DDL</summary>'
-      +'<pre style="font-size:10px;line-height:1.4;white-space:pre-wrap;color:#0f172a;font-family:var(--mono);margin:6px 0 0">'+_egressDdlText()+'</pre></details>';
-  }
-}
-function _egressDdlText(){
-  return [
-    'CREATE TABLE IF NOT EXISTS public.vms_egress_log (',
-    '  id          uuid primary key default gen_random_uuid(),',
-    '  user_id     text,',
-    '  user_name   text,',
-    '  page_id     text,',
-    '  kind        text check (kind in (\'rest\',\'ws\')),',
-    '  table_name  text,',
-    '  bytes       bigint  not null default 0,',
-    '  count       integer not null default 1,',
-    '  at          timestamptz not null default now()',
-    ');',
-    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_at        ON public.vms_egress_log (at desc);',
-    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_user_page ON public.vms_egress_log (user_id, page_id, at desc);',
-    '',
-    'ALTER TABLE public.vms_egress_log ENABLE ROW LEVEL SECURITY;',
-    'DROP POLICY IF EXISTS "egress_log_insert" ON public.vms_egress_log;',
-    'CREATE POLICY "egress_log_insert" ON public.vms_egress_log FOR INSERT TO anon WITH CHECK (true);',
-    'DROP POLICY IF EXISTS "egress_log_select" ON public.vms_egress_log;',
-    'CREATE POLICY "egress_log_select" ON public.vms_egress_log FOR SELECT TO anon USING (true);',
-    '',
-    'NOTIFY pgrst, \'reload schema\';'
-  ].join('\n');
-}
+// 260519-V12 — The Supabase egress widgets (Session + All Users) moved to
+// the Portal Helper page (showTab('helper')) so they can use the full
+// Portal width. The functions _egressLoadAllUsers / _egressDdlText now
+// live in portal-ui.js.
 function renderHelper(){
   const el=document.getElementById('helperContent');if(!el)return;
   const s=(title,color,content)=>`<div style="background:${color};border-radius:10px;padding:16px 18px;margin-bottom:14px">
@@ -11066,91 +11053,10 @@ function renderHelper(){
     </tr>`;
   });
 
-  // V78 (260518) — Supabase egress counter (this session). V79 adds the
-  // REST vs WS split. Aggregates from window._egressStats populated by
-  // common.js wrappers. Sorted by total bytes desc; "Reset" wipes the
-  // in-memory map.
-  const _eg=window._egressStats||{};
-  const _egFmt=function(n){
-    if(!n||n<1024) return (n||0)+' B';
-    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
-    return (n/1024/1024).toFixed(2)+' MB';
-  };
-  const _egEntries=Object.entries(_eg).sort((a,b)=>(b[1].bytes||0)-(a[1].bytes||0));
-  const _egTotalBytes=_egEntries.reduce((s,e)=>s+(e[1].bytes||0),0);
-  const _egTotalCalls=_egEntries.reduce((s,e)=>s+(e[1].count||0),0);
-  const _egTotalRest=_egEntries.reduce((s,e)=>s+(e[1].rest?.bytes||0),0);
-  const _egTotalWs=_egEntries.reduce((s,e)=>s+(e[1].ws?.bytes||0),0);
-  const _egRows=_egEntries.length
-    ?_egEntries.map(([pid,rec])=>{
-      const tbls=Object.entries(rec.tables||{}).sort((a,b)=>(b[1].bytes||0)-(a[1].bytes||0));
-      const tblSummary=tbls.slice(0,3).map(([n,r])=>n+' ('+_egFmt(r.bytes)+')').join(', ');
-      const more=tbls.length>3?' +'+(tbls.length-3)+' more':'';
-      const restB=rec.rest?.bytes||0, restC=rec.rest?.count||0;
-      const wsB=rec.ws?.bytes||0, wsC=rec.ws?.count||0;
-      return `<tr>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">${pid}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">${restC}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">${_egFmt(restB)}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">${wsC}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">${_egFmt(wsB)}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800;color:#0f172a">${_egFmt(rec.bytes||0)}</td>
-        <td style="padding:6px 10px;border:1px solid var(--border);font-size:11px;color:var(--text2)">${tblSummary||'—'}${more}</td>
-      </tr>`;
-    }).join('')
-    :'<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">No Supabase traffic recorded yet this session</td></tr>';
+  // 260519-V12 — Supabase egress widgets moved to the Portal Helper tab
+  // (showTab('helper')) so the dataset can use full Portal width.
 
   el.innerHTML=`
-  <!-- SUPABASE EGRESS — ALL USERS (persisted) -->
-  <div style="background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(99,102,241,.08));border:2px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:18px">
-    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#6d28d9;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      🗂 Supabase Egress — All Users
-      <span style="font-size:10px;font-weight:600;color:#581c87;text-transform:none;letter-spacing:0">from vms_egress_log (persisted)</span>
-      <span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:10px;font-weight:700;color:#581c87">Window
-          <select id="egressWindowSel" style="margin-left:4px;font-size:11px;padding:2px 6px;border:1px solid #c4b5fd;border-radius:5px;background:#fff;font-weight:700">
-            <option value="1">Last 1d</option>
-            <option value="7" selected>Last 7d</option>
-            <option value="30">Last 30d</option>
-          </select>
-        </label>
-        <button onclick="_egressLoadAllUsers()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer">⤓ Load</button>
-        <button onclick="window._egressFlush&&window._egressFlush().then(()=>setTimeout(_egressLoadAllUsers,400))" title="Flush in-memory batch to DB, then reload" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:6px;cursor:pointer">↻ Flush + Load</button>
-      </span>
-    </div>
-    <div id="egressAllUsersBody" style="font-size:11px;color:var(--text2)">Click <strong>⤓ Load</strong> to fetch aggregated egress across all users for the selected window. Fetching this view itself is excluded from the counters.</div>
-  </div>
-
-  <!-- SUPABASE EGRESS USAGE -->
-  <div style="background:linear-gradient(135deg,rgba(234,88,12,.08),rgba(245,158,11,.08));border:2px solid #ea580c;border-radius:12px;padding:14px 16px;margin-bottom:18px">
-    <div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#c2410c;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      🌐 Supabase Egress — Session
-      <span style="font-size:10px;font-weight:600;color:#9a3412;text-transform:none;letter-spacing:0">${CU?.fullName||CU?.name||'—'} · in-memory only</span>
-      <span style="margin-left:auto;display:inline-flex;gap:6px">
-        <button onclick="renderHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>
-        <button onclick="if(window._egressReset){window._egressReset();}renderHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#ea580c;border:1.5px solid #ea580c;border-radius:6px;cursor:pointer">↺ Reset</button>
-      </span>
-    </div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Total: <strong style="color:#0f172a">${_egTotalCalls}</strong> events · REST <strong style="color:#0f172a">${_egFmt(_egTotalRest)}</strong> · WS <strong style="color:#0f172a">${_egFmt(_egTotalWs)}</strong> · Combined <strong style="color:#0f172a">${_egFmt(_egTotalBytes)}</strong></div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">
-        <thead><tr style="background:var(--surface2)">
-          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>
-          <th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>
-          <th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>
-          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>
-          <th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>
-        </tr><tr style="background:var(--surface2)">
-          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Calls</th>
-          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>
-          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Frames</th>
-          <th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>
-        </tr></thead>
-        <tbody>${_egRows}</tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- TRIP ID ALLOCATION TOOL -->
   <div style="background:linear-gradient(135deg,rgba(42,154,160,.08),rgba(34,197,94,.08));border:2px solid var(--accent);border-radius:12px;padding:18px 20px;margin-bottom:18px">
     <div style="font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;color:var(--accent);display:flex;align-items:center;gap:8px">

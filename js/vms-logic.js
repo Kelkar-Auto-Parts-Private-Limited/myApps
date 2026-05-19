@@ -18,7 +18,9 @@ var _SYNC_SELECT={
   // V90 (260518) — Strip photos from users + drivers across every app boot.
   // Loaded on-demand via _loadPhotos (registered in _PHOTO_DB_COLS).
   'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at',
-  'vms_drivers':'id,code,name,mobile,vendor_id,dl_expiry,inactive,updated_at'
+  'vms_drivers':'id,code,name,mobile,vendor_id,dl_expiry,inactive,updated_at',
+  // 260519-V11 — UPA storage; primary key `code` mirrors vms_users.code.
+  'vms_user_plant_allocations':'id,code,plant,updated_at'
 };
 
 // Date filtering: only fetch recent data, load history on-demand
@@ -48,9 +50,12 @@ var _VMS_USE_USER_BASED_AUTH = true;
 function _vmsLocRoleUsers(loc, role){
   if(!loc) return [];
   if(_VMS_USE_USER_BASED_AUTH){
+    // 260519-V11 — Allocated plant comes from UPA (vms_user_plant_allocations),
+    // not vms_users.plant. _userPlant() centralises the lookup with a
+    // transitional fallback to the legacy column.
     return (DB.users||[]).filter(function(u){
       if(!u||u.inactive) return false;
-      if(String(u.plant||'')!==String(loc.id)) return false;
+      if(String(_userPlant(u.id)||'')!==String(loc.id)) return false;
       var roles=u.roles||[];
       return roles.indexOf(role)>=0;
     }).map(function(u){return u.id;});
@@ -77,10 +82,12 @@ function _vmsLocHasRoleUser(loc, role, uid){
 function _vmsUserAssignedLocIds(uid){
   if(!uid) return [];
   if(_VMS_USE_USER_BASED_AUTH){
-    var u=byId(DB.users,uid); if(!u||!u.plant) return [];
+    // 260519-V11 — Plant read via UPA (with legacy fallback inside _userPlant).
+    var u=byId(DB.users,uid); if(!u) return [];
+    var pl=_userPlant(uid); if(!pl) return [];
     var roles=u.roles||[];
     var anyRole=['KAP Security','Material Receiver','Trip Approver','Trip Booking User','Plant Head'].some(function(r){return roles.indexOf(r)>=0;});
-    return anyRole?[u.plant]:[];
+    return anyRole?[pl]:[];
   }
   return (DB.locations||[]).filter(function(l){
     if(!l) return false;

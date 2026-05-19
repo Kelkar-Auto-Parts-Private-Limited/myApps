@@ -309,6 +309,10 @@ const SB_TABLES = {
   drivers:'vms_drivers', vehicles:'vms_vehicles', locations:'vms_locations',
   tripRates:'vms_trip_rates', trips:'vms_trips', segments:'vms_segments',
   spotTrips:'vms_spot_trips',
+  // 260519-V11 — UPA storage moved out of vms_users.plant. Single row per
+  // user (code = user id); the legacy column is kept as a dual-write
+  // mirror during the transition.
+  userPlantAlloc:'vms_user_plant_allocations',
   checkpoints:'ss_checkpoints', guards:'ss_guards', roundSchedules:'ss_round_schedules',
   hwmsParts:'hwms_parts', hwmsInvoices:'hwms_invoices', hwmsContainers:'hwms_containers',
   hwmsHsn:'hwms_hsn', hwmsUom:'hwms_uom', hwmsPacking:'hwms_packing',
@@ -326,7 +330,7 @@ const SB_TABLES = {
   hrmsDayTypes:'hrms_day_types',
   hrmsAlterations:'hrms_alterations',
   hrmsPrintFormats:'hrms_print_formats',
-  hrmsSettings:'hrms_settings',
+  appSettings:'app_settings',
   hrmsAdvances:'hrms_advances',
   hrmsMonthData:'hrms_month_data',
   mttsPlants:'mtts_plants',
@@ -426,6 +430,7 @@ function _toRow(tbl, rec) {
   if(tbl==='trips')        return {code:r.id,booked_by:r.bookedBy||'',plant:r.plant||'',date:r.date||'',start_loc:r.startLoc||'',dest1:r.dest1||'',dest2:r.dest2||'',dest3:r.dest3||'',driver_id:r.driverId||'',vehicle_id:r.vehicleId||'',vehicle_type_id:r.vehicleTypeId||'',actual_vehicle_type_id:r.actualVehicleTypeId||'',vendor:r.vendor||'',description:r.desc||'',trip_cat_id:r.tripCatId||'',challans1:r.challans1||[],challan1:r.challan1||'',weight1:r.weight1||'',photo1:r.photo1||'',challans2:r.challans2||[],challan2:r.challan2||'',weight2:r.weight2||'',photo2:r.photo2||'',challans3:r.challans3||[],challan3:r.challan3||'',weight3:r.weight3||'',photo3:r.photo3||'',edited_by:r.editedBy||'',edited_at:r.editedAt||'',cancelled:r.cancelled||false};
   if(tbl==='segments')     return {code:r.id,trip_id:r.tripId||'',label:r.label||'',s_loc:r.sLoc||'',d_loc:r.dLoc||'',criteria:r.criteria||1,trip_cat_id:r.tripCatId||'',steps:r.steps||{},status:r.status||'Active',date:r.date||'',current_step:r.currentStep||1};
   if(tbl==='spotTrips')    return {code:r.id,vehicle_num:r.vehicleNum||'',supplier:r.supplier||'',challan:r.challan||'',challan_photo:r.challanPhoto||'',driver_name:r.driverName||'',driver_mobile:r.driverMobile||'',driver_photo:r.driverPhoto||'',entry_vehicle_photo:r.entryVehiclePhoto||'',entry_remarks:r.entryRemarks||'',date:r.date||'',entry_time:r.entryTime||'',entry_by:r.entryBy||'',location:r.location||'',exit_time:r.exitTime||'',exit_by:r.exitBy||'',exit_vehicle_photo:r.exitVehiclePhoto||'',exit_remarks:r.exitRemarks||''};
+  if(tbl==='userPlantAlloc') return {code:r.id,plant:r.plant||''};
   if(tbl==='checkpoints')  return {code:r.id,location_id:r.locationId||'',name:r.name||'',description:r.description||'',sort_order:r.sortOrder||1,active:r.active!==false};
   if(tbl==='guards')       return {code:r.id,name:r.name||'',mobile:r.mobile||'',email:r.email||'',location_id:r.locationId||'',shift:r.shift||'',photo:r.photo||'',inactive:r.inactive||false};
   if(tbl==='roundSchedules') return {code:r.id,name:r.name||'',location_id:r.locationId||'',guard_id:r.guardId||'',checkpoint_ids:r.checkpointIds||[],frequency:r.frequency||'Daily',start_time:r.startTime||'',end_time:r.endTime||'',inactive:r.inactive||false};
@@ -494,7 +499,7 @@ function _toRow(tbl, rec) {
   if(tbl==='hrmsSubDepartments') return {code:r.id,name:r.name||'',department:r.department||''};
   if(tbl==='hrmsAttendance') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',days:r.days||{}};
   if(tbl==='hrmsDayTypes') return {code:r.id,month_key:r.monthKey||'',plant:r.plant||'',day_types:r.dayTypes||{}};
-  if(tbl==='hrmsSettings') return {code:r.id,key:r.key||'',data:r.data||{}};
+  if(tbl==='appSettings') return {code:r.id,key:r.key||'',data:r.data||{}};
   if(tbl==='hrmsAlterations') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',days:r.days||{}};
   if(tbl==='hrmsPrintFormats') return {code:r.id,name:r.name||'',plant:r.plant||'',emp_type:r.empType||'',category:r.category||'',team:r.team||'',created_by:r.createdBy||''};
   if(tbl==='hrmsAdvances') return {code:r.id,emp_code:r.empCode||'',month_key:r.monthKey||'',advance:r.advance||0,emi:r.emi||0,deduction:r.deduction||0};
@@ -674,6 +679,7 @@ function _toRow(tbl, rec) {
 function _fromRow(tbl, row) {
   if(!row) return null;
   if(tbl==='users')        return {id:row.code,_dbId:row.id,name:row.name,fullName:row.full_name,mobile:row.mobile||'',email:row.email||'',roles:row.roles||[],hwmsRoles:row.hwms_roles||[],hrmsRoles:row.hrms_roles||[],mttsRoles:row.mtts_roles||[],plant:row.plant||'',apps:row.apps||[],photo:row.photo||'',inactive:row.inactive||false};
+  if(tbl==='userPlantAlloc') return {id:row.code,_dbId:row.id,plant:row.plant||''};
   if(tbl==='vehicleTypes') return {id:row.code,_dbId:row.id,name:row.name,capacity:row.capacity||0,inactive:row.inactive||false};
   if(tbl==='vendors')      return {id:row.code,_dbId:row.id,name:row.name,owner:row.owner||'',contact:row.contact||'',address:row.address||'',userId:row.user_id||'',inactive:row.inactive||false};
   if(tbl==='drivers')      return {id:row.code,_dbId:row.id,name:row.name,mobile:row.mobile||'',vendorId:row.vendor_id||'',dlExpiry:row.dl_expiry||'',photo:row.photo||'',inactive:row.inactive||false};
@@ -716,7 +722,7 @@ function _fromRow(tbl, row) {
   if(tbl==='hrmsSubDepartments') return {id:row.code,_dbId:row.id,name:row.name||'',department:row.department||''};
   if(tbl==='hrmsAttendance') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',days:row.days||{}};
   if(tbl==='hrmsDayTypes') return {id:row.code,_dbId:row.id,monthKey:row.month_key||'',plant:row.plant||'',dayTypes:row.day_types||{}};
-  if(tbl==='hrmsSettings') return {id:row.code,_dbId:row.id,key:row.key||'',data:row.data||{}};
+  if(tbl==='appSettings') return {id:row.code,_dbId:row.id,key:row.key||'',data:row.data||{}};
   if(tbl==='hrmsAlterations') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',days:row.days||{}};
   if(tbl==='hrmsPrintFormats') return {id:row.code,_dbId:row.id,name:row.name||'',empType:row.emp_type||'',plant:row.plant||'',category:row.category||'',team:row.team||'',createdBy:row.created_by||''};
   if(tbl==='hrmsAdvances') return {id:row.code,_dbId:row.id,empCode:row.emp_code||'',monthKey:row.month_key||'',advance:row.advance||0,emi:row.emi||0,deduction:row.deduction||0};
@@ -1383,6 +1389,7 @@ const SEED = {
 const LS_PREFIX = 'vms_';
 const DB_TABLES = ['users','vehicleTypes','drivers','vendors','vehicles',
                    'locations','tripRates','trips','segments','spotTrips',
+                   'userPlantAlloc',
                    'checkpoints','guards','roundSchedules',
                    'hwmsParts','hwmsInvoices','hwmsContainers',
                    'hwmsHsn','hwmsUom','hwmsPacking',
@@ -2340,33 +2347,33 @@ async function bootDB(){
         // hard refresh. _bgSyncHot's periodic writer keeps it fresh.
         console.log('bootDB: cache '+(_age<_FRESH_MS?'fresh':'stale')+' ('+Math.round(_age/1000)+'s old) — users='+(DB.users||[]).length);
         if(!_sbReady) _initSupabase();
-        // hrmsSettings holds role permissions — if empty or missing in cache,
+        // appSettings holds role permissions — if empty or missing in cache,
         // block boot to refetch synchronously. Portal's pre-fetch is async and
         // can time out, caching an empty array; nav then sees empty perms.
         // Tiny table (< 10 rows), so the extra round-trip is negligible.
-        if(_getActiveTables().indexOf('hrmsSettings')>=0 && _sbReady && _sb
-            && (!Array.isArray(DB.hrmsSettings) || DB.hrmsSettings.length===0)){
+        if(_getActiveTables().indexOf('appSettings')>=0 && _sbReady && _sb
+            && (!Array.isArray(DB.appSettings) || DB.appSettings.length===0)){
           try{
             // V82/V86 — exclude the attImportLog metadata row AND the
             // raw import-file copies (attImpFile_*/altImpFile_*/advImpFile_*).
             // The file rows store base64-encoded uploads (~5 MB combined)
             // and are no longer accessed from the UI as of V86.
-            var _hsRes=await _sb.from('hrms_settings').select('*')
+            var _hsRes=await _sb.from('app_settings').select('*')
               .neq('key','attImportLog')
               .not('key','like','attImpFile_*')
               .not('key','like','altImpFile_*')
               .not('key','like','advImpFile_*')
               .limit(1000);
             if(!_hsRes.error){
-              DB.hrmsSettings=(_hsRes.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean);
-              console.log('bootDB: hrmsSettings synced on cache-hit — rows='+DB.hrmsSettings.length);
-            } else { console.warn('bootDB: hrmsSettings sync error:',_hsRes.error.message); }
-          }catch(e){ console.warn('bootDB: hrmsSettings sync failed:',e.message); }
+              DB.appSettings=(_hsRes.data||[]).map(function(r){return _fromRow('appSettings',r);}).filter(Boolean);
+              console.log('bootDB: appSettings synced on cache-hit — rows='+DB.appSettings.length);
+            } else { console.warn('bootDB: appSettings sync error:',_hsRes.error.message); }
+          }catch(e){ console.warn('bootDB: appSettings sync failed:',e.message); }
         }
         // Other tables missing from cache: fetch in background so permission
         // checks have current data. Use !Array.isArray to detect truly missing
         // keys so a legitimately-empty table isn't refetched every boot.
-        var _missing=_getActiveTables().filter(function(t){return t!=='hrmsSettings'&&!Array.isArray(_cObj[t]);});
+        var _missing=_getActiveTables().filter(function(t){return t!=='appSettings'&&!Array.isArray(_cObj[t]);});
         if(_missing.length&&_sbReady&&_sb){
           console.log('bootDB: cache missing tables, fetching:', _missing.join(','));
           var _bootAuth=_hwmsAuthArgs();
@@ -2436,7 +2443,7 @@ async function bootDB(){
             var q=_sb.from(sbTbl).select(sel).limit(10000);
             if(typeof _applyDateFilter==='function') q=_applyDateFilter(q,sbTbl);
             // V82/V86 — drop attImportLog + the raw import-file rows at boot.
-            if(sbTbl==='hrms_settings'){
+            if(sbTbl==='app_settings'){
               q=q.neq('key','attImportLog')
                  .not('key','like','attImpFile_*')
                  .not('key','like','altImpFile_*')
@@ -2540,7 +2547,7 @@ function _bgSyncFromSupabase(){
     const sel=typeof _syncSelect==='function'?_syncSelect(sbTbl):'*';
     // V82/V86 — bgSync also skips attImportLog + raw import-file rows.
     var q=_sb.from(sbTbl).select(sel).limit(10000);
-    if(sbTbl==='hrms_settings'){
+    if(sbTbl==='app_settings'){
       q=q.neq('key','attImportLog')
          .not('key','like','attImpFile_*')
          .not('key','like','altImpFile_*')
@@ -2810,8 +2817,8 @@ var _PERM_MODULE_ROLES={
 // can add a name to one module even if it collides with another's
 // built-ins (e.g. "Plant Head" added to HRMS while still a VMS built-in).
 function _permModuleCustomRoles(mod){
-  if(typeof DB==='undefined'||!DB||!DB.hrmsSettings) return [];
-  var rec=(DB.hrmsSettings||[]).find?(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='rolePermissions';}):null;
+  if(typeof DB==='undefined'||!DB||!DB.appSettings) return [];
+  var rec=(DB.appSettings||[]).find?(DB.appSettings||[]).find(function(r){return r&&r.key==='rolePermissions';}):null;
   if(!rec||!rec.data||!rec.data[mod]) return [];
   var c=rec.data[mod].customRoles;
   return Array.isArray(c)?c:[];
@@ -3160,7 +3167,7 @@ var _PERM_UMBRELLA={
   }
 };
 function _permLoadData(){
-  var rec=(typeof DB!=='undefined'&&DB.hrmsSettings||[]).find?(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';}):null;
+  var rec=(typeof DB!=='undefined'&&DB.appSettings||[]).find?(DB.appSettings||[]).find(function(r){return r.key==='rolePermissions';}):null;
   return (rec&&rec.data)||{};
 }
 // Highest permission level across a user's roles for a given page/tab key.
@@ -3395,20 +3402,31 @@ function sortLocsKapFirst(locs){
 const ltype=(id)=>byId(DB.locations,id)?.type||'?';
 
 // ── Location & step-access helpers ──────────────────────────────────────────
+// 260519-V11 — Centralised "what plant is this user allocated to?" lookup.
+// Reads from vms_user_plant_allocations (the new source of truth seeded
+// from vms_users.plant); falls back to vms_users.plant only when the UPA
+// row hasn't been loaded yet — pre-SQL-migration or before the boot fetch
+// returns. Every plant-derived access gate in VMS should go through this.
+function _userPlant(uid){
+  if(!uid) return '';
+  var arr=(typeof DB!=='undefined' && DB.userPlantAlloc)||[];
+  for(var i=0;i<arr.length;i++){
+    if(arr[i] && arr[i].id===uid) return arr[i].plant||'';
+  }
+  var u=(typeof byId==='function')?byId(DB.users,uid):null;
+  return (u && u.plant) || '';
+}
 // Find the primary location a user is explicitly assigned to (by membership)
 function getUserLocation(userId){
   if(!userId) return null;
   if(!DB.locations) return null;
-  // V117+ — when role-derived auth is on, user.plant is the single source
-  // of truth. Falls back to nothing (not the legacy scan) so a stale row
-  // in loc.tripBook / approvers / matRecv can't override the allocation
-  // made via User Plant Allocation. This matches _vmsLocRoleUsers, so
-  // buildSegment's bookingLoc and step 4's ownerLoc stay in sync with the
-  // user's allocated plant.
+  // 260519-V11 — Route through _userPlant() so UPA storage drives this
+  // (formerly read user.plant directly). Legacy scan kept for the
+  // _VMS_USE_USER_BASED_AUTH=false rollback path.
   if(typeof _VMS_USE_USER_BASED_AUTH!=='undefined' && _VMS_USE_USER_BASED_AUTH){
-    const u=byId(DB.users,userId);
-    if(u && u.plant){
-      const loc=byId(DB.locations,u.plant);
+    var pl=_userPlant(userId);
+    if(pl){
+      var loc=byId(DB.locations,pl);
       if(loc && !loc.inactive) return loc;
     }
     return null;
@@ -3426,7 +3444,7 @@ function getUserLocation(userId){
 // Enrich CU with locId / locType / locName after login
 function _enrichCU(){
   if(!CU) return;
-  const loc=getUserLocation(CU.id)||byId(DB.locations||[],CU.plant)||null;
+  const loc=getUserLocation(CU.id)||byId(DB.locations||[],_userPlant(CU.id))||null;
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';

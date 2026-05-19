@@ -1050,7 +1050,7 @@ var _SYNC_SELECT={
   'hwms_parts':'id,code,part_number,part_revision,description,status,net_weight_kg,uom,hsn_code,packing_type,packing_dimensions,qty_per_package,packing_weight,ex_works_rate,freight,warehouse_cost,icc_cost,final_rate,rate_valid_from,rate_valid_to,rates,part_photo,packing_photo,updated_at',
   'hwms_containers':'id,code,container_number,container_serial_number,expected_pickup_date,pickup_date,status,reach_date,expected_reach_date,reached_date,carrier_id,carrier_name,carrier_inv_number,carrier_inv_date,carrier_inv_amount,entry_summary_number,es_date,es_amount,tariff_paid,tariff_percent,confirmed,updated_at',
   // V90 — strip users.photo at HWMS boot.
-  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
 
 // ── Date filtering: only fetch recent data, load history on-demand ──
@@ -1367,17 +1367,17 @@ bootDB=async function(){
   var _cacheHasHwmsData=_hwmsCoreTbls.some(function(t){return Array.isArray(DB[t])&&DB[t].length>0;});
   if(cacheApplied&&serverVersion!=null&&serverVersion===cachedVersion&&(DB.users||[]).length>0&&_cacheHasHwmsData){
     console.log('bootDB(HWMS): cache up-to-date (v'+serverVersion+') — skipping fetch');
-    // Still grab hrmsSettings if missing — permissions need it.
-    if(_sbReady&&_sb&&(!Array.isArray(DB.hrmsSettings)||DB.hrmsSettings.length===0)){
+    // Still grab appSettings if missing — permissions need it.
+    if(_sbReady&&_sb&&(!Array.isArray(DB.appSettings)||DB.appSettings.length===0)){
       try{
         // V83/V86 — drop attImportLog + raw import-file rows at HWMS boot.
-        var _hsR=await _sb.from('hrms_settings').select('*')
+        var _hsR=await _sb.from('app_settings').select('*')
           .neq('key','attImportLog')
           .not('key','like','attImpFile_*')
           .not('key','like','altImpFile_*')
           .not('key','like','advImpFile_*')
           .limit(1000);
-        if(!_hsR.error){ DB.hrmsSettings=(_hsR.data||[]).map(function(r){return _fromRow('hrmsSettings',r);}).filter(Boolean); }
+        if(!_hsR.error){ DB.appSettings=(_hsR.data||[]).map(function(r){return _fromRow('appSettings',r);}).filter(Boolean); }
       }catch(_){}
     }
     if(_sbReady&&_sb&&typeof _sbSetStatus==='function') _sbSetStatus('ok');
@@ -1544,9 +1544,9 @@ async function _hwmsBoot(){
   if(splashMsg) splashMsg.textContent='Loading…';
   
   // Set HWMS tables
-  // hrmsSettings holds role-permission data (shared across apps); needed for
+  // appSettings holds role-permission data (shared across apps); needed for
   // permCanView / permCanAct to work in HWMS nav and page-level enforcement.
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts','hrmsSettings'];
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hwmsParts','hwmsInvoices','hwmsContainers','hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge','hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates','hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts','appSettings'];
   if(typeof _HOT_TABLES!=='undefined') _HOT_TABLES=['hwmsContainers','hwmsInvoices','hwmsSubInvoices','hwmsMaterialRequests','hwmsParts'];
   
   // V91 — access gate before bootDB. Users without HWMS access never

@@ -6,14 +6,14 @@ if(typeof _sb==='undefined'||typeof DB==='undefined'){
 }
 
 // ═══ BOOT / SESSION RESTORE ═════════════════════════════════════════════
-if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsCompanies','hrmsCategories','hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments','hrmsDesignations','hrmsDayTypes','hrmsPrintFormats','hrmsSettings'];
+if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','hrmsEmployees','hrmsCompanies','hrmsCategories','hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments','hrmsDesignations','hrmsDayTypes','hrmsPrintFormats','appSettings'];
 // hrmsAttendance loaded on-demand per month, not on boot
 
-// V87 (260518) — attImportLog moved from hrms_settings (one bloated jsonb
+// V87 (260518) — attImportLog moved from app_settings (one bloated jsonb
 // row) to its own table `hrms_att_import_log`. Reads/writes now target
 // that table directly. Cache is per-month so a render only pulls the rows
 // for the visible month (rather than the entire 100-entry history). The
-// boot filter on `hrms_settings.attImportLog` from V82/V86 stays in place
+// boot filter on `app_settings.attImportLog` from V82/V86 stays in place
 // — the dead row is dropped in Phase 3 cleanup SQL.
 var _hrmsAttImpLogCache    = {};   // mk -> [camelCased entries]
 var _hrmsAttImpLogInflight = {};   // mk -> Promise
@@ -110,7 +110,7 @@ async function _ensureAttImportLog(){ /* V87 — superseded */ }
 var _SYNC_SELECT = {
   'hrms_employees':'id,code,emp_code,name,last_name,first_name,middle_name,department,sub_department,designation,email,mobile,date_of_joining,date_of_birth,gender,status,reporting_to,location,pan_no,aadhaar_no,employment_type,team_name,category,esi_no,pf_no,uan,date_of_left,roll,salary_day,salary_month,extra,bank_name,branch_name,acct_no,ifsc,periods,no_pl',
   // V90 — strip users.photo at HRMS boot.
-  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
 var _PHOTO_PRESERVE = { 'hrmsEmployees':['photo'], 'users':['photo'] };
 var _PHOTO_DB_COLS  = { 'hrms_employees':['photo'], 'vms_users':['photo'] };
@@ -360,7 +360,7 @@ async function _hrmsManualRefresh(){
         // V87 — attImportLog now lives in hrms_att_import_log; invalidate
         // the per-month cache so the next render hits the fresh data.
         var q=_sb.from(sbTbl).select(sel).limit(10000);
-        if(sbTbl==='hrms_settings'){
+        if(sbTbl==='app_settings'){
           q=q.neq('key','attImportLog')
              .not('key','like','attImpFile_*')
              .not('key','like','altImpFile_*')
@@ -685,7 +685,7 @@ function hrmsGo(pid,opt){
       }
       _hrmsSelectMonth(_dm).then(function(){
         _hrmsMainTab(_defTab);
-        if(_pendingSubTab&&typeof _hrmsSettingsSubTab==='function') _hrmsSettingsSubTab(_pendingSubTab);
+        if(_pendingSubTab&&typeof _appSettingsSubTab==='function') _appSettingsSubTab(_pendingSubTab);
         _hrmsUpdateTopTitle();
       });
     })();
@@ -1333,7 +1333,7 @@ function _hrmsMasterUsageCountsAny(empField){
 function renderHrmsMaster(pid){
   var c=HRMS_MASTERS[pid];if(!c)return;
   var pg=document.getElementById(pid);if(!pg)return;
-  // Worker dept's plant column is persisted in hrmsSettings (the
+  // Worker dept's plant column is persisted in appSettings (the
   // hrms_departments Supabase table has no `plant` column). Hydrate
   // each record's `.plant` from the settings map before any downstream
   // logic reads it.
@@ -1550,7 +1550,7 @@ function renderHrmsMaster(pid){
       // and every downstream chip read as one.
       h+='<td><span style="display:inline-block;padding:3px 12px;border-radius:5px;background:'+clr+';color:#0f172a;font-weight:900;font-size:13px;letter-spacing:.2px;border:1px solid rgba(0,0,0,.12)">'+_hrmsEsc(it.name)+'</span></td>';
       // V114 — Worker day / night shift start times, per plant. Stored
-      // in hrmsSettings under key 'plantShiftTimes' so the master row
+      // in appSettings under key 'plantShiftTimes' so the master row
       // doesn't need a schema change. Used by Employee Attendance (late
       // mark + shift detection).
       var _sft=(typeof _hrmsGetPlantShiftTimes==='function')?_hrmsGetPlantShiftTimes(it.name):{day:'08:00',night:'19:00'};
@@ -1959,14 +1959,14 @@ async function _hrmsCascadePlantRename(plantId,oldName,newName){
   // every read, so if we don't update the map here the dept-row fix
   // above gets clobbered on the next render.
   try{
-    var dpRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+    var dpRec=(DB.appSettings||[]).find(function(r){return r.key==='deptPlants';});
     if(dpRec&&dpRec.data){
       var changed=false;
       Object.keys(dpRec.data).forEach(function(did){
         if(dpRec.data[did]===oldName){dpRec.data[did]=newName;changed=true;}
       });
       if(changed){
-        try{ await _dbSave('hrmsSettings',dpRec); }
+        try{ await _dbSave('appSettings',dpRec); }
         catch(err){ console.warn('plant-rename cascade save failed for deptPlants:',err.message); }
       }
     }
@@ -1992,7 +1992,7 @@ async function _hrmsCascadePlantRename(plantId,oldName,newName){
         }
       });
       if(rewrote){
-        try{ await _dbSave('hrmsSettings',allocRec); }
+        try{ await _dbSave('appSettings',allocRec); }
         catch(err){ console.warn('plant-rename cascade save failed for allocations:',err.message); }
       }
     }
@@ -2089,13 +2089,13 @@ async function _hrmsRemapDeptPlant(oldName,newName){
   // from. Without rewriting it, hydrate restores the stale name on
   // the next render.
   try{
-    var dpRec2=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+    var dpRec2=(DB.appSettings||[]).find(function(r){return r.key==='deptPlants';});
     if(dpRec2&&dpRec2.data){
       var ch=false;
       Object.keys(dpRec2.data).forEach(function(did){
         if(dpRec2.data[did]===oldName){dpRec2.data[did]=newName;ch=true;}
       });
-      if(ch) await _dbSave('hrmsSettings',dpRec2);
+      if(ch) await _dbSave('appSettings',dpRec2);
     }
   }catch(err){console.warn('deptPlants remap during dept-remap failed:',err.message);}
   // Also rewrite allocation keys that still carry the old plant string
@@ -2113,7 +2113,7 @@ async function _hrmsRemapDeptPlant(oldName,newName){
         delete dict[k];
         rewrote=true;
       });
-      if(rewrote) await _dbSave('hrmsSettings',allocRec);
+      if(rewrote) await _dbSave('appSettings',allocRec);
     }
   }catch(err){console.warn('alloc remap during dept-remap failed:',err.message);}
   if(typeof renderHrmsMaster==='function') renderHrmsMaster('pageHrmsMDept');
@@ -2546,11 +2546,16 @@ async function _hrmsScrubDayTypes(){
 // Shift the selected month by ±N months. The ▶ button is disabled in
 // the header when we're already at the current month, but the JS still
 // guards so direct calls can't push past today's month either.
-// V114 — Plant filter MOVED from the dashboard Team-wise Daily Headcount
-// section to the "📅 Team-wise Attendance" popup (see _hrmsDasTwMdRender).
-// The setter below is kept as a no-op shim so any lingering callers /
-// cached buttons don't crash.
-function _hrmsDashTeamHcSetPlant(){ /* V114 — superseded */ }
+// 260519-V1 — Plant filter restored to the dashboard Team-wise Daily
+// Headcount section (sits beside the month navigator). The "📅 Team-wise
+// Attendance" popup (V115) keeps its own independent plant picker; the
+// two views filter on the same emp.location field but track separate
+// state so the user can drill into a different plant in the popup than
+// what the dashboard chart is showing.
+function _hrmsDashTeamHcSetPlant(plantId){
+  window._hrmsDashTeamHcPlant=plantId||'';
+  if(typeof _hrmsDashTeamHcRerender==='function') _hrmsDashTeamHcRerender();
+}
 function _hrmsDashTeamHcShiftMonth(delta){
   var t=new Date();
   var todayMk=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
@@ -2887,9 +2892,18 @@ function _hrmsDashTeamHcSection(allEmps){
   // when the viewport crosses the 700px threshold (orientation change,
   // browser resize, etc.).
   if(typeof _hrmsDashTeamHcBindResize==='function') _hrmsDashTeamHcBindResize();
-  // V114 — Plant filter removed from this dashboard section; it lives on
-  // the "📅 Team-wise Attendance" popup now (_hrmsDasTwMdRender). The
-  // dashboard chart shows all plants again.
+  // 260519-V1 — Plant filter restored. Uses period.location (with fallback
+  // to emp.location) so the chart respects the same plant identifier
+  // the rest of HRMS reads. Empty selection ('') = all plants.
+  var _selPlant=window._hrmsDashTeamHcPlant||'';
+  if(_selPlant){
+    allEmps=allEmps.filter(function(e){
+      if(!e) return false;
+      var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+      var loc=((ap&&ap.location)||e.location||'').trim();
+      return loc===_selPlant;
+    });
+  }
   // Selected month drives the chart. State lives on
   // `window._hrmsDashTeamHcMonth` (YYYY-MM). Defaults to today's month;
   // the ◀ ▶ navigator caps at today's month so future months can't be
@@ -2929,25 +2943,104 @@ function _hrmsDashTeamHcSection(allEmps){
     if(b==='— No team —') return -1;
     return a.localeCompare(b);
   });
-  // V114 — Plant picker removed from this section (lives on the popup now).
+  // 260519-V1/V5 — Plant picker. V1 wrongly pulled from DB.locations
+  // (the VMS master, which HRMS doesn't load — so the combo was always
+  // empty in HRMS context). HRMS's plant master is `hrmsCompanies`;
+  // employee period.location stores the company NAME, so option values
+  // are the NAME (matching what the filter compares against). Augments
+  // with any plant strings actually present in employee data so legacy
+  // /typo plants don't disappear from the picker entirely.
+  var _plantLocs=(DB.hrmsCompanies||[]).filter(function(c){return c && !c.inactive;}).slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  var _seenPlants={};
+  _plantLocs.forEach(function(c){ if(c.name) _seenPlants[c.name]=true; });
+  // Pull extra plant strings from employee data (period.location).
+  (DB.hrmsEmployees||[]).forEach(function(e){
+    if(!e||!e._isNewEcr===false) {}
+    if(!e) return;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var loc=((ap&&ap.location)||e.location||'').trim();
+    if(loc && !_seenPlants[loc]){ _seenPlants[loc]=true; _plantLocs.push({name:loc}); }
+  });
+  _plantLocs.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
+  var _plantOpts='<option value="">All Plants</option>'+_plantLocs.map(function(c){
+    var sel=(_selPlant===c.name)?' selected':'';
+    return '<option value="'+String(c.name||'').replace(/"/g,'&quot;')+'"'+sel+'>'+String(c.name||'').replace(/"/g,'&quot;')+'</option>';
+  }).join('');
+  var _plantPicker='<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;background:#fff;border:1.5px solid var(--accent);border-radius:6px">'
+    +'<span style="font-size:10px;color:#475569;font-weight:700">Plant</span>'
+    +'<select onchange="_hrmsDashTeamHcSetPlant(this.value)" style="font-size:12px;padding:1px 2px;border:none;background:transparent;font-weight:700;color:var(--accent);cursor:pointer">'
+    +_plantOpts
+    +'</select>'
+    +'</span>';
   if(!teamKeys.length){
-    return '';
+    return '<div id="hrmsDashTeamHcWrap" style="margin-bottom:18px">'
+      +'<div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        +'<span>📊 Team-wise Daily Headcount</span>'
+        +_plantPicker
+      +'</div>'
+      +'<div style="padding:18px;text-align:center;font-size:12px;color:var(--text3);background:#f8fafc;border:1.5px dashed var(--border);border-radius:8px">No active employees in the selected plant. Change the Plant filter above to see data.</div>'
+      +'</div>';
   }
   // Background fetch for missing historical months (and the current
   // month) so the section can populate as data arrives.
+  // 260519-V2 — Two-stage fetch: first try the pre-aggregated metrics
+  // table for each month (~10 KB total). Months with metrics skip the
+  // heavy hrms_attendance fetch entirely. Months without metrics — the
+  // current/unlocked month, plus any locked month that hasn't been
+  // backfilled yet — still pull raw attendance. Plant filter forces
+  // live compute (metrics aren't bucketed by plant). Currently the V101
+  // dashboard plant filter is set up to short-circuit metrics usage.
   var monthsBack=6;
-  var needed=[];
+  var allMks=[];
   for(var hh=0;hh<=monthsBack;hh++){
     var hd=new Date(curYr,curMo-1-hh,1);
-    var hmk=hd.getFullYear()+'-'+String(hd.getMonth()+1).padStart(2,'0');
-    if(!(window._hrmsAttCache&&_hrmsAttCache[hmk])) needed.push(hmk);
+    allMks.push(hd.getFullYear()+'-'+String(hd.getMonth()+1).padStart(2,'0'));
   }
-  if(needed.length&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsDashTeamHcFetchInflight){
-    window._hrmsDashTeamHcFetchInflight=true;
-    Promise.all(needed.map(function(m){return _hrmsAttFetchMonth(m).catch(function(){});})).then(function(){
-      window._hrmsDashTeamHcFetchInflight=false;
-      try{renderHrmsDashboard();}catch(_){}
+  // 260519-V4 — Metrics are now per (team, plant), so the plant filter no
+  // longer forces live compute. Eligibility just hinges on the helper
+  // existing (true on any deployed V2+).
+  var _metricsEligible=true;
+  if(_metricsEligible && typeof _hrmsLoadDashMetricsForMonth==='function' && !window._hrmsDashTeamHcFetchInflight){
+    var _metricsToTry=allMks.filter(function(m){
+      // Skip months we either already metric-cached or have raw att for.
+      if(window._hrmsDashMetricsCache && _hrmsDashMetricsCache[m]) return false;
+      if(window._hrmsAttCache && _hrmsAttCache[m]) return false;
+      // Current month is always live-compute (it's still active / being edited).
+      if(m===_todayMk) return false;
+      return true;
     });
+    if(_metricsToTry.length){
+      window._hrmsDashTeamHcFetchInflight=true;
+      Promise.all(_metricsToTry.map(function(m){return _hrmsLoadDashMetricsForMonth(m).catch(function(){return null;});})).then(function(results){
+        // Months that came back with no metrics fall through to raw att.
+        var fallbackAtt=[];
+        results.forEach(function(r,i){ if(!r||!r.length) fallbackAtt.push(_metricsToTry[i]); });
+        if(fallbackAtt.length && typeof _hrmsAttFetchMonth==='function'){
+          Promise.all(fallbackAtt.map(function(m){return _hrmsAttFetchMonth(m).catch(function(){});})).then(function(){
+            window._hrmsDashTeamHcFetchInflight=false;
+            try{renderHrmsDashboard();}catch(_){}
+          });
+        } else {
+          window._hrmsDashTeamHcFetchInflight=false;
+          try{renderHrmsDashboard();}catch(_){}
+        }
+      });
+    }
+    // Always make sure the current month has raw att (metrics never
+    // cover the still-active month).
+    if(!window._hrmsAttCache[curMk] && typeof _hrmsAttFetchMonth==='function'){
+      _hrmsAttFetchMonth(curMk).catch(function(){});
+    }
+  } else {
+    // Live-compute path — original behaviour.
+    var needed=allMks.filter(function(m){return !(window._hrmsAttCache&&_hrmsAttCache[m]);});
+    if(needed.length&&typeof _hrmsAttFetchMonth==='function'&&!window._hrmsDashTeamHcFetchInflight){
+      window._hrmsDashTeamHcFetchInflight=true;
+      Promise.all(needed.map(function(m){return _hrmsAttFetchMonth(m).catch(function(){});})).then(function(){
+        window._hrmsDashTeamHcFetchInflight=false;
+        try{renderHrmsDashboard();}catch(_){}
+      });
+    }
   }
   // Per-month presence cache built on demand from _hrmsAttCache.
   // Each cell carries {p:true,n:bool} so we can split P into day-shift /
@@ -2979,8 +3072,10 @@ function _hrmsDashTeamHcSection(allEmps){
     });
     _presCache[mk]=pres;return pres;
   };
-  // Build chart data for one team.
-  var _teamData=function(teamEmps){
+  // Build chart data for one team. `teamKey` is passed so the historical
+  // months can look up this team's pre-aggregated row in
+  // _hrmsDashMetricsCache (260519-V2).
+  var _teamData=function(teamEmps, teamKey){
     // Dominant plant for day-type resolution.
     var pTally={};
     teamEmps.forEach(function(e){var ap=_periodOf(e);var p=((ap&&ap.location)||e.location||'').trim();if(p)pTally[p]=(pTally[p]||0)+1;});
@@ -3024,6 +3119,67 @@ function _hrmsDashTeamHcSection(allEmps){
       var hYr=hd2.getFullYear(),hMo=hd2.getMonth()+1;
       var hMk=hYr+'-'+String(hMo).padStart(2,'0');
       var hDays=new Date(hYr,hMo,0).getDate();
+      // 260519-V2/V3/V4 — Metrics fast-path. Pre-aggregated rows keyed
+      // by (team_id, plant). When a plant filter is active, we look up
+      // the exact (team, plant) row. When not, we aggregate all of
+      // this team's plant rows into a synthetic per-team metric. Team
+      // lookup is by stable id (V3) so renames don't orphan rows.
+      var hMetricsAll=window._hrmsDashMetricsCache && _hrmsDashMetricsCache[hMk];
+      var hMetric=null;
+      if(Array.isArray(hMetricsAll)&&teamKey){
+        // Resolve teamKey → team_id via DB.hrmsTeams. Sentinels stay literal.
+        var _resolvedId=teamKey;
+        if(teamKey!=='__KAP__'&&teamKey!=='__PIECERATE__'){
+          var _tm=(DB.hrmsTeams||[]).find(function(t){return t&&t.name===teamKey;});
+          if(_tm&&_tm.id) _resolvedId=_tm.id;
+        }
+        var _wantPlant=(typeof _selPlant!=='undefined')?_selPlant:'';
+        var teamRows=[];
+        for(var mi=0;mi<hMetricsAll.length;mi++){
+          var row=hMetricsAll[mi]; if(!row) continue;
+          var rid=row.team_id||row.team_name;
+          if(rid!==_resolvedId && rid!==teamKey) continue;
+          teamRows.push(row);
+        }
+        if(teamRows.length){
+          if(_wantPlant){
+            // Specific plant filter — match exact row.
+            for(var pi=0;pi<teamRows.length;pi++){
+              if(teamRows[pi].plant===_wantPlant){ hMetric=teamRows[pi]; break; }
+            }
+          } else {
+            // No filter — sum all plant rows for this team.
+            var aggDays={},aggP=0,aggA=0,aggN=0,aggE=0;
+            teamRows.forEach(function(r){
+              var ds=r.days||{};
+              Object.keys(ds).forEach(function(dk){
+                var dnum=+dk;
+                if(!aggDays[dnum]) aggDays[dnum]={p:0,n:0,t:0};
+                aggDays[dnum].p+=(ds[dk].p||0);
+                aggDays[dnum].n+=(ds[dk].n||0);
+                aggDays[dnum].t+=(ds[dk].t||0);
+              });
+              aggP+=(r.total_p||0);
+              aggA+=(r.total_a||0);
+              aggN+=(r.total_night||0);
+              aggE+=(r.total_emps||0);
+            });
+            hMetric={days:aggDays,total_p:aggP,total_a:aggA,total_night:aggN,total_emps:aggE};
+          }
+        }
+      }
+      if(hMetric){
+        var hdays=hMetric.days||{};
+        var sP=0,sNight=0,sA=0,wd=0;
+        for(var dd=1;dd<=hDays;dd++){
+          var hType=(typeof _hrmsGetDayType==='function')?_hrmsGetDayType(hMk,dd,hYr,hMo,dominantPlant):'WD';
+          if(hType!=='WD') continue;
+          var dayCounts=hdays[dd]||hdays[String(dd)]||{p:0,n:0,t:0};
+          if(dayCounts.t>0){sP+=(dayCounts.p||0);sNight+=(dayCounts.n||0);sA+=((dayCounts.t||0)-(dayCounts.p||0));wd++;}
+        }
+        history.push({mk:hMk,avgP:wd?Math.round(sP/wd):0,avgNightP:wd?Math.round(sNight/wd):0,avgA:wd?Math.round(sA/wd):0,hasData:wd>0});
+        continue;
+      }
       var hCache=(window._hrmsAttCache&&_hrmsAttCache[hMk]);
       if(!hCache){history.push({mk:hMk,avgP:0,avgA:0,hasData:false});continue;}
       var hPres=_presOf(hMk);
@@ -3055,7 +3211,7 @@ function _hrmsDashTeamHcSection(allEmps){
   };
   // Build chart data per team once so we can share row positions and
   // dimensions across the whole strip.
-  var teamRows=teamKeys.map(function(tk){return {key:tk,data:_teamData(teamMap[tk])};});
+  var teamRows=teamKeys.map(function(tk){return {key:tk,data:_teamData(teamMap[tk], tk)};});
   // Pick the first non-empty dataset as the source of dayRows + history
   // for the shared Y-axis column (every team has the same date list,
   // they only differ on P counts).
@@ -3201,6 +3357,7 @@ function _hrmsDashTeamHcSection(allEmps){
       +'<span style="font-size:12px;font-weight:800;color:var(--accent);padding:3px 10px;border:1.5px solid var(--accent);border-radius:4px;background:#fff;min-width:96px;text-align:center;letter-spacing:.2px">'+(MON_NAMES[curMo-1]||'')+' '+curYr+'</span>'
       +'<button'+_nextOnClick+(_atToday?' disabled':'')+' title="'+(_atToday?'Already at the current month':'Next month')+'" style="padding:2px 9px;font-size:12px;font-weight:900;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:4px;'+_nextDisStyle+'line-height:1">▶</button>'
     +'</span>'
+    +_plantPicker /* 260519-V1 — plant filter beside the month nav */
     +'<button onclick="_hrmsDasTwShowMonthly({team:\'__TOTAL__\'})" title="Open Team-wise Attendance popup with team / month / plant filters" style="margin-left:auto;padding:6px 14px;font-size:12px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(124,58,237,.25)">📅 Team-wise Attendance</button>'
     +'</div>';
   // ── Lane renderer ────────────────────────────────────────────────
@@ -13628,7 +13785,7 @@ function _hrmsEmpAttSetTab(tab){
 }
 
 // Plant-level shift times — Worker day / night start. Defaults to
-// 08:00 / 19:00 when the plant has no override. Stored in hrmsSettings
+// 08:00 / 19:00 when the plant has no override. Stored in appSettings
 // under key 'plantShiftTimes' (no DB schema change needed).
 // Lookup is lenient — tries:
 //   1. exact match
@@ -13637,7 +13794,7 @@ function _hrmsEmpAttSetTab(tab){
 // so legacy plant-name variants (separator drift, trailing space, case)
 // still resolve to the right record.
 function _hrmsGetPlantShiftTimes(plantName){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='plantShiftTimes';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='plantShiftTimes';});
   var all=(rec&&rec.data)||{};
   if(!plantName) return {day:'08:00',night:'19:00'};
   var p=all[plantName];
@@ -13668,18 +13825,18 @@ async function _hrmsSetPlantShiftTime(plantName,type,value){
     if(typeof notify==='function') notify('⚠ Invalid time format (use HH:MM)',true);
     return;
   }
-  DB.hrmsSettings=DB.hrmsSettings||[];
-  var rec=DB.hrmsSettings.find(function(r){return r.key==='plantShiftTimes';});
+  DB.appSettings=DB.appSettings||[];
+  var rec=DB.appSettings.find(function(r){return r.key==='plantShiftTimes';});
   if(!rec){
     var nid='st_'+((typeof uid==='function')?uid():Date.now().toString(36));
     rec={id:nid,key:'plantShiftTimes',data:{}};
-    DB.hrmsSettings.push(rec);
+    DB.appSettings.push(rec);
   }
   rec.data=rec.data||{};
   rec.data[plantName]=rec.data[plantName]||{};
   rec.data[plantName][type]=value;
   try{
-    await _dbSave('hrmsSettings',rec);
+    await _dbSave('appSettings',rec);
     if(typeof notify==='function') notify('✓ '+plantName+' '+(type==='day'?'day':'night')+' shift → '+value);
   }catch(e){
     console.error('Plant shift save error:',e);
@@ -20017,10 +20174,10 @@ function _hrmsAgeFromDob(iso){
 }
 
 // ─── Contractor Supervisor team mapping ─────────────────────────────────
-// Stored in hrmsSettings.data (key 'teamSupervisors') as {teamId: userId}.
+// Stored in appSettings.data (key 'teamSupervisors') as {teamId: userId}.
 // Avoids a Supabase schema change on hrmsTeams.
 function _hrmsGetTeamSupervisorMap(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='teamSupervisors';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='teamSupervisors';});
   return (rec&&rec.data)||{};
 }
 function _hrmsGetTeamSupervisor(teamId){
@@ -20028,17 +20185,17 @@ function _hrmsGetTeamSupervisor(teamId){
   return m[teamId]||'';
 }
 async function _hrmsSetTeamSupervisor(teamId,userId){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='teamSupervisors';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='teamSupervisors';});
   if(!rec){
     rec={id:'hs_teamSup',key:'teamSupervisors',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   if(!rec.data) rec.data={};
   if(userId) rec.data[teamId]=userId;
   else delete rec.data[teamId];
   showSpinner('Saving supervisor…');
-  var ok=await _dbSave('hrmsSettings',rec);
+  var ok=await _dbSave('appSettings',rec);
   hideSpinner();
   return ok;
 }
@@ -20078,14 +20235,14 @@ function _hrmsPickTeamSupervisor(teamId,ev){
 }
 
 // ─── Worker Department → Plant mapping ──────────────────────────────────
-// Persisted in hrmsSettings.data (key 'deptPlants') as {deptId: plantName}.
+// Persisted in appSettings.data (key 'deptPlants') as {deptId: plantName}.
 // The hrmsDepartments table on Supabase only has `code` + `name` columns
 // (see common.js _toRow), so the per-record plant assignment lives in
 // this side-channel. Hydration copies the mapping back onto each record
 // in DB.hrmsDepartments at render time so downstream readers (master
 // rows, count functions, fanout migration) can use `it.plant` directly.
 function _hrmsGetDeptPlantMap(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='deptPlants';});
   return (rec&&rec.data)||{};
 }
 function _hrmsGetDeptPlant(deptId){
@@ -20093,16 +20250,16 @@ function _hrmsGetDeptPlant(deptId){
   return m[deptId]||'';
 }
 async function _hrmsSetDeptPlant(deptId,plant){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptPlants';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='deptPlants';});
   if(!rec){
     rec={id:'hs_deptPlants',key:'deptPlants',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   if(!rec.data) rec.data={};
   if(plant) rec.data[deptId]=plant;
   else delete rec.data[deptId];
-  return await _dbSave('hrmsSettings',rec);
+  return await _dbSave('appSettings',rec);
 }
 // Walk DB.hrmsDepartments and copy the plant from the settings map onto
 // each record. Idempotent — call before any read that depends on
@@ -20117,12 +20274,12 @@ function _hrmsHydrateDeptPlants(){
 }
 
 // ─── Department Heads mapping (Worker departments) ──────────────────────
-// Stored in hrmsSettings.data (key 'deptHeads') as {deptId: userId | userId[]}.
+// Stored in appSettings.data (key 'deptHeads') as {deptId: userId | userId[]}.
 // Each dept supports up to 3 heads. Legacy scalar entries are read as
 // single-element arrays for back-compat; new writes use arrays.
 var _HRMS_DEPT_HEAD_MAX=3;
 function _hrmsGetDeptHeadMap(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptHeads';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='deptHeads';});
   return (rec&&rec.data)||{};
 }
 function _hrmsGetDeptHeadIds(deptId){
@@ -20138,18 +20295,18 @@ function _hrmsGetDeptHead(deptId){
   return ids[0]||'';
 }
 async function _hrmsSetDeptHeadIds(deptId,ids){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='deptHeads';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='deptHeads';});
   if(!rec){
     rec={id:'hs_deptHeads',key:'deptHeads',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   if(!rec.data) rec.data={};
   var clean=(ids||[]).filter(Boolean).slice(0,_HRMS_DEPT_HEAD_MAX);
   if(clean.length) rec.data[deptId]=clean;
   else delete rec.data[deptId];
   showSpinner('Saving Department Head…');
-  var ok=await _dbSave('hrmsSettings',rec);
+  var ok=await _dbSave('appSettings',rec);
   hideSpinner();
   return ok;
 }
@@ -20271,17 +20428,9 @@ function _hrmsPlantNameForUser(u){
     var loc=(((ap&&ap.location)||linked.location||'')+'').trim();
     if(loc) return loc;
   }
-  // 2. Location → name → match against hrmsCompanies.
-  var rawPl=String(u.plant||'').trim();
-  if(rawPl){
-    var locRec=byId(DB.locations||[],rawPl);
-    var locName=(locRec&&locRec.name)||rawPl;
-    if(locName){
-      var hit=(DB.hrmsCompanies||[]).find(function(c){return c&&c.name===locName;});
-      if(hit) return hit.name;
-      return locName;
-    }
-  }
+  // 260519-V10 — the prior u.plant fallback has been removed. Users who
+  // aren't linked to an HRMS employee surface as no plant; the right fix
+  // is to attach an employee record, not to paper over with VMS plant.
   return '';
 }
 
@@ -20892,7 +21041,7 @@ async function _hrmsDeptFanoutToPlants(){
         var rec={id:'hm'+uid(),name:src.name,plant:pl};
         var ok=await _dbSave('hrmsDepartments',rec);
         if(ok){
-          // Plant lives in hrmsSettings (side-channel), since the
+          // Plant lives in appSettings (side-channel), since the
           // hrms_departments Supabase table only stores code + name.
           await _hrmsSetDeptPlant(rec.id,pl);
           added++;
@@ -23204,24 +23353,24 @@ async function _hrmsCleanupZeroAdvances(){
 
 // Render import history in the ESSL Attendance panel
 // ── Unknown-employee soft-delete / revoke ────────────────────────────────
-// Storage: hrmsSettings row with key='removedUnknown'. data is keyed by
+// Storage: appSettings row with key='removedUnknown'. data is keyed by
 // empCode and holds the original attendance + alteration rows so a
 // Revoke can re-insert them. Removal is a true DB delete on
 // hrms_attendance / hrms_alterations — we only keep the days payload
 // here for restore.
 function _hrmsLoadRemovedUnknown(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
   return (rec&&rec.data)||{};
 }
 async function _hrmsSaveRemovedUnknown(map){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='removedUnknown';});
   if(!rec){
     rec={id:'hs_removedUnknown',key:'removedUnknown',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   rec.data=map||{};
-  return await _dbSave('hrmsSettings',rec);
+  return await _dbSave('appSettings',rec);
 }
 function _hrmsBuildUnknownEmpsBlock(mk){
   if(!mk) return '';
@@ -23461,7 +23610,7 @@ function _hrmsRenderEsslImportLog(){
   }
   // Unknown-employees block — attendance rows whose empCode isn't in the
   // master, plus any rows soft-deleted via the Remove button (kept aside
-  // in hrmsSettings.removedUnknown so they can be revoked later).
+  // in appSettings.removedUnknown so they can be revoked later).
   var unknownHtml=(typeof _hrmsBuildUnknownEmpsBlock==='function')?_hrmsBuildUnknownEmpsBlock(mk):'';
 
   // Import history table is no longer rendered — per-day attribution is
@@ -24021,7 +24170,7 @@ async function _hrmsAltManualDelete(empCode,dayKey){
 // Render alteration import history
 function _hrmsRenderAltImportLog(){
   var el=document.getElementById('hrmsAltImportLog');if(!el) return;
-  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='altImportLog';});
+  var logRec=(DB.appSettings||[]).find(function(r){return r.key==='altImportLog';});
   var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
   // Filter to the currently selected month only
   var mk=_hrmsMonth;
@@ -24072,7 +24221,7 @@ function _hrmsRenderAltImportLog(){
 // Render advance import history in the Advances panel — mirrors ESSL/Alt.
 function _hrmsRenderAdvImportLog(){
   var el=document.getElementById('hrmsAdvImportLog');if(!el) return;
-  var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='advImportLog';});
+  var logRec=(DB.appSettings||[]).find(function(r){return r.key==='advImportLog';});
   var imports=(logRec&&logRec.data&&logRec.data.imports)||[];
   var mk=_hrmsMonth;
   if(mk) imports=imports.filter(function(e){return(e.monthKey||'')===mk;});
@@ -25343,9 +25492,9 @@ async function _hrmsAddMonthConfirm(){
   // Carry forward OT rules from previous month (or default if none)
   var prevOtRules=_hrmsGetOtRules(prevMk);
   var newOtRec={id:'hs_ot_'+mk,key:'otRules_'+mk,data:prevOtRules};
-  if(!DB.hrmsSettings) DB.hrmsSettings=[];
-  DB.hrmsSettings.push(newOtRec);
-  await _dbSave('hrmsSettings',newOtRec);
+  if(!DB.appSettings) DB.appSettings=[];
+  DB.appSettings.push(newOtRec);
+  await _dbSave('appSettings',newOtRec);
 
 
   hideSpinner();
@@ -25580,7 +25729,7 @@ async function _hrmsSaveMonthData(mk){
 
 // ═══ LOCK / UNLOCK MONTH ═════════════════════════════════════════════════
 function _hrmsIsMonthLocked(mk){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='monthLocks';});
   return rec&&rec.data&&rec.data[mk]===true;
 }
 
@@ -25604,7 +25753,7 @@ function _hrmsOldestUnlockedMonth(){
 // has been Save-&-Locked. Used to block deleting a revision whose salary was
 // already generated — those snapshots would become orphaned.
 function _hrmsPeriodOverlapsLock(from,to){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='monthLocks';});
   if(!rec||!rec.data) return false;
   var lo=(from||'0000-00'),hi=(to||'9999-12');
   for(var mk in rec.data){
@@ -25805,15 +25954,15 @@ async function _hrmsCancelRecalc(){
   // them. Mirrors the lock half of _hrmsToggleMonthLock without the save.
   showSpinner('Re-locking '+_hrmsMonthLabel(mk)+'…');
   try{
-    var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='monthLocks';});
+    var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='monthLocks';});
     if(!rec){
       rec={id:'hs_monthLocks',key:'monthLocks',data:{}};
-      if(!DB.hrmsSettings) DB.hrmsSettings=[];
-      DB.hrmsSettings.push(rec);
+      if(!DB.appSettings) DB.appSettings=[];
+      DB.appSettings.push(rec);
     }
     if(!rec.data) rec.data={};
     rec.data[mk]=true;
-    await _dbSave('hrmsSettings',rec);
+    await _dbSave('appSettings',rec);
     // Re-prep caches from saved snapshot so the muster / salary tabs
     // show frozen data again.
     if(typeof _hrmsPrepSavedCaches==='function'){
@@ -25906,14 +26055,14 @@ async function _hrmsSaveAndLock(){
 
     // Lock the month
     _hrmsSpinMsg('Locking…');
-    var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+    var rec=(DB.appSettings||[]).find(function(r){return r.key==='monthLocks';});
     if(!rec){
       rec={id:'hs'+uid(),key:'monthLocks',data:{}};
-      if(!DB.hrmsSettings) DB.hrmsSettings=[];
-      DB.hrmsSettings.push(rec);
+      if(!DB.appSettings) DB.appSettings=[];
+      DB.appSettings.push(rec);
     }
     rec.data[mk]=true;
-    await _dbSave('hrmsSettings',rec);
+    await _dbSave('appSettings',rec);
 
     // Auto-deactivate Contract / Piece Rate employees who were absent the
     // entire month. On-Roll are never touched by this rule.
@@ -25936,6 +26085,175 @@ async function _hrmsSaveAndLock(){
   if(_hrmsIsMonthLocked(mk)) notify('🔒 '+_MONTH_NAMES[mo]+' '+yr+' saved & locked');
 }
 
+// 260519-V2 — Per-month dashboard metrics. Pre-aggregated per-team day
+// counts (P / Night-P / Total active) written to hrms_monthly_dash_metrics
+// when a month gets locked. Dashboard reads metrics instead of the full
+// hrms_attendance for locked months → ~22 MB → ~10 KB egress per visit.
+// Current/unlocked months continue live-computing via _hrmsAttCache.
+var _hrmsDashMetricsCache={};      // mk → array of rows (or null = miss)
+var _hrmsDashMetricsInflight={};   // mk → Promise
+
+// Compute per-team day-level aggregates for one month from the in-memory
+// attendance + alteration caches. Mirrors the same bucketing + presence
+// logic _hrmsDashTeamHcSection uses, just rolled up to integer counts.
+function _hrmsComputeDashMetricsForMonth(mk){
+  if(!mk) return [];
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  if(!yr||!mo) return [];
+  var daysInMonth=new Date(yr,mo,0).getDate();
+  var allEmps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;});
+  var _periodOf=function(e){return (e.periods||[]).find(function(q){return q&&!q.to&&(!q._wfStatus||q._wfStatus==='approved');});};
+  // 260519-V3 — Resolve team_id from the current name via DB.hrmsTeams so
+  // a future rename doesn't orphan historical metrics. KAP / Piece-rate
+  // are synthetic buckets — id == name == sentinel. Contract teams use
+  // their hrms_teams record's id; teams that aren't in the master fall
+  // back to using the name as the id (degraded but still functional).
+  var teamIdByName={};
+  (DB.hrmsTeams||[]).forEach(function(t){
+    if(!t||!t.id) return;
+    if(t.name) teamIdByName[t.name]=t.id;
+  });
+  // 260519-V4 — Bucket by (team_id, plant). The plant comes from the
+  // active period's location (with fallback to emp.location). Employees
+  // without a plant land in the '__NONE__' bucket so they're still
+  // counted in the team's totals. The dashboard either fetches the
+  // specific (team, plant) row for plant-filtered views, or aggregates
+  // all plant rows for the team when no filter is active.
+  var teamMap={};
+  var _addToBucket=function(teamId,teamName,plant,e){
+    var key=teamId+'|'+plant;
+    if(!teamMap[key]) teamMap[key]={emps:[],team_id:teamId,team_name:teamName,plant:plant};
+    teamMap[key].emps.push(e);
+  };
+  allEmps.forEach(function(e){
+    if(!e||!e.empCode) return;
+    var ap=_periodOf(e);
+    var raw=String((ap&&ap.employmentType)||e.employmentType||'').toLowerCase().replace(/\s+/g,'');
+    var plant=((ap&&ap.location)||e.location||'').trim()||'__NONE__';
+    if(raw==='onroll') _addToBucket('__KAP__','__KAP__',plant,e);
+    else if(raw==='piecerate') _addToBucket('__PIECERATE__','__PIECERATE__',plant,e);
+    else if(raw==='contract'){
+      var team=((ap&&ap.teamName)||e.teamName||'').trim()||'— No team —';
+      var tid=teamIdByName[team]||team;
+      _addToBucket(tid,team,plant,e);
+    }
+  });
+  // Build per-emp per-day presence from att + alt caches (alt overrides att).
+  var attR=(window._hrmsAttCache&&_hrmsAttCache[mk])||[];
+  var altR=(window._hrmsAltCache&&_hrmsAltCache[mk])||[];
+  var pres={};
+  [attR,altR].forEach(function(arr){
+    arr.forEach(function(a){
+      if(!a||!a.empCode||!a.days) return;
+      if(!pres[a.empCode]) pres[a.empCode]={};
+      Object.keys(a.days).forEach(function(dk){
+        var entry=a.days[dk];if(!entry) return;
+        var inT=entry.in||entry['in'];
+        if(!inT) return;
+        var outT=entry.out||entry['out'];
+        var isNight=false;
+        if(outT&&typeof _hrmsParseTime==='function'){
+          var t1=_hrmsParseTime(inT),t2=_hrmsParseTime(outT);
+          if(t1!=null&&t2!=null&&t2<t1) isNight=true;
+        }
+        pres[a.empCode][+dk]={p:true,n:isNight};
+      });
+    });
+  });
+  var rows=[];
+  Object.keys(teamMap).forEach(function(key){
+    var entry=teamMap[key];
+    var emps=entry.emps;
+    if(!emps.length) return;
+    var days={};
+    var totP=0,totA=0,totN=0;
+    for(var d=1;d<=daysInMonth;d++){
+      var p=0,nightP=0,tot=0;
+      emps.forEach(function(e){
+        var st=(typeof _hrmsEmpDayState==='function')?_hrmsEmpDayState(e,mk,d):'AC';
+        if(st==='IA') return;
+        tot++;
+        var hit=pres[e.empCode]&&pres[e.empCode][d];
+        if(hit){
+          p++;
+          if(hit.n) nightP++;
+        }
+      });
+      days[d]={p:p,n:nightP,t:tot};
+      totP+=p;
+      totA+=(tot-p);
+      totN+=nightP;
+    }
+    rows.push({
+      month_key:mk,
+      team_id:entry.team_id,    // stable across renames
+      team_name:entry.team_name, // current display label (snapshot for debug)
+      plant:entry.plant,         // V4 — plant id (or '__NONE__')
+      days:days,
+      total_p:totP,
+      total_a:totA,
+      total_night:totN,
+      total_emps:emps.length
+    });
+  });
+  return rows;
+}
+
+// Write the freshly-computed metrics for `mk` to the DB. Delete-then-insert
+// is simpler than upsert here (per-(month, team) unique constraint).
+async function _hrmsWriteDashMetricsForMonth(mk){
+  if(!mk||!_sb||!_sbReady) return false;
+  if(typeof _hrmsAttFetchMonth==='function') await _hrmsAttFetchMonth(mk);
+  var rows=_hrmsComputeDashMetricsForMonth(mk);
+  if(!rows.length) return false;
+  try{
+    await _sb.from('hrms_monthly_dash_metrics').delete().eq('month_key',mk);
+    var res=await _sb.from('hrms_monthly_dash_metrics').insert(rows);
+    if(res.error) throw res.error;
+    _hrmsDashMetricsCache[mk]=rows;
+    return true;
+  }catch(e){
+    console.warn('_hrmsWriteDashMetricsForMonth('+mk+'):',e&&e.message);
+    return false;
+  }
+}
+
+// Fetch (or return cached) metrics for one month. Returns null on miss.
+async function _hrmsLoadDashMetricsForMonth(mk){
+  if(!mk) return null;
+  if(_hrmsDashMetricsCache[mk]!==undefined) return _hrmsDashMetricsCache[mk];
+  if(_hrmsDashMetricsInflight[mk]) return _hrmsDashMetricsInflight[mk];
+  if(!_sb||!_sbReady) return null;
+  _hrmsDashMetricsInflight[mk]=(async function(){
+    try{
+      var res=await _sb.from('hrms_monthly_dash_metrics').select('*').eq('month_key',mk);
+      if(res.error){ _hrmsDashMetricsCache[mk]=null; return null; }
+      _hrmsDashMetricsCache[mk]=(res.data&&res.data.length)?res.data:null;
+      return _hrmsDashMetricsCache[mk];
+    }finally{ delete _hrmsDashMetricsInflight[mk]; }
+  })();
+  return _hrmsDashMetricsInflight[mk];
+}
+
+// One-shot backfill: walk every locked month and write metrics for it.
+// Triggered manually via console (`_hrmsBackfillDashMetrics()`) or wire
+// it into a Super-Admin maintenance button. Safe to re-run — each month
+// is delete-then-insert so duplicates can't accumulate.
+async function _hrmsBackfillDashMetrics(){
+  if(!_sb||!_sbReady){ notify('Supabase not ready',true); return; }
+  var lockRec=(DB.appSettings||[]).find(function(r){return r.key==='monthLocks';});
+  var locked=(lockRec&&lockRec.data)||{};
+  var mks=Object.keys(locked).filter(function(k){return !!locked[k];}).sort();
+  if(!mks.length){ notify('No locked months to backfill',true); return; }
+  notify('🔄 Backfilling '+mks.length+' month(s)…');
+  var ok=0;
+  for(var i=0;i<mks.length;i++){
+    var done=await _hrmsWriteDashMetricsForMonth(mks[i]);
+    if(done) ok++;
+  }
+  notify('✅ Backfill done: '+ok+'/'+mks.length+' month(s)');
+}
+
 // Update spinner message without changing depth
 function _hrmsSpinMsg(msg){var m=document.getElementById('kapSpinnerMsg');if(m)m.textContent=msg;}
 
@@ -25949,19 +26267,28 @@ async function _hrmsToggleMonthLock(){
   if(!locked){
     if(!confirm('Lock '+label+'?\n\nThis will prevent edits to attendance, salary settings, and advances for this month.'))return;
   }
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='monthLocks';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='monthLocks';});
   if(!rec){
     rec={id:'hs'+uid(),key:'monthLocks',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   rec.data[mk]=!locked;
   showSpinner(locked?'Unlocking…':'Locking…');
-  await _dbSave('hrmsSettings',rec);
+  await _dbSave('appSettings',rec);
   if(locked){
-    // Unlocking: restore employee master data and reload from normal tables
+    // Unlocking: restore employee master data and reload from normal tables.
+    // 260519-V2 — Also drop the cached dashboard metrics for this month so
+    // the next dashboard render sees the un-locked state (live compute).
     _hrmsRestoreSavedCaches();
     await _hrmsAttFetchMonth(mk);
+    if(_hrmsDashMetricsCache) delete _hrmsDashMetricsCache[mk];
+  } else {
+    // 260519-V2 — Locking: compute + persist the per-team dashboard metrics
+    // so subsequent dashboard visits read 10 KB of aggregates instead of
+    // 2-3 MB of raw attendance. Failure is non-fatal — the dashboard
+    // falls back to live compute for any month without metrics.
+    try{ await _hrmsWriteDashMetricsForMonth(mk); }catch(_){}
   }
   hideSpinner();
   _hrmsUpdateLockBtn();
@@ -26133,7 +26460,7 @@ function _hrmsRenderActiveTab(){
     var btn=document.getElementById('hrmsMainTab'+t.charAt(0).toUpperCase()+t.slice(1));
     if(btn) btn.style.display=_hrmsHasAccess(_tabPerms[t])?'':'none';
   });
-  if(_hrmsActiveMainTab==='settings'){ _hrmsSalSettingsRender(); _hrmsSettingsSubTab(_hrmsActiveSettingsTab); }
+  if(_hrmsActiveMainTab==='settings'){ _hrmsSalSettingsRender(); _appSettingsSubTab(_hrmsActiveSettingsTab); }
   else if(_hrmsActiveMainTab==='attendance') _hrmsAttSetTab(_hrmsAttCurrentTab);
   else if(_hrmsActiveMainTab==='salary') _hrmsRenderOrSalary(yr,mo,'all');
   else if(_hrmsActiveMainTab==='payments') _hrmsRenderPayments();
@@ -26143,32 +26470,32 @@ function _hrmsRenderActiveTab(){
 }
 
 // ═══ SALARY SETTINGS — Per-Plant Working Days & Paid Holidays ═══════════
-var _hrmsSettingsApplyAll=false;
-// Hydrated from hrms_settings (key='calApplyAll') the first time the
+var _appSettingsApplyAll=false;
+// Hydrated from app_settings (key='calApplyAll') the first time the
 // Calendar tab renders in this session. Toggle saves back to DB so the
 // preference survives reload.
-var _hrmsSettingsApplyAllHydrated=false;
+var _appSettingsApplyAllHydrated=false;
 function _hrmsCalApplyAllLoad(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
   return !!(rec&&rec.data&&rec.data.value);
 }
 async function _hrmsCalApplyAllSave(val){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='calApplyAll';});
   if(!rec){
     rec={id:'hs_calApplyAll',key:'calApplyAll',data:{value:!!val}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   } else {
     rec.data=rec.data||{};
     rec.data.value=!!val;
   }
-  try{await _dbSave('hrmsSettings',rec);}
+  try{await _dbSave('appSettings',rec);}
   catch(e){console.warn('save calApplyAll failed:',e);}
 }
 
 // ═══ SETTINGS SUB-TABS ═══════════════════════════════════════════════════
 var _hrmsActiveSettingsTab='esslatt';
-function _hrmsSettingsSubTab(tab){
+function _appSettingsSubTab(tab){
   // Permission check for settings sub-tabs.
   var _setTabPerm={calendar:'settings.calendar',esslatt:'settings.esslatt',myapprovals:'page.myApprovals',altimport:'settings.altimport',alteration:'settings.altimport',advances:'settings.advances',manual:'settings.manual',tds:'settings.tds',salrevision:'settings.salrevision',contractrev:'page.contractRev',otrules:'settings.otrules',statutory:'settings.statutory'};
   if(_setTabPerm[tab]&&!_hrmsHasAccess(_setTabPerm[tab])){notify('Access denied',true);return;}
@@ -26237,11 +26564,11 @@ function _hrmsSettingsSubTab(tab){
 function _hrmsSalSettingsRender(){
   var body=document.getElementById('hrmsSalSettingsBody');if(!body)return;
   // First render of the session — pull the persisted Apply-All preference
-  // from hrmsSettings before rendering so the checkbox reflects the saved
+  // from appSettings before rendering so the checkbox reflects the saved
   // state on reload.
-  if(!_hrmsSettingsApplyAllHydrated){
-    _hrmsSettingsApplyAll=_hrmsCalApplyAllLoad();
-    _hrmsSettingsApplyAllHydrated=true;
+  if(!_appSettingsApplyAllHydrated){
+    _appSettingsApplyAll=_hrmsCalApplyAllLoad();
+    _appSettingsApplyAllHydrated=true;
   }
   var mk=_hrmsMonth;
   if(!mk){
@@ -26267,7 +26594,7 @@ function _hrmsSalSettingsRender(){
   if(canEdit){
     h+='<div style="margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
     h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:var(--text)">';
-    h+='<input type="checkbox" id="hrmsApplyAllPlants" onchange="_hrmsToggleApplyAll(this.checked)"'+(_hrmsSettingsApplyAll?' checked':'')+'>';
+    h+='<input type="checkbox" id="hrmsApplyAllPlants" onchange="_hrmsToggleApplyAll(this.checked)"'+(_appSettingsApplyAll?' checked':'')+'>';
     h+='Apply to all Plants</label>';
     // Save / Discard buttons — only meaningful when there are
     // unsaved changes. Shown dimmed otherwise so the operator can
@@ -26287,13 +26614,13 @@ function _hrmsSalSettingsRender(){
   plants.forEach(function(plant,pi){
     var pClr=_hrmsGetPlantColor(plant);
     // When applyAll, non-first plants read from first plant
-    var srcPlant=_hrmsSettingsApplyAll?plants[0]:plant;
+    var srcPlant=_appSettingsApplyAll?plants[0]:plant;
     var counts={WD:0,WO:0,PH:0};
     for(var d=1;d<=daysInMonth;d++){
       var dt=_hrmsGetDayType(mk,d,yr,mo,srcPlant);
       counts[dt]=(counts[dt]||0)+1;
     }
-    var disabled=_hrmsSettingsApplyAll&&pi>0;
+    var disabled=_appSettingsApplyAll&&pi>0;
     var opacity=disabled?'opacity:.45;pointer-events:none':'';
 
     h+='<div style="border:1.5px solid var(--border);border-radius:8px;padding:10px;background:var(--surface);min-width:240px;flex:1;max-width:340px;'+opacity+'">';
@@ -26346,8 +26673,8 @@ function _hrmsSalSettingsRender(){
 }
 
 function _hrmsToggleApplyAll(checked){
-  _hrmsSettingsApplyAll=checked;
-  _hrmsSettingsApplyAllHydrated=true;
+  _appSettingsApplyAll=checked;
+  _appSettingsApplyAllHydrated=true;
   _hrmsSalSettingsRender();
   // Fire-and-forget DB save; render already reflects the new state.
   _hrmsCalApplyAllSave(checked);
@@ -26381,7 +26708,7 @@ function _hrmsSalSettingsCycleDay(monthKey,day,yr,mo,plant){
   if(_hrmsIsMonthLocked(monthKey)){notify('⚠ '+_hrmsMonthLabel(monthKey)+' is locked.',true);return;}
   var plants=(DB.hrmsCompanies||[]).map(function(c){return c.name;}).filter(Boolean).sort();
   if(!plants.length) plants=['Default'];
-  var targetPlants=_hrmsSettingsApplyAll?plants:[plant];
+  var targetPlants=_appSettingsApplyAll?plants:[plant];
   var cur=_hrmsGetDayType(monthKey,day,yr,mo,targetPlants[0]);
   var next=cur==='WD'?'WO':cur==='WO'?'PH':'WD';
   var key=String(day);
@@ -26808,7 +27135,7 @@ var _hrmsOtRulesDefault={
 
 function _hrmsGetOtRules(mk){
   // Per-month override, else default
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
   if(rec&&rec.data){
     var out={};
     Object.keys(_hrmsOtRulesDefault).forEach(function(k){
@@ -26817,7 +27144,7 @@ function _hrmsGetOtRules(mk){
     return out;
   }
   // Global default if set
-  var glob=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules';});
+  var glob=(DB.appSettings||[]).find(function(r){return r.key==='otRules';});
   if(glob&&glob.data){
     var out={};
     Object.keys(_hrmsOtRulesDefault).forEach(function(k){
@@ -26933,15 +27260,15 @@ async function _hrmsSaveOtRules(){
     return;
   }
   if(!confirm('Save OT rule changes for '+_hrmsMonthLabel(mk)+'?\n\nThis will affect attendance & salary calculations for this month.'))return;
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='otRules_'+mk;});
   if(rec){rec.data=data;}
   else{
     rec={id:'hs_ot_'+mk,key:'otRules_'+mk,data:data};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   showSpinner('Saving OT rules…');
-  await _dbSave('hrmsSettings',rec);
+  await _dbSave('appSettings',rec);
   hideSpinner();
   notify('✅ OT rules saved for '+_hrmsMonthLabel(mk));
   _hrmsOtRulesEditMode=false;
@@ -26950,7 +27277,7 @@ async function _hrmsSaveOtRules(){
 }
 
 function _hrmsLoadStatutory(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='statutory';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='statutory';});
   if(rec&&rec.data){
     var d=rec.data;
     if(d.pfWorker!==undefined) _hrmsStatutory.pfWorker=d.pfWorker;
@@ -27111,15 +27438,15 @@ async function _hrmsSaveStatutory(){
     if(v===null){ notify('Invalid formula for "'+nm+'". Please fix before saving.',true); return; }
   }
   // ptRules already updated via onchange
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='statutory';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='statutory';});
   if(rec){
     rec.data=JSON.parse(JSON.stringify(s));
-    await _dbSave('hrmsSettings',rec);
+    await _dbSave('appSettings',rec);
   } else {
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
+    if(!DB.appSettings) DB.appSettings=[];
     var nr={id:'hset'+uid(),key:'statutory',data:JSON.parse(JSON.stringify(s))};
-    DB.hrmsSettings.push(nr);
-    await _dbSave('hrmsSettings',nr);
+    DB.appSettings.push(nr);
+    await _dbSave('appSettings',nr);
   }
   // Refresh the dirty-tracking snapshot — the just-saved state is now
   // the new baseline, so Save / Reset disable until the next edit.
@@ -28385,7 +28712,7 @@ function _hrmsWorkerSalarySlip(opts){
 // One modal (#mHrmsSlipEmail) drives all "email me this export" buttons.
 // A small per-report config supplies the subject template, settings key,
 // permission check, and the buildBlob() function. Defaults persist
-// company-wide in hrmsSettings keyed per-report so each tab remembers
+// company-wide in appSettings keyed per-report so each tab remembers
 // its own subject/to/cc independently.
 var _hrmsEmailReports = {
   workerSlip: {
@@ -28432,7 +28759,7 @@ var _hrmsEmailReports = {
 var _hrmsEmailCurrentReport = null;
 
 function _hrmsEmailDefaults(settingsKey, defaultSubject){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key===settingsKey;});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key===settingsKey;});
   return (rec&&rec.data)||{subject:defaultSubject,to:'',cc:''};
 }
 function _hrmsOpenEmailReport(reportKey){
@@ -28548,10 +28875,10 @@ async function _hrmsSendSlipEmail(){
   var _mn=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var p2=(_hrmsMonth||'').split('-');var monLabel=_mn[+p2[1]||0]+'-'+(p2[0]||'').slice(2);
   var subjForSave=monLabel?sub.split(monLabel).join('{month}'):sub;
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key===cfg.settingsKey;});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key===cfg.settingsKey;});
   var row=rec?Object.assign({},rec):{id:'set_'+(typeof uid==='function'?uid():Date.now().toString(36)),key:cfg.settingsKey};
   row.data={subject:subjForSave,to:toRaw,cc:ccRaw};
-  try{ await _dbSave('hrmsSettings',row); }catch(e){ /* persist failure is non-fatal */ }
+  try{ await _dbSave('appSettings',row); }catch(e){ /* persist failure is non-fatal */ }
   _hrmsSlipEmailSetStatus('\u2713 Email sent to '+toArr.length+' recipient(s).','ok');
   setTimeout(function(){ cm('mHrmsSlipEmail'); }, 1100);
   notify('\u2709 '+cfg.title+' emailed.');
@@ -28788,7 +29115,7 @@ var _hrmsContractTeamFilter='All';// team filter selection
 var _hrmsContractEmpQ='';// emp code/name search query
 
 // ═══ CONTRACT ROLL MASTER ═════════════════════════════════════════════════
-// Stored in hrmsSettings as a single record (key='rolls'). Each roll carries
+// Stored in appSettings as a single record (key='rolls'). Each roll carries
 // a history of {from: 'YYYY-MM', rate} entries; the effective rate at a given
 // month is the most recent entry whose `from` ≤ that month. This is how the
 // Contract Salary Revision page bumps rates by "increase" per roll per month.
@@ -28811,24 +29138,24 @@ var _HRMS_DEFAULT_ROLLS=[
 ];
 
 async function _hrmsLoadRolls(){
-  if(!DB.hrmsSettings) DB.hrmsSettings=[];
-  var rec=DB.hrmsSettings.find(function(r){return r.key==='rolls';});
+  if(!DB.appSettings) DB.appSettings=[];
+  var rec=DB.appSettings.find(function(r){return r.key==='rolls';});
   if(rec) return;
   // V100 (260518) — use a stable id ('hs_rolls') so this seed path and
   // _hrmsSaveRollDef's fallback (which also uses 'hs_rolls') target the
   // SAME row. The previous random `'s'+uid()` id created a brand-new
-  // row every time the seed fired against an empty DB.hrmsSettings,
+  // row every time the seed fired against an empty DB.appSettings,
   // which is why ~10 duplicate `rolls` rows accumulated in the DB.
   // Seed defaults with a sentinel from='2000-01' so they apply to every month.
   rec={id:'hs_rolls',key:'rolls',data:{rolls:_HRMS_DEFAULT_ROLLS.map(function(r){
     return {code:r[1],name:r[0],history:[{from:'2000-01',rate:r[2]}]};
   })}};
-  DB.hrmsSettings.push(rec);
-  await _dbSave('hrmsSettings',rec);
+  DB.appSettings.push(rec);
+  await _dbSave('appSettings',rec);
 }
 
 function _hrmsGetRolls(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolls';});
   return (rec&&rec.data&&rec.data.rolls)||[];
 }
 
@@ -28855,9 +29182,9 @@ function _hrmsGetRollCurrentRate(code){
 }
 
 async function _hrmsSaveRolls(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolls';});
   if(!rec) return false;
-  return await _dbSave('hrmsSettings',rec);
+  return await _dbSave('appSettings',rec);
 }
 
 function _hrmsPrevMonthKey(mk){
@@ -29045,11 +29372,11 @@ async function _hrmsRoleFormSave(){
   // Uniqueness check.
   var dup=rolls.find(function(x){return x&&x.code!==oldCode&&(x.code||'').toUpperCase()===code;});
   if(dup){setErr('Role code "'+code+'" already exists.');return;}
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolls';});
   if(!rec){
     rec={id:'hs_rolls',key:'rolls',data:{rolls:[]}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   rec.data=rec.data||{};rec.data.rolls=rec.data.rolls||[];
   if(oldCode){
@@ -29109,7 +29436,7 @@ async function _hrmsRollMasterDelete(code){
   var cnt=(_hrmsMasterUsageCountsAny('roll')[code])||0;
   if(cnt>0){notify('Cannot delete — role "'+code+'" is used by '+cnt+' employee(s) (including past revisions).',true);return;}
   if(!confirm('Delete role "'+code+'"?')) return;
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolls';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolls';});
   if(!rec||!rec.data||!rec.data.rolls) return;
   var backup=rec.data.rolls.slice();
   rec.data.rolls=rec.data.rolls.filter(function(r){return r.code!==code;});
@@ -29120,7 +29447,7 @@ async function _hrmsRollMasterDelete(code){
 
 // ═══ ALLOCATION MASTER ══════════════════════════════════════════════════
 // Plant × Department × RoleGroup → headcount target. Stored as a single
-// hrmsSettings entry { key:'allocations', data:{ groups:[], allocations:{} } }.
+// appSettings entry { key:'allocations', data:{ groups:[], allocations:{} } }.
 //   • groups: [{id, name, roles:[code], isCatchAll}]
 //   • allocations: { '<plant>|<dept>|<groupId>': <count> }
 // Compared against actual head counts in Daily Attendance Summary.
@@ -29139,11 +29466,11 @@ var _HRMS_ALLOC_DEFAULTS=[
 var _HRMS_ALLOC_MAX_GROUPS_PER_DEPT=4;
 
 function _hrmsAllocationData(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='allocations';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='allocations';});
   if(!rec){
     rec={id:'hs_alloc',key:'allocations',data:{groups:_HRMS_ALLOC_DEFAULTS.map(function(g){return Object.assign({},g);}),allocations:{}}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   if(!rec.data) rec.data={};
   if(!Array.isArray(rec.data.groups)||!rec.data.groups.length){
@@ -29155,7 +29482,7 @@ function _hrmsAllocationData(){
 
 async function _hrmsAllocationSave(){
   var rec=_hrmsAllocationData();
-  return await _dbSave('hrmsSettings',rec);
+  return await _dbSave('appSettings',rec);
 }
 
 // Compute the role-group bucket for a given role code. Uses explicit member
@@ -31856,16 +32183,16 @@ async function _hrmsImportAdvances(inputEl){
             nameMismatch:nameMismatch,
             importedBy:(CU?(CU.name||CU.id||''):'')
           };
-          var advLogRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='advImportLog';});
+          var advLogRec=(DB.appSettings||[]).find(function(r){return r.key==='advImportLog';});
           if(!advLogRec){
             advLogRec={id:'hs_advImpLog',key:'advImportLog',data:{imports:[]}};
-            if(!DB.hrmsSettings) DB.hrmsSettings=[];
-            DB.hrmsSettings.push(advLogRec);
+            if(!DB.appSettings) DB.appSettings=[];
+            DB.appSettings.push(advLogRec);
           }
           if(!advLogRec.data.imports) advLogRec.data.imports=[];
           advLogRec.data.imports.unshift(logEntry);
           if(advLogRec.data.imports.length>100) advLogRec.data.imports.length=100;
-          await _dbSave('hrmsSettings',advLogRec);
+          await _dbSave('appSettings',advLogRec);
           // V86 — Raw upload-file copy removed (see ESSL import for context).
         }catch(logErr){console.warn('Advance import log save failed:',logErr);}
 
@@ -33671,16 +33998,16 @@ async function _hrmsImportAlteration(inputEl){
             added:action==='new'?saved:0,updated:action==='replace'?saved:0,
             errors:errors,importedBy:(CU?(CU.name||CU.id||''):'')
           };
-          var logRec=(DB.hrmsSettings||[]).find(function(r){return r.key==='altImportLog';});
+          var logRec=(DB.appSettings||[]).find(function(r){return r.key==='altImportLog';});
           if(!logRec){
             logRec={id:'hs_altImpLog',key:'altImportLog',data:{imports:[]}};
-            if(!DB.hrmsSettings) DB.hrmsSettings=[];
-            DB.hrmsSettings.push(logRec);
+            if(!DB.appSettings) DB.appSettings=[];
+            DB.appSettings.push(logRec);
           }
           if(!logRec.data.imports) logRec.data.imports=[];
           logRec.data.imports.unshift(logEntry);
           if(logRec.data.imports.length>100) logRec.data.imports.length=100;
-          await _dbSave('hrmsSettings',logRec);
+          await _dbSave('appSettings',logRec);
           // V86 — Raw upload-file copy removed (see ESSL import for context).
         }catch(logErr){console.warn('Alteration log save failed:',logErr);}
 
@@ -37086,7 +37413,7 @@ function _hrmsRenderCoffAltReqTab(){
 // ═══ ORG STRUCTURE ═════════════════════════════════════════════════════════
 // Each staff employee carries `reportingTo` (existing column) for the direct
 // manager link and `extra.orgRole` for one of: hr_manager / plant_head /
-// manager / employee. The HO plant id is stored in hrmsSettings under the
+// manager / employee. The HO plant id is stored in appSettings under the
 // 'orgConfig' key. Helpers below derive the chain used by the alteration /
 // C-Off approval flows.
 
@@ -37147,20 +37474,20 @@ function _hrmsOrgIsStaff(emp){
 }
 
 function _hrmsOrgGetConfig(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='orgConfig';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='orgConfig';});
   return(rec&&rec.data)||{};
 }
 
 async function _hrmsOrgSaveConfig(patch){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r&&r.key==='orgConfig';});
+  var rec=(DB.appSettings||[]).find(function(r){return r&&r.key==='orgConfig';});
   if(!rec){
     rec={id:'hset_orgConfig',key:'orgConfig',data:Object.assign({},patch)};
-    DB.hrmsSettings=DB.hrmsSettings||[];
-    DB.hrmsSettings.push(rec);
+    DB.appSettings=DB.appSettings||[];
+    DB.appSettings.push(rec);
   } else {
     rec.data=Object.assign({},rec.data||{},patch);
   }
-  return await _dbSave('hrmsSettings',rec);
+  return await _dbSave('appSettings',rec);
 }
 
 function _hrmsOrgGetHrManagers(){
@@ -38218,7 +38545,7 @@ function _hrmsDebugApprovals(){
     console.log('Has HRMS role "Plant Head" =',_isPH);
     console.log('CU emp.location =',_phPlant||'(none)');
     console.log('Plants mapped to CU (drives scope=plant) =',(_isPH&&_phPlant)?[_phPlant]:[]);
-    var rec=(typeof DB!=='undefined'&&DB.hrmsSettings||[]).find(function(r){return r&&r.key==='rolePermissions';});
+    var rec=(typeof DB!=='undefined'&&DB.appSettings||[]).find(function(r){return r&&r.key==='rolePermissions';});
     var permsHrms=((rec&&rec.data&&rec.data.HRMS)||{}).permissions||{};
     console.log('Saved perms (HRMS) for each of CU.hrmsRoles:');
     ((typeof CU!=='undefined'&&CU&&CU.hrmsRoles)||[]).forEach(function(r){

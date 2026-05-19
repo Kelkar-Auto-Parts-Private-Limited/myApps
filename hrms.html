@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-<meta name="app-build" content="260518-V115">
+<meta name="app-build" content="260519-V14">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260518-V115">
+<link rel="stylesheet" href="css/hrms.css?v=260519-V14">
 </head>
 <body>
 
@@ -600,16 +600,16 @@
     <div id="hrmsMainSettingsContent" class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:auto;flex:1;display:flex;flex-direction:column;padding-top:0">
       <!-- Settings sub-tabs -->
       <div style="display:flex;gap:0;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--surface,#fff);border-bottom:2px solid var(--border);margin:0 -16px 12px -16px;padding:0 16px">
-        <div class="hrms-settings-tab hrms-allow-locked" onclick="_hrmsSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals" style="display:none">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt">ESSL Data</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('alteration')" id="hrmsSetTabAlteration">Manual Alt</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('manual')" id="hrmsSetTabManual">Manual P &amp; OT</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('advances')" id="hrmsSetTabAdvances">Advances</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('tds')" id="hrmsSetTabTds">TDS</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">KAP Sal Rev</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('contractrev')" id="hrmsSetTabContractrev">Contract Salary Rev</div>
-        <div class="hrms-settings-tab" onclick="_hrmsSettingsSubTab('statutory')" id="hrmsSetTabStatutory">Statutory</div>
+        <div class="hrms-settings-tab hrms-allow-locked" onclick="_appSettingsSubTab('myapprovals')" id="hrmsSetTabMyapprovals" style="display:none">My Approvals <span id="cMyApprovals" style="font-size:10px;background:#dc2626;color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;display:none">0</span></div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('esslatt')" id="hrmsSetTabEsslatt">ESSL Data</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('alteration')" id="hrmsSetTabAlteration">Manual Alt</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('manual')" id="hrmsSetTabManual">Manual P &amp; OT</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('advances')" id="hrmsSetTabAdvances">Advances</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('calendar')" id="hrmsSetTabCalendar">Calendar</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('tds')" id="hrmsSetTabTds">TDS</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('salrevision')" id="hrmsSetTabSalrevision">KAP Sal Rev</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('contractrev')" id="hrmsSetTabContractrev">Contract Salary Rev</div>
+        <div class="hrms-settings-tab" onclick="_appSettingsSubTab('statutory')" id="hrmsSetTabStatutory">Statutory</div>
       </div>
 
       <!-- Sub-tab: Calendar -->
@@ -636,7 +636,7 @@
       </div>
 
       <!-- Sub-tab: My Approvals — moved to top-level `pageHrmsMyApprovals`.
-           Empty placeholder kept so legacy `_hrmsSettingsSubTab('myapprovals')`
+           Empty placeholder kept so legacy `_appSettingsSubTab('myapprovals')`
            callers don't crash. Hidden #cMyApprovals badge anchor kept so
            the existing counter updates still find a target. -->
       <div id="hrmsSetPanelMyapprovals" style="display:none"><span id="cMyApprovals" style="display:none">0</span></div>
@@ -1259,8 +1259,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V115"></script>
-<script src="js/hrms-logic.js?v=260518-V115"></script>
-<script src="js/hrms-ui.js?v=260518-V115"></script>
+<script src="js/common.js?v=260519-V14"></script>
+<script src="js/hrms-logic.js?v=260519-V14"></script>
+<script src="js/hrms-ui.js?v=260519-V14"></script>
 </body>
 </html>

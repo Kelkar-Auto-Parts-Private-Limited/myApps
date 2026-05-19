@@ -11,7 +11,7 @@ if(typeof _COMMON_LOADED==='undefined'){
 // _loadPhotos when needed. _syncMergeRows lives in common.js with
 // the same shape, so locally-loaded photos survive subsequent syncs.
 var _SYNC_SELECT = {
-  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,plant,apps,inactive,updated_at'
+  'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
 var _PHOTO_PRESERVE = { 'users':['photo'] };
 var _PHOTO_DB_COLS  = { 'vms_users':['photo'] };
@@ -43,7 +43,7 @@ function _secApplyNavPermissions(){
 }
 function secGo(pageId){
   // Permission guard — block direct navigation when the user lacks view
-  // permission for this page. Runs once perms are in DB.hrmsSettings.
+  // permission for this page. Runs once perms are in DB.appSettings.
   if(!_secNavVisible(pageId)){
     if(typeof notify==='function') notify('⚠ You do not have access to this page.',true);
     return;
@@ -418,9 +418,9 @@ async function _secBoot(){
   var _hasCache=false;try{_hasCache=!!localStorage.getItem('kap_db_cache');}catch(e){}
   if(!_hasCache && splash) splash.style.display='flex';
   // Load only Security tables — not VMS/HWMS tables
-  // hrmsSettings holds role-permission data (shared across apps); required
+  // appSettings holds role-permission data (shared across apps); required
   // for permCanView / permCanAct to work in Security nav + page enforcement.
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules','hrmsSettings'];
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','checkpoints','guards','roundSchedules','appSettings'];
   // V91 — access gate: users without Security access bounce back to portal.
   if(typeof _gateAppAccess==='function' && !_gateAppAccess('security')) return;
   try{ await bootDB(); }catch(e){ console.error('bootDB error',e); }

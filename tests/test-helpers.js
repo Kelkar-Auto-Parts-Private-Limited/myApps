@@ -106,7 +106,7 @@ function resetDB() {
     checkpoints: [], guards: [], roundSchedules: [],
     hrmsEmployees: [], hrmsCompanies: [], hrmsCategories: [], hrmsEmpTypes: [],
     hrmsTeams: [], hrmsDepartments: [], hrmsSubDepartments: [], hrmsDesignations: [],
-    hrmsDayTypes: [], hrmsPrintFormats: [], hrmsSettings: [],
+    hrmsDayTypes: [], hrmsPrintFormats: [], appSettings: [],
     hwmsContainers: [], hwmsInvoices: [], hwmsSubInvoices: [], hwmsParts: [],
     hwmsPayments: [], hwmsSteelRates: [], hwmsMaterialRequests: []
   };

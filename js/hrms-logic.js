@@ -98,7 +98,7 @@ function _hrmsIsHRM(){return _hrmsIsSA()||CU&&(CU.hrmsRoles||[]).indexOf('HR Man
 var _hrmsPermissions=null;
 
 function _hrmsLoadPermissions(){
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolePermissions';});
   var all=(rec&&rec.data)||{};
   var hrms=all.HRMS||{};
   _hrmsPermissions=hrms.permissions||{};

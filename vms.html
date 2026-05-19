@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-build" content="260518-V115">
+<meta name="app-build" content="260519-V14">
 <title>KAP — VMS</title>
 
 <!-- xlsx removed for Claude app compatibility -->
 <!-- Local mode: no external dependencies -->
-<link rel="stylesheet" href="css/vms.css?v=260518-V115">
+<link rel="stylesheet" href="css/vms.css?v=260519-V14">
 
 </head>
 <body>
@@ -45,7 +45,8 @@
        only via the hidden placeholders / location indicator inside the
        sign-out / connection widget below. -->
   <div class="topbar-user" id="topbarUserWidget" style="cursor:default" title="VMS">
-    <span id="topbarLocName" style="display:none"></span><span id="sbStatusDot" style="width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block;margin-right:6px;flex-shrink:0;transition:background .5s" title="DB: checking..."></span>
+    <span id="sbStatusDot" style="width:7px;height:7px;border-radius:50%;background:#d1d5db;display:inline-block;margin-right:6px;flex-shrink:0;transition:background .5s" title="DB: checking..."></span>
+    <button id="vmsTopbarRefresh" onclick="_vmsTopbarRefresh()" title="Refresh data" style="background:transparent;border:1.5px solid rgba(0,0,0,.15);color:var(--text2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;padding:0;transition:transform .4s,background .15s,border-color .15s;flex-shrink:0" onmouseover="this.style.background='rgba(42,154,160,.12)';this.style.borderColor='var(--accent)'" onmouseout="this.style.background='transparent';this.style.borderColor='rgba(0,0,0,.15)'">↻</button>
     <div class="topbar-avatar" id="topbarAvatar" style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;overflow:hidden;border:1.5px solid rgba(0,0,0,.08)">👤</div>
   </div>
 </div>
@@ -1359,8 +1360,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260518-V115"></script>
-<script src="js/vms-logic.js?v=260518-V115"></script>
-<script src="js/vms-ui.js?v=260518-V115"></script>
+<script src="js/common.js?v=260519-V14"></script>
+<script src="js/vms-logic.js?v=260519-V14"></script>
+<script src="js/vms-ui.js?v=260519-V14"></script>
 </body>
 </html>

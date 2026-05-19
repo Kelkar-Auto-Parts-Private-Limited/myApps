@@ -353,13 +353,15 @@ function showPortal(){
   var psPerm=document.getElementById('psNavPermissions');if(psPerm)psPerm.style.display=isSuper?'':'none';
   // V53 — Backup nav is Super-Admin only.
   var psBk=document.getElementById('psNavBackup');if(psBk)psBk.style.display=isSuper?'':'none';
+  // 260519-V12 — Helper nav (egress widgets) is Super-Admin only.
+  var psHp=document.getElementById('psNavHelper');if(psHp)psHp.style.display=isSuper?'':'none';
   // Sidebar user count
   var uc=document.getElementById('pSideUserCount');if(uc)uc.textContent=(DB.users||[]).length;
   renderAppGrid();
-  // One-time housekeeping: backfill users.fullName from
-  // hrmsEmployees.empCode for legacy numeric usernames whose record
-  // pre-dates the modal's auto-fill. Idempotent + privilege-gated.
-  setTimeout(function(){try{_repairUsernamesFromHrms();}catch(_){}},1500);
+  // 260519-V6 — Auto-repair of legacy numeric-username fullNames from
+  // hrmsEmployees was removed. Portal no longer needs hrmsEmployees on
+  // login, and the User form no longer reads emp data. Any historical
+  // mismatch must be fixed by hand via the User edit form.
   // Hook: refresh views when bgSync updates data
   _onRefreshViews = function(){
     try{
@@ -385,6 +387,7 @@ function showTab(tab){
   if(permSec) permSec.style.display=tab==='permissions'?'flex':'none';
   document.getElementById('dbStorageSection').style.display=tab==='dbstorage'?'block':'none';
   var _bkSec=document.getElementById('backupSection');if(_bkSec)_bkSec.style.display=tab==='backup'?'block':'none';
+  var _hpSec=document.getElementById('helperSection');if(_hpSec)_hpSec.style.display=tab==='helper'?'block':'none';
   // Sidebar nav highlighting
   document.querySelectorAll('.ps-nav').forEach(n=>n.classList.remove('active'));
   var sn=document.getElementById('psNav'+tab.charAt(0).toUpperCase()+tab.slice(1));
@@ -403,6 +406,7 @@ function showTab(tab){
   if(tab==='permissions'&&!_isSA){showTab('apps');return;}
   if(tab==='dbstorage'&&!_canDb){showTab('apps');return;}
   if(tab==='backup'&&!_isSA){showTab('apps');return;}
+  if(tab==='helper'&&!_isSA){showTab('apps');return;}
   // Users tab AND permissions tab both use a viewport-locked, contained-
   // scroll layout. Body classes drive the CSS flex chain.
   document.body.classList.toggle('tab-users',tab==='users');
@@ -424,7 +428,8 @@ function showTab(tab){
     profile:     {h:'👤 My Profile',       s:'Update your account details'},
     permissions: {h:'🔐 Access Management', s:''},
     dbstorage:   {h:'📊 DB Storage',       s:'Database tables and storage usage'},
-    backup:      {h:'💾 Backup',           s:'Download an Excel backup per app'}
+    backup:      {h:'💾 Backup',           s:'Download an Excel backup per app'},
+    helper:      {h:'📖 Helper',           s:'Supabase egress monitoring'}
   };
   var _th=_tabHeads[tab]||_tabHeads.apps;
   if(tab==='apps'){
@@ -441,6 +446,7 @@ function showTab(tab){
   if(tab==='permissions') renderPermissions();
   if(tab==='dbstorage') renderPortalDbStorage();
   if(tab==='backup') renderPortalBackup();
+  if(tab==='helper') renderPortalHelper();
 }
 
 // Title bar for Access Management is fixed at "🔐 Access Management" —
@@ -938,6 +944,12 @@ function openApp(id,file){
 // nothing happens. Runs only for Super Admin / Admin since others
 // can't write to `users`.
 async function _repairUsernamesFromHrms(){
+  // 260519-V6 — Neutered. Portal no longer fetches hrmsEmployees on
+  // login, so this auto-repair has nothing to walk. Kept as a no-op
+  // shim so any straggler caller doesn't crash.
+  return 0;
+  /* eslint-disable */
+  // Original logic preserved below for reference / rollback.
   if(typeof CU==='undefined'||!CU) return 0;
   if(!Array.isArray(DB.users)||!Array.isArray(DB.hrmsEmployees)) return 0;
   if(!DB.hrmsEmployees.length) return 0;
@@ -985,15 +997,9 @@ function puSort(key){
 function _puSortVal(u,key){
   if(key==='fullName') return String(u.fullName||u.name||'').toLowerCase();
   if(key==='name') return String(u.name||'').toLowerCase();
-  if(key==='location'){
-    var loc=byId(DB.locations||[],u.plant);
-    return String(loc?loc.name:(u.plant||'')).toLowerCase();
-  }
   return '';
 }
 function _puRenderHeader(){
-  // Render the thead with sortable indicators on Full Name / Username /
-  // Location. Other cells stay plain.
   var arrow=function(key){
     if(_puSortKey!==key) return '<span class="puSortIcon">↕</span>';
     return '<span class="puSortIcon">'+(_puSortDir>0?'↑':'↓')+'</span>';
@@ -1003,7 +1009,6 @@ function _puRenderHeader(){
     '<th></th>'+
     '<th class="'+sortCls('fullName')+'" onclick="puSort(\'fullName\')">Full Name '+arrow('fullName')+'</th>'+
     '<th class="'+sortCls('name')+'" onclick="puSort(\'name\')">Username '+arrow('name')+'</th>'+
-    '<th class="'+sortCls('location')+'" onclick="puSort(\'location\')">Location '+arrow('location')+'</th>'+
     '<th>Apps &amp; Roles</th>'+
     '<th>Reset Password</th>'+
   '</tr>';
@@ -1076,8 +1081,6 @@ function renderPortalUsers(){
   var theadEl=document.querySelector('#usersSection .puTableWrap thead');
   if(theadEl) theadEl.innerHTML=_puRenderHeader();
   document.getElementById('puBody').innerHTML=rows.length?rows.map(u=>{
-    const loc=byId(DB.locations||[],u.plant);
-    const locBadge=loc?(loc.colour?`<span style="background:${loc.colour};color:${colourContrast(loc.colour)};padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px">${loc.name}</span>`:loc.name):(u.plant||'—');
     const iBadge=u.inactive?'<span style="font-size:9px;font-weight:700;background:#fee2e2;color:#dc2626;padding:1px 6px;border-radius:4px;margin-left:5px">Inactive</span>':'';
     // Combined Apps & Roles cell. Platform roles render as a purple top
     // strip (shared across the whole portal); each app the user has
@@ -1106,10 +1109,10 @@ function renderPortalUsers(){
       <td>${u.photo?`<img src="${u.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid var(--border2)">`:'<div style="width:32px;height:32px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text3)">👤</div>'}</td>
       <td style="font-weight:600">${u.fullName||'—'}${iBadge}</td>
       <td style="font-family:var(--mono);font-size:12px">${u.name}</td>
-      <td>${locBadge}</td><td>${roleBadges}</td>
+      <td>${roleBadges}</td>
       <td style="white-space:nowrap;text-align:center">${!(u.roles||[]).includes('Super Admin')?`<button class="action-btn" onclick="event.stopPropagation();puResetPwd('${u.id}')" title="Reset Password" style="color:#f59e0b">🔑</button>`:`<span style="color:var(--text3);font-size:11px;font-style:italic">—</span>`}</td>
     </tr>`;
-  }).join(''):'<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3)">No users found</td></tr>';
+  }).join(''):'<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text3)">No users found</td></tr>';
 }
 
 // When the username field is filled with a numeric value that matches
@@ -1121,6 +1124,12 @@ function renderPortalUsers(){
 // typed by hand is preserved. Manual edits to those fields drop the
 // flag so they're never overwritten back to blank.
 function _muAutoFillFromEmpCode(){
+  // 260519-V6 — User form no longer auto-fills Full Name / Location
+  // from the matching HRMS employee. Kept as a no-op shim so any
+  // residual HTML attribute or external caller doesn't crash.
+  return;
+  /* eslint-disable */
+  // Original logic preserved below for reference / rollback.
   try{
     var nameInp=document.getElementById('muName');
     var fullInp=document.getElementById('muFull');
@@ -1229,7 +1238,6 @@ function puOpenModal(id){
   // their saved values, not auto-populated, so they must NOT clear
   // when the username later changes.
   document.getElementById('muFull')?.removeAttribute('data-mu-auto');
-  document.getElementById('muLoc')?.removeAttribute('data-mu-auto');
   // Password field removed — new users get _PORTAL_RESET_PWD automatically.
   document.getElementById('muFull').value=u?.fullName||'';
   // Country-code dropdown — populated from the shared list. The saved
@@ -1252,9 +1260,6 @@ function puOpenModal(id){
   const eInp=document.getElementById('muEmail');
   if(eInp) eInp.value=u?.email||'';
   document.getElementById('muTitle').textContent=id?'Edit User':'Add User';
-  // Location dropdown
-  const locs=(DB.locations||[]).filter(l=>l&&l.type==='KAP'&&!l.inactive).sort((a,b)=>a.name.localeCompare(b.name));
-  document.getElementById('muLoc').innerHTML='<option value="">-- Select --</option>'+locs.map(l=>`<option value="${l.id}"${l.id===u?.plant?' selected':''}>${l.name}</option>`).join('');
   // Apps
   const ua=u?.apps||(u?['vms']:[]);
   document.getElementById('muApps').innerHTML=PORTAL_APPS.map(a=>{const c=ua.includes(a.id);return `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;background:${c?'rgba(42,154,160,.07)':'var(--surface2)'};padding:4px 10px;border-radius:5px;border:1px solid ${c?'var(--accent)':'var(--border)'}"><input type="checkbox" class="muAppCb" value="${a.id}" ${c?'checked':''} style="width:auto" onchange="puAppChange(this)"> ${a.icon} ${a.label}</label>`}).join('');
@@ -1324,7 +1329,6 @@ function puAppChange(cb){
 async function puSaveUser(){
   const id=document.getElementById('muId').value;
   const name=document.getElementById('muName').value.trim().toLowerCase().replace(/[\s!@#$%^&*()+=\[\]{};':"\\|,.<>\/?]/g,'');
-  const plant=document.getElementById('muLoc').value;
   const fullName=document.getElementById('muFull').value.trim();
   // Mobile: capture digits only and re-attach the country code from the
   // dropdown so the saved value is "+CC XXXX XX XXXX".
@@ -1366,7 +1370,6 @@ async function puSaveUser(){
   if(!apps.includes('maintenance')) mttsRoles=[];
   const inactive=document.getElementById('muInactive')?.checked===true;
   if(!name){modalErr('mUser','Username required');return}
-  if(!plant){modalErr('mUser','Location required');return}
   if(!fullName){modalErr('mUser','Full name required');return}
   if(!apps.length){modalErr('mUser','Select at least one app');return}
   if(apps.includes('vms')&&!vmsRoles.length){modalErr('mUser','Select at least one VMS role');return}
@@ -1387,19 +1390,20 @@ async function puSaveUser(){
   if(id){
     // Edit: never touch password from this form. Password changes go
     // through Reset (Super Admin 🔑 button) or self-service login flow.
-    const bak={...eu};Object.assign(eu,{name,plant,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive});
+    // 260519-V9 — `plant` is no longer written from this form. UPA
+    // (vms-ui:renderUserPlantAlloc) is the sole writer of u.plant; the
+    // existing value on `eu` is preserved by omitting it from the spread.
+    const bak={...eu};Object.assign(eu,{name,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive});
     if(!await _dbSave('users',eu)){Object.assign(eu,bak);return}
   } else {
     // New user: always assign the default password. User must change it
     // on first login (forced via password-strength check).
-    const nu={id:'u'+uid(),name,plant,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive,photo:''};
+    // 260519-V9 — new users have no plant; assign via UPA after creation.
+    const nu={id:'u'+uid(),name,fullName,mobile,email,roles,hwmsRoles,hrmsRoles,mttsRoles,apps,inactive,photo:''};
     if(!await _dbSave('users',nu)) return;
     await _authSetPassword(nu.id,_PORTAL_RESET_PWD);
   }
   cm('mUser');
-  // Auto-sync user's roles into their plant location's role arrays
-  const _savedUId=id||(DB.users[DB.users.length-1]?.id);
-  if(_savedUId&&plant&&!inactive&&typeof _syncUserToLocation==='function') await _syncUserToLocation(_savedUId,plant,roles);
   // Sync CU if editing own record
   if(CU&&(id===CU.id||(!id&&DB.users[DB.users.length-1]?.name===name))){
     const fresh=DB.users.find(u=>u.name===name);
@@ -1418,10 +1422,6 @@ function _puExportUsers(){
     notify('⚠ Super Admin only',true);return;
   }
   if(typeof _downloadAsXlsx!=='function'){notify('XLSX helper not loaded',true);return;}
-  // Build location-id → name map so we export the human-readable plant
-  // name (not the internal location id).
-  var locById={};
-  (DB.locations||[]).forEach(function(l){if(l&&l.id) locById[l.id]=l.name||'';});
   // Platform roles split off from u.roles so the export has VMS-only
   // roles in their own column.
   var PLAT=(typeof PLATFORM_ROLES!=='undefined'?PLATFORM_ROLES:['Super Admin','Admin','Read Only']);
@@ -1431,7 +1431,7 @@ function _puExportUsers(){
   rows.sort(function(a,b){
     return String(a.fullName||a.name||'').localeCompare(String(b.fullName||b.name||''),undefined,{numeric:true,sensitivity:'base'});
   });
-  var headers=['Username','Full Name','Location','Email','Mobile','Apps','Platform Roles','VMS Roles','HWMS Roles','HRMS Roles','MTTS Roles','Inactive'];
+  var headers=['Username','Full Name','Email','Mobile','Apps','Platform Roles','VMS Roles','HWMS Roles','HRMS Roles','MTTS Roles','Inactive'];
   var data=[headers];
   rows.forEach(function(u){
     if(!u) return;
@@ -1441,7 +1441,6 @@ function _puExportUsers(){
     data.push([
       u.name||'',
       u.fullName||'',
-      locById[u.plant]||u.plant||'',
       u.email||'',
       u.mobile||'',
       (u.apps||[]).join(', '),
@@ -1741,11 +1740,13 @@ function doLogout(){
 
 // ═══ BOOT / INITIALISATION ═══════════════════════════════════════════════
 async function _portalBoot(){
-  // Portal needs users + locations + hrmsSettings, plus hrmsEmployees so
-  // the Add/Edit User modal can auto-fill Full Name / Location from a
-  // numeric username matching an HRMS empCode. Photos are excluded
-  // from the boot select for this table (handled in bootDB).
-  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','hrmsSettings','hrmsEmployees'];
+  // 260519-V6 — hrmsEmployees dropped from Portal's _APP_TABLES.
+  // The User form's auto-fill (empCode → fullName + location) and
+  // `_repairUsernamesFromHrms` were the only consumers, both now
+  // disabled. Saves ~2 MB on every Portal login. If the Add/Edit User
+  // grid ever needs emp data again, lazy-load via
+  // `_hrmsEnsureEmployees()` (see below).
+  if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','appSettings'];
   // Check session
   var su,sp2;
   try{ su=_sessionGet('kap_session_user'); sp2=_sessionGet('kap_session_token'); }catch(e){}
@@ -2720,15 +2721,15 @@ async function _permSaveRole(){
 async function _permSaveData(md){
   var all=_permLoadData();
   all[_permActiveModule]=md;
-  var rec=(DB.hrmsSettings||[]).find(function(r){return r.key==='rolePermissions';});
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolePermissions';});
   if(!rec){
     rec={id:'hs_rolePermissions',key:'rolePermissions',data:{}};
-    if(!DB.hrmsSettings) DB.hrmsSettings=[];
-    DB.hrmsSettings.push(rec);
+    if(!DB.appSettings) DB.appSettings=[];
+    DB.appSettings.push(rec);
   }
   rec.data=all;
   showSpinner('Saving…');
-  await _dbSave('hrmsSettings',rec);
+  await _dbSave('appSettings',rec);
   hideSpinner();
   _permRenderRoles();
 }
@@ -2746,14 +2747,14 @@ const _BK_APP_TABLES = {
   vms: {
     label:'VMS', icon:'🚚',
     tables:['users','locations','vehicleTypes','vendors','drivers','vehicles',
-            'tripRates','trips','segments','spotTrips','hrmsSettings']
+            'tripRates','trips','segments','spotTrips','userPlantAlloc','appSettings']
   },
   hrms: {
     label:'HRMS', icon:'👥',
     tables:['users','locations','hrmsEmployees','hrmsCompanies','hrmsCategories',
             'hrmsEmpTypes','hrmsTeams','hrmsDepartments','hrmsSubDepartments',
             'hrmsDesignations','hrmsAttendance','hrmsDayTypes','hrmsAlterations',
-            'hrmsPrintFormats','hrmsSettings','hrmsAdvances','hrmsMonthData']
+            'hrmsPrintFormats','appSettings','hrmsAdvances','hrmsMonthData']
   },
   hwms: {
     label:'HWMS', icon:'📦',
@@ -2761,18 +2762,18 @@ const _BK_APP_TABLES = {
             'hwmsHsn','hwmsUom','hwmsPacking','hwmsCustomers','hwmsPortDischarge',
             'hwmsPortLoading','hwmsCarriers','hwmsCompany','hwmsSteelRates',
             'hwmsSubInvoices','hwmsMaterialRequests','hwmsPaymentReceipts',
-            'hrmsSettings']
+            'appSettings']
   },
   mtts: {
     label:'MTTS', icon:'🔧',
     tables:['users','locations','mttsPlants','mttsAssetTypes',
             'mttsAssetPrimaryNames','mttsAgencies','mttsAssets','mttsTickets',
-            'hrmsSettings']
+            'appSettings']
   },
   security: {
     label:'Security', icon:'📹',
     tables:['users','locations','checkpoints','guards','roundSchedules',
-            'hrmsSettings']
+            'appSettings']
   }
 };
 
@@ -2942,4 +2943,207 @@ async function _bkDownloadAll(){
   }
   if(btn){ btn.disabled=false; btn.textContent='⬇ Download All'; btn.style.opacity='1'; }
   _bkSetStatus('<div style="margin-top:8px;font-weight:700;color:#15803d">✅ All backups generated.</div>',true);
+}
+
+// ═══ PORTAL HELPER PAGE — EGRESS MONITORING (Super Admin only) ═══════════════
+// 260519-V12 — Hosts the Supabase egress widgets that used to live on the
+// VMS Helper page. Moved here so the dataset can use the Portal page's
+// full width without being constrained by VMS's narrower layout.
+async function _egressLoadAllUsers(){
+  var body=document.getElementById('egressAllUsersBody');
+  if(!body) return;
+  if(!_sb||!_sbReady){ body.innerHTML='<div style="color:#dc2626;font-weight:700">Supabase client not ready.</div>'; return; }
+  var winSel=document.getElementById('egressWindowSel');
+  var days=parseInt(winSel?winSel.value:'7',10)||7;
+  var since=new Date(Date.now()-days*86400000).toISOString();
+  body.innerHTML='<div style="color:var(--text3)">Loading…</div>';
+  try{
+    var res=await _sb.from('vms_egress_log')
+      .select('user_id,user_name,page_id,kind,table_name,bytes,count,at')
+      .gte('at', since)
+      .order('at',{ascending:false})
+      .limit(20000);
+    if(res.error) throw res.error;
+    var rows=res.data||[];
+    if(!rows.length){ body.innerHTML='<div style="color:var(--text3)">No log rows in this window. If you just provisioned the table, give the next 30-second flush a moment.</div>'; return; }
+    var agg={};
+    rows.forEach(function(r){
+      var k=(r.user_id||'?')+'|'+(r.page_id||'?');
+      if(!agg[k]) agg[k]={user_id:r.user_id,user_name:r.user_name||'',page_id:r.page_id,rest:{c:0,b:0},ws:{c:0,b:0},tables:{},firstAt:r.at||'',lastAt:r.at||''};
+      var a=agg[k];
+      var kind=(r.kind==='ws')?'ws':'rest';
+      a[kind].c+=(r.count||0);
+      a[kind].b+=(r.bytes||0);
+      if(r.at){
+        if(!a.firstAt||r.at<a.firstAt) a.firstAt=r.at;
+        if(!a.lastAt||r.at>a.lastAt) a.lastAt=r.at;
+      }
+      if(r.table_name){
+        if(!a.tables[r.table_name]) a.tables[r.table_name]={c:0,b:0};
+        a.tables[r.table_name].c+=(r.count||0);
+        a.tables[r.table_name].b+=(r.bytes||0);
+      }
+    });
+    var fmt=function(n){if(!n||n<1024)return (n||0)+' B';if(n<1024*1024)return (n/1024).toFixed(1)+' KB';return (n/1024/1024).toFixed(2)+' MB';};
+    var fmtTs=function(iso){
+      if(!iso) return '—';
+      var d=new Date(iso); if(isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false});
+    };
+    var entries=Object.values(agg).sort(function(a,b){return (b.rest.b+b.ws.b)-(a.rest.b+a.ws.b);});
+    var totRestB=entries.reduce(function(s,e){return s+e.rest.b;},0);
+    var totWsB=entries.reduce(function(s,e){return s+e.ws.b;},0);
+    var totRestC=entries.reduce(function(s,e){return s+e.rest.c;},0);
+    var totWsC=entries.reduce(function(s,e){return s+e.ws.c;},0);
+    entries.sort(function(a,b){ return (b.lastAt||'').localeCompare(a.lastAt||''); });
+    var rowsHtml=entries.map(function(a){
+      var tbls=Object.entries(a.tables).sort(function(x,y){return y[1].b-x[1].b;});
+      var tblTxt=tbls.slice(0,3).map(function(t){return t[0]+' ('+fmt(t[1].b)+')';}).join(', ');
+      var more=tbls.length>3?' +'+(tbls.length-3):'';
+      return '<tr>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-weight:700">'+(a.user_name||a.user_id||'?')+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">'+a.page_id+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--text2);white-space:nowrap">'+fmtTs(a.firstAt)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;font-family:var(--mono);color:#0f172a;font-weight:700;white-space:nowrap">'+fmtTs(a.lastAt)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.rest.c+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.rest.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+a.ws.c+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+fmt(a.ws.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800">'+fmt(a.rest.b+a.ws.b)+'</td>'
+        +'<td style="padding:5px 9px;border:1px solid var(--border);font-size:11px;color:var(--text2)">'+(tblTxt||'—')+more+'</td>'
+        +'</tr>';
+    }).join('');
+    body.innerHTML=
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+rows.length+' log rows · '+entries.length+' user×page combos · last '+days+'d · REST <strong style="color:#0f172a">'+fmt(totRestB)+'</strong> ('+totRestC+' calls) · WS <strong style="color:#0f172a">'+fmt(totWsB)+'</strong> ('+totWsC+' frames) · Combined <strong style="color:#0f172a">'+fmt(totRestB+totWsB)+'</strong></div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">'
+      +'<thead><tr style="background:var(--surface2)">'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">User</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">First seen</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Last seen</th>'
+      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>'
+      +'<th colspan="2" style="padding:4px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>'
+      +'<th rowspan="2" style="padding:6px 9px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>'
+      +'</tr><tr style="background:var(--surface2)">'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Calls</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Frames</th>'
+      +'<th style="padding:3px 7px;border:1px solid var(--border);font-size:10px;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>'
+      +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+  }catch(e){
+    var msg=(e&&e.message)||String(e);
+    body.innerHTML='<div style="color:#dc2626;font-weight:700;font-size:12px">Error: '+msg+'</div>'
+      +'<div style="color:var(--text2);font-size:11px;margin-top:6px">If the table doesn\'t exist yet, run the SQL DDL shown below in the Supabase SQL editor, then come back and try again.</div>'
+      +'<details style="margin-top:8px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px"><summary style="cursor:pointer;font-weight:700;font-size:12px;color:#334155">📜 vms_egress_log DDL</summary>'
+      +'<pre style="font-size:10px;line-height:1.4;white-space:pre-wrap;color:#0f172a;font-family:var(--mono);margin:6px 0 0">'+_egressDdlText()+'</pre></details>';
+  }
+}
+function _egressDdlText(){
+  return [
+    'CREATE TABLE IF NOT EXISTS public.vms_egress_log (',
+    '  id          uuid primary key default gen_random_uuid(),',
+    '  user_id     text,',
+    '  user_name   text,',
+    '  page_id     text,',
+    '  kind        text check (kind in (\'rest\',\'ws\')),',
+    '  table_name  text,',
+    '  bytes       bigint  not null default 0,',
+    '  count       integer not null default 1,',
+    '  at          timestamptz not null default now()',
+    ');',
+    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_at        ON public.vms_egress_log (at desc);',
+    'CREATE INDEX IF NOT EXISTS idx_vms_egress_log_user_page ON public.vms_egress_log (user_id, page_id, at desc);',
+    '',
+    'ALTER TABLE public.vms_egress_log ENABLE ROW LEVEL SECURITY;',
+    'DROP POLICY IF EXISTS "egress_log_insert" ON public.vms_egress_log;',
+    'CREATE POLICY "egress_log_insert" ON public.vms_egress_log FOR INSERT TO anon WITH CHECK (true);',
+    'DROP POLICY IF EXISTS "egress_log_select" ON public.vms_egress_log;',
+    'CREATE POLICY "egress_log_select" ON public.vms_egress_log FOR SELECT TO anon USING (true);',
+    '',
+    'NOTIFY pgrst, \'reload schema\';'
+  ].join('\n');
+}
+function renderPortalHelper(){
+  var el=document.getElementById('helperContent');
+  if(!el) return;
+  var _eg=window._egressStats||{};
+  var _egFmt=function(n){
+    if(!n||n<1024) return (n||0)+' B';
+    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+    return (n/1024/1024).toFixed(2)+' MB';
+  };
+  var _egEntries=Object.entries(_eg).sort(function(a,b){return (b[1].bytes||0)-(a[1].bytes||0);});
+  var _egTotalBytes=_egEntries.reduce(function(s,e){return s+(e[1].bytes||0);},0);
+  var _egTotalCalls=_egEntries.reduce(function(s,e){return s+(e[1].count||0);},0);
+  var _egTotalRest=_egEntries.reduce(function(s,e){return s+((e[1].rest&&e[1].rest.bytes)||0);},0);
+  var _egTotalWs=_egEntries.reduce(function(s,e){return s+((e[1].ws&&e[1].ws.bytes)||0);},0);
+  var _egRows=_egEntries.length
+    ?_egEntries.map(function(kv){
+      var pid=kv[0], rec=kv[1];
+      var tbls=Object.entries(rec.tables||{}).sort(function(a,b){return (b[1].bytes||0)-(a[1].bytes||0);});
+      var tblSummary=tbls.slice(0,3).map(function(t){return t[0]+' ('+_egFmt(t[1].bytes)+')';}).join(', ');
+      var more=tbls.length>3?' +'+(tbls.length-3)+' more':'';
+      var restB=(rec.rest&&rec.rest.bytes)||0, restC=(rec.rest&&rec.rest.count)||0;
+      var wsB=(rec.ws&&rec.ws.bytes)||0, wsC=(rec.ws&&rec.ws.count)||0;
+      return '<tr>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;font-family:var(--mono)">'+pid+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+restC+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">'+_egFmt(restB)+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono)">'+wsC+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);color:#0f172a">'+_egFmt(wsB)+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:12px;text-align:right;font-family:var(--mono);font-weight:800;color:#0f172a">'+_egFmt(rec.bytes||0)+'</td>'
+        +'<td style="padding:6px 10px;border:1px solid var(--border);font-size:11px;color:var(--text2)">'+(tblSummary||'—')+more+'</td>'
+      +'</tr>';
+    }).join('')
+    :'<tr><td colspan="7" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">No Supabase traffic recorded yet this session</td></tr>';
+  el.innerHTML=''
+    +'<!-- SUPABASE EGRESS — ALL USERS (persisted) -->'
+    +'<div style="background:linear-gradient(135deg,rgba(168,85,247,.08),rgba(99,102,241,.08));border:2px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:18px;width:100%;box-sizing:border-box">'
+      +'<div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#6d28d9;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'🗂 Supabase Egress — All Users'
+        +'<span style="font-size:10px;font-weight:600;color:#581c87;text-transform:none;letter-spacing:0">from vms_egress_log (persisted)</span>'
+        +'<span style="margin-left:auto;display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">'
+          +'<label style="font-size:10px;font-weight:700;color:#581c87">Window'
+            +'<select id="egressWindowSel" style="margin-left:4px;font-size:11px;padding:2px 6px;border:1px solid #c4b5fd;border-radius:5px;background:#fff;font-weight:700">'
+              +'<option value="1">Last 1d</option>'
+              +'<option value="7" selected>Last 7d</option>'
+              +'<option value="30">Last 30d</option>'
+            +'</select>'
+          +'</label>'
+          +'<button onclick="_egressLoadAllUsers()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer">⤓ Load</button>'
+          +'<button onclick="window._egressFlush&&window._egressFlush().then(function(){setTimeout(_egressLoadAllUsers,400);})" title="Flush in-memory batch to DB, then reload" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:6px;cursor:pointer">↻ Flush + Load</button>'
+        +'</span>'
+      +'</div>'
+      +'<div id="egressAllUsersBody" style="font-size:11px;color:var(--text2)">Click <strong>⤓ Load</strong> to fetch aggregated egress across all users for the selected window. Fetching this view itself is excluded from the counters.</div>'
+    +'</div>'
+    +'<!-- SUPABASE EGRESS — SESSION -->'
+    +'<div style="background:linear-gradient(135deg,rgba(234,88,12,.08),rgba(245,158,11,.08));border:2px solid #ea580c;border-radius:12px;padding:14px 16px;margin-bottom:18px;width:100%;box-sizing:border-box">'
+      +'<div style="font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:#c2410c;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'🌐 Supabase Egress — Session'
+        +'<span style="font-size:10px;font-weight:600;color:#9a3412;text-transform:none;letter-spacing:0">'+((CU&&(CU.fullName||CU.name))||'—')+' · in-memory only</span>'
+        +'<span style="margin-left:auto;display:inline-flex;gap:6px">'
+          +'<button onclick="renderPortalHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#ea580c;color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>'
+          +'<button onclick="if(window._egressReset){window._egressReset();}renderPortalHelper()" style="padding:3px 10px;font-size:11px;font-weight:700;background:#fff;color:#ea580c;border:1.5px solid #ea580c;border-radius:6px;cursor:pointer">↺ Reset</button>'
+        +'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Total: <strong style="color:#0f172a">'+_egTotalCalls+'</strong> events · REST <strong style="color:#0f172a">'+_egFmt(_egTotalRest)+'</strong> · WS <strong style="color:#0f172a">'+_egFmt(_egTotalWs)+'</strong> · Combined <strong style="color:#0f172a">'+_egFmt(_egTotalBytes)+'</strong></div>'
+      +'<div style="overflow-x:auto">'
+        +'<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden">'
+          +'<thead><tr style="background:var(--surface2)">'
+            +'<th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Page</th>'
+            +'<th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(234,88,12,.10)">REST</th>'
+            +'<th colspan="2" style="padding:5px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:center;background:rgba(168,85,247,.10)">Realtime WS</th>'
+            +'<th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:right">Total</th>'
+            +'<th rowspan="2" style="padding:7px 10px;border:1px solid var(--border);font-size:11px;font-weight:800;text-align:left">Top Tables</th>'
+          +'</tr><tr style="background:var(--surface2)">'
+            +'<th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Calls</th>'
+            +'<th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(234,88,12,.06)">Bytes</th>'
+            +'<th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Frames</th>'
+            +'<th style="padding:4px 8px;border:1px solid var(--border);font-size:10px;font-weight:700;text-align:right;background:rgba(168,85,247,.06)">Bytes</th>'
+          +'</tr></thead>'
+          +'<tbody>'+_egRows+'</tbody>'
+        +'</table>'
+      +'</div>'
+    +'</div>';
 }
