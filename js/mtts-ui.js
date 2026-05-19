@@ -355,16 +355,36 @@ function _mttsLockModal(modalEl,canEdit){
 
 function _mttsHasAccess(featureKey){
   if(_mttsIsSA()) return true;
-  if(_mttsIsMttsAdmin()) return true; // V1 — module-admin bypass
-  if(_mttsIsManager()) return true; // module-admin equivalent
-  // Permissions configured? respect them.
-  if(typeof permConfigured==='function'&&permConfigured('MTTS')){
+  // 260519-V31 — MTTS Admin / Maintenance Manager bypasses removed.
+  // Per user request, those module-admin roles are now subject to the
+  // same Access Management gates as everyone else. To grant either of
+  // them full access, admin must explicitly set every page/action to
+  // Full in Access Management → MTTS → <role>. The matching change
+  // in _PERM_MODULE_ADMIN.MTTS keeps permConfigured / permLevel from
+  // silently auto-granting them either.
+  // 260519-V30 — Access Management is the single source of truth once
+  // admin has saved anything in MTTS. Earlier code only checked the
+  // user's own roles via permConfigured(), so a Ticket Raiser whose
+  // row admin hadn't touched still hit the hardcoded fallback below
+  // — silently granting page.assets + page.tickets regardless of
+  // admin intent ("TR/Tech getting full access" report). Now we ask:
+  // has the admin configured ANY role in MTTS? If yes, every user's
+  // access is fully driven by permLevel/permCanView/permCanAct — a
+  // role with no saved entries gets none. Only when the whole module
+  // is unconfigured (first-run / greenfield) do we drop to the legacy
+  // role defaults so the app still works out of the box.
+  var _mttsModulePerms=((typeof _permLoadData==='function'?_permLoadData():{})['MTTS']||{}).permissions||{};
+  var _mttsModuleConfigured=Object.keys(_mttsModulePerms).some(function(r){
+    var p=_mttsModulePerms[r];
+    return p && typeof p==='object' && Object.keys(p).length>0;
+  });
+  if(_mttsModuleConfigured){
     if(/^action\./.test(featureKey)){
-      return typeof permCanAct==='function'&&permCanAct('MTTS',featureKey);
+      return typeof permCanAct==='function' && permCanAct('MTTS',featureKey);
     }
-    return typeof permCanView==='function'&&permCanView('MTTS',featureKey);
+    return typeof permCanView==='function' && permCanView('MTTS',featureKey);
   }
-  // Fallback role defaults — no permissions configured for this user.
+  // Greenfield fallback — admin hasn't configured ANYTHING in MTTS yet.
   if(!CU) return false;
   var r=CU.mttsRoles||[];
   if(r.indexOf('Technician')>=0){

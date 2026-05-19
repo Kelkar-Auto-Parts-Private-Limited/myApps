@@ -908,6 +908,10 @@ function _vmsDoFullSync(){
     _vmsUpdateSyncTime();
     // Update badges immediately when data arrives
     try{updBadges();}catch(e){}
+    // 260519-V32 — Re-point CU at the live DB.users record after the
+    // sync so role/app changes admin made elsewhere take effect mid-
+    // session instead of leaving CU stuck on the boot snapshot.
+    if(typeof _refreshCU==='function'){ try{ _refreshCU(); }catch(_){} }
     if(!_kapPopupOpen)_onRefreshViews();
     if(tc>0||trueFull)console.log('📡 VMS '+(trueFull?'true full':'incr full')+' sync: '+tc+' rows');
   }).catch(function(e){console.warn('VMS full sync error:',e.message);});

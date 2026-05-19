@@ -2606,6 +2606,9 @@ function _bgSyncFromSupabase(){
     // Always set status to 'ok' after a successful sync — especially important when
     // boot timed out or cache was empty and status was still 'connecting'.
     if(_sbStatus!=='ok') _sbSetStatus('ok');
+    // 260519-V32 — Reconcile CU with the live record after the full sync,
+    // same rationale as the _bgSyncHot call site.
+    if(typeof _refreshCU==='function'){ try{ _refreshCU(); }catch(_){} }
     // Update login button state in case users just loaded for the first time
     if(typeof _updateLoginBtnState==='function') _updateLoginBtnState();
     if(typeof _portalUpdateLoginBtn==='function') _portalUpdateLoginBtn();
@@ -2675,6 +2678,10 @@ function _bgSyncHot(){
     hotTbls.forEach(function(t){ _lastBgSyncAt[t]=pollStartedAt; });
     _bgSyncDone=true;
     if(_sbStatus!=='ok') _sbSetStatus('ok');
+    // 260519-V32 — Reconcile CU with the freshly-merged users array so
+    // role/app changes admin made in another tab/session take effect
+    // mid-session instead of waiting for a re-login.
+    if(typeof _refreshCU==='function'){ try{ _refreshCU(); }catch(_){} }
     if(!_kapPopupOpen) _onRefreshViews();
     // V97 — write boot cache periodically (every 2nd successful poll,
     // i.e. ~2 min) so a hard refresh after the page is open finds a
@@ -3187,7 +3194,10 @@ function _permLoadData(){
 // legacy admin role so both labels grant module-admin access during the
 // rollout. 'Admin' here means the platform-level Admin and is NOT a
 // per-module admin — it's added to canManageUsers separately.
-var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'],Security:[],MTTS:['MTTS Admin','Maintenance Manager']};
+// 260519-V31 — MTTS Admin / Maintenance Manager are no longer module-admin
+// bypasses. They're subject to Access Management like every other role;
+// admin must explicitly grant each page/action to give them access.
+var _PERM_MODULE_ADMIN={VMS:['VMS Admin'],HWMS:['HWMS Admin'],HRMS:['HRMS Admin'],Security:[],MTTS:[]};
 // Per-key default-full role grants. Used to seed CS with Utilities +
 // Update Employee and HR Manager with the print-format action when
 // admin hadn't touched those keys — but that hid the real intent that
@@ -3459,6 +3469,40 @@ function _enrichCU(){
   // runs before bootDB, so without this refresh a role granted after
   // login would only be honoured after a re-login.
   try{ localStorage.setItem('kap_current_user', JSON.stringify(CU)); }catch(_){}
+}
+// 260519-V32 — Reconcile CU with the live DB.users record after every
+// sync. Background polling calls `_syncMergeRows('users', …, false)`
+// which REPLACES the entry at DB.users[idx]=rec — so CU (set once at
+// boot) keeps pointing at the original object and goes stale the moment
+// any admin edits the user's roles/apps. Every access decision then
+// reads stale CU and ignores the admin's change. _refreshCU mutates CU
+// in-place so external references stay live, and re-mirrors the cache
+// so the next gate sees the new state.
+function _refreshCU(){
+  if(typeof CU==='undefined'||!CU||!CU.name) return;
+  var fresh=(DB.users||[]).find(function(u){
+    return u && u.name && String(u.name).toLowerCase()===String(CU.name).toLowerCase();
+  });
+  if(!fresh||fresh===CU) return;
+  // Detect a change before mutating so we don't spam console / cache on
+  // every no-op sync.
+  var prev=JSON.stringify({r:CU.roles||[],h:CU.hwmsRoles||[],m:CU.mttsRoles||[],a:CU.apps||[]});
+  var next=JSON.stringify({r:fresh.roles||[],h:fresh.hwmsRoles||[],m:fresh.mttsRoles||[],a:fresh.apps||[]});
+  // Copy every key from fresh onto CU. Drop keys that disappeared so a
+  // removed role doesn't linger.
+  Object.keys(fresh).forEach(function(k){ CU[k]=fresh[k]; });
+  Object.keys(CU).forEach(function(k){
+    if(!(k in fresh) && k!=='locId' && k!=='locType' && k!=='locName') delete CU[k];
+  });
+  // Restore the location enrichment that _enrichCU added — those are
+  // derived, not stored on the user row, so they'd be stripped above
+  // without this re-run.
+  if(typeof _enrichCU==='function'){ try{ _enrichCU(); }catch(_){} }
+  if(prev!==next){
+    console.log('[refreshCU] CU updated: name='+CU.name+' mttsRoles='+JSON.stringify(CU.mttsRoles||[])+' apps='+JSON.stringify(CU.apps||[]));
+  }
+  try{localStorage.setItem('kap_current_user',JSON.stringify(CU));}catch(_){}
+  if(typeof _onCurrentUserUpdated==='function'){ try{ _onCurrentUserUpdated(); }catch(_){} }
 }
 // Auto-sync: when a user is saved with roles + plant, ensure they appear in
 // the corresponding Location Master role arrays.
