@@ -1209,6 +1209,22 @@ function _rtApply(tbl, action, row){
     if(tbl==='hrmsEmployees'&&typeof _hrmsPiiApplyToMemory==='function'){
       try{ _hrmsPiiApplyToMemory(); }catch(e){ console.warn('pii re-apply after RT upsert failed:',e.message); }
     }
+    // When another user approves / rejects / edits an ECR, the Change
+    // Requests sub-tab on Employees must repaint so the row moves out
+    // of Pending into History. The badge counts also need a refresh.
+    // Without this hook, a tab opened before the approval keeps the
+    // old rendering even though DB.hrmsEmployees has the new state.
+    if(tbl==='hrmsEmployees'){
+      if(typeof _hrmsUpdateChangeReqBadge==='function'){
+        try{ _hrmsUpdateChangeReqBadge(); }catch(e){ console.warn('change-req badge refresh:',e.message); }
+      }
+      if(typeof _hrmsRenderChangeReq==='function'&&document.getElementById('hrmsChangeReqContent')){
+        // The element only exists when the Change Requests sub-tab has
+        // been rendered at least once in this session; that's also the
+        // exact condition where stale HTML would be sitting around.
+        try{ _hrmsRenderChangeReq(); }catch(e){ console.warn('change-req re-render:',e.message); }
+      }
+    }
   } else if(action==='delete'){
     // payload.old.code exists when REPLICA IDENTITY FULL is set (preferred)
     // payload.old.id is the integer PK (always present but not the JS string id)
