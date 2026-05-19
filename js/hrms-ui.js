@@ -20331,7 +20331,7 @@ async function _hrmsCfmBulkResetToJan26(){
 var _hrmsMhgState=null;// {mk, yr, mo, daysInMonth, byPlant}
 
 // ═══ UTILITIES — UPDATE EMPLOYEE (compact form for HR managers) ═════════
-function _hrmsUpdEmpInit(){
+async function _hrmsUpdEmpInit(){
   // Reset state every time the page is opened so prior selections don't
   // bleed across sessions.
   _hrmsUpdEmpReset();
@@ -20422,17 +20422,16 @@ function _hrmsUpdEmpInit(){
     // Don't pre-render — the dropdown stays closed until the user
     // types at least one character (keeps the page calm on mobile).
   }
-  // Render the team-scoped summary chips (Active / Updated / Pending).
-  if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
-  // Fire the lightweight photo-existence fetch and re-render the chips
-  // when it returns. The chip's first paint reads from whatever
-  // `_hrmsEmpsWithPhoto` already holds (could be stale or empty); the
-  // re-render after the fetch reconciles to the current DB state.
+  // Refresh photo-existence cache BEFORE the first chip render so the
+  // Updated / Pending counts reflect the real DB state from frame one.
+  // Earlier this fetch was fire-and-forget which left a window where
+  // the chip showed 0 / total even after recent photo uploads landed
+  // server-side. Await guarantees the user never sees stale counts.
   if(typeof _hrmsFetchPhotoExists==='function'){
-    _hrmsFetchPhotoExists().then(function(){
-      if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
-    });
+    try{ await _hrmsFetchPhotoExists(); }
+    catch(e){ console.warn('photo-exists fetch failed:',e.message); }
   }
+  if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
   // Reset dirty tracker on every page open.
   window._hrmsUpdEmpDirty=false;
   // Disable form fields + Save/Clear until a valid employee is picked.

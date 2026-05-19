@@ -496,7 +496,16 @@ function _toRow(tbl, rec) {
     // NOT written to the public row — they are shadow-written via
     // hrms_pii_upsert after the main save succeeds. Phase 2c Part 2 REVOKEs
     // those columns from anon, so including them here would 42501 the save.
-    return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',date_of_joining:r.dateOfJoining||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:0,salary_month:0,periods:_scrubPeriods,no_pl:r.noPL||false,extra:_ext};
+    var _empRow={code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',date_of_joining:r.dateOfJoining||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:0,salary_month:0,periods:_scrubPeriods,no_pl:r.noPL||false,extra:_ext};
+    // Photo is lazy-loaded (not in the boot SELECT), so r.photo is empty
+    // for every emp the user hasn't opened this session. Including
+    // `photo:''` in the upsert payload would wipe the DB column on every
+    // save touching such an emp. Only include the photo key when there's
+    // an actual photo value to write — PostgREST upserts only the keys
+    // present in the payload, so the DB column is preserved when the key
+    // is omitted.
+    if(r.photo) _empRow.photo=r.photo;
+    return _empRow;
   }
   if(tbl==='hrmsCompanies') return {code:r.id,name:r.name||'',color:r.color||''};
   if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {code:r.id,name:r.name||''};
