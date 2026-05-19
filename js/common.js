@@ -5420,16 +5420,47 @@ function _writeBootCache(){
         }
       }
     }catch(e){}
+    // Photo / base64 columns must NEVER be cached. V42 pre-loaded
+    // hrmsEmployees photos on HRMS boot, which then blew past the
+    // localStorage quota (~5-10 MB) and made setItem throw weird
+    // errors (sometimes reported as SyntaxError instead of
+    // QuotaExceededError depending on browser). Strip per-row photo
+    // fields before caching — they're lazy-loaded again on next boot
+    // anyway.
+    var _stripBlobCols=function(rows){
+      if(!Array.isArray(rows)) return rows;
+      var blob={photo:1,partPhoto:1,packingPhoto:1};
+      return rows.map(function(r){
+        if(!r||typeof r!=='object') return r;
+        var hasBlob=false;
+        for(var k in blob){ if(r[k]&&typeof r[k]==='string'&&r[k].length>500){hasBlob=true;break;} }
+        if(!hasBlob) return r;
+        var clone={};
+        for(var kk in r){ if(blob[kk]) continue; clone[kk]=r[kk]; }
+        return clone;
+      });
+    };
     _getActiveTables().forEach(function(t){
-      if(DB[t]&&DB[t].length) cache[t]=DB[t];
+      if(DB[t]&&DB[t].length) cache[t]=_stripBlobCols(DB[t]);
       else if(!cache[t]) cache[t]=[];
     });
     cache.ts=Date.now();
     cache._watermarks=Object.assign({}, (typeof _lastBgSyncAt==='object'&&_lastBgSyncAt)||{});
-    localStorage.setItem(key, JSON.stringify(cache));
+    var serialized;
+    try{ serialized=JSON.stringify(cache); }
+    catch(e){ console.warn('_writeBootCache stringify failed:',e&&e.message); return; }
+    try{ localStorage.setItem(key, serialized); }
+    catch(e){
+      if(e && e.name==='QuotaExceededError'){
+        // Drop the cache entirely on quota — next boot just refetches
+        // from Supabase. Better than a poisoned cache.
+        try{ localStorage.removeItem(key); }catch(_){}
+      } else if(e){
+        console.warn('_writeBootCache setItem failed:',e.message||e.name||e);
+      }
+    }
   }catch(e){
-    // localStorage quota exceeded etc — swallow, no fatal impact.
-    if(e && e.name!=='QuotaExceededError') console.warn('_writeBootCache:', e.message);
+    if(e && e.name!=='QuotaExceededError') console.warn('_writeBootCache outer:',e.message);
   }
 }
 
