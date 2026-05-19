@@ -873,7 +873,20 @@ function _vmsDoFullSync(){
     try{
       var q=_sb.from(sbTbl).select(_syncSelect(sbTbl));
       q=_applyDateFilter(q,sbTbl,cutoff);
-      if(isIncr){var lastTs=_vmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();q=q.gt('updated_at',lastTs);}
+      if(isIncr){
+        var lastTs=_vmsFullIncr.lastTs[tbl]||new Date(Date.now()-90000).toISOString();
+        q=q.gt('updated_at',lastTs);
+      }
+      // 260519-V17 — trueFull on segments narrows to "live" rows. Completed
+      // and Cancelled are terminal states — once a segment reaches either,
+      // it doesn't change again. The local cache already holds those rows
+      // from earlier syncs (boot or before they finished). Re-pulling them
+      // every ~50min was the dominant share of vms_segments egress
+      // (~95% of the 31-day window is finished work). Merged via upsert
+      // (replace=false) below so the cached terminal history survives.
+      else if(sbTbl==='vms_segments'){
+        q=q.not('status','in','(Completed,Cancelled)');
+      }
       var res=await q;if(res.error)return null;return{tbl:tbl,rows:res.data||[]};
     }catch(e){return null;}
   })).then(function(results){
@@ -884,7 +897,11 @@ function _vmsDoFullSync(){
       tc+=r.rows.length;
       var parsed=r.rows.map(function(row){return _fromRow(r.tbl,row);}).filter(Boolean);
       if(r.tbl==='segments') _stripStepPhotos(parsed);
-      _syncMergeRows(r.tbl,parsed,trueFull);
+      // 260519-V17 — Segments-trueFull is now filtered (terminal rows
+      // excluded), so it MUST upsert rather than replace, otherwise
+      // cached Completed/Cancelled history would be wiped.
+      var replace=trueFull && r.tbl!=='segments';
+      _syncMergeRows(r.tbl,parsed,replace);
     });
     (_HOT_TABLES||[]).forEach(function(t){_vmsIncr.lastTs[t]=now;});
     _bgSyncDone=true;if(_sbStatus!=='ok')_sbSetStatus('ok');
@@ -940,9 +957,13 @@ bootDB=async function(){
           if(_sbReady&&_sb){
             if(typeof _sbSetStatus==='function') _sbSetStatus('ok');
             if(typeof _sbStartRealtime==='function') _sbStartRealtime();
-            // Immediate full sync — no delay, skip probe for faster data load
+            // 260519-V15 — Force ONE trueFull immediately (callCount=4 → next
+            // increments to 5 → 5%5===0 → trueFull). Mode MUST be 'incremental',
+            // not 'full' — `_vmsDoFullSync` short-circuits to trueFull on every
+            // call when mode==='full', which meant every 10-min poll re-pulled
+            // the entire 31-day segments window (~1.2 GB / 2 h on heavy users).
             _vmsFullIncr.callCount=4;
-            _vmsFullIncr.mode='full'; _vmsFullIncr.probed=true;
+            _vmsFullIncr.mode='incremental'; _vmsFullIncr.probed=true;
             setTimeout(function(){_vmsDoFullSync();},100);
           } else {
             if(typeof _startBgReconnect==='function') _startBgReconnect(true);
@@ -5261,102 +5282,61 @@ function _vmsMergeSegments(recs){
   return added;
 }
 
-// V47 (260518) — Auto-receive every pending MR (step 3) for trips
-// dated before 2026-05-01. SA / VMS Admin only. No challan / vehicle
-// validation; step is marked done with an audit remark and the
-// segment is advanced. Failures roll back the segment state.
-// V55 (260518) — Now pulls older pending segments directly from
-// Supabase first so the rolling 31-day in-memory window doesn't hide
-// candidates.
-async function _vmsAutoReceiveOld(){
-  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
-    notify('⚠ Only Super Admin / VMS Admin can run Auto Receive.',true); return;
-  }
-  var CUTOFF='2026-05-01';
-  try{ if(typeof showSpinner==='function') showSpinner('Scanning older segments…'); }catch(_){}
-  var fetched=await _vmsFetchOldPendingSegments(CUTOFF);
-  _vmsMergeSegments(fetched);
-  try{ if(typeof hideSpinner==='function') hideSpinner(); }catch(_){}
-  // V60 (260518) — Cutoff applied against the TRIP's booking date
-  // (trip.date), not the segment row's creation timestamp. Old trips
-  // whose segments were recently re-built (segment.date drifts to now)
-  // were otherwise being missed.
-  var candidates=(DB.segments||[]).filter(function(s){
-    if(!s) return false;
-    if(s.status==='Completed'||s.status==='Locked') return false;
-    if(s.steps&&(s.steps[3]?.done||s.steps[3]?.skip)) return false;
-    if(typeof stepsOneAndTwoDone==='function' && !stepsOneAndTwoDone(s)) return false;
-    var trip=byId(DB.trips,s.tripId);
-    var d=(trip&&trip.date)?String(trip.date).slice(0,10):'';
-    if(!d) return false;
-    return d<CUTOFF;
-  });
-  if(!candidates.length){ notify('No pending Material Receipts older than '+CUTOFF+'.'); return; }
-  if(!confirm('Auto-receive '+candidates.length+' pending MR segment(s) for trips dated before '+CUTOFF+'?\n\nNo challan / vehicle checks will be enforced.')) return;
-  var btn=document.getElementById('mrAutoReceiveBtn');
-  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
-  var nowIso=new Date().toISOString();
-  var who=CU?(CU.fullName||CU.name||CU.id):'';
-  var ok=0, fail=0;
-  for(var i=0;i<candidates.length;i++){
-    var seg=candidates[i];
-    var bak=JSON.parse(JSON.stringify(seg));
-    if(!seg.steps) seg.steps={};
-    if(!seg.steps[3]) seg.steps[3]={};
-    seg.steps[3].done=true;
-    seg.steps[3].time=nowIso;
-    seg.steps[3].by=CU.id;
-    seg.steps[3].remarks='[Auto Receive] by '+who+' (trip dated before '+CUTOFF+')';
-    seg.steps[3].discrepancy=false;
-    seg.steps[3].notReceived=false;
-    try{ if(typeof advance==='function') await advance(seg); }catch(_){}
-    if(await _dbSave('segments',seg)){ ok++; }
-    else { Object.assign(seg,bak); fail++; }
-  }
-  if(btn){ btn.disabled=false; btn.style.opacity=''; }
-  try{ renderMR(); renderTripBooking(); updBadges(); }catch(e){}
-  notify('Auto Receive: '+ok+' succeeded'+(fail?', '+fail+' failed':''));
-}
+// 260519-V16 — Auto Receive (MR sweep) removed. The MR page no longer
+// exposes a one-click sweep; pending MRs must be acknowledged through
+// the normal popup so challan + remark are recorded. Auto Approve (TA)
+// kept and reworked to accept a user-picked cutoff date.
 
-// V47 (260518) — Auto-approve every pending Trip Approval (step 4)
-// for segments whose trip is dated before 2026-05-01. SA / VMS Admin
-// only. Sets seg.status=Active and stamps an audit remark.
-// V55 (260518) — Pulls older pending segments directly from Supabase
-// first so the rolling 31-day in-memory window doesn't hide
-// candidates.
-// V59 (260518) — Strict sequence enforcement: step 3 (MR) must be
-// done before step 4 (TA). If you want to clear a backlog, run
-// ⚡ Auto Receive first, then ⚡ Auto Approve. Auto Approve will
-// surface a clear count of segments still blocked on MR so the user
-// knows the receive sweep is needed.
-async function _vmsAutoApproveOld(){
+// ── Auto Approve flow ──────────────────────────────────────────────────
+// 1. _vmsAutoApproveOpen() — opens the date-picker modal (Super Admin /
+//    VMS Admin only).
+// 2. _vmsAutoApproveConfirm() — reads the date, validates, closes modal,
+//    calls _vmsAutoApproveExecute(cutoffStr).
+// 3. _vmsAutoApproveExecute(CUTOFF) — pulls older pending segments,
+//    filters by trip.date <= CUTOFF, surfaces a final confirm() with
+//    counts (and any MR-blocked tally), then sweeps step 4 = done.
+function _vmsAutoApproveOpen(){
   if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
     notify('⚠ Only Super Admin / VMS Admin can run Auto Approve.',true); return;
   }
-  var CUTOFF='2026-05-01';
+  var pad=function(n){return String(n).padStart(2,'0');};
+  var fmt=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+  var today=new Date();
+  var def=new Date(today.getTime()-30*86400000);
+  var inp=document.getElementById('apAutoDate');
+  if(inp){
+    inp.max=fmt(today);
+    if(!inp.value) inp.value=fmt(def);
+  }
+  if(typeof modalErrClear==='function') modalErrClear('mApAutoApprove');
+  if(typeof om==='function') om('mApAutoApprove');
+}
+
+async function _vmsAutoApproveConfirm(){
+  var dateStr=String((document.getElementById('apAutoDate')||{}).value||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ modalErr('mApAutoApprove','Pick a valid date'); return; }
+  var today=new Date(); today.setHours(0,0,0,0);
+  var picked=new Date(dateStr+'T00:00:00');
+  if(picked>today){ modalErr('mApAutoApprove','Date cannot be in the future'); return; }
+  if(typeof cm==='function') cm('mApAutoApprove');
+  await _vmsAutoApproveExecute(dateStr);
+}
+
+async function _vmsAutoApproveExecute(CUTOFF){
+  if(!CU||!(CU.roles||[]).some(function(r){return ['Super Admin','VMS Admin'].includes(r);})){
+    notify('⚠ Only Super Admin / VMS Admin can run Auto Approve.',true); return;
+  }
   try{ if(typeof showSpinner==='function') showSpinner('Scanning older segments…'); }catch(_){}
   var fetched=await _vmsFetchOldPendingSegments(CUTOFF);
   _vmsMergeSegments(fetched);
   try{ if(typeof hideSpinner==='function') hideSpinner(); }catch(_){}
-  // V60 (260518) — Cutoff applied against the TRIP's booking date
-  // (trip.date), not segment.date. Filter eligible (step 1+2+3 done,
-  // step 4 not done) and also count segments blocked on MR.
   var _tripDate=function(s){
     var trip=byId(DB.trips,s.tripId);
     return (trip&&trip.date)?String(trip.date).slice(0,10):'';
   };
-  // V62 (260518) — Accept step 1 / 2 as either `done` OR `skip` (some
-  // trips have no KAP gate exit / entry — step is marked skip at
-  // build time). Earlier filter only checked `done` and silently
-  // dropped externally-originating trips. `stepsOneAndTwoDone` already
-  // handles this correctly via the same OR.
   var _stepsOneTwoOk=function(s){
     return s.steps && (s.steps[1]?.done||s.steps[1]?.skip) && (s.steps[2]?.done||s.steps[2]?.skip);
   };
-  // V63 (260518) — Also skip segments where step 4 is `skip:true`.
-  // Those are external-origin trips with no Trip Approver assigned —
-  // they don't need approval and counting them inflated the candidate
-  // total vs the TA-badge count.
   var candidates=(DB.segments||[]).filter(function(s){
     if(!s) return false;
     if(s.status==='Completed'||s.status==='Locked') return false;
@@ -5365,7 +5345,7 @@ async function _vmsAutoApproveOld(){
     if(!(s.steps[3]?.done||s.steps[3]?.skip)) return false;
     var d=_tripDate(s);
     if(!d) return false;
-    return d<CUTOFF;
+    return d<=CUTOFF;
   });
   var blockedByMr=(DB.segments||[]).filter(function(s){
     if(!s) return false;
@@ -5375,21 +5355,17 @@ async function _vmsAutoApproveOld(){
     if(s.steps&&(s.steps[3]?.done||s.steps[3]?.skip)) return false;
     var d=_tripDate(s);
     if(!d) return false;
-    return d<CUTOFF;
+    return d<=CUTOFF;
   }).length;
   if(!candidates.length){
-    var msg0='No pending Trip Approvals older than '+CUTOFF+' have completed Material Receipt.';
-    if(blockedByMr) msg0+='\n\n'+blockedByMr+' segment(s) are still waiting on MR — click ⚡ Auto Receive on the MR page first.';
+    var msg0='No pending Trip Approvals on or before '+CUTOFF+' have completed Material Receipt.';
+    if(blockedByMr) msg0+='\n\n'+blockedByMr+' segment(s) are still waiting on MR — acknowledge them manually first.';
     notify(msg0,!!blockedByMr); return;
   }
-  // V65 (260518) — Lead with the distinct-trip count so the number
-  // matches the TA-badge / page count (which is grouped by trip).
-  // The segment count is shown as detail since the sweep actually
-  // stamps step 4 per-segment (some trips have 2-3 segments).
   var distinctTrips=(function(){var u={};candidates.forEach(function(s){if(s.tripId) u[s.tripId]=1;});return Object.keys(u).length;})();
-  var msg='Auto-approve '+distinctTrips+' trip(s) dated before '+CUTOFF+'?';
+  var msg='Auto-approve '+distinctTrips+' trip(s) booked on or before '+CUTOFF+'?';
   if(candidates.length!==distinctTrips) msg+='\n\n('+candidates.length+' segment(s) total — some trips have multiple legs.)';
-  if(blockedByMr) msg+='\n\nNote: '+blockedByMr+' additional segment(s) are still blocked on Material Receipt (step 3) — run ⚡ Auto Receive on the MR page first to clear those too.';
+  if(blockedByMr) msg+='\n\nNote: '+blockedByMr+' additional segment(s) are still blocked on Material Receipt (step 3) — acknowledge them manually first.';
   if(!confirm(msg)) return;
   var btn=document.getElementById('apAutoApproveBtn');
   if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
@@ -5405,7 +5381,7 @@ async function _vmsAutoApproveOld(){
     seg.steps[4].rejected=false;
     seg.steps[4].time=nowIso;
     seg.steps[4].by=CU.id;
-    seg.steps[4].remarks='[Auto Approve] by '+who+' (trip dated before '+CUTOFF+')';
+    seg.steps[4].remarks='[Auto Approve] by '+who+' (trip dated on or before '+CUTOFF+')';
     seg.status='Active';
     try{ if(typeof advance==='function') await advance(seg); }catch(_){}
     if(await _dbSave('segments',seg)){ ok++; }
@@ -6878,8 +6854,7 @@ function renderMR(){
   // Skip re-render while popup is open to prevent flicker
   if(_popOpen) return;
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
-  // V47 (260518) — Auto Receive button is SA / VMS Admin only.
-  try{ var _aRcvBtn=document.getElementById('mrAutoReceiveBtn'); if(_aRcvBtn) _aRcvBtn.style.display=isSA?'inline-flex':'none'; }catch(e){}
+  // 260519-V16 — Auto Receive removed from the MR page.
   // V65 (260518) — Lazy-load every older pending segment on first
   // open of MR this session so the page reflects the actual backlog,
   // not just the rolling 31-day window.
