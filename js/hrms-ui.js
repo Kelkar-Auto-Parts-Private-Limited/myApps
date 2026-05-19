@@ -6026,19 +6026,13 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'employmentType\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsEmpTypes',v.employmentType||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'category\',this.value);_hrmsBuildMonthTable()" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel('hrmsCategories',v.category||'')+'</select></td>';
       cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthDraftSet(\'teamName\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.team(v.teamName||'',v.employmentType||'')+'</select></td>';
-      // Department — direct save (Phase 3). Same select shape as the
-      // read-mode unlocked cell; writes to salaryMonths[mk][deptField]
-      // immediately, no approval round-trip.
+      // Department — direct save (Phase 3). Reads value straight from
+      // the draft (no period/flat fallback) so a user-initiated clear
+      // (e.g., plant change cascading to dept='') sticks. The fallback
+      // only applies to the LOCKED read-mode cell below, where a value
+      // is needed for display since the user can't edit.
       (function(){
         var _dF=deptField, _dV=deptVal;
-        if(!_dV){
-          var _pCov=(emp.periods||[]).find(function(p){
-            var pFrom=String(p.from||'').slice(0,7);
-            var pTo=p.to?String(p.to).slice(0,7):'';
-            return pFrom&&pFrom<=mk&&(!pTo||pTo>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
-          });
-          _dV=(_pCov&&_pCov[_dF])||emp[_dF]||'';
-        }
         var _plantHere=v.location||emp.location||'';
         cells+='<td style="padding:4px 3px"><select onchange="_hrmsMonthSetOrgField(\''+emp.id+'\',\''+mk+'\',\''+_dF+'\',this.value)" style="font-size:13px;padding:2px 3px;border:1px solid var(--border);border-radius:4px;width:100%">'+opts.sel(deptTbl,_dV,_plantHere)+'</select></td>';
       })();
@@ -6132,21 +6126,22 @@ function _hrmsBuildMonthTable(){
       cells+='<td style="padding:4px 3px">'+_diff('category',_hrmsEsc(v.category||'—'))+'</td>';
       cells+='<td style="padding:4px 3px">'+_diff('teamName',_hrmsEsc(v.teamName||'—'))+'</td>';
       // Department — inline editable on unlocked rows (Phase 3). Direct
-      // save via _hrmsMonthSetOrgField; no approval. Source for current
-      // value: salaryMonths[mk].(sub)department → covering period → flat.
-      // Staff uses subDepartment + hrmsSubDepartments; Worker uses
-      // department + hrmsDepartments filtered by the row's plant.
+      // save via _hrmsMonthSetOrgField; no approval.
+      //   • Unlocked rows: read directly from salaryMonths[mk] — no
+      //     period/flat fallback, so a user-initiated clear sticks.
+      //   • Locked rows: fall back to covering period → flat emp so
+      //     historical snapshots without a value still display.
       (function(){
         var _dF=deptField, _dV=deptVal;
-        if(!_dV){
-          var _pCov=(emp.periods||[]).find(function(p){
-            var pFrom=String(p.from||'').slice(0,7);
-            var pTo=p.to?String(p.to).slice(0,7):'';
-            return pFrom&&pFrom<=mk&&(!pTo||pTo>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
-          });
-          _dV=(_pCov&&_pCov[_dF])||emp[_dF]||'';
-        }
         if(locked){
+          if(!_dV){
+            var _pCov=(emp.periods||[]).find(function(p){
+              var pFrom=String(p.from||'').slice(0,7);
+              var pTo=p.to?String(p.to).slice(0,7):'';
+              return pFrom&&pFrom<=mk&&(!pTo||pTo>=mk)&&(!p._wfStatus||p._wfStatus==='approved');
+            });
+            _dV=(_pCov&&_pCov[_dF])||emp[_dF]||'';
+          }
           cells+='<td style="padding:4px 3px;font-size:12px">'+_diff(_dF,_hrmsEsc(_dV||'—'))+'</td>';
         } else {
           var _curLocForDept=v.location||((emp.periods||[]).find(function(p){
