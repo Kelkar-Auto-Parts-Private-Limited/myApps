@@ -108,7 +108,12 @@ async function _ensureAttImportLog(){ /* V87 — superseded */ }
 // boot. Removed `updated_at`, also removed `photo` (loaded on-demand via
 // _loadPhotos), kept every other column the _fromRow mapper expects.
 var _SYNC_SELECT = {
-  'hrms_employees':'id,code,emp_code,name,last_name,first_name,middle_name,department,sub_department,designation,email,mobile,date_of_joining,date_of_birth,gender,status,reporting_to,location,pan_no,aadhaar_no,employment_type,team_name,category,esi_no,pf_no,uan,date_of_left,roll,salary_day,salary_month,extra,bank_name,branch_name,acct_no,ifsc,periods,no_pl',
+  // PII columns (mobile/email/date_of_birth/pan_no/aadhaar_no/uan/esi_no/
+  // pf_no/bank_name/branch_name/acct_no/ifsc) are excluded — they are loaded
+  // via the SECURITY DEFINER hrms_pii_read RPC and merged in by
+  // _hrmsPiiApplyToMemory after boot. Phase 2c Part 2 REVOKEs them from
+  // anon, so SELECT *-style fetches would 42501.
+  'hrms_employees':'id,code,emp_code,name,last_name,first_name,middle_name,department,sub_department,designation,date_of_joining,gender,status,reporting_to,location,employment_type,team_name,category,date_of_left,roll,salary_day,salary_month,extra,periods,no_pl',
   // V90 — strip users.photo at HRMS boot.
   'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
@@ -224,6 +229,12 @@ async function _hrmsLaunch(){
   // sets _hrmsSalaryAccess to 'ok'/'denied' which the UI can read later.
   try{ if(typeof _hrmsSalaryFetchAll==='function') await _hrmsSalaryFetchAll(); }
   catch(e){ console.warn('salary fetch on boot failed:',e.message); }
+  // PII lockdown (Phase 2c) — pull mobile / email / DOB / bank / Aadhaar /
+  // PAN / UAN / ESI / PF from the RPC-gated path and merge onto in-memory
+  // emp rows. Idempotent today; becomes load-bearing once Part 2 REVOKEs
+  // those columns from anon.
+  try{ if(typeof _hrmsPiiFetchAll==='function') await _hrmsPiiFetchAll(); }
+  catch(e){ console.warn('pii fetch on boot failed:',e.message); }
   // Plant FK — stamp emp.extra.locationId + period.locationId / monthly
   // salaryMonths[mk].locationId for any legacy record that has a plant
   // name but no id yet. In-memory only on boot; new writes persist the
@@ -381,6 +392,9 @@ async function _hrmsManualRefresh(){
       // the refresh doesn't blank out salary in memory.
       if(typeof _hrmsSalaryFetchAll==='function'){
         try{ await _hrmsSalaryFetchAll(); }catch(e){ console.warn('salary refresh failed:',e.message); }
+      }
+      if(typeof _hrmsPiiFetchAll==='function'){
+        try{ await _hrmsPiiFetchAll(); }catch(e){ console.warn('pii refresh failed:',e.message); }
       }
     }
     // Per-month attendance + alteration caches are lazy-loaded outside

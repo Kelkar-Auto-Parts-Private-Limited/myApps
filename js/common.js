@@ -491,7 +491,12 @@ function _toRow(tbl, rec) {
       });
       return dst;
     });
-    return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',email:r.email||'',mobile:r.mobile||'',date_of_joining:r.dateOfJoining||'',date_of_birth:r.dateOfBirth||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',pan_no:r.panNo||'',aadhaar_no:r.aadhaarNo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',esi_no:r.esiNo||'',pf_no:r.pfNo||'',uan:r.uan||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:0,salary_month:0,bank_name:r.bankName||'',branch_name:r.branchName||'',acct_no:r.acctNo||'',ifsc:r.ifsc||'',periods:_scrubPeriods,no_pl:r.noPL||false,extra:_ext};
+    // PII columns (mobile / email / date_of_birth / pan_no / aadhaar_no /
+    // uan / esi_no / pf_no / bank_name / branch_name / acct_no / ifsc) are
+    // NOT written to the public row — they are shadow-written via
+    // hrms_pii_upsert after the main save succeeds. Phase 2c Part 2 REVOKEs
+    // those columns from anon, so including them here would 42501 the save.
+    return {code:r.id,emp_code:r.empCode||'',name:r.name||'',last_name:r.lastName||'',first_name:r.firstName||'',middle_name:r.middleName||'',department:r.department||'',sub_department:r.subDepartment||'',designation:r.designation||'',date_of_joining:r.dateOfJoining||'',gender:r.gender||'',status:r.status||'Active',reporting_to:r.reportingTo||'',location:r.location||'',photo:r.photo||'',employment_type:r.employmentType||'',team_name:r.teamName||'',category:r.category||'',date_of_left:r.dateOfLeft||'',roll:r.roll||'',salary_day:0,salary_month:0,periods:_scrubPeriods,no_pl:r.noPL||false,extra:_ext};
   }
   if(tbl==='hrmsCompanies') return {code:r.id,name:r.name||'',color:r.color||''};
   if(tbl==='hrmsCategories'||tbl==='hrmsEmpTypes'||tbl==='hrmsDepartments'||tbl==='hrmsDesignations') return {code:r.id,name:r.name||''};
@@ -1192,6 +1197,9 @@ function _rtApply(tbl, action, row){
     if(tbl==='hrmsEmployees'&&typeof _hrmsSalaryApplyToMemory==='function'){
       try{ _hrmsSalaryApplyToMemory(); }catch(e){ console.warn('salary re-apply after RT upsert failed:',e.message); }
     }
+    if(tbl==='hrmsEmployees'&&typeof _hrmsPiiApplyToMemory==='function'){
+      try{ _hrmsPiiApplyToMemory(); }catch(e){ console.warn('pii re-apply after RT upsert failed:',e.message); }
+    }
   } else if(action==='delete'){
     // payload.old.code exists when REPLICA IDENTITY FULL is set (preferred)
     // payload.old.id is the integer PK (always present but not the JS string id)
@@ -1682,6 +1690,94 @@ function _hrmsSalaryStripFromMemory(){
   });
 }
 
+// ─── HRMS PII lockdown (supabase_hrms_pii_lockdown.sql, Phase 2c) ───────────
+// 12 PII columns on hrms_employees are mirrored from a SECURITY DEFINER RPC
+// so once the columns are REVOKE'd from anon (Phase 2c Part 2), the UI keeps
+// working. _toRow does not yet scrub these keys — the column REVOKE itself
+// is the cut-over. Until then this cache is purely plumbing.
+var _hrmsPiiCache={};
+var _hrmsPiiAccess='unloaded';
+async function _hrmsPiiFetchAll(){
+  if(!_sb) return 'error';
+  var auth=_hrmsAuthArgs();
+  if(!auth) return 'error';
+  try{
+    var res=await _sb.rpc('hrms_pii_read',{p_username:auth.u,p_token:auth.t});
+    if(res&&res.error){
+      if(_isInvalidSessionErr(res.error)){
+        var ok=await _promptReauth();
+        if(!ok) return 'error';
+        auth=_hrmsAuthArgs();
+        if(!auth) return 'error';
+        res=await _sb.rpc('hrms_pii_read',{p_username:auth.u,p_token:auth.t});
+      }
+      if(res&&res.error){
+        console.warn('hrms_pii_read error:',res.error.message);
+        return 'error';
+      }
+    }
+    _hrmsPiiCache={};
+    (Array.isArray(res.data)?res.data:[]).forEach(function(r){
+      if(!r||!r.emp_id) return;
+      _hrmsPiiCache[r.emp_id]={
+        mobile:r.mobile||'',email:r.email||'',dateOfBirth:r.date_of_birth||'',
+        aadhaarNo:r.aadhaar_no||'',panNo:r.pan_no||'',uan:r.uan||'',
+        esiNo:r.esi_no||'',pfNo:r.pf_no||'',
+        bankName:r.bank_name||'',branchName:r.branch_name||'',acctNo:r.acct_no||'',ifsc:r.ifsc||''
+      };
+    });
+    _hrmsPiiAccess='ok';
+    _hrmsPiiApplyToMemory();
+    return 'ok';
+  }catch(e){
+    console.warn('_hrmsPiiFetchAll exception:',e.message);
+    return 'error';
+  }
+}
+function _hrmsPiiApplyToMemory(){
+  var emps=(typeof DB!=='undefined'&&DB.hrmsEmployees)||[];
+  emps.forEach(function(e){
+    if(!e||!e.id) return;
+    var p=_hrmsPiiCache[e.id];
+    if(!p) return;
+    e.mobile=p.mobile;e.email=p.email;e.dateOfBirth=p.dateOfBirth;
+    e.aadhaarNo=p.aadhaarNo;e.panNo=p.panNo;e.uan=p.uan;
+    e.esiNo=p.esiNo;e.pfNo=p.pfNo;
+    e.bankName=p.bankName;e.branchName=p.branchName;e.acctNo=p.acctNo;e.ifsc=p.ifsc;
+  });
+}
+async function _hrmsPiiUpsertOne(emp){
+  if(!emp||!emp.id||!_sb) return false;
+  var auth=_hrmsAuthArgs();if(!auth) return false;
+  var payload={
+    emp_id:emp.id,
+    mobile:emp.mobile||'',email:emp.email||'',date_of_birth:emp.dateOfBirth||'',
+    aadhaar_no:emp.aadhaarNo||'',pan_no:emp.panNo||'',uan:emp.uan||'',
+    esi_no:emp.esiNo||'',pf_no:emp.pfNo||'',
+    bank_name:emp.bankName||'',branch_name:emp.branchName||'',
+    acct_no:emp.acctNo||'',ifsc:emp.ifsc||''
+  };
+  try{
+    var res=await _sb.rpc('hrms_pii_upsert',{p_username:auth.u,p_token:auth.t,p_row:payload});
+    if(res&&res.error){
+      if(_isInvalidSessionErr(res.error)){
+        var ok=await _promptReauth();if(!ok) return false;
+        auth=_hrmsAuthArgs();if(!auth) return false;
+        res=await _sb.rpc('hrms_pii_upsert',{p_username:auth.u,p_token:auth.t,p_row:payload});
+      }
+      if(res&&res.error){ console.warn('hrms_pii_upsert error:',res.error.message); return false; }
+    }
+    _hrmsPiiCache[emp.id]={
+      mobile:payload.mobile,email:payload.email,dateOfBirth:payload.date_of_birth,
+      aadhaarNo:payload.aadhaar_no,panNo:payload.pan_no,uan:payload.uan,
+      esiNo:payload.esi_no,pfNo:payload.pf_no,
+      bankName:payload.bank_name,branchName:payload.branch_name,
+      acctNo:payload.acct_no,ifsc:payload.ifsc
+    };
+    return true;
+  }catch(e){ console.warn('_hrmsPiiUpsertOne exception:',e.message); return false; }
+}
+
 // Build the {emp_id, salary_day, salary_month, salary_extras:{periods,months}}
 // payload for the salary RPCs from an in-memory emp.
 function _hrmsSalaryPayload(emp){
@@ -2063,6 +2159,9 @@ async function _dbSave(tbl, record){
   // stale numbers in the salary table; the next save catches up.
   if(tbl==='hrmsEmployees'&&typeof _hrmsSalaryUpsertOne==='function'){
     try{ await _hrmsSalaryUpsertOne(record); }catch(e){ console.warn('salary shadow upsert failed:',e.message); }
+  }
+  if(tbl==='hrmsEmployees'&&typeof _hrmsPiiUpsertOne==='function'){
+    try{ await _hrmsPiiUpsertOne(record); }catch(e){ console.warn('pii shadow upsert failed:',e.message); }
   }
   _sbSetStatus('ok');
   return true;
@@ -2592,6 +2691,9 @@ function _bgSyncFromSupabase(){
     // from the salary cache so authorized users keep seeing real numbers.
     if(_hrmsEmpsRefreshed&&typeof _hrmsSalaryApplyToMemory==='function'){
       try{ _hrmsSalaryApplyToMemory(); }catch(e){ console.warn('salary re-apply after bgSync failed:',e.message); }
+    }
+    if(_hrmsEmpsRefreshed&&typeof _hrmsPiiApplyToMemory==='function'){
+      try{ _hrmsPiiApplyToMemory(); }catch(e){ console.warn('pii re-apply after bgSync failed:',e.message); }
     }
     console.log('bgSync: full — '+_getActiveTables().length+' tables, users='+(DB.users||[]).length);
     _bgSyncDone=true;
