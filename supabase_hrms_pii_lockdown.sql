@@ -127,26 +127,39 @@ NOTIFY pgrst, 'reload schema';
 --   (b) lazy-load PII via hrms_pii_read
 --   (c) write PII via hrms_pii_upsert (or skip PII keys in _toRow)
 --
--- REVOKE SELECT (mobile, email, date_of_birth, aadhaar_no, pan_no, uan,
---                esi_no, pf_no, bank_name, branch_name, acct_no, ifsc)
---   ON public.hrms_employees FROM anon, authenticated;
+-- IMPORTANT: REVOKE SELECT (col) ON table FROM role is a NO-OP if a
+-- table-level GRANT SELECT exists for that role. The pattern below
+-- strips the table-level grant first, then restores access to only the
+-- non-PII columns. service_role / postgres keep full access via owner
+-- privileges so SECURITY DEFINER RPCs can still read the locked columns.
 --
--- REVOKE UPDATE (mobile, email, date_of_birth, aadhaar_no, pan_no, uan,
---                esi_no, pf_no, bank_name, branch_name, acct_no, ifsc)
---   ON public.hrms_employees FROM anon, authenticated;
+-- DO $$
+-- DECLARE
+--   v_cols TEXT;
+--   v_pii TEXT[] := ARRAY[
+--     'mobile','email','date_of_birth',
+--     'aadhaar_no','pan_no','uan',
+--     'esi_no','pf_no',
+--     'bank_name','branch_name','acct_no','ifsc'
+--   ];
+-- BEGIN
+--   SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position)
+--     INTO v_cols
+--   FROM information_schema.columns
+--   WHERE table_schema = 'public'
+--     AND table_name   = 'hrms_employees'
+--     AND column_name  <> ALL (v_pii);
 --
--- REVOKE INSERT (mobile, email, date_of_birth, aadhaar_no, pan_no, uan,
---                esi_no, pf_no, bank_name, branch_name, acct_no, ifsc)
---   ON public.hrms_employees FROM anon, authenticated;
---
+--   EXECUTE 'REVOKE SELECT, INSERT, UPDATE ON public.hrms_employees FROM anon, authenticated, PUBLIC';
+--   EXECUTE 'GRANT SELECT (' || v_cols || ') ON public.hrms_employees TO anon, authenticated';
+--   EXECUTE 'GRANT INSERT (' || v_cols || ') ON public.hrms_employees TO anon, authenticated';
+--   EXECUTE 'GRANT UPDATE (' || v_cols || ') ON public.hrms_employees TO anon, authenticated';
+-- END $$;
 -- NOTIFY pgrst, 'reload schema';
 
 -- ========== ROLLBACK (PART 2) =================================================
--- Re-grants SELECT / INSERT / UPDATE on the PII columns to anon so the
--- pre-lockdown SELECT * path keeps working. RPCs stay in place — harmless.
+-- Restores the table-level grant so all columns are anon-accessible again.
+-- RPCs stay in place — harmless.
 --
--- GRANT SELECT, INSERT, UPDATE
---   (mobile, email, date_of_birth, aadhaar_no, pan_no, uan,
---    esi_no, pf_no, bank_name, branch_name, acct_no, ifsc)
---   ON public.hrms_employees TO anon, authenticated;
+-- GRANT SELECT, INSERT, UPDATE ON public.hrms_employees TO anon, authenticated;
 -- NOTIFY pgrst, 'reload schema';

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-<meta name="app-build" content="260519-V38">
+<meta name="app-build" content="260519-V39">
 <title>KAP — HRMS</title>
-<link rel="stylesheet" href="css/hrms.css?v=260519-V38">
+<link rel="stylesheet" href="css/hrms.css?v=260519-V39">
 </head>
 <body>
 
@@ -40,6 +40,7 @@
     <div class="nav-item" id="navDasManpower" onclick="hrmsGo('pageHrmsUtilDailyAtt','manpower')" style="font-size:12px;padding:7px 16px">👷 Allocation vs Actual Manpower</div>
     <div class="nav-item" id="navDasDeptDetails" onclick="hrmsGo('pageHrmsUtilDailyAtt','deptdetails')" style="font-size:12px;padding:7px 16px">📋 Department-wise Attendance</div>
     <div class="nav-item" id="navDasTeamwise" onclick="hrmsGo('pageHrmsUtilDailyAtt','teamwise')" style="font-size:12px;padding:7px 16px">👥 Team-wise Attendance Record</div>
+    <div class="nav-item" id="navDasAbsentList" onclick="hrmsGo('pageHrmsUtilDailyAtt','absentlist')" style="font-size:12px;padding:7px 16px">🚫 Absent Employee List</div>
   </div>
   <div class="nav-item" id="navAttSal" onclick="hrmsGo('pageHrmsAttSal')">📅 Monthly Attendance & Salary <span id="cNavAttSal" title="Pending items inside Monthly Attendance &amp; Salary" style="margin-left:auto;font-size:10px;background:#dc2626;color:#fff;padding:1px 7px;border-radius:10px;font-weight:800;display:none">0</span></div>
   <div class="nav-item" id="navMyAtt" onclick="hrmsGo('pageHrmsMyAtt')">🗓 My Attendance</div>
@@ -445,6 +446,7 @@
         <div id="hrmsDasTabBtn_manpower" onclick="_hrmsDasSetTab('manpower')" style="display:none">👷 Allocation vs Actual Manpower</div>
         <div id="hrmsDasTabBtn_deptdetails" onclick="_hrmsDasSetTab('deptdetails')" style="display:none">📋 Department-wise Attendance</div>
         <div id="hrmsDasTabBtn_teamwise" onclick="_hrmsDasSetTab('teamwise')" style="display:none">👥 Team-wise Attendance Record</div>
+        <div id="hrmsDasTabBtn_absentlist" onclick="_hrmsDasSetTab('absentlist')" style="display:none">🚫 Absent Employee List</div>
         <div id="hrmsDasTabBtn_rolegrouping" onclick="_hrmsDasSetTab('rolegrouping')" style="display:none">📋 Role Group Setting</div>
         <div id="hrmsDasTabBtn_alloc" onclick="_hrmsDasSetTab('alloc')" style="display:none">🎯 MP Alloc Setting</div>
       </div>
@@ -469,6 +471,20 @@
            tall the table grows. -->
       <div id="hrmsDasTab_teamwise" style="display:none;flex:1;min-height:0;overflow:hidden;flex-direction:column">
         <div id="hrmsDasTwBody" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden"></div>
+      </div>
+      <!-- TAB: Absent Employee List — workers absent on selected date but
+           present on at least one of the previous 7 days. Plant-scope
+           filtered. Sortable headers + plant / category / team combo
+           filters. Implementation in _hrmsDasAlRender. -->
+      <div id="hrmsDasTab_absentlist" style="display:none;flex:1;min-height:0;overflow:hidden;flex-direction:column">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;align-items:center">
+          <select id="hrmsDasAlPlant" onchange="_hrmsDasAlRender()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">All Plants</option></select>
+          <select id="hrmsDasAlEmpType" onchange="_hrmsDasAlRender()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">All Emp Types</option></select>
+          <select id="hrmsDasAlTeam" onchange="_hrmsDasAlRender()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">All Teams</option></select>
+          <select id="hrmsDasAlShift" onchange="_hrmsDasAlRender()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:#fff"><option value="">All Shifts</option><option value="night">🌙 Night only</option><option value="day">☀️ Day only</option></select>
+          <div id="hrmsDasAlCount" style="margin-left:auto;font-size:12px;color:var(--text3);font-weight:700"></div>
+        </div>
+        <div id="hrmsDasAlBody" style="flex:1;min-height:0;overflow:auto"></div>
       </div>
 
       <!-- TAB: Role Grouping — extracted from the legacy Allocation
@@ -1259,8 +1275,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260519-V38"></script>
-<script src="js/hrms-logic.js?v=260519-V38"></script>
-<script src="js/hrms-ui.js?v=260519-V38"></script>
+<script src="js/common.js?v=260519-V39"></script>
+<script src="js/hrms-logic.js?v=260519-V39"></script>
+<script src="js/hrms-ui.js?v=260519-V39"></script>
 </body>
 </html>

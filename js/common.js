@@ -3013,6 +3013,7 @@ var _PERM_KEYS={
     // existing roles keep their old implicit behaviour until admin
     // explicitly overrides.
     {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.das.absentlist',label:'🚫 Absent Employee List',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
 
     // Sidebar — 📅 Monthly Attendance & Salary
@@ -3269,7 +3270,7 @@ var _PERM_UMBRELLA={
     'page.utilities':['page.utilAttConv','page.utilUpdateEmp'],
     // Day-wise Attendance is a sidebar collapsible — its parent menu
     // (page.utilDailyAttSum) auto-derives from the sub-page perms.
-    'page.utilDailyAttSum':['page.plantwiseAtt','page.empAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise']
+    'page.utilDailyAttSum':['page.plantwiseAtt','page.empAtt','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.absentlist']
   },
   HWMS:{
     'page.masters':['masters.customers','masters.parts','masters.carriers','masters.ports',

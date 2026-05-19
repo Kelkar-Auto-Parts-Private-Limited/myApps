@@ -210,7 +210,7 @@ function _hrmsDebugAccess(){
       if(hit) mappedDepts.push(did);
     });
     console.log('Depts mapped to this user =',mappedDepts);
-    var keys=['page.utilities','page.utilDailyAttSum','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.rolegrouping','tab.das.alloc'];
+    var keys=['page.utilities','page.utilDailyAttSum','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.absentlist','tab.das.rolegrouping','tab.das.alloc'];
     keys.forEach(function(k){
       console.log('_hrmsHasAccess('+k+') =',_hrmsHasAccess(k));
     });

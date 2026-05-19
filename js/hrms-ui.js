@@ -491,6 +491,7 @@ var _hrmsSubTabTitles={
     manpower:'Allocation vs Actual Manpower',
     deptdetails:'Department-wise Attendance',
     teamwise:'Team-wise Attendance Record',
+    absentlist:'Absent Employee List',
     rolegrouping:'Role Group Setting',
     alloc:'MP Alloc Setting'
   }
@@ -599,7 +600,8 @@ function _hrmsEnforcePermissions(){
     navDasEmpAtt:'page.empAtt',
     navDasManpower:'tab.das.manpower',
     navDasDeptDetails:'tab.das.deptdetails',
-    navDasTeamwise:'tab.das.teamwise'
+    navDasTeamwise:'tab.das.teamwise',
+    navDasAbsentList:'tab.das.absentlist'
   };
   Object.keys(dasPerms).forEach(function(id){
     if(_setByPerm(id,dasPerms[id])) anyDas=true;
@@ -779,7 +781,7 @@ function hrmsGo(pid,opt){
       var _supScope=(typeof _hrmsDasContractorSupScope==='function')?_hrmsDasContractorSupScope():null;
       var _initTab=window._hrmsDasInitialTab||'';
       if(_initTab) window._hrmsDasInitialTab=null;
-      var _initTabPerms={manpower:'tab.das.manpower',deptdetails:'tab.das.deptdetails',teamwise:'tab.das.teamwise'};
+      var _initTabPerms={manpower:'tab.das.manpower',deptdetails:'tab.das.deptdetails',teamwise:'tab.das.teamwise',absentlist:'tab.das.absentlist'};
       var _hasInitAccess=_initTab&&_initTabPerms[_initTab]&&typeof _hrmsHasAccess==='function'&&_hrmsHasAccess(_initTabPerms[_initTab]);
       var _resolvedTab=null;
       if(typeof _hrmsDasSetTab==='function'){
@@ -10103,13 +10105,38 @@ async function _hrmsAttFetchIndex(){
       // Reset bucket so we don't double-count.
       months[k].byType={onroll:0,contract:0,piecerate:0,other:0};
       months[k].acCount=0;
+      // Presence map for THIS month — already built above from attRows
+      // + altRows + manualByMonth. Use it directly so contract / piece-
+      // rate AC determination doesn't depend on _hrmsAttCache[k] being
+      // loaded (which only happens after the user visits the month).
+      // Without this short-circuit the picker undercounts CPR emps for
+      // unvisited months (e.g. Jan/Feb/Mar 2026 if the user hasn't
+      // opened them in the current session).
+      var presMap=months[k].emps||{};
       (DB.hrmsEmployees||[]).forEach(function(emp){
         if(!emp||!emp.empCode) return;
-        var tag=(typeof _hrmsEmpMonthTag==='function')?_hrmsEmpMonthTag(emp,k):'AC';
-        if(tag!=='AC') return;
-        months[k].acCount++;
         var raw=_hrmsEtForMk(emp,k)||'';
         var et=String(raw).toLowerCase().replace(/\s/g,'');
+        var isCPR=(et==='contract'||et==='piecerate');
+        var isAC;
+        if(isCPR){
+          var piaDay=(typeof _hrmsEmpPiaDay==='function')?_hrmsEmpPiaDay(emp,k):0;
+          if(piaDay){
+            // PIA-flagged — fall back to the slow tag (needs day-level
+            // attendance to detect clearance). Rare path.
+            isAC=(typeof _hrmsEmpMonthTag==='function')&&_hrmsEmpMonthTag(emp,k)==='AC';
+          } else {
+            isAC=!!presMap[emp.empCode];
+            if(!isAC && typeof _hrmsEmpRunningMonthStillActive==='function'){
+              try{ isAC=_hrmsEmpRunningMonthStillActive(emp,k); }catch(_){}
+            }
+          }
+        } else {
+          // OnRoll / staff / blank — AC unless resigned by this month.
+          isAC=!(typeof _hrmsEmpIsOnRollResigned==='function'&&_hrmsEmpIsOnRollResigned(emp,k));
+        }
+        if(!isAC) return;
+        months[k].acCount++;
         if(et==='onroll') months[k].byType.onroll++;
         else if(et==='contract') months[k].byType.contract++;
         else if(et==='piecerate') months[k].byType.piecerate++;
@@ -14783,7 +14810,7 @@ function _hrmsDasSetTab(tab){
   var _hasScope=Object.keys(_scopedSet).length>0;
   // Per-tab perm keys — used both for coercion and for the per-tab
   // visibility check below.
-  var _tabPerms={manpower:'tab.das.manpower',deptdetails:'tab.das.deptdetails',teamwise:'tab.das.teamwise',rolegrouping:'tab.das.rolegrouping',alloc:'tab.das.alloc'};
+  var _tabPerms={manpower:'tab.das.manpower',deptdetails:'tab.das.deptdetails',teamwise:'tab.das.teamwise',absentlist:'tab.das.absentlist',rolegrouping:'tab.das.rolegrouping',alloc:'tab.das.alloc'};
   // Force the active tab into the scoped set when the requested tab
   // isn't allowed for this user. Prefer teamwise for Dept Head so they
   // land on Team-wise Attendance Record by default. EXCEPTION — if the
@@ -14794,7 +14821,7 @@ function _hrmsDasSetTab(tab){
     var _explicit=(typeof _hrmsHasAccess==='function')&&_tabPerms[tab]&&_hrmsHasAccess(_tabPerms[tab]);
     if(!_explicit) tab=_scopedSet.teamwise?'teamwise':'deptdetails';
   }
-  if(tab!=='alloc'&&tab!=='teamwise'&&tab!=='rolegrouping'&&tab!=='deptdetails') tab='manpower';
+  if(tab!=='alloc'&&tab!=='teamwise'&&tab!=='rolegrouping'&&tab!=='deptdetails'&&tab!=='absentlist') tab='manpower';
   // Final access gate — if the user doesn't have permission for the
   // resolved tab (e.g. CS landing on the page with scope=All so
   // _hasScope was false, leaving the manpower fallback intact even
@@ -14804,7 +14831,7 @@ function _hrmsDasSetTab(tab){
   if(typeof _hrmsHasAccess==='function'
      &&_tabPerms[tab]
      &&!_hrmsHasAccess(_tabPerms[tab])){
-    var _accCandidates=['manpower','deptdetails','teamwise','alloc','rolegrouping'];
+    var _accCandidates=['manpower','deptdetails','teamwise','absentlist','alloc','rolegrouping'];
     for(var _ti=0;_ti<_accCandidates.length;_ti++){
       if(_hrmsHasAccess(_tabPerms[_accCandidates[_ti]])){tab=_accCandidates[_ti];break;}
     }
@@ -14819,6 +14846,7 @@ function _hrmsDasSetTab(tab){
   var pairs=[['manpower','#hrmsDasTab_manpower','#hrmsDasTabBtn_manpower','flex'],
              ['deptdetails','#hrmsDasTab_deptdetails','#hrmsDasTabBtn_deptdetails','flex'],
              ['teamwise','#hrmsDasTab_teamwise','#hrmsDasTabBtn_teamwise','flex'],
+             ['absentlist','#hrmsDasTab_absentlist','#hrmsDasTabBtn_absentlist','flex'],
              ['rolegrouping','#hrmsDasTab_rolegrouping','#hrmsDasTabBtn_rolegrouping','block'],
              ['alloc','#hrmsDasTab_alloc','#hrmsDasTabBtn_alloc','block']];
   pairs.forEach(function(t){
@@ -14832,7 +14860,7 @@ function _hrmsDasSetTab(tab){
       // alloc + rolegrouping live inside the Settings ⚙ modal.
       // manpower / deptdetails / teamwise live as sidebar sub-menu
       // items, so the in-page tab buttons stay hidden too.
-      if(key==='alloc'||key==='rolegrouping'||key==='manpower'||key==='deptdetails'||key==='teamwise'){btn.style.display='none';return;}
+      if(key==='alloc'||key==='rolegrouping'||key==='manpower'||key==='deptdetails'||key==='teamwise'||key==='absentlist'){btn.style.display='none';return;}
       // For users with one or more scope roles, hide tabs that aren't
       // in their combined scope set — UNLESS they also carry an
       // explicit permission grant on that tab (e.g. HR Assistant +
@@ -14879,6 +14907,9 @@ function _hrmsDasSetTab(tab){
   }
   if(tab==='deptdetails'&&typeof _hrmsDasDeptDetailsRender==='function'){
     _hrmsDasDeptDetailsRender();
+  }
+  if(tab==='absentlist'&&typeof _hrmsDasAlInit==='function'){
+    _hrmsDasAlInit();
   }
   // Refresh the topbar title so the active sub-tab name shows.
   if(typeof _hrmsUpdateTopTitle==='function') _hrmsUpdateTopTitle();
@@ -16695,6 +16726,263 @@ function _hrmsDasTwSetSort(key){
   _hrmsDasTwRender();
 }
 
+// ═══ ABSENT EMPLOYEE LIST ═══════════════════════════════════════════════════
+// Workers (non-staff) absent on the selected date but present on at least
+// one of the previous 7 days. Scope-respecting (uses _hrmsScopedEmps for
+// the 'tab.das.absentlist' page). Sortable headers + plant/category/team
+// combo filters. Date comes from the page-level #hrmsDasHistDate picker.
+var _hrmsDasAlSort={field:'',dir:1};
+function _hrmsDasAlInit(){
+  // Populate filter dropdowns from masters. Mirrors _hrmsAttPopFilters,
+  // scoped down to plants the user can see (so Plant Head's dropdown
+  // doesn't expose plants outside their scope).
+  var scope=(typeof _hrmsResolveScope==='function')?_hrmsResolveScope('HRMS','tab.das.absentlist'):{kind:'all'};
+  var allPlants=(DB.hrmsCompanies||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).filter(Boolean);
+  var plants=allPlants.slice();
+  if(scope&&scope.kind==='plant'&&scope.plants&&Object.keys(scope.plants).length){
+    plants=plants.filter(function(p){return scope.plants[p];});
+  }
+  var ets=(DB.hrmsEmpTypes||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).filter(Boolean);
+  var teams=(DB.hrmsTeams||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).filter(Boolean);
+  var _fill=function(id,arr,allLabel){
+    var el=document.getElementById(id);if(!el) return;
+    var prev=el.value;
+    var h='<option value="">'+allLabel+'</option>';
+    arr.slice().sort(function(a,b){return String(a).localeCompare(String(b));}).forEach(function(v){
+      h+='<option value="'+v+'">'+v+'</option>';
+    });
+    el.innerHTML=h;
+    if(prev&&arr.indexOf(prev)>=0) el.value=prev;
+  };
+  _fill('hrmsDasAlPlant',plants,'All Plants');
+  _fill('hrmsDasAlEmpType',ets,'All Emp Types');
+  _fill('hrmsDasAlTeam',teams,'All Teams');
+  _hrmsDasAlRender();
+}
+function _hrmsDasAlSortBy(field){
+  if(_hrmsDasAlSort.field===field) _hrmsDasAlSort.dir=-_hrmsDasAlSort.dir;
+  else{ _hrmsDasAlSort.field=field; _hrmsDasAlSort.dir=1; }
+  _hrmsDasAlRender();
+}
+async function _hrmsDasAlRender(){
+  var body=document.getElementById('hrmsDasAlBody');if(!body) return;
+  var dateEl=document.getElementById('hrmsDasHistDate');
+  var dateStr=dateEl&&dateEl.value||'';
+  if(!dateStr){body.innerHTML='<div class="empty-state" style="padding:20px">Pick a date.</div>';return;}
+  body.innerHTML='<div class="empty-state" style="padding:20px">Loading…</div>';
+
+  // Build the 8-day window: selected date + the 7 days before it.
+  // Local-date arithmetic, NOT toISOString — UTC offset (IST is +5:30)
+  // would shift local midnight into the previous UTC day, making the
+  // 7-day window land one day earlier than the user picked. Yesterday
+  // would silently fall out of the bar and appear as Absent.
+  var d=new Date(dateStr+'T00:00:00');
+  if(isNaN(d.getTime())){body.innerHTML='<div class="empty-state" style="padding:20px">Invalid date.</div>';return;}
+  var localIso=function(dt){
+    var y=dt.getFullYear();
+    var m=String(dt.getMonth()+1).padStart(2,'0');
+    var dd=String(dt.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+dd;
+  };
+  // New-to-old: index 0 = D-1 (yesterday), index 6 = D-7.
+  var prevDays=[];
+  for(var i=1;i<=7;i++) prevDays.push(localIso(new Date(d.getFullYear(),d.getMonth(),d.getDate()-i)));
+
+  // Fetch attendance for every month touched by the 8-day window.
+  var monthsTouched={};
+  prevDays.concat([dateStr]).forEach(function(ds){monthsTouched[ds.slice(0,7)]=true;});
+  try{
+    await Promise.all(Object.keys(monthsTouched).map(function(mk){
+      return (typeof _hrmsAttFetchMonth==='function')?_hrmsAttFetchMonth(mk):Promise.resolve();
+    }));
+  }catch(e){console.warn('absent-list attendance fetch failed:',e);}
+
+  // Build per-emp presence map: { empCode: { 'YYYY-MM-DD': inTimeStr } }.
+  // Attendance in-punch OR alteration in-punch counts as present. The
+  // in-time string drives the night-shift heuristic below.
+  var pres={};
+  Object.keys(monthsTouched).forEach(function(mk){
+    var absorb=function(recs){
+      (recs||[]).forEach(function(a){
+        if(!a||!a.empCode||!a.days) return;
+        Object.keys(a.days).forEach(function(dk){
+          var dayObj=a.days[dk]; if(!dayObj) return;
+          var inTime=dayObj['in']||dayObj.in;
+          if(!inTime) return;
+          var day=+dk; if(!day) return;
+          var ds=mk+'-'+String(day).padStart(2,'0');
+          (pres[a.empCode]=pres[a.empCode]||{})[ds]=String(inTime);
+        });
+      });
+    };
+    absorb(_hrmsAttCache&&_hrmsAttCache[mk]);
+    absorb(_hrmsAltCache&&_hrmsAltCache[mk]);
+  });
+  // Night-shift detection helper. Returns true when the emp punched in
+  // on D-1 (the day before the selected date) with an in-time of 17:00
+  // or later — typical night-shift start. Such emps are likely still
+  // mid-shift on D and shouldn't be treated as plain absentees.
+  var yDateStr=prevDays[0];// D-1 — first item now that the bar is new→old
+  var _isNightShift=function(empCode){
+    var t=pres[empCode]&&pres[empCode][yDateStr]; if(!t) return false;
+    var m=String(t).match(/^(\d{1,2}):/); if(!m) return false;
+    var hh=+m[1]; return hh>=17;
+  };
+
+  // Scope-narrow the candidate emp list, then filter to workers only.
+  var pool=(typeof _hrmsScopedEmps==='function')
+    ?_hrmsScopedEmps('tab.das.absentlist'):(DB.hrmsEmployees||[]);
+  var workers=pool.filter(function(e){
+    if(!e||!e.empCode) return false;
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    var cat=String((ap&&ap.category)||e.category||'').toLowerCase();
+    return cat.indexOf('staff')<0;
+  });
+
+  // Combo filters (Plant / Emp Type / Team / Shift) — applied to the
+  // active period where present so a re-org doesn't strand the row on
+  // the old plant. Shift filter values: '' (all), 'night', 'day'.
+  var fPlant=(document.getElementById('hrmsDasAlPlant')||{}).value||'';
+  var fEt   =(document.getElementById('hrmsDasAlEmpType')||{}).value||'';
+  var fTeam =(document.getElementById('hrmsDasAlTeam')||{}).value||'';
+  var fShift=(document.getElementById('hrmsDasAlShift')||{}).value||'';
+  var _ap=function(e){return (e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});};
+  var _plantOf=function(e){var p=_ap(e);return String((p&&p.location)||e.location||'').trim();};
+  var _catOf  =function(e){var p=_ap(e);return String((p&&p.category)||e.category||'').trim();};
+  var _teamOf =function(e){var p=_ap(e);return String((p&&p.teamName)||e.teamName||'').trim();};
+  var _etOf   =function(e){var p=_ap(e);return String((p&&p.employmentType)||e.employmentType||'').trim();};
+  var _deptOf =function(e){var p=_ap(e);return String((p&&p.department)||e.department||'').trim();};
+
+  // Filter: absent on selected date, present on at least one of last 7.
+  // (Night-shift emps — present on D-1 with an evening in-time — are
+  // kept on the list and tagged in the row so the operator sees them
+  // as "still mid-shift" rather than a regular absentee.)
+  var rows=workers.filter(function(e){
+    var pe=pres[e.empCode]||{};
+    if(pe[dateStr]) return false;// present today → not in list
+    var anyPrev=false;
+    for(var i=0;i<prevDays.length;i++){ if(pe[prevDays[i]]){anyPrev=true;break;} }
+    if(!anyPrev) return false;
+    if(fPlant&&_plantOf(e)!==fPlant) return false;
+    if(fEt   &&_etOf(e)   !==fEt  ) return false;
+    if(fTeam &&_teamOf(e) !==fTeam) return false;
+    if(fShift){
+      var ns=_isNightShift(e.empCode);
+      if(fShift==='night'&&!ns) return false;
+      if(fShift==='day'  && ns) return false;
+    }
+    return true;
+  });
+
+  // Default sort: plant → emp type → team → empCode. User-chosen sort
+  // wins via stable layered sort.
+  rows.sort(function(a,b){
+    var pa=_plantOf(a).localeCompare(_plantOf(b));if(pa!==0) return pa;
+    var ea=_etOf(a).localeCompare(_etOf(b));if(ea!==0) return ea;
+    var ta=_teamOf(a).localeCompare(_teamOf(b));if(ta!==0) return ta;
+    return (parseInt(a.empCode)||0)-(parseInt(b.empCode)||0)||String(a.empCode||'').localeCompare(String(b.empCode||''));
+  });
+  if(_hrmsDasAlSort.field){
+    var f=_hrmsDasAlSort.field,dir=_hrmsDasAlSort.dir||1;
+    var pick={empCode:function(e){return parseInt(e.empCode)||0;},name:function(e){return (e.name||'').toLowerCase();},
+      plant:_plantOf,empType:_etOf,team:_teamOf,category:_catOf,department:_deptOf,
+      shift:function(e){return _isNightShift(e.empCode)?0:1;}};// night-shift rows float to the top
+    var getter=pick[f]||function(){return '';};
+    rows.sort(function(a,b){
+      var av=getter(a),bv=getter(b);
+      if(typeof av==='number'&&typeof bv==='number') return (av-bv)*dir;
+      return String(av).localeCompare(String(bv))*dir;
+    });
+  }
+
+  // Render. P/A bar shows the 7 days BEFORE the selected date in left-
+  // to-right chronological order. A grey square = no record / absent;
+  // green = present.
+  var countEl=document.getElementById('hrmsDasAlCount');
+  if(countEl) countEl.textContent=rows.length+' absent worker'+(rows.length===1?'':'s');
+  if(!rows.length){body.innerHTML='<div class="empty-state" style="padding:20px">No absent workers in the selected window.</div>';return;}
+  var _esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var _arrow=function(f){
+    if(_hrmsDasAlSort.field!==f) return '<span style="opacity:.35;font-size:9px;margin-left:3px">↕</span>';
+    return '<span style="font-size:10px;margin-left:3px;color:#0ea5e9">'+(_hrmsDasAlSort.dir>0?'▲':'▼')+'</span>';
+  };
+  var th='padding:6px 8px;font-size:11px;font-weight:800;background:#f1f5f9;border:1px solid #cbd5e1;text-align:left;cursor:pointer;user-select:none;white-space:nowrap';
+  var td='padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;white-space:nowrap';
+  // Day column set: selected date FIRST (left), then D-1, D-2, ..., D-7.
+  // Today's P column is informational — these are all rows known to be
+  // absent on D so it'll always read 'A', but seeing it next to the
+  // 7-day history makes the bar self-explanatory.
+  var displayDays=[dateStr].concat(prevDays);
+  var _dayLbl=function(ds){var p=ds.split('-');return p[2]+'/'+p[1];};
+  var _dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var _phForDate=function(ds){
+    // Returns true when ANY plant's day_types record marks this day PH.
+    // Plant-agnostic (no row context here), so 'PH' surfaces in the
+    // header whenever it applies to at least one plant.
+    var mk=ds.slice(0,7), day=String(+ds.slice(8,10));
+    return (DB.hrmsDayTypes||[]).some(function(r){
+      return r&&r.monthKey===mk&&r.dayTypes&&r.dayTypes[day]==='PH';
+    });
+  };
+  var dayHdr='';
+  for(var di=0;di<displayDays.length;di++){
+    var _ds=displayDays[di];
+    var _parts=_ds.split('-');
+    var _dDate=new Date(+_parts[0],+_parts[1]-1,+_parts[2]);
+    var _isSun=_dDate.getDay()===0;
+    var _hasPh=_phForDate(_ds);
+    var _bg=(di===0)?'#fef3c7':'#eef2ff';
+    var _typeBadge='';
+    if(_isSun) _typeBadge='<div style="font-size:9px;font-weight:800;color:#dc2626;margin-top:2px">WO</div>';
+    else if(_hasPh) _typeBadge='<div style="font-size:9px;font-weight:800;color:#7c3aed;margin-top:2px">PH</div>';
+    dayHdr+='<th style="'+th+';cursor:default;text-align:center;background:'+_bg+'" title="'+_ds+'">'
+      +'<div style="font-size:10px;color:var(--text3);font-weight:700">'+_dow[_dDate.getDay()]+'</div>'
+      +'<div>'+_dayLbl(_ds)+'</div>'
+      +_typeBadge
+      +'</th>';
+  }
+  var h='<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'empCode\')">Emp Code'+_arrow('empCode')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'name\')">Name'+_arrow('name')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'plant\')">Plant'+_arrow('plant')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'empType\')">Emp Type'+_arrow('empType')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'team\')">Team'+_arrow('team')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'department\')">Department'+_arrow('department')+'</th>'
+    +'<th style="'+th+'" onclick="_hrmsDasAlSortBy(\'shift\')">Shift'+_arrow('shift')+'</th>'
+    +dayHdr
+    +'</tr></thead><tbody>';
+  rows.forEach(function(e){
+    var pe=pres[e.empCode]||{};
+    var bar='';
+    for(var bi=0;bi<displayDays.length;bi++){
+      var p=!!pe[displayDays[bi]];
+      bar+='<td style="'+td+';text-align:center;font-weight:800;background:'+(p?'#dcfce7':'#fee2e2')+';color:'+(p?'#15803d':'#b91c1c')+'">'+(p?'P':'A')+'</td>';
+    }
+    var ns=_isNightShift(e.empCode);
+    var shiftCell=ns
+      ?'<td style="'+td+';font-weight:800;color:#fff;background:#312e81;text-align:center" title="Started a night shift on '+yDateStr+' — likely still mid-shift on the selected date">🌙 Night</td>'
+      :'<td style="'+td+';color:var(--text3)"></td>';
+    var _plant=_plantOf(e);
+    var _pSf=_plant?((typeof _hrmsPlantShortForm==='function')?_hrmsPlantShortForm(_plant):_plant.slice(0,3).toUpperCase()):'';
+    var _pClr=(_plant&&typeof _hrmsGetPlantColor==='function')?_hrmsGetPlantColor(_plant):'#e2e8f0';
+    var _plantChip=_plant
+      ?'<span title="'+_esc(_plant)+'" style="display:inline-block;background:'+_pClr+';color:#0f172a;border:1px solid rgba(0,0,0,.18);padding:1px 8px;border-radius:10px;font-family:var(--mono);font-weight:800;font-size:11px;min-width:30px;text-align:center">'+_esc(_pSf)+'</span>'
+      :'<span style="color:#cbd5e1">—</span>';
+    h+='<tr'+(ns?' style="background:#eef2ff"':'')+'>'
+      +'<td style="'+td+';font-family:var(--mono);font-weight:800;color:var(--accent)">'+_esc(e.empCode)+'</td>'
+      +'<td style="'+td+';font-weight:700">'+_esc((typeof _hrmsDispName==='function')?_hrmsDispName(e):(e.name||''))+'</td>'
+      +'<td style="'+td+';text-align:center">'+_plantChip+'</td>'
+      +'<td style="'+td+'">'+_esc(_etOf(e))+'</td>'
+      +'<td style="'+td+'">'+_esc(_teamOf(e))+'</td>'
+      +'<td style="'+td+'">'+_esc(_deptOf(e))+'</td>'
+      +shiftCell
+      +bar
+      +'</tr>';
+  });
+  h+='</tbody></table>';
+  body.innerHTML=h;
+}
+
 function _hrmsDasTwRender(){
   var body=document.getElementById('hrmsDasTwBody');
   if(!body) return;
@@ -17711,6 +17999,9 @@ async function _hrmsDasLoadFromHistory(){
     // keep them in sync without requiring the user to flip tabs.
     if(typeof _hrmsDasTwRender==='function') _hrmsDasTwRender();
     if(typeof _hrmsDasDeptDetailsRender==='function') _hrmsDasDeptDetailsRender();
+    // Absent Employee List re-renders only when its tab is active —
+    // the 7-day window fetches adjacent months, so skip when invisible.
+    if(typeof _hrmsDasAlRender==='function'&&window._hrmsDasActiveTab==='absentlist') _hrmsDasAlRender();
     notify('✅ Loaded '+present.length+' present employee(s) from history'+(unmatched.length?' ('+unmatched.length+' unknown code(s))':''));
   }catch(e){hideSpinner();notify('⚠ Load error: '+e.message,true);console.error(e);}
 }
@@ -20133,10 +20424,35 @@ function _hrmsUpdEmpInit(){
   }
   // Render the team-scoped summary chips (Active / Updated / Pending).
   if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
+  // Fire the lightweight photo-existence fetch and re-render the chips
+  // when it returns. The chip's first paint reads from whatever
+  // `_hrmsEmpsWithPhoto` already holds (could be stale or empty); the
+  // re-render after the fetch reconciles to the current DB state.
+  if(typeof _hrmsFetchPhotoExists==='function'){
+    _hrmsFetchPhotoExists().then(function(){
+      if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
+    });
+  }
   // Reset dirty tracker on every page open.
   window._hrmsUpdEmpDirty=false;
   // Disable form fields + Save/Clear until a valid employee is picked.
   _hrmsUpdEmpSetFieldsEnabled(false);
+}
+
+// Lightweight existence fetch — returns just `code` for emps with a
+// non-empty photo. Builds a lookup map at window._hrmsEmpsWithPhoto so
+// the Update Employee chips can count "photo uploaded" without
+// dragging full base64 photos into memory.
+async function _hrmsFetchPhotoExists(){
+  if(!_sb||!_sbReady) return;
+  try{
+    var res=await _sb.from('hrms_employees').select('code')
+      .not('photo','is',null).neq('photo','').limit(10000);
+    if(res.error){ console.warn('photo-exists fetch error:',res.error.message); return; }
+    var map={};
+    (res.data||[]).forEach(function(r){if(r&&r.code) map[r.code]=true;});
+    window._hrmsEmpsWithPhoto=map;
+  }catch(e){ console.warn('photo-exists fetch exception:',e.message); }
 }
 
 // Mark the form dirty so Clear / pick-different prompts before discarding.
@@ -20149,6 +20465,9 @@ function _hrmsUpdEmpMarkDirty(){window._hrmsUpdEmpDirty=true;}
 //   • Pending update (no photo yet)
 // Pool is the same scoped list the picker uses (`window._hrmsUpdEmpPickerPool`),
 // so SA / HR Manager see all teams, Contractor Sup sees only their teams.
+// "Updated" tests `window._hrmsEmpsWithPhoto[emp.id]` instead of `emp.photo`
+// because photos are lazy-loaded and not in the boot select — without the
+// existence map the chip would always read 0.
 function _hrmsUpdEmpRenderSummary(){
   var el=document.getElementById('hrmsUpdEmpSummary');if(!el) return;
   var pool=(window._hrmsUpdEmpPickerPool||[]).slice();
@@ -20161,8 +20480,9 @@ function _hrmsUpdEmpRenderSummary(){
     ?function(e){return _hrmsEmpMonthTag(e,_curMk);}
     :function(){return 'AC';};
   var active=pool.filter(function(e){return _tagOf(e)==='AC';});
-  var updated=active.filter(function(e){return !!(e&&e.photo);});
-  var pending=active.filter(function(e){return !(e&&e.photo);});
+  var _hasPhoto=window._hrmsEmpsWithPhoto||{};
+  var updated=active.filter(function(e){return !!(e&&_hasPhoto[e.id]);});
+  var pending=active.filter(function(e){return !(e&&_hasPhoto[e.id]);});
   window._hrmsUpdEmpSummary={active:active,updated:updated,pending:pending};
   var chip=function(label,n,clr,bg,bd,kind){
     // Single-row layout: each chip is 1/3 width with `flex:1 1 0` and
@@ -21748,6 +22068,12 @@ async function _hrmsUpdEmpSave(){
   hideSpinner();
   if(!ok){notify('⚠ Save failed',true);return;}
   notify('✅ '+(emp.empCode||'')+' updated');
+  // Stamp this emp as photo-present in the local existence map and
+  // re-render the Updated / Pending chips so the count reflects the
+  // save immediately, without a refetch.
+  if(!window._hrmsEmpsWithPhoto) window._hrmsEmpsWithPhoto={};
+  window._hrmsEmpsWithPhoto[emp.id]=true;
+  if(typeof _hrmsUpdEmpRenderSummary==='function') _hrmsUpdEmpRenderSummary();
   if(typeof renderHrmsEmployees==='function') renderHrmsEmployees();
   _hrmsUpdEmpReset(true);// skip dirty check — save just consumed the changes
 }
@@ -31035,6 +31361,16 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     });
   }
 
+  // Pre-pass — hide the Basic+DA (PF) Capped / Basic+DA (ESI) columns
+  // when the majority of rows lack values for them. Covers months locked
+  // before the columns shipped (Jan/Feb/Mar 2026 and earlier): the
+  // snapshot dominates with empty values but a handful of live-merged
+  // rows (new joiners not in the snapshot) get computed values from the
+  // current formula set — using `.every` would let those minority rows
+  // keep the columns visible. Majority-empty wins instead.
+  var _missingBasicDa=filteredRows.filter(function(r){return r.basicDaPfC==null&&r.basicDaEsiC==null;}).length;
+  var _hideBasicDa=_missingBasicDa*2>filteredRows.length;
+
   var _r=function(v){return Math.round(v||0).toLocaleString('en-IN');};
   var _f=function(v){if(v==null)return'0';if(v%1===0) return String(v); return(Math.round(v*4)/4).toFixed(2).replace(/\.?0+$/,'');};
   var _th='padding:5px 4px;font-size:12px;font-weight:800;background:#f1f5f9;border:1px solid #94a3b8;white-space:normal;word-break:break-word;line-height:1.2;vertical-align:bottom;color:#1e293b;cursor:pointer;user-select:none';
@@ -31077,9 +31413,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<th onclick="_hrmsContractSortBy(\'forOT\')" style="'+_th+';background:#dcfce7;text-align:right">For OT@1'+_arrow('forOT')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'spAllow\')" style="'+_th+';background:#dcfce7;text-align:right">Sp.Allow'+_arrow('spAllow')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'gross\')" style="'+_th+';background:#dcfce7;text-align:right">Gross'+_arrow('gross')+'</th>';
-  h+='<th onclick="_hrmsContractSortBy(\'basicDaPfC\')" style="'+_th+';background:#faf5ff;text-align:right">Basic + DA (PF) Capped'+_arrow('basicDaPfC')+'</th>';
+  if(!_hideBasicDa) h+='<th onclick="_hrmsContractSortBy(\'basicDaPfC\')" style="'+_th+';background:#faf5ff;text-align:right">Basic + DA (PF) Capped'+_arrow('basicDaPfC')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'pf\')" style="'+_th+';background:#f3e8ff;text-align:right">PF'+_arrow('pf')+'</th>';
-  h+='<th onclick="_hrmsContractSortBy(\'basicDaEsiC\')" style="'+_th+';background:#fdf2f8;text-align:right">Basic + DA (ESI)'+_arrow('basicDaEsiC')+'</th>';
+  if(!_hideBasicDa) h+='<th onclick="_hrmsContractSortBy(\'basicDaEsiC\')" style="'+_th+';background:#fdf2f8;text-align:right">Basic + DA (ESI)'+_arrow('basicDaEsiC')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'esi\')" style="'+_th+';background:#f3e8ff;text-align:right">ESI'+_arrow('esi')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'totalSal\')" style="'+_th+';background:#f3e8ff;text-align:right">Total Salary'+_arrow('totalSal')+'</th>';
   h+='<th onclick="_hrmsContractSortBy(\'commission\')" style="'+_th+';background:#fef3c7;text-align:right">Commission 8%'+_arrow('commission')+'</th>';
@@ -31117,9 +31453,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#f0fdf4">'+_r(r.forOT)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#f0fdf4">'+_r(r.spAllow)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#dcfce7;font-weight:900;color:#15803d">'+_r(r.gross)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+(r.basicDaPfC!=null?_r(r.basicDaPfC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
+    if(!_hideBasicDa) h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+(r.basicDaPfC!=null?_r(r.basicDaPfC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+_r(r.pf)+'</td>';
-    h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fdf2f8">'+(r.basicDaEsiC!=null?_r(r.basicDaEsiC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
+    if(!_hideBasicDa) h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fdf2f8">'+(r.basicDaEsiC!=null?_r(r.basicDaEsiC):'<span style="color:var(--text3);font-weight:400">—</span>')+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff">'+_r(r.esi)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#faf5ff;font-weight:700">'+_r(r.totalSal)+'</td>';
     h+='<td style="'+_td+';text-align:right;font-family:var(--mono);background:#fef3c7">'+_r(r.commission)+'</td>';
@@ -31152,9 +31488,9 @@ function _hrmsContractRenderRows(grid,rows,mk,yr,mo){
   h+='<td style="'+_tf+'">'+_r(grandTotals.forOT)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.spAllow)+'</td>';
   h+='<td style="'+_tf+';font-weight:900;color:#15803d">'+_r(grandTotals.gross)+'</td>';
-  h+='<td style="'+_tf+'">'+(anyBasicDaPfC?_r(grandTotals.basicDaPfC):'')+'</td>';
+  if(!_hideBasicDa) h+='<td style="'+_tf+'">'+(anyBasicDaPfC?_r(grandTotals.basicDaPfC):'')+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.pf)+'</td>';
-  h+='<td style="'+_tf+'">'+(anyBasicDaEsiC?_r(grandTotals.basicDaEsiC):'')+'</td>';
+  if(!_hideBasicDa) h+='<td style="'+_tf+'">'+(anyBasicDaEsiC?_r(grandTotals.basicDaEsiC):'')+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.esi)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.totalSal)+'</td>';
   h+='<td style="'+_tf+'">'+_r(grandTotals.commission)+'</td>';
