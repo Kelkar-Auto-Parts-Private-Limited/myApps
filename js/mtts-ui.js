@@ -142,6 +142,26 @@ function _mttsLaunch(){
   var tbu=document.getElementById('mttsTopbarUser');
   if(tbu) tbu.textContent=CU.fullName||CU.name||'';
   _mttsEnforcePermissions();
+  // 260519-V33 — Re-run nav visibility whenever CU changes mid-session
+  // (admin revokes a role / grants one / changes permissions while the
+  // user is already in MTTS). Without this the sidebar stays frozen at
+  // boot-time access and shows tabs the user no longer can open.
+  _onCurrentUserUpdated=function(){
+    try{ _mttsEnforcePermissions(); }catch(_){}
+    // If the user lost access to the currently-active page, route them
+    // somewhere safe (or to the no-access shell).
+    try{
+      var active=document.querySelector('.page.active');
+      var pid=active?active.id:'';
+      var permKey={pageMttsDashboard:'page.dashboard',pageMttsPlants:'page.plants',pageMttsAssetTypes:'page.assetTypes',pageMttsAssetPrimaryNames:'page.assetPrimaryNames',pageMttsAgencies:'page.agencies',pageMttsAssets:'page.assets',pageMttsTickets:'page.tickets'}[pid];
+      if(permKey && !_mttsHasAccess(permKey)){
+        if(_mttsHasAccess('page.tickets')) mttsGo('pageMttsTickets');
+        else if(_mttsHasAccess('page.dashboard')) mttsGo('pageMttsDashboard');
+        else if(_mttsHasAccess('page.assets')) mttsGo('pageMttsAssets');
+        else _mttsRenderNoAccessShell();
+      }
+    }catch(_){}
+  };
   // First-run seed: populate the Plant Master from the legacy PLANTS
   // constant so existing assets / tickets (created before the master
   // existed) keep resolving by code. Re-render dropdowns afterwards.
@@ -2234,7 +2254,8 @@ function _mttsRenderTickets(){
       var sideAct='';
       if(t.status==='open'){
         if(_mttsCanAllocate()){
-          primaryAct+='<button onclick="'+stop+'_mttsTicketAllocateOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:5px;cursor:pointer">👥 Allocate</button>';
+          // 260519-V35 — Renamed "Allocate" → "Assign" per user request.
+          primaryAct+='<button onclick="'+stop+'_mttsTicketAllocateOpen(\''+idEsc+'\')" style="font-size:12px;padding:6px 10px;font-weight:700;background:#0ea5e9;color:#fff;border:none;border-radius:5px;cursor:pointer">👥 Assign</button>';
         }
         if(_mttsCanEditTicket(t)){
           sideAct+='<button class="mtts-tcard-iconbtn is-edit" onclick="'+stop+'_mttsTicketEditOpen(\''+idEsc+'\')" title="Edit ticket" aria-label="Edit ticket">✏</button>';
@@ -4008,18 +4029,22 @@ function _mttsTicketAllocateOpen(id){
       _allocSummary+
     '</div>';
   // Reassign mode = the ticket already has technicians on it. The
-  // header flips to "Reassign Technician" and no checkboxes are
-  // pre-selected, forcing the manager to make a fresh pick.
+  // header flips to "Reassign Technician". 260519-V35 — pre-selection
+  // restored: when opening Reassign, the currently-assigned techs are
+  // shown as ticked so the manager can see who's already on the
+  // ticket. They can untick to remove, tick others to add. Earlier
+  // versions cleared the picks to force a fresh selection, but that
+  // hid the existing assignment from the manager.
   var isReassignMode=!!(t.assignedTo&&t.assignedTo.length);
   var titleEl=document.getElementById('mttsAllocTitle');
-  if(titleEl) titleEl.textContent=isReassignMode?'👥 Reassign Technician':'👥 Allocate Technician(s)';
+  if(titleEl) titleEl.textContent=isReassignMode?'👥 Reassign Technician':'👥 Assign Technician(s)';
   // Tech picker: tap-target buttons rather than a tight checkbox list, with
   // each button surfacing the technician's current in-progress ticket
   // count so the manager can spread load. The hidden checkbox inside each
   // button keeps the existing confirm-handler (which reads
   // .mtts-alloc-cb:checked) working unchanged.
   var techs=_mttsTechnicians();
-  var pre=isReassignMode?[]:(t.assignedTo||[]);
+  var pre=(t.assignedTo||[]);
   var listEl=document.getElementById('mttsAllocTechList');
   if(!techs.length){
     listEl.innerHTML='<div style="padding:10px;font-size:11px;color:var(--text3)">No users with Technician role found. Assign the role to users first via the portal.</div>';

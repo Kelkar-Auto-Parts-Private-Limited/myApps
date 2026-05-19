@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260519-V32">
+<meta name="app-build" content="260519-V35">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260519-V32">
+<link rel="stylesheet" href="css/mtts.css?v=260519-V35">
 </head>
 <body style="display:none">
 
@@ -253,7 +253,11 @@
   <div class="form-group"><label>Pick one or more Technicians *</label>
     <div id="mttsAllocTechList" style="border:1px solid var(--border);border-radius:8px;max-height:380px;overflow:auto;padding:0"></div>
   </div>
-  <div class="form-group"><label>Note to technician(s)</label>
+  <!-- 260519-V35 — "Note to technician(s)" hidden per user request. The
+       hidden input stays in the DOM so _mttsTicketAllocateConfirm can still
+       read its (empty) value without crashing. Re-enable by removing
+       style="display:none" below. -->
+  <div class="form-group" style="display:none"><label>Note to technician(s)</label>
     <input type="text" id="mttsAllocNote" placeholder="Optional">
   </div>
   <div class="modal-error" id="mttsAllocErr"></div>
@@ -695,7 +699,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260519-V32"></script>
-<script src="js/mtts-ui.js?v=260519-V32"></script>
+<script src="js/common.js?v=260519-V35"></script>
+<script src="js/mtts-ui.js?v=260519-V35"></script>
 </body>
 </html>

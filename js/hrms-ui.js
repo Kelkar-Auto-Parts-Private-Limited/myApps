@@ -16849,6 +16849,41 @@ function _hrmsDasTwRender(){
     r.last45P=p45;
     r.last45A=last45.length-p45;
   });
+  // 260519-V34 — Apply tab.das.teamwise scope on the ROWS, not just the
+  // team tabs. The legacy supScope (below) only restricted which team
+  // tabs render; row data was still pulled from DB.hrmsEmployees in
+  // full, so a Plant Head whose teams collided with team names in
+  // other plants (e.g. two plants both have "Team A") would see the
+  // other plants' rows. Narrowing rows by the resolver's plant/team/
+  // dept set fixes that — and everything downstream (etRows,
+  // teamCounts, plantKeys, table body) re-derives from this scoped
+  // list automatically.
+  try{
+    var twSc=(typeof _hrmsResolveScope==='function')?_hrmsResolveScope('HRMS','tab.das.teamwise'):null;
+    if(twSc && twSc.kind && twSc.kind!=='all'){
+      var _deptIdByName={};
+      if(twSc.kind==='dept'){
+        (DB.hrmsDepartments||[]).forEach(function(d){if(d&&d.id&&d.name) _deptIdByName[d.name]=d.id;});
+      }
+      rows=rows.filter(function(r){
+        if(twSc.kind==='plant'){
+          if(!r.plant) return false;
+          if(twSc.plants && twSc.plants[r.plant]) return true;
+          if(typeof _hrmsPlantNameEq==='function'){
+            for(var k in twSc.plants||{}){if(_hrmsPlantNameEq(k,r.plant)) return true;}
+          }
+          return false;
+        }
+        if(twSc.kind==='team') return !!(twSc.teamNames && twSc.teamNames[r.team]);
+        if(twSc.kind==='dept'){
+          var did=_deptIdByName[r.dept];
+          return !!(did && twSc.deptIds && twSc.deptIds[did]);
+        }
+        if(twSc.kind==='self') return !!(twSc.empCodes && twSc.empCodes[r.empCode]);
+        return true;
+      });
+    }
+  }catch(_){}
   // Contractor Supervisor scope — restricts emp types + teams.
   var supScope=(typeof _hrmsDasContractorSupScope==='function')?_hrmsDasContractorSupScope():null;
   // Build the employment-type buttons from the rows we now have.
