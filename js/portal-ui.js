@@ -79,6 +79,26 @@ _navigateTo=function(url){
       cache.ts=Date.now();
       localStorage.setItem('kap_db_cache',JSON.stringify(cache));
     }
+    // 260519-V29 — Refresh `kap_current_user` from live CU before
+    // navigating so the destination app's `_gateAppAccess` reads fresh
+    // roles/apps. Without this, the cache was only updated at login —
+    // any role granted after login (e.g. admin adds MTTS Admin to a
+    // user already signed in) stayed invisible to the gate and bounced
+    // every non-Super-Admin user back to the portal. Prefer the live
+    // record from DB.users when it's a closer match for the session
+    // user (CU is sometimes a snapshot from cache-hit boot).
+    try{
+      var _fresh=null;
+      if(typeof CU!=='undefined' && CU && CU.name && DB && DB.users){
+        var _u=DB.users.find(function(x){return x&&x.name&&x.name.toLowerCase()===String(CU.name).toLowerCase();});
+        _fresh=_u||CU;
+      } else if(typeof CU!=='undefined' && CU){
+        _fresh=CU;
+      }
+      if(_fresh){
+        localStorage.setItem('kap_current_user',JSON.stringify(_fresh));
+      }
+    }catch(_){}
   }catch(e){}
   // Navigate with overlay (skip the cache write in original since we did it)
   var ov=document.createElement('div');
@@ -337,16 +357,14 @@ function showPortal(){
   var sn=document.getElementById('pSideName');if(sn)sn.textContent=CU.fullName||CU.name;
   var sr=document.getElementById('pSideRole');if(sr)sr.textContent=(CU.roles||[]).join(', ');
   // Tab visibility:
-  //   Users     — Super Admin / Admin (platform), and any app's Admin role
+  //   Users     — Super Admin / Admin (platform) only (260519-V19; was
+  //               previously open to every app's Admin role too)
   //   DB Storage— Super Admin / Admin (platform), HWMS Admin
   //   Permissions (Role Settings) — Super Admin only
   var isSuper=(CU.roles||[]).indexOf('Super Admin')>=0;
   var isAdmin=(CU.roles||[]).indexOf('Admin')>=0;
-  var isVmsAdmin=(CU.roles||[]).indexOf('VMS Admin')>=0;
   var isHwmsAdmin=(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var isHrAdmin=(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
-  var isMttsAdmin=(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
-  var canManageUsers=isSuper||isAdmin||isVmsAdmin||isHwmsAdmin||isHrAdmin||isMttsAdmin;
+  var canManageUsers=isSuper||isAdmin;
   var ut=document.getElementById('usersTab'); if(ut) ut.style.display=canManageUsers?'':'none';
   var psU=document.getElementById('psNavUsers');if(psU)psU.style.display=canManageUsers?'':'none';
   var psDb=document.getElementById('psNavDbstorage');if(psDb)psDb.style.display=(isSuper||isHwmsAdmin)?'':'none';
@@ -396,11 +414,9 @@ function showTab(tab){
   // Guard admin-only tabs — must stay in sync with renderPortal() visibility
   var _isSA=CU&&(CU.roles||[]).indexOf('Super Admin')>=0;
   var _isAdmin=CU&&(CU.roles||[]).indexOf('Admin')>=0;
-  var _isVmsAdmin=CU&&(CU.roles||[]).indexOf('VMS Admin')>=0;
   var _isHwmsAdmin=CU&&(CU.hwmsRoles||[]).indexOf('HWMS Admin')>=0;
-  var _isHrAdmin=CU&&(CU.hrmsRoles||[]).indexOf('HRMS Admin')>=0;
-  var _isMttsAdmin=CU&&(CU.mttsRoles||[]).indexOf('MTTS Admin')>=0;
-  var _canUsers=_isSA||_isAdmin||_isVmsAdmin||_isHwmsAdmin||_isHrAdmin||_isMttsAdmin;
+  // 260519-V19 — User Management restricted to platform-level admins.
+  var _canUsers=_isSA||_isAdmin;
   var _canDb=_isSA||_isAdmin||_isHwmsAdmin;
   if(tab==='users'&&!_canUsers){showTab('apps');return;}
   if(tab==='permissions'&&!_isSA){showTab('apps');return;}

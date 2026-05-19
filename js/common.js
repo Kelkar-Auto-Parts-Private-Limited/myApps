@@ -2883,15 +2883,20 @@ function _permKeyAcceptsScope(k){
 }
 var _PERM_KEYS={
   HRMS:[
+    // 260519-V20 — Every data-bearing HRMS perm key carries
+    // `defaultScopeByRole:{'Plant Head':'plant'}` so a user holding only
+    // the Plant Head role sees data narrowed to their HRMS-employee
+    // plant (emp.location) until admin explicitly opens the scope wider
+    // on a per-page basis in Access Management.
     // Sidebar — Dashboard
-    {key:'page.dashboard',label:'📊 Dashboard',group:'📊 Dashboard'},
+    {key:'page.dashboard',label:'📊 Dashboard',group:'📊 Dashboard',defaultScopeByRole:{'Plant Head':'plant'}},
 
     // Sidebar — 📊 Day-wise Attendance (collapsible group + 4 sub-pages)
-    {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance'},
-    {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance'},
-    {key:'page.empAtt',label:'👤 Employee Attendance & Late Mark',group:'📊 Day-wise Attendance'},
+    {key:'page.utilDailyAttSum',label:'📊 Day-wise Attendance (sidebar menu)',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'page.plantwiseAtt',label:'🏭 Plant-wise Attendance',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'page.empAtt',label:'👤 Employee Attendance & Late Mark',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'tab.das.manpower',label:'👷 Allocation vs Actual Manpower',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant','Department Head':'dept'}},
-    {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.deptdetails',label:'📋 Department-wise Attendance',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant','Department Head':'dept'}},
     // scopeOptions exposes a per-role scope dropdown beside the
     // None/View/Full segment in Access Management. The chosen value is
     // persisted as a sibling key (perms[role]['tab.das.teamwise.scope'])
@@ -2899,8 +2904,8 @@ var _PERM_KEYS={
     // team list. defaultScopeByRole supplies legacy fall-backs so
     // existing roles keep their old implicit behaviour until admin
     // explicitly overrides.
-    {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance'},
-    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings',group:'📊 Day-wise Attendance'},
+    {key:'tab.das.teamwise',label:'👥 Team-wise Attendance Record',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.das.alloc',label:'⚙ Manpower Allocation Settings',group:'📊 Day-wise Attendance',defaultScopeByRole:{'Plant Head':'plant'}},
 
     // Sidebar — 📅 Monthly Attendance & Salary
     // Everything that lives INSIDE the Monthly Attendance & Salary page
@@ -2908,7 +2913,7 @@ var _PERM_KEYS={
     // salary-visibility buckets) is grouped here so the access-control
     // tree nests them under a single top-level umbrella instead of
     // spilling out as separate sibling groups.
-    {key:'page.attSal',label:'📅 Monthly Attendance & Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'page.attSal',label:'📅 Monthly Attendance & Salary',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'action.addMonth',label:'+ Add New Month',group:'📅 Monthly Attendance & Salary'},
     {key:'action.saveLock',label:'🔒 Save & Lock Month',group:'📅 Monthly Attendance & Salary'},
     {key:'action.unlock',label:'🔓 Unlock Month',group:'📅 Monthly Attendance & Salary'},
@@ -2930,11 +2935,11 @@ var _PERM_KEYS={
     {key:'settings.calendar',label:'Calendar',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.tds',label:'TDS',group:'📅 Monthly Attendance & Salary'},
     {key:'settings.salrevision',label:'KAP Sal Rev',group:'📅 Monthly Attendance & Salary'},
-    {key:'page.contractRev',label:'Contract Salary Rev',group:'📅 Monthly Attendance & Salary'},
+    {key:'page.contractRev',label:'Contract Salary Rev',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'settings.statutory',label:'Statutory',group:'📅 Monthly Attendance & Salary'},
 
     // Monthly Attendance & Salary → main tab "📅 Attendance" + sub-tabs
-    {key:'tab.attendance',label:'📅 Attendance',group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.attendance',label:'📅 Attendance',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'att.muster',label:'Muster Roll',group:'📅 Monthly Attendance & Salary'},
     {key:'att.pot',label:'P & OT',group:'📅 Monthly Attendance & Salary'},
     {key:'att.summary',label:'Summary',group:'📅 Monthly Attendance & Salary'},
@@ -2958,11 +2963,11 @@ var _PERM_KEYS={
     // export buttons, View grants read-only, None hides the tab.
     // _hrmsHasAccess redirects the legacy action keys to the tab's
     // level so existing call sites keep working without touching them.
-    {key:'tab.salary',label:'💰 KAP Salary',group:'📅 Monthly Attendance & Salary'},
-    {key:'tab.payments',label:'🏦 KAP Sal Payment',group:'📅 Monthly Attendance & Salary'},
-    {key:'tab.esipf',label:'📋 KAP ESI/PF Report',group:'📅 Monthly Attendance & Salary'},
-    {key:'tab.pt',label:'🧾 KAP PT Summary',group:'📅 Monthly Attendance & Salary'},
-    {key:'tab.contract',label:'📋 Contract Salary',group:'📅 Monthly Attendance & Salary'},
+    {key:'tab.salary',label:'💰 KAP Salary',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.payments',label:'🏦 KAP Sal Payment',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.esipf',label:'📋 KAP ESI/PF Report',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.pt',label:'🧾 KAP PT Summary',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
+    {key:'tab.contract',label:'📋 Contract Salary',group:'📅 Monthly Attendance & Salary',defaultScopeByRole:{'Plant Head':'plant'}},
 
     // Monthly Attendance & Salary → View Salary (umbrella over the 4
     // salary-visibility buckets). Tri-state per bucket: None = Hide
@@ -2994,14 +2999,14 @@ var _PERM_KEYS={
     // Levels in both keys mean: None = hide; View = read-only (can see
     // pending rows but Approve/Reject buttons hide); Full = see + act.
     {key:'page.myApprovals',label:'✅ My Approvals (Own)',group:'✅ My Approvals',noScope:true},
-    {key:'page.myApprovalsOthers',label:'✅ My Approvals (Other Users)',group:'✅ My Approvals'},
+    {key:'page.myApprovalsOthers',label:'✅ My Approvals (Other Users)',group:'✅ My Approvals',defaultScopeByRole:{'Plant Head':'plant'}},
 
     // Sidebar — 📏 Attendance Rules
     {key:'page.attRules',label:'📏 Attendance Rules',group:'📏 Attendance Rules'},
 
     // Sidebar — 📂 Masters (collapsible group — Employees + Org + masters)
     {key:'page.masters',label:'📂 Masters (sidebar menu)',group:'📂 Masters'},
-    {key:'page.employees',label:'👤 Employees',group:'📂 Masters'},
+    {key:'page.employees',label:'👤 Employees',group:'📂 Masters',defaultScopeByRole:{'Plant Head':'plant'}},
     {key:'action.addEmployee',label:'+ Add Employee',group:'📂 Masters'},
     {key:'action.editEmployee',label:'✏️ Edit Employee',group:'📂 Masters'},
     {key:'action.deleteEmployee',label:'🗑 Delete Employee',group:'📂 Masters'},
@@ -3017,7 +3022,7 @@ var _PERM_KEYS={
     // + edit. The legacy `org.edit` action key was retired in favour
     // of this collapsed semantic (its call sites get redirected via
     // _tabCollapsedActs in hrms-logic.js).
-    {key:'page.orgStructure',label:'🌳 HR Organisation Structure',group:'📂 Masters'},
+    {key:'page.orgStructure',label:'🌳 HR Organisation Structure',group:'📂 Masters',defaultScopeByRole:{'Plant Head':'plant'}},
     // org.edit removed — gated by page.orgStructure tri-state instead.
     // _hrmsHasAccess('org.edit') is redirected to require Full on
     // page.orgStructure via the _tabCollapsedActs map.
@@ -3034,7 +3039,7 @@ var _PERM_KEYS={
     // Sidebar — 🛠 Utilities (collapsible group)
     {key:'page.utilities',label:'🛠 Utilities (sidebar menu)',group:'🛠 Utilities'},
     {key:'page.utilAttConv',label:'📗 Attendance Excel Converter',group:'🛠 Utilities'},
-    {key:'page.utilUpdateEmp',label:'✏️ Update Employee',group:'🛠 Utilities'}
+    {key:'page.utilUpdateEmp',label:'✏️ Update Employee',group:'🛠 Utilities',defaultScopeByRole:{'Plant Head':'plant'}}
   ],
   VMS:[
     {key:'page.dashboard',label:'Dashboard Page',group:'📊 Dashboard'},
@@ -3448,6 +3453,12 @@ function _enrichCU(){
   CU.locId=loc?.id||null;
   CU.locType=loc?.type||'';
   CU.locName=loc?.name||'';
+  // 260519-V29 — Mirror CU back to kap_current_user so the next app
+  // navigate-and-gate sees the same roles/apps the user actually has
+  // now (rather than the snapshot stored at login). _gateAppAccess
+  // runs before bootDB, so without this refresh a role granted after
+  // login would only be honoured after a re-login.
+  try{ localStorage.setItem('kap_current_user', JSON.stringify(CU)); }catch(_){}
 }
 // Auto-sync: when a user is saved with roles + plant, ensure they appear in
 // the corresponding Location Master role arrays.
@@ -5165,7 +5176,12 @@ function _gateAppAccess(appId){
   var apps=u.apps||[];
   if(apps.length){
     // Explicit apps list — gate by membership. Empty list = legacy/no restriction.
-    appsOk = apps.indexOf(appId)>=0;
+    // 260519-V28 — `mtts` and `maintenance` are synonyms (PORTAL_APPS
+    // uses `maintenance`, legacy gate callers pass `mtts`). Without this
+    // alias, every non-Super-Admin user was denied access to MTTS because
+    // `apps` carries 'maintenance' but the gate checked for 'mtts'.
+    var aliases=(appId==='mtts'||appId==='maintenance')?['mtts','maintenance']:[appId];
+    appsOk = aliases.some(function(a){return apps.indexOf(a)>=0;});
   }
   if(appId==='vms'){
     var VMS_ROLES=['Super Admin','VMS Admin','Plant Head','Trip Booking User','KAP Security','Material Receiver','Trip Approver','Vendor','Helper'];

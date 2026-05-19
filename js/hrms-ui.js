@@ -788,11 +788,7 @@ function hrmsGo(pid,opt){
     if(pid==='pageHrmsUtilUpdateEmp'&&typeof _hrmsUpdEmpInit==='function') _hrmsUpdEmpInit();
   }
   if(pid==='pageHrmsMyAtt'&&typeof _hrmsMyAttInit==='function') _hrmsMyAttInit();
-  // Re-render the Monthly Headcount Graph whenever the user lands on
-  // the Dashboard so calendar / data edits made elsewhere flow in.
-  if(pid==='pageHrmsDashboard'&&typeof _hrmsMhgRenderCharts==='function'&&_hrmsMhgState){
-    try{_hrmsMhgRenderCharts();}catch(_){}
-  }
+  // 260519-V21 — Dashboard no longer hosts MHG; per-page handler dropped.
   if(pid==='pageHrmsMyApprovals'&&typeof _hrmsMyApprovalsRender==='function') _hrmsMyApprovalsRender();
   if(pid==='pageHrmsPlantwiseAtt'&&typeof _hrmsPwAttInit==='function') _hrmsPwAttInit();
   if(pid==='pageHrmsEmpAtt'&&typeof _hrmsEmpAttInit==='function') _hrmsEmpAttInit();
@@ -2896,6 +2892,32 @@ function _hrmsDashTeamHcSection(allEmps){
   // to emp.location) so the chart respects the same plant identifier
   // the rest of HRMS reads. Empty selection ('') = all plants.
   var _selPlant=window._hrmsDashTeamHcPlant||'';
+  // 260519-V22 — Honour the access-management plant scope. A Plant Head
+  // (or any role narrowed to 'plant' kind on page.dashboard) gets an
+  // implicit plant set even when they haven't touched the chart's plant
+  // dropdown. Used below to (a) narrow the dropdown options, (b) snap
+  // an out-of-scope dropdown selection back into scope, and (c) restrict
+  // the metrics fast-path's "sum all plant rows" aggregation so the
+  // 6-month avg isn't computed off plants the user can't access.
+  var _scopedPlants=null;
+  try{
+    var _scD=(typeof _hrmsResolveScope==='function')?_hrmsResolveScope('HRMS','page.dashboard'):null;
+    if(_scD && _scD.kind==='plant'){
+      _scopedPlants={};
+      Object.keys(_scD.plants||{}).forEach(function(p){if(p) _scopedPlants[p]=true;});
+      if(!Object.keys(_scopedPlants).length) _scopedPlants=null;
+    }
+  }catch(_){}
+  // Snap an out-of-scope selection back. If the user has only one plant
+  // in scope, force the selection to it; otherwise just clear and let
+  // the user pick.
+  if(_scopedPlants){
+    if(_selPlant && !_scopedPlants[_selPlant]){_selPlant='';window._hrmsDashTeamHcPlant='';}
+    if(!_selPlant){
+      var _sks=Object.keys(_scopedPlants);
+      if(_sks.length===1){ _selPlant=_sks[0]; window._hrmsDashTeamHcPlant=_selPlant; }
+    }
+  }
   if(_selPlant){
     allEmps=allEmps.filter(function(e){
       if(!e) return false;
@@ -2961,8 +2983,15 @@ function _hrmsDashTeamHcSection(allEmps){
     var loc=((ap&&ap.location)||e.location||'').trim();
     if(loc && !_seenPlants[loc]){ _seenPlants[loc]=true; _plantLocs.push({name:loc}); }
   });
+  // 260519-V22 — Hide plants the user can't access. Keeps the picker
+  // honest with the access-management scope; "All Plants" then means
+  // "all plants this user can see".
+  if(_scopedPlants){
+    _plantLocs=_plantLocs.filter(function(c){return c && c.name && _scopedPlants[c.name];});
+  }
   _plantLocs.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
-  var _plantOpts='<option value="">All Plants</option>'+_plantLocs.map(function(c){
+  var _allLbl=_scopedPlants?'All Allowed Plants':'All Plants';
+  var _plantOpts='<option value="">'+_allLbl+'</option>'+_plantLocs.map(function(c){
     var sel=(_selPlant===c.name)?' selected':'';
     return '<option value="'+String(c.name||'').replace(/"/g,'&quot;')+'"'+sel+'>'+String(c.name||'').replace(/"/g,'&quot;')+'</option>';
   }).join('');
@@ -3148,9 +3177,15 @@ function _hrmsDashTeamHcSection(allEmps){
               if(teamRows[pi].plant===_wantPlant){ hMetric=teamRows[pi]; break; }
             }
           } else {
-            // No filter — sum all plant rows for this team.
+            // No UI plant filter — sum all rows for this team. But honor
+            // the access-management plant scope: a Plant Head's 6-month
+            // avg must NOT include other plants' rows just because the
+            // chart's plant dropdown is on "All". 260519-V22.
+            var _aggSrc=_scopedPlants
+              ? teamRows.filter(function(r){return r && r.plant && _scopedPlants[r.plant];})
+              : teamRows;
             var aggDays={},aggP=0,aggA=0,aggN=0,aggE=0;
-            teamRows.forEach(function(r){
+            _aggSrc.forEach(function(r){
               var ds=r.days||{};
               Object.keys(ds).forEach(function(dk){
                 var dnum=+dk;
@@ -3482,7 +3517,11 @@ function _hrmsDashTeamHcSection(allEmps){
       // Historical bucket — label e.g. "Nov 2025 · 6-month avg".
       var spH=h.mk.split('-');
       var hLbl=(MON_NAMES[+spH[1]-1]||'')+' '+spH[0]+' · 6-mo avg';
-      s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="transparent" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+hLbl+'" data-p="'+h.avgP+'" data-a="'+h.avgA+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" style="cursor:pointer"/>';
+      // 260519-V21 — Hover hit area expanded to the full column slot
+      // (not just the bar rect). Small avgP values used to give a 2-3 px
+      // tall hover strip; now any pixel in the column triggers the tip.
+      var _slotXh=hi*_colWT;
+      s+='<rect x="'+_slotXh+'" y="0" width="'+_colWT+'" height="'+laneH+'" fill="transparent" pointer-events="all" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+hLbl+'" data-p="'+h.avgP+'" data-a="'+h.avgA+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" style="cursor:pointer"/>';
     });
     (d.dayRows||[]).forEach(function(dr,ii){
       if(!dr||dr.p<=0) return;
@@ -3497,7 +3536,13 @@ function _hrmsDashTeamHcSection(allEmps){
       s+=_nightTopBadge(cx,night);
       var cLbl=dr.d+' '+(MON_NAMES[curMo-1]||'')+' '+curYr;
       var _laneKeyEsc=String(lane.key||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      s+='<rect x="'+bx+'" y="'+topY+'" width="'+_barWL+'" height="'+pHpx+'" fill="transparent" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+cLbl+'" data-p="'+dr.p+'" data-a="'+dr.a+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" onclick="_hrmsDashHideBarTooltip();_hrmsDashShowDayEmps(\''+_laneKeyEsc+'\','+dr.d+')" style="cursor:pointer"/>';
+      // 260519-V21 — Click + hover hit area expanded to the full column
+      // slot. Tiny P values used to give a click target only a couple
+      // of pixels tall; now the whole column — including the P/A badges
+      // and the empty space above the bar — opens the day's employee
+      // list popup.
+      var _slotXc=(_histCountT+_gapSlotsT+ii)*_colWT;
+      s+='<rect x="'+_slotXc+'" y="0" width="'+_colWT+'" height="'+laneH+'" fill="transparent" pointer-events="all" data-team="'+_esc(lane.tipLabel||lane.label||'')+'" data-label="'+cLbl+'" data-p="'+dr.p+'" data-a="'+dr.a+'" data-n="'+night+'" onmousemove="_hrmsDashShowBarTooltip(event,this)" onmouseleave="_hrmsDashHideBarTooltip()" onclick="_hrmsDashHideBarTooltip();_hrmsDashShowDayEmps(\''+_laneKeyEsc+'\','+dr.d+')" style="cursor:pointer"/>';
     });
     s+='</svg></div>';
     return s;
@@ -3873,7 +3918,8 @@ function renderHrmsDashboard(){
     ?function(e){return _hrmsEmpMonthTag(e,_curMk);}
     :function(){return 'AC';};
   // Pending-creation ECRs aren't official employees yet — exclude them.
-  var allEmps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e._isNewEcr;});
+  // 260519-V20 — scope-narrowed list (Plant Head default = own plant only).
+  var allEmps=(typeof _hrmsScopedEmps==='function'?_hrmsScopedEmps('page.dashboard'):(DB.hrmsEmployees||[])).filter(function(e){return e&&!e._isNewEcr;});
   var emps=allEmps.filter(function(e){return _empTag(e)==='AC';});
   var active=emps.length;
   // Inactive bucket = anything not AC for the current month (covers
@@ -4002,21 +4048,12 @@ function renderHrmsDashboard(){
   // Team-wise daily headcount strip — one horizontal bar chart per team
   // (KAP On-Roll combined + each Contract team), with the current
   // month's daily P count plus a 6-month historical strip on top for
-  // trend context. Sits above the Monthly Headcount Graph so the
-  // operator sees today-vs-trend before drilling into the monthly view.
+  // trend context.
   try{ h+=_hrmsDashTeamHcSection(allEmps); }catch(e){ console.warn('team HC section failed:',e); }
 
-  // ── Monthly Headcount Graphs (moved from Utilities → here on the dashboard).
-  // The container IDs match what _hrmsMhgInit / _hrmsMhgRenderCharts expect
-  // (`hrmsMhgMonth` select + `hrmsMhgCharts` div), so the existing renderer
-  // can draw straight into the dashboard with no other wiring.
-  h+='<div style="margin-bottom:18px">';
-  h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
-  h+='<div style="font-size:14px;font-weight:900">📈 Monthly Headcount Graph Plant-wise</div>';
-  h+='<select id="hrmsMhgMonth" onchange="_hrmsMhgMonthChanged()" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;font-weight:700;min-width:160px"><option value="">Loading…</option></select>';
-  h+='</div>';
-  h+='<div id="hrmsMhgCharts"></div>';
-  h+='</div>';
+  // 260519-V21 — Monthly Headcount Graph Plant-wise removed from the
+  // dashboard. The original block still lives on the Utilities page
+  // (pageHrmsUtilMonthlyHc); access there is unchanged.
 
   // ── Diversity charts: Region (state of origin) and Gender. Both are
   // rendered as horizontal bars from active emps only. Counts that are
@@ -4035,26 +4072,9 @@ function renderHrmsDashboard(){
   h+='</div>';
 
   el.innerHTML=h;
-
-  // After the dashboard HTML lands, wire up the Monthly Headcount Graph.
-  // If the MHG state is already cached from a prior load, re-fill the
-  // month select from the cached index and re-render charts directly
-  // (avoids the network round-trip + spinner). Otherwise initialise.
-  setTimeout(function(){
-    try{
-      var sel=document.getElementById('hrmsMhgMonth');
-      if(!sel) return;
-      if(typeof _hrmsMhgState!=='undefined'&&_hrmsMhgState
-         &&typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex&&_hrmsAttMonthIndex.length){
-        var months=_hrmsAttMonthIndex.map(function(m){return m.monthKey;});
-        sel.innerHTML=months.map(function(mk){return '<option value="'+mk+'">'+_hrmsMonthLabel(mk)+'</option>';}).join('');
-        sel.value=_hrmsMhgState.mk;
-        if(typeof _hrmsMhgRenderCharts==='function') _hrmsMhgRenderCharts();
-      } else if(typeof _hrmsMhgInit==='function'){
-        _hrmsMhgInit();
-      }
-    }catch(_){}
-  },0);
+  // 260519-V21 — Monthly Headcount Graph dashboard wiring removed; the
+  // Utilities-page renderer (_hrmsMhgInit / _hrmsMhgRenderCharts) is
+  // still triggered when the user navigates to pageHrmsUtilMonthlyHc.
 }
 
 // Diversity bar chart: horizontal bars sorted desc by count, each row
@@ -4377,7 +4397,10 @@ function renderHrmsEmployees(){
      &&typeof _hrmsSalaryAccess!=='undefined'&&_hrmsSalaryAccess==='ok'){
     try{ _hrmsSalaryApplyToMemory(); }catch(_){}
   }
-  var allEmps=DB.hrmsEmployees||[];
+  // 260519-V20 — Scope-narrow (Plant Head → own plant only) before any
+  // filters / counts run, so the filter dropdowns and ET-button counts
+  // already reflect the user's accessible slice.
+  var allEmps=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('page.employees'):(DB.hrmsEmployees||[]);
   // Update employment-type filter button counts (active employees only)
   _hrmsUpdateEtfCounts();
   // Populate filter dropdowns (preserve current selection)
@@ -13179,7 +13202,9 @@ function _hrmsPwAttRender(){
   // Resolve roll codes once for the popup row labels.
   var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
   var rollNameByCode={};rolls.forEach(function(r){if(r&&r.code) rollNameByCode[r.code]=r.name||r.code;});
-  (DB.hrmsEmployees||[]).forEach(function(e){
+  // 260519-V20 — Plant Head sees only their plant's rows.
+  var _pwEmps=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('page.plantwiseAtt'):(DB.hrmsEmployees||[]);
+  _pwEmps.forEach(function(e){
     if(!e||e.inactive) return;
     var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     // Tag filter: only AC-tagged emps contribute to the matrix.
@@ -13987,8 +14012,10 @@ function _hrmsEmpAttLateRender(){
   absorb(window._hrmsAltCache&&_hrmsAltCache[mk]);
   // Walk every active employee, classify shift, mark late if in-time
   // crosses shift-start + 15 min.
+  // 260519-V20 — Scope filter (Plant Head → own plant only).
+  var _lmEmps=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('page.empAtt'):(DB.hrmsEmployees||[]);
   var late=[];
-  (DB.hrmsEmployees||[]).forEach(function(e){
+  _lmEmps.forEach(function(e){
     if(!e||e.inactive||!e.empCode) return;
     var entry=entryByCode[e.empCode];
     if(!entry) return;
@@ -14241,7 +14268,9 @@ function _hrmsEmpAttLateRender(){
 // Sort is plant short-form → emp code so colleagues sit together in the
 // picker and the prev/next nav steps through plant-grouped runs.
 function _hrmsEmpAttSortedList(){
-  var emps=(DB.hrmsEmployees||[]).filter(function(e){return e&&!e.inactive&&e.empCode;});
+  // 260519-V20 — Plant Head sees only employees from their own plant.
+  var _base=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('page.empAtt'):(DB.hrmsEmployees||[]);
+  var emps=_base.filter(function(e){return e&&!e.inactive&&e.empCode;});
   var keyOf=function(e){
     var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
     var plant=String((ap&&ap.location)||e.location||'').trim();
@@ -15454,19 +15483,25 @@ function _hrmsResolveScope(mod,key){
   var acceptsScope=Array.isArray(meta.scopeOptions)&&meta.scopeOptions.length
                    ||(typeof _permKeyAcceptsScope==='function'&&_permKeyAcceptsScope(meta));
   if(!acceptsScope) return out;
-  // Broader scope wins across the union of roles — BUT only count a
-  // role's scope when that role actually grants access on this key.
-  // Otherwise a role saved as None on the tab can leak its default
-  // scope='all' into the union and silently bypass another role's
-  // narrower scope (the dropdown defaults to 'All' and persists on
-  // save even when the level is None).
+  // 260519-V27 — NARROWEST-wins resolver. Every role the user holds
+  // contributes a scope (explicit if admin saved one, else the role's
+  // default from defaultScopeByRole). The NARROWEST contribution wins
+  // — each role is treated as a ceiling. Admin retains full control
+  // via Access Management: setting a role's scope to "All" makes it
+  // contribute scope='all' (the broadest ceiling — i.e. no narrowing
+  // from that role). To narrow the user, set a narrower scope on ANY
+  // of their roles; that ceiling enforces itself across the union.
+  //
+  // Granting check: a role with level=None on the key contributes
+  // nothing (no access → no scope contribution). A role granted via
+  // umbrella inheritance still contributes its default — important so
+  // a Plant Head whose tab access comes from page.utilDailyAttSum's
+  // umbrella still sees their default 'plant' ceiling.
   var rank={all:5,plant:4,dept:3,team:2,self:1};
   var perms=((typeof _permLoadData==='function'?_permLoadData():{})[mod]||{}).permissions||{};
-  var bestKind='',bestRank=0,sawExplicit=false;
+  var defs=meta.defaultScopeByRole||{};
+  var bestKind='', bestRank=Infinity;
   var _roleGrantsKey=function(r){
-    // Effective access for role `r` on this key. Uses
-    // _hrmsPermLevelForRole when available so umbrella inheritance is
-    // honoured; falls back to the raw stored value.
     if(typeof _hrmsPermLevelForRole==='function'){
       var lvl=_hrmsPermLevelForRole(mod,key,r);
       return lvl==='full'||lvl==='view';
@@ -15475,23 +15510,18 @@ function _hrmsResolveScope(mod,key){
     return v===true||v==='full'||v==='view';
   };
   roles.forEach(function(r){
-    if(!_roleGrantsKey(r)) return;
-    var v=(perms[r]||{})[key+'.scope'];
-    if(!v) return;
-    sawExplicit=true;
-    var rk=rank[v]||0;
-    if(rk>bestRank){bestRank=rk;bestKind=v;}
+    var explicit=(perms[r]||{})[key+'.scope'];
+    var def=defs[r];
+    var grants=_roleGrantsKey(r);
+    // Granting roles contribute explicit-or-default; non-granting roles
+    // still contribute their default (so Plant Head's role-default acts
+    // as a ceiling even when access flows in via an umbrella from a
+    // different role).
+    var contributed = grants ? (explicit || def) : def;
+    if(!contributed) return;
+    var rk=rank[contributed]||0;
+    if(rk<bestRank){bestRank=rk;bestKind=contributed;}
   });
-  if(!sawExplicit){
-    var defs=meta.defaultScopeByRole||{};
-    roles.forEach(function(r){
-      if(!_roleGrantsKey(r)) return;
-      var v=defs[r];
-      if(!v) return;
-      var rk=rank[v]||0;
-      if(rk>bestRank){bestRank=rk;bestKind=v;}
-    });
-  }
   if(!bestKind||bestKind==='all'){out.kind='all';return out;}
   out.kind=bestKind;
   try{
@@ -15552,6 +15582,56 @@ function _hrmsResolveScope(mod,key){
     }
   }catch(_){}
   return out;
+}
+
+// 260519-V20 — Generic scope filter for an arbitrary list of HRMS
+// employees. Takes the rendered list + a resolver scope, returns the
+// list narrowed to whatever the scope allows. Inputs:
+//   emps : Array of hrmsEmployees (any shape with periods/location/teamName/department).
+//   sc   : output of _hrmsResolveScope(mod,key) — {kind, plants, teamNames, deptIds, empCodes}.
+// kind='all' (or missing sc) is a passthrough. Other kinds filter by
+// the relevant set on each employee's ACTIVE period (with flat-field
+// fallback for legacy rows).
+function _hrmsFilterEmpsByScope(emps, sc){
+  if(!sc || sc.kind==='all' || !Array.isArray(emps)) return emps||[];
+  // For dept scope we need to resolve dept names from the allowed ids.
+  var allowedDeptNames=null;
+  if(sc.kind==='dept'){
+    allowedDeptNames={};
+    var deptById={};
+    (DB.hrmsDepartments||[]).forEach(function(d){if(d&&d.id) deptById[d.id]=d.name||'';});
+    Object.keys(sc.deptIds||{}).forEach(function(id){var n=deptById[id];if(n) allowedDeptNames[n]=true;});
+  }
+  return emps.filter(function(e){
+    if(!e) return false;
+    if(sc.kind==='self'){
+      return !!(sc.empCodes && e.empCode && sc.empCodes[e.empCode]);
+    }
+    var ap=(e.periods||[]).find(function(p){return p&&!p.to&&(!p._wfStatus||p._wfStatus==='approved');});
+    if(sc.kind==='plant'){
+      var pl=String(((ap&&ap.location)||e.location||'')).trim();
+      return !!(sc.plants && sc.plants[pl]);
+    }
+    if(sc.kind==='team'){
+      var tn=String(((ap&&ap.teamName)||e.teamName||'')).trim();
+      return !!(sc.teamNames && sc.teamNames[tn]);
+    }
+    if(sc.kind==='dept'){
+      var dn=String(((ap&&ap.department)||e.department||'')).trim();
+      return !!(allowedDeptNames && allowedDeptNames[dn]);
+    }
+    return true;
+  });
+}
+// 260519-V20 — Single chokepoint for HRMS renderers that read the full
+// employee list. Pass the page's perm key and get back the list narrowed
+// per the resolver. Super Admin and any unscoped role get the full list
+// (resolver returns kind='all').
+function _hrmsScopedEmps(pageKey){
+  var base=DB.hrmsEmployees||[];
+  if(!pageKey || typeof _hrmsResolveScope!=='function') return base;
+  var sc=_hrmsResolveScope('HRMS',pageKey);
+  return _hrmsFilterEmpsByScope(base, sc);
 }
 
 // Scope helper for the Team-wise Attendance Record table — now a thin
@@ -15838,7 +15918,13 @@ function _hrmsDasTwMdRender(){
   //  • emp-type matches the popup's emp-type pick
   //  • team matches the popup's team pick (or __ALL__)
   //  • ContractorSup scope is honoured
-  var allEmps=(DB.hrmsEmployees||[]);
+  // 260519-V24 — Apply the page's access-management scope at the
+  // source. Without this the popup's plant picker listed every plant
+  // in DB.hrmsEmployees regardless of the user's role: a Plant Head
+  // could still see all-plant aggregates by opening this popup. Using
+  // _hrmsScopedEmps narrows allEmps to the keys the user is allowed
+  // to read; the plant dropdown then naturally shows only their plants.
+  var allEmps=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('tab.das.teamwise'):(DB.hrmsEmployees||[]);
   var rolls=(typeof _hrmsGetRolls==='function')?_hrmsGetRolls():[];
   var _normEt=function(s){return String(s||'').toLowerCase().replace(/[\s_-]+/g,'');};
   var _etCanon={onroll:'On Roll',contract:'Contract',piecerate:'Piece Rate',visitor:'Visitor'};
@@ -16183,14 +16269,19 @@ function _hrmsDasTwMdRender(){
     if(c.plant) _allPlantsForPick[c.plant]=true;
   });
   var plantPickOpts=Object.keys(_allPlantsForPick).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});
+  // 260519-V24 — Snap a stale plant selection back to "All" when the
+  // user's scope no longer covers it (allEmps is already narrowed by
+  // _hrmsScopedEmps, so a previously-saved selPlant outside the user's
+  // scope won't appear in _allPlantsForPick). Earlier code added a
+  // sticky out-of-range option, which leaked other plants into the UI.
+  if(selPlant!=='__ALL__'&&!_allPlantsForPick[selPlant]){
+    _hrmsTwMdPlant='__ALL__';
+    selPlant='__ALL__';
+  }
   var plantSelOpts='<option value="__ALL__"'+(selPlant==='__ALL__'?' selected':'')+'>All Plants</option>';
   plantPickOpts.forEach(function(pl){
     plantSelOpts+='<option value="'+_esc(pl)+'"'+(pl===selPlant?' selected':'')+'>'+_esc(pl)+'</option>';
   });
-  if(selPlant!=='__ALL__'&&!_allPlantsForPick[selPlant]){
-    // Keep an out-of-range selection visible so the user can switch back to All.
-    plantSelOpts+='<option value="'+_esc(selPlant)+'" selected>'+_esc(selPlant)+'</option>';
-  }
   var pickPlant='<span style="display:inline-flex;gap:6px;align-items:center">'
     +'<span style="font-size:11px;font-weight:800;color:#64748b">PLANT</span>'
     +'<select onchange="_hrmsDasTwMdSetPlant(this.value)" style="padding:5px 8px;font-size:12px;font-weight:700;border:1.5px solid var(--border);border-radius:6px;background:#fff;min-width:160px;cursor:pointer">'+plantSelOpts+'</select>'
@@ -18353,6 +18444,29 @@ function _hrmsDasRender(){
   // category, etc.) flow through without needing a re-upload.
   _hrmsDasBuildPivot();
   var pivot=st.pivot||{}, depts=st.depts||[], plants=st.plants||[], bucketKeys=st.bucketKeys||[];
+  // 260519-V22 — Apply tab.das.manpower scope to the summary table too
+  // (not just the comparison strip below). Plant Head sees only their
+  // plant's columns; Dept Head sees only their depts' columns.
+  try{
+    if(typeof _hrmsResolveScope==='function'){
+      var _mpScS=_hrmsResolveScope('HRMS','tab.das.manpower');
+      if(_mpScS && _mpScS.kind && _mpScS.kind!=='all'){
+        var _allowedPlS=_mpScS.plants||{};
+        if(Object.keys(_allowedPlS).length){
+          plants=plants.filter(function(p){
+            for(var k in _allowedPlS){if(_hrmsPlantNameEq && _hrmsPlantNameEq(k,p)) return true;}
+            return !!_allowedPlS[p];
+          });
+        }
+        if(_mpScS.kind==='dept'){
+          var _allowedDIds=_mpScS.deptIds||{};
+          var _deptIdByName={};
+          (DB.hrmsDepartments||[]).forEach(function(d){if(d&&d.id&&d.name) _deptIdByName[d.name]=d.id;});
+          depts=depts.filter(function(dn){var did=_deptIdByName[dn]; return !!(did && _allowedDIds[did]);});
+        }
+      }
+    }
+  }catch(_){}
 
   var _pad=function(n){return String(n).padStart(2,'0');};
   var genTs=st.generatedAt;
@@ -22592,7 +22706,10 @@ function _hrmsRenderAttGrid(yr,mo){
   // DOJ/DOL gates apply to both. Visitor / other types are excluded.
   // Mirrors the rule used by _hrmsUpdateAttEtCounts so the chips match.
   var mStart=monthKey+'-01',mEnd=monthKey+'-'+String(daysInMonth).padStart(2,'0');
-  var empMap={};(DB.hrmsEmployees||[]).forEach(function(e){empMap[e.empCode]=e;});
+  // 260519-V20 — Scope the muster (Plant Head → own plant only). Applied
+  // both to the empMap lookup and the iteration below.
+  var _amsEmps=(typeof _hrmsScopedEmps==='function')?_hrmsScopedEmps('tab.attendance'):(DB.hrmsEmployees||[]);
+  var empMap={};_amsEmps.forEach(function(e){empMap[e.empCode]=e;});
   var _hasPresence=function(e){
     var days=lookup[e.empCode];
     if(days){
@@ -22607,7 +22724,7 @@ function _hrmsRenderAttGrid(yr,mo){
     if(ex.manualOTS&&+ex.manualOTS[monthKey]>0) return true;
     return false;
   };
-  var emps=(DB.hrmsEmployees||[]).filter(function(e){
+  var emps=_amsEmps.filter(function(e){
     // Use the period-aware employmentType so a Contract period covering
     // monthKey wins over a flat "On Roll" field — keeps the muster
     // count in step with Contract Salary.
@@ -29586,6 +29703,30 @@ function _hrmsRenderAllocationMaster(){
   // allocated like worker plants.
   var _allocIsHO=function(s){return /^h\.?o\.?$|head\s*office/i.test(String(s||'').trim());};
   var plants=(DB.hrmsCompanies||[]).filter(function(x){return !x.inactive&&!_allocIsHO(x.name);}).map(function(x){return x.name;}).sort();
+  // 260519-V25 — Honor the access-management plant scope for the
+  // Allocation Settings sub-tab. A Plant Head should see only their
+  // plant's per-plant tab (the Role Groups tab remains shared since
+  // it's not plant-specific). Uses `_hrmsPlantNameEq` for short-form
+  // tolerance, same as the other scope-aware sites.
+  try{
+    if(typeof _hrmsResolveScope==='function'){
+      var _allocSc=_hrmsResolveScope('HRMS','tab.das.alloc');
+      if(_allocSc && _allocSc.kind && _allocSc.kind!=='all'){
+        var _allowedAP=_allocSc.plants||{};
+        if(Object.keys(_allowedAP).length){
+          plants=plants.filter(function(p){
+            if(_allowedAP[p]) return true;
+            if(typeof _hrmsPlantNameEq==='function'){
+              for(var k in _allowedAP){if(_hrmsPlantNameEq(k,p)) return true;}
+            }
+            return false;
+          });
+        } else {
+          plants=[];
+        }
+      }
+    }
+  }catch(_){}
   var depts=(DB.hrmsDepartments||[]).filter(function(x){return !x.inactive;}).map(function(x){return x.name;}).sort();
 
   // Default tab — "groups" if no plants yet, otherwise the chosen tab if it

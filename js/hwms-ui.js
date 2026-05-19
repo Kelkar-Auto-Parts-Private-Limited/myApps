@@ -11146,32 +11146,56 @@ function _hwmsPayImportOpen(){
 }
 
 // Direct import: file picker on payments page → init + parse + show preview
-function _hwmsPayImportDirect(inputEl){
+// 260519-V18 — Now async + try/finally. Earlier version showed
+// 'Importing payment file…' then kicked off a FileReader without awaiting,
+// so the outer spinner was never hidden. Inner _dbSave spinners cycled
+// the visible message to 'Saving…' before unwinding to depth=1, leaving
+// the overlay stuck on "Saving…" forever.
+async function _hwmsPayImportDirect(inputEl){
   var file=inputEl.files[0];
   if(!file){return;}
   // Init data
   _hwmsPayImportData={rows:[],matches:{},manualAmts:{},payNum:_hwmsPayGenPayNum(),payDate:''};
-  // Parse file — will auto-save drafts and return to payments page
   showSpinner('Importing payment file…');
-  _hwmsPayImportParseFile(file);
-  inputEl.value='';
+  try{
+    await _hwmsPayImportParseFile(file);
+  }catch(ex){
+    console.warn('payment import:',ex&&ex.message);
+    notify('⚠ Import failed: '+(ex&&ex.message||ex),true);
+  }finally{
+    hideSpinner();
+    inputEl.value='';
+  }
 }
 
 async function _hwmsPayImportParse(inputEl){
   var file=inputEl.files[0];if(!file) return;
   inputEl.value='';
-  _hwmsPayImportParseFile(file);
+  await _hwmsPayImportParseFile(file);
 }
 
+// 260519-V18 — Returns a Promise that resolves when the FileReader +
+// parse + auto-save chain finishes. Lets `_hwmsPayImportDirect` await
+// the whole flow so its outer spinner is reliably hidden.
 function _hwmsPayImportParseFile(file){
-  var previewEl=document.getElementById('hwmsPayImportPreview');
-  previewEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--accent)">Parsing file…</div>';
-  try{
-    var reader=new FileReader();
+  return new Promise(function(resolve){
+    var previewEl=document.getElementById('hwmsPayImportPreview');
+    if(previewEl) previewEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--accent)">Parsing file…</div>';
+    var reader;
+    try{ reader=new FileReader(); }
+    catch(ex){
+      if(previewEl) previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ Error: '+ex.message+'</div>';
+      resolve(false);
+      return;
+    }
+    reader.onerror=function(){
+      if(previewEl) previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ File read error</div>';
+      resolve(false);
+    };
     reader.onload=async function(e){
       try{
         var rows=await _parseXLSX(e.target.result);
-        if(!rows.length){previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ No data in file</div>';return;}
+        if(!rows.length){previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ No data in file</div>';resolve(false);return;}
         
         var _san=function(s){return(s||'').replace(/[\s\r\n\t\u00A0]+/g,'').trim();};
         var parsedRows=[];
@@ -11240,14 +11264,20 @@ function _hwmsPayImportParseFile(file){
         // Auto-save all new vouchers as drafts, then go back to payments
         await _hwmsPayAutoSaveDrafts(groups);
         _hwmsPayHideImport();
+        resolve(true);
       }catch(ex){
         var _errEl=document.getElementById('hwmsPayImportPreview');
         if(_errEl) _errEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ Parse error: '+ex.message+'</div>';
         else notify('⚠ Parse error: '+ex.message,true);
+        resolve(false);
       }
     };
-    reader.readAsArrayBuffer(file);
-  }catch(ex){previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ Error: '+ex.message+'</div>';}
+    try{ reader.readAsArrayBuffer(file); }
+    catch(ex){
+      if(previewEl) previewEl.innerHTML='<div style="color:#dc2626;font-weight:700;padding:12px;background:#fee2e2;border-radius:6px">⚠ Error: '+ex.message+'</div>';
+      resolve(false);
+    }
+  });
 }
 
 function _hwmsPayImportRenderGrouped(){
@@ -11397,20 +11427,30 @@ async function _hwmsPayAutoSaveDrafts(groups){
   if(!newGroups.length) return;
   showSpinner('Saving '+newGroups.length+' payment voucher'+(newGroups.length>1?'s':'')+'…');
   var saved=0;
-  for(var i=0;i<newGroups.length;i++){
-    var g=newGroups[i];
-    _hwmsPayImportData.rows=g.rows;
-    _hwmsPayImportData.matches={};
-    _hwmsPayImportData.manualAmts={};
-    _hwmsPayImportData.payNum=g.payNum;
-    _hwmsPayImportData.payDate=g.payDate;
-    _hwmsPayImportData.editingId='';
-    await _hwmsPayImportSaveDraft();
-    g.status='Draft';
-    g.existingId=_hwmsPayImportData.editingId||'';
-    saved++;
+  // 260519-V18 — try/finally so an exception inside the loop can't leak
+  // the spinner. Earlier version skipped hideSpinner if any draft save
+  // threw, contributing to the "stuck on Saving…" report.
+  try{
+    for(var i=0;i<newGroups.length;i++){
+      var g=newGroups[i];
+      _hwmsPayImportData.rows=g.rows;
+      _hwmsPayImportData.matches={};
+      _hwmsPayImportData.manualAmts={};
+      _hwmsPayImportData.payNum=g.payNum;
+      _hwmsPayImportData.payDate=g.payDate;
+      _hwmsPayImportData.editingId='';
+      try{
+        await _hwmsPayImportSaveDraft();
+        g.status='Draft';
+        g.existingId=_hwmsPayImportData.editingId||'';
+        saved++;
+      }catch(perGroupErr){
+        console.warn('payment draft save failed for '+g.payNum+':',perGroupErr&&perGroupErr.message);
+      }
+    }
+  }finally{
+    hideSpinner();
   }
-  hideSpinner();
   notify('✅ Imported '+saved+' payment voucher'+(saved>1?'s':''));
 }
 function _hwmsPayGroupSaveDraft(gIdx){
