@@ -5772,6 +5772,27 @@ async function _hrmsMonthSetOrgField(empId,mk,field,value){
   }
   var ok=await _dbSave('hrmsEmployees',emp);
   if(!ok){ notify('⚠ Save failed',true); return; }
+  // Keep the edit-mode draft + baseline in sync so the re-render that
+  // follows reads the new plant/dept value (and the dept select's
+  // plant-filter reflects the just-saved plant). The field is in the
+  // Phase 4 approval-exclude list, so this never feeds the diff.
+  if(window._hrmsMonthEditDraft&&_hrmsEditingMonthMk===mk){
+    _hrmsMonthEditDraft[field]=value;
+    if(field==='location'&&emp.salaryMonths[mk].locationId!==undefined){
+      _hrmsMonthEditDraft.locationId=emp.salaryMonths[mk].locationId;
+    }
+    if(field==='department'&&emp.salaryMonths[mk].departmentId!==undefined){
+      _hrmsMonthEditDraft.departmentId=emp.salaryMonths[mk].departmentId;
+    }
+    if(window._hrmsMonthEditDraftBase) _hrmsMonthEditDraftBase[field]=value;
+  }
+  // When plant changes, the existing department may not belong to the
+  // new plant. Don't auto-clear (preserves the operator's choice if the
+  // dept master happens to overlap or the rename was intentional), but
+  // the dept select on the row will rebuild with the new plant's
+  // departments via the re-render below — operator picks a valid one
+  // and saves again. Stranded values stay visible as a "wrong plant"
+  // option until reselected.
   notify('✅ '+(emp.empCode||'')+' · '+(_hrmsMonthLabel?_hrmsMonthLabel(mk):mk)+' · '+field+' updated');
   if(typeof _hrmsBuildMonthTable==='function') _hrmsBuildMonthTable();
 }
