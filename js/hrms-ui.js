@@ -5312,9 +5312,19 @@ function _hrmsBuildPeriodTable(){
     var items=(DB[tbl]||[]).filter(function(x){return !x.inactive;});
     // Worker dept master is plant-specific — scope the dropdown to the
     // active period's plant so the user only sees that plant's depts.
+    // Rename-tolerant: exact name match first, then short-form, then
+    // no filter (so a renamed plant whose dept master wasn't cascaded
+    // still surfaces a usable dropdown).
     var pl=String(plantFilter||'').trim();
     if(tbl==='hrmsDepartments'&&pl){
-      items=items.filter(function(x){return (x.plant||'')===pl;});
+      var exact=items.filter(function(x){return (x.plant||'')===pl;});
+      if(exact.length){
+        items=exact;
+      } else if(typeof _hrmsPlantShortForm==='function'){
+        var plSf=_hrmsPlantShortForm(pl);
+        var sfMatch=items.filter(function(x){return _hrmsPlantShortForm(x.plant||'')===plSf;});
+        if(sfMatch.length) items=sfMatch;
+      }
     }
     if(tbl==='hrmsDepartments'){
       var seen={};items=items.filter(function(x){var n=(x.name||'').trim();if(!n||seen[n]) return false;seen[n]=1;return true;});
@@ -5531,7 +5541,22 @@ function _hrmsMonthOptHelpers(){
     var items=(DB[tbl]||[]).filter(function(x){return !x.inactive;});
     var pl=String(plantFilter||'').trim();
     if(tbl==='hrmsDepartments'&&pl){
-      items=items.filter(function(x){return (x.plant||'')===pl;});
+      // Exact name match first. If the dept master rows carry the
+      // current plant master name, this returns all of them.
+      var exact=items.filter(function(x){return (x.plant||'')===pl;});
+      if(exact.length){
+        items=exact;
+      } else if(typeof _hrmsPlantShortForm==='function'){
+        // Fallback: match by short-form (handles legacy rename mismatch
+        // like dept.plant='Plant-2' vs emp.location='KAP-2' — both
+        // short-form to 'P2'). If the short-form match also returns
+        // nothing, fall through to ALL departments so the dropdown is
+        // never empty for an emp who happens to sit on a plant that
+        // wasn't cascaded into the dept master.
+        var plSf=_hrmsPlantShortForm(pl);
+        var sfMatch=items.filter(function(x){return _hrmsPlantShortForm(x.plant||'')===plSf;});
+        if(sfMatch.length) items=sfMatch;
+      }
     }
     if(tbl==='hrmsDepartments'){
       var seen={};items=items.filter(function(x){var n=(x.name||'').trim();if(!n||seen[n]) return false;seen[n]=1;return true;});
