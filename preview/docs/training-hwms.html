@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — HWMS Training Guide</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#1e293b;line-height:1.7;max-width:860px;margin:0 auto;padding:32px 24px 60px}
+  h1{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+  h2{font-size:20px;font-weight:800;color:#0f172a;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:16px;font-weight:700;color:#2a9aa0;margin:20px 0 8px}
+  p,li{font-size:14px}
+  .badge{display:inline-block;background:#2a9aa0;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:16px}
+  .toc{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0}
+  .toc-title{font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .toc a{display:block;font-size:13px;font-weight:600;color:#2a9aa0;text-decoration:none;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .step{background:#f0fdfa;border-left:4px solid #2a9aa0;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0}
+  .step b{color:#0f172a}
+  .tip{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .tip::before{content:'Tip: ';font-weight:800;color:#92400e}
+  .note{background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .note::before{content:'Note: ';font-weight:800;color:#1d4ed8}
+  .screen{background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#475569;font-style:italic}
+  ol,ul{padding-left:22px;margin:6px 0}
+  @media print{body{padding:20px}}.footer{margin-top:40px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>HWMS Training Guide</h1>
+<div class="badge">Role: HWMS User</div>
+<p>This guide covers the Hardware/Warehouse Management System for managing containers, invoices, inventory, material requests, and payments for international shipments.</p>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <a href="#overview">1. HWMS Overview</a>
+  <a href="#dashboard">2. Dashboard</a>
+  <a href="#invoices">3. Main Invoices (MI)</a>
+  <a href="#containers">4. Containers</a>
+  <a href="#subinvoices">5. Sub-Invoices (SI)</a>
+  <a href="#mr">6. Material Requests</a>
+  <a href="#parts">7. Parts Master</a>
+  <a href="#payments">8. Payments &amp; Outstanding</a>
+  <a href="#masters">9. Other Masters</a>
+</div>
+
+<h2 id="overview">1. HWMS Overview</h2>
+<div class="screen">The HWMS sidebar is divided into two sections. OPERATIONS: Dashboard, Main Invoices (MI), Containers, Inventory, Sub-Invoices (SI), Material Requests, Payments, Outstanding. MASTERS: Customer Master, Part Master, Carrier Master, Ports, Other Masters, Company Details. Each item shows a count badge. A sync timestamp appears in the top bar.</div>
+<p>The HWMS tracks goods from international suppliers through containers, invoicing, warehousing, and dispatch to customers. The top bar shows your name and a database status dot.</p>
+
+<h2 id="dashboard">2. Dashboard</h2>
+<div class="step"><b>Step 1:</b> Click <b>Dashboard</b> in the sidebar. The dashboard loads with summary statistics and key metrics.</div>
+<div class="screen">The dashboard displays cards with aggregate data: total invoices, containers in transit, pending material requests, outstanding payments, and inventory levels.</div>
+<div class="tip">The dashboard auto-refreshes. Check the sync timestamp in the top bar to see when data was last updated.</div>
+
+<h2 id="invoices">3. Main Invoices (MI)</h2>
+<h3>Viewing Invoices</h3>
+<div class="screen">The Invoices page has two tabs: "By Sea" and "By Air", each with a count. Below are column headers with inline search/filter fields: MI No., Date (with date range shortcuts CY/LY/M/All), Container, Pickup Date, MI Status (Draft/RFD/Dispatched/Warehouse), SI status, Payment status, Reach Date, Amount ($), Gross Weight, SI Amount, Received, Balance, Tariff %, and Tariff ($). Header totals show aggregate amounts.</div>
+<div class="step"><b>Step 1:</b> Click <b>Main Invoices</b> in the sidebar. The Sea tab is shown by default.</div>
+<div class="step"><b>Step 2:</b> Filter by MI number, date range, or status using the inline controls. Click column headers to sort.</div>
+<div class="step"><b>Step 3:</b> Use the date shortcuts (CY = Current Year, LY = Last Year, M = Month, All) for quick filtering.</div>
+
+<h3>Creating a New Invoice</h3>
+<div class="step"><b>Step 1:</b> Click <b>+ Add MI</b>. A full-page edit form opens.</div>
+<div class="screen">The form is divided into color-coded sections: Invoice Details (blue) with FY, MI No., and Date; Container &amp; Shipping (purple) with container number and transport mode (By Sea / By Air); Customer (green) with Buyer, Consignee, Ports, Payment Terms, and Delivery Terms; Line Items (amber) with a pallet-based add row for parts, quantities, and rates.</div>
+<div class="step"><b>Step 2:</b> Fill in the FY (auto-set), MI suffix number, and date.</div>
+<div class="step"><b>Step 3:</b> Select or link a container. Choose transport mode (Sea/Air).</div>
+<div class="step"><b>Step 4:</b> Select the buyer (customer) and consignee. Set ports and terms.</div>
+<div class="step"><b>Step 5:</b> Add line items: select part number, enter quantity. Pallet numbers auto-increment. Rates pull from the Part Master.</div>
+<div class="step"><b>Step 6:</b> Click <b>Save Invoice</b>. Use <b>Reset</b> to clear all fields.</div>
+
+<h3>Bulk Operations</h3>
+<div class="step">Use checkboxes to select multiple invoices for bulk delete or bulk download of MI data. The Export button downloads all visible invoices as Excel. Import allows uploading invoice data from .xlsx files.</div>
+
+<h2 id="containers">4. Containers</h2>
+<div class="step"><b>Step 1:</b> Navigate to <b>Containers</b> in the sidebar. The page shows all containers with their current status.</div>
+<div class="step"><b>Step 2:</b> Add a new container with its number, carrier, and shipping details.</div>
+<div class="step"><b>Step 3:</b> Track status transitions as containers move through the lifecycle (e.g., Booked, In Transit, At Port, Warehouse, Delivered).</div>
+<div class="note">Containers are linked to Main Invoices. When editing an MI, you can select or create a container association.</div>
+
+<h2 id="subinvoices">5. Sub-Invoices (SI)</h2>
+<div class="step"><b>Step 1:</b> Navigate to <b>Sub-Invoices</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Sub-invoices are derived from main invoices and sent to individual customers. Create an SI by selecting the parent MI and specifying which line items to include.</div>
+<div class="step"><b>Step 3:</b> Track SI amounts against MI amounts. The MI list shows the SI total and balance columns.</div>
+
+<h2 id="mr">6. Material Requests</h2>
+<div class="screen">The Material Requests page shows a list of requests with status indicators and count badges.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Material Requests</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Click <b>+ Add</b> to create a new request specifying required parts and quantities.</div>
+<div class="step"><b>Step 3:</b> Track request lifecycle: Created, Dispatched, Closed.</div>
+<div class="tip">Material requests pull from the Inventory and Part Master. Ensure parts are registered before creating requests.</div>
+
+<h2 id="parts">7. Parts Master</h2>
+<div class="screen">The Parts Master page shows a searchable table with columns: Photo, Part No., Rev, Description, UOM, Net Weight (kg), HSN, Packing, Ex-Works ($), Final Rate ($), Status, Actions.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Part Master</b> under Masters in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Search by part number or description. Click <b>+ Add Part</b> to create new entries.</div>
+<div class="step"><b>Step 3:</b> Use Export/Import for bulk management of part data via Excel.</div>
+<div class="note">Parts have two rate fields: Ex-Works (base price) and Final Rate (including freight). Air shipments can use either rate based on the "Air Freight Cost" setting on the MI.</div>
+
+<h2 id="payments">8. Payments &amp; Outstanding</h2>
+<div class="step"><b>Step 1:</b> Navigate to <b>Payments</b> to record and track payment receipts against invoices.</div>
+<div class="step"><b>Step 2:</b> Navigate to <b>Outstanding</b> for a summary view of unpaid balances by customer.</div>
+<div class="step"><b>Step 3:</b> Use import matching to reconcile bank payment records with invoice data.</div>
+<div class="screen">The MI table shows Received ($) and Balance ($) columns with running totals in the header, giving you a quick view of payment status across all invoices.</div>
+
+<h2 id="masters">9. Other Masters</h2>
+<p>Under the MASTERS section in the sidebar:</p>
+<ul>
+  <li><b>Customer Master</b> &mdash; manage buyers and consignees</li>
+  <li><b>Carrier Master</b> &mdash; shipping carriers for containers</li>
+  <li><b>Ports</b> &mdash; ports of loading and discharge</li>
+  <li><b>Other Masters</b> &mdash; additional reference data (payment terms, delivery terms, etc.)</li>
+  <li><b>Company Details</b> &mdash; your company information for invoice headers</li>
+</ul>
+<div class="tip">Keep masters up to date as they populate dropdown options throughout the HWMS.</div>
+
+<div class="footer">KAP myApps &mdash; HWMS Training Guide &mdash; Kelkar Auto Parts Private Limited</div>
+</body>
+</html>

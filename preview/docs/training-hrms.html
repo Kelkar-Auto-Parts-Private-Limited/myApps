@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — HRMS Training Guide</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;color:#1e293b;line-height:1.7;max-width:860px;margin:0 auto;padding:32px 24px 60px}
+  h1{font-size:28px;font-weight:900;color:#0f172a;margin-bottom:4px}
+  h2{font-size:20px;font-weight:800;color:#0f172a;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  h3{font-size:16px;font-weight:700;color:#2a9aa0;margin:20px 0 8px}
+  p,li{font-size:14px}
+  .badge{display:inline-block;background:#2a9aa0;color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;margin-bottom:16px}
+  .toc{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0}
+  .toc-title{font-size:13px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .toc a{display:block;font-size:13px;font-weight:600;color:#2a9aa0;text-decoration:none;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .step{background:#f0fdfa;border-left:4px solid #2a9aa0;padding:12px 16px;margin:10px 0;border-radius:0 8px 8px 0}
+  .step b{color:#0f172a}
+  .tip{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .tip::before{content:'Tip: ';font-weight:800;color:#92400e}
+  .note{background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px}
+  .note::before{content:'Note: ';font-weight:800;color:#1d4ed8}
+  .screen{background:#f1f5f9;border:1.5px dashed #cbd5e1;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#475569;font-style:italic}
+  ol,ul{padding-left:22px;margin:6px 0}
+  table{border-collapse:collapse;font-size:13px;margin:8px 0}
+  th,td{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}
+  th{background:#f1f5f9;font-weight:700}
+  @media print{body{padding:20px}}.footer{margin-top:40px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px}
+</style>
+</head>
+<body>
+<h1>HRMS Training Guide</h1>
+<div class="badge">Role: HRMS User</div>
+<p>This guide covers the Human Resource Management System for managing employees, attendance, salary, and organizational masters.</p>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <a href="#overview">1. HRMS Overview</a>
+  <a href="#employees">2. Employee Management</a>
+  <a href="#attendance">3. Attendance &amp; Salary</a>
+  <a href="#rules">4. Attendance Rules</a>
+  <a href="#salary">5. Salary Calculation</a>
+  <a href="#masters">6. Masters</a>
+  <a href="#print">7. Print &amp; Export</a>
+</div>
+
+<h2 id="overview">1. HRMS Overview</h2>
+<div class="screen">The HRMS has a left sidebar with: Dashboard, Employees, Attendance &amp; Salary, Attendance Rules, Masters (expandable: Plant, Category, Employment Type, Team, Department, Sub Department, Designation), and a Refresh Data button. A connection widget shows DB status at the bottom.</div>
+<p>The top bar shows a hamburger menu (mobile), current page title, and your username. Navigate between sections using the sidebar.</p>
+
+<h2 id="employees">2. Employee Management</h2>
+<h3>Viewing Employees</h3>
+<div class="screen">The Employees page shows filter pills at the top: All, On Roll, Contract, Piece Rate, Visitor. Below is a table with columns: #, Emp Code, Name, DOJ, Plant, Type, Team, Category, Status, Actions. A second header row provides per-column search/filter inputs.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Employees</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Use the type filter pills to narrow by employment type. Use column search fields for specific lookups.</div>
+<div class="step"><b>Step 3:</b> Click column headers (Emp Code, Name, DOJ, etc.) to sort ascending/descending.</div>
+
+<h3>Adding an Employee</h3>
+<div class="step"><b>Step 1:</b> Click <b>+ Add Employee</b>. A full-page form opens.</div>
+<div class="step"><b>Step 2:</b> Fill in: Employee Code, Name, Date of Joining, Plant, Employment Type, Team, Category, Department, Sub Department, Designation, and status.</div>
+<div class="step"><b>Step 3:</b> Save the record. The employee appears in the list.</div>
+
+<h3>Importing Employees</h3>
+<div class="step"><b>Step 1:</b> Click <b>Import</b> and select an Excel/CSV file. The system reads employee data in bulk.</div>
+<div class="step"><b>Step 2:</b> Use <b>Bulk Update</b> to modify existing records via spreadsheet.</div>
+<div class="step"><b>Step 3:</b> Use <b>Import DOJ/DOB</b> to update date fields specifically.</div>
+<div class="tip">Always Export first as a backup before performing bulk imports or updates.</div>
+
+<h3>Change Requests</h3>
+<div class="step">Click the <b>Change Requests</b> tab next to the Employees tab. Pending change requests show a count badge. Review and approve/reject modifications submitted by other users.</div>
+
+<h2 id="attendance">3. Attendance &amp; Salary</h2>
+<div class="screen">The Attendance &amp; Salary page shows a monthly grid. Each row is an employee; each column is a day of the month. Cells display attendance status codes (P, A, P/2, H, EL) with color coding. Entry/exit times and Present On Time (POT) hours are tracked per cell.</div>
+<div class="step"><b>Step 1:</b> Navigate to <b>Attendance &amp; Salary</b> in the sidebar.</div>
+<div class="step"><b>Step 2:</b> Select the month and year. The grid loads all employees with their daily attendance.</div>
+<div class="step"><b>Step 3:</b> Click any cell to view or edit entry/exit times. The system auto-calculates present status based on hours inside.</div>
+
+<h2 id="rules">4. Attendance Rules</h2>
+<p>The system applies these rules automatically:</p>
+<table>
+  <tr><th>Hours Inside</th><th>Status</th><th>P Count</th></tr>
+  <tr><td>8 hrs 15 min or more</td><td>P (Present)</td><td>1</td></tr>
+  <tr><td>6 hrs 30 min to 8 hrs 15 min (Staff, max 2/mo)</td><td>EL (Early Leave)</td><td>1</td></tr>
+  <tr><td>4 hrs to 8 hrs 15 min</td><td>P/2 (Half Day)</td><td>0.5</td></tr>
+  <tr><td>Less than 4 hrs</td><td>A (Absent)</td><td>0</td></tr>
+</table>
+<div class="note">Holiday (H) and Paid Holiday (P) days are non-working. Any hours worked on these days count as OT @S (special overtime) for non-Staff employees. Staff employees do not receive overtime.</div>
+<div class="tip">The Attendance Rules page in the sidebar provides a complete reference with OT formulas and time rounding rules.</div>
+
+<h2 id="salary">5. Salary Calculation</h2>
+<p>On-roll salary is calculated from attendance data:</p>
+<ul>
+  <li><b>Total Present (P) days</b> drive the basic salary proration</li>
+  <li><b>OT hours</b> (working day) and <b>OT @S hours</b> (holiday) are computed per the rules</li>
+  <li>Statutory deductions (PF, ESI, PT) are applied based on configured settings</li>
+  <li>The salary settings section lets you configure per-employee or per-category rates</li>
+</ul>
+<div class="note">PL (Privilege Leave) management is accessible to track leave balances and encashment.</div>
+
+<h2 id="masters">6. Masters</h2>
+<p>Expand the <b>Masters</b> section in the sidebar to manage organizational data:</p>
+<ul>
+  <li><b>Plant</b> &mdash; company/plant locations for employee assignment</li>
+  <li><b>Category</b> &mdash; employee categories (Staff, Worker, etc.)</li>
+  <li><b>Employment Type</b> &mdash; On Roll, Contract, Piece Rate, Visitor</li>
+  <li><b>Team</b> &mdash; team groupings within the organization</li>
+  <li><b>Department / Sub Department</b> &mdash; organizational hierarchy</li>
+  <li><b>Designation</b> &mdash; job titles and levels</li>
+</ul>
+<div class="step">Each master page has an Add button and a table with edit/delete actions. Keep these up to date as they drive dropdowns across the HRMS.</div>
+
+<h2 id="print">7. Print &amp; Export</h2>
+<div class="step"><b>Export:</b> Click the Export button on the Employees page to download the full list as Excel.</div>
+<div class="step"><b>Print formats:</b> Attendance and salary sheets support print-friendly layouts. Use your browser's print function (Ctrl+P) for clean output.</div>
+<div class="step"><b>Bulk print:</b> Salary slips and attendance summaries can be generated for multiple employees at once.</div>
+
+<div class="footer">KAP myApps &mdash; HRMS Training Guide &mdash; Kelkar Auto Parts Private Limited</div>
+</body>
+</html>

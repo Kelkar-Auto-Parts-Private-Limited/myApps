@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps — System Architecture</title>
+<style>
+  :root {
+    --accent: #2a9aa0;
+    --accent-light: #e6f5f5;
+    --accent-dark: #1e7a7f;
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --text: #1e293b;
+    --text2: #475569;
+    --text3: #94a3b8;
+    --border: #e2e8f0;
+    --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .doc-header {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 3px solid var(--accent);
+    margin-bottom: 48px;
+  }
+  .doc-header h1 {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent-dark);
+    letter-spacing: -0.5px;
+  }
+  .doc-header .subtitle {
+    font-size: 16px;
+    color: var(--text2);
+    margin-top: 8px;
+  }
+  .doc-header .meta {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 12px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 32px;
+    margin-bottom: 48px;
+  }
+  .toc h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .toc ol {
+    list-style: none;
+    counter-reset: toc-counter;
+  }
+  .toc ol li {
+    counter-increment: toc-counter;
+    margin-bottom: 6px;
+  }
+  .toc ol li::before {
+    content: counter(toc-counter) ".";
+    font-weight: 700;
+    color: var(--accent);
+    margin-right: 8px;
+    font-size: 14px;
+  }
+  .toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 15px;
+  }
+  .toc a:hover { color: var(--accent); }
+
+  /* Sections */
+  section {
+    margin-bottom: 56px;
+  }
+  h2.section-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent-dark);
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2.section-title .num {
+    background: var(--accent);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 24px 0 10px;
+  }
+  p, li { color: var(--text2); }
+  ul, ol { padding-left: 24px; margin: 8px 0; }
+  li { margin-bottom: 4px; }
+  strong { color: var(--text); }
+
+  /* Code blocks */
+  pre, code {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent-dark);
+  }
+  pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 20px 24px;
+    border-radius: 10px;
+    overflow-x: auto;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  /* Tables */
+  .tbl-wrap {
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  th:first-child { border-radius: 8px 0 0 0; }
+  th:last-child { border-radius: 0 8px 0 0; }
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tr:hover td { background: var(--accent-light); }
+
+  /* Flow diagrams */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .diagram pre {
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* Info boxes */
+  .info-box {
+    background: var(--accent-light);
+    border-left: 4px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .info-box strong { color: var(--accent-dark); }
+
+  /* Flow boxes */
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .flow-box {
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    color: var(--accent-dark);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+  .flow-box.dark {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .flow-arrow {
+    color: var(--accent);
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    vertical-align: middle;
+  }
+  .badge-vms { background: #dbeafe; color: #1e40af; }
+  .badge-hwms { background: #fef3c7; color: #92400e; }
+  .badge-hrms { background: #dcfce7; color: #166534; }
+  .badge-sec { background: #fce7f3; color: #9d174d; }
+  .badge-shared { background: #f1f5f9; color: #475569; }
+  .badge-portal { background: #ede9fe; color: #5b21b6; }
+
+  /* File tree */
+  .file-tree {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .file-tree .dir { color: var(--accent-dark); font-weight: 700; }
+  .file-tree .desc { color: var(--text3); font-style: italic; margin-left: 8px; }
+
+  @media (max-width: 600px) {
+    .container { padding: 20px 16px 60px; }
+    .doc-header h1 { font-size: 24px; }
+    pre { padding: 14px 16px; font-size: 12px; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ─────────────────── HEADER ─────────────────── -->
+<div class="doc-header">
+  <h1>KAP myApps — System Architecture</h1>
+  <div class="subtitle">Kelkar Auto Parts Private Limited — Internal Enterprise Platform</div>
+  <div class="meta">Generated 09-Apr-2026 &mdash; Source of truth: codebase analysis of <code>common.js</code>, all UI/logic modules, and SQL migrations</div>
+</div>
+
+<!-- ─────────────────── TOC ─────────────────── -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#overview">System Overview</a></li>
+    <li><a href="#files">File Structure</a></li>
+    <li><a href="#modules">Module Dependencies</a></li>
+    <li><a href="#schema">Database Schema</a></li>
+    <li><a href="#auth">Authentication Flow</a></li>
+    <li><a href="#sync">Sync Architecture</a></li>
+    <li><a href="#dataflow">Data Flow</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 1. SYSTEM OVERVIEW -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="overview">
+  <h2 class="section-title"><span class="num">1</span> System Overview</h2>
+
+  <p>KAP myApps is a <strong>multi-module enterprise platform</strong> serving Kelkar Auto Parts' operations across vehicle management, warehouse logistics, HR, and security surveillance. It is built as a <strong>static HTML/JS/CSS application</strong> hosted on GitHub Pages with no build step, no bundler, and no server-side rendering.</p>
+
+  <h3>Technology Stack</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Layer</th><th>Technology</th><th>Details</th></tr>
+      <tr><td><strong>Frontend</strong></td><td>Vanilla HTML + CSS + JavaScript</td><td>No frameworks. Each app is a single HTML page with inline CSS and modular JS.</td></tr>
+      <tr><td><strong>Hosting</strong></td><td>GitHub Pages</td><td>Static file serving. No build pipeline. Push-to-deploy from <code>main</code> branch.</td></tr>
+      <tr><td><strong>Database</strong></td><td>Supabase (PostgreSQL)</td><td>Cloud-hosted Postgres with REST API, realtime subscriptions, and server-side RPC functions.</td></tr>
+      <tr><td><strong>Auth</strong></td><td>Custom (Supabase RPC + pgcrypto)</td><td>bcrypt password hashing via PostgreSQL <code>pgcrypto</code> extension. Session tokens stored in <code>vms_users</code>.</td></tr>
+      <tr><td><strong>Realtime</strong></td><td>Supabase Realtime (WebSocket)</td><td>Postgres Changes on hot tables for cross-device live sync.</td></tr>
+      <tr><td><strong>Export</strong></td><td>Pure-JS XLSX generator</td><td>Custom ZIP + OOXML builder in <code>common.js</code> with no external dependencies. HRMS also uses jsPDF.</td></tr>
+    </table>
+  </div>
+
+  <h3>Application Modules</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Module</th><th>ID</th><th>Purpose</th></tr>
+      <tr><td><strong>Portal</strong> <span class="badge badge-portal">PORTAL</span></td><td><code>index</code></td><td>Unified login, app launcher, user profile. Entry point for all modules.</td></tr>
+      <tr><td><strong>VMS</strong> <span class="badge badge-vms">VMS</span></td><td><code>vms</code></td><td>Vehicle Management System — trip booking, segment tracking (5-step workflow), fleet management, KAP Security gate operations, spot trips.</td></tr>
+      <tr><td><strong>HWMS</strong> <span class="badge badge-hwms">HWMS</span></td><td><code>hwms</code></td><td>HGAP Warehouse Management System — export invoices, containers, sub-invoices, material requests, payment receipts, parts catalog, shipping logistics.</td></tr>
+      <tr><td><strong>HRMS</strong> <span class="badge badge-hrms">HRMS</span></td><td><code>hrms</code></td><td>HR Management System — employee records, attendance tracking, alterations, print formats, department/team management.</td></tr>
+      <tr><td><strong>Security</strong> <span class="badge badge-sec">SEC</span></td><td><code>security</code></td><td>Security Surveillance — guard management, checkpoint rounds, round scheduling.</td></tr>
+    </table>
+  </div>
+
+  <h3>Key Architectural Principles</h3>
+  <ul>
+    <li><strong>Supabase-first writes:</strong> All data mutations go directly to Supabase. In-memory DB is updated only after server confirmation.</li>
+    <li><strong>In-memory DB for reads:</strong> The global <code>DB</code> object holds all active data in memory. Views render from <code>DB</code>, never from direct Supabase queries.</li>
+    <li><strong>No localStorage for DB tables:</strong> Data lives in Supabase only. localStorage is used only for session tokens (<code>kap_session_user</code>, <code>kap_session_token</code>), remember-me credentials (<code>kap_rm_user</code>, <code>kap_rm_token</code>), and a transient navigation cache (<code>kap_db_cache</code>, max 60s TTL).</li>
+    <li><strong>App-specific table filtering:</strong> Each module sets <code>_APP_TABLES</code> at boot to load only its own tables, reducing bandwidth and boot time.</li>
+    <li><strong>Three-layer JS architecture:</strong> <code>common.js</code> (shared data layer) &rarr; <code>*-logic.js</code> (business rules) &rarr; <code>*-ui.js</code> (DOM rendering and event handling).</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 2. FILE STRUCTURE -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="files">
+  <h2 class="section-title"><span class="num">2</span> File Structure</h2>
+
+  <div class="file-tree">
+<pre><code><span class="dir">MyApps/</span>
+├── index.html              <span class="desc">Portal — login, app launcher, user profile</span>
+├── vms.html                <span class="desc">VMS — vehicle/trip management (~1200 lines HTML)</span>
+├── hwms.html               <span class="desc">HWMS — warehouse/invoice management (~1220 lines HTML)</span>
+├── hrms.html               <span class="desc">HRMS — employee/attendance management (~470 lines HTML)</span>
+├── security.html           <span class="desc">Security — guard/checkpoint management (~220 lines HTML)</span>
+├── supabase_auth_migration.sql  <span class="desc">SQL migration: pgcrypto, auth RPC functions</span>
+│
+├── <span class="dir">js/</span>
+│   ├── common.js           <span class="desc">Shared foundation: Supabase client, DB layer, auth, sync, utilities, XLSX engine (~2190 lines)</span>
+│   ├── portal-logic.js     <span class="desc">Portal business logic: sync select, date filtering</span>
+│   ├── portal-ui.js        <span class="desc">Portal UI: login form, app cards, profile page</span>
+│   ├── vms-logic.js        <span class="desc">VMS business logic: trip rates, segment workflows, step calculations</span>
+│   ├── vms-ui.js           <span class="desc">VMS UI: dashboard, trip booking, vehicle/driver forms, KAP Security gate</span>
+│   ├── hwms-logic.js       <span class="desc">HWMS business logic: invoice numbering, inventory calculations</span>
+│   ├── hwms-ui.js          <span class="desc">HWMS UI: invoice editor, container tracking, parts catalog, payments</span>
+│   ├── hrms-logic.js       <span class="desc">HRMS business logic: attendance calculations, salary computation</span>
+│   ├── hrms-ui.js          <span class="desc">HRMS UI: employee forms, attendance grid, print formats</span>
+│   ├── security-logic.js   <span class="desc">Security business logic: round scheduling</span>
+│   └── security-ui.js      <span class="desc">Security UI: guard management, checkpoint rounds</span>
+│
+├── <span class="dir">css/</span>
+│   ├── portal.css          <span class="desc">Portal styles</span>
+│   ├── vms.css             <span class="desc">VMS styles</span>
+│   ├── hwms.css            <span class="desc">HWMS styles</span>
+│   ├── hrms.css            <span class="desc">HRMS styles</span>
+│   └── security.css        <span class="desc">Security styles</span>
+│
+├── <span class="dir">tests/</span>
+│   ├── test-runner.html    <span class="desc">In-browser test harness</span>
+│   ├── test-helpers.js     <span class="desc">Test utilities and mock setup</span>
+│   ├── test-vms-logic.js   <span class="desc">VMS logic unit tests</span>
+│   ├── test-hwms-logic.js  <span class="desc">HWMS logic unit tests</span>
+│   └── test-hrms-logic.js  <span class="desc">HRMS logic unit tests</span>
+│
+├── <span class="dir">docs/</span>
+│   └── architecture.html   <span class="desc">This document</span>
+│
+└── <span class="dir">supabase/</span>               <span class="desc">Supabase configuration (if any)</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 3. MODULE DEPENDENCIES -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="modules">
+  <h2 class="section-title"><span class="num">3</span> Module Dependencies</h2>
+
+  <p>Every HTML page loads exactly <strong>three JS files</strong> in order, plus the Supabase CDN. The load order is critical — each layer depends on the previous one.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>HTML Page</th><th>Script 1 (CDN)</th><th>Script 2 (Foundation)</th><th>Script 3 (Logic)</th><th>Script 4 (UI)</th></tr>
+      <tr>
+        <td><strong>index.html</strong> <span class="badge badge-portal">PORTAL</span></td>
+        <td><code>supabase.min.js</code> (async)</td>
+        <td><code>common.js</code></td>
+        <td><code>portal-logic.js</code></td>
+        <td><code>portal-ui.js</code></td>
+      </tr>
+      <tr>
+        <td><strong>vms.html</strong> <span class="badge badge-vms">VMS</span></td>
+        <td><code>supabase.min.js</code></td>
+        <td><code>common.js</code></td>
+        <td><code>vms-logic.js</code></td>
+        <td><code>vms-ui.js</code></td>
+      </tr>
+      <tr>
+        <td><strong>hwms.html</strong> <span class="badge badge-hwms">HWMS</span></td>
+        <td><code>supabase.min.js</code></td>
+        <td><code>common.js</code></td>
+        <td><code>hwms-logic.js</code></td>
+        <td><code>hwms-ui.js</code></td>
+      </tr>
+      <tr>
+        <td><strong>hrms.html</strong> <span class="badge badge-hrms">HRMS</span></td>
+        <td><code>supabase.min.js</code> + jsPDF + jsPDF-AutoTable</td>
+        <td><code>common.js</code></td>
+        <td><code>hrms-logic.js</code></td>
+        <td><code>hrms-ui.js</code></td>
+      </tr>
+      <tr>
+        <td><strong>security.html</strong> <span class="badge badge-sec">SEC</span></td>
+        <td><code>supabase.min.js</code> (async)</td>
+        <td><code>common.js</code></td>
+        <td><code>security-logic.js</code></td>
+        <td><code>security-ui.js</code></td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Layer Responsibilities</h3>
+  <div class="diagram">
+<pre><code>┌─────────────────────────────────────────────────────────────────────┐
+│  <strong>common.js</strong> (~2190 lines) — Shared Foundation                        │
+│                                                                     │
+│  Supabase client init     _initSupabase(), CDN fallback             │
+│  Row mapping              _toRow(), _fromRow() for all 28 tables    │
+│  Core DB ops              _dbSave(), _dbDel(), _dbSaveBulk()        │
+│  Auth functions           _authLogin(), _authVerifySession(),       │
+│                           _authChangePassword(), _authResetPassword()│
+│  Sync engine              bootDB(), _bgSyncFromSupabase(),          │
+│                           _bgSyncHot(), _startBgPoll()              │
+│  Realtime                 _sbStartRealtime(), _rtApply()            │
+│  Session management       _sessionGet/Set/Del, _navigateTo()       │
+│  Connection monitoring    _sbStartPing(), _sbSetStatus()            │
+│  Utilities                uid(), byId(), fd(), fdt(), notify(),     │
+│                           compressImage(), colourContrast()         │
+│  XLSX engine              _downloadAsXlsx(), _parseXLSX(), _parseCSV()│
+│  Constants                ROLES, HWMS_ROLES, HRMS_ROLES, PLANTS,   │
+│                           SB_TABLES, DB_TABLES                      │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │ depends on
+        ┌─────────────┼─────────────────────────┐
+        ▼             ▼                         ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│ *-logic.js   │ │ *-logic.js   │ │ *-logic.js           │
+│              │ │              │ │                      │
+│ Business     │ │ Rate lookups │ │ Inventory calcs,     │
+│ rules, step  │ │ segment flow │ │ invoice numbering,   │
+│ calculations │ │ helpers      │ │ attendance formulas  │
+└──────┬───────┘ └──────┬───────┘ └──────────┬───────────┘
+       ▼                ▼                    ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│ *-ui.js      │ │ *-ui.js      │ │ *-ui.js              │
+│              │ │              │ │                      │
+│ DOM render,  │ │ Form modals, │ │ Tables, grids,       │
+│ event        │ │ nav, sidebar │ │ page navigation,     │
+│ handlers     │ │ management   │ │ login/logout flow    │
+└──────────────┘ └──────────────┘ └──────────────────────┘</code></pre>
+  </div>
+
+  <h3>Module Hooks</h3>
+  <p><code>common.js</code> defines four hook functions that each UI module overrides to receive lifecycle events:</p>
+  <ul>
+    <li><code>_onPostBoot()</code> — Called after <code>bootDB()</code> completes. Modules use this to render initial views.</li>
+    <li><code>_onRefreshViews()</code> — Called after background sync or realtime events. Modules re-render active pages.</li>
+    <li><code>_onCurrentUserUpdated()</code> — Called when the current user record is updated via realtime.</li>
+    <li><code>_kapPopupOpen</code> — Boolean flag. When <code>true</code>, background refreshes are suppressed to avoid disrupting modal interactions.</li>
+  </ul>
+
+  <h3>App-Specific Table Filtering</h3>
+  <p>Each module sets <code>_APP_TABLES</code> before calling <code>bootDB()</code> so only relevant tables are fetched:</p>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Module</th><th>Tables Loaded</th></tr>
+      <tr><td><span class="badge badge-portal">PORTAL</span></td><td><code>users</code>, <code>locations</code></td></tr>
+      <tr><td><span class="badge badge-vms">VMS</span></td><td>All 28 DB_TABLES (full dataset)</td></tr>
+      <tr><td><span class="badge badge-hwms">HWMS</span></td><td><code>users</code>, <code>locations</code>, <code>hwmsParts</code>, <code>hwmsInvoices</code>, <code>hwmsContainers</code>, <code>hwmsHsn</code>, <code>hwmsUom</code>, <code>hwmsPacking</code>, <code>hwmsCustomers</code>, <code>hwmsPortDischarge</code>, <code>hwmsPortLoading</code>, <code>hwmsCarriers</code>, <code>hwmsCompany</code>, <code>hwmsSteelRates</code>, <code>hwmsSubInvoices</code>, <code>hwmsMaterialRequests</code>, <code>hwmsPaymentReceipts</code></td></tr>
+      <tr><td><span class="badge badge-sec">SEC</span></td><td><code>users</code>, <code>locations</code>, <code>checkpoints</code>, <code>guards</code>, <code>roundSchedules</code></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 4. DATABASE SCHEMA -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="schema">
+  <h2 class="section-title"><span class="num">4</span> Database Schema</h2>
+
+  <p>All tables live in the Supabase <code>public</code> schema. The JS key in <code>SB_TABLES</code> maps to the actual Postgres table name. Every table uses <code>code</code> (TEXT) as the application-level primary key, with an auto-increment <code>id</code> (BIGINT) as the Supabase-internal PK. All tables have an <code>updated_at</code> column used for incremental sync.</p>
+
+  <div class="info-box">
+    <strong>Row Mapping:</strong> <code>_toRow(tbl, record)</code> converts camelCase JS objects to snake_case Postgres rows. <code>_fromRow(tbl, row)</code> does the reverse. Both functions handle all 28 tables.
+  </div>
+
+  <h3>Shared / Core Tables</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Purpose</th></tr>
+      <tr>
+        <td><code>users</code></td>
+        <td><code>vms_users</code></td>
+        <td>code, name, full_name, mobile, email, roles (JSONB), hwms_roles (JSONB), hrms_roles (JSONB), plant, apps (JSONB), photo, inactive, password, session_token</td>
+        <td>All platform users. Shared across every module. Roles control access per module.</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>VMS Tables <span class="badge badge-vms">VMS</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Notes</th></tr>
+      <tr><td><code>vehicleTypes</code></td><td><code>vms_vehicle_types</code></td><td>code, name, capacity, inactive</td><td>Vehicle type master (e.g., "32 Ft Trailer")</td></tr>
+      <tr><td><code>vendors</code></td><td><code>vms_vendors</code></td><td>code, name, owner, contact, address, user_id, inactive</td><td>Transport vendors. <code>user_id</code> links to a user who can view their own trips.</td></tr>
+      <tr><td><code>drivers</code></td><td><code>vms_drivers</code></td><td>code, name, mobile, vendor_id, dl_expiry, photo, inactive</td><td>Driver master. <code>vendor_id</code> FK to vendors.</td></tr>
+      <tr><td><code>vehicles</code></td><td><code>vms_vehicles</code></td><td>code, number, type_id, vendor_id, puc_expiry, rtp_expiry, ins_expiry, inactive</td><td>Vehicle master. <code>type_id</code> FK to vehicleTypes. Tracks document expiry dates.</td></tr>
+      <tr><td><code>locations</code></td><td><code>vms_locations</code></td><td>code, name, type (KAP/External), colour, kap_sec, trip_book (JSONB), mat_recv (JSONB), approvers (JSONB), plant_head, inactive</td><td>Locations define role assignments. Users are assigned to steps via location membership, not directly.</td></tr>
+      <tr><td><code>tripRates</code></td><td><code>vms_trip_rates</code></td><td>code, v_type_id, start_loc, dest1/2/3, rate, valid_start, valid_end, status, added_by, approved_by</td><td>Rate cards with date-range validity. Matched to trips by vehicle type + route + date.</td></tr>
+      <tr><td><code>trips</code></td><td><code>vms_trips</code></td><td>code, booked_by, plant, date, start_loc, dest1/2/3, driver_id, vehicle_id, vehicle_type_id, challans (JSONB), photos, cancelled</td><td>Trip bookings. Support up to 3 destinations (one-way, multi-stop, return). Hot table with realtime sync.</td></tr>
+      <tr><td><code>segments</code></td><td><code>vms_segments</code></td><td>code, trip_id, label, s_loc, d_loc, criteria, steps (JSONB), status, current_step</td><td>Each trip has 1+ segments. Each segment has a 5-step workflow stored in <code>steps</code> JSON. Hot table.</td></tr>
+      <tr><td><code>spotTrips</code></td><td><code>vms_spot_trips</code></td><td>code, vehicle_num, supplier, challan, driver_name/mobile, entry/exit times, photos</td><td>Gate-level spot trip entries by KAP Security. Hot table.</td></tr>
+    </table>
+  </div>
+
+  <h3>Security Tables <span class="badge badge-sec">SEC</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Notes</th></tr>
+      <tr><td><code>checkpoints</code></td><td><code>ss_checkpoints</code></td><td>code, location_id, name, description, sort_order, active</td><td>Physical checkpoints at each plant</td></tr>
+      <tr><td><code>guards</code></td><td><code>ss_guards</code></td><td>code, name, mobile, email, location_id, shift, photo, inactive</td><td>Security guards</td></tr>
+      <tr><td><code>roundSchedules</code></td><td><code>ss_round_schedules</code></td><td>code, name, location_id, guard_id, checkpoint_ids (JSONB), frequency, start_time, end_time</td><td>Scheduled patrol rounds</td></tr>
+    </table>
+  </div>
+
+  <h3>HWMS Tables <span class="badge badge-hwms">HWMS</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Notes</th></tr>
+      <tr><td><code>hwmsParts</code></td><td><code>hwms_parts</code></td><td>code, part_number, part_revision, description, net_weight_kg, uom, hsn_code, rates (JSONB), photos</td><td>Parts catalog with versioned rate history</td></tr>
+      <tr><td><code>hwmsInvoices</code></td><td><code>hwms_invoices</code></td><td>code, invoice_number, date, container_id, buyer_id, line_items (JSONB), payment_status, confirmed</td><td>Master invoices linked to containers and buyers</td></tr>
+      <tr><td><code>hwmsSubInvoices</code></td><td><code>hwms_sub_invoices</code></td><td>code, sub_invoice_number, invoice_id, customer_id, line_items (JSONB), pickup_status, grn_status, payment_status, tariff_percent</td><td>Sub-invoices split from master invoices per customer</td></tr>
+      <tr><td><code>hwmsContainers</code></td><td><code>hwms_containers</code></td><td>code, container_number, status (Onwater/Reached), pickup_date, reach_date, carrier_id, tariff_paid, confirmed</td><td>Shipping container tracking with lifecycle status</td></tr>
+      <tr><td><code>hwmsMaterialRequests</code></td><td><code>hwms_material_requests</code></td><td>code, mr_number, mr_date, need_by_date, status, line_items (JSONB), created_by</td><td>Material requests from buyers</td></tr>
+      <tr><td><code>hwmsPaymentReceipts</code></td><td><code>hwms_payment_receipts</code></td><td>code, payment_number, payment_date, status, total_amount, line_items (JSONB), si_updates (JSONB)</td><td>Payment receipts that update sub-invoice payment status</td></tr>
+      <tr><td><code>hwmsCustomers</code></td><td><code>hwms_customers</code></td><td>code, customer_name, supplier_code, address, country, consignee1..3 (flattened), default_transport/port</td><td>Customer master with up to 3 consignees</td></tr>
+      <tr><td><code>hwmsCarriers</code></td><td><code>hwms_carriers</code></td><td>code, carrier_name, address, contact</td><td>Shipping carriers</td></tr>
+      <tr><td><code>hwmsCompany</code></td><td><code>hwms_company</code></td><td>code, company_name, address, gstin, iec, rex</td><td>Exporter company details for invoices</td></tr>
+      <tr><td><code>hwmsHsn</code></td><td><code>hwms_hsn</code></td><td>code, hsn_number, description</td><td>HSN code master</td></tr>
+      <tr><td><code>hwmsUom</code></td><td><code>hwms_uom</code></td><td>code, uom, description</td><td>Unit of Measure master</td></tr>
+      <tr><td><code>hwmsPacking</code></td><td><code>hwms_packing</code></td><td>code, name, description</td><td>Packing type master</td></tr>
+      <tr><td><code>hwmsPortDischarge</code></td><td><code>hwms_port_discharge</code></td><td>code, name, country</td><td>Port of Discharge master</td></tr>
+      <tr><td><code>hwmsPortLoading</code></td><td><code>hwms_port_loading</code></td><td>code, name, country</td><td>Port of Loading master</td></tr>
+      <tr><td><code>hwmsSteelRates</code></td><td><code>hwms_steel_rates</code></td><td>code, cust_id, steel_rate, forex_rate, valid_from, valid_to</td><td>Customer-specific steel/forex rates with date ranges</td></tr>
+    </table>
+  </div>
+
+  <h3>HRMS Tables <span class="badge badge-hrms">HRMS</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>JS Key</th><th>Supabase Table</th><th>Key Columns</th><th>Notes</th></tr>
+      <tr><td><code>hrmsEmployees</code></td><td><code>hrms_employees</code></td><td>code, emp_code, name, first/middle/last_name, department, designation, status, date_of_joining, periods (JSONB), extra (JSONB)</td><td>Employee master with PAN, Aadhaar, bank details, salary info</td></tr>
+      <tr><td><code>hrmsAttendance</code></td><td><code>hrms_attendance</code></td><td>code, emp_code, month_key, days (JSONB)</td><td>Monthly attendance grid. <code>days</code> maps day number to status code.</td></tr>
+      <tr><td><code>hrmsAlterations</code></td><td><code>hrms_alterations</code></td><td>code, emp_code, month_key, days (JSONB)</td><td>Attendance corrections/overrides</td></tr>
+      <tr><td><code>hrmsDayTypes</code></td><td><code>hrms_day_types</code></td><td>code, month_key, plant, day_types (JSONB)</td><td>Per-plant calendar defining holidays, weekly offs, etc.</td></tr>
+      <tr><td><code>hrmsCompanies</code></td><td><code>hrms_companies</code></td><td>code, name, color</td><td>Company entities within KAP group</td></tr>
+      <tr><td><code>hrmsDepartments</code></td><td><code>hrms_departments</code></td><td>code, name</td><td>Department master</td></tr>
+      <tr><td><code>hrmsSubDepartments</code></td><td><code>hrms_sub_departments</code></td><td>code, name, department</td><td>Sub-department linked to parent department</td></tr>
+      <tr><td><code>hrmsDesignations</code></td><td><code>hrms_designations</code></td><td>code, name</td><td>Designation master</td></tr>
+      <tr><td><code>hrmsCategories</code></td><td><code>hrms_categories</code></td><td>code, name</td><td>Employee categories</td></tr>
+      <tr><td><code>hrmsEmpTypes</code></td><td><code>hrms_emp_types</code></td><td>code, name</td><td>Employment types (Permanent, Contract, etc.)</td></tr>
+      <tr><td><code>hrmsTeams</code></td><td><code>hrms_teams</code></td><td>code, name, emp_type</td><td>Teams linked to employment type</td></tr>
+      <tr><td><code>hrmsPrintFormats</code></td><td><code>hrms_print_formats</code></td><td>code, name, plant, emp_type, category, team, created_by</td><td>Saved print/export configurations</td></tr>
+      <tr><td><code>hrmsSettings</code></td><td><code>hrms_settings</code></td><td>code, key, data (JSONB)</td><td>Key-value settings store for HRMS module</td></tr>
+    </table>
+  </div>
+
+  <h3>Table Relationships</h3>
+  <div class="diagram">
+<pre><code>users ──── vendors ──── drivers
+  │            │           │
+  │            └── vehicles ┘
+  │
+  ├── locations ──── checkpoints
+  │       │              │
+  │       └── guards ── roundSchedules
+  │
+  ├── trips ──── segments (1:N, via trip_id)
+  │    │
+  │    ├── tripRates (matched by v_type_id + route + date)
+  │    └── spotTrips (standalone gate entries)
+  │
+  ├── hwmsCustomers ──── hwmsInvoices ──── hwmsSubInvoices
+  │                          │                    │
+  │                     hwmsContainers      hwmsPaymentReceipts
+  │                          │
+  │                     hwmsCarriers
+  │
+  ├── hwmsParts ──── hwmsHsn, hwmsUom, hwmsPacking
+  │
+  └── hrmsEmployees ──── hrmsAttendance (1:N, via emp_code + month_key)
+                    │
+                    ├── hrmsAlterations
+                    ├── hrmsDepartments / hrmsSubDepartments
+                    ├── hrmsDesignations / hrmsCategories
+                    └── hrmsTeams / hrmsEmpTypes</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 5. AUTHENTICATION FLOW -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="auth">
+  <h2 class="section-title"><span class="num">5</span> Authentication Flow</h2>
+
+  <p>Authentication is handled by custom PostgreSQL RPC functions using the <code>pgcrypto</code> extension for bcrypt hashing. Passwords never leave the database in plaintext — all comparison happens server-side via <code>crypt()</code>.</p>
+
+  <h3>Auth Functions (Supabase RPC)</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>RPC Function</th><th>JS Caller</th><th>Purpose</th></tr>
+      <tr><td><code>create_session(p_username, p_password)</code></td><td><code>_authLogin()</code></td><td>Verifies bcrypt password, generates random 32-byte hex token, stores in <code>session_token</code> column, returns token.</td></tr>
+      <tr><td><code>verify_session(p_username, p_token)</code></td><td><code>_authVerifySession()</code></td><td>Returns user row if username + token match. Used for session restore on page load.</td></tr>
+      <tr><td><code>change_password(p_username, p_old, p_new)</code></td><td><code>_authChangePassword()</code></td><td>Verifies old password server-side, hashes and stores new password with <code>gen_salt('bf', 10)</code>.</td></tr>
+      <tr><td><code>admin_reset_password(p_admin_code, p_target_code)</code></td><td><code>_authResetPassword()</code></td><td>Admin-only. Verifies caller has Super Admin/Admin role, resets target to default password (<code>Kappl@123</code>), clears session_token.</td></tr>
+      <tr><td><code>set_hashed_password(p_user_code, p_plain)</code></td><td><code>_authSetPassword()</code></td><td>Sets bcrypt hash directly. Used when creating new users.</td></tr>
+    </table>
+  </div>
+
+  <h3>Login Flow</h3>
+  <div class="diagram">
+<pre><code>┌──────────────┐     ┌───────────────┐     ┌──────────────────────────┐
+│   User       │     │   Browser     │     │   Supabase (Postgres)    │
+│   (Portal)   │     │   (JS)        │     │   (RPC Functions)        │
+└──────┬───────┘     └───────┬───────┘     └────────────┬─────────────┘
+       │                     │                          │
+       │  Enter user + pass  │                          │
+       │────────────────────>│                          │
+       │                     │                          │
+       │                     │  rpc('create_session',   │
+       │                     │    {username, password})  │
+       │                     │─────────────────────────>│
+       │                     │                          │
+       │                     │                     ┌────┴─────────────────┐
+       │                     │                     │ crypt(pwd, stored)   │
+       │                     │                     │ Generate 32-byte     │
+       │                     │                     │   hex token          │
+       │                     │                     │ UPDATE session_token │
+       │                     │                     └────┬─────────────────┘
+       │                     │                          │
+       │                     │  return: token string    │
+       │                     │<─────────────────────────│
+       │                     │                          │
+       │                     │  rpc('verify_session',   │
+       │                     │    {username, token})     │
+       │                     │─────────────────────────>│
+       │                     │                          │
+       │                     │  return: full user row   │
+       │                     │<─────────────────────────│
+       │                     │                          │
+       │                 ┌───┴───────────────────────┐  │
+       │                 │ Store session:             │  │
+       │                 │   kap_session_user = name  │  │
+       │                 │   kap_session_token = tok  │  │
+       │                 │ If "Remember Me":          │  │
+       │                 │   kap_rm_user = name       │  │
+       │                 │   kap_rm_token = token     │  │
+       │                 │ Cache user:                │  │
+       │                 │   kap_current_user = JSON  │  │
+       │                 └───┬───────────────────────┘  │
+       │                     │                          │
+       │  Show app launcher  │                          │
+       │<────────────────────│                          │</code></pre>
+  </div>
+
+  <h3>Session Restore (Page Load / Navigation)</h3>
+  <div class="diagram">
+<pre><code>Page loads → Check localStorage for kap_session_user + kap_session_token
+                │
+                ├── Both found?
+                │     │
+                │     ├── Fast path: Check kap_current_user cache
+                │     │     └── If cached user.name matches session user → Instant restore (no RPC)
+                │     │
+                │     └── Slow path: rpc('verify_session', {user, token})
+                │           ├── Success → Login user, cache to kap_current_user
+                │           └── Fail → Clear session, show login page
+                │
+                └── Not found? → Check kap_rm_user + kap_rm_token (Remember Me)
+                      ├── Found → Same verify flow as above
+                      └── Not found → Show login page</code></pre>
+  </div>
+
+  <h3>Password Policy</h3>
+  <ul>
+    <li>6-12 characters</li>
+    <li>At least one uppercase letter (A-Z)</li>
+    <li>At least one lowercase letter (a-z)</li>
+    <li>At least one number (0-9)</li>
+    <li>At least one special character</li>
+    <li>Default password: <code>Kappl@123</code> — users with this password are forced to change it on first login</li>
+    <li>Admin reset restores the default password and clears the session token (forces re-login)</li>
+  </ul>
+
+  <h3>Role System</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Field</th><th>Available Roles</th><th>Module</th></tr>
+      <tr><td><code>roles</code></td><td>Super Admin, Admin, Plant Head, Trip Booking User, KAP Security, Material Receiver, Trip Approver, Vendor</td><td>VMS / Portal</td></tr>
+      <tr><td><code>hwmsRoles</code></td><td>Super Admin, HWMS Admin, Supplier, WH Admin, WH User, Buyer, Buyer Coordinator</td><td>HWMS</td></tr>
+      <tr><td><code>hrmsRoles</code></td><td>Super Admin, HR Admin, Employee</td><td>HRMS</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 6. SYNC ARCHITECTURE -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="sync">
+  <h2 class="section-title"><span class="num">6</span> Sync Architecture</h2>
+
+  <p>The sync system uses a <strong>multi-tier strategy</strong> to balance real-time responsiveness with resource efficiency. There are four sync mechanisms running concurrently.</p>
+
+  <h3>Sync Mechanisms</h3>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>Mechanism</th><th>Interval</th><th>Tables</th><th>Function</th><th>Purpose</th></tr>
+      <tr>
+        <td><strong>Boot Sync</strong></td>
+        <td>Once at startup</td>
+        <td>All active tables</td>
+        <td><code>bootDB()</code></td>
+        <td>Initial data load. Parallel fetch of all tables with 8s timeout. Falls back to empty DB if Supabase unavailable.</td>
+      </tr>
+      <tr>
+        <td><strong>Realtime</strong></td>
+        <td>Instant (WebSocket)</td>
+        <td>Hot tables only (trips, segments, spotTrips)</td>
+        <td><code>_sbStartRealtime()</code></td>
+        <td>Postgres Changes via Supabase channel. Subscribes to INSERT/UPDATE/DELETE on hot tables only (3 tables = 9 listeners). Auto-reconnects on failure.</td>
+      </tr>
+      <tr>
+        <td><strong>Hot Poll</strong></td>
+        <td>Every 60s</td>
+        <td>Hot tables (trips, segments, spotTrips)</td>
+        <td><code>_bgSyncHot()</code></td>
+        <td>Fallback for missed realtime events. Fetches hot tables and always refreshes views (no stale-detection).</td>
+      </tr>
+      <tr>
+        <td><strong>Full Sync</strong></td>
+        <td>Every 10 min (10th hot poll tick)</td>
+        <td>All active tables</td>
+        <td><code>_bgSyncFromSupabase()</code></td>
+        <td>Refreshes all tables including masters (users, vehicles, locations, etc.) that change infrequently.</td>
+      </tr>
+      <tr>
+        <td><strong>Connectivity Ping</strong></td>
+        <td>Every 30s</td>
+        <td>users (1 row)</td>
+        <td><code>_sbStartPing()</code></td>
+        <td>Lightweight health check. After 3 consecutive failures, sets status to "offline" and attempts Supabase client re-initialization.</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Boot Sequence Detail</h3>
+  <div class="diagram">
+<pre><code>bootDB() called
+    │
+    ├── Step 1: Check localStorage for kap_db_cache (navigation handoff)
+    │     ├── Found + age &lt; 60s → Load from cache, boot instantly
+    │     │     └── Schedule background Supabase sync in 3s
+    │     └── Not found or stale → Continue to Step 2
+    │
+    ├── Step 2: Initialize Supabase client
+    │     ├── Try _initSupabase() (window.supabase)
+    │     └── Retry up to 10x at 250ms intervals if CDN still loading
+    │
+    ├── Step 3: Parallel fetch all active tables from Supabase
+    │     ├── Each table: SELECT [sel] FROM [table] LIMIT 10000
+    │     ├── Date filtering via _applyDateFilter() where applicable
+    │     ├── Photo columns excluded via _syncSelect() for bandwidth
+    │     └── Race against 8s timeout
+    │           ├── All done within 8s → Full load complete
+    │           └── Timeout → Use whatever loaded, retry rest in 1s
+    │
+    ├── Step 4: Post-boot
+    │     ├── Run _migrateStep3Skip() (VMS data migration)
+    │     ├── Call _onPostBoot() hook → Module renders initial UI
+    │     └── Start realtime subscriptions + background polling
+    │
+    └── Fallback: Supabase unavailable
+          ├── Start with empty DB
+          ├── Set status "offline"
+          └── _startBgReconnect() — polls every 1s for up to 60s
+                ├── Also listens to CDN script onload event
+                └── On connection: sync data, start realtime</code></pre>
+  </div>
+
+  <h3>Visibility API Optimization</h3>
+  <p>Background polling is paused when the browser tab is hidden to conserve bandwidth and avoid unnecessary Supabase API calls:</p>
+  <div class="diagram">
+<pre><code>Tab becomes hidden (document.hidden = true)
+    ├── clearInterval(bgPollTimer)     — stops 60s hot poll
+    ├── clearInterval(sbPingTimer)     — stops 30s connectivity ping
+    └── Record timestamp (_visHiddenAt)
+
+Tab becomes visible again
+    ├── Restart bgPoll timer
+    ├── Restart ping timer
+    └── Check how long tab was hidden:
+          ├── Hidden &gt; 30s → Full sync (_bgSyncFromSupabase)
+          └── Hidden &lt;= 30s → Hot sync only (_bgSyncHot)</code></pre>
+  </div>
+
+  <h3>Realtime Event Handling</h3>
+  <p>The <code>_rtApply()</code> function processes realtime events from Supabase:</p>
+  <ul>
+    <li><strong>INSERT / UPDATE:</strong> Convert row via <code>_fromRow()</code>, upsert into <code>DB[tbl]</code> by matching <code>id</code>. If the updated record is the current user, also updates <code>CU</code> and refreshes avatar/name displays.</li>
+    <li><strong>DELETE:</strong> Remove from <code>DB[tbl]</code> by <code>code</code> (preferred) or <code>_dbId</code> (fallback when REPLICA IDENTITY is not FULL).</li>
+    <li><strong>View refresh:</strong> Debounced at 200ms per table. Only re-renders the currently active page. Skipped entirely when a modal is open.</li>
+  </ul>
+
+  <div class="info-box">
+    <strong>Why only hot tables for realtime?</strong> Subscribing to all 28 tables creates 84 listeners on a single Supabase channel, which causes event throttling and 10-15s delivery delays. By subscribing only to trips, segments, and spotTrips (the tables that change frequently in real-time operations), the system stays responsive. Master data (users, vehicles, locations) is kept fresh by the 10-minute full sync cycle.
+  </div>
+
+  <h3>Navigation Cache</h3>
+  <p>When navigating between pages via <code>_navigateTo()</code>, the current in-memory <code>DB</code> is serialized to <code>localStorage</code> as <code>kap_db_cache</code>. The destination page reads this cache during <code>bootDB()</code> and boots instantly (without a Supabase round-trip), then syncs fresh data in the background after 3 seconds. The cache has a 60-second TTL and is deleted after use.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- 7. DATA FLOW -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="dataflow">
+  <h2 class="section-title"><span class="num">7</span> Data Flow</h2>
+
+  <h3>Write Path (User Action to Persistence)</h3>
+  <div class="diagram">
+<pre><code>User clicks "Save" in a form
+    │
+    ▼
+UI handler builds JS record (camelCase)
+    │
+    ▼
+_dbSave(tbl, record) called
+    │
+    ├── 1. Show spinner ("Saving...")
+    ├── 2. Check _sbReady — if not connected, show error toast, return false
+    ├── 3. Convert via _toRow(tbl, record) → snake_case Postgres row
+    ├── 4. Supabase upsert with retry (up to 2 attempts):
+    │       _sb.from(SB_TABLES[tbl]).upsert(row, {onConflict:'code'}).select()
+    │       ├── Success → Continue
+    │       └── Failure → Retry once, then show error toast, return false
+    ├── 5. On success: Update in-memory DB[tbl] (find by id, replace or push)
+    ├── 6. Set connection status to 'ok'
+    └── 7. Hide spinner, return true
+
+Meanwhile, on OTHER connected clients:
+    │
+    ├── Realtime WebSocket delivers postgres_changes event
+    │     └── _rtApply() updates their in-memory DB and re-renders active page
+    │
+    └── Hot poll (60s) catches the change if realtime missed it</code></pre>
+  </div>
+
+  <h3>Delete Path</h3>
+  <div class="diagram">
+<pre><code>User confirms deletion
+    │
+    ▼
+_dbDel(tbl, id) called
+    │
+    ├── 1. Show spinner ("Deleting...")
+    ├── 2. Supabase DELETE with retry (up to 2 attempts):
+    │       _sb.from(SB_TABLES[tbl]).delete().eq('code', id)
+    │       ├── Success → Continue
+    │       └── Failure → Retry, then error toast
+    ├── 3. On success: Filter record out of DB[tbl]
+    └── 4. Hide spinner, return true</code></pre>
+  </div>
+
+  <h3>Read Path (Page Render)</h3>
+  <div class="diagram">
+<pre><code>User navigates to a page (e.g., "Trip Booking")
+    │
+    ▼
+UI render function called (e.g., renderTripBooking())
+    │
+    ▼
+Read directly from in-memory DB object:
+    DB.trips.filter(...)    → Active trips for this user
+    DB.segments.filter(...) → Segments for each trip
+    DB.vehicles, DB.drivers → Lookup vehicle/driver names
+    DB.locations            → Lookup location names + colours
+    DB.tripRates            → Match rate by route + vehicle type + date
+    │
+    ▼
+Build HTML strings with template literals
+    │
+    ▼
+Inject into DOM via innerHTML
+
+    NOTE: No async operations. No Supabase queries.
+    All rendering is synchronous from in-memory data.</code></pre>
+  </div>
+
+  <h3>Bulk Save Path</h3>
+  <div class="diagram">
+<pre><code>Import / bulk operation
+    │
+    ▼
+_dbSaveBulk(tbl, records[]) called
+    │
+    ├── Convert all records via _toRow()
+    ├── Batch upsert in groups of 50 rows
+    │     _sb.from(sbTbl).upsert(batch, {onConflict:'code'})
+    ├── Update in-memory DB for all records
+    └── Return count of successfully saved records</code></pre>
+  </div>
+
+  <h3>End-to-End Data Flow Diagram</h3>
+  <div class="diagram">
+<pre><code>
+┌─────────────┐         ┌──────────────────┐         ┌─────────────────────┐
+│  Client A   │         │    Supabase      │         │    Client B         │
+│  (Browser)  │         │   (PostgreSQL)   │         │    (Browser)        │
+└──────┬──────┘         └────────┬─────────┘         └──────────┬──────────┘
+       │                         │                              │
+       │  _dbSave('trips', rec)  │                              │
+       │  ──────────────────────>│                              │
+       │  upsert via REST API    │                              │
+       │                         │                              │
+       │  ← 200 OK + row data   │                              │
+       │  Update DB.trips[]      │                              │
+       │                         │                              │
+       │                         │  postgres_changes (Realtime) │
+       │                         │  ───────────────────────────>│
+       │                         │  WebSocket push              │
+       │                         │                              │
+       │                         │                    _rtApply()│
+       │                         │                    Update    │
+       │                         │                    DB.trips[]│
+       │                         │                    Re-render │
+       │                         │                    active pg │
+       │                         │                              │
+       │                         │  ← _bgSyncHot() (60s poll)  │
+       │                         │  ───────────────────────────>│
+       │                         │  Catches any missed events   │
+       │                         │                              │
+       │  _bgSyncHot() ────────>│                              │
+       │  60s poll catches       │                              │
+       │  other clients' changes │                              │
+       │                         │                              │
+</code></pre>
+  </div>
+
+  <h3>Connection Recovery</h3>
+  <p>The system handles connectivity loss gracefully:</p>
+  <ul>
+    <li><strong>Supabase CDN fails to load:</strong> A fallback CDN (<code>unpkg.com</code>) is loaded dynamically. If both fail, the app starts in offline mode with an empty database.</li>
+    <li><strong>Network interruption:</strong> The 30s ping detects failures after 3 consecutive misses. Sets status to "offline", attempts Supabase client re-initialization, and triggers a background sync on recovery.</li>
+    <li><strong>Write failures:</strong> Each <code>_dbSave()</code> / <code>_dbDel()</code> retries once automatically. On final failure, the in-memory DB is NOT updated (preventing divergence from the server), and an error toast is shown.</li>
+    <li><strong>Realtime channel failure:</strong> Channel errors trigger automatic reconnection after 10 seconds. The hot poll continues to function as a fallback during the reconnection period.</li>
+  </ul>
+</section>
+
+<!-- ─────────────────── FOOTER ─────────────────── -->
+<div style="text-align:center;padding:40px 0 0;border-top:1px solid var(--border);margin-top:60px;color:var(--text3);font-size:13px">
+  KAP myApps System Architecture &mdash; Kelkar Auto Parts Private Limited<br>
+  Generated from codebase analysis on 09-Apr-2026
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAP myApps -- User Stories</title>
+<style>
+  :root {
+    --accent: #2a9aa0;
+    --accent-light: #e6f5f6;
+    --accent-dark: #1e7a7f;
+    --text: #1a2033;
+    --text2: #475569;
+    --text3: #94a3b8;
+    --surface: #ffffff;
+    --surface2: #f8fafc;
+    --border: #e2e8f0;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f0f4f8;
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Header */
+  .doc-header {
+    background: linear-gradient(135deg, #175c60 0%, var(--accent) 60%, #5cc4c8 100%);
+    color: #fff;
+    padding: 48px 24px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .doc-header::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.1);
+    pointer-events: none;
+  }
+  .doc-header::after {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    left: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.08);
+    pointer-events: none;
+  }
+  .doc-header h1 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+    position: relative;
+  }
+  .doc-header .subtitle {
+    font-size: 15px;
+    font-weight: 500;
+    opacity: 0.85;
+    position: relative;
+  }
+  .doc-header .org {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.6;
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  /* Container */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 32px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+  }
+  .toc h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  .toc a {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .toc a:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent-dark);
+  }
+  .toc a .toc-icon {
+    margin-right: 6px;
+  }
+  .toc a .toc-count {
+    float: right;
+    font-size: 11px;
+    color: var(--text3);
+    font-weight: 600;
+  }
+
+  /* App Section */
+  .app-section {
+    margin-bottom: 36px;
+  }
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid var(--accent);
+  }
+  .app-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(42,154,160,.25);
+  }
+  .app-header h2 {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .app-header .app-desc {
+    font-size: 12px;
+    color: var(--text3);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  /* Feature group */
+  .feature-group {
+    margin-bottom: 20px;
+  }
+  .feature-label {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--accent-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 10px;
+    padding-left: 4px;
+  }
+
+  /* Story card */
+  .story {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+  .story:hover {
+    border-color: var(--accent);
+    box-shadow: 0 2px 12px rgba(42,154,160,.1);
+  }
+  .story-id {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text3);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    letter-spacing: 0.3px;
+  }
+  .story-role {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    background: var(--accent);
+    padding: 2px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+  }
+  .story-role.admin { background: #7c3aed; }
+  .story-role.security { background: #dc2626; }
+  .story-role.vendor { background: #2563eb; }
+  .story-role.approver { background: #ea580c; }
+  .story-role.receiver { background: #15803d; }
+  .story-role.hr { background: #be185d; }
+  .story-role.guard { background: #92400e; }
+  .story-role.warehouse { background: #0d9488; }
+  .story-role.accounts { background: #4338ca; }
+  .story-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.55;
+    padding-right: 60px;
+  }
+  .story-text strong {
+    font-weight: 800;
+  }
+
+  /* Footer */
+  .doc-footer {
+    text-align: center;
+    padding: 32px 20px;
+    font-size: 11px;
+    color: var(--text3);
+    border-top: 1px solid var(--border);
+    margin-top: 24px;
+  }
+  .doc-footer .accent { color: var(--accent); font-weight: 700; }
+
+  /* Print */
+  @media print {
+    body { background: #fff; }
+    .doc-header { padding: 24px 20px; }
+    .container { padding: 16px 20px; }
+    .story { break-inside: avoid; }
+    .app-section { break-inside: avoid; }
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .doc-header h1 { font-size: 24px; }
+    .toc-grid { grid-template-columns: 1fr; }
+    .container { padding: 20px 14px 48px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="org">Kelkar Auto Parts Private Limited</div>
+  <h1>User Stories</h1>
+  <div class="subtitle">KAP myApps Platform -- Functional Requirements</div>
+</div>
+
+<div class="container">
+
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h2>Contents</h2>
+    <div class="toc-grid">
+      <a href="#portal"><span class="toc-icon">🏠</span> Portal <span class="toc-count">10 stories</span></a>
+      <a href="#vms"><span class="toc-icon">🚚</span> VMS <span class="toc-count">15 stories</span></a>
+      <a href="#hrms"><span class="toc-icon">👥</span> HRMS <span class="toc-count">14 stories</span></a>
+      <a href="#hwms"><span class="toc-icon">🚢</span> HWMS <span class="toc-count">14 stories</span></a>
+      <a href="#security"><span class="toc-icon">🔒</span> Security <span class="toc-count">8 stories</span></a>
+    </div>
+  </div>
+
+
+  <!-- ========== PORTAL ========== -->
+  <div class="app-section" id="portal">
+    <div class="app-header">
+      <div class="app-icon">🏠</div>
+      <div>
+        <h2>Portal</h2>
+        <div class="app-desc">Authentication, navigation, user management, and profile settings</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Authentication</div>
+
+      <div class="story">
+        <span class="story-id">PRT-01</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want to <strong>sign in with my username and password (with math CAPTCHA verification)</strong> so that only authorized personnel can access the platform.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">PRT-02</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want to <strong>choose "Remember me" to stay logged in on my device</strong> so that I do not have to re-enter credentials each time.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">PRT-03</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want the system to <strong>lock my account after too many failed login attempts</strong> so that brute-force attacks are prevented.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Profile &amp; Password</div>
+
+      <div class="story">
+        <span class="story-id">PRT-04</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want to <strong>view and edit my profile (name, mobile, email, photo)</strong> so that my personal information stays current.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">PRT-05</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want to <strong>change my password from the profile screen</strong> so that I can maintain account security.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">App Navigation</div>
+
+      <div class="story">
+        <span class="story-id">PRT-06</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want to <strong>see a grid of applications I have access to (VMS, HRMS, HWMS, Security)</strong> so that I can navigate to the relevant app in one click.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">PRT-07</span>
+        <div class="story-role">User</div>
+        <div class="story-text">As a <strong>user</strong>, I want the portal to <strong>show a real-time database connection status indicator</strong> so that I know whether the system is online before I start working.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">User Management (Admin)</div>
+
+      <div class="story">
+        <span class="story-id">PRT-08</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>add, edit, and deactivate user accounts with role and location assignments</strong> so that access is tightly controlled across all apps.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">PRT-09</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>reset a user's password</strong> so that I can help employees who are locked out.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">DB Storage</div>
+
+      <div class="story">
+        <span class="story-id">PRT-10</span>
+        <div class="story-role admin">Super Admin</div>
+        <div class="story-text">As a <strong>super admin</strong>, I want to <strong>view a database storage analysis (row counts, image sizes, egress estimates)</strong> so that I can monitor usage and plan capacity.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== VMS ========== -->
+  <div class="app-section" id="vms">
+    <div class="app-header">
+      <div class="app-icon">🚚</div>
+      <div>
+        <h2>VMS -- Vehicle Management System</h2>
+        <div class="app-desc">Trip booking, gate operations, material receipt, approvals, and fleet masters</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Dashboard &amp; Reports</div>
+
+      <div class="story">
+        <span class="story-id">VMS-01</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>view an operations dashboard with overview stats, trip details, and reports filtered by date range</strong> so that I have a real-time picture of all vehicle activity.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-02</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>generate and download trip reports as Excel or PDF</strong> so that I can share operational data with management.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Trip Booking</div>
+
+      <div class="story">
+        <span class="story-id">VMS-03</span>
+        <div class="story-role">Booking User</div>
+        <div class="story-text">As a <strong>trip booking user</strong>, I want to <strong>create a trip with multi-segment, multi-destination routing (selecting vendor, vehicle type, driver, and vehicle)</strong> so that complex logistics are captured in a single booking.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-04</span>
+        <div class="story-role">Booking User</div>
+        <div class="story-text">As a <strong>trip booking user</strong>, I want to <strong>advance each trip segment through its lifecycle (booked, gate out, destination, gate in, completed)</strong> so that real-time trip status is always visible.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-05</span>
+        <div class="story-role">Booking User</div>
+        <div class="story-text">As a <strong>trip booking user</strong>, I want to <strong>capture photos at each segment step (e.g., gate entry/exit)</strong> so that there is visual proof of operations for audit purposes.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Gate Operations (KAP Security)</div>
+
+      <div class="story">
+        <span class="story-id">VMS-06</span>
+        <div class="story-role security">KAP Security</div>
+        <div class="story-text">As a <strong>KAP Security guard</strong>, I want to <strong>record vehicle gate-in and gate-out with timestamp and photo</strong> so that every vehicle movement through KAP premises is tracked.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-07</span>
+        <div class="story-role security">KAP Security</div>
+        <div class="story-text">As a <strong>KAP Security guard</strong>, I want to <strong>log a spot vehicle entry for unscheduled vehicles</strong> so that ad-hoc arrivals are recorded even without a pre-booked trip.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Material Receipt</div>
+
+      <div class="story">
+        <span class="story-id">VMS-08</span>
+        <div class="story-role receiver">Material Receiver</div>
+        <div class="story-text">As a <strong>material receiver</strong>, I want to <strong>confirm receipt of goods for incoming trip segments</strong> so that the trip can progress to completion and delivery is verified.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Trip Approvals</div>
+
+      <div class="story">
+        <span class="story-id">VMS-09</span>
+        <div class="story-role approver">Trip Approver</div>
+        <div class="story-text">As a <strong>trip approver</strong>, I want to <strong>review and approve or reject completed trips</strong> so that only verified trips proceed to billing.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Vendor View</div>
+
+      <div class="story">
+        <span class="story-id">VMS-10</span>
+        <div class="story-role vendor">Vendor</div>
+        <div class="story-text">As a <strong>transport vendor</strong>, I want to <strong>view my assigned trips and their current status</strong> so that I can coordinate my fleet and drivers accordingly.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Fleet &amp; Rate Masters</div>
+
+      <div class="story">
+        <span class="story-id">VMS-11</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>manage a location master (KAP plants and external destinations)</strong> so that trip routing options are always up to date.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-12</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>manage vehicle types, vehicles (with registration and insurance expiry), and drivers</strong> so that the fleet roster is accurate for bookings.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-13</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>manage vendors (transport companies)</strong> so that booking users can assign trips to approved carriers.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-14</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>define trip rate rules (per route, vehicle type, and vendor) with approval workflow</strong> so that trip costs are automatically calculated and controlled.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">VMS-15</span>
+        <div class="story-role admin">Super Admin</div>
+        <div class="story-text">As a <strong>super admin</strong>, I want to <strong>access a system helper utility for data correction and diagnostics</strong> so that I can resolve data issues without direct database access.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== HRMS ========== -->
+  <div class="app-section" id="hrms">
+    <div class="app-header">
+      <div class="app-icon">👥</div>
+      <div>
+        <h2>HRMS -- HR Management System</h2>
+        <div class="app-desc">Employee records, attendance, salary, leave, and organizational masters</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Employee Management</div>
+
+      <div class="story">
+        <span class="story-id">HRM-01</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>add, edit, and view employee records (personal details, employment type, plant, team, category, designation)</strong> so that the workforce database is complete and accurate.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-02</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>import employees in bulk from Excel/CSV and export the employee list</strong> so that large onboarding batches and audits are efficient.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-03</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>bulk-update employee data and import DOJ/DOB dates from a spreadsheet</strong> so that corrections can be applied at scale.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-04</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>filter employees by plant, type (On Roll / Contract / Piece Rate / Visitor), team, category, and status</strong> so that I can quickly find the records I need.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-05</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>manage employee change requests (ECR) with approve/reject workflow</strong> so that sensitive field changes are reviewed before taking effect.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-06</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>record employment periods (joining, separation, rejoin) per employee</strong> so that the full employment lifecycle is tracked.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Attendance</div>
+
+      <div class="story">
+        <span class="story-id">HRM-07</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>view a monthly attendance grid showing daily entry/exit times, present/absent/half-day status, and overtime</strong> so that I can verify workforce presence at a glance.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-08</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>view a P &amp; OT (Present and Overtime) summary per employee for the month</strong> so that payroll inputs are ready for calculation.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-09</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>import and export attendance data via Excel templates</strong> so that data from biometric systems can be integrated.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Salary &amp; Statutory Compliance</div>
+
+      <div class="story">
+        <span class="story-id">HRM-10</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>calculate monthly salary for workers and staff (with separate views) based on attendance, wage rates, and overtime</strong> so that payroll is computed accurately.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-11</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>configure salary settings including day types (Working/Holiday/Paid Holiday), OT rates, and PL (Privilege Leave) rules per category</strong> so that calculations follow company policy.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-12</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want the system to <strong>automatically apply statutory deductions (PT, PF, ESI) according to government slabs</strong> so that compliance is ensured without manual lookup.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Print Formats &amp; Masters</div>
+
+      <div class="story">
+        <span class="story-id">HRM-13</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>create and manage salary print formats (filtered by plant, type, category, team) and bulk-print salary slips</strong> so that payroll documents are generated efficiently.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HRM-14</span>
+        <div class="story-role hr">HR Manager</div>
+        <div class="story-text">As an <strong>HR manager</strong>, I want to <strong>manage organizational masters (Plants, Categories, Employment Types, Teams, Departments, Sub-Departments, Designations)</strong> so that the HR structure mirrors the company's organization.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== HWMS ========== -->
+  <div class="app-section" id="hwms">
+    <div class="app-header">
+      <div class="app-icon">🚢</div>
+      <div>
+        <h2>HWMS -- HGAP Warehouse Management System</h2>
+        <div class="app-desc">Import container tracking, invoicing, material requests, payments, and inventory</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Dashboard &amp; Overview</div>
+
+      <div class="story">
+        <span class="story-id">HWM-01</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>view a dashboard summarizing active containers, invoice totals, pending material requests, and payment status</strong> so that I have a consolidated operational view.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Container Tracking</div>
+
+      <div class="story">
+        <span class="story-id">HWM-02</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>track import containers (by sea and by air) through their full lifecycle (booking, dispatch, in-transit, warehouse arrival)</strong> so that I know the real-time status of every shipment.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-03</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>link containers to main invoices and track pickup dates and reach dates</strong> so that container movements and their commercial documents stay synchronized.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Invoice Management</div>
+
+      <div class="story">
+        <span class="story-id">HWM-04</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>create and manage Main Invoices (MI) with line items, amounts, gross weight, and tariff details</strong> so that import documentation is complete and auditable.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-05</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>advance MI status through a workflow (Draft, RFD, Dispatched, Warehouse)</strong> so that the team can track each invoice's progress.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-06</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>create Sub-Invoices (SI) linked to a Main Invoice for partial or split shipments</strong> so that billing and inventory are tracked at a granular level.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-07</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>import and export invoice data from/to Excel</strong> so that bulk data entry and external reporting are efficient.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Material Requests &amp; Inventory</div>
+
+      <div class="story">
+        <span class="story-id">HWM-08</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>create and track material requests against inventory</strong> so that parts are dispatched from the warehouse to production in a controlled manner.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-09</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>view a real-time inventory of received parts with quantities</strong> so that I know what is available in the warehouse at any time.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Payments &amp; Outstanding</div>
+
+      <div class="story">
+        <span class="story-id">HWM-10</span>
+        <div class="story-role accounts">Accounts Manager</div>
+        <div class="story-text">As an <strong>accounts manager</strong>, I want to <strong>record payments against Main Invoices and track received vs. balance amounts</strong> so that vendor payables are clear and up to date.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-11</span>
+        <div class="story-role accounts">Accounts Manager</div>
+        <div class="story-text">As an <strong>accounts manager</strong>, I want to <strong>view an outstanding report showing unpaid balances per invoice</strong> so that overdue payments are identified promptly.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Masters</div>
+
+      <div class="story">
+        <span class="story-id">HWM-12</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>manage a Part Master (part numbers, revisions, descriptions, UOM, net weight, HSN, packing, rates) with import/export</strong> so that all part data is centralized and consistent.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-13</span>
+        <div class="story-role warehouse">Warehouse Manager</div>
+        <div class="story-text">As a <strong>warehouse manager</strong>, I want to <strong>manage Customer, Carrier, and Port masters</strong> so that invoices and containers can reference validated entities.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">HWM-14</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>configure company details and manage other masters (HSN codes, UOM, packing types)</strong> so that system-wide reference data is maintained centrally.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========== SECURITY ========== -->
+  <div class="app-section" id="security">
+    <div class="app-header">
+      <div class="app-icon">🔒</div>
+      <div>
+        <h2>Security Surveillance</h2>
+        <div class="app-desc">Checkpoint, guard, and round schedule management for KAP facilities</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Checkpoint Master</div>
+
+      <div class="story">
+        <span class="story-id">SEC-01</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>define security checkpoints per KAP location (with name, description, and sort order)</strong> so that all surveillance points are catalogued.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">SEC-02</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>filter checkpoints by location and activate or deactivate them</strong> so that the checkpoint list reflects current facility layout.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Guard Master</div>
+
+      <div class="story">
+        <span class="story-id">SEC-03</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>add and manage security guards (name, mobile, location, shift, photo)</strong> so that the guard roster is always up to date.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">SEC-04</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>assign guards to Day, Night, or General shifts</strong> so that shift coverage is properly planned.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">SEC-05</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>toggle guard active/inactive status and filter the list accordingly</strong> so that only current personnel appear in scheduling.</div>
+      </div>
+    </div>
+
+    <div class="feature-group">
+      <div class="feature-label">Round Schedules</div>
+
+      <div class="story">
+        <span class="story-id">SEC-06</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>create round schedules that assign a guard to a sequence of checkpoints with a defined frequency and time window</strong> so that patrol routes are standardized.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">SEC-07</span>
+        <div class="story-role admin">Admin</div>
+        <div class="story-text">As an <strong>admin</strong>, I want to <strong>filter round schedules by location and active status</strong> so that I can quickly review coverage for a specific facility.</div>
+      </div>
+
+      <div class="story">
+        <span class="story-id">SEC-08</span>
+        <div class="story-role guard">Security Guard</div>
+        <div class="story-text">As a <strong>security guard</strong>, I want to <strong>view my assigned round schedules with checkpoint order and time windows</strong> so that I know exactly where and when to patrol.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="doc-footer">
+  <span class="accent">KAP myApps</span> &mdash; Kelkar Auto Parts Private Limited &bull; User Stories Document &bull; Generated April 2026
+</div>
+
+</body>
+</html>

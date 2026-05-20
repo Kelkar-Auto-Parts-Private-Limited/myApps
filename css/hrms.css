@@ -1,0 +1,457 @@
+:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f8f9fb;--border:#e2e5ea;--border2:#c9cdd4;--text:#1e2329;--text2:#4a5568;--text3:#94a3b8;--accent:#2a9aa0;--accent2:#1e7a7f;--accent-light:#e0f5f5;--red:#dc2626;--green:#16a34a;--green-bg:#f0fdf4;--purple:#7c3aed;--mono:'SF Mono','Cascadia Mono','Consolas',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--radius:12px;--shadow:0 2px 12px rgba(0,0,0,.08)}
+*{box-sizing:border-box;margin:0;padding:0}html,body{font-family:var(--sans);background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+.notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);background:var(--green);color:#fff;padding:18px 36px;border-radius:10px;font-size:15px;font-weight:800;z-index:200000;opacity:0;pointer-events:none;transition:transform .25s ease,opacity .25s ease;max-width:90vw;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,.35);white-space:pre-line;line-height:1.4;border:2px solid rgba(255,255,255,.15)}
+.notification.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
+.notification.error{background:var(--red);color:#fff}
+#dbSplash{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:12px}
+#dbSplash .spinner{width:36px;height:36px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.topbar .ham{background:none;border:2px solid var(--accent);font-size:24px;cursor:pointer;padding:5px 10px;color:var(--accent);border-radius:8px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.topbar .title{font-size:15px;font-weight:800;color:var(--text);flex:1}
+@media (max-width:700px){.topbar .hrms-user-name{display:none}}
+.sidebar{position:fixed;top:0;left:0;width:260px;height:100vh;background:#fff;border-right:1px solid var(--border);z-index:200;overflow-y:auto;padding:16px 0;transition:left .3s;display:flex;flex-direction:column}
+.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:199;display:none}.sidebar-overlay.show{display:block}
+@media(max-width:700px){.sidebar{left:-280px}.sidebar.open{left:0}#hrmsApp{margin-left:0!important}}
+@media(min-width:701px){.sidebar{left:0}.sidebar-overlay{display:none!important}.topbar{margin-left:260px}#hrmsApp{margin-left:260px}}
+.sidebar-logo{padding:10px 20px;margin-bottom:10px;border-bottom:1px solid var(--border)}.sidebar-logo h2{font-size:16px;color:var(--accent);font-weight:900}
+.nav-item{padding:10px 20px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s}.nav-item:hover{background:var(--accent-light);color:var(--accent)}.nav-item.active{background:var(--accent-light);color:var(--accent);font-weight:800;border-right:3px solid var(--accent)}
+/* Parent nav items with sub-menu items — visually marked with a dotted
+   underline + bold so the user can tell at a glance which entries
+   expand. The ▶ / ▼ arrow stays as the open/closed indicator. */
+.nav-item.has-submenu{font-weight:800;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--text3);text-underline-offset:3px}
+.nav-section{padding:12px 20px 4px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
+.page{display:none;padding:16px;height:calc(100vh - 50px);overflow-y:auto;box-sizing:border-box}.page.active{display:block}#pageHrmsAttSal.active{display:flex!important;overflow:hidden}
+#pageHrmsEmployees.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsEmpAtt.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsEmployees #hrmsEmpListSection,#pageHrmsEmployees #hrmsEmpEcrSection{flex:1;min-height:0;display:flex;flex-direction:column}
+#pageHrmsEmployees #hrmsEmpListSection > .card,#pageHrmsEmployees #hrmsEmpEcrSection > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0;overflow:hidden}
+#pageHrmsEmployees .table-wrap{flex:1;min-height:0;overflow:auto}
+#pageHrmsEmployees thead tr:first-child th{top:0;z-index:3;background:#fff}
+#pageHrmsEmployees thead tr:nth-child(2) th{top:30px;z-index:2}
+#pageHrmsEmployees #hrmsChangeReqContent{flex:1;min-height:0;overflow:auto}
+#pageHrmsUtilDailyAtt.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsUtilDailyAtt > .card{min-height:0}
+#pageHrmsMDept.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsMDept > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0;overflow:hidden}
+#pageHrmsMDept .table-wrap{flex:1;min-height:0;overflow:auto;max-height:none!important}
+#pageHrmsMDept thead th{position:sticky;top:0;z-index:3;background:#f1f5f9}
+/* Master pages — apply the same contained-scroll layout to every
+   master so the page itself doesn't scroll; only the table-wrap
+   inside the card does. */
+#pageHrmsMCompany.active,#pageHrmsMCategory.active,#pageHrmsMEmpType.active,#pageHrmsMTeam.active,#pageHrmsMSubDept.active,#pageHrmsMDesig.active,#pageHrmsMRoll.active,#pageHrmsMAllocation.active{display:flex!important;flex-direction:column;overflow:hidden}
+#pageHrmsMCompany>.card,#pageHrmsMCategory>.card,#pageHrmsMEmpType>.card,#pageHrmsMTeam>.card,#pageHrmsMSubDept>.card,#pageHrmsMDesig>.card,#pageHrmsMRoll>.card,#pageHrmsMAllocation>.card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0;overflow:hidden}
+#pageHrmsMCompany .table-wrap,#pageHrmsMCategory .table-wrap,#pageHrmsMEmpType .table-wrap,#pageHrmsMTeam .table-wrap,#pageHrmsMSubDept .table-wrap,#pageHrmsMDesig .table-wrap,#pageHrmsMRoll .table-wrap,#pageHrmsMAllocation .table-wrap,#pageHrmsMDept .table-wrap{flex:1;min-height:0;overflow:auto;max-height:none!important;width:fit-content;max-width:100%;align-self:flex-start}
+/* All master tables — content-sized (not full screen) with a
+   sticky, gradient header band. Black header text. Header cells
+   wrap their text so long titles don't force horizontal scroll. */
+#pageHrmsMCompany table,#pageHrmsMCategory table,#pageHrmsMEmpType table,#pageHrmsMTeam table,#pageHrmsMDept table,#pageHrmsMSubDept table,#pageHrmsMDesig table,#pageHrmsMRoll table,#pageHrmsMAllocation table{width:auto!important;min-width:0}
+#pageHrmsMCompany thead th,#pageHrmsMCategory thead th,#pageHrmsMEmpType thead th,#pageHrmsMTeam thead th,#pageHrmsMSubDept thead th,#pageHrmsMDesig thead th,#pageHrmsMRoll thead th,#pageHrmsMAllocation thead th{position:sticky;top:0;z-index:3;background:linear-gradient(180deg,#e2e8f0,#cbd5e1)!important;color:#000!important;font-weight:800;box-shadow:inset 0 -2px 0 #94a3b8;white-space:normal!important;word-break:normal;overflow-wrap:break-word}
+#pageHrmsMDept thead th{background:linear-gradient(180deg,#e2e8f0,#cbd5e1)!important;color:#000!important;font-weight:800;box-shadow:inset 0 -2px 0 #94a3b8;white-space:normal!important;word-break:normal;overflow-wrap:break-word}
+/* Sticky-bottom footer row across every master so the Total stays
+   pinned even while the body scrolls. Targets <tfoot> td cells; the
+   gradient + box-shadow apply on top of whatever inline style the
+   renderer set. */
+#pageHrmsMCompany tfoot td,#pageHrmsMCategory tfoot td,#pageHrmsMEmpType tfoot td,#pageHrmsMTeam tfoot td,#pageHrmsMDept tfoot td,#pageHrmsMSubDept tfoot td,#pageHrmsMDesig tfoot td,#pageHrmsMRoll tfoot td,#pageHrmsMAllocation tfoot td{position:sticky;bottom:0;z-index:2;background:linear-gradient(180deg,#e2e8f0,#cbd5e1);color:#0f172a;font-weight:900;box-shadow:inset 0 2px 0 #94a3b8}
+#pageHrmsUtilDailyAtt #hrmsDasBody{min-height:0}
+#pageHrmsUtilDailyAtt #hrmsDasBody > div:not(:first-child){min-height:0}
+/* Bottom breathing room — keeps the final emp row off the page
+   edge on desktop (mobile gets its own padding for the browser
+   chrome inside the media query). */
+#hrmsDasDeptDetailsBody,#hrmsDasTwBody{padding-bottom:24px}
+/* Team-wise PIA label is only meaningful in card / narrow mode where
+   the column header is hidden. Desktop table mode keeps the checkbox
+   alone (column header conveys intent). */
+.hrms-tw-emp ._hrmsPiaLbl{display:none}
+
+/* ── Mobile polish: Team-wise Attendance Record + Dept-wise MP Details
+   ───────────────────────────────────────────────────────────────────
+   Both tabs lean on dense flex layouts that work on desktop but feel
+   cramped on small screens. The rules below tighten paddings, push
+   selectors to full width, and force tables into a horizontal-scroll
+   container so users can pan instead of having columns squashed. */
+@media (max-width: 720px){
+  #pageHrmsUtilDailyAtt > .card{padding:10px}
+  #pageHrmsUtilDailyAtt #hrmsDasDateLabel{font-size:14px}
+  /* Tab strip — slimmer pills so all four fit a phone row before
+     overflow-x kicks in. */
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_manpower,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_deptdetails,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_teamwise,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_rolegrouping,
+  #pageHrmsUtilDailyAtt #hrmsDasTabBtn_alloc{padding:7px 10px;font-size:11px}
+  /* Dept-wise MP Details — Plant & Dept selectors take full row. */
+  #hrmsDasDeptDetailsBody select{flex:1;min-width:0;width:100%}
+  #hrmsDasDeptDetailsBody label{font-size:11px}
+  /* Filter pills — taller for touch, slightly larger font. */
+  #hrmsDasDeptDetailsBody button,#hrmsDasTwBody button{min-height:34px}
+  /* Tables on both tabs — tighter cells, horizontal scroll. */
+  #hrmsDasDeptDetailsBody table,
+  #hrmsDasTwBody table{font-size:11px}
+  #hrmsDasDeptDetailsBody table th,#hrmsDasDeptDetailsBody table td,
+  #hrmsDasTwBody table th,#hrmsDasTwBody table td{padding:4px 5px}
+  /* Team-wise: emp-type & team strips wrap; "Show hidden" toggle and
+     export button take their own line so they don't crush the strip. */
+  #hrmsDasTwBody label[style*="Show hidden"]{margin-left:0}
+  /* Plant tiles already 66×42 (60% sized) — keep as-is. */
+  /* Team-wise on mobile: stack role-group summary above employee
+     cards AND collapse all internal scrollbars so the whole tab body
+     scrolls as a single column (header pills + tabs + plant tiles +
+     role-group table + employee cards). */
+  /* On phones the bottom address bar / system nav covers the last
+     ~60px of viewport, so the last few rows of the employee list
+     hide behind it. Pad the bottom of both tab bodies (using safe-
+     area-inset where available) so the final card is always
+     reachable above the chrome. */
+  #hrmsDasTwBody,#hrmsDasDeptDetailsBody{overflow:auto!important;padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px))!important}
+  /* `.hrms-tw-split` / `.hrms-dd-split` inherit `flex:1` from inline
+     style; in column mode that reserves a tall fixed-height slot, and
+     any sibling AFTER the split (e.g. the date label on team-wise)
+     visually overlaps the cards (which overflow out of the slot via
+     `overflow:visible`). Force the split to size to content. */
+  .hrms-tw-split,.hrms-dd-split{flex:0 0 auto!important;flex-direction:column!important;gap:8px!important;overflow:visible!important;min-height:0!important;height:auto!important}
+  .hrms-tw-roleg,.hrms-dd-roleg{flex:0 0 auto!important;order:0!important;max-height:none!important;overflow:visible!important}
+  .hrms-tw-emp,.hrms-dd-emp{flex:0 0 auto!important;order:1!important;min-height:0!important;overflow:visible!important}
+  /* Export to Excel button — hide on phones to keep the controls
+     row from wrapping awkwardly. Desktop / tablet keep it. */
+  .hrms-tw-export{display:none!important}
+  /* Hide low-priority columns on mobile to free horizontal space for
+     emp code / name / plant / dept / role / P/A. Team + emp-type are
+     baked into the combined "Plant / Team / Type" cell, so we hide
+     just the spans (keeping the plant chip). In/Out time columns get
+     hidden via the `hrms-tw-col-*` class hooks on both <th> and <td>. */
+  .hrms-tw-team,.hrms-tw-sep,.hrms-tw-et{display:none!important}
+  .hrms-tw-col-inTime,.hrms-tw-col-outTime{display:none!important}
+  /* ── Card-mode for Team-wise — matches the Department-wise card
+     layout, with the PIA checkbox in the top-left corner.
+     Body column order (10 cells):
+       1=# · 2=EmpCode · 3=Name · 4=Plant/Team/Type (._hrmsTwPTE wraps
+       plantChip + ._hrmsTwTET) · 5=Dept · 6=Role · 7=In Time ·
+       8=Out Time · 9=P/A·45 (._hrmsMcRow wraps bar + pill) · 10=PIA
+     Visual card:
+       Row 1: [PIA ☐] [Plant chip] [EmpCode] [Name]
+       Row 2: [EmpType · Team] .................. [round P/A badge]
+       Row 3: Role: <value>
+       Row 4: 45-day P/A bar (full width) */
+  .hrms-tw-emp table{display:block;border:0!important}
+  .hrms-tw-emp table thead{display:none}
+  .hrms-tw-emp table tbody{display:block}
+  .hrms-tw-emp table tr{
+    display:grid!important;
+    /* 4 cols: Plant chip · Emp Code · Name (1fr) · PIA checkbox */
+    grid-template-columns:auto auto 1fr auto;
+    align-items:center;
+    column-gap:6px;row-gap:4px;
+    padding:8px 12px;margin:0 0 8px;
+    border:1px solid #cbd5e1!important;border-radius:10px;
+  }
+  .hrms-tw-emp table tr td{
+    border:0!important;
+    padding:0!important;
+    width:auto!important;min-width:0!important;max-width:none!important;
+    text-align:left!important;
+  }
+  /* 1: # — hidden in card mode */
+  .hrms-tw-emp table tr td:nth-child(1){display:none}
+  /* 2: Emp Code — row 1 col 2, mono with trailing dot separator. */
+  .hrms-tw-emp table tr td:nth-child(2){grid-row:1;grid-column:2;font-size:16px;font-weight:800;color:var(--accent);font-family:var(--mono)}
+  .hrms-tw-emp table tr td:nth-child(2)::after{content:"·";color:#94a3b8;font-weight:500;margin-left:6px}
+  /* 3: Name (+ ABSENT chip) — row 1 col 3, takes remaining width. */
+  .hrms-tw-emp table tr td:nth-child(3){grid-row:1;grid-column:3;font-size:16px;font-weight:700;color:#0f172a;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
+  /* 4: Plant cluster — flatten via display:contents so plantChip lands
+     on row 1 col 1 (leading) and ._hrmsTwTET (Type · Team) drops to row 2,
+     sharing that row with the round P/A badge. */
+  .hrms-tw-emp table tr td:nth-child(4){display:contents!important;background:transparent!important}
+  .hrms-tw-emp ._hrmsTwPTE{display:contents!important}
+  .hrms-tw-emp ._hrmsTwPTE>span:first-child{grid-row:1!important;grid-column:1!important;justify-self:start!important;align-self:center!important}
+  .hrms-tw-emp ._hrmsTwTET{
+    grid-row:2!important;grid-column:1 / 4!important;
+    display:flex!important;align-items:center!important;gap:4px!important;
+    font-size:15px!important;color:#475569!important;font-weight:600!important;
+  }
+  .hrms-tw-emp .hrms-tw-team,.hrms-tw-emp .hrms-tw-et{display:inline!important;font-size:15px!important;font-weight:600!important}
+  .hrms-tw-emp .hrms-tw-sep{display:inline!important;font-size:15px!important;color:#94a3b8!important}
+  /* Card mode: ABSENT chip is redundant — the round P/A badge in
+     row 2 already signals it. */
+  .hrms-tw-emp ._hrmsAbsChip{display:none!important}
+  /* 5: Department — hidden on cards (room is tight; dept is filterable
+     via the desktop view). */
+  .hrms-tw-emp table tr td:nth-child(5){display:none!important}
+  /* 6: Role — row 3, full width. */
+  .hrms-tw-emp table tr td:nth-child(6){grid-row:3;grid-column:1 / -1;color:#475569;font-size:15px;font-weight:600}
+  .hrms-tw-emp table tr td:nth-child(6)::before{content:"Role: ";color:#94a3b8;font-weight:700;font-size:13px;margin-right:4px}
+  /* 7 & 8: In / Out Time hidden — the round P/A badge replaces them. */
+  .hrms-tw-emp table tr td:nth-child(7),
+  .hrms-tw-emp table tr td:nth-child(8){display:none!important}
+  /* 9: Merged P/A·45-day cell — pill (round badge) anchors row 2 col 4;
+     45-day bar spans row 4 full-width at the bottom of the card. */
+  .hrms-tw-emp table tr td:nth-child(9){display:contents!important;background:transparent!important}
+  .hrms-tw-emp ._hrmsMcRow{display:contents!important}
+  .hrms-tw-emp ._hrmsMcPA{
+    grid-row:2!important;grid-column:4!important;
+    justify-self:end!important;align-self:center!important;
+    width:48px!important;height:48px!important;min-width:48px!important;
+    padding:0!important;border-radius:50%!important;
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    font-size:22px!important;font-weight:900!important;letter-spacing:0!important;
+    text-align:center!important;margin:0!important;
+    box-shadow:0 2px 5px rgba(0,0,0,.12);
+  }
+  .hrms-tw-emp ._hrmsMcBar{
+    grid-row:4!important;grid-column:1 / -1!important;
+    background:#f8fafc!important;border-top:1px dashed #e2e8f0!important;
+    padding:5px 6px 3px!important;white-space:normal!important;
+    text-align:left!important;line-height:1.1
+  }
+  /* 10: PIA checkbox — top-right corner of the card (row 1 col 4).
+     Hides the "Mark PIA" label to save space; the title tooltip on
+     the wrapping <label> carries the meaning. */
+  .hrms-tw-emp table tr td:nth-child(10){grid-row:1;grid-column:4;justify-self:end;align-self:center;background:transparent!important;border:0!important;padding:0!important}
+  .hrms-tw-emp ._hrmsPiaLbl{display:none!important}
+  /* Empty / no-data row — colspan doesn't carry through grid, so let
+     the single placeholder cell span the whole card width. */
+  .hrms-tw-emp table tr td[colspan]{grid-column:1 / -1!important;text-align:center!important;padding:14px 8px!important}
+  /* ── Card-mode for Department-wise MP Details. Column layout after
+     the V49 merge:
+       1=# · 2=Employee (merged plant+code+name+team·type) · 3=Role ·
+       4=In Time · 5=Out Time · 6=P/A·45-day (merged bar + pill) */
+  /* In card mode the wrapper no longer needs its bounded scroll —
+     let the whole tab body scroll as one column. */
+  .hrms-dd-table{border:0!important;max-height:none!important;overflow:visible!important}
+  .hrms-dd-table table{display:block;border:0!important}
+  .hrms-dd-table table thead{display:none}
+  .hrms-dd-table table tbody{display:block}
+  .hrms-dd-table table tr{
+    display:grid!important;
+    grid-template-columns:1fr auto;
+    align-items:center;
+    column-gap:10px;row-gap:6px;
+    padding:10px 12px;margin:0 0 8px;
+    border:1px solid #cbd5e1!important;border-radius:10px;
+    background:#fff;
+  }
+  .hrms-dd-table table tr td{
+    border:0!important;background:transparent!important;
+    padding:0!important;
+    width:auto!important;min-width:0!important;max-width:none!important;
+    text-align:left!important;
+  }
+  /* Card layout:
+       Row 1: Plant · Emp Code · Emp Name (full width)
+       Row 2: EmpType · Team Name (left) ........ [big round P/A badge]
+       Row 3: Role: <value>
+       Row 4: 45-day P/A bar (full width) */
+  .hrms-dd-table table tr td:nth-child(1){display:none}
+  /* 2: Employee card cell — `display:contents` flattens it so the two
+     inner lines (.hrms-dd-line1, .hrms-dd-line2) become direct grid
+     items and can be positioned independently. */
+  .hrms-dd-table table tr td:nth-child(2){display:contents!important;background:transparent!important}
+  .hrms-dd-table .hrms-dd-ec{display:contents!important}
+  .hrms-dd-table .hrms-dd-line1{
+    grid-row:1!important;grid-column:1 / -1!important;
+    margin:0!important;font-size:16px!important;
+  }
+  .hrms-dd-table .hrms-dd-line1 a{font-size:16px!important}
+  .hrms-dd-table .hrms-dd-line1 span{font-size:16px!important}
+  .hrms-dd-table .hrms-dd-line2{
+    grid-row:2!important;grid-column:1!important;
+    margin:0!important;align-self:center!important;font-size:15px!important;
+  }
+  .hrms-dd-table .hrms-dd-line2 span{font-size:15px!important}
+  /* 3: Role — row 3, full width. */
+  .hrms-dd-table table tr td:nth-child(3){grid-row:3;grid-column:1 / -1;color:#475569;font-size:15px;font-weight:600}
+  .hrms-dd-table table tr td:nth-child(3)::before{content:"Role: ";color:#94a3b8;font-weight:700;font-size:13px;margin-right:4px}
+  /* 4 & 5: In / Out Time hidden on narrow — the big P/A round badge
+     replaces them. */
+  .hrms-dd-table table tr td:nth-child(4),
+  .hrms-dd-table table tr td:nth-child(5){display:none!important}
+  /* 6: Merged P/A · 45-day cell — pill floats top-right of row 2
+     (sharing the row with EmpType · Team); bar spans row 4 full-width
+     at the bottom of the card. */
+  .hrms-dd-table table tr td:nth-child(6){display:contents!important;background:transparent!important}
+  .hrms-dd-table ._hrmsMcRow{display:contents!important}
+  .hrms-dd-table ._hrmsMcPA{
+    grid-row:2!important;grid-column:2!important;
+    justify-self:end!important;align-self:center!important;
+    width:48px!important;height:48px!important;min-width:48px!important;
+    padding:0!important;border-radius:50%!important;
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    font-size:22px!important;font-weight:900!important;letter-spacing:0!important;
+    text-align:center!important;margin:0!important;
+    box-shadow:0 2px 5px rgba(0,0,0,.12);
+  }
+  .hrms-dd-table ._hrmsMcBar{
+    grid-row:4!important;grid-column:1 / -1!important;
+    background:#f8fafc!important;border-top:1px dashed #e2e8f0!important;
+    padding:5px 6px 3px!important;white-space:normal!important;
+    text-align:left!important;line-height:1.1
+  }
+  /* Empty-state row spans the full card width. */
+  .hrms-dd-table table tr td[colspan]{grid-column:1 / -1!important;text-align:center!important;padding:14px 8px!important}
+}
+@media (max-width: 480px){
+  /* On the smallest phones, drop the date-selector buttons inline so
+     the row wraps cleanly. */
+  #pageHrmsUtilDailyAtt #hrmsDasHistDate{font-size:12px;padding:4px 6px}
+  /* Plant tiles shrink slightly so two-per-row works on 360px. */
+  #hrmsDasTwBody button[style*="height:42px"]{width:60px;height:38px}
+}
+/* Advances sub-tab — panel fills its parent and contains its own scroll
+   inside the table wrapper so the page itself doesn't get a second
+   vertical scrollbar. Inline display:none (set on inactive panels) wins
+   over this rule, so other sub-tabs stay block-level. */
+#hrmsSetPanelAdvances{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+#hrmsSetPanelAdvances #hrmsAdvGrid{display:flex;flex-direction:column;flex:1;min-height:0}
+#pageHrmsEmpEdit input,#pageHrmsEmpEdit select,#pageHrmsEmpEdit label,#pageHrmsEmpEdit .form-group{font-size:14px!important}
+#pageHrmsEmpEdit #hrmsEmpPeriodBody input,#pageHrmsEmpEdit #hrmsEmpPeriodBody select{font-size:13px!important}
+#hrmsEmpPeriodBody input[type="month"]{font-size:11px!important;padding:1px 0!important;min-width:0!important;width:100%!important;text-align:left!important}
+#hrmsEmpPeriodBody input[type="month"]::-webkit-calendar-picker-indicator{padding:0;margin:0 0 0 1px;opacity:.6;width:12px;height:12px}
+#hrmsEmpPeriodBody input[type="month"]::-webkit-inner-spin-button,#hrmsEmpPeriodBody input[type="month"]::-webkit-clear-button{display:none}
+@keyframes hrmsFlash{0%,100%{border-color:#f59e0b}50%{border-color:#dc2626}}
+.hrms-changed{border:2px solid #f59e0b!important;animation:hrmsFlash 1s infinite!important;background:#fefce8!important}
+/* Unified Attendance & Salary tab styling — shared by main tabs,
+   settings sub-tabs, attendance sub-tabs, and My Approvals sub-tabs.
+   Selected state uses an accent-light fill + bold accent text + thick
+   accent underline so the active tab is unambiguously highlighted. */
+.hrms-att-tab,
+.hrms-settings-tab,
+.hrms-main-tab,
+.hrms-approval-subtab{
+  padding:8px 16px!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  font-family:inherit!important;
+  border:none!important;
+  border-bottom:3px solid transparent!important;
+  background:transparent!important;
+  color:var(--text3)!important;
+  cursor:pointer!important;
+  border-radius:6px 6px 0 0!important;
+  transition:background-color 0.15s, color 0.15s, border-color 0.15s!important;
+}
+.hrms-att-tab:hover,
+.hrms-settings-tab:hover,
+.hrms-main-tab:hover,
+.hrms-approval-subtab:hover{
+  background:rgba(124,58,237,0.06)!important;
+  color:var(--accent)!important;
+}
+.hrms-att-tab.active,
+.hrms-settings-tab.active,
+.hrms-main-tab.active,
+.hrms-approval-subtab.active{
+  background:var(--accent-light)!important;
+  color:var(--accent)!important;
+  border-bottom:3px solid var(--accent)!important;
+  font-weight:900!important;
+  box-shadow:inset 0 -3px 0 var(--accent)!important;
+}
+/* Shared table wrapper for every My Approvals sub-tab. The max-height
+   keeps the table scrolling INSIDE the wrapper rather than letting the
+   panel grow indefinitely — operator can scan a long list without
+   losing the page header. Sticky <th> stays pinned via inline rules
+   set by each renderer. */
+.hrms-appr-table-wrap{
+  max-height:calc(100vh - 360px);
+  min-height:200px;
+  overflow:auto;
+  border:1.5px solid var(--border);
+  border-radius:8px;
+  background:#fff;
+}
+/* Pending-count chip layered onto every approvals sub-tab button. The
+   neutral total chip + red pending chip are siblings inside each tab
+   span — the renderer toggles their content + visibility. */
+.hrms-appr-count-total{
+  display:inline-block;
+  font-size:10px;
+  background:#94a3b8;
+  color:#fff;
+  padding:1px 6px;
+  border-radius:10px;
+  font-weight:700;
+  margin-left:4px;
+}
+.hrms-appr-count-pending{
+  display:inline-block;
+  font-size:10px;
+  background:#dc2626;
+  color:#fff;
+  padding:1px 6px;
+  border-radius:10px;
+  font-weight:700;
+  margin-left:3px;
+}
+/* When the selected month is locked, grey-out and click-block any
+   mutating controls inside Settings and the Attendance sub-tabs.
+   Sub-tab navigation, filter selects, search inputs and the lock /
+   unlock buttons themselves remain enabled (allow-list below). */
+#pageHrmsAttSal.hrms-month-locked button:not(.hrms-att-tab):not(.hrms-settings-tab):not(.hrms-allow-locked):not([id="btnUnlock"]):not([id="btnSaveLock"]):not([id^="hrmsAttEtf"]):not([id="hrmsMainTabSettings"]):not([id="hrmsMainTabAttendance"]):not([id="hrmsMainTabSalary"]):not([id="hrmsMainTabPayments"]):not([id="hrmsMainTabEsipf"]):not([id="hrmsMainTabPt"]):not([id="hrmsMainTabContract"]),
+#pageHrmsAttSal.hrms-month-locked input:not([type="search"]):not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked select:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked textarea:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked label.btn:not(.hrms-allow-locked),
+#pageHrmsAttSal.hrms-month-locked label[for]:has(input[type="file"]):not(.hrms-allow-locked){
+  opacity:0.5!important;pointer-events:none!important;cursor:not-allowed!important;
+}
+/* Print Muster panel is read/print-only and edits print-format
+   templates (global config, not month data). Locking should never
+   disable its controls — override the section above so every form
+   element inside #hrmsAttTabPrintformats stays interactive on locked
+   months without needing per-element .hrms-allow-locked tags. */
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats button,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats input,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats select,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats textarea,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats label.btn,
+#pageHrmsAttSal.hrms-month-locked #hrmsAttTabPrintformats label[for]:has(input[type="file"]){
+  opacity:1!important;pointer-events:auto!important;cursor:auto!important;
+}
+.no-spin::-webkit-outer-spin-button,.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.no-spin{-moz-appearance:textfield}
+/* Advances tab — advance input where the amount came from an Excel
+   import (vs. manually-entered). Amber tint signals "fetched, not
+   typed" so the operator can spot import-driven values at a glance. */
+.hrms-adv-imported{background:#fef3c7!important;border-color:#f59e0b!important;color:#92400e!important;font-weight:800}
+/* Mandatory-field accent on the Employee Details modal. Soft red
+   left bar + matching outline so required inputs read as "fill me"
+   without being noisy. The * in the label still carries the same
+   colour. */
+.hrms-required input,.hrms-required select,.hrms-required textarea,
+input.hrms-required,select.hrms-required,textarea.hrms-required{
+  border-left:3px solid #dc2626!important;
+  box-shadow:inset 1px 0 0 #fee2e2;
+}
+/* Standard HRMS search-box style (matches the Salary-tab search). Used
+   across all standalone search inputs so they share the same look. */
+.hrms-search{font-size:13px;padding:6px 12px;border:2px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text)}
+/* Inline variant for column-header filter inputs — keeps the same
+   font / colour / radius but constrained to the cell width and a
+   thinner border so the row isn't visually heavy. */
+.hrms-search-inline{font-size:13px;padding:4px 8px;border:1.5px solid var(--accent);border-radius:6px;font-family:var(--sans);background:#fff;color:var(--text);width:100%;box-sizing:border-box}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+.btn{padding:8px 16px;border-radius:var(--radius);font-weight:700;cursor:pointer;font-size:13px;border:1.5px solid var(--border);background:var(--surface);transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface2);color:var(--text2);border-color:var(--border2)}
+.btn-danger{background:#dc2626;color:#fff;border-color:#dc2626}
+.form-group{margin-bottom:12px}.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border:1.5px solid #475569;font-size:13px}
+/* Per-plant Allocation Comparison table — light slate hairlines as
+   the default cell border. Inline styles can override individual
+   sides for the dark header / footer / group dividers. */
+.hrms-das-plant-tbl th,.hrms-das-plant-tbl td{border:1px solid #e2e8f0}
+th{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;background:#f8fafc;position:sticky;top:0;z-index:1}
+/* Plant / Category / Emp Type masters — header text in black (instead
+   of the muted slate-300 default) so the column labels read clearly. */
+#pageHrmsMCompany table th,#pageHrmsMCategory table th,#pageHrmsMEmpType table th{color:#000}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.badge-green{background:#dcfce7;color:#16a34a}.badge-red{background:#fee2e2;color:#dc2626}.badge-yellow{background:#fef3c7;color:#92400e}
+.empty-state{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;width:95vw;max-width:600px;padding:20px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-title{font-size:18px;font-weight:900}
+.modal-close{font-size:28px;cursor:pointer;color:var(--text3);line-height:1}
+.modal-error{color:#dc2626;font-size:12px;font-weight:700;margin-bottom:8px;display:none}

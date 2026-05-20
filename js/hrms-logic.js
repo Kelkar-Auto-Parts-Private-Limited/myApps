@@ -1,0 +1,773 @@
+/** @file HRMS pure logic functions — salary, attendance, statutory calculations. No DOM access.
+ *  @depends common.js
+ */
+
+// ═══ PERIOD / MONTH HELPERS ═══
+
+/**
+ * Convert YYYY-MM string to short label like "Jan 25".
+ * @param {string} ym - Month key in YYYY-MM format
+ * @returns {string} Formatted label or "Till date" if falsy
+ */
+function _hrmsMonthLabel(ym){
+  if(!ym) return 'Till date';
+  var parts=ym.split('-');var mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return mon[parseInt(parts[1])-1]+' '+parts[0].slice(-2);
+}
+/**
+ * Get the current month as YYYY-MM string.
+ * @returns {string} Current month in YYYY-MM format
+ */
+function _hrmsCurMonth(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');}
+/**
+ * Get the previous month relative to a given YYYY-MM string.
+ * @param {string} ym - Month key in YYYY-MM format
+ * @returns {string} Previous month in YYYY-MM format
+ */
+function _hrmsPrevMonth(ym){var d=new Date(ym+'-15');d.setMonth(d.getMonth()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+/**
+ * Oldest unlocked month — the earliest YYYY-MM in the att-index whose
+ * lock flag is OFF. Falls back to the previous month if no index data is
+ * loaded yet, and to current month if the previous month doesn't exist.
+ * Used as the floor for new-employee DOJ + first-revision month so a
+ * fresh add can never reach back into a month whose payroll has already
+ * been frozen.
+ * @returns {string} Oldest unlocked month in YYYY-MM format
+ */
+function _hrmsOldestUnlockedMonth(){
+  var idx=(typeof _hrmsAttMonthIndex!=='undefined'&&_hrmsAttMonthIndex)||[];
+  var sorted=idx.slice().sort(function(a,b){return String(a.monthKey||'').localeCompare(String(b.monthKey||''));});
+  for(var i=0;i<sorted.length;i++){
+    var mk=sorted[i].monthKey;
+    if(mk&&!(typeof _hrmsIsMonthLocked==='function'&&_hrmsIsMonthLocked(mk))) return mk;
+  }
+  // No index loaded — assume the previous calendar month is unlocked.
+  return _hrmsPrevMonth(_hrmsCurMonth());
+}
+/**
+ * Compute the first revision month for a new employee from their DOJ.
+ * Capped at current month (no future revisions); floored at the oldest
+ * unlocked month (so retroactive adds can't backdate into a locked
+ * payroll).
+ * @param {string} doj - YYYY-MM-DD
+ * @returns {string} YYYY-MM
+ */
+function _hrmsFirstRevMonthForNewEmp(doj){
+  var cur=_hrmsCurMonth();
+  var oldest=_hrmsOldestUnlockedMonth();
+  if(!doj) return cur;
+  var dojMk=String(doj).slice(0,7);
+  var picked=dojMk;
+  if(picked>cur) picked=cur;
+  if(picked<oldest) picked=oldest;
+  return picked;
+}
+
+/**
+ * Migrate legacy flat employee fields into a periods array.
+ * @param {Object} e - Employee record
+ * @returns {Array<Object>} Array of period objects
+ */
+function _hrmsMigratePeriods(e){
+  // If employee has no periods array, create one from flat fields (migration)
+  if(e.periods&&e.periods.length) return e.periods;
+  var p={from:'2025-01',to:null};
+  _PERIOD_FIELDS.forEach(function(f){p[f]=e[f]||'';});
+  if(typeof p.salaryDay==='string') p.salaryDay=parseFloat(p.salaryDay)||0;
+  if(typeof p.salaryMonth==='string') p.salaryMonth=parseFloat(p.salaryMonth)||0;
+  if(typeof p.specialAllowance==='string') p.specialAllowance=parseFloat(p.specialAllowance)||0;
+  return [p];
+}
+
+/**
+ * Return the currently active period from the global periods array.
+ * @returns {Object|null} Active period object or null
+ */
+function _hrmsGetActivePeriod(){return _hrmsEmpPeriods[_hrmsActivePeriodIdx]||_hrmsEmpPeriods[0]||null;}
+
+// ═══ ROLE CHECK ═══
+
+/**
+ * Check if the current user has the Super Admin role.
+ * @returns {boolean} True if current user is Super Admin
+ */
+function _hrmsIsSA(){return CU&&((CU.hrmsRoles||[]).indexOf('Super Admin')>=0||(CU.roles||[]).indexOf('Super Admin')>=0);}
+function _hrmsIsHRM(){return _hrmsIsSA()||CU&&(CU.hrmsRoles||[]).indexOf('HR Manager')>=0;}
+
+// ═══ PERMISSIONS ═════════════════════════════════════════════════════════
+var _hrmsPermissions=null;
+
+function _hrmsLoadPermissions(){
+  var rec=(DB.appSettings||[]).find(function(r){return r.key==='rolePermissions';});
+  var all=(rec&&rec.data)||{};
+  var hrms=all.HRMS||{};
+  _hrmsPermissions=hrms.permissions||{};
+}
+
+function _hrmsHasAccess(featureKey){
+  if(_hrmsIsSA()) return true;
+  // Tab-level collapse: some action keys (Export Salary, Worker Slip
+  // PDF, Export Payments, Export ESI/PF, Export PT) used to live as
+  // separate Access Management entries. They've been folded into the
+  // parent tab so admin only configures the tab. Full on the tab
+  // grants the action; View or None does not. The map is consulted
+  // here so existing call sites (_hrmsHasAccess('action.exportSalary')
+  // etc.) keep working unchanged.
+  var _tabCollapsedActs={
+    'action.exportSalary':'tab.salary',
+    'action.exportWorkerSlip':'tab.salary',
+    'action.exportPayments':'tab.payments',
+    'action.exportEsiPf':'tab.esipf',
+    'action.exportPt':'tab.pt',
+    'action.exportContract':'tab.contract',
+    // Settings & Data sub-tab → action collapse.
+    'action.importEssl':'settings.esslatt',
+    'action.importAlterations':'settings.altimport',
+    'action.importOB':'settings.manual',
+    'action.importAdvances':'settings.advances',
+    'action.editCalendar':'settings.calendar',
+    'action.bulkSalRevision':'settings.salrevision',
+    'action.proposeContractRev':'page.contractRev',
+    'action.editStatutory':'settings.statutory',
+    // Org Structure edit gate collapsed onto the page.orgStructure
+    // tri-state — Full grants both view + edit, View is read-only.
+    'org.edit':'page.orgStructure'
+  };
+  if(_tabCollapsedActs[featureKey]){
+    return (typeof permLevel==='function')
+      ? permLevel('HRMS', _tabCollapsedActs[featureKey])==='full'
+      : false;
+  }
+  // Access Management is the single source of truth. The earlier
+  // hardcoded auto-grants for Contractor Supervisor / Department Head
+  // (page.utilDailyAttSum / page.utilities / tab.das.teamwise /
+  // tab.das.deptdetails) were removed so admin-set None is actually
+  // honoured. CS and DH must be granted via Access Management now,
+  // and their built-in defaults under HRMS Admin / Super Admin still
+  // bypass this gate via the module-admin/Super-Admin checks above.
+  if(typeof permConfigured==='function'&&permConfigured('HRMS')){
+    // Action keys AND edit-level keys require Full (not View). View-level on
+    // an action-like key means "no action allowed". e.g. masters.edit set
+    // to View by admin should not permit editing masters; org.edit follows
+    // the same pattern — admin can grant View on the Org Structure page
+    // (so the user can see the tree) without granting editability.
+    if(/^action\./.test(featureKey)||featureKey==='masters.edit'||featureKey==='org.edit'){
+      return typeof permCanAct==='function'&&permCanAct('HRMS',featureKey);
+    }
+    return typeof permCanView==='function'&&permCanView('HRMS',featureKey);
+  }
+  // No permissions configured yet for any of this user's HRMS roles —
+  // fall back to role-based defaults so privileged roles aren't blank-
+  // screened before admin opts into Role Settings.
+  if(!CU) return false;
+  var roles=CU.hrmsRoles||[];
+  if(roles.indexOf('HR Manager')>=0) return true;
+  if(roles.indexOf('Employee')>=0){
+    // Employee role has NO default HRMS access — admin must explicitly
+    // grant access via Configure Access. Returning false here means a
+    // freshly-created Employee user with no permissions configured for
+    // the Employee role sees nothing in HRMS until the admin opts them
+    // in. My Approvals is still auto-revealed for users whose org-
+    // structure role is manager / plant_head / hr_manager (handled in
+    // _hrmsEnforcePermissions independently of this gate).
+    return false;
+  }
+  // Any other custom role: honour the legacy boolean store if populated.
+  if(!_hrmsPermissions) return false;
+  for(var i=0;i<roles.length;i++){
+    var rp=_hrmsPermissions[roles[i]];
+    if(rp&&rp[featureKey]===true) return true;
+  }
+  return false;
+}
+
+// Debug helper — run from the browser console to trace why a user
+// can or can't see the Daily Attendance Summary tabs. Logs the
+// current user, their roles, the auto-grant inputs, and the access
+// decision for each relevant permission key.
+function _hrmsDebugAccess(){
+  try{
+    var u=(typeof CU!=='undefined')?CU:null;
+    console.group('HRMS access debug');
+    console.log('CU =',u);
+    console.log('CU.id =',u&&u.id);
+    console.log('CU.name =',u&&(u.fullName||u.name));
+    console.log('CU.hrmsRoles =',u&&u.hrmsRoles);
+    console.log('CU.roles =',u&&u.roles);
+    var sa=(typeof _hrmsIsSA==='function')&&_hrmsIsSA();
+    console.log('_hrmsIsSA() =',sa);
+    var roles=(u&&u.hrmsRoles)||[];
+    console.log('Has Department Head role =',roles.indexOf('Department Head')>=0);
+    console.log('Has Contractor Supervisor role =',roles.indexOf('Contractor Supervisor')>=0);
+    console.log('Has HR Manager role =',roles.indexOf('HR Manager')>=0);
+    console.log('Has HRMS Admin role =',roles.indexOf('HRMS Admin')>=0);
+    var dhMap=(typeof _hrmsGetDeptHeadMap==='function')?_hrmsGetDeptHeadMap():{};
+    console.log('Dept head map =',dhMap);
+    var mappedDepts=[];
+    Object.keys(dhMap||{}).forEach(function(did){
+      var v=dhMap[did];
+      var hit=Array.isArray(v)?(v.indexOf(u&&u.id)>=0):(v===(u&&u.id));
+      if(hit) mappedDepts.push(did);
+    });
+    console.log('Depts mapped to this user =',mappedDepts);
+    var keys=['page.utilities','page.utilDailyAttSum','tab.das.manpower','tab.das.deptdetails','tab.das.teamwise','tab.das.absentlist','tab.das.rolegrouping','tab.das.alloc'];
+    keys.forEach(function(k){
+      console.log('_hrmsHasAccess('+k+') =',_hrmsHasAccess(k));
+    });
+    console.log('permConfigured(HRMS) =',(typeof permConfigured==='function')?permConfigured('HRMS'):'(not loaded)');
+    var dhScope=(typeof _hrmsDeptHeadScope==='function')?_hrmsDeptHeadScope():null;
+    console.log('_hrmsDeptHeadScope() =',dhScope);
+    console.log('Tab btn — deptdetails =',document.getElementById('hrmsDasTabBtn_deptdetails'));
+    var btn=document.getElementById('hrmsDasTabBtn_deptdetails');
+    if(btn) console.log('Tab btn deptdetails display =',btn.style.display||'(default)');
+    console.groupEnd();
+  }catch(e){console.error('debug failed',e);}
+}
+
+// HRMS_PERMISSION_KEYS now defined in portal-ui.js (_PERM_KEYS.HRMS) and shared at runtime
+
+// ═══ DATA SANITIZATION ═══
+
+/**
+ * Strip newlines and trim whitespace from all string fields in periods.
+ * @param {Array<Object>} periods - Array of period objects to sanitize
+ * @returns {void}
+ */
+function _hrmsSanitizePeriods(periods){
+  (periods||[]).forEach(function(p){
+    Object.keys(p).forEach(function(k){
+      if(typeof p[k]==='string'&&k!=='_wfStatus'&&k!=='_ecrResult') p[k]=p[k].replace(/[\r\n]+/g,' ').trim();
+    });
+  });
+}
+
+// ═══ SALARY-MONTHS DATA MODEL ═══════════════════════════════════════════
+// Per-employee snapshot of org+salary fields keyed by month ('YYYY-MM').
+// Replaces the period range model: each entry holds the active fields for
+// that month plus an optional `pending` change awaiting approval. Periods
+// remain on the record as the migration source-of-truth and approval log.
+
+// Migration window starts at Jan-26 (when this model went live). For
+// employees who joined later, expansion starts at the DOJ month instead.
+var _HRMS_SAL_MONTHS_START='2026-01';
+
+function _hrmsCoverMatch(p,mk){
+  var pFrom=String(p&&p.from||'').slice(0,7);
+  var pTo=p&&p.to?String(p.to).slice(0,7):'';
+  if(!pFrom) return false;
+  return pFrom<=mk&&(!pTo||pTo>=mk);
+}
+
+// Find the period covering month `mk` for an employee. Approved periods
+// win; falls back to a `proposed` period if no approved period covers it.
+// Returns null when no period covers the month.
+function _hrmsFindCoveringPeriod(emp,mk){
+  var periods=(emp&&emp.periods||[]).slice().sort(function(a,b){
+    return String(b.from||'').slice(0,7).localeCompare(String(a.from||'').slice(0,7));
+  });
+  for(var i=0;i<periods.length;i++){
+    var p=periods[i];
+    if((!p._wfStatus||p._wfStatus==='approved')&&_hrmsCoverMatch(p,mk)) return p;
+  }
+  for(var j=0;j<periods.length;j++){
+    if(periods[j]._wfStatus==='proposed'&&_hrmsCoverMatch(periods[j],mk)) return periods[j];
+  }
+  return null;
+}
+
+// Iterate month keys from `startMk` (inclusive) to `endMk` (inclusive) in
+// ascending order. Both bounds are 'YYYY-MM' strings.
+function _hrmsMonthKeysBetween(startMk,endMk){
+  var out=[];
+  if(!startMk||!endMk||startMk>endMk) return out;
+  var sp=startMk.split('-');var ep=endMk.split('-');
+  var y=+sp[0],m=+sp[1],ey=+ep[0],em=+ep[1];
+  while(y<ey||(y===ey&&m<=em)){
+    out.push(y+'-'+String(m).padStart(2,'0'));
+    m++;if(m>12){m=1;y++;}
+  }
+  return out;
+}
+
+// Latest month-key currently registered in the Att&Sal index, or null when
+// nothing is loaded yet. Caller is responsible for fetching the index when
+// needed (boot path runs _hrmsAttFetchIndex before opening the modal).
+function _hrmsLatestSystemMonth(){
+  if(typeof _hrmsAttMonthIndex==='undefined'||!_hrmsAttMonthIndex) return null;
+  if(!_hrmsAttMonthIndex.length) return null;
+  // _hrmsAttMonthIndex is sorted descending — first entry is latest.
+  return _hrmsAttMonthIndex[0].monthKey||null;
+}
+
+// Resolve the start month for `emp`: the earliest month the employee has
+// any record for (period or DOJ), clamped to no earlier than
+// _HRMS_SAL_MONTHS_START. Using the earliest period's `from` rather than
+// just DOJ is critical for rejoin cases — when an employee resigns and
+// rejoins, dateOfJoining gets overwritten with the rejoin month, but
+// emp.periods[] still carries the original (Jan-26) entry.
+function _hrmsSalaryMonthsStart(emp){
+  var earliest=null;
+  if(emp&&Array.isArray(emp.periods)){
+    emp.periods.forEach(function(p){
+      if(!p||p._wfStatus==='rejected') return;
+      var f=String(p.from||'').slice(0,7);
+      if(f&&(!earliest||f<earliest)) earliest=f;
+    });
+  }
+  if(!earliest) earliest=String(emp&&emp.dateOfJoining||'').slice(0,7);
+  if(!earliest) return _HRMS_SAL_MONTHS_START;
+  return earliest>_HRMS_SAL_MONTHS_START?earliest:_HRMS_SAL_MONTHS_START;
+}
+
+// Build the per-month snapshot from the active period at `mk`. Returns null
+// when no period covers the month.
+function _hrmsSnapshotFromPeriod(emp,mk){
+  var p=_hrmsFindCoveringPeriod(emp,mk);
+  if(!p) return null;
+  var snap={};
+  for(var i=0;i<_PERIOD_FIELDS.length;i++){
+    var f=_PERIOD_FIELDS[i];
+    snap[f]=(p[f]==null?'':p[f]);
+  }
+  // esiApplicable lives outside _PERIOD_FIELDS in hrms-logic.js; carry it.
+  if(p.esiApplicable!=null) snap.esiApplicable=p.esiApplicable;
+  return snap;
+}
+
+// Populate `emp.salaryMonths` for every month from the employee's earliest
+// period start (clamped to Jan-26) through `endMk` (inclusive). Months
+// where no period covers are LEFT BLANK — that's the desired behaviour
+// for rejoin gaps (employee resigned, then rejoined later). Existing
+// entries are preserved — this is idempotent and safe to call repeatedly.
+function _hrmsExpandPeriodsToMonths(emp,endMk){
+  if(!emp) return {};
+  if(!emp.salaryMonths||typeof emp.salaryMonths!=='object') emp.salaryMonths={};
+  var startMk=_hrmsSalaryMonthsStart(emp);
+  var end=endMk||_hrmsLatestSystemMonth();
+  if(!end||end<startMk) return emp.salaryMonths;
+  var keys=_hrmsMonthKeysBetween(startMk,end);
+  for(var i=0;i<keys.length;i++){
+    var mk=keys[i];
+    if(emp.salaryMonths[mk]) continue;// preserve any user-edited snapshot
+    var snap=_hrmsSnapshotFromPeriod(emp,mk);
+    if(snap) emp.salaryMonths[mk]=snap;
+  }
+  return emp.salaryMonths;
+}
+
+// Return the active org+salary values for `emp` at month `mk`. Prefers the
+// salaryMonths snapshot when present; falls back to the period lookup so
+// callers work during the rollout before every employee has been migrated.
+// `pending` changes are NOT merged — readers see the approved values.
+function _hrmsGetSalaryMonth(emp,mk){
+  if(!emp||!mk) return null;
+  if(emp.salaryMonths&&emp.salaryMonths[mk]){
+    var s=emp.salaryMonths[mk];
+    // Strip pending so callers can't accidentally read proposed values.
+    if(s.pending){
+      var clean={};Object.keys(s).forEach(function(k){if(k!=='pending') clean[k]=s[k];});
+      return clean;
+    }
+    return s;
+  }
+  return _hrmsFindCoveringPeriod(emp,mk);
+}
+
+// ═══ DATE / TIME FORMATTING ═══
+
+/**
+ * Format an ISO date string as DD-Mon-YY (e.g. "09-Apr-26").
+ * @param {string} s - ISO date string
+ * @returns {string} Formatted date or dash if invalid
+ */
+function _hrmsFmtDate(s){
+  if(!s) return '—';
+  var d=new Date(s.length===10?s+'T00:00:00':s);
+  if(isNaN(d.getTime())) return s;
+  return String(d.getDate()).padStart(2,'0')+'-'+_MON3[d.getMonth()+1]+'-'+String(d.getFullYear()).slice(-2);
+}
+
+/**
+ * Determine the day type (WD/WO/holiday) for a given date and plant.
+ * @param {string} monthKey - Month key in YYYY-MM format
+ * @param {number} day - Day of month
+ * @param {number} yr - Year
+ * @param {number} mo - Month (1-12)
+ * @param {string} plant - Plant identifier
+ * @returns {string} Day type code (e.g. "WD", "WO")
+ */
+function _hrmsGetDayType(monthKey,day,yr,mo,plant){
+  var key=String(day);
+  if(plant){
+    var rec=(DB.hrmsDayTypes||[]).find(function(r){return r.monthKey===monthKey&&r.plant===plant;});
+    if(rec&&rec.dayTypes&&rec.dayTypes[key]) return rec.dayTypes[key];
+  }
+  var d=new Date(yr,mo-1,day);
+  return d.getDay()===0?'WO':'WD';
+}
+
+// ═══ TIME PARSING & ROUNDING ═══
+
+/**
+ * Parse a time string (HH:MM or HH:MM:SS with optional AM/PM) to minutes since midnight.
+ * @param {string} t - Time string
+ * @returns {number|null} Minutes since midnight, or null if invalid
+ */
+function _hrmsParseTime(t){
+  if(!t)return null;
+  t=t.toString().trim();
+  var m=t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+  if(!m)return null;
+  var hr=+m[1],min=+m[2];
+  if(m[4]){
+    var ap=m[4].toUpperCase();
+    if(ap==='PM'&&hr<12) hr+=12;
+    if(ap==='AM'&&hr===12) hr=0;
+  }
+  return hr*60+min;
+}
+
+/**
+ * Convert minutes since midnight to HH:MM string.
+ * @param {number} mins - Minutes since midnight
+ * @returns {string} Formatted time string or empty if null
+ */
+function _hrmsMinToTime(mins){
+  if(mins===null||mins===undefined)return'';
+  var h=Math.floor(mins/60),m=mins%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+
+/**
+ * Round IN-punch time to nearest shift boundary or 15-minute interval.
+ * @param {number|null} mins - Minutes since midnight
+ * @returns {number|null} Rounded minutes or null
+ */
+// Rounding rules for IN time
+function _hrmsRoundIn(mins){
+  if(mins===null)return null;
+  // 7:40-8:10 → 8:00
+  if(mins>=460&&mins<=490) return 480;
+  // 8:40-9:10 → 9:00
+  if(mins>=520&&mins<=550) return 540;
+  // 18:40-19:10 → 19:00
+  if(mins>=1120&&mins<=1150) return 1140;
+  // Default: round to nearest 15 min
+  return Math.round(mins/15)*15;
+}
+
+/**
+ * Round OUT-punch time to nearest shift boundary or 15-minute interval.
+ * @param {number|null} mins - Minutes since midnight
+ * @returns {number|null} Rounded minutes or null
+ */
+// Rounding rules for OUT time
+function _hrmsRoundOut(mins){
+  if(mins===null)return null;
+  // 8:00-8:20 → 8:00
+  if(mins>=480&&mins<=500) return 480;
+  // 16:30-16:50 → 16:30
+  if(mins>=990&&mins<=1010) return 990;
+  // 18:00-18:20 → 18:00
+  if(mins>=1080&&mins<=1100) return 1080;
+  // 19:00-19:20 → 19:00
+  if(mins>=1140&&mins<=1160) return 1140;
+  // Default: round to nearest 15 min
+  return Math.round(mins/15)*15;
+}
+
+// ═══ ALTERATION APPROVAL ═══
+/**
+ * Returns the alteration object only if it is effective (approved).
+ * Legacy records without an `approved` field are treated as approved.
+ * Records with `approved===false` are pending and should NOT override attendance.
+ * @param {Object|null} alt - alteration day object
+ * @returns {Object|null} alt if effective, null otherwise
+ */
+function _hrmsEffectiveAlt(alt){
+  if(!alt) return null;
+  if(alt.approved===false) return null;
+  return alt;
+}
+
+// ═══ OT FORMATTING ═══
+
+/**
+ * Format OT hours preserving 0.25 hr precision.
+ * 3.75 → "3.75", 3.5 → "3.5", 3 → "3", 8.25 → "8.25".
+ * @param {number} v - OT hours value
+ * @returns {string} Formatted string without trailing zeros
+ */
+function _hrmsFmtOT(v){
+  if(!v) return '0';
+  // Round to nearest 0.25 first to clean up floating-point noise (e.g. 3.7499999)
+  var r=Math.round(v*4)/4;
+  // Then format with up to 2 decimals, drop trailing zeros
+  return r.toFixed(2).replace(/\.?0+$/,'');
+}
+
+// ═══ PRINT / PDF HELPERS ═══
+
+/**
+ * Get the list of available HRMS print formats from the database.
+ * @returns {Array<Object>} Array of print format objects
+ */
+function _hrmsGetPrintFormats(){
+  return DB.hrmsPrintFormats||[];
+}
+
+/**
+ * Build a jsPDF-autoTable column styles object from an array of widths.
+ * @param {Array<number>} widths - Column widths
+ * @returns {Object} Column styles keyed by column index
+ */
+function _hrmsColStyles(widths){
+  var s={};
+  for(var i=0;i<widths.length;i++) s[i]={cellWidth:widths[i]};
+  return s;
+}
+
+/**
+ * Convert a hex color string to an RGB array.
+ * @param {string} hex - Hex color (e.g. "#e2e8f0" or "e2e8f0")
+ * @returns {Array<number>} [r, g, b] values 0-255
+ */
+function _hexToRgb(hex){
+  hex=(hex||'#e2e8f0').replace('#','');
+  if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  return[parseInt(hex.substring(0,2),16),parseInt(hex.substring(2,4),16),parseInt(hex.substring(4,6),16)];
+}
+
+// ═══ TRANSPORT ALLOWANCE ═══
+
+/**
+ * Calculate pro-rated Transport Allowance for the month.
+ * Formula: (TA rate / Working Days) × Present Days
+ * @param {number} taRate - Monthly transport allowance rate
+ * @param {number} wd - Total working days in the month
+ * @param {number} pDays - Number of days the employee was present
+ * @returns {number} Pro-rated transport allowance (rounded to nearest rupee)
+ */
+function _hrmsCalcTA(taRate, wd, pDays) {
+  if (!taRate || !wd || wd <= 0) return 0;
+  return Math.round((taRate / wd) * (pDays || 0));
+}
+
+// ═══ STATUTORY — PT CALCULATION ═══
+
+/**
+ * Calculate Professional Tax based on gross salary, gender, and month.
+ * @param {number} gross - Gross salary amount
+ * @param {string} gender - "Male" or "Female"
+ * @param {string} month - Month identifier for month-specific rules
+ * @returns {number} PT amount (0 if exempt or no matching rule)
+ */
+// PT calc: rules evaluated top-to-bottom, first match wins
+function _hrmsCalcPT(gross,gender,month){
+  var rules=_hrmsStatutory.ptRules||[];
+  var mo=(month||'').toLowerCase();
+  var gen=(gender||'').toLowerCase();
+  // Pass 1: gender-specific rules (highest priority — e.g. women exemption)
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];
+    if(!r.gender) continue;
+    if(r.gender.toLowerCase()!==gen) continue;
+    if(r.month&&r.month.toLowerCase()!==mo) continue;
+    var match=false;
+    if(r.op==='lt') match=gross<r.threshold;
+    else if(r.op==='gte') match=gross>=r.threshold;
+    if(match) return r.amount;
+  }
+  // Pass 2: month-specific rules (e.g. Feb surcharge)
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];
+    if(r.gender) continue;
+    if(!r.month) continue;
+    if(r.month.toLowerCase()!==mo) continue;
+    var match=false;
+    if(r.op==='lt') match=gross<r.threshold;
+    else if(r.op==='gte') match=gross>=r.threshold;
+    if(match) return r.amount;
+  }
+  // Pass 3: generic rules
+  for(var i=0;i<rules.length;i++){
+    var r=rules[i];
+    if(r.gender||r.month) continue;
+    var match=false;
+    if(r.op==='lt') match=gross<r.threshold;
+    else if(r.op==='gte') match=gross>=r.threshold;
+    if(match) return r.amount;
+  }
+  return 0;
+}
+
+// ═══ BALANCE HELPERS ═══
+
+/**
+ * Get PL/advance balance for an employee in a given month.
+ * @param {Object} emp - Employee record
+ * @param {string} monthKey - Month key in YYYY-MM format
+ * @returns {Object} Balance object with plOB, plCB, advOB, advCB
+ */
+function _hrmsGetBal(emp,monthKey){
+  var ex=emp.extra||{};var bal=ex.bal||{};
+  return bal[monthKey]||{plOB:0,plCB:0,advOB:0,advCB:0};
+}
+
+/**
+ * Get the previous month key from a YYYY-MM string.
+ * @param {string} mk - Month key in YYYY-MM format
+ * @returns {string} Previous month in YYYY-MM format
+ */
+function _hrmsGetPrevMonth(mk){
+  var p=mk.split('-');var yr=+p[0],mo=+p[1];
+  mo--;if(mo<1){mo=12;yr--;}
+  return yr+'-'+String(mo).padStart(2,'0');
+}
+
+/**
+ * Get opening balances (PL and advance) for an employee in a given month.
+ * @param {Object} emp - Employee record
+ * @param {string} mk - Month key in YYYY-MM format
+ * @returns {Object} Opening balances {plOB, advOB}
+ */
+function _hrmsGetEmpOB(emp,mk){
+  // For Jan 2026 use imported OB, else use previous month's CB
+  if(mk==='2026-01'){
+    var ex=emp.extra||{};
+    return {plOB:+(ex.plOB||0).toFixed(2),advOB:Math.round(ex.advOB||0)};
+  }
+  var prev=_hrmsGetPrevMonth(mk);
+  var prevBal=_hrmsGetBal(emp,prev);
+  return {plOB:+(prevBal.plCB||0).toFixed(2),advOB:Math.round(prevBal.advCB||0)};
+}
+
+// ═══ PAID LEAVE ALLOCATION (FY April–March) ═══
+
+/**
+ * Calculate the confirmation date (1 day before completing 3 months from DOJ).
+ * @param {Object} emp - Employee record with dateOfJoining
+ * @returns {Date|null} Confirmation date or null if no DOJ
+ */
+// Confirmation date = 1 day prior to completing 3 calendar months from joining
+// e.g. DOJ 8-Sep-25 → 8-Dec-25 - 1 day = 7-Dec-25
+function _hrmsGetConfirmationDate(emp){
+  var doj=emp.dateOfJoining;
+  if(!doj) return null;
+  var d=new Date(doj.length===10?doj+'T00:00:00':doj);
+  if(isNaN(d.getTime())) return null;
+  d.setMonth(d.getMonth()+3);
+  d.setDate(d.getDate()-1);
+  return d;
+}
+
+/**
+ * Calculate months since confirmation, rounded to nearest 0.5 (MROUND).
+ * @param {Object} emp - Employee record
+ * @param {number} yr - Salary year
+ * @param {number} mo - Salary month (1-12)
+ * @returns {number} Months since confirmation or -1 if not yet confirmed
+ */
+// Months since confirmation: fractional based on day, rounded to nearest 0.5 (MROUND 0.5)
+// e.g. conf 9-Dec-25, salary Jan-26: whole=1, frac=23/31=0.74 → total=1.74 → mround=1.5
+function _hrmsMonthsSinceConfirmation(emp,yr,mo){
+  var conf=_hrmsGetConfirmationDate(emp);
+  if(!conf) return -1;
+  // Last day of salary month
+  var salEnd=new Date(yr,mo,0);// e.g. Jan-26 → 31-Jan-2026
+  if(salEnd<conf) return -1;
+  // Count whole calendar months: conf date to same date of next month = 1 month
+  // e.g. 24-Sep to 24-Oct = 1 month, 24-Oct to 24-Nov = 2 months
+  var wholeMonths=(salEnd.getFullYear()-conf.getFullYear())*12+(salEnd.getMonth()-conf.getMonth());
+  // If salEnd day < conf day, we haven't completed the current month
+  if(salEnd.getDate()<conf.getDate()) wholeMonths--;
+  // Fraction: remaining days after last whole month boundary
+  var lastBoundary=new Date(conf.getFullYear(),conf.getMonth()+wholeMonths,conf.getDate());
+  var nextBoundary=new Date(conf.getFullYear(),conf.getMonth()+wholeMonths+1,conf.getDate());
+  var daysInPeriod=(nextBoundary.getTime()-lastBoundary.getTime())/(1000*60*60*24);
+  var daysElapsed=(salEnd.getTime()-lastBoundary.getTime())/(1000*60*60*24);
+  var frac=daysInPeriod>0?daysElapsed/daysInPeriod:0;
+  var total=wholeMonths+frac;
+  return Math.round(total*2)/2;// MROUND to nearest 0.5
+}
+
+/**
+ * Get the FY start year for a given month (April-March financial year).
+ * @param {number} yr - Year
+ * @param {number} mo - Month (1-12)
+ * @returns {number} FY start year
+ */
+// FY start year for a given month (Apr-Mar FY)
+function _hrmsFYStart(yr,mo){ return mo>=4?yr:yr-1; }
+
+/**
+ * Calculate monthly PL accrual for an employee in a given salary month.
+ * @param {Object} emp - Employee record
+ * @param {number} yr - Salary year
+ * @param {number} mo - Salary month (1-12)
+ * @returns {number} PL days accrued this month
+ */
+// Calculate monthly PL accrual for this salary month
+function _hrmsCalcPLGiven(emp,yr,mo){
+  var conf=_hrmsGetConfirmationDate(emp);
+  if(!conf) return 0;
+  // PL eligibility starts month AFTER confirmation
+  var eligYr=conf.getFullYear(),eligMo=conf.getMonth()+2;// +1 for 0-based, +1 for month after
+  if(eligMo>12){eligMo-=12;eligYr++;}
+  // Not eligible yet this month
+  if(yr<eligYr||(yr===eligYr&&mo<eligMo)) return 0;
+
+  var s=_hrmsStatutory;
+  var isStaff=(emp.category||'').toLowerCase()==='staff';
+  var monthsSinceConf=_hrmsMonthsSinceConfirmation(emp,yr,mo);
+
+  var seniorThreshold=s.plSeniorMonths||60;
+  if(isStaff&&monthsSinceConf>=seniorThreshold){
+    // Senior staff: 18 PL given in the month they hit 60 months, then 0 monthly
+    // Check if this is the exact month they crossed the threshold
+    var prevMonthsSince=_hrmsMonthsSinceConfirmation(emp,mo===1?yr-1:yr,mo===1?12:mo-1);
+    if(prevMonthsSince<seniorThreshold) return s.plStaffSenior||18;// crossing month
+    return 0;// already crossed in a previous month
+  }
+  return isStaff?(s.plStaffJunior||1.5):(s.plWorker||1.5);
+}
+
+/**
+ * Calculate cumulative PL available from FY start through a given salary month.
+ * @param {Object} emp - Employee record
+ * @param {number} yr - Salary year
+ * @param {number} mo - Salary month (1-12)
+ * @returns {number} Cumulative PL days available
+ */
+// Cumulative PL earned from FY start (or confirmation) through salary month
+// FY is April–March. PL accrual starts from month AFTER confirmation or FY April, whichever is later.
+// Example: confirmed before Apr 2025, salary Jan 2026 → 10 months × 1.5 = 15
+// Example: confirmed Oct 2025, salary Jan 2026 → 3 months (Nov,Dec,Jan) × 1.5 = 4.5
+function _hrmsCumPLAvail(emp,yr,mo){
+  var conf=_hrmsGetConfirmationDate(emp);
+  if(!conf) return 0;
+  // Month after confirmation (eligibility start)
+  var eligYr=conf.getFullYear(),eligMo=conf.getMonth()+2;
+  if(eligMo>12){eligMo-=12;eligYr++;}
+  // FY start (April)
+  var fyYr=_hrmsFYStart(yr,mo);
+  var fyStart=fyYr*12+4;// April of FY
+  var eligStart=eligYr*12+eligMo;
+  var effectiveStart=Math.max(fyStart,eligStart);
+  var current=yr*12+mo;
+  if(current<effectiveStart) return 0;
+
+  var s=_hrmsStatutory;
+  var isStaff=(emp.category||'').toLowerCase()==='staff';
+  var monthsSinceConf=_hrmsMonthsSinceConfirmation(emp,yr,mo);
+  var seniorThreshold=s.plSeniorMonths||60;
+
+  if(isStaff&&monthsSinceConf>=seniorThreshold){
+    // Senior staff: 18 PL for the year (from the month they crossed 60)
+    return s.plStaffSenior||18;
+  }
+  // Monthly accrual: count eligible months × rate
+  var months=current-effectiveStart+1;// inclusive
+  var rate=isStaff?(s.plStaffJunior||1.5):(s.plWorker||1.5);
+  return months*rate;
+}
