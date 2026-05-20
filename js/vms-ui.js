@@ -444,11 +444,47 @@ async function _loadOlderData(localTbl,extraDays){
   }catch(e){console.warn('_loadOlderData error:',e.message);return 0;}
   finally{hideSpinner();}
 }
+// V10 (260520) — Mobile memory mitigations. On narrow viewports the
+// trip list pages render in chunks instead of one giant innerHTML
+// blast, and an extra recency cap (default 21 d) keeps a stale cache
+// from inflating the DOM after several days. _vmsIsMobile is a soft
+// signal — not a device sniff — based on viewport width so a desktop
+// user shrinking their window also gets the lighter render path.
+function _vmsIsMobile(){
+  try{ return (window.innerWidth||0)<=900; }catch(e){ return false; }
+}
+var _VMS_MOBILE_TRIP_CAP_DAYS=21;
+function _vmsMobileTripCutoff(){
+  var d=new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate()-_VMS_MOBILE_TRIP_CAP_DAYS);
+  var pad=function(n){return String(n).padStart(2,'0');};
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+// Pagination state for the two heavy trip lists. _mt = My Trips (TB),
+// _dt = Dashboard Trip Details. Initial render shows _xxPageSize; the
+// 'Show more' button bumps the count by another page. Filter changes
+// reset the count via the filter-signature check inside each render.
+var _mtPageSize=40, _mtShownCount=40, _mtLastFilterSig='';
+var _dtPageSize=40, _dtShownCount=40, _dtLastFilterSig='';
+function _vmsShowMoreMyTrips(){
+  _mtShownCount+=_mtPageSize;
+  if(typeof renderMyTrips==='function') renderMyTrips();
+}
+function _vmsShowMoreDashTrips(){
+  _dtShownCount+=_dtPageSize;
+  if(typeof renderDashTrips==='function') renderDashTrips();
+}
+
 var _PHOTO_PRESERVE={
   'spotTrips':['challanPhoto','driverPhoto','entryVehiclePhoto','exitVehiclePhoto'],
-  // challans1/2/3 hold base64 photos and are excluded from the boot select —
-  // preserve any locally-loaded copies so realtime/bgSync don't wipe them.
-  'trips':['photo1','photo2','photo3','challans1','challans2','challans3'],
+  // V10 (260520) — challans1/2/3 dropped from preserve. They're arrays
+  // of base64 photos (often 2-5 MB per trip) and were accumulating in
+  // heap session-long once viewed. Now they get re-fetched on demand
+  // when the user opens that trip's challans again — better than
+  // holding multi-MB blobs on a mobile heap. photo1/2/3 (single
+  // photos, ~500 KB each) stay preserved since they're shown in the
+  // collapsed trip card and would flicker without preservation.
+  'trips':['photo1','photo2','photo3'],
   // V90 — users.photo + drivers.photo are stripped from sync; preserve
   // anything loaded on-demand via _loadPhotos so subsequent syncs don't wipe.
   'users':['photo'],
@@ -2408,6 +2444,12 @@ function renderDashTrips(){
   const _dtSrch=(document.getElementById('dashTripSearch')?.value||'').toLowerCase();
   const isSA=CU.roles.includes('Super Admin')||CU.roles.includes('VMS Admin');
 
+  // V10 (260520) — Mobile recency cap: even if the cached DB still
+  // carries trips beyond the boot-time 31-day window (cache survives
+  // navigation), the rendered list on mobile is clipped to the last
+  // 21 days unless the user is actively searching by ID. Search
+  // bypasses the cap so old trips can still be located by ID.
+  var _dtMobCutoff=_vmsIsMobile()?_vmsMobileTripCutoff():'';
   // All trips in date range accessible to user
   let trips2=DB.trips.filter(t=>{
     if(!isSA){
@@ -2420,17 +2462,32 @@ function renderDashTrips(){
     const d=(t.date||'').slice(0,10);
     if(from&&d<from)return false;
     if(to&&d>to)return false;
+    if(_dtMobCutoff&&d<_dtMobCutoff) return false;
     return true;
   }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   if(!trips2.length){el.innerHTML='<div class="empty-state">No trips in selected period</div>';return;}
 
-  // Eager-load step photos for visible dashboard trip cards — seg.steps photo
-  // fields are stripped at boot (steps_light) and wouldn't otherwise render.
+  // V10 (260520) — Pagination: render only the first _dtShownCount.
+  // Filter signature reset preserves the count across non-filter
+  // re-renders (realtime, sync) but resets to the first page when the
+  // user actually changes a filter input. Show-more button below.
+  var _dtFilterSig=(from||'')+'|'+(to||'')+'|'+(_dtSrch||'')+'|'+(_dtMobCutoff||'');
+  if(_dtFilterSig!==_dtLastFilterSig){
+    _dtShownCount=_dtPageSize;
+    _dtLastFilterSig=_dtFilterSig;
+  }
+  var _dtTotalCount=trips2.length;
+  var trips2All=trips2;
+  trips2=trips2.slice(0, _dtShownCount);
+
+  // V10 (260520) — Eager step-photo load deferred via setTimeout(0)
+  // so the initial render paints first. Photo load triggers
+  // _onRefreshViews when complete, which repaints with real images.
   try{
     var _dtVisIds={};trips2.forEach(function(t){_dtVisIds[t.id]=1;});
     var _dtSegsAll=(DB.segments||[]).filter(function(s){return s&&_dtVisIds[s.tripId];});
-    _ensureStepPhotosForList(_dtSegsAll);
+    setTimeout(function(){ try{ _ensureStepPhotosForList(_dtSegsAll); }catch(_){} }, 0);
   }catch(e){}
 
   const thumbD=(src,label,clr)=>{
@@ -2540,6 +2597,15 @@ function renderDashTrips(){
       </div>
     </div>`;
   }).join('');
+  // V10 (260520) — Pagination footer. Append a Show-more button when
+  // there are more trips beyond the currently-shown window.
+  if(_dtTotalCount>trips2.length){
+    var _dtRem=_dtTotalCount-trips2.length;
+    el.insertAdjacentHTML('beforeend',
+      '<div style="display:flex;justify-content:center;padding:12px 0">'+
+        '<button type="button" onclick="_vmsShowMoreDashTrips()" style="font-size:13px;font-weight:800;padding:8px 18px;border:1.5px solid var(--accent);background:#fff;color:var(--accent);border-radius:8px;cursor:pointer">▼ Show more ('+_dtRem+' remaining)</button>'+
+      '</div>');
+  }
   // Re-expand cards that were open before the re-render
   _openTids.forEach(tid=>{
     const card=el.querySelector('[data-tid="'+tid+'"]');
@@ -4422,22 +4488,37 @@ function renderMyTrips(){
   // this, trips like "6P2-116" that have no vehicle but pre-date the
   // window were invisible on TB and only surfaced on MR / TA.
   const tbSearch=(document.getElementById('tbTripSearch')?.value||'').toLowerCase();
+  // V10 (260520) — Mobile 21-day cap. Search bypasses the cap so old
+  // trips can still be located by ID. Date-range filter still applies
+  // for both cases.
+  var _mtMobCutoff=(!tbSearch&&_vmsIsMobile())?_vmsMobileTripCutoff():'';
   if(tbSearch){
     trips=trips.filter(t=>(t.id||'').toLowerCase().includes(tbSearch));
   } else {
     if(fromVal)trips=trips.filter(t=>(t.date||'').slice(0,10)>=fromVal);
     if(toVal)trips=trips.filter(t=>(t.date||'').slice(0,10)<=toVal);
+    if(_mtMobCutoff) trips=trips.filter(t=>(t.date||'').slice(0,10)>=_mtMobCutoff);
   }
   // Sort by date descending (newest first)
   trips.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-  // Eager-load step photos for visible trips — photos are stripped at boot
-  // (steps_light) and only populate on card-open otherwise, so the collapsed
-  // row would show an empty slot even for a done Gate Exit.
+  // V10 (260520) — Pagination: render only the first _mtShownCount.
+  var _mtFilterSig=(fromVal||'')+'|'+(toVal||'')+'|'+(tbSearch||'')+'|'+(_mtMobCutoff||'');
+  if(_mtFilterSig!==_mtLastFilterSig){
+    _mtShownCount=_mtPageSize;
+    _mtLastFilterSig=_mtFilterSig;
+  }
+  var _mtTotalCount=trips.length;
+  var tripsAll=trips;
+  trips=trips.slice(0, _mtShownCount);
+
+  // V10 (260520) — Eager step-photo load deferred to setTimeout(0) so
+  // the initial render paints first. The fetch completion triggers
+  // _onRefreshViews → next render shows the photos.
   try{
     var _mtTripIds={};trips.forEach(function(t){_mtTripIds[t.id]=1;});
     var _mtSegs=(DB.segments||[]).filter(function(s){return s&&_mtTripIds[s.tripId];});
-    _ensureStepPhotosForList(_mtSegs);
+    setTimeout(function(){ try{ _ensureStepPhotosForList(_mtSegs); }catch(_){} }, 0);
   }catch(e){}
 
   const rows=trips.map(t=>{
@@ -4660,7 +4741,16 @@ function renderMyTrips(){
       </div>
     </div>`;
   }).join('');
-  document.getElementById('myTripBody').innerHTML=rows||'<div class="empty-state">No trips in selected period</div>';
+  // V10 (260520) — Append Show-more footer when more trips remain
+  // beyond the currently-shown window.
+  var _mtFooter='';
+  if(_mtTotalCount>trips.length){
+    var _mtRem=_mtTotalCount-trips.length;
+    _mtFooter='<div style="display:flex;justify-content:center;padding:12px 0">'+
+      '<button type="button" onclick="_vmsShowMoreMyTrips()" style="font-size:13px;font-weight:800;padding:8px 18px;border:1.5px solid var(--accent);background:#fff;color:var(--accent);border-radius:8px;cursor:pointer">▼ Show more ('+_mtRem+' remaining)</button>'+
+    '</div>';
+  }
+  document.getElementById('myTripBody').innerHTML=(rows+_mtFooter)||'<div class="empty-state">No trips in selected period</div>';
   // Re-open cards that were expanded before re-render
   _expanded.forEach(tid=>{
     const el=document.getElementById('myTrip_'+tid);

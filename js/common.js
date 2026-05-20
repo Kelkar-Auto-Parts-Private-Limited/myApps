@@ -1247,11 +1247,15 @@ function _rtApply(tbl, action, row){
 // Debounced realtime refresh — collapses rapid events into one render.
 // Only re-renders the CURRENTLY ACTIVE page (not every page at once),
 // and skips entirely if a modal is open (user is interacting).
+// V10 (260520) — Debounce bumped 200 ms → 500 ms. Gate-rush bursts
+// (≥10 segment updates in <1 s) were triggering as many full
+// re-renders, each rebuilding the entire trips DOM. 500 ms collapses
+// the burst into a single render without making the UI feel stale.
 var _rtRefreshTimers = {};
 function _rtRefreshFor(tbl){
   // Badges are always cheap — update immediately
   try{ if(typeof updBadges==='function') updBadges(); }catch(e){}
-  // Debounce the expensive page render per table (200ms)
+  // Debounce the expensive page render per table (500ms — see V10 note).
   clearTimeout(_rtRefreshTimers[tbl]);
   _rtRefreshTimers[tbl] = setTimeout(function(){
     try{
@@ -1331,7 +1335,7 @@ function _rtRefreshFor(tbl){
         }
       }
     }catch(e){ console.warn('_rtRefreshFor error ['+tbl+']:', e.message); }
-  }, 200);
+  }, 500);
 }
 
 // ── Refresh all UI elements that display current user info ──────────────────
@@ -5391,7 +5395,24 @@ function _gateAppAccess(appId){
 // every 2 min) so a hard refresh after long idle still finds a recent
 // cache. Includes _watermarks per table so the post-cache revalidation
 // can do incremental delta fetches via `.gt('updated_at', watermark)`.
+// V10 (260520) — Defer the boot-cache write off the critical path.
+// JSON.stringify on the full DB briefly doubles heap, which was the
+// dominant source of "unable to complete previous operation due to
+// low memory" crashes on iOS Safari. requestIdleCallback lets the
+// browser pick a moment when GC has settled; setTimeout fallback for
+// Safari versions that don't expose rIC. The scheduled flag coalesces
+// back-to-back callers (e.g. bgSync + hot poll firing within ms).
+var _writeBootCacheScheduled=false;
 function _writeBootCache(){
+  if(_writeBootCacheScheduled) return;
+  _writeBootCacheScheduled=true;
+  var run=function(){ _writeBootCacheScheduled=false; try{ _writeBootCacheImpl(); }catch(e){ try{ console.warn('_writeBootCache deferred:',e&&e.message); }catch(_){} } };
+  if(typeof requestIdleCallback==='function'){
+    try{ requestIdleCallback(run, {timeout:3000}); return; }catch(_){}
+  }
+  setTimeout(run, 0);
+}
+function _writeBootCacheImpl(){
   try{
     if(typeof DB==='undefined' || typeof _getActiveTables!=='function') return;
     if(!DB.users || !DB.users.length) return; // nothing meaningful to cache yet
