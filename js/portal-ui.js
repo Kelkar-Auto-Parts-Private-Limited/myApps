@@ -912,9 +912,18 @@ function openApp(id,file){
     return;
   }
   if(!_sbReady||!_sb){_navigateTo(file+'?app='+id);return;}
-  // Pre-fetch ALL tables with 4s timeout
+  // 260520-V4 — Pre-fetch ONLY the chosen app's tables (via
+  // _BK_APP_TABLES) instead of every table the platform knows about.
+  // Previously this pulled vms_segments.steps (full base64 photos),
+  // hwms_invoices.* and hwms_payment_receipts.* on every Portal
+  // navigation regardless of which tile was clicked — observed
+  // ~565 MB per session on one user. Now a tile click only pre-warms
+  // ~10-15 tables relevant to that app. Unknown app id (e.g. a new
+  // module added without a backup map entry) falls back to the old
+  // all-tables behaviour so prefetch still functions.
   showSpinner('Loading '+id+'…');
-  var allTables=DB_TABLES;
+  var appDef=(typeof _BK_APP_TABLES!=='undefined')?_BK_APP_TABLES[id]:null;
+  var allTables=(appDef&&Array.isArray(appDef.tables)&&appDef.tables.length)?appDef.tables:DB_TABLES;
   var fetchDone=false;
   var timeout=setTimeout(function(){
     if(fetchDone) return;
@@ -3000,7 +3009,9 @@ async function _egressLoadAllUsers(){
         a.tables[r.table_name].b+=(r.bytes||0);
       }
     });
-    var fmt=function(n){if(!n||n<1024)return (n||0)+' B';if(n<1024*1024)return (n/1024).toFixed(1)+' KB';return (n/1024/1024).toFixed(2)+' MB';};
+    // 260520-V2 — Helper page now reports egress in MB/GB only,
+    // rounded to nearest integer (sub-0.5 MB rows round to "0 MB").
+    var fmt=function(n){var v=Number(n)||0;var mb=v/1024/1024;if(mb>=1024)return Math.round(mb/1024)+' GB';return Math.round(mb)+' MB';};
     var fmtTs=function(iso){
       if(!iso) return '—';
       var d=new Date(iso); if(isNaN(d.getTime())) return iso;
@@ -3084,10 +3095,13 @@ function renderPortalHelper(){
   var el=document.getElementById('helperContent');
   if(!el) return;
   var _eg=window._egressStats||{};
+  // 260520-V2 — Session widget mirrors the All Users widget: MB/GB
+  // rounded to nearest integer (sub-0.5 MB values round to "0 MB").
   var _egFmt=function(n){
-    if(!n||n<1024) return (n||0)+' B';
-    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
-    return (n/1024/1024).toFixed(2)+' MB';
+    var v=Number(n)||0;
+    var mb=v/1024/1024;
+    if(mb>=1024) return Math.round(mb/1024)+' GB';
+    return Math.round(mb)+' MB';
   };
   var _egEntries=Object.entries(_eg).sort(function(a,b){return (b[1].bytes||0)-(a[1].bytes||0);});
   var _egTotalBytes=_egEntries.reduce(function(s,e){return s+(e[1].bytes||0);},0);

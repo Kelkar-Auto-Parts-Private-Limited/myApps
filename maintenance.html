@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="app-build" content="260519-V51">
+<meta name="app-build" content="260520-V9">
 <title>KAP Maintenance Ticket Tracking System (MTTS)</title>
-<link rel="stylesheet" href="css/mtts.css?v=260519-V51">
+<link rel="stylesheet" href="css/mtts.css?v=260520-V9">
 </head>
 <body style="display:none">
 
@@ -16,30 +16,32 @@
 </div>
 <div class="notification" id="notification"></div>
 
-<!-- Top bar (always visible) -->
+<!-- Top bar (always visible) — 260520-V9: avatar widget on the right
+     mirroring VMS. Avatar shows photo if available, initials otherwise.
+     The legacy #mttsTopbarUser text span is kept as a hidden placeholder
+     so any code path that writes to it doesn't break. -->
 <div class="mtts-topbar" id="mttsTopbar">
   <button class="mtts-topbar-ham" onclick="toggleMttsNav()" title="Toggle menu">☰</button>
   <div id="mttsPageTitle" style="font-size:15px;font-weight:800;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">MTTS</div>
   <button class="mtts-topbar-refresh" onclick="_mttsManualRefresh()" title="Reload data from server">🔄 <span class="mtts-topbar-refresh-lbl">Refresh</span></button>
-  <span id="mttsTopbarUser" style="font-size:12px;font-weight:700;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-  <span id="mttsStatusDot" style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block;flex-shrink:0"></span>
+  <span id="mttsTopbarUser" style="display:none"></span>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0">
+    <span id="mttsStatusDot" style="width:8px;height:8px;border-radius:50%;background:#d1d5db;display:inline-block;flex-shrink:0"></span>
+    <div id="mttsTopbarAvatar" title="Profile" style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;overflow:hidden;border:1.5px solid rgba(0,0,0,.08);cursor:default">👤</div>
+  </div>
 </div>
 <div class="mtts-overlay" id="mttsOverlay" onclick="closeMttsNav()"></div>
 
-<!-- Sidebar -->
+<!-- Sidebar — 260520-V9: top-left KAP logo + "Maintenance Management
+     System" title (mirrors VMS sidebar-logo). User details block removed
+     — avatar now lives in the topbar. Hidden placeholders for the legacy
+     #mttsAvatar / #mttsUserFullName / #mttsUserRole IDs so existing JS
+     that writes to them stays functional. -->
 <div class="mtts-sidebar" id="mttsSidebar">
-  <div class="brand" style="padding:10px 14px;border-bottom:1px solid var(--border)">
-    <div><h3 style="font-size:13px;font-weight:800;line-height:1.2">🔧 Maintenance Ticket Tracking System</h3><div style="font-size:10px;color:var(--text3);margin-top:2px">MTTS · Asset & Breakdown Ops</div></div>
-  </div>
-  <div style="border-bottom:1px solid var(--border);padding:10px 14px">
-    <div style="display:flex;align-items:center;gap:9px">
-      <div id="mttsAvatar" style="width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0;overflow:hidden">👤</div>
-      <div style="flex:1;min-width:0">
-        <div id="mttsUserFullName" style="font-size:12px;font-weight:700;color:#1a2033;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-        <div id="mttsUserRole" style="font-size:10px;color:#64748b;margin-top:1px"></div>
-      </div>
-    </div>
-  </div>
+  <div class="sidebar-logo"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='6' fill='%232a9aa0'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='system-ui' font-size='16' font-weight='800' fill='white'%3EKAP%3C/text%3E%3C/svg%3E" alt="KAP"><div class="logo-text"><h2>Maintenance Management System</h2></div></div>
+  <span id="mttsAvatar" style="display:none"></span>
+  <span id="mttsUserFullName" style="display:none"></span>
+  <span id="mttsUserRole" style="display:none"></span>
   <div class="mtts-nav-item" onclick="_navigateTo('index.html')" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;margin:8px 10px;padding:10px 14px;border-radius:8px;font-weight:900;font-size:14px;border:none;cursor:pointer">🏠 My Apps</div>
   <div class="mtts-nav-sec">OVERVIEW</div>
   <div class="mtts-nav-item" id="nMttsDashboard" onclick="mttsGo('pageMttsDashboard')">📊 Dashboard</div>
@@ -699,7 +701,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" id="sbCDN"></script>
-<script src="js/common.js?v=260519-V51"></script>
-<script src="js/mtts-ui.js?v=260519-V51"></script>
+<script src="js/common.js?v=260520-V9"></script>
+<script src="js/mtts-ui.js?v=260520-V9"></script>
 </body>
 </html>

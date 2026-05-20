@@ -119,6 +119,26 @@ async function _mttsLoadAssetHistory(id){
   }
 })();
 
+// V8 (260520) — Topbar avatar renderer: writes the user's photo if
+// loaded, otherwise the first 1-2 initials of fullName/name.
+// Idempotent — call again after a photo load to swap in the image.
+function _mttsRenderTopbarAvatar(){
+  if(!CU) return;
+  var av=document.getElementById('mttsTopbarAvatar');
+  if(!av) return;
+  if(CU.photo){
+    av.innerHTML='<img src="'+String(CU.photo).replace(/"/g,'&quot;')+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+    av.style.background='transparent';
+    return;
+  }
+  var initials=(CU.fullName||CU.name||'').trim().split(/\s+/).map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase()||'👤';
+  av.style.background='linear-gradient(135deg,#2563eb,#7c3aed)';
+  av.style.color='#fff';
+  av.style.fontWeight='900';
+  av.style.fontSize=initials.length>1?'13px':'15px';
+  av.textContent=initials;
+}
+
 function _mttsLaunch(){
   // V9 — Boot IIFE no longer flips body to visible; it's done here so the
   // page only paints once #mttsApp is ready and the (legacy) blue splash
@@ -131,14 +151,16 @@ function _mttsLaunch(){
   try{
     console.log('[mtts launch] user='+(CU&&CU.name)+' platRoles='+JSON.stringify(CU&&CU.roles||[])+' mttsRoles='+JSON.stringify(CU&&CU.mttsRoles||[])+' apps='+JSON.stringify(CU&&CU.apps||[])+' isSA='+_mttsIsSA()+' isMttsAdmin='+_mttsIsMttsAdmin()+' isManager='+_mttsIsManager()+' page.dashboard='+_mttsHasAccess('page.dashboard'));
   }catch(_){}
-  // Avatar / name
+  // V8 (260520) — Avatar rendering: writes the user's photo (if loaded)
+  // or initials to the new topbar avatar widget. The sidebar IDs are
+  // now hidden placeholders — written for legacy compatibility only.
+  _mttsRenderTopbarAvatar();
   var av=document.getElementById('mttsAvatar');
   var nm=document.getElementById('mttsUserFullName');
   var rl=document.getElementById('mttsUserRole');
   if(av) av.textContent=(CU.fullName||CU.name||'?').slice(0,1).toUpperCase();
   if(nm) nm.textContent=CU.fullName||CU.name||'';
   if(rl) rl.textContent=((CU.mttsRoles||[]).join(' · '))||((CU.roles||[]).indexOf('Super Admin')>=0?'Super Admin':'—');
-  // Mirror name to the topbar so it stays visible when the sidebar is hidden.
   var tbu=document.getElementById('mttsTopbarUser');
   if(tbu) tbu.textContent=CU.fullName||CU.name||'';
   _mttsEnforcePermissions();
@@ -148,6 +170,9 @@ function _mttsLaunch(){
   // boot-time access and shows tabs the user no longer can open.
   _onCurrentUserUpdated=function(){
     try{ _mttsEnforcePermissions(); }catch(_){}
+    // V8 (260520) — Refresh topbar avatar so an updated photo / name
+    // taken from a fresh DB.users record shows immediately.
+    try{ _mttsRenderTopbarAvatar(); }catch(_){}
     // If the user lost access to the currently-active page, route them
     // somewhere safe (or to the no-access shell).
     try{
@@ -2337,10 +2362,14 @@ function _mttsRenderTickets(){
       if(_mttsIsSA()&&!_mttsCanEditTicket(t)){
         sideAct+='<button class="mtts-tcard-iconbtn is-del" onclick="'+stop+'_mttsTicketDelete(\''+idEsc+'\')" title="Delete ticket and history (Super Admin)" aria-label="Delete ticket">🗑</button>';
       }
-      // V36 (260518) — Screenshot button: copies the ticket card as a
-      // PNG image to the user's clipboard, so they can paste it into
-      // WhatsApp / email / etc. Always visible on every card.
-      sideAct+='<button class="mtts-tcard-iconbtn mtts-tcard-screencap" onclick="'+stop+'_mttsTicketCopyCardImage(this,\''+idEsc+'\')" title="Copy card as image" aria-label="Copy card as image" style="border-color:#a5b4fc;color:#4338ca;background:#eef2ff">📋</button>';
+      // V1 (260520) — Share button (replaces Copy): renders the card as
+      // a PNG and opens the OS share sheet via Web Share API so the
+      // user can send it to WhatsApp / email / any installed app.
+      // Falls back to clipboard copy where Web Share with files is
+      // unsupported (typical on desktop browsers). V3 swaps the emoji
+      // for the standard iOS-style share glyph for cross-platform
+      // recognition. Always visible on every card.
+      sideAct+='<button class="mtts-tcard-iconbtn mtts-tcard-screencap" onclick="'+stop+'_mttsTicketShareCardImage(this,\''+idEsc+'\')" title="Share card as image" aria-label="Share card as image" style="border-color:#a5b4fc;color:#4338ca;background:#eef2ff">'+_MTTS_SHARE_ICON_SVG+'</button>';
       var hasActions=!!(primaryAct||sideAct);
       // Build the card itself. Header line carries id + plant pill + asset
       // name (the three identifiers in reading order); priority chip is
@@ -3818,11 +3847,21 @@ function _mttsTicketEditOpen(id){
   _mttsTicketRaiseOpen(id);
 }
 
-// V36 (260518) — Copy a ticket card to the clipboard as a PNG image so
-// the user can paste it into WhatsApp / email / chat / etc. Renders
-// the card via html2canvas (lazy-loaded from CDN, same source HWMS
-// uses for its PDF export). Falls back to a plain-text copy if the
-// library can't load or ClipboardItem isn't available.
+// V3 (260520) — Standard share glyph used on the card share button
+// and the Confirm Update share button. V6 swaps the iOS box-with-
+// up-arrow for the Material/Android share icon: three nodes arranged
+// at the corners of a `<` (one left, two on the right) connected
+// by two lines — the universally recognized Android share affordance.
+var _MTTS_SHARE_ICON_SVG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:middle"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+
+// V36 (260518) — Render a ticket card to a PNG so the user can send
+// it to WhatsApp / email / any chat app. Uses html2canvas (lazy-
+// loaded from CDN, same source HWMS uses for its PDF export).
+// V1 (260520) — Card button now prefers the Web Share API
+// (navigator.share with files) so mobile users get the native share
+// sheet. Falls back to clipboard copy when Web Share with files
+// isn't available (typical on desktop browsers), and finally to
+// opening the PNG in a new tab.
 var _mttsTicketCopyLibsLoaded=false;
 async function _mttsLoadHtml2Canvas(){
   if(_mttsTicketCopyLibsLoaded && typeof html2canvas==='function') return true;
@@ -3839,20 +3878,20 @@ async function _mttsLoadHtml2Canvas(){
     return false;
   }
 }
-async function _mttsTicketCopyCardImage(btn, id){
+async function _mttsTicketShareCardImage(btn, id){
   var t=(DB.mttsTickets||[]).find(function(x){return x&&x.id===id;});
   if(!t){ notify('Ticket not found',true); return; }
   var cardEl=btn && btn.closest('.mtts-tcard');
   if(!cardEl){ notify('Card not found',true); return; }
-  // Visual feedback on the button while we work.
-  var origTxt=btn.textContent;
-  btn.disabled=true; btn.textContent='⏳';
+  // Visual feedback on the button while we work. V3 — preserve the
+  // share-icon SVG by swapping innerHTML (not textContent).
+  var origHtml=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='⏳';
   try{
     var ok=await _mttsLoadHtml2Canvas();
     if(!ok){ notify('⚠ Screenshot library failed to load — check internet',true); return; }
-    // Snapshot the card. backgroundColor:null preserves the card's
-    // own bg/plant stripe; scale:2 gives a crisp image for retina
-    // screens + smaller paste-targets.
+    // Snapshot the card. scale:2 gives a crisp image for retina
+    // screens + smaller share targets.
     var canvas=await html2canvas(cardEl,{
       backgroundColor:'#ffffff',
       scale:2,
@@ -3861,21 +3900,43 @@ async function _mttsTicketCopyCardImage(btn, id){
     });
     var blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
     if(!blob){ notify('⚠ Could not encode image',true); return; }
-    if(!navigator.clipboard || !window.ClipboardItem){
-      // Older browser fallback — open the PNG in a new tab so user
-      // can right-click → Copy Image manually.
-      var url=URL.createObjectURL(blob);
-      window.open(url,'_blank');
-      notify('Browser does not support clipboard image — opened in new tab',true);
-      return;
+    var fname='ticket-'+String(t.id||'card').replace(/[^A-Za-z0-9_-]/g,'_')+'.png';
+    var file=null;
+    try{ file=new File([blob],fname,{type:'image/png'}); }catch(_){ file=null; }
+    // Preferred path — Web Share API with files. Opens the OS share
+    // sheet (WhatsApp / Gmail / Drive / etc.) on Android Chrome,
+    // iOS Safari, and any desktop browser that advertises file
+    // share support.
+    if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file],title:'Ticket '+(t.id||''),text:'Ticket '+(t.id||'')});
+        notify('📤 Shared');
+        return;
+      }catch(e){
+        // AbortError = user cancelled the share sheet — silent exit.
+        if(e && (e.name==='AbortError' || /abort/i.test(String(e.message||'')))) return;
+        // Anything else — fall through to clipboard fallback below.
+        try{ console.warn('[mtts] share failed, falling back to clipboard',e); }catch(_){}
+      }
     }
-    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
-    notify('📋 Card copied to clipboard — paste anywhere');
+    // Fallback 1 — copy to clipboard so user can paste anywhere.
+    if(navigator.clipboard && window.ClipboardItem){
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        notify('📋 Sharing not supported here — copied to clipboard instead');
+        return;
+      }catch(e){ try{ console.warn('[mtts] clipboard fallback failed',e); }catch(_){} }
+    }
+    // Fallback 2 — open the PNG in a new tab so the user can save /
+    // share manually.
+    var url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    notify('Sharing & clipboard unavailable — opened image in new tab',true);
   }catch(e){
-    try{ console.warn('[mtts] copy card failed',e); }catch(_){}
-    notify('⚠ Copy failed: '+(e && e.message ? e.message : 'unknown'),true);
+    try{ console.warn('[mtts] share card failed',e); }catch(_){}
+    notify('⚠ Share failed: '+(e && e.message ? e.message : 'unknown'),true);
   }finally{
-    btn.disabled=false; btn.textContent=origTxt;
+    btn.disabled=false; btn.innerHTML=origHtml;
   }
 }
 
@@ -4531,7 +4592,7 @@ function _mttsTicketActionConfirm(){
       '</div>'+
       // Action row (excluded from screenshot)
       '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:2px">'+
-        '<button type="button" onclick="_mttsTicketActionConfirmCopy(this)" style="font-size:13px;padding:8px 14px;font-weight:800;background:#eef2ff;border:1.5px solid #a5b4fc;color:#4338ca;border-radius:6px;cursor:pointer">📋 Copy Screenshot</button>'+
+        '<button type="button" onclick="_mttsTicketActionConfirmShare(this)" style="font-size:13px;padding:8px 14px;font-weight:800;background:#eef2ff;border:1.5px solid #a5b4fc;color:#4338ca;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px">'+_MTTS_SHARE_ICON_SVG+'<span>Share</span></button>'+
         '<button type="button" onclick="_mttsTicketActionConfirmClose()" style="font-size:13px;padding:8px 14px;font-weight:800;background:#fff;border:1.5px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">Cancel</button>'+
         '<button type="button" onclick="_mttsTicketActionConfirmPost(this)" style="font-size:13px;padding:8px 16px;font-weight:900;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer">📤 Confirm Ticket Update</button>'+
       '</div>'+
@@ -4549,33 +4610,51 @@ function _mttsTicketActionConfirmClose(){
   if(ov._escH) try{ document.removeEventListener('keydown',ov._escH); }catch(_){}
   ov.remove();
 }
-async function _mttsTicketActionConfirmCopy(btn){
+async function _mttsTicketActionConfirmShare(btn){
   // V38 (260518) — Snapshot only the ticket card + update summary
   // (excludes the popup header and the Cancel / Post Update buttons
-  // so the copied image is just the shareable content).
+  // so the shared image is just the relevant content).
+  // V3 (260520) — Share-first flow mirroring the card button:
+  // navigator.share with files → clipboard copy → new-tab fallback.
   var box=document.getElementById('mttsActionConfirmContent');
-  if(!box){ notify('Nothing to copy',true); return; }
-  var origTxt=btn.textContent;
-  btn.disabled=true; btn.textContent='⏳';
+  if(!box){ notify('Nothing to share',true); return; }
+  var origHtml=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='⏳';
   try{
     var ok=await _mttsLoadHtml2Canvas();
     if(!ok){ notify('⚠ Screenshot library failed to load — check internet',true); return; }
     var canvas=await html2canvas(box,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false});
     var blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
     if(!blob){ notify('⚠ Could not encode image',true); return; }
-    if(!navigator.clipboard || !window.ClipboardItem){
-      var url=URL.createObjectURL(blob);
-      window.open(url,'_blank');
-      notify('Browser does not support clipboard image — opened in new tab',true);
-      return;
+    var ticketId=(document.getElementById('mttsTechActTicketId')||{}).value||'update';
+    var fname='ticket-'+String(ticketId).replace(/[^A-Za-z0-9_-]/g,'_')+'-update.png';
+    var file=null;
+    try{ file=new File([blob],fname,{type:'image/png'}); }catch(_){ file=null; }
+    if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file],title:'Ticket '+ticketId+' update',text:'Ticket '+ticketId+' update'});
+        notify('📤 Shared');
+        return;
+      }catch(e){
+        if(e && (e.name==='AbortError' || /abort/i.test(String(e.message||'')))) return;
+        try{ console.warn('[mtts] share failed, falling back to clipboard',e); }catch(_){}
+      }
     }
-    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
-    notify('📋 Update summary copied to clipboard');
+    if(navigator.clipboard && window.ClipboardItem){
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        notify('📋 Sharing not supported here — copied to clipboard instead');
+        return;
+      }catch(e){ try{ console.warn('[mtts] clipboard fallback failed',e); }catch(_){} }
+    }
+    var url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    notify('Sharing & clipboard unavailable — opened image in new tab',true);
   }catch(e){
-    try{ console.warn('[mtts] copy confirm failed',e); }catch(_){}
-    notify('⚠ Copy failed: '+(e && e.message ? e.message : 'unknown'),true);
+    try{ console.warn('[mtts] share confirm failed',e); }catch(_){}
+    notify('⚠ Share failed: '+(e && e.message ? e.message : 'unknown'),true);
   }finally{
-    btn.disabled=false; btn.textContent=origTxt;
+    btn.disabled=false; btn.innerHTML=origHtml;
   }
 }
 async function _mttsTicketActionConfirmPost(btn){
@@ -5341,6 +5420,7 @@ function _mttsLightbox(src){
 
 function _mttsTicketDetail(id){
   var t=byId(DB.mttsTickets||[],id);if(!t) return;
+  var idEsc=String(id).replace(/'/g,"\\'");
   // V38 — Boot strips the three photo arrays for speed; pull them in now so
   // the timeline shows raise / close / invoice photos. Re-renders the
   // overlay once the fetch lands (it's a no-op when already loaded).
@@ -5448,18 +5528,25 @@ function _mttsTicketDetail(id){
   // a wide blank gutter that read like an unused trailing column.
   var html='<div style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483646;padding:6px;overflow:auto" onclick="if(event.target===this)_mttsCloseTicketDetail()">'+
     '<div style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(900px,98vw);max-height:calc(100vh - 12px);overflow:auto;padding:12px 10px;position:relative">'+
+      // V7 (260520) — Share button alongside the ✕. Snapshots the
+      // detail panel (excludes the buttons themselves since they sit
+      // outside the mttsTicketDetailContent wrapper) and runs the
+      // share-first flow: Web Share API → clipboard → new-tab fallback.
+      '<button type="button" onclick="_mttsTicketDetailShare(this,\''+idEsc+'\')" aria-label="Share ticket details" title="Share ticket details" style="position:absolute;top:6px;right:34px;width:24px;height:24px;border:1.5px solid #a5b4fc;border-radius:50%;background:#eef2ff;color:#4338ca;cursor:pointer;line-height:1;box-shadow:0 1px 4px rgba(99,102,241,.25);display:flex;align-items:center;justify-content:center;z-index:1;padding:0">'+_MTTS_SHARE_ICON_SVG+'</button>'+
       '<button type="button" onclick="_mttsCloseTicketDetail()" aria-label="Close" title="Close (Esc)" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:900;cursor:pointer;line-height:1;box-shadow:0 1px 4px rgba(220,38,38,.4);display:flex;align-items:center;justify-content:center;z-index:1">✕</button>'+
-      '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-right:48px">🎫 Ticket Details</div>'+
-      // V34 — Ticket-card replica with full chrome (plant-colour stripe,
-      // status-tinted bg, owner corner-flag).
-      '<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+approvedBorder+';position:relative;cursor:default" onclick="event.stopPropagation()">'+
-        ownerFlagHtml+
-        summary+
+      '<div id="mttsTicketDetailContent">'+
+        '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-right:64px">🎫 Ticket Details</div>'+
+        // V34 — Ticket-card replica with full chrome (plant-colour stripe,
+        // status-tinted bg, owner corner-flag).
+        '<div class="mtts-tcard" style="--plant-color:'+plantColor+';background:'+cardBg+approvedBorder+';position:relative;cursor:default" onclick="event.stopPropagation()">'+
+          ownerFlagHtml+
+          summary+
+        '</div>'+
+        rootStrip+
+        costStrip+
+        '<div style="margin-top:14px;font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Activity</div>'+
+        '<div style="margin-top:6px">'+actHtml+'</div>'+
       '</div>'+
-      rootStrip+
-      costStrip+
-      '<div style="margin-top:14px;font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Activity</div>'+
-      '<div style="margin-top:6px">'+actHtml+'</div>'+
     '</div>'+
   '</div>';
   var ov=document.getElementById('mttsTicketDetailOverlay');
@@ -5493,6 +5580,63 @@ function _mttsCloseTicketDetail(){
   // was interfering with subsequent opens (second click failed to
   // re-show). The overlay stays independent of the back-button stack
   // for now; Esc + ✕ + outside-click still close it.
+}
+
+// V7 (260520) — Share the entire ticket detail panel (card + cost /
+// root-cause strips + activity timeline) as a PNG. If lazy-loaded
+// photos haven't landed yet, await them and re-render the overlay
+// so the snapshot includes the timeline thumbnails. Share-first
+// flow: navigator.share with files → clipboard → new-tab fallback.
+async function _mttsTicketDetailShare(btn, id){
+  var t=(DB.mttsTickets||[]).find(function(x){return x&&x.id===id;});
+  if(!t){ notify('Ticket not found',true); return; }
+  if(typeof _mttsLoadTicketPhotos==='function' && !_mttsLoadedTicketPhotos[id]){
+    btn.disabled=true; btn.innerHTML='⏳';
+    try{ await _mttsLoadTicketPhotos(id); }catch(_){}
+    try{ _mttsTicketDetail(id); }catch(_){}
+    var ov2=document.getElementById('mttsTicketDetailOverlay');
+    btn=ov2?ov2.querySelector('button[aria-label="Share ticket details"]'):null;
+    if(!btn){ return; }
+  }
+  var origHtml=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='⏳';
+  try{
+    var box=document.getElementById('mttsTicketDetailContent');
+    if(!box){ notify('Nothing to share',true); return; }
+    var ok=await _mttsLoadHtml2Canvas();
+    if(!ok){ notify('⚠ Screenshot library failed to load — check internet',true); return; }
+    var canvas=await html2canvas(box,{backgroundColor:'#ffffff',scale:2,useCORS:true,logging:false});
+    var blob=await new Promise(function(res){ canvas.toBlob(res,'image/png'); });
+    if(!blob){ notify('⚠ Could not encode image',true); return; }
+    var fname='ticket-'+String(t.id||'detail').replace(/[^A-Za-z0-9_-]/g,'_')+'-details.png';
+    var file=null;
+    try{ file=new File([blob],fname,{type:'image/png'}); }catch(_){ file=null; }
+    if(file && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file],title:'Ticket '+(t.id||'')+' details',text:'Ticket '+(t.id||'')+' details'});
+        notify('📤 Shared');
+        return;
+      }catch(e){
+        if(e && (e.name==='AbortError' || /abort/i.test(String(e.message||'')))) return;
+        try{ console.warn('[mtts] share failed, falling back to clipboard',e); }catch(_){}
+      }
+    }
+    if(navigator.clipboard && window.ClipboardItem){
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        notify('📋 Sharing not supported here — copied to clipboard instead');
+        return;
+      }catch(e){ try{ console.warn('[mtts] clipboard fallback failed',e); }catch(_){} }
+    }
+    var url=URL.createObjectURL(blob);
+    window.open(url,'_blank');
+    notify('Sharing & clipboard unavailable — opened image in new tab',true);
+  }catch(e){
+    try{ console.warn('[mtts] share detail failed',e); }catch(_){}
+    notify('⚠ Share failed: '+(e && e.message ? e.message : 'unknown'),true);
+  }finally{
+    if(btn){ btn.disabled=false; btn.innerHTML=origHtml; }
+  }
 }
 
 
@@ -5583,6 +5727,15 @@ function _mttsShortAssetLabel(name){
 // the dashboard widget still applies when set.
 var _mttsDashHpDate='';// 'YYYY-MM-DD'; '' = today
 function _mttsDashHpSetDate(v){_mttsDashHpDate=v||'';_mttsDashboardRender();}
+// V8 (260520) — Per-plant criticality filter for the Asset Status panel.
+// Each plant card has H/M/L buttons; clicking one swaps the chip grid
+// to assets of that criticality at that plant. Default = 'High' for
+// every plant (matches the prior HP-only behaviour on first render).
+var _mttsDashAssetStatusPrio={};
+function _mttsDashSetAssetStatusPrio(plant, prio){
+  _mttsDashAssetStatusPrio[plant]=prio;
+  _mttsDashboardRender();
+}
 function _mttsDashHpShiftDay(delta){
   var d=_mttsDashHpResolveDate();
   d.setDate(d.getDate()+delta);
@@ -5608,20 +5761,32 @@ function _mttsDashHpStatus(assets){
   var isFuture=(sel.getTime()>today.getTime());
   var dateValue=sel.getFullYear()+'-'+pad(sel.getMonth()+1)+'-'+pad(sel.getDate());
   var _dateLblForTip=sel.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-  // HP assets grouped by plant, sorted by name.
-  var hpByPlant={};
+  // V8 (260520) — Group ALL assets by plant (not just High). Per-plant
+  // criticality selection is driven by _mttsDashAssetStatusPrio with a
+  // 'High' default so the first render matches the prior HP-only view.
+  var assetsByPlant={};
   (assets||[]).forEach(function(a){
     if(!a) return;
     if(fPlant&&a.plant!==fPlant) return;
-    if((a.criticality||'')!=='High') return;
-    (hpByPlant[a.plant]=hpByPlant[a.plant]||[]).push(a);
+    (assetsByPlant[a.plant]=assetsByPlant[a.plant]||[]).push(a);
   });
-  Object.keys(hpByPlant).forEach(function(p){
-    hpByPlant[p].sort(function(a,b){
+  Object.keys(assetsByPlant).forEach(function(p){
+    assetsByPlant[p].sort(function(a,b){
       return String(_mttsAssetLabel(a)||a.id).localeCompare(String(_mttsAssetLabel(b)||b.id));
     });
   });
-  var plantKeys=Object.keys(hpByPlant).sort();
+  var plantKeys=Object.keys(assetsByPlant).sort();
+  // V8 (260520) — Open-ticket counts per (plant × criticality) for the
+  // H/M/L button badges. "Open" = anything not closed/scrapped.
+  var openByPlantPrio={};
+  (DB.mttsTickets||[]).forEach(function(t){
+    if(!t||t.status==='closed'||t.status==='scrapped') return;
+    if(fPlant&&t.plant!==fPlant) return;
+    var a=(DB.mttsAssets||[]).find(function(x){return x&&x.id===t.assetCode;});
+    if(!a) return;
+    var k=a.plant+'|'+(a.criticality||'Medium');
+    openByPlantPrio[k]=(openByPlantPrio[k]||0)+1;
+  });
   // V36 — Date picker inline with the panel title (in the card header).
   // Picker width is content-driven, no min-width floor.
   var picker='<div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">'+
@@ -5638,14 +5803,14 @@ function _mttsDashHpStatus(assets){
   var _mkCard=function(inner){
     return '<div class="card" style="margin-bottom:12px;padding:12px 4px 8px">'+
       '<div class="card-header" style="border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 6px 8px">'+
-        '<div class="card-title">High Priority Asset Status</div>'+
+        '<div class="card-title">Asset Status</div>'+
         picker+
       '</div>'+
       '<div style="padding:6px 4px 4px">'+inner+'</div>'+
     '</div>';
   };
   if(!plantKeys.length){
-    return _mkCard('<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No High-priority assets configured'+(fPlant?' for the selected plant':'')+'.</div>');
+    return _mkCard('<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No assets configured'+(fPlant?' for the selected plant':'')+'.</div>');
   }
   var legend='<div style="display:flex;align-items:center;gap:14px;font-size:10px;color:var(--text2);padding:0 2px 8px">'+
     '<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#f87171;border:1px solid rgba(0,0,0,.15)"></span>Active ticket</span>'+
@@ -5697,12 +5862,64 @@ function _mttsDashHpStatus(assets){
     });
     return tot;
   };
+  // V9 (260520) — 30-day day-by-day downtime + status bars for the
+  // selected day's strip. bars[0] = oldest day, bars[29] = selected
+  // day; each bar is `true` if any downtime fell on that day.
+  // `total` is the sum of downtime ms across the 30-day window. The
+  // window ends on the selected day so navigating the date picker
+  // shifts the strip with it.
+  var MS_DAY=86400000;
+  var assetThirtyDay=function(aid){
+    var bars=new Array(30);
+    var total=0;
+    var startCutoff=dayStart-29*MS_DAY;
+    var perTicket=(DB.mttsTickets||[]).filter(function(t){return t&&t.assetCode===aid;});
+    for(var i=29;i>=0;i--){
+      var dS=dayStart-i*MS_DAY;
+      var dE=dS+MS_DAY;
+      var dt=0;
+      for(var j=0;j<perTicket.length;j++){
+        var t=perTicket[j];
+        var start=t.breakdownSince?new Date(t.breakdownSince).getTime():new Date(t.raisedAt||0).getTime();
+        var end=_mttsDowntimeEnd(t);
+        var endMs=end?new Date(end).getTime():Date.now();
+        if(endMs<dS||start>=dE) continue;
+        var clipS=Math.max(dS,start);
+        var clipE=Math.min(dE,endMs);
+        if(clipE>clipS) dt+=(clipE-clipS);
+      }
+      bars[29-i]=(dt>0);
+      total+=dt;
+    }
+    return {bars:bars,total:total};
+  };
   // V12 (260518) — Each plant rendered as a self-contained card so
   // multiple plants seat side by side on wide screens (auto-fill grid,
   // 280px min track). On narrow viewports the grid collapses to a
   // single column so each plant card still gets a full row.
+  // V8 (260520) — Color map matches existing criticality semantics
+  // (red=High, amber=Medium, green=Low). Used by the H/M/L button row.
+  var _prioClr={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
+  var _prioLbl={High:'H',Medium:'M',Low:'L'};
+  var _prioOrder=['High','Medium','Low'];
   var laneCards=plantKeys.map(function(plant){
-    var arr=hpByPlant[plant];
+    // V8 (260520) — Per-plant selected criticality (default High).
+    // Plant's assets are filtered to the selected criticality for
+    // the chip grid + downtime totals; the H/M/L buttons show open-
+    // ticket counts for every criticality so the user can see what's
+    // available before switching.
+    var selPrio=_mttsDashAssetStatusPrio[plant]||'High';
+    var arr=(assetsByPlant[plant]||[]).filter(function(a){return (a.criticality||'Medium')===selPrio;});
+    var plantEsc=String(plant).replace(/'/g,"\\'");
+    var prioBtnsHtml=_prioOrder.map(function(pp){
+      var cnt=openByPlantPrio[plant+'|'+pp]||0;
+      var active=(pp===selPrio);
+      var bg=active?_prioClr[pp]:'#fff';
+      var fg=active?'#fff':'#0f172a';
+      var bd=active?_prioClr[pp]:'var(--border)';
+      var badgeBg=active?'rgba(255,255,255,.28)':_prioClr[pp];
+      return '<button type="button" onclick="event.stopPropagation();_mttsDashSetAssetStatusPrio(\''+plantEsc+'\',\''+pp+'\')" title="'+pp+' · '+cnt+' open ticket'+(cnt===1?'':'s')+'" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;line-height:1">'+_prioLbl[pp]+'<span style="background:'+badgeBg+';color:#fff;font-size:10px;font-weight:900;padding:1px 5px;border-radius:8px;min-width:14px;text-align:center;line-height:1.3">'+cnt+'</span></button>';
+    }).join('');
     var statuses=arr.map(function(a){return {a:a,st:statusForDay(a.id)};});
     // V15 (260518) — Sort alphabetically by asset name (irrespective of
     // status) so the layout is stable day-to-day.
@@ -5745,7 +5962,22 @@ function _mttsDashHpStatus(assets){
       if(x.st.sev===0 && !isFuture) fg='#0f172a';
       else if(x.st.sev===1) fg='#0f172a';
       else if(isFuture) fg='#475569';
-      return '<div class="mtts-hp-chip" data-mtts-tip="'+nameEsc+' · '+statusLbl+'" title="'+tip.replace(/"/g,'&quot;')+'" '+click+' style="width:62px;height:62px;display:inline-flex;align-items:center;justify-content:center;padding:4px;border-radius:8px;background:'+x.st.clr+';color:'+fg+';font-size:10.5px;font-weight:800;letter-spacing:.1px;border:1.5px solid rgba(0,0,0,.15);cursor:pointer;flex:0 0 62px;line-height:1.1;text-align:center;word-break:break-word;overflow:hidden;box-sizing:border-box">'+short+'</div>';
+      // V9 (260520) — Enlarged chip (5-col grid; aspect-ratio:1/1 so it
+      // scales with the plant card width, ~80% larger than the prior
+      // 62×62 on a typical desktop plant card). Three vertical bands:
+      // asset short name, 30-day day-by-day status strip (red = had
+      // downtime, green = healthy), and 30-day total downtime.
+      var info=assetThirtyDay(x.a.id);
+      var barCells=info.bars.map(function(hasDt){
+        return '<span style="background:'+(hasDt?'#dc2626':'#16a34a')+';border-radius:1px;display:block"></span>';
+      }).join('');
+      var thirtyDtLbl=fmtHM(info.total);
+      var thirtyTipDt=info.total>0?(' · 30d DT '+thirtyDtLbl):' · 30d clean';
+      return '<div class="mtts-hp-chip" data-mtts-tip="'+nameEsc+' · '+statusLbl+thirtyTipDt+'" title="'+(tip+thirtyTipDt).replace(/"/g,'&quot;')+'" '+click+' style="aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;padding:6px 5px;border-radius:8px;background:'+x.st.clr+';color:'+fg+';font-size:12px;font-weight:800;letter-spacing:.1px;border:1.5px solid rgba(0,0,0,.15);cursor:pointer;line-height:1.15;text-align:center;overflow:hidden;box-sizing:border-box;gap:3px;min-width:0">'+
+        '<div style="font-size:12px;line-height:1.15;font-weight:800;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:0 0 auto">'+short+'</div>'+
+        '<div title="Last 30 days · daily status" style="display:grid;grid-template-columns:repeat(30,minmax(0,1fr));gap:1px;height:14px;flex:0 0 auto">'+barCells+'</div>'+
+        '<div style="font-size:10px;font-weight:700;font-family:var(--mono);line-height:1;opacity:.95;flex:0 0 auto" title="30-day downtime total">'+thirtyDtLbl+'</div>'+
+      '</div>';
     }).join('');
     var plantNm=_mttsPlantLabel(plant)||plant;
     var plantBg=_mttsPlantColor(plant)||'#94a3b8';
@@ -5754,26 +5986,49 @@ function _mttsDashHpStatus(assets){
     // pill that uses the plant's color as its background. Short-form
     // badge dropped to declutter; the down/total count sits on the
     // right inside the same pill.
+    // V8 (260520) — chipsRow handles the empty case (no assets at the
+    // selected criticality) so the panel doesn't look broken; the H/M/L
+    // buttons remain visible so the user can switch.
+    var chipsRow=chips
+      ?chips
+      :'<span style="font-size:11px;color:var(--text3);font-style:italic">No '+selPrio.toLowerCase()+'-criticality assets at this plant.</span>';
     return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px;min-width:0">'+
       '<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;background:'+plantBg+';color:'+plantFg+';min-width:0">'+
         '<span style="font-size:13px;font-weight:900;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
         '<span style="flex:0 0 auto;font-size:11px;font-weight:800"><b style="font-size:13px">'+nDown+'</b>/'+arr.length+'</span>'+
       '</div>'+
-      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:24px">'+chips+'</div>'+
+      // V8 (260520) — H/M/L criticality selector + open-ticket counts.
+      '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:0 2px">'+prioBtnsHtml+'</div>'+
+      // V9 (260520) — 5-column responsive grid for the asset chips. Chip
+      // size scales with the plant card width (aspect-ratio:1/1); the
+      // outer plant grid widens to ensure desktop chips are ~80% bigger
+      // than the prior 62×62. Empty-priority fallback uses a flex row
+      // so the italic placeholder doesn't get squeezed into 1 of 5 cols.
+      (chips
+        ?'<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;min-height:24px">'+chipsRow+'</div>'
+        :'<div style="display:flex;align-items:center;min-height:24px">'+chipsRow+'</div>')+
       '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);border-top:1px dashed var(--border);padding-top:5px;margin-top:auto">'+
         '<span style="text-transform:uppercase;letter-spacing:.5px;font-weight:800">Downtime</span>'+
         '<span style="margin-left:auto;font-family:var(--mono);font-weight:900;font-size:12px;color:'+(dtMs>0?'#dc2626':'#16a34a')+'">'+fmtHM(dtMs)+'</span>'+
       '</div>'+
     '</div>';
   }).join('');
-  var lanes='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">'+laneCards+'</div>';
-  // Total plant DT for the day across all plants shown.
+  // V9 (260520) — Plant grid widened (280px → 560px min track) so the
+  // enlarged 5-chip row inside each plant card has room to breathe.
+  // `min(560px,100%)` clamps to the viewport width on narrow mobile.
+  var lanes='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(560px,100%),1fr));gap:8px">'+laneCards+'</div>';
+  // V8 (260520) — Total DT for the day across each plant's currently-
+  // selected criticality. With per-plant priority selection, this is a
+  // mixed-criticality total — relabelled accordingly below.
   var totalDt=0;
   plantKeys.forEach(function(p){
-    hpByPlant[p].forEach(function(a){ totalDt+=assetDtForDay(a.id); });
+    var pSel=_mttsDashAssetStatusPrio[p]||'High';
+    (assetsByPlant[p]||[]).filter(function(a){return (a.criticality||'Medium')===pSel;}).forEach(function(a){
+      totalDt+=assetDtForDay(a.id);
+    });
   });
   var totalLine='<div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--text2)">'+
-    '<span style="margin-left:auto;font-weight:800">Total HP DT for day:</span>'+
+    '<span style="margin-left:auto;font-weight:800">Total DT for day (shown assets):</span>'+
     '<span style="font-family:var(--mono);font-weight:900;font-size:14px;color:'+(totalDt>0?'#dc2626':'#16a34a')+'">'+fmtHM(totalDt)+'</span>'+
   '</div>';
   return _mkCard(legend+lanes+totalLine);
