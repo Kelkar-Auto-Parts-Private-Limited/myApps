@@ -636,9 +636,21 @@ function _toRow(tbl, rec) {
       make:r.make||'',model:r.model||'',
       warranty:r.warranty||{},amc:r.amc||{},
       criticality:r.criticality||'Medium',
-      status:r.status||'Active'
+      status:r.status||'Active',
+      // V18 (260520) — Preventive Maintenance applicable flag + schedule.
+      // Schedule shape: {frequency: 'Monthly'|'Quarterly'|'Half-Yearly'|
+      // 'Yearly'|'Custom', intervalDays?: number, lastDoneAt?: ISO,
+      // nextDueAt: 'YYYY-MM-DD'}. When pmApplicable=false the schedule
+      // is preserved but not enforced anywhere.
+      pm_applicable:!!r.pmApplicable,
+      pm_schedule:r.pmSchedule||{}
     };
     if(r.transferHistory!==undefined) _aRow.transfer_history=r.transferHistory;
+    // V18 (260520) — pmHistory follows the transferHistory lazy-load
+    // pattern: omitted from the row when the in-memory record doesn't
+    // carry it (boot strips this column for perf — its base64 job-card
+    // photos are heavy). Sending [] here would wipe the saved history.
+    if(r.pmHistory!==undefined) _aRow.pm_history=r.pmHistory;
     return _aRow;
   }
   if(tbl==='mttsTickets'){
@@ -791,6 +803,12 @@ function _fromRow(tbl, row) {
     warranty:row.warranty||{},amc:row.amc||{},
     criticality:row.criticality||'Medium',
     status:row.status||'Active',
+    // V18 (260520) — PM applicable flag + schedule. Always populated
+    // from the boot select. pmHistory follows transferHistory's lazy
+    // pattern (undefined when stripped at boot).
+    pmApplicable:!!row.pm_applicable,
+    pmSchedule:row.pm_schedule||{},
+    pmHistory:('pm_history' in row)?(row.pm_history||[]):undefined,
     // V38 — `undefined` (not `[]`) when the column wasn't in the select so
     // _toRow can omit it on save instead of wiping the DB value.
     transferHistory:('transfer_history' in row)?(row.transfer_history||[]):undefined
@@ -3267,6 +3285,12 @@ var _PERM_KEYS={
     {key:'action.editAgency',label:'Add / Edit / Delete Agency',group:'🤝 Agencies'},
     {key:'page.assets',label:'Asset Master Page',group:'🛠 Assets'},
     {key:'action.editAsset',label:'Add / Edit / Transfer Asset',group:'🛠 Assets'},
+    // V18 (260520) — Preventive Maintenance. Editing the PM applicable
+    // flag + schedule is gated separately from action.editAsset so
+    // Maintenance Managers can set up PM without needing the broader
+    // asset-edit permission. Defaults to None except Super Admin per
+    // the project's new-feature permission rule.
+    {key:'action.editPm',label:'Edit PM Applicable / Schedule',group:'🛠 Assets'},
     {key:'page.tickets',label:'Tickets Page',group:'🎫 Tickets'},
     {key:'action.raiseTicket',label:'Raise New Ticket',group:'🎫 Tickets'},
     {key:'action.allocateTicket',label:'Allocate Ticket to Technician',group:'🎫 Tickets'},

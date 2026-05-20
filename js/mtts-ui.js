@@ -21,7 +21,10 @@ if(typeof _APP_TABLES!=='undefined') _APP_TABLES=['users','locations','appSettin
 //     modal's history tab.
 var _SYNC_SELECT={
   'mtts_tickets':'id,code,asset_code,plant,asset_id,plant_id,breakdown_type,breakdown_since,status,raised_by,raised_at,assigned_to,assigned_at,assigned_by,tech_actions,root_cause,cost_service,cost_spares,approved_by,approved_at,updated_at',
-  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,updated_at',
+  // V18 (260520) — pm_applicable + pm_schedule included in boot; pm_history
+  // intentionally OMITTED (loaded on demand by _mttsLoadAssetPmHistory —
+  // base64 job-card photos can be multi-MB per asset).
+  'mtts_assets':'id,code,plant,asset_type,primary_name,plant_id,asset_type_id,primary_name_id,name_extension,dashboard_name,name,description,serial_no,install_date,make,model,warranty,amc,criticality,status,pm_applicable,pm_schedule,updated_at',
   // V90 — strip users.photo at MTTS boot.
   'vms_users':'id,code,name,full_name,mobile,email,roles,hwms_roles,hrms_roles,mtts_roles,apps,inactive,updated_at'
 };
@@ -1026,6 +1029,30 @@ function _mttsAssetTableHtml(rows,critClr,statusClr){
 // Optional preset: { plant, assetType, criticality } — used by Save & Add
 // Next so the next blank form keeps the previous picks for plant +
 // asset type (and priority) and the user can land on Primary Name.
+// V18 (260520) — PM Applicable toggle handler. Drives the hidden input
+// + the schedule wrap visibility + the visual active state of the
+// Yes/No buttons. Called from the form's onclick and from
+// _mttsAssetOpen during populate.
+function _mttsAssetSetPmApp(yes){
+  var hidden=document.getElementById('mttsAssetPmApplicable');
+  if(hidden) hidden.value=yes?'true':'false';
+  var wrap=document.getElementById('mttsAssetPmScheduleWrap');
+  if(wrap) wrap.style.display=yes?'block':'none';
+  Array.prototype.forEach.call(document.querySelectorAll('#mttsAssetPmAppBtns .mtts-pm-app-btn'),function(b){
+    var active=(b.dataset.val==='yes' && yes) || (b.dataset.val==='no' && !yes);
+    b.style.background=active?(yes?'#16a34a':'#e2e8f0'):'#fff';
+    b.style.color=active?(yes?'#fff':'#0f172a'):'var(--text)';
+    b.style.borderColor=active?(yes?'#16a34a':'#94a3b8'):'var(--border)';
+  });
+}
+// V18 (260520) — Show / hide the Custom Interval input based on the
+// Frequency dropdown. Custom = exact-day input is enabled.
+function _mttsAssetPmFreqChanged(){
+  var freq=document.getElementById('mttsAssetPmFreq').value;
+  var wrap=document.getElementById('mttsAssetPmIntervalWrap');
+  if(wrap) wrap.style.display=(freq==='Custom')?'block':'none';
+}
+
 function _mttsAssetOpen(id, preset){
   var canEdit=_mttsHasAccess('action.editAsset');
   if(!canEdit&&id===''){notify('You do not have permission to add assets',true);return;}
@@ -1089,6 +1116,36 @@ function _mttsAssetOpen(id, preset){
   document.getElementById('mttsAssetModel').value=a?(a.model||''):((preset&&preset.model)||'');
   document.getElementById('mttsAssetWarranty').value=a&&a.warranty?(a.warranty.until||''):((preset&&preset.warrantyUntil)||'');
   document.getElementById('mttsAssetAmc').value=a&&a.amc?(a.amc.until||''):((preset&&preset.amcUntil)||'');
+  // V18 (260520) — Populate PM fields from the asset (or preset for
+  // brand-new assets). _mttsAssetSetPmApp toggles the schedule wrap
+  // visibility AND updates the hidden Yes/No input; _mttsAssetPmFreqChanged
+  // shows/hides the Custom interval input.
+  var pmApp=a?!!a.pmApplicable:!!(preset&&preset.pmApplicable);
+  var pmSched=(a&&a.pmSchedule)||(preset&&preset.pmSchedule)||{};
+  _mttsAssetSetPmApp(pmApp);
+  document.getElementById('mttsAssetPmFreq').value=pmSched.frequency||'Monthly';
+  document.getElementById('mttsAssetPmInterval').value=pmSched.intervalDays||'';
+  document.getElementById('mttsAssetPmNextDue').value=pmSched.nextDueAt||'';
+  _mttsAssetPmFreqChanged();
+  // Last Done note (visible when there's history).
+  var pmLast=document.getElementById('mttsAssetPmLastDoneNote');
+  if(pmLast){
+    if(pmSched.lastDoneAt){
+      pmLast.textContent='Last PM done: '+pmSched.lastDoneAt+(pmSched.lastDoneBy?(' by '+pmSched.lastDoneBy):'');
+      pmLast.style.display='block';
+    } else { pmLast.style.display='none'; }
+  }
+  // Gate PM section by action.editPm — when the user lacks it, the
+  // section displays the values but the buttons / inputs are disabled.
+  var canEditPm=_mttsHasAccess('action.editPm');
+  ['mttsAssetPmFreq','mttsAssetPmInterval','mttsAssetPmNextDue'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.disabled=!canEditPm;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#mttsAssetPmAppBtns .mtts-pm-app-btn'),function(b){
+    b.disabled=!canEditPm;
+    b.style.cursor=canEditPm?'pointer':'not-allowed';
+    b.style.opacity=canEditPm?'1':'.65';
+  });
   // Re-set criticality after the field-by-field reset above (it shares the
   // hidden input style as the early-render one but is a no-op duplicate
   // unless an early-pass cleared it).
@@ -1334,6 +1391,19 @@ async function _mttsAssetSave(mode){
   // V25 (260518) — Dashboard Asset Name: free-text override of what
   // the dashboard chip shows. Empty → falls back to composed name.
   var dashName=_t('mttsAssetDashName');
+  // V18 (260520) — Collect PM fields when the user has action.editPm.
+  // When they don't, we preserve whatever was on the existing record
+  // (read below in the merge) so a non-MM edit doesn't accidentally
+  // clear the schedule.
+  var canEditPm=_mttsHasAccess('action.editPm');
+  var pmApplicable=document.getElementById('mttsAssetPmApplicable').value==='true';
+  var pmFreq=document.getElementById('mttsAssetPmFreq').value||'Monthly';
+  var pmIntervalRaw=document.getElementById('mttsAssetPmInterval').value;
+  var pmNextDue=document.getElementById('mttsAssetPmNextDue').value||'';
+  var freqDaysMap={Monthly:30,Quarterly:90,'Half-Yearly':180,Yearly:365};
+  var pmIntervalDays=(pmFreq==='Custom')
+    ? (parseInt(pmIntervalRaw,10)||0)
+    : (freqDaysMap[pmFreq]||30);
   var data={
     plant:plant,
     plantId:_mttsResolveDbId(DB.mttsPlants,plant),
@@ -1357,13 +1427,41 @@ async function _mttsAssetSave(mode){
   if(id){
     var existing=byId(DB.mttsAssets||[],id);
     if(!existing){_showErr('Asset not found');return;}
+    // V18 (260520) — Merge PM fields. Users without action.editPm
+    // keep the existing PM block unchanged. The schedule preserves
+    // lastDoneAt across edits (only the Mark Done flow updates it).
+    if(canEditPm){
+      data.pmApplicable=pmApplicable;
+      var prevSched=existing.pmSchedule||{};
+      data.pmSchedule=pmApplicable?{
+        frequency:pmFreq,
+        intervalDays:pmIntervalDays,
+        nextDueAt:pmNextDue||prevSched.nextDueAt||'',
+        lastDoneAt:prevSched.lastDoneAt||'',
+        lastDoneBy:prevSched.lastDoneBy||''
+      }:(prevSched.lastDoneAt?prevSched:{}); // keep history anchor when toggling off
+    } else {
+      data.pmApplicable=existing.pmApplicable;
+      data.pmSchedule=existing.pmSchedule||{};
+    }
     var bak=Object.assign({},existing);
     Object.assign(existing,data);
     var ok=await _dbSave('mttsAssets',existing);
     if(!ok){Object.assign(existing,bak);_showErr('Save failed');return;}
     notify('✓ Asset updated');
   } else {
-    var newAsset=Object.assign({id:'a'+uid(),transferHistory:[]},data);
+    // V18 (260520) — New asset: take whatever the user typed in the
+    // PM section regardless of action.editPm (Add flow already
+    // requires action.editAsset which is the broader gate).
+    data.pmApplicable=pmApplicable;
+    data.pmSchedule=pmApplicable?{
+      frequency:pmFreq,
+      intervalDays:pmIntervalDays,
+      nextDueAt:pmNextDue||'',
+      lastDoneAt:'',
+      lastDoneBy:''
+    }:{};
+    var newAsset=Object.assign({id:'a'+uid(),transferHistory:[],pmHistory:[]},data);
     if(!DB.mttsAssets) DB.mttsAssets=[];
     DB.mttsAssets.push(newAsset);
     var ok2=await _dbSave('mttsAssets',newAsset);
@@ -5582,6 +5680,100 @@ function _mttsCloseTicketDetail(){
   // for now; Esc + ✕ + outside-click still close it.
 }
 
+// V12 (260520) — Read-only popup that opens on left-click of an Asset
+// Status pill. Shows the asset's current status (latest open ticket
+// if any, otherwise "Healthy") + a structured asset details table.
+// SA / users with edit permission get an "Edit Asset" button at the
+// bottom; mobile users (where right-click isn't reliable) reach the
+// edit modal through that button.
+function _mttsAssetStatusInfo(id){
+  var a=byId(DB.mttsAssets||[],id);
+  if(!a){ notify('Asset not found',true); return; }
+  // Latest open ticket on this asset, if any. "Open" excludes
+  // closed/scrapped — repair_done stays here as "awaiting confirmation".
+  var openTickets=(DB.mttsTickets||[]).filter(function(t){
+    return t&&t.assetCode===id&&t.status!=='closed'&&t.status!=='scrapped';
+  }).sort(function(p,q){return String(q.raisedAt||'').localeCompare(String(p.raisedAt||''));});
+  var activeTicket=openTickets[0]||null;
+  var statusClr, statusFg, statusLbl, statusSub;
+  if(activeTicket){
+    if(activeTicket.status==='repair_done'){
+      statusClr='#f59e0b'; statusFg='#0f172a';
+      statusLbl='⏸ Repair done — awaiting confirmation';
+    } else if(activeTicket.status==='repair_done_challenged'){
+      statusClr='#dc2626'; statusFg='#fff';
+      statusLbl='⚠ Repair challenged';
+    } else {
+      statusClr='#dc2626'; statusFg='#fff';
+      statusLbl='⚠ Active ticket — '+(activeTicket.status||'open');
+    }
+    statusSub=activeTicket.id||'';
+  } else {
+    statusClr='#16a34a'; statusFg='#fff';
+    statusLbl='✓ Healthy — no open tickets';
+    statusSub='';
+  }
+  var fullName=(typeof _mttsAssetComposedName==='function'?_mttsAssetComposedName(a):'')||a.id||'';
+  var plantName=(typeof _mttsPlantLabel==='function'?(_mttsPlantLabel(a.plant)||a.plant):a.plant)||'—';
+  var typeRec=(DB.mttsAssetTypes||[]).find(function(t){return t&&t.id===a.assetType;});
+  var typeName=(typeRec&&typeRec.name)||a.assetType||'—';
+  var fmtDate=function(d){ return d||'—'; };
+  var rows=[
+    ['Plant', plantName],
+    ['Asset Type', typeName],
+    ['Primary Name', a.primaryName||'—'],
+    ['Name Extension', a.nameExtension||'—'],
+    ['Make', a.make||'—'],
+    ['Model', a.model||'—'],
+    ['Serial No', a.serialNo||'—'],
+    ['Install Date', fmtDate(a.installDate)],
+    ['Criticality', a.criticality||'Medium'],
+    ['Warranty Until', fmtDate(a.warranty&&a.warranty.until)],
+    ['AMC Until', fmtDate(a.amc&&a.amc.until)],
+    ['Lifecycle Status', a.status||'Active'],
+    ['Description', a.description||'—']
+  ];
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var rowsHtml=rows.map(function(r){
+    return '<tr><td style="padding:5px 10px;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #f1f5f9;white-space:nowrap;vertical-align:top">'+esc(r[0])+'</td>'+
+      '<td style="padding:5px 10px;font-size:13px;font-weight:600;color:var(--text);border-bottom:1px solid #f1f5f9;word-break:break-word">'+esc(r[1])+'</td></tr>';
+  }).join('');
+  var idEsc=String(id).replace(/'/g,"\\'");
+  var ticketIdEsc=activeTicket?String(activeTicket.id).replace(/'/g,"\\'"):'';
+  var canEdit=(typeof _mttsHasAccess==='function')&&_mttsHasAccess('action.editAsset');
+  var ov=document.getElementById('mttsAssetInfoOverlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='mttsAssetInfoOverlay';
+    document.body.appendChild(ov);
+  }
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;z-index:2147483647;padding:10px;overflow:auto';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:min(560px,98vw);max-height:calc(100vh - 20px);overflow:auto;padding:12px 14px;position:relative" onclick="event.stopPropagation()">'+
+    '<button type="button" onclick="_mttsCloseAssetInfo()" aria-label="Close" title="Close (Esc)" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border:none;border-radius:50%;background:#dc2626;color:#fff;font-size:13px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>'+
+    '<div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;padding-right:32px">🛠 Asset Status & Details</div>'+
+    '<div style="font-size:16px;font-weight:900;color:var(--text);line-height:1.25;margin-bottom:10px;word-break:break-word;padding-right:32px">'+esc(fullName)+'</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:'+statusClr+';color:'+statusFg+';margin-bottom:12px">'+
+      '<div style="font-size:14px;font-weight:900;flex:1">'+statusLbl+(statusSub?'<div style="font-size:11px;font-weight:700;opacity:.92;font-family:var(--mono);margin-top:2px">'+esc(statusSub)+'</div>':'')+'</div>'+
+      (activeTicket?'<button type="button" onclick="_mttsCloseAssetInfo();_mttsTicketDetail(\''+ticketIdEsc+'\')" style="font-size:11px;font-weight:800;padding:6px 10px;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.5);color:'+statusFg+';border-radius:6px;cursor:pointer;white-space:nowrap">🎫 View Ticket</button>':'')+
+    '</div>'+
+    '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">'+
+      '<table style="width:100%;border-collapse:collapse">'+rowsHtml+'</table>'+
+    '</div>'+
+    (canEdit?'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" onclick="_mttsCloseAssetInfo();_mttsAssetOpen(\''+idEsc+'\')" style="font-size:13px;font-weight:800;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">✎ Edit Asset</button></div>':'')+
+  '</div>';
+  ov.onclick=function(e){ if(e.target===ov) _mttsCloseAssetInfo(); };
+  var escH=function(ev){ if(ev.key==='Escape'){ ev.preventDefault(); _mttsCloseAssetInfo(); } };
+  if(ov._escH){ try{ document.removeEventListener('keydown',ov._escH); }catch(_){} }
+  ov._escH=escH;
+  document.addEventListener('keydown',escH);
+}
+function _mttsCloseAssetInfo(){
+  var ov=document.getElementById('mttsAssetInfoOverlay');
+  if(!ov) return;
+  if(ov._escH){ try{ document.removeEventListener('keydown',ov._escH); }catch(_){} ov._escH=null; }
+  ov.remove();
+}
+
 // V7 (260520) — Share the entire ticket detail panel (card + cost /
 // root-cause strips + activity timeline) as a PNG. If lazy-loaded
 // photos haven't landed yet, await them and re-render the overlay
@@ -5679,7 +5871,9 @@ function _mttsDashboardRender(){
   // strip was redundant.
   body.innerHTML=
     _mttsDashHpStatus(assets)+
-    _mttsDashPlantAssetStatus(tickets,assets)+
+    // V17 (260520) — Plant-wise Asset Status (calendar panel) replaced
+    // with a single plant × criticality reliability table.
+    _mttsDashReliabilityTable(assets)+
     _mttsDashTechLoad(tickets)+
     _mttsDashPlantTable(tickets)+
     _mttsDashTicketTable(tickets)+
@@ -5893,6 +6087,60 @@ function _mttsDashHpStatus(assets){
     }
     return {bars:bars,total:total};
   };
+  // V14 (260520) — Per-plant reliability stats over the 30-day window
+  // ending on the selected day. Numerator/denominator follow standard
+  // reliability definitions:
+  //   • Downtime  = Σ clipped downtime across this plant's assets
+  //                 (at the selected criticality) in the window.
+  //   • Failures  = count of tickets raised in the window for these
+  //                 assets (one ticket = one failure event).
+  //   • Available = assetCount × 30 days  (total possible run-time).
+  //   • Uptime%   = (Available − Downtime) / Available × 100.
+  //   • MTTR      = Downtime / Failures   (mean time to repair).
+  //   • MTBF      = (Available − Downtime) / Failures  (mean time
+  //                 between failures, using operational time as the
+  //                 numerator). Returns '—' when failures = 0.
+  var WINDOW_MS=30*MS_DAY;
+  var winStart=dayStart-29*MS_DAY;
+  var winEnd=dayEnd;
+  var plantStats=function(plantAssets){
+    var dt=0, failures=0;
+    var ids={};
+    plantAssets.forEach(function(a){ if(a&&a.id) ids[a.id]=1; });
+    (DB.mttsTickets||[]).forEach(function(t){
+      if(!t||!ids[t.assetCode]) return;
+      var raisedMs=t.raisedAt?new Date(t.raisedAt).getTime():0;
+      if(raisedMs>=winStart&&raisedMs<winEnd) failures++;
+      var start=t.breakdownSince?new Date(t.breakdownSince).getTime():raisedMs;
+      var end=_mttsDowntimeEnd(t);
+      var endMs=end?new Date(end).getTime():Date.now();
+      if(endMs<winStart||start>=winEnd) return;
+      var clipS=Math.max(winStart,start);
+      var clipE=Math.min(winEnd,endMs);
+      if(clipE>clipS) dt+=(clipE-clipS);
+    });
+    var available=plantAssets.length*WINDOW_MS;
+    var uptimeMs=Math.max(0, available-dt);
+    var uptimePct=available>0?(uptimeMs/available)*100:100;
+    return {
+      downtimeMs:dt,
+      failures:failures,
+      uptimePct:uptimePct,
+      mttrMs:failures>0?(dt/failures):null,
+      mtbfMs:failures>0?(uptimeMs/failures):null
+    };
+  };
+  // Day+hour formatter for MTBF (can run into days). Falls back to
+  // hrs+mins for sub-day durations.
+  var fmtHMD=function(ms){
+    if(ms==null) return '—';
+    if(ms<=0) return '0h';
+    var mins=Math.floor(ms/60000);
+    var hrs=Math.floor(mins/60);
+    var days=Math.floor(hrs/24);
+    if(days>=1) return days+'d '+(hrs%24)+'h';
+    return hrs+'h '+(mins%60)+'m';
+  };
   // V12 (260518) — Each plant rendered as a self-contained card so
   // multiple plants seat side by side on wide screens (auto-fill grid,
   // 280px min track). On narrow viewports the grid collapses to a
@@ -5918,7 +6166,8 @@ function _mttsDashHpStatus(assets){
       var fg=active?'#fff':'#0f172a';
       var bd=active?_prioClr[pp]:'var(--border)';
       var badgeBg=active?'rgba(255,255,255,.28)':_prioClr[pp];
-      return '<button type="button" onclick="event.stopPropagation();_mttsDashSetAssetStatusPrio(\''+plantEsc+'\',\''+pp+'\')" title="'+pp+' · '+cnt+' open ticket'+(cnt===1?'':'s')+'" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';font-size:11px;font-weight:800;border-radius:6px;cursor:pointer;line-height:1">'+_prioLbl[pp]+'<span style="background:'+badgeBg+';color:#fff;font-size:10px;font-weight:900;padding:1px 5px;border-radius:8px;min-width:14px;text-align:center;line-height:1.3">'+cnt+'</span></button>';
+      // V13 (260520) — H/M/L button + badge fonts bumped +2 px per request.
+      return '<button type="button" onclick="event.stopPropagation();_mttsDashSetAssetStatusPrio(\''+plantEsc+'\',\''+pp+'\')" title="'+pp+' · '+cnt+' open ticket'+(cnt===1?'':'s')+'" style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';font-size:13px;font-weight:800;border-radius:6px;cursor:pointer;line-height:1">'+_prioLbl[pp]+'<span style="background:'+badgeBg+';color:#fff;font-size:12px;font-weight:900;padding:1px 6px;border-radius:8px;min-width:16px;text-align:center;line-height:1.3">'+cnt+'</span></button>';
     }).join('');
     var statuses=arr.map(function(a){return {a:a,st:statusForDay(a.id)};});
     // V15 (260518) — Sort alphabetically by asset name (irrespective of
@@ -5930,6 +6179,8 @@ function _mttsDashHpStatus(assets){
     });
     var nDown=statuses.filter(function(x){return x.st.sev>=1;}).length;
     var dtMs=arr.reduce(function(s,a){return s+assetDtForDay(a.id);},0);
+    // V14 (260520) — 30-day reliability stats for the plant footer.
+    var pStats=plantStats(arr);
     var chips=statuses.map(function(x){
       // V15 (260518) — Short name uses ONLY primary name + extension
       // (no make/model/serial appended). Equal-size square blocks per
@@ -5945,16 +6196,21 @@ function _mttsDashHpStatus(assets){
       var nameEsc=String(name).replace(/"/g,'&quot;');
       var statusLbl=x.st.sev===2?'Active ticket':x.st.sev===1?'Repair done — awaiting':isFuture?'Future':'Healthy';
       var tip=name+' · '+statusLbl+(x.st.ticket?' · '+x.st.ticket.id:'');
-      // V17 (260518) — Red blocks (sev 2 = active ticket) keep their
-      // existing behaviour and open the ticket detail. Every other
-      // colour (green / yellow / future) opens the asset detail
-      // (_mttsAssetOpen — edit mode for SA, view mode for everyone
-      // else, so the asset name is also editable for SA).
+      // V12 (260520) — Click behaviour split:
+      //   • Left-click  → _mttsAssetStatusInfo (asset's current status
+      //                   + full details in a read-only popup, with a
+      //                   "View Ticket" shortcut when a ticket is open
+      //                   and an "Edit" button for users with edit
+      //                   permission).
+      //   • Right-click (contextmenu) → _mttsAssetOpen (the edit form,
+      //                   same modal that was previously the left-click
+      //                   target on green/yellow chips).
+      // The popup is the only affordance for mobile users (long-press
+      // contextmenu is unreliable on touch); the popup's Edit button
+      // covers them.
       var assetIdEsc=String(x.a.id||'').replace(/'/g,"\\'");
-      var ticketIdEsc=x.st.ticket?String(x.st.ticket.id).replace(/'/g,"\\'"):'';
-      var click=(x.st.sev===2 && x.st.ticket)
-        ?' onclick="event.stopPropagation();_mttsTicketDetail(\''+ticketIdEsc+'\')"'
-        :' onclick="event.stopPropagation();_mttsAssetOpen(\''+assetIdEsc+'\')"';
+      var click=' onclick="event.stopPropagation();_mttsAssetStatusInfo(\''+assetIdEsc+'\')"'+
+        ' oncontextmenu="event.stopPropagation();event.preventDefault();_mttsAssetOpen(\''+assetIdEsc+'\');return false;"';
       // V22 (260518) — Healthy bg lightened to #4ade80 — switch text
       // to dark slate so the short label stays legible (white on the
       // lighter green is borderline).
@@ -5975,8 +6231,11 @@ function _mttsDashHpStatus(assets){
       var thirtyTipDt=info.total>0?(' · 30d DT '+thirtyDtLbl):' · 30d clean';
       return '<div class="mtts-hp-chip" data-mtts-tip="'+nameEsc+' · '+statusLbl+thirtyTipDt+'" title="'+(tip+thirtyTipDt).replace(/"/g,'&quot;')+'" '+click+' style="aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;padding:6px 5px;border-radius:8px;background:'+x.st.clr+';color:'+fg+';font-size:12px;font-weight:800;letter-spacing:.1px;border:1.5px solid rgba(0,0,0,.15);cursor:pointer;line-height:1.15;text-align:center;overflow:hidden;box-sizing:border-box;gap:3px;min-width:0">'+
         '<div style="font-size:12px;line-height:1.15;font-weight:800;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:0 0 auto">'+short+'</div>'+
-        '<div title="Last 30 days · daily status" style="display:grid;grid-template-columns:repeat(30,minmax(0,1fr));gap:1px;height:14px;flex:0 0 auto">'+barCells+'</div>'+
-        '<div style="font-size:10px;font-weight:700;font-family:var(--mono);line-height:1;opacity:.95;flex:0 0 auto" title="30-day downtime total">'+thirtyDtLbl+'</div>'+
+        // V12 (260520) — 30 status bars now span THREE rows of 10
+        // (older 10 days on the top row, most-recent 10 on the bottom).
+        // Downtime total font bumped 11 → 13 px per user request.
+        '<div style="font-size:13px;font-weight:800;font-family:var(--mono);line-height:1;opacity:.95;flex:0 0 auto" title="30-day downtime total">'+thirtyDtLbl+'</div>'+
+        '<div title="Last 30 days · daily status (oldest top-left → newest bottom-right)" style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-rows:repeat(3,1fr);gap:1px;height:24px;flex:0 0 auto">'+barCells+'</div>'+
       '</div>';
     }).join('');
     var plantNm=_mttsPlantLabel(plant)||plant;
@@ -5992,13 +6251,43 @@ function _mttsDashHpStatus(assets){
     var chipsRow=chips
       ?chips
       :'<span style="font-size:11px;color:var(--text3);font-style:italic">No '+selPrio.toLowerCase()+'-criticality assets at this plant.</span>';
+    // V15 (260520) — Reliability stats row sits below the plant header.
+    // V16 (260520) — Made prominent: each stat is its own light-slate
+    // tile with a thick top accent stripe in the metric's colour, an
+    // uppercase label, and the value at 18 px mono. Tile background +
+    // colour-coded value make them stand out as the panel's headline
+    // numbers.
+    var statsRow=(function(){
+      var up=pStats.uptimePct;
+      var upClr=up>=95?'#16a34a':up>=90?'#f59e0b':'#dc2626';
+      var dtClr=pStats.downtimeMs>0?'#dc2626':'#16a34a';
+      var mkStat=function(lbl,val,clr,tip){
+        return '<div title="'+tip+'" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:8px 6px;background:#f8fafc;border:1px solid var(--border);border-top:3px solid '+(clr||'#94a3b8')+';border-radius:8px">'+
+          '<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;line-height:1">'+lbl+'</div>'+
+          '<div style="font-family:var(--mono);font-weight:900;font-size:18px;color:'+(clr||'#0f172a')+';line-height:1.05;white-space:nowrap">'+val+'</div>'+
+        '</div>';
+      };
+      return '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding-bottom:2px">'+
+        mkStat('Uptime', up.toFixed(1)+'%', upClr, 'Uptime % over the last 30 days = (available − downtime) / available')+
+        mkStat('MTTR', pStats.mttrMs==null?'—':fmtHM(pStats.mttrMs), '#0ea5e9', 'Mean Time To Repair = total downtime / number of failures (last 30 days)')+
+        mkStat('MTBF', pStats.mtbfMs==null?'—':fmtHMD(pStats.mtbfMs), '#8b5cf6', 'Mean Time Between Failures = operational time / number of failures (last 30 days)')+
+        mkStat('Downtime', fmtHM(pStats.downtimeMs), dtClr, 'Total downtime in the last 30 days for shown assets')+
+      '</div>';
+    })();
     return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px;min-width:0">'+
-      '<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;background:'+plantBg+';color:'+plantFg+';min-width:0">'+
-        '<span style="font-size:13px;font-weight:900;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
-        '<span style="flex:0 0 auto;font-size:11px;font-weight:800"><b style="font-size:13px">'+nDown+'</b>/'+arr.length+'</span>'+
+      // V13 (260520) — Plant pill + H/M/L buttons now share a single
+      // horizontal row. Pill grows to fill, buttons sit to its right;
+      // on narrow widths the buttons wrap below via flex-wrap.
+      // Plant-name + count fonts bumped +2 px per request.
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">'+
+        '<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;background:'+plantBg+';color:'+plantFg+';min-width:0;flex:1 1 220px">'+
+          '<span style="font-size:15px;font-weight:900;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:0" title="'+plantNm.replace(/"/g,'&quot;')+'">'+plantNm+'</span>'+
+          '<span style="flex:0 0 auto;font-size:13px;font-weight:800"><b style="font-size:15px">'+nDown+'</b>/'+arr.length+'</span>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:5px;flex:0 0 auto">'+prioBtnsHtml+'</div>'+
       '</div>'+
-      // V8 (260520) — H/M/L criticality selector + open-ticket counts.
-      '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:0 2px">'+prioBtnsHtml+'</div>'+
+      // V15 (260520) — Stats row immediately under the header.
+      statsRow+
       // V9 (260520) — 5-column responsive grid for the asset chips. Chip
       // size scales with the plant card width (aspect-ratio:1/1); the
       // outer plant grid widens to ensure desktop chips are ~80% bigger
@@ -6007,10 +6296,6 @@ function _mttsDashHpStatus(assets){
       (chips
         ?'<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;min-height:24px">'+chipsRow+'</div>'
         :'<div style="display:flex;align-items:center;min-height:24px">'+chipsRow+'</div>')+
-      '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);border-top:1px dashed var(--border);padding-top:5px;margin-top:auto">'+
-        '<span style="text-transform:uppercase;letter-spacing:.5px;font-weight:800">Downtime</span>'+
-        '<span style="margin-left:auto;font-family:var(--mono);font-weight:900;font-size:12px;color:'+(dtMs>0?'#dc2626':'#16a34a')+'">'+fmtHM(dtMs)+'</span>'+
-      '</div>'+
     '</div>';
   }).join('');
   // V9 (260520) — Plant grid widened (280px → 560px min track) so the
@@ -6034,229 +6319,125 @@ function _mttsDashHpStatus(assets){
   return _mkCard(legend+lanes+totalLine);
 }
 
-// V155-156 — Plant-wise asset status panel.
-//   • Month picker (defaults to current month, browsable back/forward).
-//   • Plant tab group along the top — short-form pill labels (P2 etc.);
-//     content swaps in place. Tabs only show plants that have any asset.
-//   • Per HP asset row: month-day calendar of R/Y/G/grey cells + total
-//     downtime in the selected month. Assets sorted by name.
-//   • Summary chips: H / M / L counts with "down" badges. Plant total
-//     downtime in the top-right corner of the section.
-var _mttsDashStatusMonth='';// 'YYYY-MM'; '' = current month
-var _mttsDashStatusPlant='';// plant code; '' = first plant in list
-function _mttsDashStatusSetMonth(v){_mttsDashStatusMonth=v||'';_mttsDashboardRender();}
-function _mttsDashStatusSetPlant(p){_mttsDashStatusPlant=p||'';_mttsDashboardRender();}
-function _mttsDashStatusShiftMonth(delta){
-  var cur=_mttsDashStatusCurrentDate();
-  var d=new Date(cur.getFullYear(),cur.getMonth()+delta,1);
-  var pad=function(n){return String(n).padStart(2,'0');};
-  _mttsDashStatusMonth=d.getFullYear()+'-'+pad(d.getMonth()+1);
-  _mttsDashboardRender();
-}
-function _mttsDashStatusCurrentDate(){
-  if(_mttsDashStatusMonth && /^\d{4}-\d{2}$/.test(_mttsDashStatusMonth)){
-    var p=_mttsDashStatusMonth.split('-');
-    return new Date(parseInt(p[0],10),parseInt(p[1],10)-1,1);
-  }
-  var n=new Date();return new Date(n.getFullYear(),n.getMonth(),1);
-}
-function _mttsDashPlantAssetStatus(_tickets,assets){
-  var now=new Date();
-  var pad=function(n){return String(n).padStart(2,'0');};
-  var monthStart=_mttsDashStatusCurrentDate();
-  var monthEnd=new Date(monthStart.getFullYear(),monthStart.getMonth()+1,1);
-  var daysInMonth=Math.round((monthEnd-monthStart)/86400000);
-  var monthMs=monthStart.getTime();
-  var isCurrentMonth=(monthStart.getFullYear()===now.getFullYear()&&monthStart.getMonth()===now.getMonth());
-  var todayDay=now.getDate();
+// V17 (260520) — Plant × Criticality reliability table.
+// Replaces the prior calendar-style "Plant-wise Asset Status" panel.
+// One row per (plant, criticality) bucket that has any asset; columns
+// are the four reliability KPIs over a rolling 30-day window ending
+// today: Uptime%, MTTR, MTBF, Downtime, plus a failure count.
+function _mttsDashReliabilityTable(assets){
   var fPlant=(document.getElementById('mttsDashPlantFilter')||{}).value||'';
-  var monthValue=monthStart.getFullYear()+'-'+pad(monthStart.getMonth()+1);
-  var monthName=monthStart.toLocaleString('en-IN',{month:'long',year:'numeric'});
-  // Tickets touching this month (no plant filter yet — applied per tab).
-  var monthTicketsAll=(DB.mttsTickets||[]).filter(function(t){
-    if(!t) return false;
-    var raised=t.raisedAt?new Date(t.raisedAt).getTime():0;
-    if(!raised) return false;
-    if(raised>=monthEnd.getTime()) return false;
-    var end=_mttsDowntimeEnd(t);
-    var endMs=end?new Date(end).getTime():Date.now();
-    if(endMs<monthMs) return false;
-    return true;
-  });
-  // Group ALL assets by plant (dashboard plant filter still narrows the set).
-  var byPlant={};
+  var MS_DAY=86400000;
+  var WIN_DAYS=30;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var winEnd=today.getTime()+MS_DAY; // end of today (exclusive)
+  var winStart=winEnd-WIN_DAYS*MS_DAY;
+  var fmtHM=function(ms){
+    if(ms==null) return '—';
+    if(!ms||ms<0) ms=0;
+    var mins=Math.floor(ms/60000),hrs=Math.floor(mins/60);
+    return hrs+'h '+(mins%60)+'m';
+  };
+  var fmtHMD=function(ms){
+    if(ms==null) return '—';
+    if(ms<=0) return '0h';
+    var mins=Math.floor(ms/60000),hrs=Math.floor(mins/60),days=Math.floor(hrs/24);
+    if(days>=1) return days+'d '+(hrs%24)+'h';
+    return hrs+'h '+(mins%60)+'m';
+  };
+  // Group assets into plant × criticality buckets.
+  var groups={};
   (assets||[]).forEach(function(a){
     if(!a) return;
     if(fPlant&&a.plant!==fPlant) return;
-    if(!byPlant[a.plant]) byPlant[a.plant]={H:[],M:[],L:[],U:[]};
-    var k=(a.criticality||'')==='High'?'H':(a.criticality==='Medium'?'M':(a.criticality==='Low'?'L':'U'));
-    byPlant[a.plant][k].push(a);
+    var c=a.criticality||'Medium';
+    var k=(a.plant||'')+'|'+c;
+    if(!groups[k]) groups[k]={plantId:a.plant||'',crit:c,assets:[]};
+    groups[k].assets.push(a);
   });
-  var plantKeys=Object.keys(byPlant).sort();
-  // V157 — Plant tabs + month picker live on the SAME row, so the
-  // header is a single horizontal strip. Empty-state out early when
-  // there are no plants / assets.
-  var monthControls=
-    '<button type="button" onclick="_mttsDashStatusShiftMonth(-1)" title="Previous month" style="width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:14px;font-weight:800;cursor:pointer;color:var(--text);flex:0 0 auto">‹</button>'+
-    '<input type="month" value="'+monthValue+'" onchange="_mttsDashStatusSetMonth(this.value)" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-family:var(--mono);font-weight:700;min-width:140px;flex:0 0 auto">'+
-    '<button type="button" onclick="_mttsDashStatusShiftMonth(1)" title="Next month" '+(isCurrentMonth?'disabled':'')+' style="width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:14px;font-weight:800;cursor:'+(isCurrentMonth?'not-allowed;opacity:.35':'pointer')+';color:var(--text);flex:0 0 auto">›</button>'+
-    (!isCurrentMonth?'<button type="button" onclick="_mttsDashStatusSetMonth(\'\')" style="font-size:11px;padding:5px 10px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text2);font-weight:700;flex:0 0 auto">↩ This month</button>':'');
-  if(!plantKeys.length){
-    var emptyHeader='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px">'+monthControls+'</div>';
-    return _mttsDashCard('Plant-wise Asset Status',emptyHeader+'<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No assets configured yet.</div>');
-  }
-  // Resolve active plant tab — fall back to the first plant if the
-  // previously-selected one is filtered out.
-  var activePlant=_mttsDashStatusPlant;
-  if(plantKeys.indexOf(activePlant)<0) activePlant=plantKeys[0];
-  // Plant tab strip + month picker — single row.
-  var tabsHtml='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 0 10px;border-bottom:1px solid var(--border);margin-bottom:10px">';
-  plantKeys.forEach(function(p){
-    var isAct=(p===activePlant);
-    var color=(typeof _mttsPlantColor==='function')?(_mttsPlantColor(p)||'#475569'):'#475569';
-    var label=(typeof _mttsPlantShort==='function')?_mttsPlantShort(p):(_mttsPlantLabel(p)||p);
-    var bg=isAct?color:'#fff';
-    var fg=isAct?'#fff':color;
-    var bd=color;
-    tabsHtml+='<button type="button" onclick="_mttsDashStatusSetPlant(\''+String(p).replace(/'/g,"\\'")+'\')" style="border:2px solid '+bd+';background:'+bg+';color:'+fg+';font-family:var(--mono);font-size:14px;font-weight:900;padding:6px 14px;border-radius:8px;cursor:pointer;letter-spacing:.5px;flex:0 0 auto">'+label+'</button>';
-  });
-  // Push the month controls to the far right of the same row.
-  tabsHtml+='<div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap">'+monthControls+'</div>';
-  tabsHtml+='</div>';
-  var fmtHM=function(ms){
-    if(!ms||ms<0) ms=0;
-    var mins=Math.floor(ms/60000);
-    var hrs=Math.floor(mins/60);
-    var m=mins%60;
-    return hrs+'h '+pad(m)+'m';
-  };
-  // ── Build the content for the active plant ───────────────────────────
-  var plant=activePlant;
-  var grp=byPlant[plant];
-  // Sort each priority bucket by asset name (A→Z) for predictable rows.
-  ['H','M','L','U'].forEach(function(k){
-    grp[k]=grp[k].slice().sort(function(a,b){
-      return String(_mttsAssetLabel(a)||a.id).localeCompare(String(_mttsAssetLabel(b)||b.id));
-    });
-  });
-  // Asset-id index set for fast ticket filtering.
-  var assetIds={};
-  [].concat(grp.H,grp.M,grp.L,grp.U).forEach(function(a){assetIds[a.id]=a;});
-  // Ticket bucket per asset id for the month, scoped to this plant.
-  var ticketsByAsset={};
-  monthTicketsAll.forEach(function(t){
-    if(t.plant!==plant) return;
-    if(!assetIds[t.assetCode]) return;
-    (ticketsByAsset[t.assetCode]=ticketsByAsset[t.assetCode]||[]).push(t);
-  });
-  // Per-asset downtime in month (clipped to month bounds).
-  var dtByAsset={};
-  Object.keys(ticketsByAsset).forEach(function(aid){
-    var tot=0;
-    ticketsByAsset[aid].forEach(function(t){
-      var start=Math.max(monthMs, t.breakdownSince?new Date(t.breakdownSince).getTime():new Date(t.raisedAt||0).getTime());
+  // Compute stats per bucket (30-day window).
+  var rows=Object.keys(groups).map(function(k){
+    var g=groups[k];
+    var ids={};
+    g.assets.forEach(function(a){ if(a&&a.id) ids[a.id]=1; });
+    var dt=0,failures=0;
+    (DB.mttsTickets||[]).forEach(function(t){
+      if(!t||!ids[t.assetCode]) return;
+      var raisedMs=t.raisedAt?new Date(t.raisedAt).getTime():0;
+      if(raisedMs>=winStart&&raisedMs<winEnd) failures++;
+      var start=t.breakdownSince?new Date(t.breakdownSince).getTime():raisedMs;
       var end=_mttsDowntimeEnd(t);
       var endMs=end?new Date(end).getTime():Date.now();
-      var clipped=Math.min(monthEnd.getTime(),endMs);
-      if(clipped>start) tot+=(clipped-start);
+      if(endMs<winStart||start>=winEnd) return;
+      var clipS=Math.max(winStart,start);
+      var clipE=Math.min(winEnd,endMs);
+      if(clipE>clipS) dt+=(clipE-clipS);
     });
-    dtByAsset[aid]=tot;
+    var available=g.assets.length*WIN_DAYS*MS_DAY;
+    var uptimeMs=Math.max(0,available-dt);
+    var uptimePct=available>0?(uptimeMs/available)*100:100;
+    return {
+      plantId:g.plantId,
+      plantName:_mttsPlantLabel(g.plantId)||g.plantId||'—',
+      plantColor:_mttsPlantColor(g.plantId)||'#94a3b8',
+      crit:g.crit,
+      assetCount:g.assets.length,
+      downtimeMs:dt,
+      failures:failures,
+      uptimePct:uptimePct,
+      mttrMs:failures>0?(dt/failures):null,
+      mtbfMs:failures>0?(uptimeMs/failures):null
+    };
   });
-  var isActive=function(t){return t&&t.status!=='closed'&&t.status!=='scrapped';};
-  var nDown=function(arr){
-    var s=0;
-    arr.forEach(function(a){
-      var hasOpen=(monthTicketsAll.some(function(t){return t.plant===plant&&t.assetCode===a.id&&isActive(t);}));
-      if(hasOpen) s++;
-    });
-    return s;
-  };
-  var dH=nDown(grp.H), dM=nDown(grp.M), dL=nDown(grp.L);
-  var plantDt=Object.keys(dtByAsset).reduce(function(s,k){return s+dtByAsset[k];},0);
-  var dayColor=function(aid, dayIdx){
-    if(isCurrentMonth && dayIdx+1>todayDay) return '#e2e8f0';
-    var dStart=monthMs+dayIdx*86400000;
-    var dEnd=dStart+86400000;
-    var tArr=ticketsByAsset[aid]||[];
-    var R=false, Y=false;
-    for(var i=0;i<tArr.length;i++){
-      var t=tArr[i];
-      var raised=t.raisedAt?new Date(t.raisedAt).getTime():0;
-      if(raised>=dEnd) continue;
-      var end=_mttsDowntimeEnd(t);
-      var endMs=end?new Date(end).getTime():Date.now();
-      if(endMs<dStart) continue;
-      var s=t.status;
-      if(s==='repair_done' && !t.confirmedByRaiser) Y=true;
-      else if(s!=='closed' && s!=='scrapped') R=true;
-      else if(s==='repair_done' && t.confirmedByRaiser) Y=true;
-    }
-    if(R) return '#dc2626';
-    if(Y) return '#f59e0b';
-    return '#16a34a';
-  };
-  var hpRows='';
-  if(grp.H.length){
-    var dayCells='';
-    for(var d=0;d<daysInMonth;d++){
-      var lbl=((d+1)%5===0||d===0)?String(d+1):'';
-      dayCells+='<div style="flex:1 1 0;min-width:8px;text-align:center;font-size:8px;color:var(--text3);font-family:var(--mono);line-height:1">'+lbl+'</div>';
-    }
-    hpRows+='<div style="display:flex;align-items:stretch;gap:8px;padding:4px 0;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1">'+
-      '<div style="flex:0 0 180px;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">HP Asset</div>'+
-      '<div style="flex:1 1 auto;display:flex;gap:1px">'+dayCells+'</div>'+
-      '<div style="flex:0 0 90px;text-align:right;font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Downtime</div>'+
-    '</div>';
-    grp.H.forEach(function(a){
-      var bars='';
-      for(var di=0;di<daysInMonth;di++){
-        var clr=dayColor(a.id,di);
-        var dt=new Date(monthMs+di*86400000);
-        var dtLbl=dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
-        bars+='<div title="'+dtLbl+'" style="flex:1 1 0;min-width:8px;height:18px;background:'+clr+';border-radius:2px"></div>';
-      }
-      var assetName=_mttsAssetLabel(a)||a.id;
-      var dtVal=dtByAsset[a.id]||0;
-      var dtClr=dtVal>0?'#dc2626':'#16a34a';
-      hpRows+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9">'+
-        '<div style="flex:0 0 180px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+String(assetName).replace(/"/g,'&quot;')+'">'+assetName+'</div>'+
-        '<div style="flex:1 1 auto;display:flex;gap:1px;align-items:center">'+bars+'</div>'+
-        '<div style="flex:0 0 90px;text-align:right;font-family:var(--mono);font-size:12px;font-weight:800;color:'+dtClr+'">'+fmtHM(dtVal)+'</div>'+
-      '</div>';
-    });
-  } else {
-    hpRows='<div style="padding:10px;font-size:11px;color:var(--text3);font-style:italic;text-align:center">No High-priority assets configured for this plant.</div>';
+  var critOrder={High:1,Medium:2,Low:3};
+  rows.sort(function(a,b){
+    var p=String(a.plantName).localeCompare(String(b.plantName));
+    if(p) return p;
+    return (critOrder[a.crit]||9)-(critOrder[b.crit]||9);
+  });
+  if(!rows.length){
+    return _mttsDashCard('Asset Reliability — last 30 days',
+      '<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No assets configured'+(fPlant?' for the selected plant':'')+'.</div>');
   }
-  var sumChip=function(lbl,total,down,c){
-    return '<span style="display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border-radius:8px;background:'+c.bg+';border:1px solid '+c.bd+'">'+
-      '<span style="font-size:10px;font-weight:800;color:'+c.fg+';text-transform:uppercase;letter-spacing:.4px">'+lbl+'</span>'+
-      '<b style="font-size:14px;color:'+c.fg+'">'+total+'</b>'+
-      (down>0?'<span style="font-size:10px;font-weight:800;color:#fff;background:#dc2626;padding:1px 6px;border-radius:8px">'+down+' down</span>':'')+
-    '</span>';
-  };
-  // V157 — Panel height is fixed (440px) so the section doesn't jump
-  // between plant tabs / months. The header chip strip stays anchored
-  // at the top; the HP-asset list scrolls inside the remaining space.
-  var plantPanel='<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff;height:440px;display:flex;flex-direction:column">'+
-    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;flex:0 0 auto">'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">'+
-        sumChip('High',grp.H.length,dH,{bg:'#fef2f2',bd:'#fecaca',fg:'#7f1d1d'})+
-        sumChip('Medium',grp.M.length,dM,{bg:'#fffbeb',bd:'#fde68a',fg:'#78350f'})+
-        sumChip('Low',grp.L.length,dL,{bg:'#f0fdf4',bd:'#bbf7d0',fg:'#14532d'})+
-      '</div>'+
-      '<div style="margin-left:auto;font-size:11px;color:var(--text2);text-align:right">Total Plant Downtime'+
-        '<div style="font-family:var(--mono);font-size:16px;font-weight:900;color:'+(plantDt>0?'#dc2626':'#16a34a')+';line-height:1.1">'+fmtHM(plantDt)+'</div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:4px">'+hpRows+'</div>'+
+  var critPill={High:'#dc2626',Medium:'#f59e0b',Low:'#16a34a'};
+  var critLbl={High:'H',Medium:'M',Low:'L'};
+  var th='padding:8px 10px;font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border-bottom:1.5px solid var(--border);text-align:left';
+  var thR='padding:8px 10px;font-size:11px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border-bottom:1.5px solid var(--border);text-align:right';
+  var td='padding:7px 10px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle';
+  var tdR='padding:7px 10px;font-size:13px;border-bottom:1px solid #f1f5f9;vertical-align:middle;text-align:right;font-family:var(--mono);font-weight:800;white-space:nowrap';
+  var bodyHtml=rows.map(function(r){
+    var upClr=r.uptimePct>=95?'#16a34a':r.uptimePct>=90?'#f59e0b':'#dc2626';
+    var dtClr=r.downtimeMs>0?'#dc2626':'#16a34a';
+    var critBg=critPill[r.crit]||'#94a3b8';
+    return '<tr>'+
+      '<td style="'+td+';white-space:nowrap">'+
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+r.plantColor+';margin-right:6px;vertical-align:middle"></span>'+
+        '<span style="font-weight:700;color:var(--text)">'+String(r.plantName).replace(/</g,'&lt;')+'</span>'+
+      '</td>'+
+      '<td style="'+td+';text-align:center;width:60px"><span style="display:inline-block;background:'+critBg+';color:#fff;font-weight:900;font-size:12px;padding:2px 9px;border-radius:5px;letter-spacing:.5px">'+critLbl[r.crit]+'</span></td>'+
+      '<td style="'+tdR+';color:var(--text2);font-weight:700">'+r.assetCount+'</td>'+
+      '<td style="'+tdR+';color:'+upClr+'">'+r.uptimePct.toFixed(1)+'%</td>'+
+      '<td style="'+tdR+';color:#0ea5e9">'+fmtHM(r.mttrMs)+'</td>'+
+      '<td style="'+tdR+';color:#8b5cf6">'+fmtHMD(r.mtbfMs)+'</td>'+
+      '<td style="'+tdR+';color:'+dtClr+'">'+fmtHM(r.downtimeMs)+'</td>'+
+      '<td style="'+tdR+';color:var(--text2)">'+r.failures+'</td>'+
+    '</tr>';
+  }).join('');
+  var tableHtml='<div style="overflow:auto;border:1px solid var(--border);border-radius:8px">'+
+    '<table style="width:100%;border-collapse:collapse;background:#fff">'+
+      '<thead><tr>'+
+        '<th style="'+th+'">Plant</th>'+
+        '<th style="'+th+';text-align:center">Crit</th>'+
+        '<th style="'+thR+'">Assets</th>'+
+        '<th style="'+thR+'" title="Uptime % = (available − downtime) / available">Uptime</th>'+
+        '<th style="'+thR+'" title="Mean Time To Repair = total downtime / failures">MTTR</th>'+
+        '<th style="'+thR+'" title="Mean Time Between Failures = operational time / failures">MTBF</th>'+
+        '<th style="'+thR+'">Downtime</th>'+
+        '<th style="'+thR+'" title="Failures = tickets raised in the last 30 days">Fails</th>'+
+      '</tr></thead>'+
+      '<tbody>'+bodyHtml+'</tbody>'+
+    '</table>'+
   '</div>';
-  var legend='<div style="display:flex;align-items:center;gap:12px;font-size:10px;color:var(--text2);padding:0 2px 6px">'+
-    '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#dc2626;border-radius:2px"></span>Active ticket</span>'+
-    '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#f59e0b;border-radius:2px"></span>Awaiting confirmation / approval</span>'+
-    '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#16a34a;border-radius:2px"></span>Healthy</span>'+
-    '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#e2e8f0;border-radius:2px"></span>Future</span>'+
-  '</div>';
-  return _mttsDashCard('Plant-wise Asset Status', tabsHtml+legend+plantPanel);
+  return _mttsDashCard('Asset Reliability — last 30 days', tableHtml);
 }
 
 function _mttsDashWindow(period){
@@ -6595,18 +6776,14 @@ function _mttsDashCosts(tickets){
 }
 
 function _mttsDashUpkeep(assets){
-  // PM, warranty, AMC tracking — flagged due (within 30 days) or overdue.
-  // IST so the "today" / "+30 days" cutoffs align with how dates are stored.
+  // V18 (260520) — Upkeep alerts now cover PM in addition to Warranty
+  // and AMC. A "due" PM is one whose nextDueAt is ≤ today+30d;
+  // "overdue" when the date has already passed. Skipped assets:
+  // status='Scrap' OR pmApplicable=false (for the PM rows).
   var todayStr=_mttsTodayStr();
   var _in30Ist=_mttsNowIST();_in30Ist.setUTCDate(_in30Ist.getUTCDate()+30);
   var _in30Pad=function(n){return n<10?'0'+n:''+n;};
   var in30Str=_in30Ist.getUTCFullYear()+'-'+_in30Pad(_in30Ist.getUTCMonth()+1)+'-'+_in30Pad(_in30Ist.getUTCDate());
-  var addMonths=function(dateStr,m){
-    if(!dateStr) return '';
-    var p=dateStr.split('-');var d=new Date(+p[0],+p[1]-1,+p[2]);
-    d.setMonth(d.getMonth()+m);
-    return d.toISOString().slice(0,10);
-  };
   var rows=[];
   assets.forEach(function(a){
     if(a.status==='Scrap') return;
@@ -6626,9 +6803,18 @@ function _mttsDashUpkeep(assets){
       else if(m<=in30Str) mState='due';
       if(mState) rows.push({asset:a,kind:'AMC',due:m,state:mState});
     }
+    // V18 (260520) — Preventive Maintenance.
+    if(a.pmApplicable && a.pmSchedule && a.pmSchedule.nextDueAt){
+      var pm=a.pmSchedule.nextDueAt;
+      var pmState=null;
+      if(pm<todayStr) pmState='overdue';
+      else if(pm<=in30Str) pmState='due';
+      if(pmState) rows.push({asset:a,kind:'PM',due:pm,state:pmState,freq:a.pmSchedule.frequency||''});
+    }
   });
-  if(!rows.length) return _mttsDashCard('Upkeep alerts (Warranty / AMC)','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No warranty / AMC items due or overdue. ✅</div>');
+  if(!rows.length) return _mttsDashCard('Upkeep alerts (PM / Warranty / AMC)','<div style="padding:18px;color:var(--text3);font-size:12px;text-align:center">No PM / warranty / AMC items due or overdue. ✅</div>');
   rows.sort(function(a,b){
+    // PM overdue first, then expired/overdue of other kinds, then due-soon.
     var rk={overdue:0,expired:0,due:1};
     var ra=rk[a.state],rb=rk[b.state];
     if(ra!==rb) return ra-rb;
@@ -6639,8 +6825,9 @@ function _mttsDashUpkeep(assets){
   var td='padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
   var stateClr={overdue:'#dc2626',expired:'#dc2626',due:'#f59e0b'};
   var stateLbl={overdue:'Overdue',expired:'Expired',due:'Due ≤ 30d'};
+  var kindIcon={Warranty:'🛡',AMC:'📋',PM:'🔧'};
   var html=
-    '<div style="overflow:auto;max-height:320px"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
+    '<div style="overflow:auto;max-height:340px"><table style="width:100%;border-collapse:collapse"><thead><tr>'+
       '<th style="'+th+'">Asset</th>'+
       '<th style="'+th+'">Plant</th>'+
       '<th style="'+th+'">Kind</th>'+
@@ -6648,15 +6835,17 @@ function _mttsDashUpkeep(assets){
       '<th style="'+th+'">State</th>'+
     '</tr></thead><tbody>'+
     rows.map(function(r){
-      return '<tr><td style="'+td+';font-weight:700">'+(r.asset.name||'—')+
+      var idEsc=String(r.asset.id||'').replace(/'/g,"\\'");
+      var kindCell=(kindIcon[r.kind]||'')+' '+r.kind+(r.kind==='PM'&&r.freq?(' <span style="font-size:10px;color:var(--text3)">· '+r.freq+'</span>'):'');
+      return '<tr><td style="'+td+';font-weight:700;cursor:pointer" onclick="_mttsAssetStatusInfo(\''+idEsc+'\')" title="Click to open status & details">'+(r.asset.name||'—')+
         '<div style="font-size:10px;color:var(--text3)">'+(r.asset.assetType||'')+'</div></td>'+
         '<td style="'+td+'">'+plantLbl(r.asset.plant)+'</td>'+
-        '<td style="'+td+'">'+r.kind+'</td>'+
+        '<td style="'+td+'">'+kindCell+'</td>'+
         '<td style="'+td+';font-family:var(--mono)">'+r.due+'</td>'+
         '<td style="'+td+'"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:800;background:'+stateClr[r.state]+'22;color:'+stateClr[r.state]+'">'+stateLbl[r.state]+'</span></td></tr>';
     }).join('')+
     '</tbody></table></div>';
-  return _mttsDashCard('Upkeep alerts (Warranty / AMC)',html);
+  return _mttsDashCard('Upkeep alerts (PM / Warranty / AMC)',html);
 }
 
 function _mttsDashCard(title,inner){
